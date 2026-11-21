@@ -740,3 +740,73 @@ async fn mounted_finding_action_uses_react_label_and_emits_current_target() {
     );
     root.remove();
 }
+
+fn layout_destination_document() -> ProjectDoc {
+    let part = |id: &str| Part {
+        keycap: None,
+        outline: None,
+        anchor: None,
+        id: id.into(),
+        definition_id: "definition".into(),
+        reference: id.to_uppercase(),
+        pose: Pose2 {
+            at: Vec2 { x: 1.0, y: 2.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+    };
+    let board = |id: &str, part_ids: &[&str]| Board {
+        id: id.into(),
+        name: id.into(),
+        outline_ids: vec![],
+        part_ids: part_ids.iter().map(|id| (*id).to_owned()).collect(),
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    };
+    let mut document = ProjectDoc::empty("doc", "Findings fixture");
+    document.boards.push(board("left", &["left-part"]));
+    document.boards.push(board("right", &["right-part"]));
+    document.parts.push(part("left-part"));
+    document.parts.push(part("right-part"));
+    document
+}
+
+#[test]
+fn destination_requires_the_target_to_still_live_on_its_named_board() {
+    let document = layout_destination_document();
+    let live = FindingNavigationTarget::Part {
+        board_id: "left".into(),
+        part_id: "left-part".into(),
+    };
+    assert!(target_has_live_layout_destination(&live, &document));
+
+    // Part listed by the board but deleted from the document.
+    let mut deleted = document.clone();
+    deleted.parts.retain(|part| part.id != "left-part");
+    assert!(!target_has_live_layout_destination(&live, &deleted));
+
+    // Part removed from its board (stale target) and part owned by another board.
+    let mut unlisted = document.clone();
+    unlisted.boards[0].part_ids.clear();
+    assert!(!target_has_live_layout_destination(&live, &unlisted));
+    let other_board = FindingNavigationTarget::Part {
+        board_id: "left".into(),
+        part_id: "right-part".into(),
+    };
+    assert!(!target_has_live_layout_destination(&other_board, &document));
+
+    // Board that no longer exists.
+    let gone = FindingNavigationTarget::Board {
+        board_id: "removed".into(),
+    };
+    assert!(!target_has_live_layout_destination(&gone, &document));
+    let live_board = FindingNavigationTarget::Board {
+        board_id: "right".into(),
+    };
+    assert!(target_has_live_layout_destination(&live_board, &document));
+}

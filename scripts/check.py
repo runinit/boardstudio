@@ -162,7 +162,6 @@ def browser() -> list[Command]:
             crate_launch("host"),
             crate_launch("worker-host"),
             crate_launch("runtime"),
-            crate_launch("ui-model"),
             crate_launch("ui-shared"),
             crate_launch("keycaps"),
             crate_launch("library"),

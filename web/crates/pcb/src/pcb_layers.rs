@@ -1,32 +1,16 @@
 //! Layer inventory and visibility grouping for accepted host PCB scene geometry.
 use super::canvas_layers::{CanvasLayer, CanvasLayerGroup, CanvasLayers};
 use super::footprint_graphics::generator_drawings;
+use crate::pcb_layer_inventory::{
+    GeneratorLayerInventory, GeneratorLayerRequest, GeneratorLayerSource, current_generator_layers,
+    extend_generator_layers,
+};
 use crate::pcb_layer_projection::pad_copper_layers;
 pub use crate::pcb_layer_projection::pad_is_visible;
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_model::model::{Part, PartDefinition, ProjectDoc, Side};
-use boardstudio_web_ui_shared::board_layer::resolve_board_layer;
+use boardstudio_model::model::{Part, ProjectDoc};
 use dioxus::prelude::*;
 use std::collections::{BTreeSet, HashSet};
-
-#[derive(Clone, Debug, PartialEq)]
-struct GeneratorLayerSource {
-    definition: PartDefinition,
-    parameters: Option<std::collections::BTreeMap<String, serde_json::Value>>,
-    side: Side,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct GeneratorLayerRequest {
-    scope: Scope,
-    sources: Vec<GeneratorLayerSource>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct GeneratorLayerInventory {
-    request: GeneratorLayerRequest,
-    layers: BTreeSet<String>,
-}
 
 #[derive(Props, Clone, PartialEq)]
 pub struct PcbLayerControlsProps {
@@ -107,16 +91,6 @@ fn generator_sources(snapshot: &AcceptedSnapshot, scope: &Scope) -> Vec<Generato
         .collect()
 }
 
-fn current_generator_layers(
-    request: &GeneratorLayerRequest,
-    inventory: Option<&GeneratorLayerInventory>,
-) -> BTreeSet<String> {
-    inventory
-        .filter(|inventory| inventory.request == *request)
-        .map(|inventory| inventory.layers.clone())
-        .unwrap_or_default()
-}
-
 async fn collect_generator_layers(request: GeneratorLayerRequest) -> GeneratorLayerInventory {
     let mut layers = BTreeSet::new();
     for source in &request.sources {
@@ -129,18 +103,6 @@ async fn collect_generator_layers(request: GeneratorLayerRequest) -> GeneratorLa
         extend_generator_layers(&mut layers, &source.side, result);
     }
     GeneratorLayerInventory { request, layers }
-}
-
-fn extend_generator_layers(
-    layers: &mut BTreeSet<String>,
-    side: &Side,
-    result: Result<Option<super::footprint_graphics::Drawings>, String>,
-) {
-    if let Ok(Some(drawings)) = result {
-        for graphic in drawings.iter() {
-            layers.insert(resolve_board_layer(&graphic.layer, side));
-        }
-    }
 }
 
 pub fn layer_groups_for_scene(
@@ -266,105 +228,5 @@ fn visible_layer_label(layer: &str) -> String {
         "B.Cu" => "Back copper".into(),
         "Edge.Cuts" => "Board outline".into(),
         _ => layer.to_owned(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::footprint_forms::{Graphic, Point, Shape};
-    use boardstudio_application::SessionEpoch;
-    use boardstudio_model::model::{PartGenerator, PartKind};
-    use std::rc::Rc;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    fn completed_inventory_from_an_old_board_scope_is_not_reused() {
-        let scope = |board_id: &str| Scope {
-            session_epoch: SessionEpoch(2),
-            document_id: "doc".into(),
-            board_id: board_id.into(),
-            instance_id: None,
-        };
-        let old_request = GeneratorLayerRequest {
-            scope: scope("left"),
-            sources: vec![],
-        };
-        let current_request = GeneratorLayerRequest {
-            scope: scope("right"),
-            sources: vec![],
-        };
-        let previous = GeneratorLayerInventory {
-            request: old_request,
-            layers: BTreeSet::from(["F.SilkS".into()]),
-        };
-        assert!(current_generator_layers(&current_request, Some(&previous)).is_empty());
-    }
-
-    #[wasm_bindgen_test]
-    fn completed_inventory_from_an_old_generator_definition_is_not_reused() {
-        let scope = Scope {
-            session_epoch: SessionEpoch(2),
-            document_id: "doc".into(),
-            board_id: "left".into(),
-            instance_id: None,
-        };
-        let definition = |id: &str| PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            id: id.into(),
-            name: id.into(),
-            kind: PartKind::Custom,
-            keycap: None,
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            courtyard: vec![],
-            pads: vec![],
-            models: None,
-            generator: Some(PartGenerator {
-                source: id.into(),
-                version: "1".into(),
-                parameters: Default::default(),
-            }),
-            mechanical_profile: None,
-        };
-        let source = |id: &str| GeneratorLayerSource {
-            definition: definition(id),
-            parameters: None,
-            side: Side::Front,
-        };
-        let old_request = GeneratorLayerRequest {
-            scope: scope.clone(),
-            sources: vec![source("old")],
-        };
-        let current_request = GeneratorLayerRequest {
-            scope,
-            sources: vec![source("new")],
-        };
-        let previous = GeneratorLayerInventory {
-            request: old_request,
-            layers: BTreeSet::from(["F.SilkS".into()]),
-        };
-        assert!(current_generator_layers(&current_request, Some(&previous)).is_empty());
-    }
-
-    #[wasm_bindgen_test]
-    fn one_generator_failure_does_not_drop_other_emitted_layer_rows() {
-        let mut layers = BTreeSet::new();
-        extend_generator_layers(
-            &mut layers,
-            &Side::Front,
-            Ok(Some(Rc::new(vec![Graphic {
-                layer: "F.SilkS".into(),
-                shape: Shape::Circle(Point(0.0, 0.0), 1.0),
-            }]))),
-        );
-        extend_generator_layers(&mut layers, &Side::Front, Err("one bad source".into()));
-        assert_eq!(layers, BTreeSet::from(["F.SilkS".into()]));
     }
 }

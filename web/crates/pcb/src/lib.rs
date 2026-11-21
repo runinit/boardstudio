@@ -62,6 +62,7 @@ pub(crate) mod parts {
 
 pub mod connector_admission;
 pub mod firmware_position_choices;
+mod pcb_layer_inventory;
 mod pcb_layer_projection;
 pub mod pcb_wiring_remap_operation;
 

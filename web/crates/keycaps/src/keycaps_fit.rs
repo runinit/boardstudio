@@ -1155,6 +1155,39 @@ pub fn target_board_id(target: &FindingNavigationTarget) -> &str {
     }
 }
 
+pub fn target_has_live_layout_destination(
+    target: &FindingNavigationTarget,
+    document: &ProjectDoc,
+) -> bool {
+    let board_id = target_board_id(target);
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return false;
+    };
+    match target {
+        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. } => true,
+        FindingNavigationTarget::Part { part_id, .. } => {
+            board.part_ids.iter().any(|id| id == part_id)
+                && document.parts.iter().any(|part| part.id == *part_id)
+        }
+        FindingNavigationTarget::Matrix { matrix_id, .. } => {
+            document.matrices.iter().any(|matrix| {
+                matrix.id == *matrix_id
+                    && matrix
+                        .board_id
+                        .as_deref()
+                        .is_none_or(|owner| owner == board_id)
+                    && matrix
+                        .part_ids
+                        .iter()
+                        .any(|part_id| board.part_ids.contains(part_id))
+            })
+        }
+        FindingNavigationTarget::Body { .. } | FindingNavigationTarget::MechanicalLayer { .. } => {
+            false
+        }
+    }
+}
+
 #[cfg(test)]
 pub fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc) {
     use boardstudio_application::SessionEpoch;
