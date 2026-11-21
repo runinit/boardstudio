@@ -27,7 +27,7 @@ pub struct Runtime {
     session: RefCell<Session>,
     engine: RefCell<ScratchCore>,
     services: CoreServices,
-    pub(crate) outcomes: crate::operation_outcomes::OperationOutcomes,
+    pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     next_operation: Cell<u64>,
     saves: RefCell<BTreeMap<String, ProjectDoc>>,
     #[cfg(any(test, feature = "test-support"))]
@@ -72,7 +72,7 @@ impl Runtime {
             session: RefCell::new(Session::new(services.validate_open)),
             engine: RefCell::new((services.open_scratch)()),
             services,
-            outcomes: Default::default(),
+            operation_outcomes: Default::default(),
             next_operation: Cell::new(1),
             saves: RefCell::new(BTreeMap::new()),
             #[cfg(any(test, feature = "test-support"))]
@@ -121,12 +121,16 @@ impl Runtime {
         &self,
         operation: OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot {
-        self.outcomes.observe(operation)
+        self.operation_outcomes.observe(operation)
     }
 
     pub fn submit(&self, event: Event) {
         self.events.push(event.clone());
+        let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
+        if self.scope() != previous_scope {
+            self.operation_outcomes.retire_edit_scope();
+        }
         self.drive(effects.into());
     }
 
@@ -172,7 +176,7 @@ impl Runtime {
         };
         self.core_entered.set(false);
         let reply = (self.engine.borrow_mut())(*request);
-        let effects = self.session.borrow_mut().complete(Completion::Core {
+        let effects = self.complete(Completion::Core {
             request_id,
             executor_epoch,
             reply: Box::new(reply),
@@ -197,11 +201,20 @@ impl Runtime {
     }
 
     fn finish_save(&self, save_attempt_id: boardstudio_application::SaveAttemptId) {
-        let effects = self.session.borrow_mut().complete(Completion::Persist {
+        let effects = self.complete(Completion::Persist {
             save_attempt_id,
             result: SaveResult::Committed,
         });
         self.drive(effects.into());
+    }
+
+    fn complete(&self, event: Completion) -> Vec<Effect> {
+        let previous_scope = self.scope();
+        let effects = self.session.borrow_mut().complete(event);
+        if self.scope() != previous_scope {
+            self.operation_outcomes.retire_edit_scope();
+        }
+        effects
     }
 
     fn drive(&self, mut effects: VecDeque<Effect>) {
@@ -223,15 +236,11 @@ impl Runtime {
                     outcome,
                     landing,
                 } => {
-                    self.outcomes
+                    self.operation_outcomes
                         .settle_with_landing(operation_id, outcome, landing);
                 }
                 Effect::RestartCoreExecutor { executor_epoch } => {
-                    effects.extend(
-                        self.session
-                            .borrow_mut()
-                            .complete(Completion::ExecutorRestarted { executor_epoch }),
-                    );
+                    effects.extend(self.complete(Completion::ExecutorRestarted { executor_epoch }));
                 }
                 _ => {}
             }
@@ -249,8 +258,6 @@ impl Runtime {
     ) -> VecDeque<Effect> {
         match self.gates.take_core() {
             Some(OneShotBehavior::Fail(reason)) => self
-                .session
-                .borrow_mut()
                 .complete(Completion::CoreFailed {
                     request_id,
                     executor_epoch,
@@ -264,14 +271,12 @@ impl Runtime {
             }
             None => {
                 let reply = (self.engine.borrow_mut())(*request);
-                self.session
-                    .borrow_mut()
-                    .complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    })
-                    .into()
+                self.complete(Completion::Core {
+                    request_id,
+                    executor_epoch,
+                    reply: Box::new(reply),
+                })
+                .into()
             }
         }
     }
@@ -284,8 +289,6 @@ impl Runtime {
     ) -> VecDeque<Effect> {
         match self.gates.take_save() {
             Some(OneShotBehavior::Fail(reason)) => self
-                .session
-                .borrow_mut()
                 .complete(Completion::Persist {
                     save_attempt_id,
                     result: SaveResult::Aborted(reason),
@@ -308,12 +311,10 @@ impl Runtime {
         self.saves
             .borrow_mut()
             .insert(document.id.clone(), document.clone());
-        self.session
-            .borrow_mut()
-            .complete(Completion::Persist {
-                save_attempt_id,
-                result: SaveResult::Committed,
-            })
-            .into()
+        self.complete(Completion::Persist {
+            save_attempt_id,
+            result: SaveResult::Committed,
+        })
+        .into()
     }
 }

@@ -145,8 +145,13 @@ pub fn use_mechanical_settings_mount(
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
             let submit_runtime = runtime_for_operation.clone();
-            let edit_port: Rc<dyn boardstudio_web_runtime::edit_ticket::EditTicketPort> =
-                Rc::new(submit_runtime);
+            let resolve_edit = Rc::new(move |resolver| {
+                submit_runtime.resolve_edit(
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            });
             let publish_alive = alive.clone();
             let publish_current = current.clone();
             let publish = Rc::new(move |entry: MechanicalSettingsFeedback| {
@@ -207,7 +212,7 @@ pub fn use_mechanical_settings_mount(
             MechanicalSettingsController::new(MechanicalSettingsPorts {
                 current: current.clone(),
                 load_mounting_hole,
-                edit_port,
+                resolve_edit,
                 publish,
             })
         }

@@ -801,8 +801,8 @@ pub fn ModuleProfileEditor(
 mod settlement_tests {
     use super::*;
     use boardstudio_model::model::ProjectDoc;
-    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_test_runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
@@ -967,7 +967,7 @@ mod settlement_tests {
         assert_eq!(pulses.value(), "20", "a clean rotary draft follows Redo");
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let mut blocker = PendingEdits::default();
+        let blocker = DraftEdits::<_, ()>::default();
         blocker.begin(
             &runtime,
             (),
@@ -1034,7 +1034,7 @@ mod settlement_tests {
         changed.steps = Some(24);
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let first = support::observe_next(&runtime);
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             0_u64,
@@ -1074,7 +1074,7 @@ mod settlement_tests {
         .await;
         assert!(
             matches!(
-                edits.settle(true).as_slice(),
+                edits.discard_drafts(true).as_slice(),
                 [
                     PendingEditResult::Landed { .. },
                     PendingEditResult::Landed { .. }

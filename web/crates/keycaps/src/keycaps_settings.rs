@@ -8,8 +8,8 @@ use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::draft_edits::FieldView;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -166,6 +166,7 @@ pub struct KeycapsSettingsActions {
 }
 
 /// Compare by field identity so a newer request replaces its observation.
+#[derive(Clone)]
 struct KeycapsPendingKey(KeycapsEditRequest);
 
 impl PartialEq for KeycapsPendingKey {
@@ -177,9 +178,9 @@ impl PartialEq for KeycapsPendingKey {
 /// Board and Matrix edits follow the scope and workspace. Key edits also follow selection.
 #[derive(Default)]
 struct KeycapsEdits {
-    shared: PendingEdits<KeycapsPendingKey>,
+    shared: DraftEdits<KeycapsPendingKey>,
     shared_owner: Option<(Option<Scope>, u64, &'static str)>,
-    key: PendingEdits<KeycapsPendingKey>,
+    key: DraftEdits<KeycapsPendingKey>,
     key_owner: u64,
 }
 
@@ -194,11 +195,11 @@ impl KeycapsEdits {
     ) {
         let shared_owner = (scope.cloned(), scope_generation, workspace);
         if self.shared_owner.as_ref() != Some(&shared_owner) {
-            self.shared = PendingEdits::default();
+            self.shared = DraftEdits::default();
             self.shared_owner = Some(shared_owner);
         }
         if self.key_owner != owner_generation {
-            self.key = PendingEdits::default();
+            self.key = DraftEdits::default();
             self.key_owner = owner_generation;
         }
     }
@@ -242,6 +243,7 @@ fn pending_changes(
     };
     tickets
         .pending_keys()
+        .into_iter()
         .filter(|KeycapsPendingKey(request)| {
             request.scope == actions.scope
                 && request.scope_generation == actions.scope_generation
@@ -409,9 +411,9 @@ pub fn use_keycaps_settings_actions(
             }
             let document = runtime.model().accepted.map(|snapshot| snapshot.document);
             let results = {
-                let mut guard = edits.write();
-                let mut results = guard.shared.settle(true);
-                results.extend(guard.key.settle(true));
+                let guard = edits.write();
+                let mut results = guard.shared.discard_drafts(true);
+                results.extend(guard.key.discard_drafts(true));
                 results
             };
             for result in results {
@@ -478,7 +480,8 @@ pub fn use_keycaps_settings_actions(
         guard
             .shared
             .pending_keys()
-            .chain(guard.key.pending_keys())
+            .into_iter()
+            .chain(guard.key.pending_keys().into_iter())
             .map(|KeycapsPendingKey(request)| request)
             .filter(|request| {
                 request_owner_is_current(

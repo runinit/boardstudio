@@ -177,7 +177,7 @@ pub fn LayoutAnchorPickOverlay(
         old_anchor_label: String,
         new_anchor_label: String,
     }
-    let waiting = use_signal(|| None::<(EditTicket, AnchorPickFollowUp)>);
+    let waiting = use_signal(|| None::<(EditOutcome, AnchorPickFollowUp)>);
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.0.clone();
         let mut waiting = waiting;
@@ -501,9 +501,9 @@ pub fn LayoutAnchorPickOverlay(
             if waiting.read().is_some() {
                 return;
             }
-            let ticket = begin_transform_ticket(
-                &runtime_for_commit,
+            let ticket = runtime_for_commit.resolve_edit(
                 "layout-anchor-pick",
+                Some("transform".into()),
                 anchor_pick_resolver(context.clone(), target.clone()),
             );
             waiting.set(Some((

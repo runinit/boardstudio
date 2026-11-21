@@ -15,8 +15,8 @@ use boardstudio_core_mechanical::mechanical::{
     MechanicalEditDisposition, MechanicalTarget, evaluate_edit,
 };
 use boardstudio_model::model::{EditOperation, MatrixPlacementChange, PartDefinition, ProjectDoc};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_runtime::runtime::Runtime;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use serde_json::json;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -222,7 +222,7 @@ fn matrix_then_mechanical_settles_in_order_and_undoes_one_step_each() {
     runtime.hold_next_core();
     let matrix_saw = Rc::new(Cell::new(false));
     let mechanical_saw = Rc::new(Cell::new(false));
-    let mut matrix_edits = PendingEdits::default();
+    let matrix_edits = DraftEdits::<_, ()>::default();
     matrix_edits.begin(
         &runtime,
         1u8,
@@ -230,7 +230,7 @@ fn matrix_then_mechanical_settles_in_order_and_undoes_one_step_each() {
         Some("matrix placement".into()),
         matrix_resolver("matrix", 1.5, matrix_saw.clone(), Box::new(|_| true)),
     );
-    let mut mechanical_edits = PendingEdits::default();
+    let mechanical_edits = DraftEdits::<_, ()>::default();
     mechanical_edits.begin(
         &runtime,
         2u8,
@@ -256,14 +256,14 @@ fn matrix_then_mechanical_settles_in_order_and_undoes_one_step_each() {
         ),
     );
     assert!(
-        mechanical_edits.settle(true).is_empty(),
+        mechanical_edits.discard_drafts(true).is_empty(),
         "the queued mechanical edit cannot settle while the matrix edit holds Core"
     );
     assert_eq!(wall_thickness(&runtime), 2.0);
 
     runtime.release_core();
-    let matrix_results = matrix_edits.settle(true);
-    let mechanical_results = mechanical_edits.settle(true);
+    let matrix_results = matrix_edits.discard_drafts(true);
+    let mechanical_results = mechanical_edits.discard_drafts(true);
     assert!(matrix_saw.get(), "the matrix edit resolved first");
     assert!(
         matrix_results
@@ -298,7 +298,7 @@ fn mechanical_then_matrix_settles_in_order_and_undoes_one_step_each() {
     runtime.hold_next_core();
     let mechanical_saw = Rc::new(Cell::new(false));
     let matrix_saw = Rc::new(Cell::new(false));
-    let mut mechanical_edits = PendingEdits::default();
+    let mechanical_edits = DraftEdits::<_, ()>::default();
     mechanical_edits.begin(
         &runtime,
         1u8,
@@ -315,7 +315,7 @@ fn mechanical_then_matrix_settles_in_order_and_undoes_one_step_each() {
             Box::new(|document| document.matrices[0].column_layout.is_empty()),
         ),
     );
-    let mut matrix_edits = PendingEdits::default();
+    let matrix_edits = DraftEdits::<_, ()>::default();
     matrix_edits.begin(
         &runtime,
         2u8,
@@ -334,13 +334,13 @@ fn mechanical_then_matrix_settles_in_order_and_undoes_one_step_each() {
         ),
     );
     assert!(
-        matrix_edits.settle(true).is_empty(),
+        matrix_edits.discard_drafts(true).is_empty(),
         "the queued matrix edit cannot settle while the mechanical edit holds Core"
     );
 
     runtime.release_core();
-    let mechanical_results = mechanical_edits.settle(true);
-    let matrix_results = matrix_edits.settle(true);
+    let mechanical_results = mechanical_edits.discard_drafts(true);
+    let matrix_results = matrix_edits.discard_drafts(true);
     assert!(
         mechanical_results
             .iter()
@@ -384,7 +384,7 @@ fn an_equal_value_mechanical_edit_adds_no_history_step_and_keeps_redo() {
             .revision
     };
     let submit = |value: f64| {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             1u8,
@@ -401,7 +401,7 @@ fn an_equal_value_mechanical_edit_adds_no_history_step_and_keeps_redo() {
                 Box::new(|_| true),
             ),
         );
-        edits.settle(true)
+        edits.discard_drafts(true)
     };
 
     let landed = submit(3.0);
@@ -455,7 +455,7 @@ fn an_equal_value_mechanical_edit_adds_no_history_step_and_keeps_redo() {
 fn a_recreated_opening_does_not_receive_a_queued_edit_to_the_removed_one() {
     let (runtime, scope) = open();
     let submit = |change: MechanicalChange| {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             1u8,
@@ -469,7 +469,7 @@ fn a_recreated_opening_does_not_receive_a_queued_edit_to_the_removed_one() {
                 Box::new(|_| true),
             ),
         );
-        edits.settle(true)
+        edits.discard_drafts(true)
     };
     let openings = |runtime: &Runtime| {
         runtime
@@ -803,7 +803,7 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
     scope.instance_id = Some("left".into());
 
     let submit = |change: MechanicalChange| {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             1u8,
@@ -817,7 +817,7 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
                 Box::new(|_| true),
             ),
         );
-        edits.settle(true)
+        edits.discard_drafts(true)
     };
     let accepted = || runtime.model().accepted.expect("accepted");
     let configuration = |instance_id: &str| {
@@ -928,7 +928,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
     scope.board_id = "board".into();
     scope.instance_id = Some("left".into());
     let submit = |change: MechanicalChange| {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             1u8,
@@ -942,7 +942,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
                 Box::new(|_| true),
             ),
         );
-        edits.settle(true)
+        edits.discard_drafts(true)
     };
     let accepted = || runtime.model().accepted.expect("accepted");
     let visible = |instance_id: &str| {
@@ -1111,7 +1111,7 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
     let mut scope = runtime.scope().expect("the open document has a scope");
     scope.board_id = "board".into();
     scope.instance_id = Some("right".into());
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         1u8,
@@ -1129,7 +1129,7 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
             Box::new(|_| true),
         ),
     );
-    let results = edits.settle(true);
+    let results = edits.discard_drafts(true);
     assert!(
         results
             .iter()
@@ -1204,7 +1204,7 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
         scope
     };
     let submit = |instance_id: &str, change: MechanicalChange| {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             &runtime,
             1u8,
@@ -1218,7 +1218,7 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
                 Box::new(|_| true),
             ),
         );
-        edits.settle(true)
+        edits.discard_drafts(true)
     };
     let accepted = || runtime.model().accepted.expect("accepted");
     let visible = |instance_id: &str| {

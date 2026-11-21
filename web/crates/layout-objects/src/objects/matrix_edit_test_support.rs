@@ -299,7 +299,7 @@ pub fn accepted_matrix(runtime: &Runtime) -> boardstudio_model::model::Matrix {
 /// Drive the in-process runtime until `ticket` settles, polling the parked reply task.
 pub async fn settle_ticket(
     runtime: &Rc<Runtime>,
-    ticket: &boardstudio_web_runtime::edit_ticket::EditTicket,
+    ticket: &boardstudio_web_runtime::operation_outcomes::EditOutcome,
 ) {
     for _ in 0..100 {
         support::run_pending(runtime).await;

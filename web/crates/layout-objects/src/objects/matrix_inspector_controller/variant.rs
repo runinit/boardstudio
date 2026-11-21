@@ -1,6 +1,6 @@
 //! Preset-variant snapshots and history predicates for the Matrix Inspector.
 use super::*;
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 
 pub(super) fn exact_variant_snapshot(
     runtime: &Runtime,
@@ -76,8 +76,7 @@ pub(super) async fn wait_for_variant_edit(
     // Single-ticket variant edit: no keyed map. Settlement is observed here
     // because this async flow has no parent `version` signal to settle on;
     // dropping the ticket releases its observers without cancelling the edit.
-    let ticket = EditTicket::begin(
-        runtime,
+    let ticket = runtime.resolve_edit(
         "layout-matrix-variant",
         Some("matrix variant".into()),
         resolver,

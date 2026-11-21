@@ -7,7 +7,8 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_model::model::EditOperation;
-use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_runtime::operation_outcomes::EditOutcome;
+use boardstudio_web_ui_shared::draft_edits::DraftEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -22,10 +23,6 @@ pub(crate) enum BoardReferenceKey {
     Elevation,
     ModelAsset(String),
     Remove,
-    /// The routed-board import or replacement transaction.
-    Import,
-    /// The model-file attachment transaction.
-    ModelAttach,
 }
 
 impl BoardReferenceKey {
@@ -133,9 +130,7 @@ pub(crate) fn submit_board_reference_document(
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_model::model::ProjectDoc,
     transaction_label: &str,
-    edits: &mut PendingEdits<BoardReferenceKey>,
-    key: BoardReferenceKey,
-) -> Result<Option<BoardReferenceKey>, String> {
+) -> Result<Option<EditOutcome>, String> {
     if !live {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
@@ -242,14 +237,11 @@ pub(crate) fn submit_board_reference_document(
             )
         },
     );
-    edits.begin(
-        runtime,
-        key.clone(),
+    Ok(Some(runtime.resolve_edit(
         transaction_label,
         Some("board reference".into()),
         resolver,
-    );
-    Ok(Some(key))
+    )))
 }
 
 /// The routed-board removal proposal: drop the reference from its board, retiring when
@@ -285,7 +277,7 @@ pub(crate) fn dispatch_board_reference_action(
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-    edits: &mut PendingEdits<BoardReferenceKey, pcb_board_reference::Action>,
+    edits: &DraftEdits<BoardReferenceKey, pcb_board_reference::Action>,
 ) -> Option<BoardReferenceKey> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return None;
@@ -361,7 +353,7 @@ pub(crate) fn dispatch_board_reference_action(
             )
         })
     };
-    edits.begin_with(
+    edits.submit_value(
         runtime,
         key.clone(),
         "board-reference",

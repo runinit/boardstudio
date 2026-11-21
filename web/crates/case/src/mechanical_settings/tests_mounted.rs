@@ -139,7 +139,13 @@ fn host() -> Element {
                         Ok(template())
                     })
                 }),
-                edit_port: Rc::new(runtime),
+                resolve_edit: Rc::new(move |resolver| {
+                    runtime.resolve_edit(
+                        "mechanical-settings",
+                        Some("mechanical settings".into()),
+                        resolver,
+                    )
+                }),
                 publish: Rc::new(move |entry| {
                     let mut feedback = feedback;
                     feedback.write().push(entry);

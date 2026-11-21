@@ -12,7 +12,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -90,8 +90,8 @@ pub(super) fn draft_binding(
             .0
             .read()
             .edits
-            .observations()
             .pending_keys()
+            .iter()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
                 request.scope == *scope

@@ -6,7 +6,7 @@ use super::layout_component_edits::{
     commit_position_resolver, constraint_resolver, nudge_resolver, offset_axes_resolver,
     remove_constraint_resolver,
 };
-use crate::edit_ticket::{EditTicket, Settlement};
+use crate::operation_outcomes::{EditOutcome, Settlement};
 use crate::runtime::Runtime;
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
@@ -82,7 +82,7 @@ fn position(runtime: &Rc<Runtime>, id: &str) -> Option<Vec2> {
         .map(|part| part.pose.at)
 }
 
-async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
+async fn settle(runtime: &Rc<Runtime>, ticket: &EditOutcome) {
     wait_until_step("the Layout edit settles", async || {
         support::run_pending(runtime).await;
         !ticket.is_pending()
@@ -97,9 +97,8 @@ async fn undo(runtime: &Rc<Runtime>) {
     support::run_pending(runtime).await;
 }
 
-fn nudge(runtime: &Rc<Runtime>, delta: Vec2) -> EditTicket {
-    EditTicket::begin(
-        runtime,
+fn nudge(runtime: &Rc<Runtime>, delta: Vec2) -> EditOutcome {
+    runtime.resolve_edit(
         "layout-nudge",
         Some("move".into()),
         nudge_resolver(vec!["a".into()], "board".into(), delta),
@@ -167,8 +166,7 @@ async fn a_nudge_retires_when_its_part_was_deleted_before_it_ran() {
 async fn old_position_inspector_commits_queue_and_the_latest_value_wins() {
     let runtime = open().await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let x = EditTicket::begin(
-        &runtime,
+    let x = runtime.resolve_edit(
         "layout-old-position",
         Some("position".into()),
         commit_position_resolver(
@@ -181,8 +179,7 @@ async fn old_position_inspector_commits_queue_and_the_latest_value_wins() {
     );
     support::drive_pending(&runtime);
     entered.await.expect("the X commit reached Core");
-    let y = EditTicket::begin(
-        &runtime,
+    let y = runtime.resolve_edit(
         "layout-old-position",
         Some("position".into()),
         commit_position_resolver(
@@ -207,8 +204,7 @@ async fn old_position_inspector_commits_queue_and_the_latest_value_wins() {
 async fn constraint_set_then_remove_queued_back_to_back_both_land() {
     let runtime = open().await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let set = EditTicket::begin(
-        &runtime,
+    let set = runtime.resolve_edit(
         "layout-inspector-constraint",
         Some("layout".into()),
         constraint_resolver(
@@ -224,8 +220,7 @@ async fn constraint_set_then_remove_queued_back_to_back_both_land() {
     );
     support::drive_pending(&runtime);
     entered.await.expect("the constraint reached Core");
-    let remove = EditTicket::begin(
-        &runtime,
+    let remove = runtime.resolve_edit(
         "layout-inspector-remove-constraint",
         Some("layout".into()),
         remove_constraint_resolver("b".into(), "layout-component-constraint-9".into()),
@@ -266,8 +261,7 @@ async fn typed_constraint_update_preserves_id_and_endpoints_for_every_relation_t
     ];
 
     for (index, relation) in values.into_iter().enumerate() {
-        let ticket = EditTicket::begin(
-            &runtime,
+        let ticket = runtime.resolve_edit(
             "layout-inspector-constraint",
             Some("layout".into()),
             constraint_resolver(
@@ -299,8 +293,7 @@ async fn typed_constraint_update_preserves_id_and_endpoints_for_every_relation_t
         );
     }
 
-    let remove = EditTicket::begin(
-        &runtime,
+    let remove = runtime.resolve_edit(
         "layout-inspector-remove-constraint",
         Some("layout".into()),
         remove_constraint_resolver("b".into(), "layout-component-constraint-9".into()),
@@ -342,8 +335,7 @@ async fn removing_a_constraint_whose_part_was_deleted_retires_with_a_reason() {
     );
     support::drive_pending(&runtime);
     entered.await.expect("the delete reached Core");
-    let ticket = EditTicket::begin(
-        &runtime,
+    let ticket = runtime.resolve_edit(
         "layout-inspector-remove-constraint",
         Some("layout".into()),
         remove_constraint_resolver("b".into(), "layout-component-constraint-9".into()),
@@ -431,8 +423,7 @@ async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
 #[wasm_bindgen_test]
 async fn converting_a_constraint_between_axes_leaves_the_target_where_it_was() {
     let runtime = open().await;
-    let set = EditTicket::begin(
-        &runtime,
+    let set = runtime.resolve_edit(
         "layout-inspector-constraint",
         Some("layout".into()),
         constraint_resolver(
@@ -450,8 +441,7 @@ async fn converting_a_constraint_between_axes_leaves_the_target_where_it_was() {
     settle(&runtime, &set).await;
     assert!(matches!(set.settlement(true), Settlement::Landed { .. }));
     let target_before = position(&runtime, "b");
-    let convert = EditTicket::begin(
-        &runtime,
+    let convert = runtime.resolve_edit(
         "layout-inspector-offset-axes",
         Some("layout".into()),
         offset_axes_resolver(

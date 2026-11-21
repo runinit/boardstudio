@@ -411,7 +411,7 @@ async fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_own
     let accepted = runtime.model().accepted.unwrap();
     let mut owner = owner;
     owner.session_epoch = accepted.session_epoch;
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         0_u64,
@@ -425,7 +425,7 @@ async fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_own
     );
     support::run_pending(&runtime).await;
     assert!(matches!(
-        edits.settle(true).as_slice(),
+        edits.discard_drafts(true).as_slice(),
         [PendingEditResult::Landed { .. }]
     ));
     let accepted = runtime.model().accepted.unwrap();
@@ -449,7 +449,7 @@ async fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_own
     );
     support::run_pending(&runtime).await;
     assert!(matches!(
-        edits.settle(true).as_slice(),
+        edits.discard_drafts(true).as_slice(),
         [PendingEditResult::Failed { message, .. }] if message.contains("removed")
     ));
 }
@@ -470,7 +470,7 @@ async fn mounted_apply_queued_behind_rename_preserves_both_and_undo() {
     )
     .await;
     let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
-    let mut renames = PendingEdits::default();
+    let renames = DraftEdits::<_, ()>::default();
     renames.begin(
         &fixture.runtime,
         0_u64,
@@ -738,7 +738,7 @@ async fn queued_apply_preserves_a_preceding_generator_model_upload() {
         source: None,
     };
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         0_u64,
@@ -772,7 +772,7 @@ async fn queued_apply_preserves_a_preceding_generator_model_upload() {
     support::run_pending(&runtime).await;
     assert!(
         matches!(
-            edits.settle(true).as_slice(),
+            edits.discard_drafts(true).as_slice(),
             [
                 PendingEditResult::Landed { .. },
                 PendingEditResult::Landed { .. }

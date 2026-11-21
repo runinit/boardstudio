@@ -97,7 +97,7 @@ pub(crate) mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_model::model::{Pad, PadShape, PartDefinition, PartKind};
-    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
     use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},

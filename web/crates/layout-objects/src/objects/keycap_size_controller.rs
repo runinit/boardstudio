@@ -6,7 +6,7 @@ use super::{ScopedTreeContext, TreeContext, keycap_resize::ResizeAxis};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Lifecycle, Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{

@@ -599,8 +599,7 @@ mod queued_board_name_tests {
         gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let change_layout = |thickness| {
-            boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-                &runtime,
+            runtime.resolve_edit(
                 "layout-edit",
                 None,
                 boardstudio_application::EditResolver::new(

@@ -160,21 +160,6 @@ pub struct ActivePartPlacement {
     pub snap_document: Rc<ProjectDoc>,
 }
 
-/// An in-flight apply-to-key edit. One-shot: the canvas stays busy while it is held.
-#[derive(Clone)]
-pub(crate) struct KeyEditOwner {
-    pub(crate) scope: Scope,
-    pub(crate) generation: u64,
-    pub(crate) source_workspace: &'static str,
-    pub(crate) selection: ScopedTreeContext,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PlacementPendingKey {
-    KeyComponent,
-    Placement,
-}
-
 pub(crate) fn placement_resolver(
     board_id: String,
     definition: PartDefinition,

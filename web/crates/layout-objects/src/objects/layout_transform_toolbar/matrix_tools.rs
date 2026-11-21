@@ -670,9 +670,9 @@ pub fn LayoutTransformToolOverlay(
                     }),
                     _ => None,
                 };
-                let ticket = begin_transform_ticket(
-                    &runtime_for_end,
+                let ticket = runtime_for_end.resolve_edit(
                     "layout-transform-drag",
+                    Some("transform".into()),
                     transform_drag_resolver(
                         active.matrix.id.clone(),
                         active.rail.transaction_id.clone(),
@@ -892,7 +892,11 @@ pub fn LayoutTransformToolOverlay(
         // previous steps produced (ADR-0005). The ticket settles on `version`:
         // failures report, retirement is silent, focus stays on the token.
         let resolver = transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta);
-        let ticket = begin_transform_ticket(&runtime_for_key, "layout-transform-nudge", resolver);
+        let ticket = runtime_for_key.resolve_edit(
+            "layout-transform-nudge",
+            Some("transform".into()),
+            resolver,
+        );
         pending.write().push(PendingTransformCommit {
             ticket,
             owner: owner_for_key.clone(),

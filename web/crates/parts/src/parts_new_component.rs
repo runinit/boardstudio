@@ -10,7 +10,7 @@ mod ui {
     use super::{created_definition, new_component_resolver};
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -45,7 +45,7 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
-        let mut waiting = use_signal(|| None::<(EditTicket, CreationIntent)>);
+        let mut waiting = use_signal(|| None::<(EditOutcome, CreationIntent)>);
         let mut error = use_signal(|| None::<(Scope, u64, u64, String)>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
         use_drop({
@@ -146,8 +146,7 @@ mod ui {
                     .map(|definition| definition.id.clone())
                     .collect::<Vec<_>>();
                 error.set(None);
-                let ticket = EditTicket::begin(
-                    &runtime,
+                let ticket = runtime.resolve_edit(
                     "parts-new-component",
                     Some("component".into()),
                     new_component_resolver(base.clone()),

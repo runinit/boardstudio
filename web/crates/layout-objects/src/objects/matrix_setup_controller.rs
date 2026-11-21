@@ -10,7 +10,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -43,7 +43,7 @@ pub fn use_matrix_setup(
     let status = use_signal(|| None::<String>);
     // The committed SetMatrix is observed through its ticket; the waiting entry is the
     // pending state. No separate disabled flag is kept: availability derives from it.
-    let waiting = use_signal(|| None::<(EditTicket, MatrixSetupOwner, String)>);
+    let waiting = use_signal(|| None::<(EditOutcome, MatrixSetupOwner, String)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -308,8 +308,7 @@ pub fn use_matrix_setup(
                     return;
                 }
                 let matrix_id = matrix.id.clone();
-                let ticket = EditTicket::begin(
-                    &runtime,
+                let ticket = runtime.resolve_edit(
                     "layout-matrix-setup",
                     Some("matrix".into()),
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
@@ -416,7 +415,7 @@ fn setup_source<'a>(
 }
 
 struct SetupSettlement<'a> {
-    waiting: &'a mut Signal<Option<(EditTicket, MatrixSetupOwner, String)>>,
+    waiting: &'a mut Signal<Option<(EditOutcome, MatrixSetupOwner, String)>>,
     open: &'a mut Signal<Option<MatrixSetupOwner>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,

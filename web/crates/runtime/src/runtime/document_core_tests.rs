@@ -1,5 +1,5 @@
 use super::*;
-use crate::edit_ticket::{EditTicket, Settlement};
+use crate::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_application::{EditResolver, Resolution};
 use boardstudio_model::model::{EditOperation, MatrixPlacementChange};
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -45,18 +45,16 @@ fn open(runtime: &Rc<Runtime>, id: &str) -> crate::operation_outcomes::OutcomeSl
     })
 }
 
-fn rename(runtime: &Rc<Runtime>, name: &'static str) -> EditTicket {
-    EditTicket::begin(
-        runtime,
+fn rename(runtime: &Rc<Runtime>, name: &'static str) -> EditOutcome {
+    runtime.resolve_edit(
         "project name",
         None,
         EditResolver::rename_project("rename", name.into()),
     )
 }
 
-fn stagger(runtime: &Rc<Runtime>, matrix: &'static str, value: f64) -> EditTicket {
-    EditTicket::begin(
-        runtime,
+fn stagger(runtime: &Rc<Runtime>, matrix: &'static str, value: f64) -> EditOutcome {
+    runtime.resolve_edit(
         "column stagger",
         None,
         EditResolver::new("stagger", move |_| {

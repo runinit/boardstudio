@@ -71,7 +71,7 @@ mod tests {
     use super::*;
     use boardstudio_application::Event;
     use boardstudio_model::model::{EditOperation, ProjectDoc};
-    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
     use std::rc::Rc;
 
     fn open(id: &str, name: &str) -> Rc<Runtime> {
@@ -89,7 +89,7 @@ mod tests {
 
     fn rename(
         runtime: &Rc<Runtime>,
-        edits: &mut PendingEdits<ProjectNameKey>,
+        edits: &DraftEdits<ProjectNameKey, ()>,
         owner: &ProjectNameOwner,
         value: &str,
     ) {
@@ -137,11 +137,11 @@ mod tests {
                 if command.target_ids == [accepted.document.id.clone()]
                     && command.operation == (EditOperation::RenameProject { name: "Renamed".into() })
         ));
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
 
-        rename(&runtime, &mut edits, &current, "  Renamed  ");
+        rename(&runtime, &edits, &current, "  Renamed  ");
         assert_eq!(
-            edits.settle(true),
+            edits.discard_drafts(true),
             vec![PendingEditResult::Landed {
                 key: ProjectNameKey::Name,
                 revision: 1,
@@ -149,9 +149,9 @@ mod tests {
         );
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Renamed");
 
-        rename(&runtime, &mut edits, &current, "Renamed");
+        rename(&runtime, &edits, &current, "Renamed");
         assert_eq!(
-            edits.settle(true),
+            edits.discard_drafts(true),
             vec![PendingEditResult::Landed {
                 key: ProjectNameKey::Name,
                 revision: 1,
@@ -165,15 +165,15 @@ mod tests {
     fn rename_resolves_against_the_document_accepted_when_it_runs() {
         let runtime = open("rename-queued", "Original");
         let current = owner(&runtime);
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         runtime.hold_next_core();
-        rename(&runtime, &mut edits, &current, "First");
-        rename(&runtime, &mut edits, &current, "Latest");
+        rename(&runtime, &edits, &current, "First");
+        rename(&runtime, &edits, &current, "Latest");
         runtime.release_core();
 
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Latest");
         assert_eq!(
-            edits.settle(true),
+            edits.discard_drafts(true),
             vec![PendingEditResult::Landed {
                 key: ProjectNameKey::Name,
                 revision: 2,
@@ -185,11 +185,11 @@ mod tests {
     fn rename_retires_silently_when_its_owner_is_gone() {
         let runtime = open("rename-retired", "Original");
         let current = owner(&runtime);
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         runtime.hold_next_core();
-        rename(&runtime, &mut edits, &current, "Orphan");
+        rename(&runtime, &edits, &current, "Orphan");
         assert_eq!(
-            edits.settle(false),
+            edits.discard_drafts(false),
             vec![PendingEditResult::Retired {
                 key: ProjectNameKey::Name,
             }]
@@ -201,10 +201,10 @@ mod tests {
     fn rename_failure_surfaces_the_ticket_message() {
         let runtime = open("rename-fails", "Original");
         let current = owner(&runtime);
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         runtime.fail_next_core("engine died");
-        rename(&runtime, &mut edits, &current, "Doomed");
-        let results = edits.settle(true);
+        rename(&runtime, &edits, &current, "Doomed");
+        let results = edits.discard_drafts(true);
         assert!(
             matches!(
                 results.as_slice(),
@@ -253,14 +253,14 @@ mod tests {
                 )
             }),
         });
-        let mut edits = PendingEdits::default();
-        rename(&runtime, &mut edits, &current, "Renamed");
+        let edits = DraftEdits::<_, ()>::default();
+        rename(&runtime, &edits, &current, "Renamed");
         runtime.release_core();
         let result = runtime.model().accepted.expect("accepted project");
         assert_eq!(result.document.name, "Renamed");
         assert_eq!(result.document.definitions[0].name, "Updated switch");
         assert_eq!(
-            edits.settle(true),
+            edits.discard_drafts(true),
             vec![PendingEditResult::Landed {
                 key: ProjectNameKey::Name,
                 revision: result.document.revision,

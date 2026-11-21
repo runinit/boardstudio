@@ -6,7 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
@@ -250,16 +250,12 @@ pub fn use_controller(
                     ui.busy.set(None);
                     return;
                 }
-                // One setup operation is in flight at a time (the busy gate above), so a
-                // task-local ticket drives navigation and reassignment through finish_operation.
-                let mut edits = PendingEdits::<OwnerIdentity>::default();
-                let operation = edits.begin(
-                    &runtime,
-                    identity.clone(),
+                let outcome = runtime.resolve_edit(
                     "physical-setup",
                     Some("physical setup".into()),
                     setup_resolver(identity.clone(), intent.clone(), seed, prepared),
                 );
+                let operation = outcome.operation();
                 ui.busy.set(Some(operation));
                 loop {
                     if !ui.alive.get() {
@@ -286,8 +282,8 @@ pub fn use_controller(
                         _ => false,
                     };
                     let live = same_session && (activity.matches(&identity, false) || reassigned);
-                    let mut results = edits.settle(live);
-                    if let Some(settlement) = results.pop() {
+                    let settlement = outcome.settlement(live);
+                    if settlement != Settlement::Pending {
                         finish_operation(
                             &runtime,
                             &identity,
@@ -841,7 +837,7 @@ fn finish_operation(
     identity: &OwnerIdentity,
     intent: &PhysicalSetupIntent,
     operation_id: OperationId,
-    settlement: PendingEditResult<OwnerIdentity>,
+    settlement: Settlement,
     (activity, instance_selection, generation, ui): (
         &OwnerActivity,
         super::super::InstanceSelection,
@@ -852,7 +848,7 @@ fn finish_operation(
     if !ui.alive.get() {
         return;
     }
-    let landed = matches!(settlement, PendingEditResult::Landed { .. });
+    let landed = matches!(settlement, Settlement::Landed { .. });
     let model = runtime.model();
     let accepted = model.accepted.as_ref();
     let navigate_to = match intent {
@@ -894,7 +890,7 @@ fn finish_operation(
         return;
     }
     let message = match settlement {
-        PendingEditResult::Landed { .. } => {
+        Settlement::Landed { .. } => {
             if let Some(accepted) = accepted {
                 owner.token = accepted.token;
                 owner.revision = accepted.document.revision;
@@ -926,8 +922,9 @@ fn finish_operation(
             ui.settle_silently(operation_id);
             return;
         }
-        PendingEditResult::Failed { message, .. } => message,
-        PendingEditResult::Retired { .. } => {
+        Settlement::Failed { message, .. } => message,
+        Settlement::Pending => unreachable!(),
+        Settlement::Retired => {
             ui.feedback.set(None);
             ui.busy.set(None);
             return;

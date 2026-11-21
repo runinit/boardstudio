@@ -13,7 +13,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -101,7 +101,7 @@ pub fn use_matrix_placement(
     // The committed placement is observed through its ticket; the waiting entry (ticket
     // plus the selection it should restore) is the pending state. Availability derives
     // from it, so no separate disabled flag is kept.
-    let waiting = use_signal(|| None::<(EditTicket, PlacementFollowUp)>);
+    let waiting = use_signal(|| None::<(EditOutcome, PlacementFollowUp)>);
     let error = use_signal(|| None::<String>);
 
     use_effect(use_reactive(
@@ -472,8 +472,7 @@ pub fn use_matrix_placement(
                 selected_context: selected_context.peek().clone(),
                 selected_part_ids: model.selected_part_ids.clone(),
             };
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "layout-matrix-placement",
                 Some("matrix placement".into()),
                 place_matrix_resolver(active.matrix, active.definitions),

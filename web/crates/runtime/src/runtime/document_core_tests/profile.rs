@@ -116,9 +116,8 @@ async fn profile_runtime(mut document: ProjectDoc, suffix: &str) -> Rc<Runtime> 
     runtime
 }
 
-fn legacy_rename(runtime: &Rc<Runtime>, name: &'static str) -> EditTicket {
-    EditTicket::begin(
-        runtime,
+fn legacy_rename(runtime: &Rc<Runtime>, name: &'static str) -> EditOutcome {
+    runtime.resolve_edit(
         "project name",
         None,
         EditResolver::new("rename", move |accepted| {
@@ -136,7 +135,7 @@ fn legacy_rename(runtime: &Rc<Runtime>, name: &'static str) -> EditTicket {
 
 async fn profile_ticket(
     runtime: &Rc<Runtime>,
-    submit: impl FnOnce() -> EditTicket,
+    submit: impl FnOnce() -> EditOutcome,
 ) -> (AcceptedSnapshot, [f64; 5]) {
     let initial = runtime.model().accepted.unwrap();
     let revision = initial.document.revision + 1;

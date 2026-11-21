@@ -6,7 +6,7 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::Button,
@@ -50,7 +50,7 @@ pub fn ModuleAttachment(
     let mut preparing = use_signal(|| false);
     // The committed attachment and the mounted-module identity its Landed follow-up
     // selects; the ticket itself is the pending observation.
-    let waiting = use_signal(|| None::<(EditTicket, String)>);
+    let waiting = use_signal(|| None::<(EditOutcome, String)>);
     let mut feedback = use_signal(String::new);
     let connectors = eligible_host_connectors(
         &snapshot,
@@ -335,8 +335,7 @@ pub fn ModuleAttachment(
                 }
                 None => None,
             };
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "attach-mounted-module",
                 Some("module attachment".into()),
                 attachment_resolver(

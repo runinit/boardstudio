@@ -3,7 +3,7 @@ use super::{SelectionAdapter, WorkspaceState, objects};
 use crate::runtime::Runtime;
 use boardstudio_application::{EditResolver, Event, ReadModel, Resolution, Scope, SelectionMode};
 use boardstudio_core::model::EditOperation;
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 

@@ -1,11 +1,9 @@
-//! Display state carried by an edit ticket. A submission captures its exact draft and
-//! the view that submitted it. Session still owns execution, even if a view detaches.
+//! The submitted values and views a panel still presents while Session owns execution.
 
+#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+use crate::runtime::Runtime;
 use boardstudio_application::EditResolver;
-use boardstudio_web_runtime::{
-    edit_ticket::EditTicketPort,
-    pending_edits::{PendingEditResult, PendingEdits},
-};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -35,7 +33,7 @@ impl<D> FieldView<D> {
 
     pub fn submitted(self, value: D) -> EditDisplay<D> {
         EditDisplay {
-            draft: Some((value, self)),
+            draft: Some((value, Some(self))),
             disabled: None,
         }
     }
@@ -68,7 +66,7 @@ impl<D> FieldView<D> {
 }
 
 pub struct EditDisplay<D> {
-    draft: Option<(D, FieldView<D>)>,
+    draft: Option<(D, Option<FieldView<D>>)>,
     disabled: Option<Signal<bool>>,
 }
 
@@ -88,7 +86,16 @@ impl<D> EditDisplay<D> {
     }
 }
 
-pub struct DraftEdits<K, D = String>(Rc<RefCell<PendingEdits<K, EditDisplay<D>>>>);
+#[derive(Clone, Debug, PartialEq)]
+pub enum PendingEditResult<K> {
+    Landed { key: K, revision: u64 },
+    Failed { key: K, message: String },
+    Retired { key: K },
+}
+
+type Submission<K, D> = (K, EditOutcome, EditDisplay<D>);
+
+pub struct DraftEdits<K, D = String>(Rc<RefCell<Vec<Submission<K, D>>>>);
 
 impl<K, D> Clone for DraftEdits<K, D> {
     fn clone(&self) -> Self {
@@ -102,68 +109,212 @@ impl<K, D> Default for DraftEdits<K, D> {
     }
 }
 
-impl<K: PartialEq, D: Clone + PartialEq + 'static> DraftEdits<K, D> {
+impl<K: PartialEq, D> DraftEdits<K, D> {
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     pub fn submit(
         &self,
-        port: &dyn EditTicketPort,
+        runtime: &Rc<Runtime>,
         key: K,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
         display: EditDisplay<D>,
     ) {
+        self.track(key, runtime.resolve_edit(label, feature, resolver), display);
+    }
+
+    pub fn track(&self, key: K, outcome: EditOutcome, display: EditDisplay<D>) {
         if let Some(mut disabled) = display.disabled {
             disabled.set(true);
         }
-        self.0
-            .borrow_mut()
-            .begin_with(port, key, label, feature, resolver, display);
+        let mut edits = self.0.borrow_mut();
+        if let Some(entry) = edits.iter_mut().find(|entry| entry.0 == key) {
+            *entry = (key, outcome, display);
+        } else {
+            edits.push((key, outcome, display));
+        }
     }
 
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     pub fn begin(
         &self,
-        port: &dyn EditTicketPort,
+        runtime: &Rc<Runtime>,
         key: K,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
     ) {
-        self.submit(port, key, label, feature, resolver, EditDisplay::default());
+        self.submit(
+            runtime,
+            key,
+            label,
+            feature,
+            resolver,
+            EditDisplay::default(),
+        );
     }
 
     pub fn is_pending(&self, key: &K) -> bool {
-        self.0.borrow().is_pending(key)
-    }
-
-    pub fn pending_submission(&self, key: &K) -> Option<D> {
         self.0
             .borrow()
-            .pending_payload(key)?
-            .draft
-            .as_ref()
-            .map(|(draft, _)| draft.clone())
+            .iter()
+            .any(|(field, outcome, _)| field == key && outcome.is_pending())
+    }
+
+    pub fn pending_submission(&self, key: &K) -> Option<D>
+    where
+        D: Clone,
+    {
+        self.0
+            .borrow()
+            .iter()
+            .find_map(|(field, outcome, display)| {
+                if field == key && outcome.is_pending() {
+                    display.draft.as_ref().map(|(draft, _)| draft.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+    pub fn submit_value(
+        &self,
+        runtime: &Rc<Runtime>,
+        key: K,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+        value: D,
+    ) {
+        self.submit(
+            runtime,
+            key,
+            label,
+            feature,
+            resolver,
+            EditDisplay {
+                draft: Some((value, None)),
+                disabled: None,
+            },
+        );
+    }
+
+    pub fn pending_values(&self, matches: impl Fn(&K) -> bool) -> Vec<D>
+    where
+        D: Clone,
+    {
+        self.pending_projection(|key, display| {
+            display
+                .draft
+                .as_ref()
+                .filter(|_| matches(key))
+                .map(|(value, _)| value.clone())
+        })
     }
 
     pub fn has_terminal(&self) -> bool {
-        self.0.borrow().has_terminal()
+        self.0
+            .borrow()
+            .iter()
+            .any(|(_, outcome, _)| !outcome.is_pending())
     }
 
-    pub fn observations(&self) -> std::cell::Ref<'_, PendingEdits<K, EditDisplay<D>>> {
-        self.0.borrow()
+    pub fn observations(&self) -> Vec<(K, bool)>
+    where
+        K: Clone,
+    {
+        self.0
+            .borrow()
+            .iter()
+            .map(|(key, outcome, _)| (key.clone(), outcome.is_pending()))
+            .collect()
     }
 
-    /// The view has changed ownership while its signals remain alive. Preserve
-    /// the terminal result for controller follow-ups, and release the field view.
+    pub fn pending_keys(&self) -> Vec<K>
+    where
+        K: Clone,
+    {
+        self.pending_projection(|key, _| Some(key.clone()))
+    }
+
+    fn pending_projection<T>(&self, project: impl Fn(&K, &EditDisplay<D>) -> Option<T>) -> Vec<T> {
+        let edits = self.0.borrow();
+        let mut pending = edits
+            .iter()
+            .filter(|(_, outcome, _)| outcome.is_pending())
+            .collect::<Vec<_>>();
+        pending.sort_unstable_by_key(|(_, outcome, _)| outcome.operation());
+        pending
+            .into_iter()
+            .filter_map(|(key, _, display)| project(key, display))
+            .collect()
+    }
+
+    /// Keep the result available for follow-up after the view changes owner.
     pub fn detach_field(&self, key: &K) {
-        if let Some(display) = self.0.borrow_mut().payload_mut(key) {
+        if let Some((_, _, display)) = self.0.borrow_mut().iter_mut().find(|entry| &entry.0 == key)
+        {
             display.draft = None;
         }
     }
 
-    /// Forget observations when their presentation owner changes. Session still
-    /// runs the edits. The caller resets any UI it reuses for the next owner.
     pub fn clear(&self) {
-        *self.0.borrow_mut() = PendingEdits::default();
+        self.0.borrow_mut().clear();
+    }
+
+    fn take_terminal(
+        &self,
+        owner_is_live: impl Fn(&EditDisplay<D>) -> bool,
+    ) -> Vec<(PendingEditResult<K>, EditDisplay<D>)> {
+        let mut states = Vec::new();
+        let terminal = self
+            .0
+            .borrow_mut()
+            .extract_if(.., |(_, outcome, display)| {
+                let settlement = outcome.settlement(owner_is_live(display));
+                if settlement == Settlement::Pending {
+                    return false;
+                }
+                states.push(settlement);
+                true
+            })
+            .collect::<Vec<_>>();
+        terminal
+            .into_iter()
+            .zip(states)
+            .map(|((key, _, display), settlement)| {
+                let result = match settlement {
+                    Settlement::Landed { revision } => PendingEditResult::Landed { key, revision },
+                    Settlement::Failed { message } => PendingEditResult::Failed { key, message },
+                    Settlement::Retired => PendingEditResult::Retired { key },
+                    Settlement::Pending => unreachable!(),
+                };
+                (result, display)
+            })
+            .collect()
+    }
+
+    pub fn discard_drafts(&self, owner_is_live: bool) -> Vec<PendingEditResult<K>> {
+        self.take_terminal(|_| owner_is_live)
+            .into_iter()
+            .map(|(result, _)| result)
+            .collect()
+    }
+
+    pub fn settle_values_where(
+        &self,
+        owner_is_live: impl Fn(&D) -> bool,
+    ) -> Vec<(PendingEditResult<K>, D)> {
+        self.take_terminal(|display| {
+            display
+                .draft
+                .as_ref()
+                .is_some_and(|(value, _)| owner_is_live(value))
+        })
+        .into_iter()
+        .filter_map(|(result, display)| Some((result, display.draft?.0)))
+        .collect()
     }
 
     /// Apply terminal display changes and return each result once for caller follow-ups.
@@ -171,9 +322,11 @@ impl<K: PartialEq, D: Clone + PartialEq + 'static> DraftEdits<K, D> {
         &self,
         owner_is_live: bool,
         accepted: impl Fn(&K) -> D,
-    ) -> Vec<PendingEditResult<K>> {
-        let terminal = self.0.borrow_mut().settle_with(owner_is_live);
-        terminal
+    ) -> Vec<PendingEditResult<K>>
+    where
+        D: PartialEq + 'static,
+    {
+        self.take_terminal(|_| owner_is_live)
             .into_iter()
             .map(|(result, display)| {
                 if let Some(mut disabled) = display.disabled
@@ -181,7 +334,7 @@ impl<K: PartialEq, D: Clone + PartialEq + 'static> DraftEdits<K, D> {
                 {
                     *value = false;
                 }
-                if let Some((submitted, view)) = display.draft {
+                if let Some((submitted, Some(view))) = display.draft {
                     let (message, key) = match &result {
                         PendingEditResult::Failed { message, key } => (Some(message.as_str()), key),
                         PendingEditResult::Landed { key, .. }
@@ -197,3 +350,6 @@ impl<K: PartialEq, D: Clone + PartialEq + 'static> DraftEdits<K, D> {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod native_tests;
