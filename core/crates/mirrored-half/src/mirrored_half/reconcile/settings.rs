@@ -54,12 +54,16 @@ fn effective_state(
     halves: &MirroredHalves,
     correspondence: &MirroredCorrespondence,
 ) -> Option<State> {
-    super::effective_circuit_child_state(document, halves, correspondence).map(
-        |state| match state {
-            MirroredExceptionState::Local => State::Local,
-            MirroredExceptionState::Omitted => State::Omitted,
-        },
+    super::effective_circuit_child_state(
+        document,
+        halves,
+        correspondence,
+        super::circuit_links(halves),
     )
+    .map(|state| match state {
+        MirroredExceptionState::Local => State::Local,
+        MirroredExceptionState::Omitted => State::Omitted,
+    })
 }
 
 /// Sets `key` to `value`, or removes it when the source has none.

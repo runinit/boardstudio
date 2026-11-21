@@ -256,19 +256,27 @@ fn unique_board_owner<'a>(
     Ok(&owner.id)
 }
 
-fn effective_circuit_child_state(
+fn circuit_links(halves: &MirroredHalves) -> impl Iterator<Item = &MirroredCorrespondence> {
+    halves
+        .correspondences
+        .iter()
+        .filter(|link| link.kind == MirroredItemKind::EmbeddedCircuit)
+}
+
+fn effective_circuit_child_state<'a>(
     document: &ProjectDoc,
     halves: &MirroredHalves,
     correspondence: &MirroredCorrespondence,
-) -> Option<crate::model::MirroredExceptionState> {
+    mut circuit_links: impl Iterator<Item = &'a MirroredCorrespondence>,
+) -> Option<MirroredExceptionState> {
+    if halves.exceptions.is_empty() {
+        return None;
+    }
     if let Some(exception) = halves.overlay_of(correspondence) {
         return Some(exception.state);
     }
     let child_id = correspondence.mirror_id.as_str();
-    let owner = halves.correspondences.iter().find(|owner| {
-        if owner.kind != MirroredItemKind::EmbeddedCircuit {
-            return false;
-        }
+    let owner = circuit_links.find(|owner| {
         let Some(circuit) = document
             .embedded_circuits
             .iter()

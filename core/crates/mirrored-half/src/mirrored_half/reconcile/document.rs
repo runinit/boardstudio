@@ -4,8 +4,8 @@ use super::changes::changed_document_ids;
 use super::hosted::HostedOmissionClosure;
 use super::{
     HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, MatrixStage,
-    Projection, effective_circuit_child_state, outlines, project_part, settings,
-    stage_hosted_circuit_additions, stage_hosted_correspondence, stage_matrix, unique_board_owner,
+    Projection, circuit_links, outlines, project_part, settings, stage_hosted_circuit_additions,
+    stage_hosted_correspondence, stage_matrix, unique_board_owner,
     validate_hosted_omission_baselines, validate_hosted_removal_baselines,
     validate_local_circuit_targets,
 };
@@ -133,10 +133,9 @@ fn reconcile_projection(
         );
     }
     let mut independent_part_targets = BTreeMap::new();
-    let hosted_circuit_members: BTreeSet<String> = halves
-        .correspondences
+    let circuit_links: Vec<_> = circuit_links(halves).collect();
+    let hosted_circuit_members: BTreeSet<String> = circuit_links
         .iter()
-        .filter(|association| association.kind == MirroredItemKind::EmbeddedCircuit)
         .flat_map(|association| {
             document
                 .embedded_circuits
@@ -317,7 +316,7 @@ fn reconcile_projection(
         omitted_part_sources,
         net_targets,
         reference_net_targets,
-    } = correspondence_targets(document, halves, projection)?;
+    } = correspondence_targets(document, halves, &circuit_links, projection)?;
     let replayed_circuit_additions: BTreeSet<_> = projection
         .hosted_transitions
         .iter()
@@ -336,13 +335,11 @@ fn reconcile_projection(
             _ => None,
         })
         .collect();
-    let circuit_pairs: Vec<_> = halves
-        .correspondences
-        .iter()
+    let circuit_pairs: Vec<_> = circuit_links
+        .into_iter()
         .filter(|association| {
-            association.kind == MirroredItemKind::EmbeddedCircuit
-                && !replayed_circuit_additions
-                    .contains(&(association.source_id.clone(), association.mirror_id.clone()))
+            !replayed_circuit_additions
+                .contains(&(association.source_id.clone(), association.mirror_id.clone()))
         })
         .map(|association| {
             (
