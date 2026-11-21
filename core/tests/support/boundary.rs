@@ -20,6 +20,7 @@ mod transcript;
 
 pub use self::cases::{core_requests, mirror_addition_boundary_case, paired_preview_history_case};
 pub use self::scenarios::electrical_mirror_replacement_case;
+#[allow(unused_imports)]
 pub use self::transcript::{assert_golden, equivalent, run};
 pub const ASSET: &[u8] = b"STEP fixture bytes\n";
 pub const ASSET_SHA256: &str = "900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048";

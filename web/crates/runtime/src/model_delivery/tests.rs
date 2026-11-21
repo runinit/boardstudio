@@ -132,8 +132,8 @@ fn refresh<'a>(
 }
 
 /// A provider that must never be called: a joined or refused refresh cannot load.
-fn never(reason: &'static str) -> impl Future<Output = Result<MeshArrays, String>> {
-    async move { panic!("{reason}") }
+async fn never(reason: &'static str) -> Result<MeshArrays, String> {
+    panic!("{reason}")
 }
 
 /// A provider that settles only when its sender is used.
