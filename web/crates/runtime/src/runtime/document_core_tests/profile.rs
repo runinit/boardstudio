@@ -1,7 +1,10 @@
 use super::*;
+use boardstudio_core::validate_document_for_test;
+use boardstudio_core_kernel::geometry;
 use boardstudio_model::model::{
     EditCommand, EditPhase, MatrixPlacementChange, OutlineFeature, RowLayout,
 };
+use std::hint::black_box;
 
 #[derive(Clone, Copy)]
 pub(in crate::runtime) enum Phase {
@@ -225,6 +228,46 @@ async fn page_core_profiles_rename_and_stagger_submission() {
     }
 }
 
+fn profile_samples(size: &str, label: &str, batch: u32, mut sample: impl FnMut(usize) -> f64) {
+    const WARMUPS: usize = 24;
+    const SAMPLES: usize = 100;
+
+    let mut samples: Vec<_> = (0..WARMUPS + SAMPLES)
+        .map(|i| sample(i) / f64::from(batch))
+        .skip(WARMUPS)
+        .collect();
+    samples.sort_by(f64::total_cmp);
+    web_sys::console::log_1(
+        &format!(
+            "{size} / {label}: n={SAMPLES}, warmups={WARMUPS}, batch={batch}, p50={:.3} ms, p95={:.3} ms",
+            samples[49], samples[94],
+        )
+        .into(),
+    );
+}
+
+fn profile_isolated<T>(
+    size: &str,
+    label: &str,
+    batch: u32,
+    mut operation: impl FnMut() -> T,
+    mut check: impl FnMut(&T),
+) {
+    // Batch cheap operations to resolve sub-tick costs. Reserve storage once and
+    // check and drop outputs after stopping the clock.
+    let mut outputs = Vec::with_capacity(batch as usize);
+    profile_samples(size, label, batch, |_| {
+        let start = now();
+        for _ in 0..batch {
+            outputs.push(black_box(operation()));
+        }
+        let elapsed = now() - start;
+        check(outputs.last().unwrap());
+        outputs.clear();
+        elapsed
+    });
+}
+
 #[wasm_bindgen_test]
 fn page_core_profiles_stagger_preview() {
     for (size, large) in [("2 keys", false), ("60 keys", true)] {
@@ -239,8 +282,7 @@ fn page_core_profiles_stagger_preview() {
             CoreReply::Scene { .. }
         ));
         for (label, column) in [("first column", 0), ("last column", columns - 1)] {
-            let mut samples = Vec::with_capacity(100);
-            for i in 0..124 {
+            profile_samples(size, &format!("typed stagger Preview / {label}"), 1, |i| {
                 let request = CoreRequest::Edit {
                     id: "stagger-preview".into(),
                     command: EditCommand {
@@ -258,23 +300,17 @@ fn page_core_profiles_stagger_preview() {
                     },
                 };
                 let start = now();
-                let reply = std::hint::black_box(engine.handle(request));
+                let reply = black_box(engine.handle(request));
                 let elapsed = now() - start;
                 assert!(matches!(reply, CoreReply::Preview { scene, .. }
                     if scene.revision == 0 && !scene.changed_ids.is_empty()));
-                if i >= 24 {
-                    samples.push(elapsed);
-                }
-            }
-            samples.sort_by(f64::total_cmp);
-            web_sys::console::log_1(
-                &format!(
-                    "{size} / stagger preview / {label}: n=100, p50={:.3} ms, p95={:.3} ms",
-                    samples[49], samples[94],
-                )
-                .into(),
-            );
+                elapsed
+            });
         }
+        assert!(matches!(
+            engine.handle(CoreRequest::Snapshot { id: "after-preview".into() }),
+            CoreReply::Scene { scene, .. } if scene.revision == 0 && scene.changed_ids.is_empty()
+        ));
     }
 }
 
@@ -282,36 +318,72 @@ fn page_core_profiles_stagger_preview() {
 fn page_core_profiles_outline_rebuild_in_isolation() {
     for (size, large) in [("2 keys", false), ("60 keys", true)] {
         let mut engine = boardstudio_core::CoreEngine::new();
-        let document = match engine.handle(CoreRequest::Open {
+        let (document, scene) = match engine.handle(CoreRequest::Open {
             id: "outline-profile".into(),
             document: fixture(large),
         }) {
-            CoreReply::Scene { document, .. } => document,
+            CoreReply::Scene {
+                document, scene, ..
+            } => (*document, scene),
             reply => panic!("could not open outline profile fixture: {reply:?}"),
         };
-        // Measure the full outline rebuild on the authored fixture, independent
-        // of any reuse exercised by the edit submission profiler.
-        let mut samples = Vec::with_capacity(100);
-        for i in 0..124 {
-            let start = now();
-            let output = std::hint::black_box(boardstudio_core_kernel::geometry::outlines(
-                &document,
-                None,
-                &[],
-            ));
-            let elapsed = now() - start;
-            assert!(!output.1.is_empty());
-            if i >= 24 {
-                samples.push(elapsed);
-            }
-        }
-        samples.sort_by(f64::total_cmp);
-        web_sys::console::log_1(
-            &format!(
-                "{size} / isolated outline rebuild: n=100, p50={:.3} ms, p95={:.3} ms",
-                samples[49], samples[94],
-            )
-            .into(),
+        profile_isolated(
+            size,
+            "isolated outline rebuild",
+            1,
+            || geometry::outlines(black_box(&document), None, &[]),
+            |output| assert!(!output.1.is_empty()),
         );
+        let (cache, _, _) = geometry::outlines(&document, None, &[]);
+        let findings = validate_document_for_test(&document);
+        profile_isolated(
+            size,
+            "document validation",
+            32,
+            || validate_document_for_test(black_box(&document)),
+            |output| assert_eq!(output, &findings),
+        );
+        profile_isolated(
+            size,
+            "board_scene_geometry with precomputed cache",
+            8,
+            || geometry::board_scene_geometry(black_box(&document), black_box(&cache)),
+            |output| assert_eq!(output.contours, scene.board_contours),
+        );
+        profile_isolated(
+            size,
+            "ProjectDoc clone",
+            64,
+            || black_box(&document).clone(),
+            |output| assert_eq!(output, &document),
+        );
+        profile_isolated(
+            size,
+            "SceneDelta clone",
+            64,
+            || black_box(&scene).clone(),
+            |output| assert_eq!(output, &scene),
+        );
+        let mut snapshot_scene = scene;
+        "snapshot".clone_into(&mut snapshot_scene.transaction_id);
+        profile_samples(size, "typed Snapshot", 1, |_| {
+            let request = CoreRequest::Snapshot {
+                id: "snapshot-profile".into(),
+            };
+            let start = now();
+            let reply = black_box(engine.handle(request));
+            let elapsed = now() - start;
+            let CoreReply::Scene {
+                document: output,
+                scene,
+                ..
+            } = reply
+            else {
+                panic!("could not take profile snapshot: {reply:?}");
+            };
+            assert_eq!(*output, document);
+            assert_eq!(scene, snapshot_scene);
+            elapsed
+        });
     }
 }
