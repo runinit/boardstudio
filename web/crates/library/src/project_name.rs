@@ -1,6 +1,6 @@
 //! Project rename admission and resolution. The module compiles natively so its tests
 //! drive the real Session and Core through the native Runtime; the Library panel binds
-//! the resulting resolver to its name field through `PendingEditSignals`.
+//! the resulting resolver to its name field through a draft-bound ticket.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, SessionEpoch};
 use boardstudio_web_runtime::runtime::Runtime;

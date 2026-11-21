@@ -139,7 +139,7 @@ pub(super) fn submit_layout_component_edit(
     pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     field: layout_component_edits::InspectorField,
     resolver: boardstudio_application::EditResolver,
-    draft: Option<String>,
+    display: boardstudio_web_ui_shared::draft_edits::EditDisplay<String>,
 ) {
     let helper = pending_edits.peek().clone();
     let label = match field {
@@ -159,18 +159,14 @@ pub(super) fn submit_layout_component_edit(
         layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
         layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
     };
-    if field.is_field() {
-        helper.begin_field(
-            runtime,
-            field,
-            label,
-            Some("layout".into()),
-            resolver,
-            draft.as_deref().unwrap_or_default(),
-        );
-    } else {
-        helper.begin_one_shot(runtime, field, label, Some("layout".into()), resolver);
-    }
+    helper.submit(
+        runtime,
+        field,
+        label,
+        Some("layout".into()),
+        resolver,
+        display,
+    );
 }
 
 pub(super) fn dispatch_layout_component_inspector_action(
@@ -179,7 +175,10 @@ pub(super) fn dispatch_layout_component_inspector_action(
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
     (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
-    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
+    (pending_edits, views): (
+        Signal<layout_component_edits::LayoutComponentInspectorEdits>,
+        layout_component_edits::ComponentEditViews,
+    ),
     action: inspector::LayoutComponentInspectorAction,
 ) {
     let action_owner = match &action {
@@ -232,6 +231,15 @@ pub(super) fn dispatch_layout_component_inspector_action(
     {
         return;
     }
+    let submit = |field, resolver, draft| {
+        submit_layout_component_edit(
+            runtime,
+            pending_edits,
+            field,
+            resolver,
+            views.display(field, draft),
+        );
+    };
     match action {
         inspector::LayoutComponentInspectorAction::SetPosition {
             owner,
@@ -246,9 +254,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
                 inspector::ComponentPositionAxis::X => layout_component_edits::InspectorField::X,
                 inspector::ComponentPositionAxis::Y => layout_component_edits::InspectorField::Y,
             };
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 field,
                 layout_component_edits::position_resolver(
                     owner.part_id.clone(),
@@ -276,9 +282,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             if current_layout.map(|layout| layout.id.as_str()) == layout_id.as_deref() {
                 return;
             }
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::Layout,
                 layout_component_edits::assign_layout_resolver(
                     owner.part_id.clone(),
@@ -293,9 +297,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             outline,
             submitted_draft,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::Margin,
                 layout_component_edits::outline_resolver(owner.part_id.clone(), outline),
                 Some(submitted_draft),
@@ -312,9 +314,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
                 return;
             }
             let id_seed = runtime.operation().0;
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::Constraint,
                 layout_component_edits::constraint_resolver(
                     owner.part_id.clone(),
@@ -331,9 +331,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             constraint_id,
             to,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::Constraint,
                 layout_component_edits::offset_axes_resolver(
                     owner.part_id.clone(),
@@ -347,9 +345,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             owner,
             constraint_id,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::RemoveConstraint,
                 layout_component_edits::remove_constraint_resolver(
                     owner.part_id.clone(),
@@ -368,9 +364,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             mirror_id,
             state,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::MirroredHalfState,
                 layout_component_edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
                 None,
@@ -381,9 +375,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             part_id,
             mirrored,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::PartMirror,
                 layout_component_edits::part_mirror_resolver(part_id, mirrored),
                 None,
@@ -393,18 +385,14 @@ pub(super) fn dispatch_layout_component_inspector_action(
             if !part_anchor_value_finite(&change) {
                 return;
             }
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::PartAnchorValue,
                 layout_component_edits::part_anchor_value_resolver(owner.part_id, change),
                 None,
             );
         }
         inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, follow } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::PartAnchorFollow,
                 layout_component_edits::part_anchor_follow_resolver(owner.part_id, follow),
                 None,
@@ -417,9 +405,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             column,
             follow,
         } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::PartAnchorPick,
                 layout_component_edits::part_anchor_pick_resolver(
                     owner.part_id,
@@ -432,9 +418,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             );
         }
         inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => {
-            submit_layout_component_edit(
-                runtime,
-                pending_edits,
+            submit(
                 layout_component_edits::InspectorField::PartAnchorDetach,
                 layout_component_edits::part_anchor_detach_resolver(owner.part_id),
                 None,

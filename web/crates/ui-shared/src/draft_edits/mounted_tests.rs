@@ -1,7 +1,5 @@
-//! Mounted tests drive the helpers through real Signal lifecycle: a launched
-//! VirtualDom with real inputs and buttons, the real WASM Runtime over Session and
-//! Core, and its in-process gates. Native `cargo test` executes only the pure
-//! policy tests above; every behavior below runs in the browser.
+//! Mounted tests drive draft-bound tickets through real DOM controls and the
+//! WASM Runtime over Session and Core.
 
 use super::*;
 use boardstudio_application::{Event, Resolution};
@@ -90,19 +88,12 @@ fn helper_host() -> Element {
             .clone()
             .expect("the runtime is prepared before mounting")
     });
-    let helpers = use_hook(PendingEditSignals::<Field>::new);
+    let helpers = use_hook(DraftEdits::<Field>::default);
     let mut draft = use_signal(|| "Zephyr".to_string());
     let failure = use_signal(|| None::<String>);
     let disabled = use_signal(|| false);
     let name_disabled = use_signal(|| false);
-    use_hook({
-        let helpers = helpers.clone();
-        move || {
-            helpers.bind_field(Field::Name, draft, failure);
-            helpers.bind_one_shot(Field::Name, name_disabled);
-            helpers.bind_one_shot(Field::Other, disabled);
-        }
-    });
+    let view = FieldView::new(draft, failure);
 
     rsx! {
         input { id: "field-draft", value: "{draft}",
@@ -119,8 +110,8 @@ fn helper_host() -> Element {
                 let runtime = runtime.clone();
                 let probe = probe.clone();
                 move |_| {
-                    helpers.begin_field(&runtime, Field::Name, "name-field",
-                        Some("project".into()), rename_resolver("Renamed"), &draft.peek().clone());
+                    helpers.submit(&runtime, Field::Name, "name-field",
+                        Some("project".into()), rename_resolver("Renamed"), view.submitted(draft.peek().clone()).disabling(name_disabled));
                     probe.pending.set(helpers.is_pending(&Field::Name));
                 }
             }, "begin field" }
@@ -129,8 +120,8 @@ fn helper_host() -> Element {
                 let runtime = runtime.clone();
                 let probe = probe.clone();
                 move |_| {
-                    helpers.begin_field(&runtime, Field::Name, "name-field",
-                        Some("project".into()), rename_resolver("Rejected"), &draft.peek().clone());
+                    helpers.submit(&runtime, Field::Name, "name-field",
+                        Some("project".into()), rename_resolver("Rejected"), view.submitted(draft.peek().clone()).disabling(name_disabled));
                     probe.pending.set(helpers.is_pending(&Field::Name));
                 }
             }, "begin failing field" }
@@ -138,8 +129,8 @@ fn helper_host() -> Element {
                 let helpers = helpers.clone();
                 let runtime = runtime.clone();
                 move |_| {
-                    helpers.begin_field(&runtime, Field::Name, "name-field",
-                        Some("project".into()), unchanged_resolver(), &draft.peek().clone());
+                    helpers.submit(&runtime, Field::Name, "name-field",
+                        Some("project".into()), unchanged_resolver(), view.submitted(draft.peek().clone()).disabling(name_disabled));
                 }
             }, "begin unchanged field" }
         button { id: "begin-one-shot", onclick: {
@@ -147,11 +138,15 @@ fn helper_host() -> Element {
                 let runtime = runtime.clone();
                 let probe = probe.clone();
                 move |_| {
-                    helpers.begin_one_shot(&runtime, Field::Other, "one-shot",
-                        Some("project".into()), rename_resolver("Applied"));
+                    helpers.submit(&runtime, Field::Other, "one-shot",
+                        Some("project".into()), rename_resolver("Applied"), EditDisplay::default().disabling(disabled));
                     probe.pending.set(helpers.is_pending(&Field::Other));
                 }
             }, "begin one-shot" }
+        button { id: "detach-field", onclick: {
+                let helpers = helpers.clone();
+                move |_| helpers.detach_field(&Field::Name)
+            }, "detach field" }
         button { id: "settle", onclick: {
                 let helpers = helpers.clone();
                 let probe = probe.clone();
@@ -415,6 +410,33 @@ async fn a_failed_edit_restores_the_accepted_value_and_reports_inline() {
 }
 
 #[wasm_bindgen_test]
+async fn changing_the_view_after_terminal_preserves_the_outcome_without_writing_the_field() {
+    let runtime = opened_runtime("Original").await;
+    let probe = mount_fixture(runtime.clone()).await;
+    support::fail_next_core_reply(&runtime, "old owner");
+    let outcome = support::observe_next(&runtime);
+    click("#begin-failing-field");
+    crate::test_wait::settle_until(
+        &runtime,
+        support::run_pending,
+        "the old edit fails before the shared field changes owner",
+        || outcome.borrow().is_some(),
+    )
+    .await;
+    click("#detach-field");
+    click("#settle");
+    rendered().await;
+
+    assert_eq!(draft_value(), "Zephyr");
+    assert_eq!(failure_message(), None);
+    assert!(!element("#composite-control").has_attribute("disabled"));
+    assert!(matches!(
+        taken_results(&probe).as_slice(),
+        [PendingEditResult::Failed { key: Field::Name, message }] if message.contains("old owner")
+    ));
+}
+
+#[wasm_bindgen_test]
 async fn a_newer_draft_is_never_replaced_by_an_older_outcome() {
     let runtime = opened_runtime("Original").await;
     let _probe = mount_fixture(runtime.clone()).await;
@@ -641,24 +663,11 @@ struct RetentionProbe {
 
 fn retention_host() -> Element {
     let probe = use_context::<RetentionProbe>();
-    let helpers = use_hook(PendingEditSignals::<Field, RetainedDraft>::new);
+    let helpers = use_hook(DraftEdits::<Field, RetainedDraft>::default);
     let draft = use_signal(|| probe.initial.borrow_mut().take().expect("initial draft"));
     let failure = use_signal(|| None::<String>);
     let disabled = use_signal(|| false);
-    use_hook({
-        let helpers = helpers.clone();
-        move || {
-            helpers.bind_field(Field::Name, draft, failure);
-            helpers.bind_one_shot(Field::Name, disabled);
-        }
-    });
-    use_drop({
-        let helpers = helpers.clone();
-        move || {
-            helpers.unbind_field(&Field::Name);
-            helpers.unbind_one_shot(&Field::Name);
-        }
-    });
+    let view = FieldView::new(draft, failure);
     rsx! {
         input { id: "retention-draft", value: "{draft().text}" }
         if let Some(message) = failure() {
@@ -667,8 +676,8 @@ fn retention_host() -> Element {
         button { id: "begin-retention", disabled: disabled(), onclick: {
                 let helpers = helpers.clone();
                 let runtime = probe.runtime.clone();
-                move |_| helpers.begin_value(&runtime, Field::Name, "retained-draft",
-                    Some("name".into()), rename_resolver("Retained"), &draft.peek().clone())
+                move |_| helpers.submit(&runtime, Field::Name, "retained-draft",
+                    Some("name".into()), rename_resolver("Retained"), view.submitted(draft.peek().clone()).disabling(disabled))
             }, "begin retained draft" }
         button { id: "settle-retention", onclick: {
                 let helpers = helpers.clone();
@@ -775,7 +784,7 @@ async fn terminal_settlement_releases_submitted_typed_draft() {
 #[derive(Clone, Default)]
 struct UnbindProbe {
     runtime: Rc<RefCell<Option<TestRuntime>>>,
-    helpers: Rc<RefCell<Option<PendingEditSignals<Field>>>>,
+    helpers: Rc<RefCell<Option<DraftEdits<Field>>>>,
     results: Rc<RefCell<Vec<PendingEditResult<Field>>>>,
 }
 
@@ -791,27 +800,12 @@ fn FieldChild(initial: String, start_disabled: bool) -> Element {
     let failure = use_signal(|| None::<String>);
     let composite = use_signal(|| false);
     let other = use_signal(|| start_disabled);
-    use_hook({
-        let helpers = helpers.clone();
-        move || {
-            helpers.bind_field(Field::Name, draft, failure);
-            helpers.bind_one_shot(Field::Name, composite);
-            helpers.bind_one_shot(Field::Other, other);
-        }
-    });
-    use_drop({
-        let helpers = helpers.clone();
-        move || {
-            // A composite field/one-shot component releases both bindings.
-            helpers.unbind_field(&Field::Name);
-            helpers.unbind_one_shot(&Field::Name);
-            helpers.unbind_one_shot(&Field::Other);
-            // Unbinding is idempotent.
-            helpers.unbind_field(&Field::Name);
-            helpers.unbind_one_shot(&Field::Name);
-            helpers.unbind_one_shot(&Field::Other);
-        }
-    });
+    let view = FieldView::new(draft, failure);
+    let runtime = probe
+        .runtime
+        .borrow()
+        .clone()
+        .expect("the runtime is prepared");
     rsx! {
         input { id: "child-draft", value: "{draft}" }
         if let Some(message) = failure() {
@@ -819,6 +813,24 @@ fn FieldChild(initial: String, start_disabled: bool) -> Element {
         }
         button { id: "child-composite", disabled: composite(), "composite" }
         button { id: "child-other", disabled: other(), "other" }
+        button { id: "begin-rename", onclick: {
+                let helpers = helpers.clone();
+                let runtime = runtime.clone();
+                move |_| helpers.submit(&runtime, Field::Name, "name-field",
+                    Some("project".into()), rename_resolver("Renamed"), view.submitted(draft.peek().clone()).disabling(composite))
+            }, "begin rename" }
+        button { id: "begin-rejected", onclick: {
+                let helpers = helpers.clone();
+                let runtime = runtime.clone();
+                move |_| helpers.submit(&runtime, Field::Name, "name-field",
+                    Some("project".into()), retire_resolver("old failure"), view.submitted(draft.peek().clone()).disabling(composite))
+            }, "begin rejected" }
+        button { id: "begin-other", onclick: {
+                let helpers = helpers.clone();
+                let runtime = runtime.clone();
+                move |_| helpers.submit(&runtime, Field::Other, "one-shot",
+                    Some("project".into()), rename_resolver("Applied"), EditDisplay::default().disabling(other))
+            }, "begin other" }
     }
 }
 
@@ -830,13 +842,6 @@ fn retire_resolver(message: &'static str) -> EditResolver {
 
 fn unbind_host() -> Element {
     let probe = use_context::<UnbindProbe>();
-    let runtime = use_hook(|| {
-        probe
-            .runtime
-            .borrow()
-            .clone()
-            .expect("the runtime is prepared before mounting")
-    });
     let helpers = probe
         .helpers
         .borrow()
@@ -850,24 +855,6 @@ fn unbind_host() -> Element {
         }
         button { id: "unmount", onclick: move |_| shown.set(false), "unmount" }
         button { id: "remount", onclick: move |_| { mounts += 1; shown.set(true); }, "remount" }
-        button { id: "begin-rename", onclick: {
-                let helpers = helpers.clone();
-                let runtime = runtime.clone();
-                move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
-                    Some("project".into()), rename_resolver("Renamed"), "Zephyr")
-            }, "begin rename" }
-        button { id: "begin-rejected", onclick: {
-                let helpers = helpers.clone();
-                let runtime = runtime.clone();
-                move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
-                    Some("project".into()), retire_resolver("old failure"), "Zephyr")
-            }, "begin rejected" }
-        button { id: "begin-other", onclick: {
-                let helpers = helpers.clone();
-                let runtime = runtime.clone();
-                move |_| helpers.begin_one_shot(&runtime, Field::Other, "one-shot",
-                    Some("project".into()), rename_resolver("Applied"))
-            }, "begin other" }
         button { id: "settle-unbind", onclick: {
                 let helpers = helpers.clone();
                 let probe = probe.clone();
@@ -883,7 +870,7 @@ fn unbind_host() -> Element {
 async fn mount_unbind_fixture(runtime: TestRuntime) -> MountedProbe<UnbindProbe> {
     let probe = UnbindProbe {
         runtime: Rc::new(RefCell::new(Some(runtime))),
-        helpers: Rc::new(RefCell::new(Some(PendingEditSignals::new()))),
+        helpers: Rc::new(RefCell::new(Some(DraftEdits::default()))),
         results: Default::default(),
     };
     let window = web_sys::window().unwrap();

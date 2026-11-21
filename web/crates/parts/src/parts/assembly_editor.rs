@@ -9,8 +9,7 @@ use boardstudio_model::model::{
     AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -21,7 +20,7 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -44,15 +43,7 @@ enum AssemblyKey {
     Matrix,
 }
 
-impl AssemblyKey {
-    fn of(target: &AssemblyAction) -> Self {
-        match target {
-            AssemblyAction::Assembly { .. } => Self::Save,
-            AssemblyAction::BoardAssembly { .. } => Self::Place,
-            AssemblyAction::Matrix(_) => Self::Matrix,
-        }
-    }
-}
+type AssemblyTickets = Rc<RefCell<PendingEdits<AssemblyKey, AssemblyAction>>>;
 
 /// The editor lifetime every observed action shares: a change retires all
 /// observations before the next action begins under the fresh owner.
@@ -61,17 +52,6 @@ struct AssemblyOwner {
     view_generation: u64,
     scope: Option<Scope>,
     project: Option<(String, boardstudio_application::SessionEpoch)>,
-}
-
-/// Remember the latest action per kind for the Landed follow-ups; the shared helper
-/// owns the observation, and a new action of the same kind replaces the memory (its
-/// Session edit still runs).
-fn observe_intent(pending: &mut Signal<Vec<AssemblyAction>>, target: AssemblyAction) {
-    let key = AssemblyKey::of(&target);
-    pending
-        .write()
-        .retain(|existing| AssemblyKey::of(existing) != key);
-    pending.write().push(target);
 }
 
 #[derive(Clone)]
@@ -344,8 +324,7 @@ pub fn SavedAssembliesEditor(
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut editor_generation = use_signal(|| 0_u64);
-    let pending_edits = use_hook(PendingEditSignals::<AssemblyKey>::new);
-    let mut pending = use_signal(Vec::<AssemblyAction>::new);
+    let pending_edits = use_hook(AssemblyTickets::default);
     let owner_seen = use_signal(|| None::<AssemblyOwner>);
     let preparing_apply = use_signal(|| false);
     let preparing_place = use_signal(|| false);
@@ -356,7 +335,6 @@ pub fn SavedAssembliesEditor(
         let pending_edits = pending_edits.clone();
         let mut workspace = workspace;
         let mut selected_context = selected_context;
-        let mut pending = pending;
         let mut owner_seen = owner_seen;
         move || {
             let _ = runtime_version();
@@ -372,13 +350,9 @@ pub fn SavedAssembliesEditor(
                 if owner_seen.read().is_some() {
                     // The editor lifetime moved on: retire every observation silently
                     // before any new action begins under the fresh owner.
-                    let _ = pending_edits.settle(false, |_| String::new());
-                    pending.set(Vec::new());
+                    let _ = pending_edits.borrow_mut().settle_with(false);
                 }
                 owner_seen.set(Some(current_owner));
-                return;
-            }
-            if pending.peek().is_empty() {
                 return;
             }
             // The owner identity above already covers generation, scope and project,
@@ -389,20 +363,8 @@ pub fn SavedAssembliesEditor(
                         == current_owner.project
                 });
             let model = runtime.model();
-            let mut intents = pending.peek().clone();
-            for result in pending_edits.settle(live, |_| String::new()) {
-                let key = match &result {
-                    PendingEditResult::Landed { key, .. }
-                    | PendingEditResult::Failed { key, .. }
-                    | PendingEditResult::Retired { key } => *key,
-                };
-                let Some(position) = intents
-                    .iter()
-                    .position(|intent| AssemblyKey::of(intent) == key)
-                else {
-                    continue;
-                };
-                let waiting = intents.remove(position);
+            let results = pending_edits.borrow_mut().settle_with(live);
+            for (result, waiting) in results {
                 match &result {
                     PendingEditResult::Retired { .. } => {}
                     PendingEditResult::Failed { message, .. } => {
@@ -443,9 +405,6 @@ pub fn SavedAssembliesEditor(
                         }
                     }
                 }
-            }
-            if intents.len() != pending.peek().len() {
-                pending.set(intents);
             }
         }
     });
@@ -514,7 +473,7 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         let pending_edits = pending_edits.clone();
         move |_| {
-            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
+            if pending_edits.borrow().is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
                 return;
             }
             let Some(preset) = assembly_selection.peek().as_ref().copied() else {
@@ -611,7 +570,6 @@ pub fn SavedAssembliesEditor(
         let selected_context = selected_context;
         let definitions = definitions.clone();
         let pending_edits = pending_edits.clone();
-        let pending = pending;
         let feedback = feedback;
         move |assembly| {
             begin_apply_assembly_to_matrix(
@@ -624,7 +582,6 @@ pub fn SavedAssembliesEditor(
                 assembly,
                 preparing_apply,
                 pending_edits.clone(),
-                pending,
                 editor_generation,
                 feedback,
             );
@@ -638,7 +595,6 @@ pub fn SavedAssembliesEditor(
         let definitions = definitions.clone();
         let preparing = preparing_place;
         let pending_edits = pending_edits.clone();
-        let pending = pending;
         let feedback = feedback;
         move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
             begin_place_assembly_on_board(
@@ -652,7 +608,6 @@ pub fn SavedAssembliesEditor(
                 origin_y,
                 preparing,
                 pending_edits.clone(),
-                pending,
                 editor_generation,
                 feedback,
             );
@@ -665,7 +620,7 @@ pub fn SavedAssembliesEditor(
         let definitions = definitions.clone();
         let pending_edits = pending_edits.clone();
         move |_| {
-            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
+            if pending_edits.borrow().is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
                 return;
             }
             let Some(draft) = editing.read().clone() else {
@@ -684,15 +639,12 @@ pub fn SavedAssembliesEditor(
                 feedback.set(Some("The project or Parts scope changed while this assembly draft was open. Reopen it before saving.".into()));
                 return;
             }
-            pending_edits.begin_one_shot(
+            pending_edits.borrow_mut().begin_with(
                 &runtime,
                 AssemblyKey::Save,
                 "parts-assembly-editor",
                 Some("assembly".into()),
                 assembly_save_resolver(draft.clone(), definitions.clone()),
-            );
-            observe_intent(
-                &mut pending,
                 AssemblyAction::Assembly {
                     id: draft.value.id.clone(),
                     created: draft.base.is_none(),
@@ -755,9 +707,9 @@ pub fn SavedAssembliesEditor(
                     snapshot: snapshot.clone(),
                     draft,
                     definitions: definitions.clone(),
-                    save_pending: pending_edits.is_pending(&AssemblyKey::Save),
-                    place_pending: preparing_place() || pending_edits.is_pending(&AssemblyKey::Place),
-                    matrix_pending: preparing_apply() || pending_edits.is_pending(&AssemblyKey::Matrix),
+                    save_pending: pending_edits.borrow().is_pending(&AssemblyKey::Save),
+                    place_pending: preparing_place() || pending_edits.borrow().is_pending(&AssemblyKey::Place),
+                    matrix_pending: preparing_apply() || pending_edits.borrow().is_pending(&AssemblyKey::Matrix),
                     selected_context,
                     on_place,
                     on_place_board: place_on_board,

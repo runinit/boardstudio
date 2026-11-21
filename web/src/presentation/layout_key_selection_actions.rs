@@ -7,7 +7,7 @@ use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
@@ -165,20 +165,10 @@ pub(super) fn SelectedKeysActions() -> Element {
     let retained = use_hook(|| Rc::new(RefCell::new(None::<(Owner, Targets)>)));
     let selection_lifetime = use_signal(|| 0u64);
     let pending_owner = use_hook(|| Rc::new(RefCell::new(None::<(Owner, u64, Targets)>)));
-    let edits = use_hook(PendingEditSignals::<Field>::new);
+    let edits = use_hook(DraftEdits::<Field>::default);
     let delete_pending = use_signal(|| false);
-    let mut enabled_draft = use_signal(String::new);
     let mut enabled_failure = use_signal(|| None::<String>);
     let mut failure = use_signal(|| None::<String>);
-    edits.bind_field(Field::Enabled, enabled_draft, enabled_failure);
-    edits.bind_one_shot(Field::Delete, delete_pending);
-    use_drop({
-        let edits = edits.clone();
-        move || {
-            edits.unbind_field(&Field::Enabled);
-            edits.unbind_one_shot(&Field::Delete);
-        }
-    });
     use_effect({
         let retained = retained.clone();
         let mut selection_lifetime = selection_lifetime;
@@ -209,8 +199,8 @@ pub(super) fn SelectedKeysActions() -> Element {
             } => failure.set(Some(message)),
             PendingEditResult::Failed {
                 key: Field::Enabled,
-                ..
-            } => {}
+                message,
+            } => enabled_failure.set(Some(message)),
             PendingEditResult::Landed {
                 key: Field::Delete, ..
             } => {
@@ -237,6 +227,7 @@ pub(super) fn SelectedKeysActions() -> Element {
                 key: Field::Enabled,
                 ..
             } => {
+                enabled_failure.set(None);
                 if let Some((_, _, captured)) = pending_owner.borrow().as_ref() {
                     let model = runtime.model();
                     let live = captured
@@ -266,7 +257,7 @@ pub(super) fn SelectedKeysActions() -> Element {
             PendingEditResult::Retired { key: Field::Delete } => failure.set(None),
             PendingEditResult::Retired {
                 key: Field::Enabled,
-            } => {}
+            } => enabled_failure.set(None),
         }
     }
     let model = runtime.model();
@@ -328,6 +319,7 @@ pub(super) fn SelectedKeysActions() -> Element {
                 // Changing the observation owner never cancels Session's committed intent.
                 // Retire its UI observation before the new owner starts another edit.
                 edits.settle(false, |_| String::new());
+                enabled_failure.set(None);
             }
             *retained.borrow_mut() = Some((current_owner.clone(), captured.clone()));
             *pending_owner.borrow_mut() = Some((current_owner.clone(), lifetime, captured.clone()));
@@ -359,24 +351,20 @@ pub(super) fn SelectedKeysActions() -> Element {
                 Resolution::submit(captured.cells.keys().cloned().collect(), operation)
             });
             match action {
-                Action::Enable | Action::Disable => {
-                    let draft = (action == Action::Enable).to_string();
-                    enabled_draft.set(draft.clone());
-                    edits.begin_field(
-                        &runtime,
-                        Field::Enabled,
-                        "selected-keys-enabled",
-                        Some("layout".into()),
-                        resolver,
-                        &draft,
-                    );
-                }
-                Action::Delete => edits.begin_one_shot(
+                Action::Enable | Action::Disable => edits.begin(
+                    &runtime,
+                    Field::Enabled,
+                    "selected-keys-enabled",
+                    Some("layout".into()),
+                    resolver,
+                ),
+                Action::Delete => edits.submit(
                     &runtime,
                     Field::Delete,
                     "selected-keys-delete",
                     Some("layout".into()),
                     resolver,
+                    EditDisplay::default().disabling(delete_pending),
                 ),
             }
         });

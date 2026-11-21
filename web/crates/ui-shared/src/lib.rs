@@ -18,6 +18,7 @@ pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
+pub mod draft_edits;
 pub mod footprint_forms;
 pub mod inspector_fields;
 pub mod layout_camera;

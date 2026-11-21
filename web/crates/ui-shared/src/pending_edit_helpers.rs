@@ -1,262 +1,59 @@
-//! Signal-bound field and one-shot helpers over the Runtime `PendingEdits`
-//! collection. The helpers own the settlement coordination panels repeated per field —
-//! submitted-draft memory, draft restoration, inline failures, one-shot disabling — so a
-//! panel binds its Signals once and reads drained results for its own follow-ups.
-//!
-//! A panel uses the helpers like this:
-//!
-//! ```ignore
-//! let helpers = use_hook(|| Rc::new(PendingEditSignals::<MatrixField>::new()));
-//! let rows = use_signal(String::new);
-//! let rows_failure = use_signal(|| None::<String>);
-//! let preset_disabled = use_signal(|| false);
-//! helpers.bind_field(MatrixField::Rows, rows, rows_failure);
-//! helpers.bind_one_shot(MatrixField::Preset, preset_disabled);
-//!
-//! // When the user commits a draft, submit it as intent; the draft stays visible:
-//! helpers.begin_field(&runtime, MatrixField::Rows, "matrix-rows", Some("matrix".into()),
-//!     resolver, &rows.peek().clone());
-//! // One-shot controls disable while their edit is pending:
-//! helpers.begin_one_shot(&runtime, MatrixField::Preset, "matrix-preset",
-//!     Some("matrix".into()), resolver);
-//!
-//! // Settle on each render pass (the panel owns the loop, as today):
-//! for result in helpers.settle(owner_is_live(), |key| accepted_text(key)) {
-//!     // Landed: run caller follow-ups (exact selection, refresh). Failed: place the
-//!     // message wherever else the panel needs it. Retired: nothing to do.
-//! }
-//! ```
-//!
-//! `PendingEditSignals<K, D = String>` also binds typed drafts with `D: Clone + PartialEq`.
-//! A caller binds `Signal<D>` with the same `bind_field`, submits the exact value through
-//! `begin_value(..., &draft)`, and projects an accepted `D` through `settle`. Submitted
-//! values are compared directly; no text conversion or serialization is involved. The
-//! default String form keeps `begin_field(..., &str)` and its existing field policy.
-//! Typed fields and one-shot actions can share one collection and the same binding epochs.
-//!
-//! A component that owns bound Signals releases them when it unmounts, so a settlement
-//! never writes a dropped Signal and an outcome submitted before the unmount never reaches
-//! a later component that binds the same key:
-//!
-//! ```ignore
-//! use_hook(|| helpers.bind_field(Key::Name, draft, failure));
-//! use_drop({
-//!     let helpers = helpers.clone();
-//!     // A composite control that also binds the key as a one-shot releases both.
-//!     move || { helpers.unbind_field(&Key::Name); helpers.unbind_one_shot(&Key::Name); }
-//! });
-//! ```
-//!
-//! Unbinding is idempotent and does not touch the Session: the queued edit still runs and
-//! its result is still returned by `settle` for caller follow-ups. Rebinding the same
-//! Signals on every render is harmless; binding other Signals for a key detaches the edits
-//! submitted for the old ones in the same way.
-//!
-//! Invariants (decision [01](../../../../docs/plans/module-deepening/issues/01-decide-pending-edit-settlement.md),
-//! [ADR-0005 amendment](../../../../docs/adr/0005-resolve-queued-edits-at-execution.md)):
-//! the latest ticket per key drives it; a settlement may only write a draft that still
-//! is the value its edit was submitted with, so an older outcome never overwrites a newer
-//! draft; failures surface inline at the field by default while the results keep them
-//! available for other placement; retirement is silent; there is no Saved state and no
-//! automatic retry. Domain projection and value conversion stay with the caller through
-//! the `accepted` projection.
+//! Compatibility bindings for Layout Objects controllers. New forms attach their
+//! view directly to each submission through [`crate::draft_edits::DraftEdits`].
 
+use crate::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use boardstudio_application::EditResolver;
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
-use std::cell::{Cell, Ref, RefCell};
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-/// Whether a settlement may write a field's draft: only while the live draft still is
-/// the value the edit was submitted with. An unknown submitted draft never qualifies.
-fn draft_may_restore<D: PartialEq + ?Sized>(submitted: Option<&D>, current: &D) -> bool {
-    submitted.is_some_and(|submitted| submitted == current)
-}
+type Bindings<K, V> = Rc<RefCell<Vec<(K, V)>>>;
 
-/// The Signals one field binds: its live draft and its inline failure message.
-pub struct FieldView<D = String> {
-    pub draft: Signal<D>,
-    pub failure: Signal<Option<String>>,
-}
-
-// Signal handles are Copy even when their values are not.
-impl<D> Copy for FieldView<D> {}
-
-impl<D> Clone for FieldView<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-/// The Signal one one-shot control binds: unavailable while its edit is pending.
-#[derive(Clone, Copy)]
-pub struct OneShotView {
-    pub disabled: Signal<bool>,
-}
-
-struct Binding<K, D> {
-    key: K,
-    view: FieldView<D>,
-    /// Identifies this component's binding; a rebind with other Signals gets a new one.
-    epoch: u64,
-}
-
-struct OneShotBinding<K> {
-    key: K,
-    view: OneShotView,
-    epoch: u64,
-}
-
-/// What the latest edit for a key was submitted with, and which bindings were live then.
-/// A settlement writes a Signal only while the same binding is still bound, so an old
-/// outcome never reaches a component that unmounted or a remount that took its key.
-struct Submission<D> {
-    /// The submitted draft value, for field edits.
-    text: Option<D>,
-    field_epoch: Option<u64>,
-    one_shot_epoch: Option<u64>,
-}
-
-/// The collection, the bound views and the submitted-draft memory, shared by every
-/// clone of [`PendingEditSignals`].
-struct Shared<K, D> {
-    edits: RefCell<PendingEdits<K, Submission<D>>>,
-    fields: RefCell<Vec<Binding<K, D>>>,
-    one_shots: RefCell<Vec<OneShotBinding<K>>>,
-    next_epoch: Cell<u64>,
-}
-
-/// Signal-bound coordination over one [`PendingEdits`] collection. Clone to share
-/// between a panel's hooks and handlers; every clone drives the same collection and
-/// bindings.
 #[derive(Clone)]
 pub struct PendingEditSignals<K, D = String> {
-    shared: Rc<Shared<K, D>>,
+    edits: DraftEdits<K, D>,
+    fields: Bindings<K, FieldView<D>>,
+    one_shots: Bindings<K, Signal<bool>>,
 }
 
-impl<K, D> Default for PendingEditSignals<K, D>
-where
-    K: PartialEq + 'static,
-    D: Clone + PartialEq + 'static,
-{
+impl<K, D> Default for PendingEditSignals<K, D> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            edits: DraftEdits::default(),
+            fields: Rc::default(),
+            one_shots: Rc::default(),
+        }
     }
 }
 
-impl<K, D> PendingEditSignals<K, D>
-where
-    K: PartialEq + 'static,
-    D: Clone + PartialEq + 'static,
-{
+impl<K: PartialEq, D: Clone + PartialEq + 'static> PendingEditSignals<K, D> {
     pub fn new() -> Self {
-        Self {
-            shared: Rc::new(Shared {
-                edits: RefCell::new(PendingEdits::default()),
-                fields: RefCell::new(Vec::new()),
-                one_shots: RefCell::new(Vec::new()),
-                next_epoch: Cell::new(1),
-            }),
-        }
+        Self::default()
     }
 
-    fn new_epoch(&self) -> u64 {
-        let epoch = self.shared.next_epoch.get();
-        self.shared.next_epoch.set(epoch + 1);
-        epoch
-    }
-
-    /// Bind one field's draft and inline failure Signals. Rebinding a key with the
-    /// same Signals changes nothing, so a panel may bind on every render; rebinding with
-    /// other Signals replaces the view and detaches edits submitted for the old one. Only
-    /// bound fields receive settlement writes.
-    ///
-    /// A component that owns the Signals must call [`Self::unbind_field`] when it
-    /// unmounts: a settlement never writes a Signal that was dropped without unbinding.
     pub fn bind_field(&self, key: K, draft: Signal<D>, failure: Signal<Option<String>>) {
-        let view = FieldView { draft, failure };
-        let unchanged = self
-            .shared
-            .fields
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == key)
-            .map(|binding| binding.view.draft == draft && binding.view.failure == failure);
-        if unchanged == Some(true) {
-            return;
-        }
-        let epoch = self.new_epoch();
-        let mut fields = self.shared.fields.borrow_mut();
-        match fields.iter_mut().find(|binding| binding.key == key) {
-            Some(binding) => {
-                binding.view = view;
-                binding.epoch = epoch;
-            }
-            None => fields.push(Binding { key, view, epoch }),
-        }
+        bind(
+            &mut self.fields.borrow_mut(),
+            key,
+            FieldView::new(draft, failure),
+            |key| {
+                self.edits.detach_field(key);
+            },
+        );
     }
 
-    /// Bind one one-shot control's disabled Signal. Rebinding a key with the same Signal
-    /// changes nothing; another Signal replaces the view and detaches older edits. The
-    /// owning component calls [`Self::unbind_one_shot`] when it unmounts.
     pub fn bind_one_shot(&self, key: K, disabled: Signal<bool>) {
-        let view = OneShotView { disabled };
-        let unchanged = self
-            .shared
-            .one_shots
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == key)
-            .map(|binding| binding.view.disabled == disabled);
-        if unchanged == Some(true) {
-            return;
-        }
-        let epoch = self.new_epoch();
-        let mut one_shots = self.shared.one_shots.borrow_mut();
-        match one_shots.iter_mut().find(|binding| binding.key == key) {
-            Some(binding) => {
-                binding.view = view;
-                binding.epoch = epoch;
-            }
-            None => one_shots.push(OneShotBinding { key, view, epoch }),
-        }
+        bind(&mut self.one_shots.borrow_mut(), key, disabled, |key| {
+            self.edits.detach_disabled(key);
+        });
     }
 
-    /// Release a field binding when its component leaves. Idempotent. The key's edit keeps
-    /// running in the Session and its result is still returned by [`Self::settle`], but no
-    /// settlement writes the dropped Signals, and an outcome submitted before the unbind
-    /// never reaches a later binding of the same key.
-    ///
-    /// A composite component that binds the same key as a field and as a one-shot control
-    /// releases both: call `unbind_field` and `unbind_one_shot` with the key.
     pub fn unbind_field(&self, key: &K) {
-        self.shared
-            .fields
-            .borrow_mut()
-            .retain(|binding| binding.key != *key);
+        self.fields.borrow_mut().retain(|(bound, _)| bound != key);
+        self.edits.detach_field(key);
     }
 
-    /// Release a one-shot binding when its control leaves; the same guarantees as
-    /// [`Self::unbind_field`]. Idempotent.
-    pub fn unbind_one_shot(&self, key: &K) {
-        self.shared
-            .one_shots
-            .borrow_mut()
-            .retain(|binding| binding.key != *key);
-    }
-
-    fn field_epoch(&self, key: &K) -> Option<u64> {
-        self.shared
-            .fields
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == *key)
-            .map(|binding| binding.epoch)
-    }
-
-    /// Submit a field edit as intent under `key`, remembering the draft it was
-    /// submitted with so a later settlement cannot clobber a newer draft.
     pub fn begin_value(
         &self,
         port: &dyn EditTicketPort,
@@ -266,18 +63,12 @@ where
         resolver: EditResolver,
         current_draft: &D,
     ) {
-        self.begin(
-            port,
-            key,
-            label,
-            feature,
-            resolver,
-            Some(current_draft.clone()),
-        );
+        let display = find(&self.fields.borrow(), &key)
+            .map(|view| view.submitted(current_draft.clone()))
+            .unwrap_or_default();
+        self.submit(port, key, label, feature, resolver, display);
     }
 
-    /// Submit a one-shot edit as intent under `key` and disable its bound control until
-    /// the edit settles or retires.
     pub fn begin_one_shot(
         &self,
         port: &dyn EditTicketPort,
@@ -286,177 +77,39 @@ where
         feature: Option<String>,
         resolver: EditResolver,
     ) {
-        self.begin(port, key, label, feature, resolver, None);
+        self.submit(port, key, label, feature, resolver, EditDisplay::default());
     }
 
-    fn begin(
+    fn submit(
         &self,
         port: &dyn EditTicketPort,
         key: K,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
-        text: Option<D>,
+        mut display: EditDisplay<D>,
     ) {
-        let one_shot = self
-            .shared
-            .one_shots
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == key)
-            .map(|binding| (binding.view.disabled, binding.epoch));
-        if let Some((mut disabled, _)) = one_shot {
-            disabled.set(true);
+        if let Some(disabled) = find(&self.one_shots.borrow(), &key) {
+            display = display.disabling(disabled);
         }
-        let submission = Submission {
-            field_epoch: text.as_ref().and_then(|_| self.field_epoch(&key)),
-            one_shot_epoch: one_shot.map(|(_, epoch)| epoch),
-            text,
-        };
-        self.shared
-            .edits
-            .borrow_mut()
-            .begin_with(port, key, label, feature, resolver, submission);
+        self.edits
+            .submit(port, key, label, feature, resolver, display);
     }
 
-    /// Whether the key's latest edit is still pending in its captured document scope.
     pub fn is_pending(&self, key: &K) -> bool {
-        self.shared.edits.borrow().is_pending(key)
+        self.edits.is_pending(key)
     }
 
-    /// The draft the key's pending edit was submitted with, if it is still pending.
-    /// This is the authoritative admission memory: a blur on an untouched draft does
-    /// not resubmit while the edit is pending, and Escape restores this value.
-    pub fn pending_submission(&self, key: &K) -> Option<D> {
-        self.shared
-            .edits
-            .borrow()
-            .pending_payload(key)
-            .and_then(|submission| submission.text.clone())
-    }
-
-    /// Whether any terminal observation still awaits settlement.
-    pub fn has_terminal(&self) -> bool {
-        self.shared.edits.borrow().has_terminal()
-    }
-
-    /// Borrow the observations for presentation. Release the borrow before submitting
-    /// or settling an edit.
-    pub fn edits(&self) -> EditObservations<'_, K, D> {
-        EditObservations(self.shared.edits.borrow())
-    }
-
-    /// Retire observations silently while keeping the mounted field bindings. One-shot
-    /// bindings belong to the old owner. Dropping tickets leaves their Session edits running.
-    pub(crate) fn retire_owner(&self) {
-        *self.shared.edits.borrow_mut() = PendingEdits::default();
-        self.shared.one_shots.borrow_mut().clear();
-    }
-
-    /// Read the current draft of a mounted field without subscribing to it.
-    pub fn bound_draft(&self, key: &K) -> Option<D> {
-        self.shared
-            .fields
-            .borrow()
-            .iter()
-            .find(|binding| &binding.key == key)
-            .map(|binding| binding.view.draft.peek().clone())
-    }
-
-    /// Drain terminal results once and apply the field policy:
-    ///
-    /// - *Landed* and *Retired* project the accepted value (via `accepted`) into the
-    ///   field's draft while that draft still is the submitted value; retirement is
-    ///   silent. *Failed* additionally reports the message inline. A newer draft is
-    ///   never overwritten; its field still receives the failure message.
-    /// - Any terminal re-enables a bound one-shot control and releases its submitted value.
-    ///
-    /// Every drained result is returned in drain order for caller follow-ups — Landed
-    /// revisions, failure placement beyond the field, and domain projection the
-    /// `accepted` closure does not cover.
     pub fn settle(
         &self,
         owner_is_live: bool,
         accepted: impl Fn(&K) -> D,
     ) -> Vec<PendingEditResult<K>> {
-        let results = self.shared.edits.borrow_mut().settle_with(owner_is_live);
-        results
-            .into_iter()
-            .map(|(result, submission)| {
-                let (PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key }) = &result;
-                self.apply_to_field(key, &result, &submission, &accepted);
-                self.release_one_shot(key, submission.one_shot_epoch);
-                result
-            })
-            .collect()
-    }
-
-    fn apply_to_field(
-        &self,
-        key: &K,
-        result: &PendingEditResult<K>,
-        submission: &Submission<D>,
-        accepted: &impl Fn(&K) -> D,
-    ) {
-        let (mut view, epoch) = match self
-            .shared
-            .fields
-            .borrow()
-            .iter()
-            .find(|binding| &binding.key == key)
-        {
-            Some(binding) => (binding.view, binding.epoch),
-            None => return,
-        };
-        if submission.field_epoch != Some(epoch) {
-            // The edit was submitted for a binding that has since been replaced.
-            return;
-        }
-        let message = match result {
-            PendingEditResult::Failed { message, .. } => Some(message.as_str()),
-            _ => None,
-        };
-        if let Some(message) = message {
-            view.failure.set(Some(message.to_owned()));
-        } else if view.failure.read().is_some() {
-            view.failure.set(None);
-        }
-        let current = view.draft.peek().clone();
-        let projected = accepted(key);
-        if draft_may_restore(submission.text.as_ref(), &current) && current != projected {
-            view.draft.set(projected);
-        }
-    }
-
-    fn release_one_shot(&self, key: &K, one_shot_epoch: Option<u64>) {
-        let bound = self
-            .shared
-            .one_shots
-            .borrow()
-            .iter()
-            .find(|binding| &binding.key == key)
-            .map(|binding| (binding.view.disabled, binding.epoch));
-        if let Some((mut disabled, epoch)) = bound
-            && one_shot_epoch == Some(epoch)
-        {
-            disabled.set(false);
-        }
+        self.edits.settle(owner_is_live, accepted)
     }
 }
 
-/// Read-only access to the ticket state used by controllers with custom projections.
-pub struct EditObservations<'a, K, D>(Ref<'a, PendingEdits<K, Submission<D>>>);
-
-impl<K: PartialEq, D> EditObservations<'_, K, D> {
-    pub fn pending_keys(&self) -> impl Iterator<Item = &K> {
-        self.0.pending_keys()
-    }
-}
-
-impl<K: PartialEq + 'static> PendingEditSignals<K> {
-    /// Submit a String field's exact text, preserving the existing borrowed-str interface.
+impl<K: PartialEq> PendingEditSignals<K> {
     pub fn begin_field(
         &self,
         port: &dyn EditTicketPort,
@@ -477,21 +130,23 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn restore_requires_the_submitted_draft() {
-        assert!(draft_may_restore(Some("1.5"), "1.5"));
-        assert!(!draft_may_restore(Some("1.5"), "2.0"), "a newer draft wins");
-        assert!(
-            !draft_may_restore(None, "1.5"),
-            "an unknown draft is never replaced"
-        );
-    }
+fn find<K: PartialEq, V: Copy>(bindings: &[(K, V)], key: &K) -> Option<V> {
+    bindings
+        .iter()
+        .find(|(bound, _)| bound == key)
+        .map(|(_, value)| *value)
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pending_edit_helpers/mounted_tests.rs"]
-mod mounted_tests;
+fn bind<K: PartialEq, V: Copy + PartialEq>(
+    bindings: &mut Vec<(K, V)>,
+    key: K,
+    value: V,
+    detach: impl FnOnce(&K),
+) {
+    if find(bindings, &key) == Some(value) {
+        return;
+    }
+    bindings.retain(|(bound, _)| bound != &key);
+    detach(&key);
+    bindings.push((key, value));
+}

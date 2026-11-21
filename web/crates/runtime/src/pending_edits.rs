@@ -72,7 +72,7 @@ impl<K: PartialEq> PendingEdits<K> {
 
     /// Drain terminal observations once in key insertion order.
     pub fn settle(&mut self, owner_is_live: bool) -> Vec<PendingEditResult<K>> {
-        self.drain_terminal(owner_is_live, |result, ()| result)
+        self.drain_terminal(|_| owner_is_live, |result, ()| result)
     }
 }
 
@@ -123,6 +123,14 @@ impl<K: PartialEq, P> PendingEdits<K, P> {
             .map(|entry| &entry.payload)
     }
 
+    /// Update display data even if the ticket became terminal before the view changed.
+    pub fn payload_mut(&mut self, key: &K) -> Option<&mut P> {
+        self.tickets
+            .iter_mut()
+            .find(|entry| &entry.key == key)
+            .map(|entry| &mut entry.payload)
+    }
+
     /// Live payloads in submission order. Replacing a key moves its payload to the
     /// end of this projection while retaining its original settlement position.
     pub fn pending_keys(&self) -> impl Iterator<Item = &K> {
@@ -156,18 +164,26 @@ impl<K: PartialEq, P> PendingEdits<K, P> {
     /// stay stored. The owner predicate describes only panel lifetime; each ticket checks
     /// its captured Scope and permanently retires after a mismatch.
     pub fn settle_with(&mut self, owner_is_live: bool) -> Vec<(PendingEditResult<K>, P)> {
+        self.settle_where(|_| owner_is_live)
+    }
+
+    /// Settle tickets whose panel ownership is determined by their submitted payload.
+    pub fn settle_where(
+        &mut self,
+        owner_is_live: impl Fn(&P) -> bool,
+    ) -> Vec<(PendingEditResult<K>, P)> {
         self.drain_terminal(owner_is_live, |result, payload| (result, payload))
     }
 
     fn drain_terminal<T>(
         &mut self,
-        owner_is_live: bool,
+        owner_is_live: impl Fn(&P) -> bool,
         project: impl Fn(PendingEditResult<K>, P) -> T,
     ) -> Vec<T> {
         let mut pending = Vec::with_capacity(self.tickets.len());
         let mut results = Vec::new();
         for entry in self.tickets.drain(..) {
-            let result = match entry.ticket.settlement(owner_is_live) {
+            let result = match entry.ticket.settlement(owner_is_live(&entry.payload)) {
                 Settlement::Pending => {
                     pending.push(entry);
                     continue;

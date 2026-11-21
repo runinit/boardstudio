@@ -119,8 +119,8 @@ pub(super) fn draft_binding(
         for request in tickets
             .0
             .read()
-            .helper
-            .edits()
+            .edits
+            .observations()
             .pending_keys()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
@@ -575,10 +575,13 @@ pub fn use_binding_operations(
                     feedback.write().clear();
                 }
             }
-            if !pending.peek().helper.has_terminal() {
+            if !pending.peek().edits.has_terminal() {
                 return;
             }
-            let results = pending.write().helper.settle(true, |_| String::new());
+            let results = pending
+                .write()
+                .edits
+                .settle(true, |_| unreachable!("binding tickets have no draft view"));
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
                 | PendingEditResult::Failed { key, .. }
@@ -803,13 +806,12 @@ pub fn use_binding_operations(
                     .follow_owner(Some(&expected_source.scope), captured_generation);
             }
             let key = BindingKey::of(&request);
-            pending.write().helper.begin_field(
+            pending.write().edits.begin(
                 &runtime,
                 key,
                 "keymap-binding",
                 Some("binding".into()),
                 binding_resolver(request.clone()),
-                "",
             );
             feedback.write().retain(|entry| {
                 !(entry.request.target == request.target && entry.request.field == request.field)

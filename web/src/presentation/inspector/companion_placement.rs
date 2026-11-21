@@ -123,7 +123,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
         }
     }));
     let pending_edits = props.pending_edits.peek().clone();
-    pending_edits.bind_one_shot(InspectorField::CompanionPlacement, props.pending);
     let last_owner = use_hook(|| Rc::new(RefCell::new(None::<CompanionPlacementOwner>)));
     let owner_is_live = {
         let mut previous = last_owner.borrow_mut();
@@ -152,7 +151,6 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     }
     let retired_pending = pending_edits.clone();
     use_drop(move || {
-        retired_pending.unbind_one_shot(&InspectorField::CompanionPlacement);
         retired_pending.settle(false, |_| String::new());
     });
 

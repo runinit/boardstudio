@@ -12,7 +12,7 @@ use boardstudio_model::model::{PartKind, ProjectDoc};
 #[cfg(test)]
 use boardstudio_web_host::host::ProjectListing;
 use boardstudio_web_host::host::UnreadableProject;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::alert_dialog::{
     AlertDialog, AlertDialogActions, AlertDialogCancel, AlertDialogDescription, AlertDialogTitle,
@@ -66,7 +66,8 @@ struct ProjectNameCommitAction {
     runtime: Rc<Runtime>,
     owner: ProjectNameOwner,
     mounted: Rc<Cell<bool>>,
-    edits: PendingEditSignals<ProjectNameKey>,
+    edits: DraftEdits<ProjectNameKey>,
+    name: FieldView,
     /// The project the latest submitted rename belongs to; its observation is live only
     /// while that project stays accepted.
     submitted_owner: Rc<std::cell::RefCell<Option<ProjectNameOwner>>>,
@@ -76,13 +77,13 @@ impl ProjectNameCommitAction {
     fn commit(&self, value: &str) {
         match project_name_resolver(&self.runtime, &self.owner, &self.mounted, value) {
             Ok(resolver) => {
-                self.edits.begin_field(
+                self.edits.submit(
                     &self.runtime,
                     ProjectNameKey::Name,
                     "project-name",
                     Some("project name".into()),
                     resolver,
-                    value,
+                    self.name.submitted(value.to_owned()),
                 );
                 *self.submitted_owner.borrow_mut() = Some(self.owner.clone());
             }
@@ -598,8 +599,7 @@ pub fn Library(
     let mut project_name = use_signal(|| current_name.clone());
     let mut name_dirty = use_signal(|| false);
     let mut name_failure = use_signal(|| None::<String>);
-    let name_edits = use_hook(PendingEditSignals::<ProjectNameKey>::new);
-    name_edits.bind_field(ProjectNameKey::Name, project_name, name_failure);
+    let name_edits = use_hook(DraftEdits::<ProjectNameKey>::default);
     let submitted_name_owner =
         use_hook(|| Rc::new(std::cell::RefCell::new(None::<ProjectNameOwner>)));
     let name_version = version();
@@ -650,6 +650,7 @@ pub fn Library(
         owner,
         mounted: mounted.clone(),
         edits: name_edits.clone(),
+        name: FieldView::new(project_name, name_failure),
         submitted_owner: submitted_name_owner.clone(),
     });
     #[cfg(all(test, target_arch = "wasm32"))]

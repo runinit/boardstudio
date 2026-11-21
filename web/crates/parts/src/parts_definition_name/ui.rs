@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::PartDefinition;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     field::{Field, FieldError, FieldLabel},
@@ -37,7 +37,7 @@ pub fn DefinitionNameEditor(
     let mut draft = use_signal(|| definition.name.clone());
     let mut draft_dirty = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
-    let pending = use_hook(PendingEditSignals::<NameFieldKey>::new);
+    let pending = use_hook(DraftEdits::<NameFieldKey>::default);
     // Subscribe to the workspace's runtime-change version: outcomes settle outside
     // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
     // even when the accepted document did not change (for example a failed save).
@@ -52,21 +52,12 @@ pub fn DefinitionNameEditor(
     if *observation_owner.borrow() != capture {
         // Detach the old owner's Signals before silently retiring its observations.
         // The Session still owns and executes the already committed edits.
-        pending.unbind_field(&NameFieldKey::Name);
-        pending.settle(false, |_| String::new());
+        pending.clear();
         *observation_owner.borrow_mut() = capture.clone();
         draft.set(definition.name.clone());
         draft_dirty.set(false);
         failure.set(None);
     }
-    pending.bind_field(NameFieldKey::Name, draft, failure);
-    use_drop({
-        let pending = pending.clone();
-        move || {
-            pending.unbind_field(&NameFieldKey::Name);
-            pending.settle(false, |_| String::new());
-        }
-    });
     // A fresh accepted snapshot is required at commit time, but it is not
     // a reason to discard a dirty field draft. React DraftInput keys its
     // reset to the accepted field value; keep this target identity
@@ -153,13 +144,13 @@ pub fn DefinitionNameEditor(
                 return;
             }
             let resolver = definition_name_resolver(capture.definition_id.clone(), name);
-            pending.begin_field(
+            pending.submit(
                 &runtime,
                 NameFieldKey::Name,
                 "parts-definition-name",
                 Some("part definition".into()),
                 resolver,
-                &draft.peek().clone(),
+                FieldView::new(draft, failure).submitted(draft.peek().clone()),
             );
             failure.set(None);
         }

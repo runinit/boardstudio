@@ -252,11 +252,7 @@ pub fn use_controller(
                     return;
                 }
                 // One setup operation is in flight at a time (the busy gate above), so a
-                // task-local keyed collection is the whole settlement owner here. This is
-                // workflow orchestration, not field settlement: the drained result drives
-                // navigation and reassignment follow-ups through finish_operation instead
-                // of restoring a drafted control, which is why it does not route through
-                // PendingEditSignals.
+                // task-local ticket drives navigation and reassignment through finish_operation.
                 let mut edits = PendingEdits::<OwnerIdentity>::default();
                 let operation = edits.begin(
                     &runtime,

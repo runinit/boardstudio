@@ -187,7 +187,7 @@ pub(super) fn use_layout_workspace_state(
         pending_anchor_pick: use_signal(|| None),
         pair_created_selection: use_signal(|| None),
         component_inspector_edits: use_signal(
-            super::layout_component_edits::LayoutComponentInspectorEdits::new,
+            super::layout_component_edits::LayoutComponentInspectorEdits::default,
         ),
         component_inspector_x: use_signal(String::new),
         component_inspector_y: use_signal(String::new),

@@ -9,7 +9,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
 use boardstudio_model::model::{MacroChange, MacroStep};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
+use boardstudio_web_ui_shared::{draft_edits::FieldView, owned_edits::OwnedEdits};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -50,8 +50,23 @@ impl MacroKey {
 
 type MacroPending = OwnedEdits<MacroKey>;
 
-#[derive(Clone, Copy)]
-struct MacroTickets(Signal<MacroPending>);
+type MacroFields = Rc<RefCell<Vec<(MacroKey, FieldView)>>>;
+
+#[derive(Clone)]
+struct MacroTickets(Signal<MacroPending>, MacroFields);
+
+impl MacroTickets {
+    fn detach(&self, key: &MacroKey, view: FieldView) {
+        let mut fields = self.1.borrow_mut();
+        if fields
+            .iter()
+            .any(|(bound, field)| bound == key && *field == view)
+        {
+            self.0.peek().edits.detach_field(key);
+            fields.retain(|(bound, _)| bound != key);
+        }
+    }
+}
 
 /// Bind a macro text field's draft and failure Signals to the controller's helper for as
 /// long as the calling component is mounted. The component's Signals are released when it
@@ -64,26 +79,31 @@ pub(super) fn use_bound_macro_field(
 ) {
     let edits = try_consume_context::<MacroTickets>();
     let bound = use_hook(|| Rc::new(RefCell::new(None::<MacroKey>)));
-    if let Some(edits) = edits {
+    let view = FieldView::new(draft, failure);
+    if let Some(edits) = edits.as_ref() {
         let key = MacroKey::bound(macro_id, target);
         let mut previous = bound.borrow_mut();
         if let Some(old) = previous.as_ref()
             && *old != key
         {
-            edits.0.peek().helper.unbind_field(old);
+            edits.detach(old, view);
         }
-        edits
-            .0
-            .peek()
-            .helper
-            .bind_field(key.clone(), draft, failure);
+        let mut fields = edits.1.borrow_mut();
+        if let Some((_, current)) = fields.iter_mut().find(|(bound, _)| bound == &key) {
+            if *current != view {
+                edits.0.peek().edits.detach_field(&key);
+                *current = view;
+            }
+        } else {
+            fields.push((key.clone(), view));
+        }
         *previous = Some(key);
     }
     use_drop({
         let bound = bound.clone();
         move || {
             if let (Some(edits), Some(key)) = (edits, bound.borrow_mut().take()) {
-                edits.0.peek().helper.unbind_field(&key);
+                edits.detach(&key, view);
             }
         }
     });
@@ -109,23 +129,6 @@ fn accepted_macro_text(
             .steps
             .get(index)
             .map_or_else(String::new, |step| macro_step_text(step, key.target)),
-        _ => String::new(),
-    }
-}
-
-/// The draft text a request submits for its field.
-fn submitted_macro_text(request: &MacroEditRequest) -> String {
-    match &request.change {
-        MacroEditChange::Change(MacroChange::Name { value }) => value.clone(),
-        MacroEditChange::Change(MacroChange::TapMs { value })
-        | MacroEditChange::Change(MacroChange::WaitMs { value }) => value.to_string(),
-        MacroEditChange::Change(MacroChange::Step { index, value })
-            if matches!(request.target,
-                MacroEditTarget::StepKeycode { index: target } | MacroEditTarget::StepDelay { index: target }
-                if target == *index) =>
-        {
-            macro_step_text(value, request.target)
-        }
         _ => String::new(),
     }
 }
@@ -172,8 +175,8 @@ pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) ->
         tickets
             .0
             .read()
-            .helper
-            .edits()
+            .edits
+            .observations()
             .pending_keys()
             .any(|entry| entry.macro_id.as_deref() == macro_id && same_action(entry.target, target))
     })
@@ -190,8 +193,8 @@ pub(super) fn draft_step(
         for request in tickets
             .0
             .read()
-            .helper
-            .edits()
+            .edits
+            .observations()
             .pending_keys()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
@@ -266,7 +269,8 @@ pub fn use_macro_operations(
     let mut last_admitted_request = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
     let pending = use_signal(MacroPending::default);
-    use_context_provider(|| MacroTickets(pending));
+    let fields = use_hook(MacroFields::default);
+    use_context_provider(|| MacroTickets(pending, fields.clone()));
     let feedback = use_signal(Vec::<MacroEditFeedback>::new);
     use_context_provider(|| MacroFeedbacks(feedback));
     let cache = use_hook(|| {
@@ -300,13 +304,13 @@ pub fn use_macro_operations(
                         && entry.scope_generation == owner_generation
                 });
             }
-            if !pending.peek().helper.has_terminal() {
+            if !pending.peek().edits.has_terminal() {
                 return;
             }
             let document = runtime.model().accepted.map(|snapshot| snapshot.document);
             let results = pending
                 .write()
-                .helper
+                .edits
                 .settle(true, |key| accepted_macro_text(document.as_deref(), key));
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
@@ -455,9 +459,15 @@ pub fn use_macro_operations(
                 return;
             }
             if is_action(request.target)
-                && pending.peek().helper.edits().pending_keys().any(|entry| {
-                    entry.macro_id == request.macro_id && same_action(entry.target, request.target)
-                })
+                && pending
+                    .peek()
+                    .edits
+                    .observations()
+                    .pending_keys()
+                    .any(|entry| {
+                        entry.macro_id == request.macro_id
+                            && same_action(entry.target, request.target)
+                    })
             {
                 return;
             }
@@ -474,8 +484,8 @@ pub fn use_macro_operations(
             // one can precede a field, so its positional effect can be captured purely.
             let preceding_structure = pending
                 .peek()
-                .helper
-                .edits()
+                .edits
+                .observations()
                 .pending_keys()
                 .find(|entry| entry.macro_id == request.macro_id && structural_action(entry.target))
                 .and_then(|entry| {
@@ -509,18 +519,19 @@ pub fn use_macro_operations(
                     .follow_owner(Some(&scope), captured_generation);
             }
             let key = MacroKey::of(&request);
-            let submitted_text = pending
-                .peek()
-                .helper
-                .bound_draft(&key)
-                .unwrap_or_else(|| submitted_macro_text(&request));
-            pending.write().helper.begin_field(
+            let display = fields
+                .borrow()
+                .iter()
+                .find(|(bound, _)| bound == &key)
+                .map(|(_, view)| view.submitted(view.draft.peek().clone()))
+                .unwrap_or_default();
+            pending.write().edits.submit(
                 &runtime,
                 key,
                 "keymap-macro",
                 Some("macro".into()),
                 macro_resolver(request.clone(), seed, preceding_structure),
-                &submitted_text,
+                display,
             );
             last_admitted_request.set(request.request_id);
         }
