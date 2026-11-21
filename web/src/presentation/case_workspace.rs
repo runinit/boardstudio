@@ -14,16 +14,14 @@ use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotTo
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
 pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
 use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, TextField};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
-    checkbox::{Checkbox, CheckboxState},
+    checkbox::CheckboxState,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::{Field, FieldLabel},
     icons::ChevronDown,
     input::InputType,
-    input_group::{InputGroup, InputGroupInput},
-    label::Label,
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
@@ -1128,18 +1126,15 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                         }
                                     },
                             }
-                            FieldLabel { class: "min-h-control-touch", html_for: format!("case-flip-{}", dioxus::core::current_scope_id().0),
-                                Checkbox {
-                                    id: format!("case-flip-{}", dioxus::core::current_scope_id().0),
-                                    aria_label: "Turn PCB over for this half",
+                            CheckboxField {
+                                    id: format!("case-flip-{}", dioxus::core::current_scope_id().0), label: "Turn PCB over for this half",
+                                    aria_label: Some("Turn PCB over for this half".to_owned()),
                                     disabled: input.physical_setup.projection.busy,
-                                    checked: Some(if instance.flipped { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                    checked: if instance.flipped { CheckboxState::Checked } else { CheckboxState::Unchecked },
                                     on_checked_change: {
                                         let mount = input.physical_setup.clone();
                                         move |state: CheckboxState| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseFlip(bool::from(state)))
                                     },
-                                }
-                                span { "Turn PCB over for this half" }
                             }
                             if instance.has_board_reference {
                                 Callout { "Imported routing is a reference. Review it after changing the assembly." }
@@ -1161,12 +1156,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     if active_display_layer.is_some() {
                 section { "aria-label": "Part appearance",
                     h3 { "Display" }
-                    Field {
-                        Label { html_for: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), "Colour" }
-                        InputGroup {
-                            InputGroupInput {
-                                id: format!("case-part-colour-{}", dioxus::core::current_scope_id().0),
-                                r#type: InputType::Color, aria_label: "Part colour", value: "{color}",
+                    TextField {
+                                id: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), label: "Colour",
+                                r#type: InputType::Color, aria_label: Some("Part colour".to_owned()), value: "{color}",
                                 oninput: move |event: FormEvent| {
                                     if let (Some(scope), Some(id)) = (&scope_for_color, &display_id_for_color) {
                                         display_for_color.call(DisplayRequest {
@@ -1176,8 +1168,6 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                         });
                                     }
                                 }
-                            }
-                        }
                     }
                     Button {
                         variant: ButtonVariant::Secondary, button_type: "button",
@@ -1193,11 +1183,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         },
                         "Reset colour"
                     }
-                    FieldLabel { class: "min-h-control-touch", html_for: format!("case-part-visible-{}", dioxus::core::current_scope_id().0),
-                        Checkbox {
-                            id: format!("case-part-visible-{}", dioxus::core::current_scope_id().0),
-                            aria_label: "Visible",
-                            checked: Some(if visible { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    CheckboxField {
+                            id: format!("case-part-visible-{}", dioxus::core::current_scope_id().0), label: "Visible",
+                            aria_label: Some("Visible".to_owned()),
+                            checked: if visible { CheckboxState::Checked } else { CheckboxState::Unchecked },
                             on_checked_change: move |_| {
                                 if let (Some(scope), Some(id)) = (&scope_for_visibility, &display_id_for_visibility) {
                                     display_for_visibility.call(DisplayRequest {
@@ -1207,8 +1196,6 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                     });
                                 }
                             },
-                        }
-                        span { "Visible" }
                     }
                     }
                     }
