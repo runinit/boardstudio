@@ -356,12 +356,37 @@ pub fn project_matrix(
 /// Project a scene only for a fully valid matrix, reusing its validated layout
 /// when world evaluation has no additional frame to resolve.
 pub fn project_valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixScene, String> {
-    project_evaluated(
+    validated_matrix(matrix, doc)?.project()
+}
+
+/// Structural validation produces a world layout. Applying a document frame
+/// and projecting member poses can still fail independently.
+pub struct ValidatedMatrix<'a> {
+    matrix: &'a Matrix,
+    doc: &'a ProjectDoc,
+    world: kernel::MatrixLayout,
+}
+
+pub fn validated_matrix<'a>(
+    matrix: &'a Matrix,
+    doc: &'a ProjectDoc,
+) -> Result<ValidatedMatrix<'a>, String> {
+    Ok(ValidatedMatrix {
         matrix,
         doc,
-        ProjectionMode::Actual,
-        with_document_frame(matrix, doc, validate_matrix_projection(matrix, doc)?)?,
-    )
+        world: validate_matrix_projection(matrix, doc)?,
+    })
+}
+
+impl ValidatedMatrix<'_> {
+    pub fn project(self) -> Result<MatrixScene, String> {
+        project_evaluated(
+            self.matrix,
+            self.doc,
+            ProjectionMode::Actual,
+            with_document_frame(self.matrix, self.doc, self.world)?,
+        )
+    }
 }
 
 fn project_evaluated(

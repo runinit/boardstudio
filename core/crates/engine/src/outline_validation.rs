@@ -1,9 +1,5 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
-use crate::{
-    geometry::{self, BooleanOverlayRule},
-    model::*,
-    outline_versions,
-};
+use crate::{geometry, model::*, outline_versions};
 use boardstudio_contracts::{path_contains, path_signed_area};
 
 type Path = Vec<[f64; 2]>;
@@ -120,20 +116,23 @@ fn pad_path(at: Vec2, size: Vec2, shape: &PadShape, rotation: f64) -> Vec<Vec2> 
     }
     points
 }
-fn world(doc: &ProjectDoc, part: &Part, points: &[Vec2]) -> Path {
+fn world_transform(doc: &ProjectDoc, part: &Part) -> impl Fn(&[Vec2]) -> Path {
     // Ticket 12: half-frame parts validate at their evaluated board pose.
     let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
     let (sin, cos) = pose.rotation.to_radians().sin_cos();
-    points
-        .iter()
-        .map(|p| {
-            let x = if part.side == Side::Back { -p.x } else { p.x };
-            [
-                pose.at.x + x * cos - p.y * sin,
-                pose.at.y + x * sin + p.y * cos,
-            ]
-        })
-        .collect()
+    let back = part.side == Side::Back;
+    move |points| {
+        points
+            .iter()
+            .map(|p| {
+                let x = if back { -p.x } else { p.x };
+                [
+                    pose.at.x + x * cos - p.y * sin,
+                    pose.at.y + x * sin + p.y * cos,
+                ]
+            })
+            .collect()
+    }
 }
 
 fn support_paths(
@@ -416,6 +415,8 @@ pub(crate) fn validate(
                 continue;
             }
             let required = &support[definition.id.as_str()];
+            let world = world_transform(doc, part);
+            let body = world(&definition.courtyard);
             if let Some(Some(Err(error))) = native.get(definition.id.as_str()) {
                 report(
                     format!("support-source:{}", part.id),
@@ -424,13 +425,13 @@ pub(crate) fn validate(
                         part.reference, error.message
                     ),
                     Some(&part.id),
-                    vec![contour(world(doc, part, &definition.courtyard))],
+                    vec![contour(body.clone())],
                     Severity::Error,
                 );
             }
             let outside: Vec<_> = required
                 .iter()
-                .map(|path| world(doc, part, path))
+                .map(|path| world(path))
                 .filter(|path| missing(path, &material, repair.edge_clearance, &mut clipper))
                 .map(contour)
                 .collect();
@@ -446,7 +447,6 @@ pub(crate) fn validate(
                     Severity::Error,
                 );
             }
-            let body = world(doc, part, &definition.courtyard);
             if definition.courtyard.len() >= 3
                 && !*valid_courtyards
                     .entry(definition.id.as_str())
@@ -497,11 +497,7 @@ pub(crate) fn validate(
             if definition.kind == PartKind::Switch
                 && let Some(size) = part.keycap.or(definition.keycap)
             {
-                let keycap = world(
-                    doc,
-                    part,
-                    &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0),
-                );
+                let keycap = world(&pad_path(Vec2::default(), size, &PadShape::Rect, 0.0));
                 if missing(&keycap, &material, 0.0, &mut clipper) {
                     report(
                         format!("keycap:{}", part.id),
@@ -534,24 +530,13 @@ pub(crate) fn validate(
                 }
             }
             // Erosion detects physical bottlenecks, including manually edited necks.
-            for (index, outer) in resolved
-                .contours
-                .iter()
-                .filter(|contour| !contour.hole)
-                .enumerate()
-            {
-                let outer_path = paths(std::slice::from_ref(outer));
-                let local_holes: Vec<_> = resolved
-                    .contours
-                    .iter()
-                    .filter(|contour| contour.hole)
-                    .flat_map(|hole| paths(std::slice::from_ref(hole)))
-                    .collect();
-                let region = geometry::overlay_contours(
-                    &outer_path,
-                    &local_holes,
-                    BooleanOverlayRule::Difference,
-                );
+            let rings = || resolved.contours.iter().zip(&material.paths);
+            let holes: Vec<_> = rings()
+                .filter(|(contour, _)| contour.hole)
+                .map(|(_, path)| path.as_slice())
+                .collect();
+            for (index, (_, outer)) in rings().filter(|(contour, _)| !contour.hole).enumerate() {
+                let region = clipper.difference(outer, &holes);
                 if let Some(cores) =
                     geometry::miter_offset_shapes(&region, -repair.minimum_connection_width / 2.0)
                 {
@@ -604,12 +589,33 @@ pub(crate) fn validate(
     (findings, markers)
 }
 
-pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
+pub(crate) fn feature_markers(
+    doc: &ProjectDoc,
+    findings: &[Finding],
+    existing: &[FindingMarker],
+) -> Vec<FindingMarker> {
+    // Scene assembly already prefers specific markers for the same finding and
+    // board. Avoid constructing fallback geometry that would be discarded.
+    let covered: std::collections::BTreeSet<_> = existing
+        .iter()
+        .map(|marker| (marker.board_id.as_str(), marker.finding_id.as_str()))
+        .collect();
     let mut markers = vec![];
     for board in &doc.boards {
         for feature in outline_versions::features(doc, board) {
-            let feature_id = feature.id().to_owned();
-            let points = match feature {
+            let feature_id = feature.id();
+            let mut matching = findings
+                .iter()
+                .filter(|finding| {
+                    finding.severity == Severity::Error
+                        && !covered.contains(&(board.id.as_str(), finding.id.as_str()))
+                        && finding.target_ids.iter().any(|id| id == feature_id)
+                })
+                .peekable();
+            if matching.peek().is_none() {
+                continue;
+            }
+            let points = match &feature {
                 OutlineFeature::Polygon {
                     points,
                     anchor_part_id,
@@ -619,7 +625,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(doc, part, &points)).points
+                        contour(world_transform(doc, part)(points)).points
                     } else {
                         points.clone()
                     }
@@ -631,13 +637,17 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                     anchor_part_id,
                     ..
                 } => {
-                    let points =
-                        pad_path(center, size, &PadShape::Rect, rotation.unwrap_or_default());
+                    let points = pad_path(
+                        *center,
+                        *size,
+                        &PadShape::Rect,
+                        rotation.unwrap_or_default(),
+                    );
                     if let Some(part) = anchor_part_id
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(doc, part, &points)).points
+                        contour(world_transform(doc, part)(&points)).points
                     } else {
                         points
                     }
@@ -647,10 +657,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
             if points.is_empty() {
                 continue;
             }
-            for finding in findings.iter().filter(|finding| {
-                finding.severity == Severity::Error
-                    && finding.target_ids.iter().any(|id| id == &feature_id)
-            }) {
+            for finding in matching {
                 markers.push(FindingMarker {
                     finding_id: finding.id.clone(),
                     board_id: board.id.clone(),
@@ -664,7 +671,9 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
     }
     for board in &doc.boards {
         for finding in findings.iter().filter(|finding| {
-            !finding.id.starts_with("keycaps/") && !finding.id.ends_with("outline:corners:fitted")
+            !finding.id.starts_with("keycaps/")
+                && !finding.id.ends_with("outline:corners:fitted")
+                && !covered.contains(&(board.id.as_str(), finding.id.as_str()))
         }) {
             let contours: Vec<_> = doc
                 .parts
@@ -677,7 +686,9 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .iter()
                         .find(|definition| definition.id == part.definition_id)
                         .filter(|definition| !definition.courtyard.is_empty())
-                        .map(|definition| contour(world(doc, part, &definition.courtyard)))
+                        .map(|definition| {
+                            contour(world_transform(doc, part)(&definition.courtyard))
+                        })
                 })
                 .collect();
             if !contours.is_empty() {

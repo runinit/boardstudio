@@ -1,4 +1,7 @@
-use crate::model::{CaseKind, Finding, HardwareOutput, MountKind, ProjectDoc, Scope, Severity};
+use crate::model::{
+    CaseKind, Finding, FindingMarker, HardwareOutput, MatrixScene, MountKind, ProjectDoc,
+    ResolvedModule, Scope, Severity,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Rejects duplicate identities in each top-level identity collection.
@@ -39,14 +42,35 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
     }
 }
 
+pub(super) struct SceneDiagnostics {
+    pub findings: Vec<Finding>,
+    pub hardware_markers: Vec<FindingMarker>,
+    pub keycaps: Vec<crate::keycaps::KeycapProjection>,
+    pub modules: Vec<ResolvedModule>,
+    pub matrices: Vec<Option<MatrixScene>>,
+}
+
+#[cfg(feature = "test-support")]
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
-    let mut findings = crate::hardware::nominal_fit(doc).0;
+    scene_diagnostics(doc).findings
+}
+
+pub(super) fn scene_diagnostics(doc: &ProjectDoc) -> SceneDiagnostics {
+    let (mut findings, hardware_markers) = crate::hardware::nominal_fit(doc);
+    let mut keycaps = vec![];
+    let mut modules = vec![];
     findings.extend(crate::generators::parameter_findings(doc));
     findings.extend(crate::mirrored_half::heading_findings(doc));
     findings.extend(crate::mirrored_half::module_findings(doc));
     for board in &doc.boards {
-        findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
-        findings.extend(crate::modules::resolve(doc, &board.id).findings);
+        if doc.keycaps.is_some() {
+            let mut keycap_projection = crate::keycaps::project(doc, &board.id, None);
+            findings.append(&mut keycap_projection.resolution.findings);
+            keycaps.push(keycap_projection);
+        }
+        let module_projection = crate::modules::resolve(doc, &board.id);
+        findings.extend(module_projection.findings);
+        modules.extend(module_projection.modules);
         findings.extend(crate::modules::embedded_findings(doc, &board.id));
     }
     for part in &doc.parts {
@@ -86,32 +110,29 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
         .iter()
         .map(|def| (def.id.as_str(), def))
         .collect();
-    let mut parts_by_definition: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    let mut parts_by_definition: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for part in &doc.parts {
         parts_by_definition
             .entry(part.definition_id.as_str())
             .or_default()
-            .push(part.id.clone());
+            .push(part.id.as_str());
     }
     let outline_ids: BTreeSet<_> = doc.outline.iter().map(|feature| feature.id()).collect();
     let net_ids: BTreeSet<_> = doc.nets.iter().map(|net| net.id.as_str()).collect();
     for def in &doc.definitions {
-        let parts = parts_by_definition
-            .get(def.id.as_str())
-            .cloned()
-            .unwrap_or_default();
-        if parts.is_empty() {
+        let Some(parts) = parts_by_definition.get(def.id.as_str()) else {
             continue;
-        }
-        let targets: Vec<_> = std::iter::once(def.id.clone())
-            .chain(parts.iter().cloned())
-            .collect();
+        };
         let mut report = |suffix: String, message: &str| {
+            let targets = std::iter::once(def.id.as_str())
+                .chain(parts.iter().copied())
+                .map(str::to_owned)
+                .collect();
             findings.push(error(
                 Scope::Pcb,
                 format!("definition:{}:{suffix}", def.id),
                 message,
-                targets.clone(),
+                targets,
             ));
         };
         if def.id.trim().is_empty() {
@@ -257,15 +278,24 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             }
         }
     }
+    let mut matrices = Vec::with_capacity(doc.matrices.len());
     for matrix in &doc.matrices {
-        if let Err(message) = crate::matrix::valid_matrix(matrix, doc) {
-            findings.push(error(
-                Scope::Layout,
-                format!("matrix:{}:invalid", matrix.id),
-                &message,
-                vec![matrix.id.clone()],
-            ));
-        }
+        let scene = match crate::matrix::validated_matrix(matrix, doc) {
+            Ok(validated) => validated.project().ok().map(|mut scene| {
+                scene.companions = crate::matrix::scene_companions(matrix, doc);
+                scene
+            }),
+            Err(message) => {
+                findings.push(error(
+                    Scope::Layout,
+                    format!("matrix:{}:invalid", matrix.id),
+                    &message,
+                    vec![matrix.id.clone()],
+                ));
+                None
+            }
+        };
+        matrices.push(scene);
         if let Some(board_id) = &matrix.board_id
             && !doc.boards.iter().any(|board| &board.id == board_id)
         {
@@ -514,5 +544,11 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             ));
         }
     }
-    findings
+    SceneDiagnostics {
+        findings,
+        hardware_markers,
+        keycaps,
+        modules,
+        matrices,
+    }
 }

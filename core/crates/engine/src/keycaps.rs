@@ -83,21 +83,38 @@ pub(crate) fn binding_legend(binding: &str) -> String {
     }
 }
 
+pub(crate) struct KeycapProjection {
+    pub resolution: KeycapResolution,
+    footprints: Vec<[Vec2; 4]>,
+}
+
 pub(crate) fn resolve(
     doc: &ProjectDoc,
     board_id: &str,
     cases: Option<&PreparedCaseAssemblyIR>,
 ) -> KeycapResolution {
-    let mut result = KeycapResolution {
-        revision: doc.revision,
-        specs: vec![],
-        findings: vec![],
+    project(doc, board_id, cases).resolution
+}
+
+pub(crate) fn project(
+    doc: &ProjectDoc,
+    board_id: &str,
+    cases: Option<&PreparedCaseAssemblyIR>,
+) -> KeycapProjection {
+    let mut projection = KeycapProjection {
+        resolution: KeycapResolution {
+            revision: doc.revision,
+            specs: vec![],
+            findings: vec![],
+        },
+        footprints: vec![],
     };
+    let result = &mut projection.resolution;
     let Some(config) = &doc.keycaps else {
-        return result;
+        return projection;
     };
     let Some(board) = doc.boards.iter().find(|b| b.id == board_id) else {
-        return result;
+        return projection;
     };
     let defaults = config.boards.get(board_id).cloned().unwrap_or_default();
     if !color_valid(&defaults.color)
@@ -111,7 +128,7 @@ pub(crate) fn resolve(
             vec![board_id.into()],
             Severity::Error,
         ));
-        return result;
+        return projection;
     }
     let bindings = doc
         .hardware
@@ -343,12 +360,16 @@ pub(crate) fn resolve(
             Severity::Warning,
         ));
     }
-    for (i, a) in result.specs.iter().enumerate() {
-        for b in &result.specs[i + 1..] {
+    projection.footprints = result.specs.iter().map(envelope).collect();
+    for (i, (a, footprint)) in result.specs.iter().zip(&projection.footprints).enumerate() {
+        for (b, other) in result.specs[i + 1..]
+            .iter()
+            .zip(&projection.footprints[i + 1..])
+        {
             if a.side != b.side {
                 continue;
             }
-            let gap = rectangle_gap(&envelope(a), &envelope(b));
+            let gap = rectangle_gap(footprint, other);
             if gap + 1e-7 < defaults.clearance {
                 result.findings.push(finding(
                     format!("keycaps/{}/{}", a.id, b.id),
@@ -362,7 +383,6 @@ pub(crate) fn resolve(
             }
         }
         if let Some(cases) = cases.filter(|c| c.revision == doc.revision) {
-            let footprint = envelope(a);
             let top = a.height + a.top_size.y * 0.5 * a.tilt.to_radians().tan().abs();
             let (min_z, max_z) = if a.side == Side::Front {
                 (a.z - a.travel, a.z + top)
@@ -404,7 +424,7 @@ pub(crate) fn resolve(
                     };
                     if z + height >= min_z
                         && z <= max_z
-                        && polygon_distance(&points, &footprint) < defaults.clearance.max(1e-6)
+                        && polygon_distance(&points, footprint) < defaults.clearance.max(1e-6)
                     {
                         result.findings.push(finding(
                             format!("keycaps/{}/feature/{id}", a.id),
@@ -424,15 +444,15 @@ pub(crate) fn resolve(
                     let in_cavity = body.kind == CaseKind::Tray
                         && low + body.thickness < min_z
                         && region.cavities.iter().any(|cavity| {
-                            polygon_contains_envelope(cavity, &footprint, defaults.clearance)
+                            polygon_contains_envelope(cavity, footprint, defaults.clearance)
                         });
-                    let in_hole = region.holes.iter().any(|hole| {
-                        polygon_contains_envelope(hole, &footprint, defaults.clearance)
-                    });
+                    let in_hole = region
+                        .holes
+                        .iter()
+                        .any(|hole| polygon_contains_envelope(hole, footprint, defaults.clearance));
                     !in_cavity
                         && !in_hole
-                        && polygon_distance(&region.outer, &footprint)
-                            < defaults.clearance.max(1e-6)
+                        && polygon_distance(&region.outer, footprint) < defaults.clearance.max(1e-6)
                 });
                 if collision {
                     result.findings.push(finding(
@@ -448,21 +468,19 @@ pub(crate) fn resolve(
             }
         }
     }
-    result
+    projection
 }
-fn envelope(s: &KeycapSpec) -> Vec<Vec2> {
+fn envelope(s: &KeycapSpec) -> [Vec2; 4] {
     let angle = s.pose.rotation.to_radians();
-    [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
-        .into_iter()
-        .map(|(x, y)| {
-            let x = x * s.size.x / 2.0;
-            let y = y * s.size.y / 2.0;
-            Vec2 {
-                x: s.pose.at.x + x * angle.cos() - y * angle.sin(),
-                y: s.pose.at.y + x * angle.sin() + y * angle.cos(),
-            }
-        })
-        .collect()
+    let (sin, cos) = (angle.sin(), angle.cos());
+    [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| {
+        let x = x * s.size.x / 2.0;
+        let y = y * s.size.y / 2.0;
+        Vec2 {
+            x: s.pose.at.x + x * cos - y * sin,
+            y: s.pose.at.y + x * sin + y * cos,
+        }
+    })
 }
 fn point_segment(p: Vec2, a: Vec2, b: Vec2) -> f64 {
     let dx = b.x - a.x;
@@ -487,11 +505,10 @@ fn edge_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
             if segments_cross(a0, a1, b0, b1) {
                 return 0.0;
             }
+            // Each endpoint is the start of the next edge of its closed ring.
             gap = gap
                 .min(point_segment(a0, b0, b1))
-                .min(point_segment(a1, b0, b1))
-                .min(point_segment(b0, a0, a1))
-                .min(point_segment(b1, a0, a1));
+                .min(point_segment(b0, a0, a1));
         }
     }
     gap
@@ -505,7 +522,8 @@ fn polygon_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
 }
 fn rectangle_gap(a: &[Vec2], b: &[Vec2]) -> f64 {
     // A negative overlap is useful even when the requested clearance is zero.
-    if polygon_distance(a, b) <= 1e-8 {
+    let gap = polygon_distance(a, b);
+    if gap <= 1e-8 {
         let mut overlap = f64::INFINITY;
         for poly in [a, b] {
             for (p, q) in poly
@@ -530,7 +548,7 @@ fn rectangle_gap(a: &[Vec2], b: &[Vec2]) -> f64 {
         }
         -overlap.max(0.0)
     } else {
-        edge_distance(a, b)
+        gap
     }
 }
 fn polygon_contains_envelope(poly: &[Vec2], shape: &[Vec2], clearance: f64) -> bool {
@@ -561,33 +579,34 @@ fn round_boundary(at: Vec2, diameter: f64) -> Vec<Vec2> {
 }
 
 /// Shared scene markers use the same resolved envelopes as clearance validation.
-pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
-    let mut markers = vec![];
-    for board in &doc.boards {
-        let resolution = resolve(doc, &board.id, None);
-        for finding in findings
+impl KeycapProjection {
+    pub fn finding_markers(&self, board_id: &str, findings: &[Finding]) -> Vec<FindingMarker> {
+        if self.footprints.is_empty() {
+            return vec![];
+        }
+        findings
             .iter()
             .filter(|finding| finding.id.starts_with("keycaps/"))
-        {
-            let contours: Vec<_> = resolution
-                .specs
-                .iter()
-                .filter(|spec| finding.target_ids.contains(&spec.id))
-                .map(|spec| Contour {
-                    points: envelope(spec),
-                    hole: false,
-                })
-                .collect();
-            if !contours.is_empty() {
-                markers.push(FindingMarker {
+            .filter_map(|finding| {
+                let contours: Vec<_> = self
+                    .resolution
+                    .specs
+                    .iter()
+                    .zip(&self.footprints)
+                    .filter(|(spec, _)| finding.target_ids.contains(&spec.id))
+                    .map(|(_, footprint)| Contour {
+                        points: footprint.to_vec(),
+                        hole: false,
+                    })
+                    .collect();
+                (!contours.is_empty()).then(|| FindingMarker {
                     finding_id: finding.id.clone(),
-                    board_id: board.id.clone(),
+                    board_id: board_id.into(),
                     contours,
-                });
-            }
-        }
+                })
+            })
+            .collect()
     }
-    markers
 }
 
 #[cfg(test)]
