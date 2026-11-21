@@ -534,6 +534,6 @@ fn spellings_outside_data_never_supply_numeric_authority() {
         &plane,
         &format!("ANCHOR;<{origin}>=$;ENDSEC;"),
     ));
-    // An external entity reusing a DATA ID makes that ID ambiguous.
+    // An external entity reusing a DATA ID leaves that identity ambiguous.
     remains_unknown_or_refuses(with_section(text, "REFERENCE;#2=<other.stp#x>;ENDSEC;"));
 }

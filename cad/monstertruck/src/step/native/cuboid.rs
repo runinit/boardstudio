@@ -38,7 +38,8 @@ impl<'a> Document<'a> {
         {
             return None;
         }
-        // A REFERENCE entry naming a DATA ID makes that ID ambiguous.
+        // Part 21 instance names are unique across the exchange. A REFERENCE
+        // entry reusing a DATA ID leaves that identity ambiguous.
         if original.reference.iter().any(|entry| {
             matches!(entry.name, Name::Entity(id) if records
                 .binary_search_by_key(&id, |instance| parts(instance).0)
@@ -657,6 +658,19 @@ mod tests {
                 .explicit_mm(304, 301)
                 .is_none()
         );
+
+        // Spellings bind one-to-one, by kind, to the parsed DATA records.
+        for (old, new) in [
+            (
+                "#1=CARTESIAN_POINT('',(0.,0.,0.));",
+                "#1=DIRECTION('',(0.,0.,0.));",
+            ),
+            ("#1=CARTESIAN_POINT('',(0.,0.,0.));", ""),
+        ] {
+            let other = original.replace(old, new);
+            assert_ne!(other, original);
+            assert!(Document::new(other.as_bytes(), &parser::parse(original).unwrap()).is_none());
+        }
 
         let duplicate = source.replace("#12047=PRODUCT(", "#10000=PRODUCT(");
         let exchange = parser::parse(&duplicate).unwrap();
