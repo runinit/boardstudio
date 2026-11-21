@@ -568,6 +568,7 @@ mod tests {
     };
     #[cfg(target_arch = "wasm32")]
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
+    use boardstudio_web_ui_shared::ui::button::Button;
     use std::{
         cell::RefCell,
         task::{Context, Waker},
@@ -783,8 +784,8 @@ mod tests {
         let marker_token = probe.request.source.token;
         let marker_revision = probe.request.source.revision;
         rsx! {
-            button { id: "schedule-navigation", onclick: move |_| on_schedule.call(()), "Schedule destination fit" }
-            button { id: "leave-layout", onclick: clear_route, "Leave Layout" }
+            Button { id: "schedule-navigation", onclick: move |_| on_schedule.call(()), "Schedule destination fit" }
+            Button { id: "leave-layout", onclick: clear_route, "Leave Layout" }
             FocusedFindingMarker {
                 workspace: workspace().to_owned(),
                 scope: Some(marker_scope),

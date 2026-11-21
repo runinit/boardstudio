@@ -608,9 +608,9 @@ mod tests {
                 label: "Test output", detail: "Owner output", status: "Needs owner review", action: "Export test output",
                 ready: !blocked(), available: available(), reason: blocked().then_some("Owner blocker"), on_export: Some(on_export),
             } }
-            button { onclick: move |_| registry.commands()[0].on_select.call(()), "Invoke palette export" }
-            button { onclick: move |_| blocked.set(!blocked()), "Toggle owner blocker" }
-            button { onclick: move |_| available.set(!available()), "Toggle export provider" }
+            Button { onclick: move |_| registry.commands()[0].on_select.call(()), "Invoke palette export" }
+            Button { onclick: move |_| blocked.set(!blocked()), "Toggle owner blocker" }
+            Button { onclick: move |_| available.set(!available()), "Toggle export provider" }
             output { role: "status", aria_label: "Export command reason", "{reason}" }
         }
     }

@@ -32,6 +32,7 @@ impl KeymapWorkspaceState {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod workspace_state_tests {
     use super::*;
+    use boardstudio_web_ui_shared::ui::button::Button;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
@@ -43,7 +44,7 @@ mod workspace_state_tests {
         let active_layer = state.active_layer_id();
         let active_layer_label = active_layer();
         rsx! {
-            button { id: "select-layer", onclick: move |_| state.select_layer("function".into()), "Select layer" }
+            Button { id: "select-layer", onclick: move |_| state.select_layer("function".into()), "Select layer" }
             output { id: "active-layer", "{active_layer_label}" }
         }
     }

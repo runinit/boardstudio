@@ -142,6 +142,7 @@ impl KeycapsWorkspaceState {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
+    use boardstudio_web_ui_shared::ui::button::Button;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
@@ -167,7 +168,7 @@ mod workspace_state_tests {
             .map(|focused| focused.navigation_id.to_string())
             .unwrap_or_else(|| "none".into());
         rsx! {
-            button {
+            Button {
                 id: "focus-finding",
                 onclick: move |_| state.focus_finding(scope.clone(), SnapshotToken(3), 2, "finding".into()),
                 "Focus finding"
