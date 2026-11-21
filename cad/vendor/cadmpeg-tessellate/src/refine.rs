@@ -20,6 +20,10 @@ use crate::surface::Carrier;
 /// Ratio of a triangle's parameter area to the domain area below which it
 /// is not refined.
 const SMALLEST_AREA_RATIO: f64 = 1e-14;
+/// Ratio of an edge's model length to the chord limit below which refinement
+/// stops bisecting it (prevents unbounded angle bisection at pinched or
+/// singular surface corners).
+const MIN_EDGE_RATIO: f64 = 1e-4;
 /// Passes of the edge-flip sweep.
 const FLIP_PASSES: usize = 32;
 /// Angle, in radians, by which two opposite angles must pass a half turn
@@ -141,6 +145,9 @@ impl Mesh {
             let mut candidates: Vec<(usize, usize)> = Vec::new();
             for (from, to) in [(a, b), (b, c), (c, a)] {
                 if self.fixed.contains(&key(from, to)) {
+                    continue;
+                }
+                if distance(self.points[from], self.points[to]) <= limits.chord * MIN_EDGE_RATIO {
                     continue;
                 }
                 if let (Some(first), Some(second)) = (self.normals[from], self.normals[to]) {

@@ -29,6 +29,12 @@ const MAX_PCURVE_SAMPLES: usize = 1 << 16;
 /// Ratio of a triangle's model area to the squared surface size below which
 /// it is dropped as degenerate.
 const DEGENERATE_AREA_RATIO: f64 = 1e-20;
+/// Ratio of a triangle's shortest edge to its coordinate/surface scale below
+/// which two vertices are coincident up to placement-transform roundoff.
+const DEGENERATE_EDGE_RATIO: f64 = 1e-11;
+/// Ratio of a triangle's altitude to its coordinate/surface scale below
+/// which its vertices are collinear up to floating-point roundoff.
+const DEGENERATE_HEIGHT_RATIO: f64 = 1e-14;
 
 /// Why a face has no tessellation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -392,8 +398,24 @@ fn finish(
     let mut accumulated: Vec<Vector3> = vec![Vector3::new(0.0, 0.0, 0.0); mesh.points.len()];
     for [a, b, c] in mesh.triangles.into_iter().flatten() {
         let (pa, pb, pc) = (mesh.points[a], mesh.points[b], mesh.points[c]);
-        let normal = cross(sub(pb, pa), sub(pc, pa));
-        if length(normal) <= smallest {
+        let ab = sub(pb, pa);
+        let ac = sub(pc, pa);
+        let bc = sub(pc, pb);
+        let normal = cross(ab, ac);
+        let area2 = length(normal);
+        let (lab, lac, lbc) = (length(ab), length(ac), length(bc));
+        let shortest = lab.min(lac).min(lbc);
+        let longest = lab.max(lac).max(lbc);
+        let coord_scale = [pa, pb, pc]
+            .into_iter()
+            .flat_map(|p| [p.x.abs(), p.y.abs(), p.z.abs()])
+            .fold(carrier.size, f64::max);
+        if !area2.is_finite()
+            || !longest.is_finite()
+            || area2 <= smallest
+            || shortest <= DEGENERATE_EDGE_RATIO * coord_scale
+            || area2 <= DEGENERATE_HEIGHT_RATIO * coord_scale * longest
+        {
             continue;
         }
         let triangle = if orientation > 0.0 {
