@@ -205,6 +205,10 @@ const path = require('node:path');
       assert.equal(asset.sourceQualification.state, 'unknown', size);
       assert(asset.faceOccurrences.every(face => face.repairDisplacementMm === null), size);
       assert([...bounds.min, ...bounds.max].every((x, i) => Math.abs(x - expected[i]) < 1e-10), size);
+      // Least binary64 upper bounds on the exact decimal sums for #3676 and #4526
+      // under the authored 24.13 mm translation.
+      if (size === '1x-4') assert(bounds.max[0] >= 9.1399989318848, size);
+      if (size === '1x-5') assert(bounds.max[0] >= 11.679998931884802, size);
       if (size === '1x-4') {
         assert.throws(() => cad.read_step_model(input, {
           sourceSha256,
