@@ -10,8 +10,8 @@ use super::{
     validate_local_circuit_targets,
 };
 use crate::model::{
-    MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Part, Pose2,
-    ProjectDoc, Vec2,
+    MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Pose2,
+    ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -477,40 +477,10 @@ fn reconcile_projection(
                 .ok_or_else(|| {
                     format!("The mirrored circuit member {target_id:?} is unavailable")
                 })?;
-            let correspondence = MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: member_id.clone(),
-                mirror_id: target_id.clone(),
-            };
-            *target_part = project_part(
-                source_part,
-                target_part,
-                &correspondence,
-                pair.mapping,
-                super::super::derive::is_controller(
-                    &document.definitions,
-                    &source_part.definition_id,
-                ),
-            )?;
-        }
-        for source_member_id in &source.part_ids {
-            let Some(target_id) = part_targets.get(source_member_id) else {
-                continue;
-            };
-            let source_part = document
-                .parts
-                .iter()
-                .find(|part| part.id == *source_member_id)
-                .ok_or_else(|| format!("The circuit member {source_member_id:?} is unavailable"))?;
-            let target_part = staged
-                .parts
-                .iter()
-                .find(|part| part.id == *target_id)
-                .ok_or_else(|| {
-                    format!("The mirrored circuit member {target_id:?} is unavailable")
-                })?;
+            *target_part = crate::mirrored_half::derive::part(
+                source_part, target_id, &target_part.definition_id, &target_part.reference, pair.mapping,
+                crate::mirrored_half::derive::is_controller(&document.definitions, &source_part.definition_id),
+            );
             let source_namespace = format!("embedded/{source_id}/");
             let Some(suffix) = source_part.definition_id.strip_prefix(&source_namespace) else {
                 continue;

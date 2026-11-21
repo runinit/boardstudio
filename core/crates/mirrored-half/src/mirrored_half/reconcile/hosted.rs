@@ -1,8 +1,8 @@
 //! Hosted embedded-circuit staging and hosted baseline validation.
 
-use super::{HostedTransition, Projection, project_part};
+use super::{HostedTransition, Projection};
 use crate::model::{
-    MirroredCorrespondence, MirroredHalves, MirroredItemKind, Part, Pose2, ProjectDoc, Vec2,
+    MirroredCorrespondence, MirroredHalves, MirroredItemKind, Pose2, ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -179,52 +179,17 @@ pub(super) fn stage_hosted_circuit_additions(
                     "The selected circuit member reference {target_reference:?} is already in use"
                 ));
             }
-            let correspondence = MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: source_member_id.clone(),
-                mirror_id: target_member_id.clone(),
-            };
-            let target_part = if let Some(index) = existing {
-                project_part(
-                    source_part,
-                    &staged.parts[index],
-                    &correspondence,
-                    pair.mapping,
-                    super::super::derive::is_controller(
-                        &document.definitions,
-                        &source_part.definition_id,
-                    ),
-                )?
-            } else {
-                let seed = Part {
-                    id: target_member_id.clone(),
-                    definition_id: target_definition.clone(),
-                    reference: (*target_reference).clone(),
-                    pose: Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    },
-                    side: source_part.side.clone(),
-                    anchor: None,
-                    keycap: None,
-                    outline: None,
-                    locked: None,
-                    properties: None,
-                    generator_parameters: None,
-                };
-                project_part(
-                    source_part,
-                    &seed,
-                    &correspondence,
-                    pair.mapping,
-                    super::super::derive::is_controller(
-                        &document.definitions,
-                        &source_part.definition_id,
-                    ),
-                )?
-            };
+            let (definition, reference) = existing.map_or(
+                (target_definition.as_str(), target_reference.as_str()),
+                |index| {
+                    let part = &staged.parts[index];
+                    (part.definition_id.as_str(), part.reference.as_str())
+                },
+            );
+            let target_part = crate::mirrored_half::derive::part(
+                source_part, target_member_id, definition, reference, pair.mapping,
+                crate::mirrored_half::derive::is_controller(&document.definitions, &source_part.definition_id),
+            );
             if let Some(index) = existing {
                 staged.parts[index] = target_part;
             } else {
