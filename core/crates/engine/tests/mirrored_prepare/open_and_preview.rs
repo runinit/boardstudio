@@ -1130,6 +1130,32 @@ fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
         .expect("the repaired document is a valid second Open input");
     assert_eq!(reopened, prepared);
     assert!(second_findings.is_empty());
+
+    accepted.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
+    let mut engine = boardstudio_core_engine::CoreEngine::new();
+    let CoreReply::Scene {
+        mut scene,
+        document,
+        ..
+    } = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: accepted,
+    })
+    else {
+        panic!("expected Core to open and repair the document");
+    };
+    assert!(scene.findings.contains(&findings[0]));
+    "snapshot".clone_into(&mut scene.transaction_id);
+    assert_eq!(
+        boardstudio_model::wire::encode_core_reply(&engine.handle(CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        })),
+        boardstudio_model::wire::encode_core_reply(&CoreReply::Scene {
+            id: "snapshot".into(),
+            scene,
+            document,
+        }),
+    );
 }
 
 #[test]

@@ -61,7 +61,7 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
             scene.board_outline_scenes,
             geometry::board_outline_scenes(document, &cache)
         );
-        let fresh = engine.scene(
+        let fresh = cold.scene(
             id.clone(),
             SceneInput {
                 transaction: &scene.transaction_id,
@@ -174,6 +174,13 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         ),
     );
     assert!(engine.reusable_scene.is_none());
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot after move".into(),
+        },
+    );
     compare(&mut engine, &mut cold, stagger(4, EditPhase::Preview, 1.5));
     compare(&mut engine, &mut cold, stagger(4, EditPhase::Commit, 1.5));
     let CoreReply::Scene { document, .. } = compare(
@@ -214,6 +221,13 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     assert_eq!(
         serde_json::to_vec(&engine.document).unwrap(),
         serde_json::to_vec(&saved).unwrap(),
+    );
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot with fixed outline".into(),
+        },
     );
 }
 
@@ -330,6 +344,152 @@ fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
 
 fn rename(name: &str) -> EditOperation {
     EditOperation::RenameProject { name: name.into() }
+}
+
+#[test]
+fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let snapshot = |id: &str| CoreRequest::Snapshot { id: id.into() };
+    compare(&mut engine, &mut cold, snapshot("before open"));
+    assert!(engine.reusable_scene.is_none());
+
+    let open = |document| CoreRequest::Open {
+        id: "open".into(),
+        document,
+    };
+    compare(&mut engine, &mut cold, open(fixture()));
+    compare(&mut engine, &mut cold, edit(0, rename("Renamed")));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, edit(1, rename("Renamed"))),
+        CoreReply::Scene { scene, .. } if scene.changed_ids.is_empty() && scene.revision == 1
+    ));
+    assert_eq!(engine.undo.len(), 1);
+
+    let mut invalid = fixture();
+    invalid.format.clear();
+    assert!(matches!(
+        compare(&mut engine, &mut cold, open(invalid)),
+        CoreReply::Error { revision: 1, .. }
+    ));
+    let projections = engine.full_scene_projections.get();
+    for id in ["first snapshot", "second snapshot"] {
+        assert!(matches!(
+            compare(&mut engine, &mut cold, snapshot(id)),
+            CoreReply::Scene { id: reply_id, scene, document }
+                if reply_id == id && scene.transaction_id == "snapshot"
+                    && scene.changed_ids.is_empty() && scene.revision == 1
+                    && document.name == "Renamed"
+        ));
+    }
+    assert_eq!(engine.full_scene_projections.get(), projections);
+
+    for request in [
+        CoreRequest::Undo { id: "undo".into() },
+        snapshot("after undo"),
+        CoreRequest::Redo { id: "redo".into() },
+        snapshot("after redo"),
+    ] {
+        compare(&mut engine, &mut cold, request);
+    }
+
+    // An explicit Open can reuse the former session's revision number.
+    let mut reopened = fixture();
+    reopened.revision = engine.document.revision;
+    reopened.outline.clear();
+    reopened.boards[0].outline_ids.clear();
+    compare(&mut engine, &mut cold, open(reopened));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, snapshot("after reopen")),
+        CoreReply::Scene { scene, document, .. }
+            if scene.contours.is_empty() && document.name == "Synthetic outline contract"
+    ));
+    assert!(engine.undo.is_empty() && engine.redo.is_empty());
+}
+
+#[test]
+fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = fixture();
+    document.definitions[0].courtyard.swap(1, 2);
+    // Give fabrication validation material independently of the invalid courtyard.
+    document.outline = vec![OutlineFeature::Rect {
+        id: "fixed perimeter".into(),
+        anchor_part_id: None,
+        center: Vec2::default(),
+        size: Vec2 { x: 160.0, y: 160.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    }];
+    document.boards[0].outline_ids = vec!["fixed perimeter".into()];
+    let targets = document
+        .parts
+        .iter()
+        .filter(|part| part.definition_id == document.definitions[0].id)
+        .map(|part| part.id.clone())
+        .collect::<Vec<_>>();
+    let check = |scene: &SceneDelta| {
+        let reported = scene
+            .findings
+            .iter()
+            .filter(|finding| finding.id.starts_with("board:main:outline:body-source:"))
+            .map(|finding| finding.target_ids[1].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(reported, targets);
+        let id = "board:main:outline:body-source:matrix/matrix/r0c0";
+        let marker = scene
+            .finding_markers
+            .iter()
+            .find(|marker| marker.finding_id == id)
+            .unwrap();
+        marker.contours[0].points[0]
+    };
+    let CoreReply::Scene { scene: open, .. } = compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    ) else {
+        panic!("open should publish its fabrication findings");
+    };
+    let stagger = |phase| {
+        let mut request = edit(
+            0,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "matrix".into(),
+                change: MatrixPlacementChange::ColumnStagger {
+                    column: 0,
+                    value: 4.0,
+                },
+            },
+        );
+        let CoreRequest::Edit { command, .. } = &mut request else {
+            unreachable!()
+        };
+        command.phase = phase;
+        request
+    };
+    let CoreReply::Preview { scene: preview, .. } =
+        compare(&mut engine, &mut cold, stagger(EditPhase::Preview))
+    else {
+        panic!("stagger should preview its fabrication findings");
+    };
+    let CoreReply::Scene { scene: commit, .. } =
+        compare(&mut engine, &mut cold, stagger(EditPhase::Commit))
+    else {
+        panic!("stagger should publish its fabrication findings");
+    };
+    let before = check(&open);
+    let after = Vec2 {
+        x: before.x,
+        y: before.y + 4.0,
+    };
+    assert_eq!(check(&preview), after);
+    assert_eq!(check(&commit), after);
 }
 
 #[test]

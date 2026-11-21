@@ -121,18 +121,9 @@ impl CoreEngine {
                     revision: ir.revision,
                 },
             },
-            CoreRequest::Snapshot { id } => self.scene(
-                id,
-                SceneInput {
-                    transaction: "snapshot",
-                    changed: vec![],
-                    document: &self.document,
-                    contours: &self.contours,
-                    geom_findings: &self.findings,
-                    cache: &self.outline_cache,
-                    kind: SceneKind::Committed,
-                },
-            ),
+            CoreRequest::Snapshot { id } => {
+                self.scene_with_unchanged_geometry(id, "snapshot", vec![], SceneKind::Committed)
+            }
             CoreRequest::ProjectMatrices {
                 id,
                 base_revision,
@@ -636,19 +627,19 @@ impl CoreEngine {
             }
         };
         // The accepted geometry, findings and identity ledger have no project-name dependency.
-        self.scene_with_unchanged_geometry(id, transaction, changed, kind)
+        self.scene_with_unchanged_geometry(id, &transaction, changed, kind)
     }
 
     fn scene_with_unchanged_geometry(
         &self,
         id: String,
-        transaction: String,
+        transaction: &str,
         changed: Vec<String>,
         kind: SceneKind,
     ) -> CoreReply {
         if let Some(mut scene) = self.reusable_scene.clone() {
             scene.revision = self.document.revision;
-            scene.transaction_id = transaction;
+            transaction.clone_into(&mut scene.transaction_id);
             scene.changed_ids = changed;
             return match kind {
                 SceneKind::Preview => CoreReply::Preview { id, scene },
@@ -662,7 +653,7 @@ impl CoreEngine {
         self.scene(
             id,
             SceneInput {
-                transaction: &transaction,
+                transaction,
                 changed,
                 document: &self.document,
                 contours: &self.contours,
@@ -710,7 +701,7 @@ impl CoreEngine {
         if reuse_scene {
             return self.scene_with_unchanged_geometry(
                 id,
-                transaction,
+                &transaction,
                 changed,
                 SceneKind::Committed,
             );
@@ -925,6 +916,9 @@ impl CoreEngine {
     }
 
     fn scene(&self, id: String, input: SceneInput<'_>) -> CoreReply {
+        #[cfg(test)]
+        self.full_scene_projections
+            .set(self.full_scene_projections.get() + 1);
         let SceneInput {
             transaction,
             changed,

@@ -370,11 +370,6 @@ fn project_evaluated(
     mode: ProjectionMode,
     evaluated: kernel::MatrixLayout,
 ) -> Result<MatrixScene, String> {
-    let members = if mode == ProjectionMode::Actual {
-        cell_members(matrix)
-    } else {
-        BTreeMap::new()
-    };
     let by_id: BTreeMap<_, _> = if mode == ProjectionMode::Actual {
         doc.parts
             .iter()
@@ -396,23 +391,16 @@ fn project_evaluated(
                 continue;
             }
             let enabled = cell.is_none_or(|item| item.enabled);
-            let member_id = if enabled {
-                members
-                    .get(&(row, column))
-                    .filter(|id| by_id.contains_key(id.as_str()))
-                    .cloned()
-            } else {
-                None
-            };
             let geometry = evaluated
                 .cell(row as usize, column as usize)
                 .ok_or("Matrix cell is out of bounds")?;
-            let mut pose = geometry.pose;
-            if mode == ProjectionMode::Actual
-                && let Some(id) = member_id.as_deref().and_then(|id| by_id.get(id))
-            {
-                pose = id.pose;
-            }
+            let member = (enabled && mode == ProjectionMode::Actual)
+                .then(|| member_id(&matrix.id, row, column))
+                .and_then(|id| by_id.get(id.as_str()).map(|part| (id, part.pose)));
+            let (member_id, pose) = match member {
+                Some((id, pose)) => (Some(id), pose),
+                None => (None, geometry.pose),
+            };
             if !pose.at.x.is_finite() || !pose.at.y.is_finite() || !pose.rotation.is_finite() {
                 return Err("Matrix projection exceeds finite geometry".into());
             }
@@ -420,11 +408,7 @@ fn project_evaluated(
                 row,
                 column,
                 enabled,
-                member_id: if mode == ProjectionMode::Draft {
-                    None
-                } else {
-                    member_id
-                },
+                member_id,
                 pose,
                 shift_frame: geometry.shift_frame,
                 offset_frame: geometry.offset_frame,
