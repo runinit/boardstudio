@@ -221,3 +221,121 @@ fn binding_title(binding: &KeyBinding, layers: &[KeymapLayer], macros: &[KeymapM
         KeyBinding::None => "Unassigned".to_owned(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_model::model::{Board, KeymapChange, Matrix, MatrixCell, PartDefinition, Side};
+    use std::sync::Arc;
+
+    fn scope() -> Scope {
+        Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "project".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        }
+    }
+
+    fn snapshot(document: ProjectDoc) -> AcceptedSnapshot {
+        let scene: boardstudio_model::model::SceneDelta =
+            serde_json::from_value(serde_json::json!({
+                "revision": 0,
+                "transactionId": "fixture",
+                "changedIds": [],
+                "transforms": [],
+                "matrixScenes": [],
+                "contours": [],
+                "boardContours": [],
+                "boardReadiness": [],
+                "findings": [],
+                "readiness": {"layout": true, "outline": true, "pcb": true, "case": false}
+            }))
+            .expect("fixture scene");
+        AcceptedSnapshot {
+            session_epoch: SessionEpoch(1),
+            token: boardstudio_application::SnapshotToken(7),
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }
+    }
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Keymap fixture");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Main".into(),
+            outline_ids: vec![],
+            part_ids: vec!["sw1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch:base", "name": "MX switch", "kind": "switch",
+                "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        document.parts.push(Part {
+            id: "sw1".into(),
+            definition_id: "switch:base".into(),
+            reference: "SW1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            keycap: None,
+            outline: None,
+            anchor: None,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.keymap = Some(
+            serde_json::from_value(serde_json::json!({
+                "layers": [{"id": "base", "name": "Base", "bindings": {"sw1": {"kind": "key-press", "keycode": "A"}}, "sensors": {}}],
+                "macros": []
+            }))
+            .unwrap(),
+        );
+        document
+    }
+
+    #[test]
+    fn project_supplies_one_layer_and_key_with_binding_title() {
+        let snapshot = snapshot(document());
+        let view = project(&snapshot, Some(&scope()), "board", "base").expect("view");
+        assert_eq!(view.layers.len(), 1);
+        assert_eq!(view.layers[0].id.as_ref(), "base");
+        assert_eq!(view.keys.len(), 1);
+        assert_eq!(view.keys[0].reference.as_ref(), "SW1");
+        assert_eq!(view.keys[0].binding_title.as_ref(), "A");
+        assert!(view.keys[0].search_index.contains("sw1"));
+    }
+
+    #[test]
+    fn project_rejects_stale_scope_or_missing_board() {
+        let snapshot = snapshot(document());
+        let mut elsewhere = scope();
+        elsewhere.board_id = "other".into();
+        assert!(project(&snapshot, Some(&elsewhere), "board", "base").is_none());
+        assert!(project(&snapshot, None, "board", "base").is_none());
+        assert!(project(&snapshot, Some(&scope()), "missing", "base").is_none());
+    }
+
+    #[test]
+    fn project_falls_back_to_base_layer_without_saved_keymap() {
+        let mut bare = document();
+        bare.keymap = None;
+        let snapshot = snapshot(bare);
+        let view = project(&snapshot, Some(&scope()), "board", "ghost").expect("view");
+        assert_eq!(view.layers.len(), 1);
+        assert_eq!(view.layers[0].id.as_ref(), "base");
+        assert_eq!(view.keys[0].binding_title.as_ref(), "Unassigned");
+    }
+}

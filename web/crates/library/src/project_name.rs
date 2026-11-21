@@ -228,4 +228,76 @@ mod tests {
         );
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
     }
+
+    #[test]
+    fn rename_queued_behind_a_parts_edit_preserves_both_and_undo_order() {
+        use boardstudio_application::Event;
+        use boardstudio_model::model::EditOperation;
+
+        let mut document = ProjectDoc::empty("queued-rename", "Original");
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch",
+                "name": "Original switch",
+                "kind": "switch",
+                "courtyard": [],
+                "pads": []
+            }))
+            .unwrap(),
+        );
+        let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
+        });
+        let accepted = runtime.model().accepted.expect("accepted project");
+        let current = ProjectNameOwner::from(&accepted);
+        let mut replacement = accepted.document.as_ref().clone();
+        replacement.definitions[0].name = "Updated switch".into();
+        runtime.hold_next_core();
+        runtime.submit(Event::ResolveEdit {
+            operation_id: runtime.operation(),
+            label: "parts name".into(),
+            resolver: EditResolver::new("parts-name", move |_accepted| {
+                boardstudio_application::Resolution::submit(
+                    vec!["switch".into()],
+                    EditOperation::ReplaceDocument {
+                        document: Box::new(replacement.clone()),
+                    },
+                )
+            }),
+        });
+        let mut edits = PendingEdits::default();
+        rename(&runtime, &mut edits, &current, "Renamed");
+        runtime.release_core();
+        let result = runtime.model().accepted.expect("accepted project");
+        assert_eq!(result.document.name, "Renamed");
+        assert_eq!(result.document.definitions[0].name, "Updated switch");
+        assert_eq!(
+            edits.settle(true),
+            vec![PendingEditResult::Landed {
+                key: ProjectNameKey::Name,
+                revision: result.document.revision,
+            }]
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        let result = runtime.model().accepted.expect("accepted project");
+        assert_eq!(result.document.name, "Original");
+        assert_eq!(result.document.definitions[0].name, "Updated switch");
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .expect("accepted project")
+                .document
+                .definitions[0]
+                .name,
+            "Original switch"
+        );
+    }
 }

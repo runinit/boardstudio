@@ -3,9 +3,9 @@
 //! viewer that Parts and Keycaps also mount. The Case workspace container stays in the
 //! page shell.
 //!
-//! Browser-only modules are `wasm32`-only; display, clearance, generation admission and
-//! mechanical feedback logic also compile natively so their unit tests run under
-//! `cargo test`.
+//! Browser-only modules are `wasm32`-only; display, clearance, generation admission,
+//! mechanical feedback and inspector-selection logic also compile natively so their
+//! unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::InstanceSelection`, `super::objects::TreeContext`,
@@ -70,7 +70,6 @@ mod case_collision;
 pub mod case_controller;
 #[cfg(target_arch = "wasm32")]
 pub mod case_preview_lifecycle;
-#[cfg(target_arch = "wasm32")]
 pub mod case_selection;
 #[cfg(target_arch = "wasm32")]
 pub mod case_viewer;

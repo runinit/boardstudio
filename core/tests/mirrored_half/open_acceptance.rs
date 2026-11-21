@@ -528,6 +528,104 @@ fn commit_named(engine: &mut CoreEngine, before: &Value, id: &str, operation: Va
     )
 }
 
+fn electrical_board_index(document: &Value, id: &str) -> usize {
+    document["hardware"]["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|board| board["boardId"] == id)
+        .unwrap()
+}
+
+#[test]
+fn directed_settings_dispatch_preserves_pair_identity_and_local_bindings() {
+    let mut input = runtime_supported_document();
+    duplicate_source_half(&mut input);
+    let (mut engine, seed) = open(&input);
+    let mut document = seed;
+    for (pair_id, source, mirror, axis) in [
+        ("settings-a", "left", "right", 200.0),
+        ("settings-b", "other-left", "other-right", 600.0),
+    ] {
+        document = create(
+            &mut engine,
+            &document,
+            pair_id,
+            source,
+            new_board(mirror, mirror),
+            mapping(axis),
+        )
+        .unwrap()["document"]
+            .clone();
+    }
+    let (mut engine, before) = open(&document);
+    let left = electrical_board_index(&before, "left");
+    let right = electrical_board_index(&before, "right");
+    let mode = |board, mode| json!({"kind":"set-wiring-mode","boardId":board,"mode":mode});
+    let mut expected = before.clone();
+    expected["hardware"]["boards"][left]["mode"] = json!("direct");
+    expected["hardware"]["boards"][right]["mode"] = json!("direct");
+
+    let preview = create_with(&mut engine, &before, "preview", mode("right", "direct")).unwrap();
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(preview["scene"]["revision"], before["revision"]);
+    assert_eq!(preview["scene"]["changedIds"], json!(["left"]));
+    assert_eq!(snapshot(&mut engine), before);
+
+    let committed = commit_named(&mut engine, &before, "wiring-mode", mode("right", "direct"));
+    assert_eq!(committed["scene"]["changedIds"], json!(["left"]));
+    expected["revision"] = committed["document"]["revision"].clone();
+    assert_eq!(committed["document"], expected);
+    let undone = request(&mut engine, json!({"id":"undo-mode","kind":"undo"}))["document"].clone();
+    let mut restored = before;
+    restored["revision"] = undone["revision"].clone();
+    assert_eq!(undone, restored);
+    let noop = commit_named(&mut engine, &undone, "noop-mode", mode("right", "matrix"));
+    assert_eq!(noop["document"], undone);
+    assert_eq!(noop["scene"]["changedIds"], json!([]));
+    let redone = request(&mut engine, json!({"id":"redo-mode","kind":"redo"}))["document"].clone();
+    expected["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected);
+
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let binding = commit_named(
+        &mut engine,
+        &redone,
+        "legacy-binding",
+        json!({"kind":"set-key-binding","boardId":"right","keyId":key,"binding":"&kp Q"}),
+    );
+    expected["hardware"]["boards"][right]["keyBindings"][key] = json!("&kp Q");
+    expected["revision"] = binding["document"]["revision"].clone();
+    assert_eq!(binding["document"], expected);
+    assert_eq!(binding["scene"]["changedIds"], json!(["right"]));
+
+    let typed_binding = json!({"kind":"key-press","keycode":"W"});
+    let keymap = commit_named(
+        &mut engine,
+        &expected,
+        "typed-binding",
+        json!({"kind":"edit-keymap","change":{"kind":"binding","layerId":"base","keyId":key,
+            "binding":typed_binding}}),
+    );
+    expected["keymap"] = json!({"layers":[{"id":"base","name":"Base","bindings":{
+        key:typed_binding},"sensors":{}}],"macros":[]});
+    expected["revision"] = keymap["document"]["revision"].clone();
+    assert_eq!(keymap["document"], expected);
+    assert_eq!(keymap["scene"]["changedIds"], json!([]));
+
+    let mut stale = expected.clone();
+    stale["hardware"]["boards"][right]["mode"] = json!("matrix");
+    let (_, repaired, findings) = open_with_findings(&archive_round_trip(&stale));
+    assert_eq!(repaired, expected);
+    let warning = findings
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|finding| finding["id"] == "mirrored-half:open-repaired:settings-a")
+        .expect("Open reports the repaired electrical row");
+    assert_eq!(warning["targetIds"], json!(["right"]));
+}
+
 #[test]
 fn parent19_replace_document_retires_rows_for_two_pairs_in_one_batch() {
     let mut input = runtime_supported_document();

@@ -92,3 +92,56 @@ pub fn fit_camera(
         zoom,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::rc::Rc;
+
+    fn key(id: &str, reference: &str, x: f64, y: f64) -> crate::keymap::view::KeymapKey {
+        crate::keymap::view::KeymapKey {
+            id: Rc::from(id),
+            reference: Rc::from(reference),
+            pose: boardstudio_model::model::Pose2 {
+                at: Vec2 { x, y },
+                rotation: 0.0,
+            },
+            binding_title: Rc::from("A"),
+            color: Rc::from("#fff"),
+            size: Vec2 { x: 18.0, y: 18.0 },
+            search_index: format!("{reference} a"),
+        }
+    }
+
+    fn view() -> crate::keymap::view::KeymapView {
+        crate::keymap::view::KeymapView {
+            layers: vec![],
+            keys: vec![key("a", "SW1", 0.0, 0.0), key("b", "SW2", 19.05, 0.0)],
+        }
+    }
+
+    #[test]
+    fn selected_bounds_cover_the_chosen_keys_only() {
+        let view = view();
+        let one: BTreeSet<String> = ["a".into()].iter().cloned().collect();
+        let bounds = selected_bounds(&view, &one).expect("bounds");
+        assert!((bounds.0 - -9.0).abs() < 1e-6);
+        assert!((bounds.1 - 9.0).abs() < 1e-6);
+        let both: BTreeSet<String> = ["a".into(), "b".into()].iter().cloned().collect();
+        let wide = selected_bounds(&view, &both).expect("bounds");
+        assert!(wide.1 - wide.0 > bounds.1 - bounds.0);
+        let missing: BTreeSet<String> = ["ghost".into()].iter().cloned().collect();
+        assert!(selected_bounds(&view, &missing).is_none());
+    }
+
+    #[test]
+    fn fit_camera_rejects_degenerate_inputs_and_frames_the_target() {
+        let canvas = (-50.0, 50.0, -50.0, 50.0);
+        let target = (-9.0, 9.0, -9.0, 9.0);
+        let fitted = fit_camera(canvas, target, (800.0, 600.0), 48.0).expect("camera");
+        assert!(fitted.zoom.is_finite() && fitted.zoom > 0.0);
+        assert!(fitted.center.x.is_finite() && fitted.center.y.is_finite());
+        assert!(fit_camera(canvas, target, (0.0, 600.0), 48.0).is_none());
+        assert!(fit_camera((f64::NAN, 50.0, -50.0, 50.0), target, (800.0, 600.0), 48.0).is_none());
+    }
+}

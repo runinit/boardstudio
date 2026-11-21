@@ -6,16 +6,17 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 fn runtime() -> Rc<Runtime> {
     let mut engine = boardstudio_core::CoreEngine::new();
-    let runtime = Runtime::new_with_restoration(
-        false,
-        CoreServices::engine(),
-        Some(Box::new(move |request| engine.handle(request))),
-    )
-    .unwrap();
+    runtime_with_core(Box::new(move |request| engine.handle(request)))
+}
+
+fn runtime_with_core(core: DocumentCore) -> Rc<Runtime> {
+    let runtime = Runtime::new_with_restoration(false, CoreServices::engine(), Some(core)).unwrap();
     // A dead worker must not prevent Open, document history or matrix projection.
     runtime.core.borrow().close();
     runtime
 }
+
+pub(super) mod profile;
 
 async fn wait_for_outcome(outcome: &crate::operation_outcomes::OutcomeSlot) -> TerminalOutcome {
     for _ in 0..200 {

@@ -8,7 +8,7 @@ pub mod plan;
 
 #[cfg(target_arch = "wasm32")]
 mod hook;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 mod owner;
 
 #[cfg(target_arch = "wasm32")]
@@ -16,7 +16,7 @@ pub use hook::{
     DefinitionLoader, LayoutPlacementCancellation, PartPlacementHost, PartPlacementMount,
     layout_view_mode_handler, use_controller_placement,
 };
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub use owner::{
     ActivePartPlacement, ComponentPlacementAction, PlacementOwner, PlacementWorkflow,
     selected_key_component_operation,
@@ -27,14 +27,14 @@ pub use plan::{
     snap_placement_at, update_pending_part,
 };
 
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(test)]
 pub(crate) use owner::PlacementCapture;
 #[cfg(test)]
 pub(crate) use plan::PlacementIntent;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod hook_tests;
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod key_component_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod plan_tests;

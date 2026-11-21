@@ -1,8 +1,8 @@
 //! The Keymap workspace: layers, bindings, encoders and macros. The workspace container
 //! that mounts it stays in the page shell.
 //!
-//! Browser-only modules are `wasm32`-only; macro control naming also compiles natively
-//! so its unit tests run under `cargo test`.
+//! Browser-only modules are `wasm32`-only; macro control naming and the keymap
+//! projection also compile natively so their unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::InstanceSelection`,
@@ -33,6 +33,19 @@ pub(crate) mod macro_edit;
 
 #[cfg(target_arch = "wasm32")]
 pub mod keymap;
+
+// Native controller tests use the pure projection subset through the shared
+// `crate::keymap` path; the mounted controllers stay wasm-only.
+#[cfg(all(not(target_arch = "wasm32"), test))]
+pub mod keymap {
+    #[path = "view.rs"]
+    mod view;
+    #[path = "view_controls.rs"]
+    mod view_controls;
+
+    pub use view::{KeymapView, project};
+    pub use view_controls::{FitCamera, fit_camera, selected_bounds};
+}
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

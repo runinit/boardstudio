@@ -94,11 +94,7 @@ impl<'a> KeycapEdit<'a> {
 
     /// Materialize the linked row from the complete authored row, including fields that the
     /// operation did not set. Local rows retain their own settings and Omitted rows stay absent.
-    pub(super) fn project(
-        self,
-        document: &ProjectDoc,
-        settings: &mut KeycapConfiguration,
-    ) -> Result<(), String> {
+    pub(super) fn project(self, document: &ProjectDoc, settings: &mut KeycapConfiguration) {
         for halves in document
             .hardware
             .iter()
@@ -106,7 +102,6 @@ impl<'a> KeycapEdit<'a> {
             .filter_map(|pair| pair.halves.as_ref())
             .filter(|halves| halves.source_board_id != halves.mirror_board_id)
         {
-            super::validate_local_circuit_targets(document, halves)?;
             let (kind, id) = match self {
                 Self::Board(id) => {
                     if halves.source_board_id == id {
@@ -143,7 +138,6 @@ impl<'a> KeycapEdit<'a> {
                 }
             }
         }
-        Ok(())
     }
 }
 

@@ -122,6 +122,16 @@ impl Runtime {
     }
 
     pub(super) fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
+        #[cfg(test)]
+        let profile = match &event {
+            Completion::Core { .. } => super::document_core_tests::profile::Timer::start(
+                super::document_core_tests::profile::Phase::PrepareSave,
+            ),
+            Completion::Persist { .. } => super::document_core_tests::profile::Timer::start(
+                super::document_core_tests::profile::Phase::PublishSnapshot,
+            ),
+            _ => None,
+        };
         let previous_scope = self.scope();
         let previous_snapshot = self
             .model()
@@ -140,6 +150,8 @@ impl Runtime {
             self.cancel_keycaps_cad_preview();
         }
         self.changed();
+        #[cfg(test)]
+        drop(profile);
         effects
     }
     pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
@@ -323,6 +335,10 @@ impl Runtime {
                 outcome,
                 landing,
             } => {
+                #[cfg(test)]
+                let _profile = super::document_core_tests::profile::Timer::start(
+                    super::document_core_tests::profile::Phase::DeliverSettlement,
+                );
                 let observed = self.operation_outcomes.settle_with_landing(
                     operation_id,
                     outcome.clone(),

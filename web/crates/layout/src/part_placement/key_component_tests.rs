@@ -1,7 +1,6 @@
-//! Browser tests for applying a component to a selected matrix key and for the
-//! captured placement owner (the production `selected_key_component_operation` is
-//! browser-gated through its matrix-input helper).
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+//! Native tests for applying a component to a selected matrix key and for the
+//! captured placement owner. The browser hook keeps its mounted coverage; these
+//! pure operation and owner checks run under `cargo test`.
 
 use super::test_support::*;
 use super::*;
@@ -9,7 +8,7 @@ use boardstudio_application::{Scope, SessionEpoch};
 use boardstudio_model::model::{EditCommand, EditOperation, EditPhase, MatrixCell, PartKind, Vec2};
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[test]
 fn selected_key_application_uses_set_matrix_and_preserves_other_cell_fields() {
     let mut accepted = fixture();
     accepted.matrices.push(boardstudio_model::model::Matrix {
@@ -103,7 +102,7 @@ fn selected_key_application_uses_set_matrix_and_preserves_other_cell_fields() {
     assert_eq!(definitions.unwrap()[0].id, "switch:mx");
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[test]
 fn linked_target_key_replacement_stays_local_through_core_sync_and_history() {
     let mut document = fixture();
     document.definitions.push(switch_definition("switch:base"));
@@ -287,7 +286,7 @@ fn linked_target_key_replacement_stays_local_through_core_sync_and_history() {
     assert_eq!(redone_target.cells[0].assemblies_local, Some(true));
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[test]
 fn captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage() {
     let initial = accepted(fixture(), 11);
     let scope = Scope {

@@ -2,8 +2,8 @@
 //! settings, assemblies, custom and imported footprints, mechanical profiles and previews.
 //! The workspace container stays in the page shell.
 //!
-//! Browser-only modules are `wasm32`-only; definition, naming, preset and profile logic
-//! also compiles natively so its unit tests run under `cargo test`.
+//! Browser-only modules are `wasm32`-only; definition, naming, preset, profile and
+//! generator-input logic also compile natively so their unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::SelectionAdapter`,
@@ -53,6 +53,7 @@ pub(crate) mod part_placement {
 pub mod parts_assembly_preset_draft;
 pub mod parts_custom_definition;
 pub mod parts_definition_name;
+pub mod parts_generator_input;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod parts_import_footprint;
 #[path = "parts/mechanical_profile.rs"]
