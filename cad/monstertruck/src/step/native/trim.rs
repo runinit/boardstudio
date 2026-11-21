@@ -17,6 +17,8 @@ impl Face {
         samples: &Samples,
         epsilon: f64,
         deflection: f64,
+        world: Matrix4,
+        bounds: &mut [[f64; 3]; 2],
     ) -> Result<Triangles, String> {
         match self.surface.kind {
             SurfaceKind::Plane => self.mesh_plane(edges, samples, epsilon),
@@ -25,6 +27,11 @@ impl Face {
             }
             SurfaceKind::Cone { radius, slope, .. } => {
                 self.mesh_cone(radius, slope, edges, samples, epsilon, deflection)
+            }
+            SurfaceKind::Sphere(radius) => {
+                let trim = self.spherical_trim(radius, edges, epsilon)?;
+                trim.include_bounds(world, epsilon, bounds)?;
+                trim.mesh(samples, epsilon, deflection)
             }
         }
     }

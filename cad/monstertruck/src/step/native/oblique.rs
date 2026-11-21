@@ -143,7 +143,11 @@ impl Face {
         let residual = radial(center).magnitude()
             + (radial(first) - u).magnitude()
             + (radial(quarter) - v).magnitude();
-        if !residual.is_finite() || residual > epsilon || 4.0 * residual >= radius {
+        let reduction = edges[&ellipse]
+            .finite_ellipse
+            .as_ref()
+            .map_or(0.0, |trim| trim.residual);
+        if !residual.is_finite() || residual + reduction > epsilon || 4.0 * residual >= radius {
             return Err("source elliptical boundary is off its CYLINDRICAL_SURFACE".into());
         }
 
