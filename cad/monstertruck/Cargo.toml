@@ -9,7 +9,6 @@ crate-type = ["rlib"]
 
 [dependencies]
 cavalier_contours = "=0.9.0"
-monstertruck-assembly = "=0.4.1"
 boardstudio-contracts = { path = "../../contracts/rust" }
 monstertruck-io = { version = "=0.4.1", default-features = false, features = ["step"] }
 monstertruck-meshing = { version = "=0.4.1", default-features = false, features = ["tessellation", "analyzers"] }

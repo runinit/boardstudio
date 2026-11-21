@@ -101,7 +101,6 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "cavalier_contours",
- "monstertruck-assembly",
  "monstertruck-io",
  "monstertruck-meshing",
  "monstertruck-modeling",

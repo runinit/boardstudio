@@ -51,23 +51,24 @@ pub struct GeneratedAnalysisMesh {
 
 /// Tessellates exact profile solids into complete, oriented triangle buffers.
 pub fn mesh_profile(model: &ExactModel) -> Result<MeshBuffers, String> {
-    let mut meshes = Vec::with_capacity(model.solids.len());
-    for solid in &model.solids {
-        for shell in solid.boundaries() {
-            meshes.push(
-                shell_to_polygon_strict_with(
-                    shell,
-                    TessellationOptions {
-                        tolerance: PROFILE_MESH_TOLERANCE_MM,
-                        edge_angular_tolerance: Some(PROFILE_EDGE_ANGULAR_TOLERANCE_RAD),
-                        ..Default::default()
-                    },
-                )
-                .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))?,
-            );
-        }
-    }
+    let meshes = model
+        .solids
+        .iter()
+        .flat_map(Solid::boundaries)
+        .map(|shell| {
+            shell_to_polygon_strict_with(shell, mesh_options(PROFILE_MESH_TOLERANCE_MM))
+                .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     mesh_buffers(meshes)
+}
+
+fn mesh_options(tolerance: f64) -> TessellationOptions {
+    TessellationOptions {
+        tolerance,
+        edge_angular_tolerance: Some(PROFILE_EDGE_ANGULAR_TOLERANCE_RAD),
+        ..Default::default()
+    }
 }
 
 /// Tessellates exact generated case/PCB solids into f64 analysis buffers with per-face
@@ -129,11 +130,7 @@ pub(crate) fn mesh_profile_observed(
         }
         None => PROFILE_MESH_TOLERANCE_MM,
     };
-    let options = TessellationOptions {
-        tolerance: deflection_mm,
-        edge_angular_tolerance: Some(PROFILE_EDGE_ANGULAR_TOLERANCE_RAD),
-        ..Default::default()
-    };
+    let options = mesh_options(deflection_mm);
 
     let mut mesh = MeshBuffers::default();
     let mut positions_mm_f64 = Vec::new();

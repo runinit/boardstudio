@@ -6,7 +6,7 @@ fn pcb_polygon_outline_and_authored_round_drill_are_exact() {
         "../../../tests/fixtures/layered/pcb-simple.json"
     ))
     .unwrap();
-    verify(
+    let (model, step) = verify(
         &input,
         512. - 1.6 * std::f64::consts::PI,
         [[0., 0., 0.], [20., 16., 1.6]],
@@ -19,7 +19,6 @@ fn pcb_polygon_outline_and_authored_round_drill_are_exact() {
         1,
         0,
     );
-    let model = build_layered_case(&input).unwrap();
     assert_eq!(
         model.solids[0]
             .boundaries()
@@ -29,7 +28,6 @@ fn pcb_polygon_outline_and_authored_round_drill_are_exact() {
             .count(),
         1
     );
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
     assert_eq!(cylinder_senses(&step), vec![(1., false)]);
 }
 #[test]
@@ -39,7 +37,7 @@ fn pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact() {
     ))
     .unwrap();
     // Rectangle30x10 plus trapezoid(15+10)x10/2 gives425mm2; drills remove1.8125*pi.
-    verify(
+    let (model, step) = verify(
         &input,
         680. - 2.9 * std::f64::consts::PI,
         [[0., 0., 0.], [30., 20., 1.6]],
@@ -54,7 +52,6 @@ fn pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact() {
         3,
         0,
     );
-    let model = build_layered_case(&input).unwrap();
     let shell = &model.solids[0].boundaries()[0];
     assert_eq!(
         shell
@@ -70,7 +67,6 @@ fn pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact() {
             .count(),
         3
     );
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
     assert_eq!(
         cylinder_senses(&step),
         vec![(0.5, false), (0.75, false), (1., false)]
@@ -128,7 +124,7 @@ fn prepared_wall_support_and_round_seat_preserve_clipped_circular_wall() {
     ))
     .unwrap();
     let strip_area = 2. * ((1.6_f64 * 1.6 - 1.).sqrt() + 1.6 * 1.6 * (1. / 1.6_f64).asin());
-    verify(
+    let (_, step) = verify(
         &input,
         2832. - 3. * strip_area,
         [[0., 0., 0.], [30., 20., 10.]],
@@ -142,8 +138,6 @@ fn prepared_wall_support_and_round_seat_preserve_clipped_circular_wall() {
         2,
         0,
     ); // Two disconnected cylinder patches on opposite sides of the clipped circle.
-    let model = build_layered_case(&input).unwrap();
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
     assert_eq!(
         cylinder_senses(&step),
         vec![(1.6, false), (1.6, false)],
@@ -218,9 +212,7 @@ fn prepared_internal_gasket_inventory() {
                             assert_eq!(model.solids.len(), input.regions.len());
                             let mut meshes = vec![];
                             for solid in &model.solids {
-                                Solid::try_new(solid.boundaries().clone())
-                                    .expect("closed consistently oriented internal case");
-                                assert!(solid.is_geometric_consistent());
+                                check_solid(solid);
                                 for shell in solid.boundaries() {
                                     meshes.push(
                                         shell_to_polygon_strict(shell, 1e-3)
@@ -235,30 +227,17 @@ fn prepared_internal_gasket_inventory() {
                                 "{name}/{} volume {volume} != independent {target}",
                                 input.body.id
                             );
-                            let points: Vec<_> = model
+                            let points = model
                                 .solids
                                 .iter()
-                                .flat_map(|solid| solid.boundaries())
+                                .flat_map(Solid::boundaries)
                                 .flat_map(|shell| shell.vertex_iter())
-                                .map(|vertex| vertex.point())
-                                .collect();
-                            for axis in 0..3 {
-                                let lo = points
-                                    .iter()
-                                    .map(|point| point[axis])
-                                    .fold(f64::INFINITY, f64::min);
-                                let hi = points
-                                    .iter()
-                                    .map(|point| point[axis])
-                                    .fold(f64::NEG_INFINITY, f64::max);
-                                assert!(
-                                    (lo - expected["bounds"][0][axis].as_f64().unwrap()).abs()
-                                        < 1e-10
-                                );
-                                assert!(
-                                    (hi - expected["bounds"][1][axis].as_f64().unwrap()).abs()
-                                        < 1e-10
-                                );
+                                .map(|vertex| vertex.point());
+                            for (side, row) in point_bounds(points).into_iter().enumerate() {
+                                for (axis, value) in row.into_iter().enumerate() {
+                                    let target = expected["bounds"][side][axis].as_f64().unwrap();
+                                    assert!((value - target).abs() < 1e-10);
+                                }
                             }
                             for probe in expected["probes"].as_array().unwrap() {
                                 let point = Point3::new(
@@ -266,24 +245,9 @@ fn prepared_internal_gasket_inventory() {
                                     probe[0][1].as_f64().unwrap(),
                                     probe[0][2].as_f64().unwrap(),
                                 );
-                                let angle: f64 = meshes
-                                    .iter()
-                                    .flat_map(|mesh| {
-                                        mesh.faces().triangle_iter().map(move |face| {
-                                            let [a, b, c] = face
-                                                .map(|vertex| mesh.positions()[vertex.pos] - point);
-                                            let denominator =
-                                                a.magnitude() * b.magnitude() * c.magnitude()
-                                                    + a.dot(b) * c.magnitude()
-                                                    + b.dot(c) * a.magnitude()
-                                                    + c.dot(a) * b.magnitude();
-                                            2. * a.dot(b.cross(c)).atan2(denominator)
-                                        })
-                                    })
-                                    .sum();
                                 let target = if probe[1].as_bool().unwrap() { 1. } else { 0. };
                                 assert!(
-                                    (angle / (4. * std::f64::consts::PI) - target).abs() < 1e-8,
+                                    (mesh_winding(&meshes, point) - target).abs() < 1e-8,
                                     "{name}/{} probe {point:?}",
                                     input.body.id
                                 );

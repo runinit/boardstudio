@@ -1,6 +1,8 @@
+use super::tests::{check_solid, material, point_bounds};
+use crate::export_tests::{StepRecords, id, list, num, step_text};
 use boardstudio_contracts::PreparedCaseIR;
 use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
-use monstertruck_modeling::{InnerSpace, Point3, Solid, Surface};
+use monstertruck_modeling::Surface;
 
 fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
     let input: PreparedCaseIR = serde_json::from_str(json).unwrap();
@@ -18,22 +20,16 @@ fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
     assert_eq!(solid.boundaries().len(), 1);
-    Solid::try_new(solid.boundaries().clone()).expect("closed oriented native PCB topology");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - expected["volumeMm3"].as_f64().unwrap()).abs() < 0.065);
-    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for point in solid
-        .boundaries()
-        .iter()
-        .flat_map(|shell| shell.vertex_iter())
-        .map(|vertex| vertex.point())
-    {
-        for axis in 0..3 {
-            bounds[0][axis] = bounds[0][axis].min(point[axis]);
-            bounds[1][axis] = bounds[1][axis].max(point[axis]);
-        }
-    }
+    let bounds = point_bounds(
+        solid
+            .boundaries()
+            .iter()
+            .flat_map(|shell| shell.vertex_iter())
+            .map(|vertex| vertex.point()),
+    );
     for (actual, expected) in bounds.into_iter().flatten().zip(
         expected["boundsMm"]
             .as_array()
@@ -47,7 +43,7 @@ fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
         let point = std::array::from_fn(|axis| probe["pointMm"][axis].as_f64().unwrap());
         material(&mesh, point, probe["inside"].as_bool().unwrap());
     }
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 1);
     assert_eq!(step.matches("CLOSED_SHELL(").count(), 1);
     assert!(
@@ -74,27 +70,23 @@ fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
 }
 
 #[test]
-fn adoption_pcb_edge_drill_keeps_exact_half_cylinder() {
-    verify_adoption_pcb_cut(
-        include_str!("../../tests/fixtures/adoption/pcb-edge-drill.json"),
-        &[([0., 8.], 1.)],
-    );
-}
-
-#[test]
-fn adoption_pcb_overlapping_drills_subtract_their_exact_union() {
-    verify_adoption_pcb_cut(
-        include_str!("../../tests/fixtures/adoption/pcb-overlapping-drills.json"),
-        &[([9.5, 8.], 1.), ([10.5, 8.], 1.)],
-    );
-}
-
-#[test]
-fn adoption_pcb_drill_within_slot_preserves_the_complete_slot_boundary() {
-    verify_adoption_pcb_cut(
-        include_str!("../../tests/fixtures/adoption/pcb-drill-in-slot.json"),
-        &[([9., 8.], 1.), ([11., 8.], 1.)],
-    );
+fn adoption_pcb_cuts_preserve_the_exact_circular_boundaries() {
+    for (json, cylinders) in [
+        (
+            include_str!("../../tests/fixtures/adoption/pcb-edge-drill.json"),
+            &[([0., 8.], 1.)][..],
+        ),
+        (
+            include_str!("../../tests/fixtures/adoption/pcb-overlapping-drills.json"),
+            &[([9.5, 8.], 1.), ([10.5, 8.], 1.)],
+        ),
+        (
+            include_str!("../../tests/fixtures/adoption/pcb-drill-in-slot.json"),
+            &[([9., 8.], 1.), ([11., 8.], 1.)],
+        ),
+    ] {
+        verify_adoption_pcb_cut(json, cylinders);
+    }
 }
 
 #[test]
@@ -113,7 +105,7 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
     );
 
     let model = crate::build_case(&input).expect("authored circular PCB source");
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(
         step.matches("CYLINDRICAL_SURFACE(").count(),
         1,
@@ -121,8 +113,7 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
     );
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).expect("closed oriented native solid");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 3);
     assert_eq!(
         solid.boundaries()[0]
@@ -147,26 +138,13 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
     );
 
     native_cylinder_facts(&step, [10., 8.], 2., [0., 2.]);
-    for (point, inside) in [
+    let samples = [
         ([11.4, 9.4, 1.], true),
         ([12.2, 8., 1.], false),
         ([10., 8., 2.2], false),
-    ] {
-        let point = Point3::from(point);
-        let angle: f64 = mesh
-            .faces()
-            .triangle_iter()
-            .map(|face| {
-                let [a, b, c] = face.map(|v| mesh.positions()[v.pos] - point);
-                let denominator = a.magnitude() * b.magnitude() * c.magnitude()
-                    + a.dot(b) * c.magnitude()
-                    + b.dot(c) * a.magnitude()
-                    + c.dot(a) * b.magnitude();
-                2. * a.dot(b.cross(c)).atan2(denominator)
-            })
-            .sum();
-        let expected = if inside { 1. } else { 0. };
-        assert!((angle / (4. * std::f64::consts::PI) - expected).abs() < 1e-8);
+    ];
+    for (point, inside) in samples {
+        material(&mesh, point, inside);
     }
     let certificate = crate::step_accuracy::certify_circular_extrusion(
         &step,
@@ -182,11 +160,7 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
     assert_eq!(certificate.bounds, [[8., 6., 0.], [12., 10., 2.]]);
     assert_eq!(certificate.topology, [4, 4, 3]);
     assert!(certificate.bound_error.is_finite() && certificate.bound_error >= 0.);
-    for (point, material) in [
-        ([11.4, 9.4, 1.], true),
-        ([12.2, 8., 1.], false),
-        ([10., 8., 2.2], false),
-    ] {
+    for (point, material) in samples {
         assert_eq!(certificate.contains(point), Some(material));
     }
     assert_eq!(certificate.contains([12., 8., 1.]), None);
@@ -209,91 +183,33 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
 }
 
 fn native_cylinder_facts(text: &str, center: [f64; 2], radius: f64, z: [f64; 2]) {
-    use std::collections::BTreeMap;
-    use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
-    fn list(value: &Parameter) -> &[Parameter] {
-        match value {
-            Parameter::List(values) => values,
-            _ => panic!("Part21 list"),
-        }
-    }
-    fn id(value: &Parameter) -> u64 {
-        match value {
-            Parameter::Ref(Name::Entity(id)) => *id,
-            _ => panic!("Part21 reference"),
-        }
-    }
-    fn number(value: &Parameter) -> f64 {
-        match value {
-            Parameter::Real(value) => *value,
-            Parameter::Integer(value) => *value as f64,
-            _ => panic!("Part21 number"),
-        }
-    }
-    fn args<'a>(records: &'a BTreeMap<u64, Record>, entity: u64, name: &str) -> &'a [Parameter] {
-        let record = &records[&entity];
-        assert_eq!(record.name.as_str(), name);
-        list(&record.parameter)
-    }
-    fn point(records: &BTreeMap<u64, Record>, entity: u64, name: &str) -> [f64; 3] {
-        let coordinates = list(&args(records, entity, name)[1]);
-        assert_eq!(coordinates.len(), 3);
-        std::array::from_fn(|index| number(&coordinates[index]))
-    }
-    let exchange: Exchange = text.parse().unwrap();
-    let records: BTreeMap<_, _> = exchange
-        .data
-        .into_iter()
-        .flat_map(|data| data.entities)
-        .filter_map(|entity| match entity {
-            EntityInstance::Simple { id, record } => Some((id, record)),
-            _ => None,
-        })
-        .collect();
-    let cylinders: Vec<_> = records
-        .iter()
-        .filter(|(_, record)| record.name.as_str() == "CYLINDRICAL_SURFACE")
-        .collect();
+    let cylinders = raw_cylinders(text);
     assert_eq!(cylinders.len(), 1);
-    let (&surface, cylinder) = cylinders[0];
-    let cylinder = list(&cylinder.parameter);
+    assert_eq!(cylinders[0].0, center);
     assert_eq!(
-        number(&cylinder[2]).to_bits(),
+        cylinders[0].1.to_bits(),
         radius.to_bits(),
         "authored radius survives unchanged"
     );
-    let placement = args(&records, id(&cylinder[1]), "AXIS2_PLACEMENT_3D");
-    let origin = point(&records, id(&placement[1]), "CARTESIAN_POINT");
-    assert_eq!([origin[0], origin[1]], center);
-    let axis = point(&records, id(&placement[2]), "DIRECTION");
-    assert_eq!(axis, [0., 0., 1.]);
-    let faces: Vec<_> = records
-        .values()
-        .filter(|record| record.name.as_str() == "ADVANCED_FACE")
-        .collect();
-    assert_eq!(faces.len(), 3);
-    let side = faces
-        .iter()
-        .filter(|record| id(&list(&record.parameter)[2]) == surface)
-        .collect::<Vec<_>>();
-    assert_eq!(side.len(), 1);
+    let records = StepRecords::parse(text);
+    let (surface, _) = records.named("CYLINDRICAL_SURFACE").next().unwrap();
+    assert_eq!(records.named("ADVANCED_FACE").count(), 3);
+    let (_, side) = records
+        .named("ADVANCED_FACE")
+        .find(|(_, face)| id(&face[2]) == surface)
+        .unwrap();
     assert_eq!(
-        list(&list(&side[0].parameter)[1]).len(),
+        list(&side[1]).len(),
         2,
         "native periodic side has two circular boundaries"
     );
-    let mut cap_z: Vec<_> = records
-        .values()
-        .filter(|record| record.name.as_str() == "PLANE")
-        .map(|record| {
-            let placement = args(
-                &records,
-                id(&list(&record.parameter)[1]),
-                "AXIS2_PLACEMENT_3D",
-            );
-            point(&records, id(&placement[1]), "CARTESIAN_POINT")[2]
+    let mut cap_z = records
+        .named("PLANE")
+        .map(|(_, plane)| {
+            let placement = records.args(id(&plane[1]), "AXIS2_PLACEMENT_3D");
+            records.xyz(id(&placement[1]), "CARTESIAN_POINT")[2]
         })
-        .collect();
+        .collect::<Vec<_>>();
     cap_z.sort_by(f64::total_cmp);
     assert_eq!(cap_z, z);
 }
@@ -307,14 +223,13 @@ fn source_line_arc_loop_is_authoritative_through_public_build_case() {
     let model = crate::build_case(&input).expect("authored line/arc half disc");
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).expect("closed oriented half disc");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - 4. * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [1.5, 0.5, 1.], true);
     material(&mesh, [-0.2, 0., 1.], false);
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("CYLINDRICAL_SURFACE(").count(), 1);
     assert_eq!(step.matches("PLANE(").count(), 3);
     let buffers = crate::mesh_profile(&model).unwrap();
@@ -348,14 +263,13 @@ fn source_body_round_drills_do_not_use_polygon_region_filtering() {
     let model = crate::build_case(&input).expect("complete authored body drill inventory");
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).unwrap();
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - 7.98 * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [11.3, 9.3, 1.], false);
     material(&mesh, [11.15, 9.3, 1.], true);
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(
         step.matches("CYLINDRICAL_SURFACE(").count(),
         2,
@@ -423,8 +337,7 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
     let model = crate::build_case(&input).expect("actual Core PrepareCase VIK source fixture");
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).expect("closed oriented drilled PCB");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 48); // 42 cylinders, four walls, two caps.
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!(
@@ -438,13 +351,7 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
     material(&mesh, [0., 0., 0.8], true);
     material(&mesh, [13., 0., 0.8], false);
     material(&mesh, [0., 0., 1.7], false);
-    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for point in mesh.positions() {
-        for axis in 0..3 {
-            bounds[0][axis] = bounds[0][axis].min(point[axis]);
-            bounds[1][axis] = bounds[1][axis].max(point[axis]);
-        }
-    }
+    let bounds = point_bounds(mesh.positions().iter().copied());
     for (actual, expected) in bounds
         .into_iter()
         .flatten()
@@ -455,7 +362,7 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
             "placed source bounds {actual} vs {expected}"
         );
     }
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 1);
     assert_eq!(step.matches("CYLINDRICAL_SURFACE(").count(), 42);
     assert_eq!(step.matches("PLANE(").count(), 6);
@@ -493,84 +400,22 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
     }
 }
 
-fn material(mesh: &monstertruck_meshing::prelude::PolygonMesh, point: [f64; 3], inside: bool) {
-    let point = Point3::from(point);
-    let angle: f64 = mesh
-        .faces()
-        .triangle_iter()
-        .map(|face| {
-            let [a, b, c] = face.map(|v| mesh.positions()[v.pos] - point);
-            let denominator = a.magnitude() * b.magnitude() * c.magnitude()
-                + a.dot(b) * c.magnitude()
-                + b.dot(c) * a.magnitude()
-                + c.dot(a) * b.magnitude();
-            2. * a.dot(b.cross(c)).atan2(denominator)
-        })
-        .sum();
-    let expected = if inside { 1. } else { 0. };
-    assert!(
-        (angle / (4. * std::f64::consts::PI) - expected).abs() < 1e-8,
-        "material {point:?}"
-    );
-}
-
 fn raw_cylinders(text: &str) -> Vec<([f64; 2], f64)> {
-    use std::collections::BTreeMap;
-    use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
-    fn list(value: &Parameter) -> &[Parameter] {
-        match value {
-            Parameter::List(values) => values,
-            _ => panic!("Part21 list"),
-        }
-    }
-    fn id(value: &Parameter) -> u64 {
-        match value {
-            Parameter::Ref(Name::Entity(id)) => *id,
-            _ => panic!("Part21 ref"),
-        }
-    }
-    fn number(value: &Parameter) -> f64 {
-        match value {
-            Parameter::Real(value) => *value,
-            Parameter::Integer(value) => *value as f64,
-            _ => panic!("Part21 number"),
-        }
-    }
-    let exchange: Exchange = text.parse().unwrap();
-    let records: BTreeMap<u64, Record> = exchange
-        .data
-        .into_iter()
-        .flat_map(|data| data.entities)
-        .filter_map(|entity| match entity {
-            EntityInstance::Simple { id, record } => Some((id, record)),
-            _ => None,
-        })
-        .collect();
+    let records = StepRecords::parse(text);
     records
-        .iter()
-        .filter(|(_, record)| record.name.as_str() == "CYLINDRICAL_SURFACE")
+        .named("CYLINDRICAL_SURFACE")
         .map(|(surface, cylinder)| {
             assert_eq!(
                 records
-                    .values()
-                    .filter(|record| record.name.as_str() == "ADVANCED_FACE"
-                        && id(&list(&record.parameter)[2]) == *surface)
+                    .named("ADVANCED_FACE")
+                    .filter(|(_, face)| id(&face[2]) == surface)
                     .count(),
                 1
             );
-            let cylinder = list(&cylinder.parameter);
-            let placement = list(&records[&id(&cylinder[1])].parameter);
-            let axis = list(&records[&id(&placement[2])].parameter);
-            assert_eq!(
-                list(&axis[1]).iter().map(number).collect::<Vec<_>>(),
-                [0., 0., 1.]
-            );
-            let origin = list(&records[&id(&placement[1])].parameter);
-            let coordinates = list(&origin[1]);
-            (
-                [number(&coordinates[0]), number(&coordinates[1])],
-                number(&cylinder[2]),
-            )
+            let axis = records.args(id(&cylinder[1]), "AXIS2_PLACEMENT_3D");
+            assert_eq!(records.xyz(id(&axis[2]), "DIRECTION"), [0., 0., 1.]);
+            let [x, y, _] = records.xyz(id(&axis[1]), "CARTESIAN_POINT");
+            ([x, y], num(&cylinder[2]))
         })
         .collect()
 }
@@ -596,14 +441,13 @@ fn source_contour_hole_ownership_is_preserved() {
     let model = crate::build_case(&input).expect("source-declared owned hole");
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).unwrap();
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - 7.5 * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [10., 8., 1.], false);
     material(&mesh, [11., 8., 1.], true);
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(raw_cylinders(&step).len(), 2);
     for owner in ["missing-owner", "owned-hole"] {
         let mut invalid = input.clone();
@@ -677,8 +521,7 @@ fn slot_geometry(
     let model = crate::build_case(input).expect("reflected rotated authored oval slot");
     assert_eq!(model.solids.len(), 1);
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).unwrap();
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), faces);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     let expected = input.body.thickness * (outer_area - (0.32 + 0.16 * std::f64::consts::PI));
@@ -696,7 +539,7 @@ fn slot_geometry(
         [center[0] - sin * 0.43, center[1] + cos * 0.43, 1.],
         true,
     );
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     let cylinders = raw_cylinders(&step);
     assert_eq!(cylinders.len(), cylinder_count);
     for sign in [-1., 1.] {
@@ -781,8 +624,7 @@ fn source_declared_owner_is_not_silently_reassigned_to_nested_island() {
     assert_eq!(model.solids.len(), 2);
     let mut volume = 0.;
     for solid in &model.solids {
-        Solid::try_new(solid.boundaries().clone()).unwrap();
-        assert!(solid.is_geometric_consistent());
+        check_solid(solid);
         volume += shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
             .unwrap()
             .volume();
@@ -816,8 +658,7 @@ fn source_crossing_and_tangent_drills_are_named_refusals() {
             let model = crate::build_case(&input).expect("regular circular edge cut");
             assert_eq!(model.solids.len(), 1);
             let solid = &model.solids[0];
-            Solid::try_new(solid.boundaries().clone()).unwrap();
-            assert!(solid.is_geometric_consistent());
+            check_solid(solid);
             let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
             // Exact intersection area of circles R=2, r=0.5, centre distance d=1.6.
             let d = 1.6_f64;
@@ -827,7 +668,7 @@ fn source_crossing_and_tangent_drills_are_named_refusals() {
             assert!((mesh.volume() - (8. * std::f64::consts::PI - 2. * lens)).abs() < 0.065);
             material(&mesh, [11.8, 8., 1.], false);
             material(&mesh, [10., 8., 1.], true);
-            let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+            let step = step_text(&model);
             assert_eq!(raw_cylinders(&step).len(), 2);
         }
     }
@@ -852,8 +693,7 @@ fn adoption_pcb_slot_preserves_both_material_components() {
     let mut extents = Vec::new();
     for solid in &model.solids {
         assert_eq!(solid.boundaries().len(), 1);
-        Solid::try_new(solid.boundaries().clone()).unwrap();
-        assert!(solid.is_geometric_consistent());
+        check_solid(solid);
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 9. * 16. * 1.6).abs() < 1e-8);
         let low = mesh
@@ -871,7 +711,7 @@ fn adoption_pcb_slot_preserves_both_material_components() {
     }
     extents.sort_by(|a, b| a[0].total_cmp(&b[0]));
     assert_eq!(extents, vec![[0., 9.], [11., 20.]]);
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 2);
     assert_eq!(step.matches("CLOSED_SHELL(").count(), 2);
     assert!(

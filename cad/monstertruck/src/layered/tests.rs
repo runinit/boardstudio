@@ -1,7 +1,54 @@
 use super::*;
+use crate::export_tests::{StepRecords, id, list, num, step_text};
 use boardstudio_contracts::*;
 use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
 use monstertruck_modeling::*;
+
+pub(super) fn material(
+    mesh: &monstertruck_meshing::prelude::PolygonMesh,
+    point: [f64; 3],
+    inside: bool,
+) {
+    let target = if inside { 1. } else { 0. };
+    let winding = mesh_winding([mesh], Point3::from(point));
+    assert!(
+        (winding - target).abs() < 1e-8,
+        "material {point:?}: winding {winding} != {target}"
+    );
+}
+
+fn mesh_winding<'a>(meshes: impl IntoIterator<Item = &'a PolygonMesh>, point: Point3) -> f64 {
+    let angle: f64 = meshes
+        .into_iter()
+        .flat_map(|mesh| {
+            mesh.faces().triangle_iter().map(move |face| {
+                let [a, b, c] = face.map(|v| mesh.positions()[v.pos] - point);
+                let denominator = a.magnitude() * b.magnitude() * c.magnitude()
+                    + a.dot(b) * c.magnitude()
+                    + b.dot(c) * a.magnitude()
+                    + c.dot(a) * b.magnitude();
+                2. * a.dot(b.cross(c)).atan2(denominator)
+            })
+        })
+        .sum();
+    angle / (4. * std::f64::consts::PI)
+}
+
+pub(super) fn point_bounds(points: impl IntoIterator<Item = Point3>) -> [[f64; 3]; 2] {
+    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+    for p in points {
+        for axis in 0..3 {
+            bounds[0][axis] = bounds[0][axis].min(p[axis]);
+            bounds[1][axis] = bounds[1][axis].max(p[axis]);
+        }
+    }
+    bounds
+}
+
+pub(super) fn check_solid(solid: &Solid) {
+    Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented topology");
+    assert!(solid.is_geometric_consistent());
+}
 
 fn rectangle(x: f64, y: f64, w: f64, h: f64) -> Vec<Vec2> {
     [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
@@ -69,8 +116,7 @@ fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
         mesh.volume()
     );
     crate::mesh_profile(&model).expect("production mesh path");
-    let step =
-        String::from_utf8(crate::export_step(&model).expect("production exact STEP")).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("CYLINDRICAL_SURFACE(").count(), 1, "{step}");
     assert!(!step.contains("B_SPLINE_SURFACE"));
 }
@@ -131,7 +177,7 @@ fn verify(
     samples: &[([f64; 3], bool)],
     cylinders: usize,
     cones: usize,
-) {
+) -> (crate::ExactModel, String) {
     if std::env::var_os("LAYERED_013_EVIDENCE_OUTPUT").is_some() {
         retain_evidence(
             &format!("workloads/verified-{}.json", expected.to_bits()),
@@ -141,8 +187,7 @@ fn verify(
     let model = build_layered_case(input).expect("layered exact case");
     assert_eq!(model.solids.len(), 1, "one connected material solid");
     let solid = &model.solids[0];
-    Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented topology");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     let mesh =
         shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).expect("every exact face meshes");
     assert!(
@@ -150,38 +195,13 @@ fn verify(
         "volume {} != analytic {expected}",
         mesh.volume()
     );
-    let lo = [0, 1, 2].map(|i| {
-        mesh.positions()
-            .iter()
-            .map(|p| p[i])
-            .fold(f64::INFINITY, f64::min)
-    });
-    let hi = [0, 1, 2].map(|i| {
-        mesh.positions()
-            .iter()
-            .map(|p| p[i])
-            .fold(f64::NEG_INFINITY, f64::max)
-    });
-    let vertices: Vec<_> = solid
+    let vertices = solid
         .boundaries()
         .iter()
         .flat_map(|shell| shell.vertex_iter())
-        .map(|vertex| vertex.point())
-        .collect();
-    let native_lo = [0, 1, 2].map(|axis| {
-        vertices
-            .iter()
-            .map(|p| p[axis])
-            .fold(f64::INFINITY, f64::min)
-    });
-    let native_hi = [0, 1, 2].map(|axis| {
-        vertices
-            .iter()
-            .map(|p| p[axis])
-            .fold(f64::NEG_INFINITY, f64::max)
-    });
-    assert_eq!([native_lo, native_hi], bounds, "authored outer bounds");
-    for (actual, expected) in [lo, hi]
+        .map(|vertex| vertex.point());
+    assert_eq!(point_bounds(vertices), bounds, "authored outer bounds");
+    for (actual, expected) in point_bounds(mesh.positions().iter().copied())
         .into_iter()
         .flatten()
         .zip(bounds.into_iter().flatten())
@@ -191,30 +211,11 @@ fn verify(
             "reference mesh bound {actual} != {expected}"
         );
     }
-    for (point, inside) in samples {
-        let point = Point3::from(*point);
-        let angle: f64 = mesh
-            .faces()
-            .triangle_iter()
-            .map(|face| {
-                let [a, b, c] = face.map(|v| mesh.positions()[v.pos] - point);
-                let denominator = a.magnitude() * b.magnitude() * c.magnitude()
-                    + a.dot(b) * c.magnitude()
-                    + b.dot(c) * a.magnitude()
-                    + c.dot(a) * b.magnitude();
-                2. * a.dot(b.cross(c)).atan2(denominator)
-            })
-            .sum();
-        let expected = if *inside { 1. } else { 0. };
-        assert!(
-            (angle / (4. * std::f64::consts::PI) - expected).abs() < 1e-8,
-            "point {point:?}: winding {} != {expected}",
-            angle / (4. * std::f64::consts::PI)
-        );
+    for &(point, inside) in samples {
+        material(&mesh, point, inside);
     }
     crate::mesh_profile(&model).expect("existing production mesh path");
-    let step =
-        String::from_utf8(crate::export_step(&model).expect("existing exact STEP path")).unwrap();
+    let step = step_text(&model);
     retain_evidence(
         &format!("fixture-{}.step", expected.to_bits()),
         step.as_bytes(),
@@ -249,6 +250,7 @@ fn verify(
             Err(crate::step_accuracy::Error::Unsupported)
         ));
     }
+    (model, step)
 }
 #[test]
 fn boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss() {
@@ -583,7 +585,7 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
     for (actual, expected) in volumes.into_iter().zip([128., 824.]) {
         assert!((actual - expected).abs() < 1e-8);
     }
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 2);
     assert_eq!(step.matches("CLOSED_SHELL(").count(), 2);
     assert!(!step.contains("B_SPLINE_SURFACE"));
@@ -676,71 +678,20 @@ fn adoption_ring_island_retains_another_owned_cut_in_either_authoring_order() {
 }
 
 fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64, r1: f64) {
-    use std::collections::BTreeMap;
-    use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
-    fn list(p: &Parameter) -> &[Parameter] {
-        match p {
-            Parameter::List(p) => p,
-            _ => panic!("expected Part21 list"),
-        }
-    }
-    fn id(p: &Parameter) -> u64 {
-        match p {
-            Parameter::Ref(Name::Entity(id)) => *id,
-            _ => panic!("expected Part21 reference"),
-        }
-    }
-    fn num(p: &Parameter) -> f64 {
-        match p {
-            Parameter::Real(v) => *v,
-            Parameter::Integer(v) => *v as f64,
-            _ => panic!("expected Part21 number"),
-        }
-    }
-    fn args<'a>(
-        records: &'a BTreeMap<u64, Vec<Record>>,
-        entity: u64,
-        name: &str,
-    ) -> &'a [Parameter] {
-        list(
-            &records[&entity]
-                .iter()
-                .find(|r| r.name.as_str() == name)
-                .expect("required exact geometry record")
-                .parameter,
-        )
-    }
-    fn xyz(records: &BTreeMap<u64, Vec<Record>>, entity: u64, name: &str) -> [f64; 3] {
-        let p = list(&args(records, entity, name)[1]);
-        [num(&p[0]), num(&p[1]), num(&p[2])]
-    }
-    let exchange: Exchange = text.parse().expect("valid independent Part21 parse");
-    let records: BTreeMap<_, _> = exchange
-        .data
-        .into_iter()
-        .flat_map(|d| d.entities)
-        .map(|e| match e {
-            EntityInstance::Simple { id, record } => (id, vec![record]),
-            EntityInstance::Complex { id, subsuper } => (id, subsuper.0),
-        })
-        .collect();
-    let surfaces: Vec<_> = records
-        .iter()
-        .filter(|(_, r)| {
-            r.iter()
-                .any(|r| r.name.as_str() == "RATIONAL_B_SPLINE_SURFACE")
-        })
-        .map(|(&id, _)| id)
-        .collect();
+    let records = StepRecords::parse(text);
+    let surfaces = records
+        .named("RATIONAL_B_SPLINE_SURFACE")
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
     assert_eq!(surfaces.len(), 1);
     let surface = surfaces[0];
-    let net = args(&records, surface, "B_SPLINE_SURFACE");
+    let net = records.args(surface, "B_SPLINE_SURFACE");
     assert_eq!([num(&net[0]), num(&net[1])], [1., 2.]);
     let rows = list(&net[2]);
     assert_eq!(rows.len(), 2);
-    let weights = list(&args(&records, surface, "RATIONAL_B_SPLINE_SURFACE")[0]);
+    let weights = list(&records.args(surface, "RATIONAL_B_SPLINE_SURFACE")[0]);
     assert_eq!(weights.len(), 2);
-    let knots = args(&records, surface, "B_SPLINE_SURFACE_WITH_KNOTS");
+    let knots = records.args(surface, "B_SPLINE_SURFACE_WITH_KNOTS");
     assert_eq!(
         list(&knots[0]).iter().map(num).collect::<Vec<_>>(),
         vec![2., 2.]
@@ -760,7 +711,7 @@ fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64,
     for (row_index, (z, radius)) in [(low, r0), (high, r1)].into_iter().enumerate() {
         let row: Vec<_> = list(&rows[row_index])
             .iter()
-            .map(|p| xyz(&records, id(p), "CARTESIAN_POINT"))
+            .map(|p| records.xyz(id(p), "CARTESIAN_POINT"))
             .collect();
         let w = list(&weights[row_index]);
         assert_eq!(row.len(), 9);
@@ -795,42 +746,36 @@ fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64,
     // Equal weights and corresponding radial controls in the two degree-one rows prove linear r(z).
     for i in 0..9 {
         assert_eq!(num(&list(&weights[0])[i]), num(&list(&weights[1])[i]));
-        let a = xyz(&records, id(&list(&rows[0])[i]), "CARTESIAN_POINT");
-        let b = xyz(&records, id(&list(&rows[1])[i]), "CARTESIAN_POINT");
+        let a = records.xyz(id(&list(&rows[0])[i]), "CARTESIAN_POINT");
+        let b = records.xyz(id(&list(&rows[1])[i]), "CARTESIAN_POINT");
         for axis in 0..2 {
             assert!(((a[axis] - center[axis]) / r0 - (b[axis] - center[axis]) / r1).abs() < 1e-12);
         }
     }
     let radius = |z: f64| r0 + (r1 - r0) * (z - low) / (high - low);
-    let face = records
-        .iter()
-        .find_map(|(_, r)| {
-            r.iter()
-                .find(|r| r.name.as_str() == "ADVANCED_FACE")
-                .filter(|r| id(&list(&r.parameter)[2]) == surface)
-        })
+    let (_, face) = records
+        .named("ADVANCED_FACE")
+        .find(|(_, p)| id(&p[2]) == surface)
         .expect("cone face is actually used");
     let mut zs = vec![];
-    for bound in list(&list(&face.parameter)[1]) {
-        let bound = args(&records, id(bound), "FACE_BOUND");
-        let wire = args(&records, id(&bound[1]), "EDGE_LOOP");
+    for bound in list(&face[1]) {
+        let bound = records.args(id(bound), "FACE_BOUND");
+        let wire = records.args(id(&bound[1]), "EDGE_LOOP");
         for oriented in list(&wire[1]) {
-            let edge = args(
-                &records,
-                id(&args(&records, id(oriented), "ORIENTED_EDGE")[3]),
+            let edge = records.args(
+                id(&records.args(id(oriented), "ORIENTED_EDGE")[3]),
                 "EDGE_CURVE",
             );
-            let curve = args(&records, id(&edge[3]), "SURFACE_CURVE");
+            let curve = records.args(id(&edge[3]), "SURFACE_CURVE");
             assert!(
-                records[&id(&curve[1])]
-                    .iter()
-                    .any(|r| r.name.as_str() == "RATIONAL_B_SPLINE_CURVE"),
+                records
+                    .named("RATIONAL_B_SPLINE_CURVE")
+                    .any(|(curve_id, _)| curve_id == id(&curve[1])),
                 "cone circular trims remain exact rational arcs"
             );
             for vertex in [&edge[1], &edge[2]] {
-                let point = xyz(
-                    &records,
-                    id(&args(&records, id(vertex), "VERTEX_POINT")[1]),
+                let point = records.xyz(
+                    id(&records.args(id(vertex), "VERTEX_POINT")[1]),
                     "CARTESIAN_POINT",
                 );
                 assert!(
@@ -918,7 +863,7 @@ fn authored_close_height_boundaries_are_retained_exactly() {
         .collect();
     assert!(vertices.iter().any(|&z| z.to_bits() == low.to_bits()));
     assert!(vertices.iter().any(|&z| z.to_bits() == 4f64.to_bits()));
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("CYLINDRICAL_SURFACE(").count(), 1);
 }
 #[test]
@@ -939,50 +884,22 @@ fn enclosed_void_is_refused_instead_of_emitting_a_second_body() {
 }
 
 fn cylinder_senses(text: &str) -> Vec<(f64, bool)> {
-    use std::collections::BTreeMap;
-    use step_p21::ast::{EntityInstance, Exchange, Name, Parameter};
-    fn list(p: &Parameter) -> &[Parameter] {
-        match p {
-            Parameter::List(p) => p,
-            _ => panic!("Part21 list"),
-        }
-    }
-    fn id(p: &Parameter) -> u64 {
-        match p {
-            Parameter::Ref(Name::Entity(id)) => *id,
-            _ => panic!("Part21 ref"),
-        }
-    }
-    let exchange: Exchange = text.parse().unwrap();
-    let records: BTreeMap<_, _> = exchange
-        .data
-        .into_iter()
-        .flat_map(|d| d.entities)
-        .filter_map(|e| match e {
-            EntityInstance::Simple { id, record } => Some((id, record)),
-            _ => None,
-        })
-        .collect();
-    let mut result = vec![];
-    for face in records
-        .values()
-        .filter(|r| r.name.as_str() == "ADVANCED_FACE")
-    {
-        let face = list(&face.parameter);
-        let surface = &records[&id(&face[2])];
-        if surface.name.as_str() != "CYLINDRICAL_SURFACE" {
+    use step_p21::ast::Parameter;
+    let records = StepRecords::parse(text);
+    let mut result = Vec::new();
+    for (_, face) in records.named("ADVANCED_FACE") {
+        let Some((_, cylinder)) = records
+            .named("CYLINDRICAL_SURFACE")
+            .find(|(surface, _)| *surface == id(&face[2]))
+        else {
             continue;
-        }
-        let radius = match list(&surface.parameter)[2] {
-            Parameter::Real(v) => v,
-            _ => panic!("radius"),
         };
         let sense = match &face[3] {
             Parameter::Enumeration(v) if v == "T" => true,
             Parameter::Enumeration(v) if v == "F" => false,
             _ => panic!("face same_sense"),
         };
-        result.push((radius, sense));
+        result.push((num(&cylinder[2]), sense));
     }
     result.sort_by(|a, b| a.0.total_cmp(&b.0));
     result
@@ -991,7 +908,7 @@ fn cylinder_senses(text: &str) -> Vec<(f64, bool)> {
 fn exact_step_cylinder_face_senses_match_holes_and_boss_material() {
     let input = plate();
     let model = build_layered_case(&input).unwrap();
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(
         cylinder_senses(&step),
         vec![(1., false)],
@@ -1008,7 +925,7 @@ fn exact_step_cylinder_face_senses_match_holes_and_boss_material() {
     mount.boss_diameter = Some(4.);
     mount.height = Some(3.);
     let model = build_layered_case(&input).unwrap();
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(
         cylinder_senses(&step),
         vec![(0.5, false), (2., true)],
@@ -1045,7 +962,7 @@ fn reviewed_authored_mount_order_preserves_later_boss_hole() {
         "authored order volume {}",
         mesh.volume()
     );
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(
         cylinder_senses(&step),
         vec![(0.5, false), (1.5, false), (2., true)]
@@ -1103,7 +1020,7 @@ fn outward_material_split_by_opening_remains_two_valid_solids() {
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 512.).abs() < 1e-8);
     }
-    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    let step = step_text(&model);
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 2);
 }
 

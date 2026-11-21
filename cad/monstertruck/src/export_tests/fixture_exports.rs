@@ -524,9 +524,11 @@ fn direct_identity_reader_refuses_occurrences_and_duplicate_ownership() {
         Err(Error::Unsupported)
     ));
     let text = step(&slot());
+    let records = super::StepRecords::parse(&text);
+    let (shape, _) = records.named("SHAPE_REPRESENTATION").next().unwrap();
     let extra = super::append_step_records(
         &text,
-        "#9000 = REPRESENTATION_RELATIONSHIP('', '', #18, #18);",
+        &format!("#9000 = REPRESENTATION_RELATIONSHIP('', '', #{shape}, #{shape});"),
     );
     assert!(matches!(
         direct_product_solid_counts(&extra),
@@ -553,11 +555,24 @@ fn fixture_comparison_refuses_reversed_line_direction_with_true_same_sense() {
     use crate::step_accuracy::Error;
     let text = step(&slot());
     compare_fixture(&text, &[("body", slot_reference())]).unwrap();
-    assert!(text.contains("#103 = EDGE_CURVE('', #127, #128, #193, .T.);"));
-    let direction = "#197 = DIRECTION('', (-1.0, 0.0, 0.0));";
-    assert_eq!(text.matches(direction).count(), 1);
-    // Only reverse the LINE support direction; the edge's vertices and true same_sense stay fixed.
-    let reversed = text.replacen(direction, "#197 = DIRECTION('', (1.0, 0.0, 0.0));", 1);
+    use super::{StepRecords, id, replace_record};
+    use step_p21::ast::Parameter;
+    let records = StepRecords::parse(&text);
+    let direction = records
+        .named("EDGE_CURVE")
+        .filter_map(|(_, edge)| {
+            assert!(matches!(&edge[4], Parameter::Enumeration(sense) if sense == "T"));
+            let curve = records.args(id(&edge[3]), "SURFACE_CURVE");
+            let leader = id(&curve[1]);
+            let (_, line) = records.named("LINE").find(|(line, _)| *line == leader)?;
+            let vector = records.args(id(&line[2]), "VECTOR");
+            let direction = id(&vector[1]);
+            (records.xyz(direction, "DIRECTION") == [-1.0, 0.0, 0.0]).then_some(direction)
+        })
+        .next()
+        .expect("a reversed X-axis LINE in an oriented boundary");
+    // Only reverse the LINE support direction; the vertices and true same_sense stay fixed.
+    let reversed = replace_record(&text, direction, "DIRECTION('', (1.0, 0.0, 0.0));");
     let result = compare_fixture(&reversed, &[("body", slot_reference())]);
     assert!(
         matches!(result, Err(Error::Geometry)),

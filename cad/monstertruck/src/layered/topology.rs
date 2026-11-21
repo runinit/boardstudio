@@ -109,32 +109,20 @@ fn ring_points(ring: &Ring) -> Vec<PartitionPoint> {
         })
         .collect()
 }
-fn points_at_z(caps: &[Cap], bands: &[Band]) -> BTreeMap<u64, Vec<PartitionPoint>> {
-    let mut result: BTreeMap<u64, Vec<PartitionPoint>> = BTreeMap::new();
-    for cap in caps {
-        for ring in rings(&cap.profile) {
-            result
-                .entry(bits(cap.z))
-                .or_default()
-                .extend(ring_points(&ring));
-        }
+fn partition_points(caps: &[Cap], bands: &[Band]) -> Vec<PartitionPoint> {
+    let mut by_z: BTreeMap<u64, Vec<PartitionPoint>> = BTreeMap::new();
+    let profiles = caps.iter().map(|cap| (cap.z, &cap.profile)).chain(
+        bands
+            .iter()
+            .flat_map(|band| [(band.low, &band.lower), (band.high, &band.upper)]),
+    );
+    for (z, profile) in profiles {
+        by_z.entry(bits(z))
+            .or_default()
+            .extend(rings(profile).iter().flat_map(ring_points));
     }
-    for band in bands {
-        for (z, profile) in [(band.low, &band.lower), (band.high, &band.upper)] {
-            for ring in rings(profile) {
-                result
-                    .entry(bits(z))
-                    .or_default()
-                    .extend(ring_points(&ring));
-            }
-        }
-    }
-    // Propagate source-proven partitions through adjacent bands before edge creation.
-    let all: Vec<_> = result.values().flatten().cloned().collect();
-    for points in result.values_mut() {
-        *points = all.clone();
-    }
-    result
+    // All bands share source-proven partitions, in the same height order.
+    by_z.into_values().flatten().collect()
 }
 fn partitions(
     a: PlineVertex,
@@ -266,7 +254,6 @@ fn surface_key(
     a: Point3,
     b: Point3,
     c: Point3,
-    d: Point3,
     bulge: f64,
     authored: Option<([f64; 2], f64, f64)>,
     authored_line: Option<([f64; 2], [f64; 2])>,
@@ -293,23 +280,8 @@ fn surface_key(
         ))
     } else {
         let positive = bulge > 0.;
-        let (mut r, mut center) = seg_arc_radius_and_center(
-            PlineVertex::new(a.x, a.y, bulge),
-            PlineVertex::new(b.x, b.y, 0.),
-        );
-        let (mut top_radius, mut top_center) = seg_arc_radius_and_center(
-            PlineVertex::new(c.x, c.y, bulge),
-            PlineVertex::new(d.x, d.y, 0.),
-        );
-        if let Some((axis, radius, upper_radius)) = authored {
-            center = cavalier_contours::core::math::Vector2::new(axis[0], axis[1]);
-            top_center = center;
-            r = radius;
-            top_radius = upper_radius;
-        }
-        if center != top_center {
-            return Err("cone contour changed its authored axis".into());
-        }
+        let ([x, y], r, top_radius) =
+            authored.ok_or("circular wall has no structural authored source")?;
         // STEP cylinders have an outward natural normal; hole orientation belongs on the face.
         let reversed = top_radius == r && !positive;
         // Keep the generator's radius in local coordinates, before translating its authored axis.
@@ -324,15 +296,15 @@ fn surface_key(
         let generator = Curve::Line(Line(start, end));
         let surface = Surface::RevolutionSurface(Processor::with_transform(
             RevolutionSurface::by_revolution(generator, Point3::origin(), Vector3::unit_z()),
-            Matrix4::from_translation(Vector3::new(center.x, center.y, 0.)),
+            Matrix4::from_translation(Vector3::new(x, y, 0.)),
         ));
         let slope = (top_radius - r) / (c.z - a.z);
         let intercept = r - slope * a.z;
         Ok((
             vec![
                 1,
-                bits(center.x),
-                bits(center.y),
+                bits(x),
+                bits(y),
                 bits(intercept),
                 bits(slope),
                 positive as u64,
@@ -344,7 +316,7 @@ fn surface_key(
 }
 fn wall_patches(
     bands: &[Band],
-    points: &BTreeMap<u64, Vec<PartitionPoint>>,
+    points: &[PartitionPoint],
     cache: &mut Cache,
 ) -> Result<BTreeMap<Vec<u64>, Vec<Patch>>> {
     let mut groups: BTreeMap<Vec<u64>, Vec<Patch>> = BTreeMap::new();
@@ -365,14 +337,8 @@ fn wall_patches(
                 if a.bulge != c.bulge || b.bulge != d.bulge {
                     return Err("varying profile changes arc spans within a height band".into());
                 }
-                let mut ts =
-                    partitions(a, b, low.sources[index].as_ref(), &points[&bits(band.low)]);
-                ts.extend(partitions(
-                    c,
-                    d,
-                    high.sources[index].as_ref(),
-                    &points[&bits(band.high)],
-                ));
+                let mut ts = partitions(a, b, low.sources[index].as_ref(), points);
+                ts.extend(partitions(c, d, high.sources[index].as_ref(), points));
                 ts.sort_by(|a, b| a.0.total_cmp(&b.0));
                 ts.dedup_by(|a, b| a.0 == b.0);
                 for pair in ts.windows(2) {
@@ -453,7 +419,7 @@ fn wall_patches(
                         None
                     };
                     let (key, surface, reversed) =
-                        surface_key(p, q, r, s, bulge, authored, authored_line)?;
+                        surface_key(p, q, r, bulge, authored, authored_line)?;
                     groups.entry(key).or_default().push(Patch {
                         wire,
                         surface,
@@ -525,20 +491,15 @@ fn merge(mut patches: Vec<Patch>) -> Result<Vec<Face>> {
 }
 pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<Vec<Solid>> {
     let caps = caps(bands, features, frame)?;
-    let points = points_at_z(&caps, bands);
+    let points = partition_points(&caps, bands);
     let mut cache = Cache::default();
     let mut faces = vec![];
     for cap in caps {
         for region in cap.profile {
-            let mut wires = vec![ring_wire(
-                &mut cache,
-                &region.outer,
-                cap.z,
-                &points[&bits(cap.z)],
-            )?];
+            let mut wires = vec![ring_wire(&mut cache, &region.outer, cap.z, &points)?];
             for mut hole in region.holes {
                 hole.invert_direction_mut();
-                wires.push(ring_wire(&mut cache, &hole, cap.z, &points[&bits(cap.z)])?);
+                wires.push(ring_wire(&mut cache, &hole, cap.z, &points)?);
             }
             let face: Face = builder::try_attach_plane(wires)
                 .map_err(|e| format!("horizontal profile difference: {e:?}"))?;

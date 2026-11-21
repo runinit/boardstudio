@@ -1,6 +1,78 @@
 use crate::{ProfileInput, ProfileKind, ProfileRegion, build_profile, export_step};
 use boardstudio_contracts::Vec2;
-use step_p21::ast::{EntityInstance, Exchange};
+use std::collections::BTreeMap;
+use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
+
+pub(crate) struct StepRecords(BTreeMap<u64, Vec<Record>>);
+
+impl StepRecords {
+    pub(crate) fn parse(text: &str) -> Self {
+        let exchange: Exchange = text.parse().expect("valid independent Part 21 parse");
+        Self(
+            exchange
+                .data
+                .into_iter()
+                .flat_map(|section| section.entities)
+                .map(|entity| match entity {
+                    EntityInstance::Simple { id, record } => (id, vec![record]),
+                    EntityInstance::Complex { id, subsuper } => (id, subsuper.0),
+                })
+                .collect(),
+        )
+    }
+
+    pub(crate) fn named<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> impl Iterator<Item = (u64, &'a [Parameter])> {
+        self.0.iter().filter_map(move |(&id, records)| {
+            records
+                .iter()
+                .find(|record| record.name.as_str() == name)
+                .map(|record| (id, list(&record.parameter)))
+        })
+    }
+
+    pub(crate) fn args(&self, id: u64, name: &str) -> &[Parameter] {
+        let record = self.0[&id]
+            .iter()
+            .find(|record| record.name.as_str() == name)
+            .unwrap_or_else(|| panic!("required {name} at #{id}"));
+        list(&record.parameter)
+    }
+
+    pub(crate) fn xyz(&self, id: u64, name: &str) -> [f64; 3] {
+        let coordinates = list(&self.args(id, name)[1]);
+        assert_eq!(coordinates.len(), 3);
+        std::array::from_fn(|axis| num(&coordinates[axis]))
+    }
+}
+
+pub(crate) fn list(p: &Parameter) -> &[Parameter] {
+    match p {
+        Parameter::List(p) => p,
+        _ => panic!("expected Part 21 list"),
+    }
+}
+
+pub(crate) fn id(p: &Parameter) -> u64 {
+    match p {
+        Parameter::Ref(Name::Entity(id)) => *id,
+        _ => panic!("expected Part 21 reference"),
+    }
+}
+
+pub(crate) fn num(p: &Parameter) -> f64 {
+    match p {
+        Parameter::Real(v) => *v,
+        Parameter::Integer(v) => *v as f64,
+        _ => panic!("expected Part 21 number"),
+    }
+}
+
+pub(crate) fn step_text(model: &crate::ExactModel) -> String {
+    String::from_utf8(export_step(model).expect("exact STEP export")).unwrap()
+}
 
 fn rectangle(x: f64, y: f64, width: f64, height: f64) -> ProfileRegion {
     ProfileRegion {
@@ -16,40 +88,36 @@ fn rectangle(x: f64, y: f64, width: f64, height: f64) -> ProfileRegion {
     }
 }
 
+fn plate_profile(base_z: f64, thickness: f64, regions: Vec<ProfileRegion>) -> crate::ExactModel {
+    build_profile(ProfileInput {
+        kind: ProfileKind::Plate,
+        base_z,
+        thickness,
+        wall_height: 0.0,
+        regions,
+    })
+    .unwrap()
+}
+
 #[test]
 fn exact_step_exports_one_mm_solid() {
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 4.0,
-        thickness: 2.0,
-        wall_height: 0.0,
-        regions: vec![rectangle(3.0, -5.0, 20.0, 10.0)],
-    })
-    .unwrap();
-    let bytes = export_step(&model).expect("exact model exports successfully");
-    let text = std::str::from_utf8(&bytes).unwrap();
-    let parsed: Exchange = text.parse().expect("independent Part21 syntax parser");
-    let count = parsed.data.iter().flat_map(|s| &s.entities).filter(|e| {
-        matches!(e, EntityInstance::Simple { record, .. } if record.name == "MANIFOLD_SOLID_BREP")
-    }).count();
-    assert_eq!(count, 1);
+    let model = plate_profile(4.0, 2.0, vec![rectangle(3.0, -5.0, 20.0, 10.0)]);
+    let text = step_text(&model);
+    assert_eq!(text, step_text(&model), "AP214 output is deterministic");
+    assert!(text.contains("FILE_SCHEMA(('AUTOMOTIVE_DESIGN'))"));
+    assert_eq!(
+        StepRecords::parse(&text)
+            .named("MANIFOLD_SOLID_BREP")
+            .count(),
+        1
+    );
     assert!(text.contains("SI_UNIT(.MILLI.,.METRE.)"));
 }
 
 #[test]
 fn named_step_keeps_body_identity_and_all_disconnected_solids() {
     use crate::{StepBody, export_step_bodies};
-    use step_p21::ast::Parameter;
-    let build = |regions| {
-        build_profile(ProfileInput {
-            kind: ProfileKind::Plate,
-            base_z: 4.0,
-            thickness: 2.0,
-            wall_height: 0.0,
-            regions,
-        })
-        .unwrap()
-    };
+    let build = |regions| plate_profile(4.0, 2.0, regions);
     let first = build(vec![rectangle(3.0, -5.0, 20.0, 10.0)]);
     let second = build(vec![
         rectangle(40.0, 0.0, 4.0, 3.0),
@@ -68,38 +136,21 @@ fn named_step_keeps_body_identity_and_all_disconnected_solids() {
         },
     ])
     .expect("named exact bodies export successfully");
-    let parsed: Exchange = std::str::from_utf8(&bytes).unwrap().parse().unwrap();
-    let products = parsed
-        .data
-        .iter()
-        .flat_map(|s| &s.entities)
-        .filter_map(|e| match e {
-            EntityInstance::Simple { record, .. } if record.name == "PRODUCT" => {
-                let Parameter::List(p) = &record.parameter else {
-                    panic!("product parameters")
-                };
-                Some((p[0].clone(), p[1].clone()))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let text = std::str::from_utf8(&bytes).unwrap();
+    let records = StepRecords::parse(text);
+    let products: Vec<_> = records
+        .named("PRODUCT")
+        .map(|(_, p)| (&p[0], &p[1]))
+        .collect();
     assert_eq!(
         products,
-        vec![
-            (
-                Parameter::String("first".into()),
-                Parameter::String("Plate's first body".into())
-            ),
-            (
-                Parameter::String("second".into()),
-                Parameter::String("two islands".into())
-            ),
-        ]
+        [("first", "Plate's first body"), ("second", "two islands")]
+            .map(|(id, name)| (Parameter::String(id.into()), Parameter::String(name.into())))
+            .iter()
+            .map(|(id, name)| (id, name))
+            .collect::<Vec<_>>()
     );
-    assert_eq!(parsed.data.iter().flat_map(|s| &s.entities).filter(|e| {
-        matches!(e, EntityInstance::Simple { record, .. } if record.name == "MANIFOLD_SOLID_BREP")
-    }).count(), 3);
-    let text = std::str::from_utf8(&bytes).unwrap();
+    assert_eq!(records.named("MANIFOLD_SOLID_BREP").count(), 3);
     assert_eq!(
         crate::step_accuracy::product_solid_counts(text).unwrap(),
         vec![
@@ -120,15 +171,8 @@ fn named_step_keeps_body_identity_and_all_disconnected_solids() {
 fn raw_step_measures_exact_hole_material_bounds_and_closed_topology() {
     let mut region = rectangle(3.0, -5.0, 20.0, 10.0);
     region.holes.push(rectangle(8.0, -3.0, 4.0, 5.0).outer);
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 4.0,
-        thickness: 2.0,
-        wall_height: 0.0,
-        regions: vec![region],
-    })
-    .unwrap();
-    let step = String::from_utf8(export_step(&model).unwrap()).unwrap();
+    let model = plate_profile(4.0, 2.0, vec![region]);
+    let step = step_text(&model);
     let solids =
         crate::step_accuracy::inspect(&step).expect("independent planar B-rep measurement");
     assert_eq!(solids.len(), 1);
@@ -174,18 +218,15 @@ fn control_step() -> String {
     ]
     .map(|(x, y)| Vec2 { x, y })
     .into();
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 0.0,
-        thickness: 2.0,
-        wall_height: 0.0,
-        regions: vec![ProfileRegion {
+    let model = plate_profile(
+        0.0,
+        2.0,
+        vec![ProfileRegion {
             outer,
             holes: vec![rectangle(15.0, 15.0, 5.0, 5.0).outer],
         }],
-    })
-    .unwrap();
-    String::from_utf8(export_step(&model).unwrap()).unwrap()
+    );
+    step_text(&model)
 }
 
 fn expected(id: &str) -> serde_json::Value {
@@ -225,14 +266,7 @@ fn deleted_corner_and_cutout_keep_existing_independent_acceptance() {
 fn prepared_holed_plate_keeps_the_kernel_acceptance_reference() {
     let mut region = rectangle(-0.5, -0.5, 21.0, 21.0);
     region.holes.push(rectangle(5.5, 5.5, 9.0, 9.0).outer);
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 0.0,
-        thickness: 2.0,
-        wall_height: 0.0,
-        regions: vec![region],
-    })
-    .unwrap();
+    let model = plate_profile(0.0, 2.0, vec![region]);
     let bytes = export_step(&model).unwrap();
     let solids = crate::step_accuracy::inspect(std::str::from_utf8(&bytes).unwrap()).unwrap();
     let want = expected("holed-plate-export");
@@ -250,16 +284,7 @@ fn prepared_holed_plate_keeps_the_kernel_acceptance_reference() {
 #[test]
 fn offset_products_keep_existing_compound_volume_and_placements() {
     use crate::{StepBody, export_step_bodies};
-    let model = |z| {
-        build_profile(ProfileInput {
-            kind: ProfileKind::Plate,
-            base_z: z,
-            thickness: 2.0,
-            wall_height: 0.0,
-            regions: vec![rectangle(0.0, 0.0, 20.0, 20.0)],
-        })
-        .unwrap()
-    };
+    let model = |z| plate_profile(z, 2.0, vec![rectangle(0.0, 0.0, 20.0, 20.0)]);
     let lower = model(0.0);
     let upper = model(8.0);
     let bytes = export_step_bodies(&[
@@ -404,14 +429,7 @@ fn empty_body_geometry_is_refused_without_silently_dropping_identity() {
 #[test]
 fn caller_identity_is_encoded_as_part21_strings() {
     use crate::{StepBody, export_step_bodies};
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 0.0,
-        thickness: 2.0,
-        wall_height: 0.0,
-        regions: vec![rectangle(0.0, 0.0, 2.0, 1.0)],
-    })
-    .unwrap();
+    let model = plate_profile(0.0, 2.0, vec![rectangle(0.0, 0.0, 2.0, 1.0)]);
     let bytes = export_step_bodies(&[StepBody {
         id: "plate's",
         name: "Ω\\name\n",
@@ -568,20 +586,34 @@ fn raw_accuracy_conditions_volume_on_world_placement() {
             y: 999990.2 + x * angle.sin() + y * angle.cos(),
         })
         .into();
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 1000000.3,
-        thickness: 4.0,
-        wall_height: 0.0,
-        regions: vec![ProfileRegion {
+    let model = plate_profile(
+        1000000.3,
+        4.0,
+        vec![ProfileRegion {
             outer,
             holes: vec![],
         }],
-    })
-    .unwrap();
-    let text = String::from_utf8(export_step(&model).unwrap()).unwrap();
+    );
+    let text = step_text(&model);
     let solids = crate::step_accuracy::inspect(&text).expect("valid rotated placed box");
     assert!((solids[0].volume - 24.0).abs() <= 0.1);
+}
+
+fn edit_record(step: &str, entity: u64, from: &str, to: &str) -> String {
+    let prefix = format!("#{entity} = ");
+    let record = step.lines().find(|line| line.starts_with(&prefix)).unwrap();
+    assert!(record.contains(from), "control must edit {record}");
+    step.replacen(record, &record.replacen(from, to, 1), 1)
+}
+
+fn replace_record(step: &str, entity: u64, contents: &str) -> String {
+    let prefix = format!("#{entity} = ");
+    let old = step
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix))
+        .unwrap();
+    assert_ne!(old, contents);
+    edit_record(step, entity, old, contents)
 }
 
 fn append_step_records(step: &str, records: &str) -> String {
@@ -609,15 +641,7 @@ fn raw_accuracy_ignores_unrelated_units_but_rejects_ambiguous_owners() {
 #[test]
 fn raw_accuracy_measures_each_product_in_its_own_length_context() {
     use crate::{StepBody, export_step_bodies};
-    use step_p21::ast::{Name, Parameter};
-    let model = build_profile(ProfileInput {
-        kind: ProfileKind::Plate,
-        base_z: 0.0,
-        thickness: 1.0,
-        wall_height: 0.0,
-        regions: vec![rectangle(0.0, 0.0, 1.0, 1.0)],
-    })
-    .unwrap();
+    let model = plate_profile(0.0, 1.0, vec![rectangle(0.0, 0.0, 1.0, 1.0)]);
     let text = String::from_utf8(
         export_step_bodies(&[
             StepBody {
@@ -634,39 +658,15 @@ fn raw_accuracy_measures_each_product_in_its_own_length_context() {
         .unwrap(),
     )
     .unwrap();
-    let parsed: Exchange = text.parse().unwrap();
-    let representations = parsed
-        .data
-        .iter()
-        .flat_map(|s| &s.entities)
-        .filter_map(|e| match e {
-            EntityInstance::Simple { id, record } if record.name == "SHAPE_REPRESENTATION" => {
-                Some((*id, &record.parameter))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let (id, Parameter::List(params)) = representations[1] else {
-        panic!("representation")
-    };
-    let Parameter::Ref(Name::Entity(old_context)) = &params[2] else {
-        panic!("context")
-    };
-    let prefix = format!("#{id} = SHAPE_REPRESENTATION");
-    let rewritten = text
-        .lines()
-        .map(|line| {
-            if line.starts_with(&prefix) {
-                let old = format!(", #{old_context});");
-                assert!(line.ends_with(&old));
-                line.strip_suffix(&old).unwrap().to_owned() + ", #9000);"
-            } else {
-                line.to_owned()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-        + "\n";
+    let records = StepRecords::parse(&text);
+    let (representation, params) = records.named("SHAPE_REPRESENTATION").nth(1).unwrap();
+    let old_context = id(&params[2]);
+    let rewritten = edit_record(
+        &text,
+        representation,
+        &format!(", #{old_context});"),
+        ", #9000);",
+    );
     let mixed = append_step_records(
         &rewritten,
         "#9000=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#9001,#4,#5)) REPRESENTATION_CONTEXT('metre','3D'));\n#9001=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));",
@@ -818,17 +818,14 @@ fn original_standoff_keeps_authored_96_gon_drill_and_existing_tolerances() {
             .collect()
     };
     let model = |drill| {
-        build_profile(ProfileInput {
-            kind: ProfileKind::Plate,
-            base_z: 0.0,
-            thickness: 3.0,
-            wall_height: 0.0,
-            regions: vec![ProfileRegion {
+        plate_profile(
+            0.0,
+            3.0,
+            vec![ProfileRegion {
                 outer: polygon(3.0),
                 holes: vec![polygon(drill)],
             }],
-        })
-        .unwrap()
+        )
     };
     let correct = model(1.4);
     let bytes = export_step_bodies(&[StepBody {
@@ -928,17 +925,14 @@ fn original_holed_and_large_plate_manifests_keep_all_authored_holes() {
             .map(points)
             .collect();
         assert_eq!(holes.len(), expected_holes);
-        let model = build_profile(ProfileInput {
-            kind: ProfileKind::Plate,
-            base_z: 0.0,
-            thickness: body["thickness"].as_f64().unwrap(),
-            wall_height: 0.0,
-            regions: vec![ProfileRegion {
+        let model = plate_profile(
+            0.0,
+            body["thickness"].as_f64().unwrap(),
+            vec![ProfileRegion {
                 outer: points(outers[0]),
                 holes,
             }],
-        })
-        .unwrap();
+        );
         let bytes = export_step_bodies(&[StepBody {
             id: body["id"].as_str().unwrap(),
             name: body["name"].as_str().unwrap(),

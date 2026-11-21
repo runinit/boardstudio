@@ -1,25 +1,38 @@
 use super::*;
 
 fn circular_extrusion_step(shape: crate::step_accuracy::CircularExtrusion) -> String {
-    use monstertruck_modeling::{Curve, Point3, Vector3, primitive, profile};
-    let circle = primitive::circle::<Curve>(
-        Point3::new(shape.center[0] + shape.radius, shape.center[1], shape.z[0]),
-        Point3::new(shape.center[0], shape.center[1], shape.z[0]),
-        Vector3::unit_z(),
-        2,
-    );
-    let solid = profile::solid_from_planar_profile::<Curve, monstertruck_modeling::Surface>(
-        vec![circle],
+    circular_profile_step(shape, &[shape.radius])
+}
+
+fn annular_extrusion_step(shape: crate::step_accuracy::CircularExtrusion, inner: f64) -> String {
+    circular_profile_step(shape, &[shape.radius, inner])
+}
+
+fn circular_profile_step(shape: crate::step_accuracy::CircularExtrusion, radii: &[f64]) -> String {
+    use monstertruck_modeling::{Curve, Point3, Surface, Vector3, primitive, profile};
+    let rings = radii
+        .iter()
+        .map(|radius| {
+            primitive::circle::<Curve>(
+                Point3::new(shape.center[0] + radius, shape.center[1], shape.z[0]),
+                Point3::new(shape.center[0], shape.center[1], shape.z[0]),
+                Vector3::unit_z(),
+                2,
+            )
+        })
+        .collect();
+    let solid = profile::solid_from_planar_profile::<Curve, Surface>(
+        rings,
         Vector3::new(0.0, 0.0, shape.z[1] - shape.z[0]),
     )
     .unwrap();
-    String::from_utf8(
-        export_step(&crate::ExactModel {
-            solids: vec![solid],
-        })
-        .unwrap(),
-    )
-    .unwrap()
+    step_text(&crate::ExactModel {
+        solids: vec![solid],
+    })
+}
+
+fn is_true(value: &Parameter) -> bool {
+    matches!(value, Parameter::Enumeration(sense) if sense == "T")
 }
 
 #[test]
@@ -78,14 +91,6 @@ fn circular_certificate_checks_interior_source_weights_and_complete_trim_topolog
             "RATIONAL_B_SPLINE_SURFACE(((1.0, 1.0), (0.75, 0.75)",
             "RATIONAL_B_SPLINE_SURFACE(((1.0, 1.0), (0.75, 0.76)",
         ),
-        (
-            "CLOSED_SHELL('', (#21, #26, #33, #40))",
-            "CLOSED_SHELL('', (#21, #26, #33))",
-        ),
-        (
-            "ORIENTED_EDGE('', *, *, #45, .T.)",
-            "ORIENTED_EDGE('', *, *, #45, .F.)",
-        ),
         (".CURVE_3D.", ".PCURVE_S1."),
         (
             "GLOBAL_UNIT_ASSIGNED_CONTEXT((#3, #4, #5))",
@@ -99,9 +104,23 @@ fn circular_certificate_checks_interior_source_weights_and_complete_trim_topolog
         let bad = original.replacen(old, new, 1);
         assert!(certify_circular_extrusion(&bad, shape).is_err(), "{old}");
     }
+    let records = StepRecords::parse(&original);
+    let (shell, params) = records.named("CLOSED_SHELL").next().unwrap();
+    let last_face = id(list(&params[1]).last().unwrap());
+    let (edge_use, _) = records
+        .named("ORIENTED_EDGE")
+        .find(|(_, p)| is_true(&p[4]))
+        .unwrap();
+    for broken in [
+        edit_record(&original, shell, &format!(", #{last_face}"), ""),
+        edit_record(&original, edge_use, ".T.", ".F."),
+    ] {
+        assert!(certify_circular_extrusion(&broken, shape).is_err());
+    }
+    let (representation, _) = records.named("SHAPE_REPRESENTATION").next().unwrap();
     let extra_graph = append_step_records(
         &original,
-        "#9000=REPRESENTATION_RELATIONSHIP('','',#18,#18);",
+        &format!("#9000=REPRESENTATION_RELATIONSHIP('','',#{representation},#{representation});"),
     );
     assert!(certify_circular_extrusion(&extra_graph, shape).is_err());
     let wrong_radius = CircularExtrusion {
@@ -267,30 +286,6 @@ fn circular_certificate_checks_both_seam_endpoints_within_reported_bound() {
     ));
 }
 
-fn annular_extrusion_step(shape: crate::step_accuracy::CircularExtrusion, inner: f64) -> String {
-    use monstertruck_modeling::{Curve, Point3, Vector3, primitive, profile};
-    let circle = |radius| {
-        primitive::circle::<Curve>(
-            Point3::new(shape.center[0] + radius, shape.center[1], shape.z[0]),
-            Point3::new(shape.center[0], shape.center[1], shape.z[0]),
-            Vector3::unit_z(),
-            2,
-        )
-    };
-    let solid = profile::solid_from_planar_profile::<Curve, monstertruck_modeling::Surface>(
-        vec![circle(shape.radius), circle(inner)],
-        Vector3::new(0.0, 0.0, shape.z[1] - shape.z[0]),
-    )
-    .unwrap();
-    String::from_utf8(
-        export_step(&crate::ExactModel {
-            solids: vec![solid],
-        })
-        .unwrap(),
-    )
-    .unwrap()
-}
-
 #[test]
 fn true_annulus_export_has_independent_curved_drill_volume_and_material() {
     use crate::step_accuracy::{CircularExtrusion, certify_annular_extrusion};
@@ -359,49 +354,55 @@ fn annular_certificate_rejects_filled_drill_wrong_winding_and_interior_drift() {
         certify_annular_extrusion(&drift, shape, 1.4).is_err(),
         "interior drill curvature is checked beyond its endpoints"
     );
-    for (old, new) in [
-        (
-            "#90 = DIRECTION('', (0.0, 0.0, 1.0));",
-            "#90 = DIRECTION('', (0.0, 0.00000001, 1.0));",
+    let records = StepRecords::parse(&source);
+    let (_, cap) = records
+        .named("PLANE")
+        .find(|(_, p)| {
+            let placement = records.args(id(&p[1]), "AXIS2_PLACEMENT_3D");
+            records.xyz(id(&placement[1]), "CARTESIAN_POINT")[2] == 0.0
+        })
+        .unwrap();
+    let placement = records.args(id(&cap[1]), "AXIS2_PLACEMENT_3D");
+    let (origin, normal) = (id(&placement[1]), id(&placement[2]));
+    let (face, _) = records
+        .named("ADVANCED_FACE")
+        .find(|(_, p)| {
+            !is_true(&p[3])
+                && records
+                    .named("RATIONAL_B_SPLINE_SURFACE")
+                    .any(|(surface, _)| surface == id(&p[2]))
+        })
+        .unwrap();
+    let (bound, _) = records
+        .named("FACE_BOUND")
+        .find(|(_, p)| !is_true(&p[2]))
+        .unwrap();
+    let tilt =
+        |step: &str, y| replace_record(step, normal, &format!("DIRECTION('', (0.0, {y}, 1.0));"));
+    let [x, y, _] = records.xyz(origin, "CARTESIAN_POINT");
+    for broken in [
+        tilt(&source, 1e-8),
+        replace_record(
+            &source,
+            origin,
+            &format!("CARTESIAN_POINT('', ({x:?}, {y:?}, 0.00000005));"),
         ),
-        (
-            "#89 = CARTESIAN_POINT('', (3.0, 3.0000000000000004, 0.0));",
-            "#89 = CARTESIAN_POINT('', (3.0, 3.0000000000000004, 0.00000005));",
-        ),
-        (
-            "ADVANCED_FACE('', (#45), #118, .F.)",
-            "ADVANCED_FACE('', (#45), #118, .T.)",
-        ),
-        ("FACE_BOUND('', #27, .F.)", "FACE_BOUND('', #27, .T.)"),
+        edit_record(&source, face, ".F.", ".T."),
+        edit_record(&source, bound, ".F.", ".T."),
     ] {
-        assert!(source.contains(old));
-        let broken = source.replacen(old, new, 1);
         assert!(certify_annular_extrusion(&broken, shape, 1.4).is_err());
     }
 
-    let rebased = source.replace(
-        "#89 = CARTESIAN_POINT('', (3.0, 3.0000000000000004, 0.0));",
-        "#89 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));",
-    );
-    assert_ne!(rebased, source);
+    let rebased = replace_record(&source, origin, "CARTESIAN_POINT('', (0.0, 0.0, 0.0));");
     assert!(
         certify_annular_extrusion(&rebased, shape, 1.4).is_ok(),
         "an in-plane origin rebase preserves the cap geometry"
     );
-    let centered_tilt = rebased.replace(
-        "#90 = DIRECTION('', (0.0, 0.0, 1.0));",
-        "#90 = DIRECTION('', (0.0, 0.00000001, 1.0));",
-    );
-    assert_ne!(centered_tilt, rebased);
     assert!(
-        certify_annular_extrusion(&centered_tilt, shape, 1.4).is_err(),
+        certify_annular_extrusion(&tilt(&rebased, 1e-8), shape, 1.4).is_err(),
         "the entire cap plane is checked, not just its height at the center"
     );
-    let bounded_tilt = source.replace(
-        "#90 = DIRECTION('', (0.0, 0.0, 1.0));",
-        "#90 = DIRECTION('', (0.0, 0.000000000001, 1.0));",
-    );
-    assert_ne!(bounded_tilt, source);
+    let bounded_tilt = tilt(&source, 1e-12);
     let bounded = certify_annular_extrusion(&bounded_tilt, shape, 1.4).unwrap();
     assert!(bounded.bound_error < 0.01);
     let analytic_volume = 21.12 * std::f64::consts::PI;
