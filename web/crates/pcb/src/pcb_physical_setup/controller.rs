@@ -1,3 +1,4 @@
+use crate::pcb_controls::PcbCheck;
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
@@ -6,8 +7,6 @@ use boardstudio_application::{
 use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
-use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
-use boardstudio_web_ui_shared::ui::field::FieldLabel;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
@@ -315,49 +314,54 @@ pub fn use_controller(
 
 pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let projection = mount.projection.clone();
-    let topology_single = mount.clone();
-    let topology_split = mount.clone();
-    let wireless = mount.clone();
-    let wired = mount.clone();
+    let topology_mount = mount.clone();
+    let transport_mount = mount.clone();
+    let reversible_mount = mount.clone();
     let split = projection.topology == HardwareTopology::Split;
-    let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
+    let topology_pressed = usize::from(split);
+    let transport_pressed = usize::from(projection.transport == HardwareTransport::Wired);
+    let topology_options = ["One keyboard", "Split keyboard"];
+    let transport_options = ["Wireless", "Wired"];
     rsx! {
         section { class: "grid gap-3.5", "aria-label": "Physical assembly",
-            div { class: "grid gap-2",
-                span { "Keyboard configuration" }
-                ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
-                    pressed: Some([if split { 1usize } else { 0usize }].into_iter().collect()),
-                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                        if next.contains(&0) || (next.is_empty() && !split) { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
-                        else if next.contains(&1) || (next.is_empty() && split) { topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)); }
-                    },
-                    ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "One keyboard" }
-                    ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Split keyboard" }
-                }
-            }
+            {setup_options_group("Keyboard configuration", topology_options, topology_pressed, projection.busy, EventHandler::new(move |index: usize| {
+                topology_mount.submit(PhysicalSetupIntent::ProjectTopology(index == 1));
+            }))}
             if split {
-                div { class: "grid gap-2",
-                    span { "Half connection" }
-                    ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Half connection", horizontal: true, disabled: projection.busy,
-                        pressed: Some([if projection.transport == HardwareTransport::Wireless { 0usize } else { 1usize }].into_iter().collect()),
-                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            if next.contains(&0) || (next.is_empty() && projection.transport == HardwareTransport::Wireless) { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
-                            else if next.contains(&1) || (next.is_empty() && projection.transport == HardwareTransport::Wired) { wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)); }
-                        },
-                        ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wireless" }
-                        ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wired" }
-                    }
-                }
+                {setup_options_group("Half connection", transport_options, transport_pressed, projection.busy, EventHandler::new(move |index: usize| {
+                    transport_mount.submit(PhysicalSetupIntent::ProjectTransport(if index == 0 { HardwareTransport::Wireless } else { HardwareTransport::Wired }));
+                }))}
                 p { class: "m-0 text-muted-foreground text-sm leading-normal", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            FieldLabel { html_for: reversible_id.clone(), class: "flex items-center gap-2 text-foreground w-full min-h-control-touch",
-                Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
-                    style: "min-width: 1rem; min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
-                }
-                span { "Reversible layout" }
+            PcbCheck { label: "Reversible layout", checked: projection.reversible, disabled: projection.busy,
+                on_change: move |checked| reversible_mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(checked))
             }
             if let Some(feedback) = projection.project_feedback {
                 p { role: "status", "{feedback}" }
+            }
+        }
+    }
+}
+
+fn setup_options_group(
+    label: &'static str,
+    options: [&'static str; 2],
+    pressed: usize,
+    disabled: bool,
+    on_select: EventHandler<usize>,
+) -> Element {
+    rsx! {
+        div { class: "grid gap-2",
+            span { "{label}" }
+            ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: label, horizontal: true, disabled,
+                pressed: Some([pressed].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if next.contains(&0) || (next.is_empty() && pressed == 0) { on_select.call(0); }
+                    else if next.contains(&1) || (next.is_empty() && pressed == 1) { on_select.call(1); }
+                },
+                for (index, option) in options.into_iter().enumerate() {
+                    ToggleItem { key: "{index}", index, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option}" }
+                }
             }
         }
     }

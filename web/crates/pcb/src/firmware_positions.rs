@@ -7,12 +7,11 @@ use super::pcb_wiring::{
 };
 use crate::firmware_position_choices;
 use crate::firmware_position_projection::{FirmwarePositionProjection, FirmwarePositionState};
+use crate::pcb_controls::PcbChoice;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
-use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 
@@ -75,7 +74,8 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
                                 let value = identity.as_ref().and_then(|identity| super::pcb_wiring::pending_binding(identity, &key.id)).unwrap_or(accepted_value);
                                 let choices = firmware_position_choices::choices();
                                 rsx! {
-                                    FirmwareChoice { key: "{key_id}", id, label: label.clone(), value, choices, disabled,
+                                    PcbChoice { key: "{key_id}", id: Some(id), class: "firmware-keymap-row", label: label.clone(), aria_label: format!("Binding for {label}"), value, searchable: true, disabled,
+                                            options: choices.into_iter().map(|(value, label)| (value, label, false)).collect(),
                                             on_change: move |binding: String| {
                                                 if let Some(identity) = identity.clone() {
                                                     on_change.call(FirmwarePositionEditRequest {
@@ -129,30 +129,6 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
                 span { class: "firmware-keymap-summary", "{assigned}/{keys.len()} assigned" }
             }
             CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {content} {feedback} }
-        }
-    }
-}
-
-#[component]
-fn FirmwareChoice(
-    id: String,
-    label: String,
-    value: String,
-    choices: Vec<(String, String)>,
-    disabled: bool,
-    on_change: EventHandler<String>,
-) -> Element {
-    let selected = use_memo(use_reactive((&value,), |(value,)| Some(value)));
-    let name = format!("Binding for {label}");
-    rsx! {
-        Field { class: "firmware-keymap-row", FieldLabel { html_for: id.clone(), "{label}" }
-            Combobox::<String> { id, aria_label: name.clone(), list_aria_label: name, value: Some(selected.into()), disabled,
-                class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                on_value_change: move |value: Option<String>| if let Some(value) = value { on_change.call(value); },
-                for (index, (value, label)) in choices.into_iter().enumerate() {
-                    ComboboxOption::<String> { index, value, text_value: label.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
-                }
-            }
         }
     }
 }

@@ -857,42 +857,22 @@ pub fn Editor(
                     on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
                 div {
-                    PcbInput { label: "X (mm)", aria_label: "X (mm)",
-                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.x.to_string(),
-                            disabled,
-                            oninput: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f64>()
-                                    && value.is_finite()
-                                { on_action.call(Action::SetPositionX(value)); }
-                            }
-                    }
-                    PcbInput { label: "Y (mm)", aria_label: "Y (mm)",
-                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.y.to_string(),
-                            disabled,
-                            oninput: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f64>()
-                                    && value.is_finite()
-                                { on_action.call(Action::SetPositionY(value)); }
-                            }
-                    }
-                    PcbInput { label: "Z (mm)", aria_label: "Z (mm)",
-                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.elevation.to_string(),
-                            disabled,
-                            oninput: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f64>()
-                                    && value.is_finite()
-                                { on_action.call(Action::SetElevation(value)); }
-                            }
-                    }
-                }
-                PcbInput { label: "Rotation (°)", aria_label: "Rotation (°)",
-                        r#type: InputType::Number, value: reference.pose.rotation.to_string(),
-                        disabled,
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f64>()
-                                && value.is_finite()
-                            { on_action.call(Action::SetRotation(value)); }
+                    for (label, value, make, step) in [
+                        ("X (mm)", reference.pose.at.x.to_string(), Action::SetPositionX as fn(f64) -> Action, Some("0.1")),
+                        ("Y (mm)", reference.pose.at.y.to_string(), Action::SetPositionY as fn(f64) -> Action, Some("0.1")),
+                        ("Z (mm)", reference.elevation.to_string(), Action::SetElevation as fn(f64) -> Action, Some("0.1")),
+                        ("Rotation (°)", reference.pose.rotation.to_string(), Action::SetRotation as fn(f64) -> Action, None),
+                    ] {
+                        PcbInput { key: "{label}", label: label.to_string(), aria_label: label.to_string(),
+                                r#type: InputType::Number, step: step.map(str::to_string), value,
+                                disabled,
+                                oninput: move |event: FormEvent| {
+                                    if let Ok(value) = event.value().parse::<f64>()
+                                        && value.is_finite()
+                                    { on_action.call(make(value)); }
+                                }
                         }
+                    }
                 }
                 if !current_paths.is_empty() {
                     PcbFile { label: "Attach model directory", directory: true,
