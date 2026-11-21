@@ -561,58 +561,26 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             editable: props.editable,
                         } } }
                         div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:fit:{fit.id}:from-x",
-                                identity: props.identity.clone(),
-                                request_sequence,
-                                on_request,
-                                feedback: props.feedback.clone(),
-                                field: MechanicalDimension::CriticalFitFromX,
-                                label: "From X",
-                                value: fit.from.x,
-                                editable: props.editable,
-                                accessible_label: Some(format!("Critical fit {} from X", fit.id)),
-                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            } } }
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:fit:{fit.id}:from-y",
-                                identity: props.identity.clone(),
-                                request_sequence,
-                                on_request,
-                                feedback: props.feedback.clone(),
-                                field: MechanicalDimension::CriticalFitFromY,
-                                label: "From Y",
-                                value: fit.from.y,
-                                editable: props.editable,
-                                accessible_label: Some(format!("Critical fit {} from Y", fit.id)),
-                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            } } }
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:fit:{fit.id}:to-x",
-                                identity: props.identity.clone(),
-                                request_sequence,
-                                on_request,
-                                feedback: props.feedback.clone(),
-                                field: MechanicalDimension::CriticalFitToX,
-                                label: "To X",
-                                value: fit.to.x,
-                                editable: props.editable,
-                                accessible_label: Some(format!("Critical fit {} to X", fit.id)),
-                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            } } }
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:fit:{fit.id}:to-y",
-                                identity: props.identity.clone(),
-                                request_sequence,
-                                on_request,
-                                feedback: props.feedback.clone(),
-                                field: MechanicalDimension::CriticalFitToY,
-                                label: "To Y",
-                                value: fit.to.y,
-                                editable: props.editable,
-                                accessible_label: Some(format!("Critical fit {} to Y", fit.id)),
-                                critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            } } }
+                            for (suffix, field, label, value, direction) in [
+                                ("from-x", MechanicalDimension::CriticalFitFromX, "From X", fit.from.x, "from X"),
+                                ("from-y", MechanicalDimension::CriticalFitFromY, "From Y", fit.from.y, "from Y"),
+                                ("to-x", MechanicalDimension::CriticalFitToX, "To X", fit.to.x, "to X"),
+                                ("to-y", MechanicalDimension::CriticalFitToY, "To Y", fit.to.y, "to Y"),
+                            ] {
+                                DimensionField {
+                                    key: "{props.owner_key}:fit:{fit.id}:{suffix}",
+                                    identity: props.identity.clone(),
+                                    request_sequence,
+                                    on_request,
+                                    feedback: props.feedback.clone(),
+                                    field,
+                                    label,
+                                    value,
+                                    editable: props.editable,
+                                    accessible_label: Some(format!("Critical fit {} {}", fit.id, direction)),
+                                    critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
+                                }
+                            }
                         }
                         output { class: "text-muted-foreground text-[11px] font-mono font-normal not-italic leading-[normal]",
                             "Measured {measured_length:.2} mm · {fit.tolerance}"
@@ -1018,93 +986,27 @@ pub(crate) fn BatteryControls(props: BatteryControlsProps) -> Element {
                 if let Some(battery) = battery {
                     fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         legend { "Battery dimensions and cable · mm" }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-width",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryWidth,
-                            label: "Width",
-                            value: battery.size.x,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-depth",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryDepth,
-                            label: "Depth",
-                            value: battery.size.y,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-height",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryHeight,
-                            label: "Height",
-                            value: battery.size.z,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-cable-width",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryCableWidth,
-                            label: "Cable width",
-                            value: battery.cable_width.unwrap_or(2.0),
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-position-x",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryPositionX,
-                            label: "Position X",
-                            value: battery.at.x,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-position-y",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryPositionY,
-                            label: "Position Y",
-                            value: battery.at.y,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-cable-exit-x",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryCableExitX,
-                            label: "Cable exit X",
-                            value: battery.cable_exit.x,
-                            editable: props.editable,
-                        }
-                        DimensionField {
-                            key: "{props.owner_key}:battery-cable-exit-y",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request: props.on_request,
-                            feedback: props.feedback.clone(),
-                            field: MechanicalDimension::BatteryCableExitY,
-                            label: "Cable exit Y",
-                            value: battery.cable_exit.y,
-                            editable: props.editable,
+                        for (suffix, field, label, value) in [
+                            ("battery-width", MechanicalDimension::BatteryWidth, "Width", battery.size.x),
+                            ("battery-depth", MechanicalDimension::BatteryDepth, "Depth", battery.size.y),
+                            ("battery-height", MechanicalDimension::BatteryHeight, "Height", battery.size.z),
+                            ("battery-cable-width", MechanicalDimension::BatteryCableWidth, "Cable width", battery.cable_width.unwrap_or(2.0)),
+                            ("battery-position-x", MechanicalDimension::BatteryPositionX, "Position X", battery.at.x),
+                            ("battery-position-y", MechanicalDimension::BatteryPositionY, "Position Y", battery.at.y),
+                            ("battery-cable-exit-x", MechanicalDimension::BatteryCableExitX, "Cable exit X", battery.cable_exit.x),
+                            ("battery-cable-exit-y", MechanicalDimension::BatteryCableExitY, "Cable exit Y", battery.cable_exit.y),
+                        ] {
+                            DimensionField {
+                                key: "{props.owner_key}:{suffix}",
+                                identity: props.identity.clone(),
+                                request_sequence,
+                                on_request: props.on_request,
+                                feedback: props.feedback.clone(),
+                                field,
+                                label,
+                                value,
+                                editable: props.editable,
+                            }
                         }
                     }
                 }

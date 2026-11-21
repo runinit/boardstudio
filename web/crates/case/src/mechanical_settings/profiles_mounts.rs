@@ -679,76 +679,36 @@ pub(crate) fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> 
                             class: "flex flex-wrap items-end gap-2",
                             key: "{polygon_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            Field {
-                                class: "w-28 gap-1.5",
-                                disabled: !props.editable,
-                                FieldLabel {
-                                    html_for: format!(
-                                        "case-profile-{}-{polygon_index}-{point_index}-x",
-                                        dioxus::core::current_scope_id().0,
-                                    ),
-                                    "X"
-                                }
-                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                                    InputGroupInput {
-                                        id: format!(
-                                            "case-profile-{}-{polygon_index}-{point_index}-x",
-                                            dioxus::core::current_scope_id().0,
-                                        ),
-                                        class: "font-mono",
-                                        r#type: InputType::Number,
-                                        step: "0.1",
-                                        value: "{point.x}",
-                                        disabled: !props.editable,
-                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
-                                        oninput: {
-                                            let mut polygons = props.polygons.clone();
-                                            let on_change = props.on_change;
-                                            move |event: FormEvent| {
-                                                if let Ok(value) = event.value().parse::<f64>() {
-                                                    polygons[polygon_index][point_index].x = value;
-                                                    on_change.call(polygons.clone());
-                                                }
-                                            }
-                                        },
+                            for (axis, axis_id, coordinate) in [("X", "x", point.x), ("Y", "y", point.y)] {
+                                Field {
+                                    class: "w-28 gap-1.5",
+                                    disabled: !props.editable,
+                                    FieldLabel {
+                                        html_for: format!("case-profile-{}-{polygon_index}-{point_index}-{axis_id}", dioxus::core::current_scope_id().0),
+                                        "{axis}"
                                     }
-                                    InputGroupText { class: "pr-3", "mm" }
-                                }
-                            }
-                            Field {
-                                class: "w-28 gap-1.5",
-                                disabled: !props.editable,
-                                FieldLabel {
-                                    html_for: format!(
-                                        "case-profile-{}-{polygon_index}-{point_index}-y",
-                                        dioxus::core::current_scope_id().0,
-                                    ),
-                                    "Y"
-                                }
-                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                                    InputGroupInput {
-                                        id: format!(
-                                            "case-profile-{}-{polygon_index}-{point_index}-y",
-                                            dioxus::core::current_scope_id().0,
-                                        ),
-                                        class: "font-mono",
-                                        r#type: InputType::Number,
-                                        step: "0.1",
-                                        value: "{point.y}",
-                                        disabled: !props.editable,
-                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
-                                        oninput: {
-                                            let mut polygons = props.polygons.clone();
-                                            let on_change = props.on_change;
-                                            move |event: FormEvent| {
-                                                if let Ok(value) = event.value().parse::<f64>() {
-                                                    polygons[polygon_index][point_index].y = value;
-                                                    on_change.call(polygons.clone());
+                                    InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                        InputGroupInput {
+                                            id: format!("case-profile-{}-{polygon_index}-{point_index}-{axis_id}", dioxus::core::current_scope_id().0),
+                                            class: "font-mono",
+                                            r#type: InputType::Number,
+                                            step: "0.1",
+                                            value: "{coordinate}",
+                                            disabled: !props.editable,
+                                            aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} {axis}",
+                                            oninput: {
+                                                let mut polygons = props.polygons.clone();
+                                                let on_change = props.on_change;
+                                                move |event: FormEvent| {
+                                                    if let Ok(value) = event.value().parse::<f64>() {
+                                                        if axis_id == "x" { polygons[polygon_index][point_index].x = value; } else { polygons[polygon_index][point_index].y = value; }
+                                                        on_change.call(polygons.clone());
+                                                    }
                                                 }
-                                            }
-                                        },
+                                            },
+                                        }
+                                        InputGroupText { class: "pr-3", "mm" }
                                     }
-                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
                             Button {
@@ -906,76 +866,36 @@ pub(crate) fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> 
                             class: "flex flex-wrap items-end gap-2",
                             key: "{opening_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            Field {
-                                class: "w-28 gap-1.5",
-                                disabled: !props.editable,
-                                FieldLabel {
-                                    html_for: format!(
-                                        "case-volume-{}-{opening_index}-{point_index}-x",
-                                        dioxus::core::current_scope_id().0,
-                                    ),
-                                    "X"
-                                }
-                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                                    InputGroupInput {
-                                        id: format!(
-                                            "case-volume-{}-{opening_index}-{point_index}-x",
-                                            dioxus::core::current_scope_id().0,
-                                        ),
-                                        class: "font-mono",
-                                        r#type: InputType::Number,
-                                        step: "0.1",
-                                        value: "{point.x}",
-                                        disabled: !props.editable,
-                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
-                                        oninput: {
-                                            let mut openings = props.openings.clone();
-                                            let on_change = props.on_change;
-                                            move |event: FormEvent| {
-                                                if let Ok(value) = event.value().parse::<f64>() {
-                                                    openings[opening_index].points[point_index].x = value;
-                                                    on_change.call(openings.clone());
-                                                }
-                                            }
-                                        },
+                            for (axis, axis_id, coordinate) in [("X", "x", point.x), ("Y", "y", point.y)] {
+                                Field {
+                                    class: "w-28 gap-1.5",
+                                    disabled: !props.editable,
+                                    FieldLabel {
+                                        html_for: format!("case-volume-{}-{opening_index}-{point_index}-{axis_id}", dioxus::core::current_scope_id().0),
+                                        "{axis}"
                                     }
-                                    InputGroupText { class: "pr-3", "mm" }
-                                }
-                            }
-                            Field {
-                                class: "w-28 gap-1.5",
-                                disabled: !props.editable,
-                                FieldLabel {
-                                    html_for: format!(
-                                        "case-volume-{}-{opening_index}-{point_index}-y",
-                                        dioxus::core::current_scope_id().0,
-                                    ),
-                                    "Y"
-                                }
-                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                                    InputGroupInput {
-                                        id: format!(
-                                            "case-volume-{}-{opening_index}-{point_index}-y",
-                                            dioxus::core::current_scope_id().0,
-                                        ),
-                                        class: "font-mono",
-                                        r#type: InputType::Number,
-                                        step: "0.1",
-                                        value: "{point.y}",
-                                        disabled: !props.editable,
-                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
-                                        oninput: {
-                                            let mut openings = props.openings.clone();
-                                            let on_change = props.on_change;
-                                            move |event: FormEvent| {
-                                                if let Ok(value) = event.value().parse::<f64>() {
-                                                    openings[opening_index].points[point_index].y = value;
-                                                    on_change.call(openings.clone());
+                                    InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                        InputGroupInput {
+                                            id: format!("case-volume-{}-{opening_index}-{point_index}-{axis_id}", dioxus::core::current_scope_id().0),
+                                            class: "font-mono",
+                                            r#type: InputType::Number,
+                                            step: "0.1",
+                                            value: "{coordinate}",
+                                            disabled: !props.editable,
+                                            aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} {axis}",
+                                            oninput: {
+                                                let mut openings = props.openings.clone();
+                                                let on_change = props.on_change;
+                                                move |event: FormEvent| {
+                                                    if let Ok(value) = event.value().parse::<f64>() {
+                                                        if axis_id == "x" { openings[opening_index].points[point_index].x = value; } else { openings[opening_index].points[point_index].y = value; }
+                                                        on_change.call(openings.clone());
+                                                    }
                                                 }
-                                            }
-                                        },
+                                            },
+                                        }
+                                        InputGroupText { class: "pr-3", "mm" }
                                     }
-                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
                             Button {
