@@ -149,7 +149,7 @@ pub struct CadVendorStep {
     pub accuracy: CadStepAccuracy,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CadStepSourceFace {
     pub solid_id: String,
@@ -157,6 +157,8 @@ pub struct CadStepSourceFace {
     pub face_id: String,
     pub support_id: String,
     pub support_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<[f32; 4]>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -1131,6 +1133,7 @@ mod tests {
                 face_id: "20".into(),
                 support_id: "30".into(),
                 support_kind: "PLANE".into(),
+                color: None,
             }],
             face_occurrences: vec![CadStepFaceOccurrence {
                 source_face_index: 0,
@@ -1473,6 +1476,38 @@ mod generated_collision_identity_tests {
         assert!(
             query(operand).is_err(),
             "generated geometry cannot carry STEP repair settings"
+        );
+    }
+
+    #[test]
+    fn step_source_face_color_serialization_omits_none_and_preserves_rgba() {
+        let plain = CadStepSourceFace {
+            solid_id: "10".into(),
+            shell_index: 0,
+            face_id: "20".into(),
+            support_id: "30".into(),
+            support_kind: "PLANE".into(),
+            color: None,
+        };
+        let plain_json = serde_json::to_value(&plain).unwrap();
+        assert!(plain_json.get("color").is_none());
+        assert_eq!(
+            serde_json::from_value::<CadStepSourceFace>(plain_json).unwrap(),
+            plain
+        );
+
+        let colored = CadStepSourceFace {
+            color: Some([0.25, 0.5, 0.75, 1.0]),
+            ..plain
+        };
+        let colored_json = serde_json::to_value(&colored).unwrap();
+        assert_eq!(
+            colored_json["color"],
+            serde_json::json!([0.25, 0.5, 0.75, 1.0])
+        );
+        assert_eq!(
+            serde_json::from_value::<CadStepSourceFace>(colored_json).unwrap(),
+            colored
         );
     }
 }

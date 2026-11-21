@@ -54,7 +54,7 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
                 const accuracy = {previewDeflectionMm:mesh.settings.selectedDeflectionMm,previewAngularRad:0.5,analysisErrorBoundMm:null,
                     selectedRepairBudgetMm:options.previewRepairBudgetMm??null,maxRepairDisplacementMm:null,boundsFromSourceGeometry:true,
                     meshClosedOriented:true,previewFloorMm:0.02,previewDeclaredMultiplier:2,relaxedBeyondDeclaredPrecision:false,
-                    sampledSupportChecks:0,maxSampledSupportResidualMm:null,fallbackMeshedFaces:0};
+                    sampledSupportChecks:0,maxSampledSupportResidualMm:null,fallbackMeshedFaces:0,discardedDisplayTriangles:0};
                 const vendorStep = {sourceSha256:options.sourceSha256,importOptions:{previewRepairBudgetMm:options.previewRepairBudgetMm??null,targetDeflectionMm:options.targetDeflectionMm??null},
                     sourceFaces:p.sourceFaces.map((face,i)=>({solidId:'10',shellIndex:face.shellIndex,faceId:String(20+i),supportId:String(30+i),supportKind:'PLANE'})),
                     faceOccurrences:p.faceOccurrences.map(face=>({...face,representationId:'40',sourceUncertaintyMm:0.01,repairDisplacementMm:null})),

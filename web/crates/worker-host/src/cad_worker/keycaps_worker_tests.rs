@@ -283,6 +283,7 @@ async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replie
                   sampledSupportChecks: 0,
                   maxSampledSupportResidualMm: null,
                   fallbackMeshedFaces: 0,
+                  discardedDisplayTriangles: 0,
                 },
               },
             };

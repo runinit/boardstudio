@@ -159,6 +159,7 @@ fn vendor_step(sha: &str, surface: [f64; 9]) -> boardstudio_web_host::cad_jobs::
             face_id: "20".into(),
             support_id: "30".into(),
             support_kind: "PLANE".into(),
+            color: None,
         }],
         face_occurrences: vec![CadStepFaceOccurrence {
             source_face_index: 0,
