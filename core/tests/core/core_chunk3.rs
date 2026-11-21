@@ -338,6 +338,27 @@ fn matrixless_linked_add_part_projects_from_either_half_and_preserves_omission()
         );
         assert_eq!(added.matrices, before.matrices);
         assert_eq!(added.layouts, before.layouts);
+
+        let (delta, moved) = scene(engine.handle(edit(
+            added.revision,
+            EditPhase::Commit,
+            EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: association.source_id.clone(),
+                    at: Vec2 { x: 9.0, y: -4.0 },
+                }],
+            },
+        )));
+        let mirror = moved
+            .parts
+            .iter()
+            .find(|p| p.id == association.mirror_id)
+            .unwrap();
+        assert!((mirror.pose.at.x - 204.0).abs() < 1e-9);
+        assert!((mirror.pose.at.y + 9.0).abs() < 1e-9);
+        let mut expected_ids = vec![association.source_id.clone(), association.mirror_id.clone()];
+        expected_ids.sort();
+        assert_eq!(delta.changed_ids, expected_ids);
     }
 }
 

@@ -663,20 +663,15 @@ fn prepare_transaction(
         validate_prepared_draft(accepted, &draft, &canonical.operation)?;
         return Ok((draft, changed));
     }
-    let is_stable_placement = stable_placement(accepted, &draft, &canonical.operation);
-    let report = if directed && is_stable_placement {
+    let report = if directed && stable_placement(accepted, &draft, &canonical.operation) {
         ChangeScope::Placement
     } else {
         ChangeScope::Full
     };
-    // Stable placements carry no membership or lifecycle intent. The outer transaction owns
-    // the draft and guarantees rollback, so skip the per-pair lifecycle staging here and let
-    // the single forward reconciliation below repair per-pair drift once.
-    if !is_stable_placement {
-        changed.extend(prepare_lifecycle_pairs(
-            accepted, &mut draft, &canonical, dispatch,
-        )?);
-    }
+    // Lifecycle projects matrixless pairs and supplies the poses used to retune constraints.
+    changed.extend(prepare_lifecycle_pairs(
+        accepted, &mut draft, &canonical, dispatch,
+    )?);
 
     for addition in &canonical.matrix_additions {
         let mirrored =
