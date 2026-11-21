@@ -122,6 +122,23 @@ fn exported_conical_apex_seam_and_hole_keep_shared_boundaries() {
 }
 
 #[test]
+fn near_axis_apex_cannot_use_rim_only_normal_bounds() {
+    let shifted = replace_once(
+        APEX,
+        "#25 = CARTESIAN_POINT('',(3.,-2.,12.))",
+        "#25 = CARTESIAN_POINT('',(2.999999996,-2.,12.))",
+    );
+    let options = StepImportOptions {
+        target_deflection_mm: Some(0.01),
+        ..Default::default()
+    };
+    let error = native_candidate(shifted.as_bytes(), options)
+        .err()
+        .expect("offset apex admitted");
+    assert!(error.contains("off the cone axis"), "{error}");
+}
+
+#[test]
 fn thin_frustum_with_mismatched_rim_counts_refuses_tilted_facets() {
     let source = FRUSTUM
         .replace("(5.,-2.,12.)", "(6.999999,-2.,7.001)")

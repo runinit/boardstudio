@@ -244,10 +244,12 @@ const path = require('node:path');
   }
   console.log('PASS packaged reset switch shared elliptical rims, centimetre scaling, and both cable fallbacks');
 
-  for (const [file, faces, occurrences, bounds] of [
-    [vendorDirectory + '/Switch_Power.step', 143, 5, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
-    ...[['occt-cone-apex', 2], ['occt-frustum-pcurves', 3], ['freecad-notched-frustum', 7]].map(
-      ([name, count]) => ['cad/monstertruck/tests/fixtures/' + name + '.step', count, 1, [-1, -6, 7, 7, 2, 12]]),
+  // At 0.01 mm the native and vendor triangulations have distinct facet counts.
+  // The vendor controls emit 6906, 8148, 4032 and 3746 triangles respectively.
+  for (const [file, faces, occurrences, triangles, bounds] of [
+    [vendorDirectory + '/Switch_Power.step', 143, 5, 750, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
+    ...[['occt-cone-apex', 2, 88], ['occt-frustum-pcurves', 3, 150], ['freecad-notched-frustum', 7, 280]].map(
+      ([name, count, triangles]) => ['cad/monstertruck/tests/fixtures/' + name + '.step', count, 1, triangles, [-1, -6, 7, 7, 2, 12]]),
   ]) {
     const source = read(file);
     const result = importModel(source, 0.01);
@@ -255,6 +257,7 @@ const path = require('node:path');
     try {
       assert.equal(asset.sourceSha256, crypto.createHash('sha256').update(source).digest('hex'));
       assert.equal(asset.faceOccurrences.length, faces);
+      assert.equal(asset.triangleFaceOccurrenceIndices.length, triangles, file);
       assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, occurrences);
       assert(asset.sourceFaces.some(face => face.supportKind === 'CONICAL_SURFACE'));
       assert.equal(asset.accuracy.boundsFromSourceGeometry, true);

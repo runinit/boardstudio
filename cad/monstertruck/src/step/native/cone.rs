@@ -181,6 +181,11 @@ impl Cone {
         if !residual.is_finite() || residual > epsilon {
             return Ok(None);
         }
+        // Only an on-axis tip lies in every rim sector. Even a sub-tolerance
+        // radial displacement can reverse the support normal near the tip.
+        if local.x != 0.0 || local.y != 0.0 {
+            return Err("native fan apex is off the cone axis".into());
+        }
         let sweep = self.circular_sweep(circle, epsilon)?;
         let sweep = if forward { sweep } else { -sweep };
         let rim = &samples[&rim];
