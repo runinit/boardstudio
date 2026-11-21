@@ -454,6 +454,41 @@ fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
 }
 
 #[test]
+fn opening_subdivides_a_boss_arc_and_its_horizontal_caps() {
+    let mut input = plate();
+    let mount = &mut input.regions[0].mounts[0];
+    mount.kind = MountKind::Boss;
+    mount.hole_diameter = 1.;
+    mount.boss_diameter = Some(6.);
+    mount.height = Some(3.);
+    input.body.openings = Some(vec![CaseOpening {
+        points: rectangle(11., 4., 4., 8.),
+        z: 5.,
+        height: 1.,
+    }]);
+
+    let model = crate::build_case(&input).expect("opening clips the circular wall in one band");
+    let solids = direct_analysis(&model, Some(0.0005));
+    let [faces] = solids.as_slice() else {
+        panic!("expected one material solid");
+    };
+    // Integrate the right-hand circular segment removed by the one-mm-high opening.
+    let removed = 9. * (1_f64 / 3.).acos() - 8_f64.sqrt();
+    let expected = 1280. + (27. - 7. * 0.25) * std::f64::consts::PI - removed;
+    let actual: f64 = faces.iter().map(|face| face.volume()).sum();
+    assert!((actual - expected).abs() < 0.065, "{actual} != {expected}");
+    for (probe, expected) in [
+        ([12., 8., 4.5], 1.),
+        ([12., 8., 5.5], 0.),
+        ([12., 8., 6.5], 1.),
+        ([10., 8., 5.5], 0.),
+        ([9., 8., 5.5], 1.),
+    ] {
+        assert!((mesh_winding(faces, Point3::from(probe)) - expected).abs() < 1e-8);
+    }
+}
+
+#[test]
 fn boss_no_wider_than_its_hole_is_rejected() {
     let mut input = plate();
     let mount = &mut input.regions[0].mounts[0];

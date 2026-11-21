@@ -32,7 +32,7 @@ struct Patch {
 #[derive(Default)]
 struct Cache {
     vertices: BTreeMap<[u64; 3], Vertex>,
-    edges: BTreeMap<([u64; 3], [u64; 3], u64), Edge>,
+    edges: BTreeMap<([u64; 3], [u64; 3], [u64; 4]), Edge>,
     circles: HashMap<EdgeId<Curve>, CircleEdge>,
 }
 fn bits(x: f64) -> u64 {
@@ -48,41 +48,62 @@ impl Cache {
             .or_insert_with(|| builder::vertex(p))
             .clone()
     }
-    fn edge(&mut self, a: Point3, b: Point3, bulge: f64) -> Result<Edge> {
+    fn edge(
+        &mut self,
+        a: Point3,
+        b: Point3,
+        bulge: f64,
+        source: Option<&contours::Source>,
+    ) -> Result<Edge> {
         let forward = key(a) < key(b);
         let (first, last, bulge) = if forward {
             (a, b, bulge)
         } else {
             (b, a, -bulge)
         };
-        let k = (key(first), key(last), bits(bulge));
+        let circle = match source {
+            Some(contours::Source::Circle(circle)) if bulge != 0. => Some(circle),
+            _ if bulge == 0. => None,
+            _ => return Err("circular edge has no structural authored source".into()),
+        };
+        let support = circle.map_or([0; 4], |circle| {
+            let [x, y] = circle.center;
+            [bits(x), bits(y), bits(circle.radius), bits(bulge.signum())]
+        });
+        let k = (key(first), key(last), support);
         if let Some(e) = self.edges.get(&k) {
             return Ok(if forward { e.clone() } else { e.inverse() });
         }
         let va = self.vertex(first);
         let vb = self.vertex(last);
-        let edge = if bulge == 0. {
-            builder::line(&va, &vb)
-        } else {
-            let p = PlineVertex::new(first.x, first.y, bulge);
-            let q = PlineVertex::new(last.x, last.y, 0.);
-            let (radius, center) = seg_arc_radius_and_center(p, q);
-            let radial = Vector3::new(first.x - center.x, first.y - center.y, 0.);
+        let edge = if let Some(circle) = circle {
+            let [x, y] = circle.center;
+            let radial = Vector3::new(first.x - x, first.y - y, 0.);
             let tangent = Vector3::new(-radial.y, radial.x, 0.) * bulge.signum();
             let edge = builder::try_circle_arc(&va, &vb, tangent)
                 .map_err(|e| format!("exact circle edge: {e:?}"))?;
-            // Bulge defines the actual circular segment before conversion to a
-            // rational spline. Store its support in the cache edge's direction.
+            // Measure the signed trim on the authored carrier in the shared edge direction.
+            let sweep = arc_distance(
+                circle.center,
+                [first.x, first.y],
+                [last.x, last.y],
+                bulge.signum(),
+            );
+            if !(sweep > 0. && sweep <= std::f64::consts::PI + 1e-10) {
+                return Err("circular edge has an invalid signed trim".into());
+            }
             self.circles.insert(
                 edge.id(),
                 CircleEdge {
-                    center: Point3::new(center.x, center.y, first.z),
-                    radius,
+                    center: Point3::new(x, y, first.z),
+                    radius: circle.radius,
                     axis_z: bulge.signum(),
-                    sweep: 4. * bulge.atan(),
+                    sweep: bulge.signum() * sweep,
                 },
             );
             edge
+        } else {
+            builder::line(&va, &vb)
         };
         self.edges.insert(k, edge.clone());
         Ok(if forward { edge } else { edge.inverse() })
@@ -105,6 +126,7 @@ fn rings(p: &Profile) -> Vec<Ring> {
 struct PartitionPoint {
     xy: [f64; 2],
     lines: Vec<([f64; 2], [f64; 2])>,
+    circles: Vec<([f64; 2], f64)>,
 }
 fn ring_points(ring: &Ring) -> Vec<PartitionPoint> {
     ring.iter_vertexes()
@@ -121,6 +143,15 @@ fn ring_points(ring: &Ring) -> Vec<PartitionPoint> {
             PartitionPoint {
                 xy: [vertex.x, vertex.y],
                 lines,
+                circles: [index, previous]
+                    .into_iter()
+                    .filter_map(|i| match &ring.sources[i] {
+                        Some(contours::Source::Circle(circle)) => {
+                            Some((circle.center, circle.radius))
+                        }
+                        _ => None,
+                    })
+                    .collect(),
             }
         })
         .collect()
@@ -140,6 +171,14 @@ fn partition_points(caps: &[Cap], bands: &[Band]) -> Vec<PartitionPoint> {
     // All bands share source-proven partitions, in the same height order.
     by_z.into_values().flatten().collect()
 }
+fn arc_distance(center: [f64; 2], from: [f64; 2], to: [f64; 2], sign: f64) -> f64 {
+    let [x, y] = [from[0] - center[0], from[1] - center[1]];
+    let [u, v] = [to[0] - center[0], to[1] - center[1]];
+    (sign * (x * v - y * u))
+        .atan2(x * u + y * v)
+        .rem_euclid(std::f64::consts::TAU)
+}
+
 fn partitions(
     a: PlineVertex,
     b: PlineVertex,
@@ -160,6 +199,21 @@ fn partitions(
                 if t > 0. && t < 1. {
                     values.push((t, p.xy));
                 }
+            }
+        }
+    } else if let Some(contours::Source::Circle(circle)) = source {
+        let first = [a.x, a.y];
+        let last = [b.x, b.y];
+        let sign = a.bulge.signum();
+        let span = arc_distance(circle.center, first, last, sign);
+        for p in points {
+            if p.xy == first || p.xy == last || !p.circles.contains(&(circle.center, circle.radius))
+            {
+                continue;
+            }
+            let distance = arc_distance(circle.center, first, p.xy, sign);
+            if distance > 0. && distance < span {
+                values.push((distance / span, p.xy));
             }
         }
     }
@@ -191,15 +245,11 @@ fn ring_wire(cache: &mut Cache, ring: &Ring, z: f64, points: &[PartitionPoint]) 
     for (index, (a, b)) in ring.iter_segments().enumerate() {
         let ts = partitions(a, b, ring.sources[index].as_ref(), points);
         for pair in ts.windows(2) {
-            let bulge = if pair[1].0 - pair[0].0 == 1. {
-                a.bulge
-            } else {
-                (a.bulge.atan() * (pair[1].0 - pair[0].0)).tan()
-            };
             edges.push(cache.edge(
                 Point3::new(pair[0].1[0], pair[0].1[1], z),
                 Point3::new(pair[1].1[0], pair[1].1[1], z),
-                bulge,
+                a.bulge,
+                ring.sources[index].as_ref(),
             )?);
         }
     }
@@ -372,15 +422,11 @@ fn wall_patches(
                     let q = point(pair[1], band.low, a, b);
                     let r = point(pair[0], band.high, c, d);
                     let s = point(pair[1], band.high, c, d);
-                    let bulge = if pair[1].0 - pair[0].0 == 1. {
-                        a.bulge
-                    } else {
-                        (a.bulge.atan() * (pair[1].0 - pair[0].0)).tan()
-                    };
-                    let lower = cache.edge(p, q, bulge)?;
-                    let right = cache.edge(q, s, 0.)?;
-                    let upper = cache.edge(r, s, bulge)?;
-                    let left = cache.edge(p, r, 0.)?;
+                    let bulge = a.bulge;
+                    let lower = cache.edge(p, q, bulge, low.sources[index].as_ref())?;
+                    let right = cache.edge(q, s, 0., None)?;
+                    let upper = cache.edge(r, s, bulge, high.sources[index].as_ref())?;
+                    let left = cache.edge(p, r, 0., None)?;
                     let wire: Wire =
                         vec![lower.clone(), right, upper.inverse(), left.inverse()].into();
                     let authored = if bulge == 0. {
