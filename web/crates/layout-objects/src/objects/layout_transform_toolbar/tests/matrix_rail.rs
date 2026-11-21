@@ -575,7 +575,17 @@ async fn value_popup_follows_the_drag_and_commit_toast_expires() {
         },
     )
     .await;
+    let (mut saving, release) = support::gate_next_persist(&runtime);
     dispatch_pointer(&handle, "pointerup", false, false, 0, (100, 40));
+    wait_until("stagger reaches persistence", || {
+        support::drive_pending(&runtime);
+        saving.try_recv().unwrap().is_some()
+    })
+    .await;
+    frame().await;
+    assert_eq!(revision(&runtime), before);
+    assert!(query(&rail.root, "[data-feedback-toast]").is_none());
+    release.send(()).expect("complete the stagger save");
     pump_past(&runtime, before).await;
     assert_eq!(revision(&runtime), before + 1, "one accepted edit");
     let toast = query(&rail.root, "[data-feedback-toast]").expect("the commit raises a toast");
