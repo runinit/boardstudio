@@ -135,33 +135,6 @@ pub fn validate(doc: &ProjectDoc, feature: &OutlineFeature) -> Result<(), String
     Ok(())
 }
 
-pub fn attached_parts(doc: &ProjectDoc) -> Vec<Part> {
-    let ids: BTreeSet<_> = doc
-        .outline
-        .iter()
-        .flat_map(|feature| match feature {
-            OutlineFeature::PartEnvelope { connections, .. } => connections
-                .iter()
-                .flat_map(|connection| {
-                    connection
-                        .points
-                        .iter()
-                        .filter_map(|point| point.part_id.as_deref())
-                })
-                .collect::<Vec<_>>(),
-            OutlineFeature::Polygon { anchor_part_id, .. }
-            | OutlineFeature::Rect { anchor_part_id, .. } => {
-                anchor_part_id.iter().map(String::as_str).collect()
-            }
-        })
-        .collect();
-    doc.parts
-        .iter()
-        .filter(|part| ids.contains(part.id.as_str()))
-        .cloned()
-        .collect()
-}
-
 /// Deleting a component preserves the authored shape at its last world pose.
 /// Rectangles retain their dimensions, corner radius and world rotation.
 pub fn detach_removed(before: &[Part], after: &mut ProjectDoc) {

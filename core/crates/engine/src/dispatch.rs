@@ -3,9 +3,7 @@ use super::apply::{
     uses_prepared_transaction, validate_project_name,
 };
 use super::preview::{changed_ids, preview_electrical_loss_findings};
-use super::scene_reuse::{
-    is_column_stagger, replacement_keeps_scene, stagger_dependencies, stagger_outline_changes,
-};
+use super::scene_reuse::{is_column_stagger, replacement_keeps_scene, settled_outline_changes};
 use super::*;
 
 #[cfg(test)]
@@ -545,19 +543,12 @@ impl CoreEngine {
             && self.reusable_scene.is_some()
             && matches!(command.operation, EditOperation::ReplaceDocument { .. })
             && replacement_keeps_scene(&self.document, &mut next);
-        let reported_move = matches!(command.operation, EditOperation::MoveParts { .. });
         let outline = if reuse_scene || (!prepared_route && !affects_outline(&command.operation)) {
             None
-        } else if reported_move {
-            Some(outlines(&next, Some(&self.outline_cache), &changed))
+        } else if prepared_route {
+            Some(outlines(&next, None, &[]))
         } else {
-            let stagger_changes = (!prepared_route && self.reusable_scene.is_some())
-                .then_some(())
-                .and_then(|_| stagger_outline_changes(&self.document, &next, &command.operation));
-            Some(match stagger_changes {
-                Some(parts) => outlines(&next, Some(&self.outline_cache), &parts),
-                None => outlines(&next, None, &[]),
-            })
+            Some(self.edited_outlines(&next, &command.operation))
         };
         if command.phase == EditPhase::Preview {
             let accepted = (&self.outline_cache, &self.contours, &self.findings);
@@ -587,9 +578,7 @@ impl CoreEngine {
                 changed,
                 outline,
                 reuse_scene,
-                // MoveParts uses reported IDs as hints. Subsequent reuse
-                // starts from a full rebuild or dependency-checked stagger.
-                cacheable: !reported_move,
+                cacheable: !matches!(command.operation, EditOperation::MoveParts { .. }),
             },
         )
     }
@@ -757,95 +746,71 @@ impl CoreEngine {
         )
     }
 
-    fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
+    fn preview_edit(&self, id: String, command: EditCommand) -> CoreReply {
         let accepted = generators::parameter_problems(&self.document);
-        let backup = PreviewBackup::capture(&self.document, &command.operation);
-        let attachments = outline_controls::attached_parts(&self.document);
-        let previous_parts;
-        let before_parts = match &backup {
-            PreviewBackup::Matrix { parts, .. } => parts,
-            PreviewBackup::Parts(_) => {
-                previous_parts = self.document.parts.clone();
-                &previous_parts
-            }
+        // Layout and constraint settlement may rewrite anchors, change
+        // membership, and prune outline versions, even for a single drag.
+        let mut draft = self.document.clone();
+        let result = apply_with_ledger(&mut draft, &[], &command.operation, &self.identity_ledger)
+            .and_then(|mut changed| {
+                // Preview must materialize the same dependant poses the commit
+                // path publishes: anchored matrices follow from the anchor key's
+                // edited pose, and `resolve` (which starts with `validate`)
+                // refreshes every dependant exactly as commit does.
+                layout::resolve(&mut draft)?;
+                settle_layout_dependents(
+                    &mut draft,
+                    &command.operation,
+                    &mut changed,
+                    self.reusable_scene.is_some(),
+                )?;
+                outline_controls::detach_removed(&self.document.parts, &mut draft);
+                changed.extend(outline_versions::prune_removed_components(
+                    &self.document.parts,
+                    &mut draft,
+                ));
+                changed.sort();
+                changed.dedup();
+                generators::introduced_error(&accepted, &draft)?;
+                matrix::placement::validate_translation(
+                    &self.document.parts,
+                    &draft,
+                    &command.operation,
+                )?;
+                Ok(changed)
+            });
+        let changed = match result {
+            Ok(changed) => changed,
+            Err(message) => return self.error(id, &message),
         };
-        let result = apply_with_ledger(
-            &mut self.document,
-            &[],
-            &command.operation,
-            &self.identity_ledger,
+        let (cache, contours, findings) = self.edited_outlines(&draft, &command.operation);
+        self.scene(
+            id,
+            SceneInput {
+                transaction: &command.transaction_id,
+                changed,
+                document: &draft,
+                contours: &contours,
+                geom_findings: &findings,
+                cache: &cache,
+                kind: SceneKind::Preview,
+            },
         )
-        .and_then(|mut changed| {
-            // Preview must materialize the same dependant poses the commit
-            // path publishes: anchored matrices follow from the anchor key's
-            // edited pose, and `resolve` (which starts with `validate`)
-            // refreshes every dependant exactly as commit does.
-            layout::resolve(&mut self.document)?;
-            settle_layout_dependents(
-                &mut self.document,
-                &command.operation,
-                &mut changed,
-                self.reusable_scene.is_some(),
-            )?;
-            outline_controls::detach_removed(&attachments, &mut self.document);
-            changed.extend(outline_versions::prune_removed_components(
-                before_parts,
-                &mut self.document,
-            ));
-            changed.sort();
-            changed.dedup();
-            generators::introduced_error(&accepted, &self.document)?;
-            matrix::placement::validate_translation(
-                before_parts,
-                &self.document,
-                &command.operation,
-            )?;
-            Ok(changed)
-        });
-        let reply = match result {
-            Err(message) => self.error(id, &message),
-            Ok(changed) => {
-                // Stagger and its dependent passes do not alter definitions on
-                // an unlinked layout. Use the settled part diff, not edit IDs.
-                let stagger_changes = match &backup {
-                    PreviewBackup::Matrix {
-                        definition_len,
-                        parts,
-                        layouts,
-                        boards,
-                        ..
-                    } if self.reusable_scene.is_some()
-                        && is_column_stagger(&command.operation)
-                        && self.document.definitions.len() == *definition_len =>
-                    {
-                        stagger_dependencies(layouts, boards, parts, &self.document)
-                    }
-                    _ => None,
-                };
-                let (previous, moved) = if let Some(parts) = &stagger_changes {
-                    (Some(&self.outline_cache), parts.as_slice())
-                } else if matches!(&command.operation, EditOperation::MoveParts { .. }) {
-                    (Some(&self.outline_cache), changed.as_slice())
-                } else {
-                    (None, &[][..])
-                };
-                let (cache, contours, findings) = outlines(&self.document, previous, moved);
-                self.scene(
-                    id,
-                    SceneInput {
-                        transaction: &command.transaction_id,
-                        changed,
-                        document: &self.document,
-                        contours: &contours,
-                        geom_findings: &findings,
-                        cache: &cache,
-                        kind: SceneKind::Preview,
-                    },
-                )
-            }
-        };
-        backup.restore(&mut self.document);
-        reply
+    }
+
+    fn edited_outlines(
+        &self,
+        draft: &ProjectDoc,
+        operation: &EditOperation,
+    ) -> (OutlineCache, Vec<Contour>, Vec<Finding>) {
+        if let Some(moved) = self
+            .reusable_scene
+            .as_ref()
+            .and_then(|_| settled_outline_changes(&self.document, draft, operation))
+        {
+            return outlines(draft, Some(&self.outline_cache), &moved);
+        }
+        outlines(draft, None, &[])
     }
 
     fn history(&mut self, id: String, direction: History) -> CoreReply {
@@ -1232,105 +1197,6 @@ struct SceneInput<'a> {
     geom_findings: &'a [Finding],
     cache: &'a OutlineCache,
     kind: SceneKind,
-}
-
-type SavedPartPose = (
-    usize,
-    Pose2,
-    Option<std::collections::BTreeMap<String, serde_json::Value>>,
-);
-
-pub(crate) enum PreviewBackup {
-    Parts(Vec<SavedPartPose>),
-    Matrix {
-        definition_len: usize,
-        parts: Vec<Part>,
-        matrices: Vec<Matrix>,
-        layouts: Vec<Layout>,
-        nets: Vec<Net>,
-        outline: Vec<OutlineFeature>,
-        boards: Vec<Board>,
-        constraints: Vec<Constraint>,
-    },
-}
-
-impl PreviewBackup {
-    // Save only fields a preview can change so pointer moves avoid cloning the document.
-    pub(crate) fn capture(doc: &ProjectDoc, operation: &EditOperation) -> Self {
-        if let EditOperation::MoveParts { positions } = operation
-            && !layout::has_linked_positions(doc, positions)
-        {
-            let mut affected: BTreeSet<String> = positions
-                .iter()
-                .map(|position| position.id.clone())
-                .collect();
-            loop {
-                let prior = affected.len();
-                for constraint in &doc.constraints {
-                    if affected.contains(constraint.source()) {
-                        affected.insert(constraint.target().into());
-                    }
-                }
-                if affected.len() == prior {
-                    break;
-                }
-            }
-            // Settling a constrained key can rewrite its matrix and regenerate members.
-            let reaches_matrix_key = affected
-                .iter()
-                .any(|id| id.starts_with("matrix/") && layout::is_matrix_key(doc, id));
-            if !reaches_matrix_key {
-                return Self::Parts(
-                    doc.parts
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, part)| affected.contains(&part.id))
-                        .map(|(index, part)| (index, part.pose, part.properties.clone()))
-                        .collect(),
-                );
-            }
-        }
-        Self::Matrix {
-            definition_len: doc.definitions.len(),
-            parts: doc.parts.clone(),
-            matrices: doc.matrices.clone(),
-            layouts: doc.layouts.clone(),
-            nets: doc.nets.clone(),
-            outline: doc.outline.clone(),
-            boards: doc.boards.clone(),
-            constraints: doc.constraints.clone(),
-        }
-    }
-
-    pub(crate) fn restore(self, doc: &mut ProjectDoc) {
-        match self {
-            Self::Parts(parts) => {
-                for (index, pose, properties) in parts {
-                    doc.parts[index].pose = pose;
-                    doc.parts[index].properties = properties;
-                }
-            }
-            Self::Matrix {
-                definition_len,
-                parts,
-                matrices,
-                layouts,
-                nets,
-                outline,
-                boards,
-                constraints,
-            } => {
-                doc.definitions.truncate(definition_len);
-                doc.parts = parts;
-                doc.matrices = matrices;
-                doc.layouts = layouts;
-                doc.nets = nets;
-                doc.outline = outline;
-                doc.boards = boards;
-                doc.constraints = constraints;
-            }
-        }
-    }
 }
 
 #[doc(hidden)]
