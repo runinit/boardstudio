@@ -1,6 +1,6 @@
 //! Session event submission and effect execution.
 use super::*;
-use boardstudio_application::{ExecutorEpoch, RequestId};
+use boardstudio_application::{ExecutorEpoch, RequestId, SnapshotToken};
 use boardstudio_model::model::EditPhase;
 
 impl Runtime {
@@ -29,23 +29,15 @@ impl Runtime {
             return;
         }
         let previous_scope = self.scope();
-        let previous_snapshot = self
-            .model()
-            .accepted
-            .as_ref()
-            .map(|snapshot| (snapshot.token, snapshot.document.revision));
+        let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().submit(event);
         self.invalidate_stale_native_case_preview();
-        let accepted_snapshot = self
-            .model()
-            .accepted
-            .as_ref()
-            .map(|snapshot| (snapshot.token, snapshot.document.revision));
-        if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+        let scope_changed = self.scope() != previous_scope;
+        if scope_changed || self.accepted_identity() != previous_snapshot {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
-        if self.scope() != previous_scope {
+        if scope_changed {
             self.cad_scene.borrow_mut().take();
             if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
                 worker.close();
@@ -133,19 +125,10 @@ impl Runtime {
             _ => None,
         };
         let previous_scope = self.scope();
-        let previous_snapshot = self
-            .model()
-            .accepted
-            .as_ref()
-            .map(|snapshot| (snapshot.token, snapshot.document.revision));
+        let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().complete(event);
         self.invalidate_stale_native_case_preview();
-        let accepted_snapshot = self
-            .model()
-            .accepted
-            .as_ref()
-            .map(|snapshot| (snapshot.token, snapshot.document.revision));
-        if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+        if self.scope() != previous_scope || self.accepted_identity() != previous_snapshot {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
@@ -154,6 +137,16 @@ impl Runtime {
         drop(profile);
         effects
     }
+
+    fn accepted_identity(&self) -> Option<(SnapshotToken, u64)> {
+        self.session
+            .borrow()
+            .read_model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.token, snapshot.document.revision))
+    }
+
     pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
         let mut effects = VecDeque::from(effects);

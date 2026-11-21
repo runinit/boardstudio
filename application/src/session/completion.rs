@@ -151,10 +151,7 @@ impl Session {
                     reason: reason.clone(),
                 };
                 self.model.last_error = Some(reason.clone());
-                self.pending_save = Some(PendingSave {
-                    save_attempt_id,
-                    ..pending.clone()
-                });
+                self.pending_save = Some(pending);
                 self.settle(
                     attempt_operation,
                     TerminalOutcome::PersistenceFailed(reason.clone()),
@@ -186,15 +183,13 @@ impl Session {
                 }
                 let token = SnapshotToken(self.next_token);
                 self.next_token += 1;
-                let landing = Landing {
-                    revision: pending.document.revision,
-                    token,
-                };
+                let revision = pending.document.revision;
+                let landing = Landing { revision, token };
                 self.model.accepted = Some(AcceptedSnapshot {
                     token,
                     session_epoch: epoch,
-                    document: pending.document.clone(),
-                    scene: pending.scene.clone(),
+                    document: pending.document,
+                    scene: pending.scene,
                 });
                 if let Some(owner) = &pending.export_owner
                     && let Some(export) =
@@ -210,9 +205,7 @@ impl Session {
                 }
                 self.model.display_preview = None;
                 self.display_preview_transaction_id = None;
-                self.model.durability = Durability::Saved {
-                    revision: pending.document.revision,
-                };
+                self.model.durability = Durability::Saved { revision };
                 self.model.last_error = None;
                 if is_open {
                     self.model.selected_part_ids.clear();

@@ -6,7 +6,7 @@
 //! call it before staging the canonical source and mirror changes.
 //!
 //! Where things live (search the names; line numbers drift):
-//! - Seam: [`canonicalize_with_dispatch`] is the exhaustive dispatch over `EditOperation`. It
+//! - Seam: [`canonical_request`] is the exhaustive dispatch over `EditOperation`. It
 //!   returns a [`Canonical`] request, or a [`Refusal`] that carries the ledger entry
 //!   ([`Coverage`]) of a family another ticket owns. There is no wildcard arm: a new variant does
 //!   not compile until it is given a ledger entry here.
@@ -171,6 +171,20 @@ pub fn canonicalize_with_dispatch(
     document: &ProjectDoc,
     operation: &EditOperation,
     dispatch: super::EditDispatch,
+) -> Result<Canonical, Refusal> {
+    let mut canonical = canonical_request(document, operation)?;
+    // Standalone plan callers need the finalized references without applying the request.
+    if !canonical.hosted.circuits.is_empty() {
+        let mut staged = document.clone();
+        (dispatch.apply_unscripted)(&mut staged, &canonical.operation)?;
+        canonical.reserve_circuit_references(&staged)?;
+    }
+    Ok(canonical)
+}
+
+pub(super) fn canonical_request(
+    document: &ProjectDoc,
+    operation: &EditOperation,
 ) -> Result<Canonical, Refusal> {
     use EditOperation as Op;
     let links = Links::new(document);
@@ -426,7 +440,7 @@ pub fn canonicalize_with_dispatch(
         | Op::SetKeycapBoard { .. }
         | Op::SetMatrixKeycaps { .. }
         | Op::SetKeycapKey { .. } => {
-            hosted::translate(&links, operation, &mut canonical, dispatch.apply_unscripted)?;
+            hosted::translate(&links, operation, &mut canonical)?;
         }
         // Ticket 113: outline and reviewed geometry. Ticket 37 deleted the raw
         // outline family; ApplyOutlineEdit is the live translated outline edit.
