@@ -3,6 +3,7 @@
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
 //! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
+use super::settings::KeycapEdit;
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
     is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
@@ -648,6 +649,32 @@ pub fn prepare_transaction_with_ledger(
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
+    if let Some(edit) = KeycapEdit::for_operation(&canonical.operation) {
+        // Both lifecycle and fixed-membership reconciliation can refresh other families.
+        // Keep those passes when resolving a settings edit also changed document structure.
+        let edited_keycaps = std::mem::replace(&mut draft.keycaps, accepted.keycaps.clone());
+        let settings_only = draft == *accepted;
+        draft.keycaps = edited_keycaps;
+        if settings_only
+            && let Some(settings) = &mut draft.keycaps
+            && crate::mechanical::features::validate(accepted).is_ok()
+            && !accepted
+                .hardware
+                .iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter_map(|pair| pair.halves.as_ref())
+                .any(|halves| halves.source_board_id == halves.mirror_board_id)
+        {
+            edit.project(accepted, settings)?;
+            validate_prepared_draft(accepted, &draft, &canonical.operation)?;
+            // Settings are document-level fields. The prepared route publishes them via
+            // document equality, with no geometry entity IDs in the change report.
+            return Ok((draft, Vec::new()));
+        }
+    }
+    // Topology, placement, hosted content, outlines, nets, lifecycle edits and document
+    // replacement still use full reconciliation. Open also projects all linked settings
+    // to repair persisted drift.
     changed.extend(prepare_lifecycle_pairs(
         accepted, &mut draft, &canonical, dispatch,
     )?);

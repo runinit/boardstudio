@@ -25,8 +25,8 @@
 //! no-op.
 
 use crate::model::{
-    KeycapConfiguration, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
-    MirroredItemKind, Net, Pin, ProjectDoc,
+    EditOperation, KeycapConfiguration, MirroredCorrespondence, MirroredExceptionState,
+    MirroredHalves, MirroredItemKind, Net, Pin, ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -72,6 +72,88 @@ fn follow<T>(map: &mut BTreeMap<String, T>, key: &str, value: Option<T>) {
             map.remove(key);
         }
     }
+}
+
+/// One settings row selected by the canonical operation.
+#[derive(Clone, Copy)]
+pub(super) enum KeycapEdit<'a> {
+    Board(&'a str),
+    Matrix(&'a str),
+    Key(&'a str),
+}
+
+impl<'a> KeycapEdit<'a> {
+    pub(super) fn for_operation(operation: &'a EditOperation) -> Option<Self> {
+        match operation {
+            EditOperation::SetKeycapBoard { board_id, .. } => Some(Self::Board(board_id)),
+            EditOperation::SetMatrixKeycaps { matrix_id, .. } => Some(Self::Matrix(matrix_id)),
+            EditOperation::SetKeycapKey { key_id, .. } => Some(Self::Key(key_id)),
+            _ => None,
+        }
+    }
+
+    /// Materialize the linked row from the complete authored row, including fields that the
+    /// operation did not set. Local rows retain their own settings and Omitted rows stay absent.
+    pub(super) fn project(
+        self,
+        document: &ProjectDoc,
+        settings: &mut KeycapConfiguration,
+    ) -> Result<(), String> {
+        for halves in document
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter_map(|pair| pair.halves.as_ref())
+            .filter(|halves| halves.source_board_id != halves.mirror_board_id)
+        {
+            super::validate_local_circuit_targets(document, halves)?;
+            let (kind, id) = match self {
+                Self::Board(id) => {
+                    if halves.source_board_id == id {
+                        let value = settings.boards.get(id).cloned();
+                        follow(&mut settings.boards, &halves.mirror_board_id, value);
+                    }
+                    continue;
+                }
+                Self::Matrix(id) => (MirroredItemKind::Matrix, id),
+                Self::Key(id) => (MirroredItemKind::Part, id),
+            };
+            for link in halves
+                .correspondences
+                .iter()
+                .filter(|link| link.kind == kind && (link.source_id == id || link.mirror_id == id))
+            {
+                let state = effective_state(document, halves, link);
+                if state == Some(State::Local) {
+                    continue;
+                }
+                match self {
+                    Self::Matrix(_) => {
+                        let present = document
+                            .matrices
+                            .iter()
+                            .any(|matrix| matrix.id == link.mirror_id);
+                        follow_row(&mut settings.matrices, link, state.is_none() && present);
+                    }
+                    Self::Key(_) => {
+                        let present = document.parts.iter().any(|part| part.id == link.mirror_id);
+                        follow_row(&mut settings.keys, link, state.is_none() && present);
+                    }
+                    Self::Board(_) => unreachable!(),
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn follow_row<T: Clone>(
+    map: &mut BTreeMap<String, T>,
+    link: &MirroredCorrespondence,
+    linked: bool,
+) {
+    let value = map.get(&link.source_id).filter(|_| linked).cloned();
+    follow(map, &link.mirror_id, value);
 }
 
 fn keycaps(document: &ProjectDoc, staged: &mut ProjectDoc, halves: &MirroredHalves) {
