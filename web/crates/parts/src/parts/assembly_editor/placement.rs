@@ -1,0 +1,290 @@
+use super::*;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn begin_place_assembly_on_board(
+    runtime: Rc<crate::runtime::Runtime>,
+    workspace: Signal<&'static str>,
+    scope: Option<Scope>,
+    source: AcceptedSnapshot,
+    definitions: Vec<PartDefinition>,
+    draft: AssemblyDraft,
+    origin_x: String,
+    origin_y: String,
+    mut preparing: Signal<bool>,
+    pending_edits: PendingEditSignals<AssemblyKey>,
+    mut pending: Signal<Vec<AssemblyAction>>,
+    editor_generation: Signal<u64>,
+    mut feedback: Signal<Option<String>>,
+) {
+    let view_generation = editor_generation();
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Place) || workspace() != "Parts" {
+        return;
+    }
+    let Some(scope) = scope else {
+        feedback.set(Some("Select a board before placing an assembly.".into()));
+        return;
+    };
+    if draft.scope.as_ref() != Some(&scope)
+        || draft.document_id != source.document.id
+        || draft.session_epoch != source.session_epoch
+    {
+        feedback.set(Some(
+            "The project or board scope changed while this assembly draft was open. Reopen it before placing.".into(),
+        ));
+        return;
+    }
+    let origin = match (
+        origin_x.trim().parse::<f64>(),
+        origin_y.trim().parse::<f64>(),
+    ) {
+        (Ok(x), Ok(y)) if x.is_finite() && y.is_finite() => Vec2 { x, y },
+        _ => {
+            feedback.set(Some(
+                "Enter finite X and Y coordinates for assembly placement.".into(),
+            ));
+            return;
+        }
+    };
+    let model = runtime.model();
+    let Some(accepted) = model.accepted.as_ref() else {
+        feedback.set(Some("The accepted project is unavailable.".into()));
+        return;
+    };
+    if runtime.scope().as_ref() != Some(&scope)
+        || accepted.document.id != source.document.id
+        || accepted.session_epoch != source.session_epoch
+    {
+        feedback.set(Some(
+            "The project changed while this assembly draft was open. Reopen it before placing."
+                .into(),
+        ));
+        return;
+    }
+
+    let operation_id = runtime.operation();
+    let placement_id = format!("assembly-{}-{}", draft.value.id, operation_id.0);
+    let (mut proposal, part_ids) = match super::super::assembly_presets::document_with_assembly(
+        &accepted.document,
+        &draft.value,
+        &definitions,
+        &draft.assets,
+        &scope.board_id,
+        origin,
+        &placement_id,
+    ) {
+        Ok(proposal) => proposal,
+        Err(error) => {
+            feedback.set(Some(error));
+            return;
+        }
+    };
+    let project_id = accepted.document.id.clone();
+    let session_epoch = accepted.session_epoch;
+    let definition_prefix = format!("{placement_id}/definition/");
+    preparing.set(true);
+    feedback.set(None);
+    spawn_local(async move {
+        let normalized = async {
+            for definition in proposal
+                .definitions
+                .iter_mut()
+                .filter(|definition| definition.id.starts_with(&definition_prefix))
+            {
+                if let Some(source) = definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| generator.source.clone())
+                    && crate::bundled_models::is_generator_source(&source).await?
+                {
+                    *definition =
+                        super::super::normalize_matrix_definition(definition.clone()).await?;
+                }
+            }
+            Ok::<_, String>(())
+        }
+        .await;
+        if editor_generation() != view_generation
+            || workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+        {
+            preparing.set(false);
+            return;
+        }
+        preparing.set(false);
+        if let Err(error) = normalized {
+            feedback.set(Some(error));
+            return;
+        }
+
+        let current = runtime.model();
+        let Some(latest) = current.accepted.as_ref() else {
+            feedback.set(Some("The accepted project is unavailable.".into()));
+            return;
+        };
+        if workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+            || latest.document.id != project_id
+            || latest.session_epoch != session_epoch
+        {
+            feedback.set(Some(
+                "The project, a component definition, or board scope changed while the assembly was being prepared. Reopen the editor and try again.".into(),
+            ));
+            return;
+        }
+        pending_edits.begin_one_shot(
+            &runtime,
+            AssemblyKey::Place,
+            "parts-assembly-place",
+            Some("assembly placement".into()),
+            assembly_place_resolver(
+                scope.clone(),
+                proposal,
+                draft.assets.clone(),
+                placement_id.clone(),
+                part_ids,
+            ),
+        );
+        let _ = (view_generation, project_id, session_epoch);
+        observe_intent(
+            &mut pending,
+            AssemblyAction::BoardAssembly {
+                scope: scope.clone(),
+                board_id: scope.board_id.clone(),
+                assembly_id: draft.value.id,
+                placement_seed: placement_id,
+            },
+        );
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn begin_apply_assembly_to_matrix(
+    runtime: Rc<crate::runtime::Runtime>,
+    workspace: Signal<&'static str>,
+    scope: Option<Scope>,
+    source: AcceptedSnapshot,
+    selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
+    catalogue_definitions: Vec<PartDefinition>,
+    assembly: AssemblyDefinition,
+    mut preparing: Signal<bool>,
+    pending_edits: PendingEditSignals<AssemblyKey>,
+    mut pending: Signal<Vec<AssemblyAction>>,
+    editor_generation: Signal<u64>,
+    mut feedback: Signal<Option<String>>,
+) {
+    let view_generation = editor_generation();
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Matrix) || workspace() != "Parts" {
+        return;
+    }
+    let Some(scope) = scope else {
+        feedback.set(Some(
+            "Open a saved board before applying an assembly to a matrix.".into(),
+        ));
+        return;
+    };
+    let Some(selected) = selected_context.peek().clone() else {
+        feedback.set(Some("Select a matrix before applying an assembly.".into()));
+        return;
+    };
+    if selected.scope != scope {
+        feedback.set(Some("The selected matrix belongs to a different board. Select a matrix on the active board.".into()));
+        return;
+    }
+    let super::super::super::objects::TreeContext::Matrix { matrix_id } = &selected.context else {
+        feedback.set(Some("Select a matrix before applying an assembly.".into()));
+        return;
+    };
+    let matrix_id = matrix_id.clone();
+    let model = runtime.model();
+    let Some(accepted) = model.accepted.as_ref() else {
+        feedback.set(Some("The accepted project is unavailable.".into()));
+        return;
+    };
+    if runtime.scope().as_ref() != Some(&scope)
+        || accepted.document.id != source.document.id
+        || accepted.session_epoch != source.session_epoch
+    {
+        feedback.set(Some(
+            "The project changed while this assembly draft was open. Reopen it before applying."
+                .into(),
+        ));
+        return;
+    }
+    let Some(matrix) = accepted
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+        .cloned()
+    else {
+        feedback.set(Some("The selected matrix is no longer available.".into()));
+        return;
+    };
+    if matrix.board_id.as_deref() != Some(scope.board_id.as_str()) {
+        feedback.set(Some("Select a matrix on the active board.".into()));
+        return;
+    }
+    let accepted = accepted.clone();
+    let session_epoch = scope.session_epoch;
+    let document_id = scope.document_id.clone();
+    let operation_id = runtime.operation();
+    preparing.set(true);
+    feedback.set(None);
+    spawn_local(async move {
+        let prepared = async {
+            let (matrix, mut definitions) = super::super::assembly_presets::matrix_with_assembly(
+                &matrix,
+                &assembly,
+                &catalogue_definitions,
+                &accepted.document,
+                &operation_id.0.to_string(),
+            )?;
+            for definition in &mut definitions {
+                *definition = super::super::normalize_matrix_definition(definition.clone()).await?;
+            }
+            Ok::<_, String>((matrix, definitions))
+        }
+        .await;
+        if editor_generation() != view_generation
+            || workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+        {
+            preparing.set(false);
+            return;
+        }
+        preparing.set(false);
+        let (_matrix, definitions) = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                feedback.set(Some(error));
+                return;
+            }
+        };
+        let current_model = runtime.model();
+        let still_selected = selected_context.peek().as_ref() == Some(&selected);
+        if workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+            || !still_selected
+            || !current_model.accepted.as_ref().is_some_and(|current| {
+                current.session_epoch == session_epoch && current.document.id == document_id
+            })
+        {
+            feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
+            return;
+        }
+        pending_edits.begin_one_shot(
+            &runtime,
+            AssemblyKey::Matrix,
+            "parts-assembly-matrix-apply",
+            Some("matrix assembly".into()),
+            assembly_matrix_resolver(
+                scope.clone(),
+                matrix_id.clone(),
+                assembly,
+                definitions,
+                operation_id.0.to_string(),
+            ),
+        );
+        observe_intent(&mut pending, AssemblyAction::Matrix(matrix_id));
+    });
+}
