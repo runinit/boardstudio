@@ -113,6 +113,9 @@ impl Face {
         epsilon: f64,
         deflection: f64,
     ) -> Result<Triangles, String> {
+        if let [a, b] = self.loops.as_slice() {
+            return self.mesh_cylinder_band(radius, [a, b], edges, samples, epsilon, deflection);
+        }
         let [ring] = self.loops.as_slice() else {
             return Err("native cylinder requires one strip boundary".into());
         };
