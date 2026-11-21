@@ -6,6 +6,7 @@ use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::EditOperation;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
@@ -63,7 +64,7 @@ pub struct BoardRenameAction {
 pub struct BoardInspectorMount {
     pub projection: Option<BoardInspectorProjection>,
     pub on_rename: EventHandler<BoardRenameAction>,
-    pending: Signal<boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals<()>>,
+    pending: Signal<DraftEdits<()>>,
     mounted: Signal<bool>,
     draft: Signal<String>,
     failure: Signal<Option<String>>,
@@ -97,8 +98,7 @@ pub fn use_board_inspector(
     scope_generation: Signal<u64>,
 ) -> BoardInspectorMount {
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
-    let pending =
-        use_signal(boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals::<()>::new);
+    let pending = use_signal(DraftEdits::<()>::default);
     let mounted = use_signal(|| false);
     let initial_name = runtime
         .model()
@@ -156,7 +156,6 @@ pub fn use_board_inspector(
         draft.set(accepted);
         failure.set(None);
     }
-    pending.peek().bind_field((), draft, failure);
     let settle_pending = pending.peek().clone();
     let mut pending_owner_for_effect = pending_owner;
     use_effect(use_reactive(
@@ -247,13 +246,13 @@ pub fn use_board_inspector(
                     },
                 )
             });
-            pending.peek().begin_field(
+            pending.peek().submit(
                 &runtime,
                 (),
                 "board-name",
                 Some("board name".into()),
                 resolver,
-                &submitted_name,
+                FieldView::new(draft, failure).submitted(submitted_name),
             );
         }
     });
@@ -377,7 +376,6 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
         return rsx! {};
     };
     let on_rename = mount.on_rename;
-    pending.read().bind_field((), draft, failure);
     let did_mount = use_hook(|| Rc::new(Cell::new(false)));
     let mut mounted_for_effect = mounted;
     let did_mount_for_effect = did_mount.clone();
@@ -452,7 +450,7 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
 
 fn commit_draft(
     draft: &mut Signal<String>,
-    pending: Signal<boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals<()>>,
+    pending: Signal<DraftEdits<()>>,
     owner: &BoardInspectorOwner,
     on_rename: EventHandler<BoardRenameAction>,
 ) {

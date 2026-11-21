@@ -1,4 +1,5 @@
 use super::OwnedEdits;
+use crate::draft_edits::FieldView;
 use boardstudio_application::{EditResolver, Event, Resolution};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::runtime::Runtime;
@@ -29,7 +30,7 @@ fn rename(name: &'static str) -> EditResolver {
 }
 
 #[test]
-fn owner_replacement_retires_observations_and_rebinds_mounted_signals() {
+fn owner_replacement_retires_observations_and_preserves_mounted_signals() {
     let dom = VirtualDom::new(VNode::empty);
     dom.in_scope(ScopeId::ROOT, || {
         let runtime = opened_runtime();
@@ -37,47 +38,47 @@ fn owner_replacement_retires_observations_and_rebinds_mounted_signals() {
         let mut edits = OwnedEdits::default();
         let draft = Signal::new("typed".to_owned());
         let failure = Signal::new(Some("previous failure".to_owned()));
-        edits.helper.bind_field("name", draft, failure);
+        let field = FieldView::new(draft, failure);
         assert!(edits.owner_changed(scope.as_ref(), 1));
         edits.follow_owner(scope.as_ref(), 1);
         runtime.hold_next_core();
-        edits.helper.begin_field(
+        edits.edits.submit(
             &runtime,
             "name",
             "rename",
             None,
             rename("Old owner"),
-            "typed",
+            field.submitted("typed".to_owned()),
         );
 
         edits.follow_owner(scope.as_ref(), 1);
         assert!(
-            edits.helper.is_pending(&"name"),
+            edits.edits.is_pending(&"name"),
             "the same owner keeps its observation"
         );
         assert!(edits.owner_changed(scope.as_ref(), 2));
         edits.follow_owner(scope.as_ref(), 2);
         assert!(!edits.owner_changed(scope.as_ref(), 2));
-        assert!(!edits.helper.is_pending(&"name"));
-        assert_eq!(edits.helper.edits().pending_keys().count(), 0);
-        assert!(!edits.helper.has_terminal());
+        assert!(!edits.edits.is_pending(&"name"));
+        assert_eq!(edits.edits.observations().pending_keys().count(), 0);
+        assert!(!edits.edits.has_terminal());
         runtime.release_core();
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Old owner");
-        assert!(edits.helper.settle(true, |_| "ignored".into()).is_empty());
+        assert!(edits.edits.settle(true, |_| "ignored".into()).is_empty());
         assert_eq!(&*draft.peek(), "typed");
         assert_eq!(failure.peek().as_deref(), Some("previous failure"));
 
-        edits.helper.begin_field(
+        edits.edits.submit(
             &runtime,
             "name",
             "rename",
             None,
             rename("New owner"),
-            "typed",
+            field.submitted("typed".to_owned()),
         );
         assert_eq!(
             edits
-                .helper
+                .edits
                 .settle(true, |_| "accepted projection".into())
                 .len(),
             1
@@ -88,47 +89,6 @@ fn owner_replacement_retires_observations_and_rebinds_mounted_signals() {
             edits.owner_changed(None, 2),
             "scope changes also replace the owner"
         );
-    });
-}
-
-#[test]
-fn bound_draft_tracks_live_rebindings_and_forgets_unmounted_fields() {
-    let dom = VirtualDom::new(VNode::empty);
-    dom.in_scope(ScopeId::ROOT, || {
-        let mut edits = OwnedEdits::default();
-        let mut draft = Signal::new(" 1.50 ".to_owned());
-        let failure = Signal::new(None);
-        assert_eq!(edits.helper.bound_draft(&"missing"), None);
-        edits.helper.bind_field("name", draft, failure);
-        assert_eq!(edits.helper.bound_draft(&"name").as_deref(), Some(" 1.50 "));
-        draft.set("2.00".into());
-        assert_eq!(edits.helper.bound_draft(&"name").as_deref(), Some("2.00"));
-        let replacement = Signal::new("remounted".to_owned());
-        edits.helper.bind_field("name", replacement, failure);
-        edits.follow_owner(None, 1);
-        edits.follow_owner(None, 2);
-        assert_eq!(
-            edits.helper.bound_draft(&"name").as_deref(),
-            Some("remounted")
-        );
-        edits.helper.unbind_field(&"name");
-        edits.helper.unbind_field(&"name");
-        edits.follow_owner(None, 3);
-        assert_eq!(edits.helper.bound_draft(&"name"), None);
-
-        let runtime = opened_runtime();
-        edits.helper.begin_field(
-            &runtime,
-            "name",
-            "rename",
-            None,
-            rename("Unbound"),
-            "remounted",
-        );
-        edits
-            .helper
-            .settle(true, |_| "must not reach unmounted field".into());
-        assert_eq!(&*replacement.peek(), "remounted");
     });
 }
 
@@ -148,7 +108,7 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     edits.follow_owner(runtime.scope().as_ref(), 1);
     runtime.hold_next_core();
     let submit = |key, payload| {
-        edits.helper.begin_one_shot(
+        edits.edits.begin(
             &runtime,
             Request(key, payload),
             "rename",
@@ -159,11 +119,11 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     submit("first", "Original pending");
     submit("second", "Second");
     submit("first", "Latest");
-    assert!(!edits.helper.has_terminal());
+    assert!(!edits.edits.has_terminal());
     assert_eq!(
         edits
-            .helper
-            .edits()
+            .edits
+            .observations()
             .pending_keys()
             .map(|key| key.1)
             .collect::<Vec<_>>(),
@@ -171,15 +131,15 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     );
 
     runtime.release_core();
-    assert_eq!(edits.helper.edits().pending_keys().count(), 0);
-    assert!(edits.helper.has_terminal());
+    assert_eq!(edits.edits.observations().pending_keys().count(), 0);
+    assert!(edits.edits.has_terminal());
     assert!(
-        edits.helper.has_terminal(),
+        edits.edits.has_terminal(),
         "checking does not consume terminals"
     );
 
     submit("first", "Replaced unobserved terminal");
-    let results = edits.helper.settle(true, |_| unreachable!());
+    let results = edits.edits.settle(true, |_| unreachable!());
     let payloads = results
         .iter()
         .map(|result| match result {
@@ -188,7 +148,7 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
         })
         .collect::<Vec<_>>();
     assert_eq!(payloads, ["Replaced unobserved terminal", "Second"]);
-    assert!(!edits.helper.has_terminal());
+    assert!(!edits.edits.has_terminal());
     assert_eq!(
         runtime.model().accepted.unwrap().document.name,
         "Replaced unobserved terminal"

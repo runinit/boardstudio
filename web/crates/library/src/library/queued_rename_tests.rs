@@ -36,14 +36,18 @@ async fn library_rename_queued_after_parts_edit_preserves_both_and_undo_order() 
         matches!(entered.try_recv(), Ok(Some(())))
     })
     .await;
-    ProjectNameCommitAction {
-        runtime: runtime.clone(),
-        owner,
-        mounted: Rc::new(Cell::new(true)),
-        edits: PendingEditSignals::new(),
-        submitted_owner: Rc::default(),
-    }
-    .commit("Renamed");
+    let dom = VirtualDom::new(VNode::empty);
+    dom.in_scope(ScopeId::ROOT, || {
+        ProjectNameCommitAction {
+            runtime: runtime.clone(),
+            owner,
+            mounted: Rc::new(Cell::new(true)),
+            edits: DraftEdits::default(),
+            name: FieldView::new(Signal::new("Renamed".into()), Signal::new(None)),
+            submitted_owner: Rc::default(),
+        }
+        .commit("Renamed");
+    });
     support::drive_pending(&runtime);
     release.send(()).unwrap();
     wait_until_step(

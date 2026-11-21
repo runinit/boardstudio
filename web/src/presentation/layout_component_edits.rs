@@ -7,7 +7,8 @@ use boardstudio_core::model::{
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
+use dioxus::prelude::Signal;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum InspectorField {
@@ -26,13 +27,33 @@ pub(super) enum InspectorField {
     PartAnchorDetach,
 }
 
-impl InspectorField {
-    pub(super) fn is_field(self) -> bool {
-        matches!(self, Self::X | Self::Y | Self::Margin)
-    }
+pub(super) type LayoutComponentInspectorEdits = DraftEdits<InspectorField>;
+
+#[derive(Clone, Copy)]
+pub(super) struct ComponentEditViews {
+    pub x: FieldView,
+    pub y: FieldView,
+    pub margin: FieldView,
+    pub actions: (Signal<bool>, Signal<bool>, Signal<bool>, Signal<bool>),
 }
 
-pub(super) type LayoutComponentInspectorEdits = PendingEditSignals<InspectorField>;
+impl ComponentEditViews {
+    pub fn display(self, field: InspectorField, draft: Option<String>) -> EditDisplay<String> {
+        let (layout, constraint, remove, mirror) = self.actions;
+        match field {
+            InspectorField::X => self.x.submitted(draft.unwrap_or_default()),
+            InspectorField::Y => self.y.submitted(draft.unwrap_or_default()),
+            InspectorField::Margin => self.margin.submitted(draft.unwrap_or_default()),
+            InspectorField::Layout => EditDisplay::default().disabling(layout),
+            InspectorField::Constraint => EditDisplay::default().disabling(constraint),
+            InspectorField::RemoveConstraint => EditDisplay::default().disabling(remove),
+            InspectorField::MirroredHalfState | InspectorField::PartMirror => {
+                EditDisplay::default().disabling(mirror)
+            }
+            _ => EditDisplay::default(),
+        }
+    }
+}
 
 fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {
     Resolution::submit(target_ids, command)

@@ -1,7 +1,7 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, Scope};
 use boardstudio_core::model::{EditOperation, Position, Vec2};
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::{
     button::Button,
     callout::{Callout, CalloutVariant},
@@ -64,12 +64,10 @@ pub(super) fn Inspector() -> Element {
     let mut draft = use_signal(|| (String::new(), String::new()));
     let mut dirty_axes = use_signal(|| (None::<String>, false, false));
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
-    let pending = use_signal(PendingEditSignals::<(), (String, String)>::new);
+    let pending = use_signal(DraftEdits::<(), (String, String)>::default);
     let apply_disabled = use_signal(|| false);
-    pending.peek().bind_one_shot((), apply_disabled);
     let mut pending_owner = use_signal(|| None::<NumericOwner>);
     let mut failure = use_signal(|| None::<String>);
-    pending.peek().bind_field((), draft, failure);
     use_drop({
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
@@ -79,15 +77,6 @@ pub(super) fn Inspector() -> Element {
                 let start = edit.start;
                 submit_position(&runtime, &numeric_edit, edit, start);
             }
-        }
-    });
-    use_drop({
-        move || {
-            pending.peek().unbind_field(&());
-            pending.peek().unbind_one_shot(&());
-            pending
-                .peek()
-                .settle(false, |_| (String::new(), String::new()));
         }
     });
     let key = selected
@@ -157,7 +146,7 @@ pub(super) fn Inspector() -> Element {
                 &pending,
                 &mut pending_owner,
                 &mut dirty_axes,
-                &draft(),
+                (FieldView::new(draft, failure), apply_disabled),
             );
         }
     };
@@ -212,7 +201,7 @@ pub(super) fn Inspector() -> Element {
                     &pending,
                     &mut pending_owner,
                     &mut dirty_axes,
-                    &draft(),
+                    (FieldView::new(draft, failure), apply_disabled),
                 );
             }
         })))
@@ -293,11 +282,12 @@ fn submit_position(
 fn commit_numeric(
     runtime: &Rc<Runtime>,
     current: &Rc<RefCell<Option<NumericEdit>>>,
-    pending: &Signal<PendingEditSignals<(), (String, String)>>,
+    pending: &Signal<DraftEdits<(), (String, String)>>,
     pending_owner: &mut Signal<Option<NumericOwner>>,
     dirty_axes: &mut Signal<(Option<String>, bool, bool)>,
-    draft: &(String, String),
+    (view, apply_disabled): (FieldView<(String, String)>, Signal<bool>),
 ) {
+    let draft = view.draft.peek().clone();
     let (Ok(x), Ok(y)) = (draft.0.parse::<f64>(), draft.1.parse::<f64>()) else {
         runtime.report("Enter finite X and Y coordinates.");
         return;
@@ -338,7 +328,7 @@ fn commit_numeric(
     };
     pending_owner.set(Some(owner));
     dirty_axes.set((Some(edit.id.clone()), false, false));
-    pending.peek().begin_value(
+    pending.peek().submit(
         runtime,
         (),
         "layout-old-position",
@@ -350,7 +340,7 @@ fn commit_numeric(
             edit.y_changed.then_some(y),
             edit.transaction_id,
         ),
-        draft,
+        view.submitted(draft).disabling(apply_disabled),
     );
 }
 

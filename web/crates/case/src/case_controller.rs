@@ -12,7 +12,10 @@ use boardstudio_model::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
+use boardstudio_web_ui_shared::{
+    draft_edits::{EditDisplay, FieldView},
+    owned_edits::OwnedEdits,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -72,7 +75,7 @@ impl BodyEditKey {
 
 struct CaseFieldEntry {
     field_id: String,
-    draft: Signal<String>,
+    view: FieldView,
     /// The text the accepted document shows for the field, refreshed on every render.
     accepted: String,
 }
@@ -88,20 +91,37 @@ pub(crate) struct CaseEditsContext {
 
 impl CaseEditsContext {
     fn accepted_text(&self, key: &BodyEditKey) -> String {
+        let BodyEditLogical::Field(field_id) = &key.logical else {
+            return String::new();
+        };
         self.fields
             .borrow()
             .iter()
-            .find(|entry| BodyEditLogical::Field(entry.field_id.clone()) == key.logical)
+            .find(|entry| &entry.field_id == field_id)
             .map(|entry| entry.accepted.clone())
             .unwrap_or_default()
     }
 
-    fn draft_text(&self, field_id: Option<&String>) -> String {
+    fn release_field(&self, field_id: &str, view: FieldView) {
+        let mut fields = self.fields.borrow_mut();
+        if fields
+            .iter()
+            .any(|entry| entry.field_id == field_id && entry.view == view)
+        {
+            self.pending
+                .peek()
+                .edits
+                .detach_field(&BodyEditKey::bound(field_id));
+            fields.retain(|entry| entry.field_id != field_id);
+        }
+    }
+
+    fn submitted(&self, field_id: Option<&String>) -> EditDisplay<String> {
         self.fields
             .borrow()
             .iter()
             .find(|entry| Some(&entry.field_id) == field_id)
-            .map(|entry| entry.draft.peek().clone())
+            .map(|entry| entry.view.submitted(entry.view.draft.peek().clone()))
             .unwrap_or_default()
     }
 }
@@ -117,35 +137,30 @@ pub(crate) fn use_bound_case_field(
 ) -> bool {
     let context = try_consume_context::<CaseEditsContext>();
     let bound = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
+    let view = FieldView::new(draft, failure);
     if let Some(context) = context.as_ref() {
         let mut previous = bound.borrow_mut();
         if let Some(old) = previous.as_ref()
             && old != field_id
         {
-            context
-                .pending
-                .peek()
-                .helper
-                .unbind_field(&BodyEditKey::bound(old));
-            context
-                .fields
-                .borrow_mut()
-                .retain(|entry| entry.field_id != *old);
+            context.release_field(old, view);
         }
-        context
-            .pending
-            .peek()
-            .helper
-            .bind_field(BodyEditKey::bound(field_id), draft, failure);
         let mut fields = context.fields.borrow_mut();
         match fields.iter_mut().find(|entry| entry.field_id == field_id) {
             Some(entry) => {
-                entry.draft = draft;
+                if entry.view != view {
+                    context
+                        .pending
+                        .peek()
+                        .edits
+                        .detach_field(&BodyEditKey::bound(field_id));
+                    entry.view = view;
+                }
                 entry.accepted = accepted;
             }
             None => fields.push(CaseFieldEntry {
                 field_id: field_id.to_owned(),
-                draft,
+                view,
                 accepted,
             }),
         }
@@ -155,22 +170,14 @@ pub(crate) fn use_bound_case_field(
         context
             .pending
             .read()
-            .helper
+            .edits
             .is_pending(&BodyEditKey::bound(field_id))
     });
     use_drop({
         let bound = bound.clone();
         move || {
             if let (Some(context), Some(field_id)) = (context.as_ref(), bound.borrow_mut().take()) {
-                context
-                    .pending
-                    .peek()
-                    .helper
-                    .unbind_field(&BodyEditKey::bound(&field_id));
-                context
-                    .fields
-                    .borrow_mut()
-                    .retain(|entry| entry.field_id != field_id);
+                context.release_field(&field_id, view);
             }
         }
     });
@@ -300,13 +307,13 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            if !pending.peek().helper.has_terminal() {
+            if !pending.peek().edits.has_terminal() {
                 return;
             }
             let scope = runtime.scope();
             let results = pending
                 .write()
-                .helper
+                .edits
                 .settle(true, |key| edits_context.accepted_text(key));
             let mut next_feedback = feedback.peek().clone();
             for result in results {
@@ -506,8 +513,8 @@ fn submit_body_edit(
     if let Some(action_id) = request.edit.action_id()
         && pending
             .peek()
-            .helper
-            .edits()
+            .edits
+            .observations()
             .pending_keys()
             .filter_map(|entry| entry.meta.as_deref())
             .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
@@ -528,7 +535,7 @@ fn submit_body_edit(
         None
     };
     let scope = request.scope.clone();
-    let draft_text = edits.draft_text(request.field_id.as_ref());
+    let display = edits.submitted(request.field_id.as_ref());
     let waiting = BodyEditMeta {
         request,
         created_body_id,
@@ -540,13 +547,13 @@ fn submit_body_edit(
     if pending.peek().owner_changed(Some(&scope), 0) {
         pending.write().follow_owner(Some(&scope), 0);
     }
-    pending.write().helper.begin_field(
+    pending.write().edits.submit(
         runtime,
         key,
         "case-body",
         Some("case body".into()),
         resolver,
-        &draft_text,
+        display,
     );
 }
 

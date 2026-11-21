@@ -11,13 +11,15 @@ pub(super) fn begin_place_assembly_on_board(
     origin_x: String,
     origin_y: String,
     mut preparing: Signal<bool>,
-    pending_edits: PendingEditSignals<AssemblyKey>,
-    mut pending: Signal<Vec<AssemblyAction>>,
+    pending_edits: AssemblyTickets,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || pending_edits.is_pending(&AssemblyKey::Place) || workspace() != "Parts" {
+    if preparing()
+        || pending_edits.borrow().is_pending(&AssemblyKey::Place)
+        || workspace() != "Parts"
+    {
         return;
     }
     let Some(scope) = scope else {
@@ -131,7 +133,7 @@ pub(super) fn begin_place_assembly_on_board(
             ));
             return;
         }
-        pending_edits.begin_one_shot(
+        pending_edits.borrow_mut().begin_with(
             &runtime,
             AssemblyKey::Place,
             "parts-assembly-place",
@@ -143,10 +145,6 @@ pub(super) fn begin_place_assembly_on_board(
                 placement_id.clone(),
                 part_ids,
             ),
-        );
-        let _ = (view_generation, project_id, session_epoch);
-        observe_intent(
-            &mut pending,
             AssemblyAction::BoardAssembly {
                 scope: scope.clone(),
                 board_id: scope.board_id.clone(),
@@ -167,13 +165,15 @@ pub(super) fn begin_apply_assembly_to_matrix(
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
-    pending_edits: PendingEditSignals<AssemblyKey>,
-    mut pending: Signal<Vec<AssemblyAction>>,
+    pending_edits: AssemblyTickets,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || pending_edits.is_pending(&AssemblyKey::Matrix) || workspace() != "Parts" {
+    if preparing()
+        || pending_edits.borrow().is_pending(&AssemblyKey::Matrix)
+        || workspace() != "Parts"
+    {
         return;
     }
     let Some(scope) = scope else {
@@ -272,7 +272,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;
         }
-        pending_edits.begin_one_shot(
+        pending_edits.borrow_mut().begin_with(
             &runtime,
             AssemblyKey::Matrix,
             "parts-assembly-matrix-apply",
@@ -284,7 +284,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
                 definitions,
                 operation_id.0.to_string(),
             ),
+            AssemblyAction::Matrix(matrix_id),
         );
-        observe_intent(&mut pending, AssemblyAction::Matrix(matrix_id));
     });
 }

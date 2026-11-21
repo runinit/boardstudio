@@ -152,7 +152,16 @@ pub(super) fn on_component_inspector_action_handler(
     inspect_open: Signal<bool>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::LayoutComponentInspectorAction> {
+    use boardstudio_web_ui_shared::draft_edits::FieldView;
     let component_inspector_pending_edits = layout_state.component_inspector_edits();
+    let (x, y, margin, _) = layout_state.component_inspector_drafts();
+    let (x_failure, y_failure, margin_failure) = layout_state.component_inspector_field_failures();
+    let views = layout_component_edits::ComponentEditViews {
+        x: FieldView::new(x, x_failure),
+        y: FieldView::new(y, y_failure),
+        margin: FieldView::new(margin, margin_failure),
+        actions: layout_state.component_inspector_pending_controls(),
+    };
     EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -164,7 +173,7 @@ pub(super) fn on_component_inspector_action_handler(
                 &owner,
                 &lifetime,
                 (workspace, inspect_open),
-                component_inspector_pending_edits,
+                (component_inspector_pending_edits, views),
                 action,
             )
         }
@@ -177,7 +186,7 @@ pub(super) fn on_companion_placement_action_handler(
     workspace: Signal<&'static str>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::CompanionPlacementAction> {
-    let (_companion_placement_pending, mut companion_placement_error, companion_placement_edits) =
+    let (companion_placement_pending, mut companion_placement_error, companion_placement_edits) =
         layout_state.companion_placement_controls();
     EventHandler::new({
         let runtime = runtime.clone();
@@ -208,7 +217,8 @@ pub(super) fn on_companion_placement_action_handler(
                     action.mode,
                     action.tweak,
                 ),
-                None,
+                boardstudio_web_ui_shared::draft_edits::EditDisplay::default()
+                    .disabling(companion_placement_pending),
             );
         }
     })

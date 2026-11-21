@@ -2,19 +2,19 @@
 //!
 //! A controller's requests all belong to the Scope and Scope generation they were
 //! admitted under. A changed owner retires the observations silently while their
-//! Session edits still run. Mounted fields keep their bindings across owner changes.
-use crate::pending_edit_helpers::PendingEditSignals;
+//! Session edits still run. The controller can attach the same mounted field to a new submission.
+use crate::draft_edits::DraftEdits;
 use boardstudio_application::Scope;
 
 pub struct OwnedEdits<K: PartialEq + 'static> {
-    pub helper: PendingEditSignals<K>,
+    pub edits: DraftEdits<K>,
     owner: Option<(Option<Scope>, u64)>,
 }
 
 impl<K: PartialEq + 'static> Default for OwnedEdits<K> {
     fn default() -> Self {
         Self {
-            helper: PendingEditSignals::new(),
+            edits: DraftEdits::default(),
             owner: None,
         }
     }
@@ -36,7 +36,7 @@ impl<K: PartialEq + 'static> OwnedEdits<K> {
             return;
         }
         if self.owner.replace((scope.cloned(), generation)).is_some() {
-            self.helper.retire_owner();
+            self.edits.clear();
         }
     }
 }
