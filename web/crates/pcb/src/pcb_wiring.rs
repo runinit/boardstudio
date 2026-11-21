@@ -24,6 +24,8 @@ mod mode;
 mod part_connections;
 mod part_input_settings;
 mod part_net_admission;
+mod part_net_identity;
+pub use part_net_identity::PartNetEditIdentity;
 mod pins;
 mod remap;
 use crate::firmware_position_projection;
@@ -40,16 +42,6 @@ pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wir
 pub use part_input_settings::PartInputActions;
 pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PartNetEditIdentity {
-    pub board_id: String,
-    pub ui_scope: Scope,
-    pub part_id: String,
-    pub token: boardstudio_application::SnapshotToken,
-    pub revision: u64,
-    pub generation: u64,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartNetEditAction {

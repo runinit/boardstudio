@@ -1,7 +1,6 @@
 //! Table-driven controller tests for PCB wiring resolution and part-net admission.
 //!
-//! Mounted scenarios share one probe host and notice helper; the pure
-//! part-net identity check stays a table-driven case list.
+//! Mounted scenarios share one probe host and notice helper.
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core_mechanical::electrical::{
@@ -310,40 +309,4 @@ async fn mounted_resolution_ignores_old_same_board_reply_after_controller_revisi
                 && plan.revision == 11
                 && plan.controller_part_id.as_deref() == Some("left/U2")
     ));
-}
-fn identity(
-    board_id: &str,
-    part_id: &str,
-    token: u64,
-    revision: u64,
-    generation: u64,
-) -> PartNetEditIdentity {
-    PartNetEditIdentity {
-        board_id: board_id.into(),
-        ui_scope: Scope {
-            session_epoch: SessionEpoch(3),
-            document_id: "project".into(),
-            board_id: board_id.into(),
-            instance_id: None,
-        },
-        part_id: part_id.into(),
-        token: SnapshotToken(token),
-        revision,
-        generation,
-    }
-}
-
-#[wasm_bindgen_test]
-fn rendered_part_action_is_rejected_after_board_selection_or_snapshot_changes() {
-    let rendered = identity("left", "left-J2", 7, 12, 4);
-    for current in [
-        identity("right", "left-J2", 7, 12, 4),
-        identity("left", "left-SW1", 7, 12, 4),
-        identity("left", "left-J2", 8, 12, 4),
-        identity("left", "left-J2", 7, 13, 4),
-        identity("left", "left-J2", 7, 12, 5),
-    ] {
-        assert!(!request_matches_current_part(&rendered, &current));
-    }
-    assert!(request_matches_current_part(&rendered, &rendered));
 }

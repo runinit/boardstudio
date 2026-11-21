@@ -107,6 +107,9 @@ pub(crate) mod pcb_wiring {
     #[allow(unused_imports)]
     use std::{rc::Rc, sync::Arc};
 
+    #[path = "part_net_identity.rs"]
+    mod part_net_identity;
+
     #[path = "mode.rs"]
     mod mode;
 

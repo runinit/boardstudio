@@ -1,5 +1,6 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
 use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
+use super::layout_align_logic::{make_edit, workspace_route_matches};
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
     TreeContext,
@@ -9,8 +10,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 #[cfg(test)]
-use boardstudio_model::model::{EditCommand, EditPhase};
-use boardstudio_model::model::{EditOperation, Part, ProjectDoc, Vec2};
+use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_model::model::{Part, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
@@ -352,10 +353,6 @@ pub fn use_canvas_align(
         on_reference,
         on_align,
     }
-}
-
-fn workspace_route_matches(current: &str, owner: &str) -> bool {
-    matches!(owner, "Layout" | "PCB") && current == owner
 }
 
 #[path = "layout_align_controller/tests.rs"]
@@ -749,70 +746,6 @@ fn align_resolver(
         };
         Resolution::submit(target_ids, operation)
     })
-}
-
-fn make_edit(
-    document: &ProjectDoc,
-    context: &TreeContext,
-    moving_ids: &[String],
-    delta: Vec2,
-) -> Option<(EditOperation, Vec<String>)> {
-    match context {
-        TreeContext::Matrix { matrix_id } => {
-            document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == *matrix_id)?;
-            Some((
-                EditOperation::SetMatrixPlacement {
-                    matrix_id: matrix_id.clone(),
-                    change: boardstudio_model::model::MatrixPlacementChange::MatrixTranslation {
-                        delta,
-                    },
-                },
-                vec![matrix_id.clone()],
-            ))
-        }
-        TreeContext::Column { matrix_id, column } => {
-            document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == *matrix_id)?;
-            Some((
-                EditOperation::SetMatrixPlacement {
-                    matrix_id: matrix_id.clone(),
-                    change: boardstudio_model::model::MatrixPlacementChange::ColumnTranslation {
-                        column: *column,
-                        delta,
-                    },
-                },
-                vec![matrix_id.clone()],
-            ))
-        }
-        TreeContext::Row { .. } => None,
-        TreeContext::Key { .. } | TreeContext::Component { .. } => {
-            let positions = moving_ids
-                .iter()
-                .map(|id| {
-                    let part = document.parts.iter().find(|part| part.id == *id)?;
-                    Some(boardstudio_model::model::Position {
-                        id: id.clone(),
-                        at: Vec2 {
-                            x: part.pose.at.x + delta.x,
-                            y: part.pose.at.y + delta.y,
-                        },
-                    })
-                })
-                .collect::<Option<Vec<_>>>()?;
-            Some((EditOperation::MoveParts { positions }, moving_ids.to_vec()))
-        }
-        TreeContext::Board { .. }
-        | TreeContext::LayoutGroup { .. }
-        | TreeContext::Outline { .. }
-        | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. }
-        | TreeContext::MountedModule { .. } => None,
-    }
 }
 
 fn settle_pending(
