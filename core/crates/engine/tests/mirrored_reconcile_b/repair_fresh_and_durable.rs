@@ -159,291 +159,134 @@ fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
 }
 
 #[test]
-fn consolidated_fresh_refuses_missing_historical_constraint_endpoint() {
-    let (mut before, _, context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().unwrap();
-    let Constraint::Offset { target_part_id, .. } = before
-        .constraints
-        .iter_mut()
-        .find(|c| c.id() == "retained-second-key-offset")
-        .unwrap()
-    else {
-        unreachable!()
-    };
-    *target_part_id = "missing-historical-endpoint".into();
-    assert!(
-        !before
-            .parts
-            .iter()
-            .any(|p| p.id == "missing-historical-endpoint")
-    );
-    assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&before).is_ok());
-    for matrix in &before.matrices {
-        boardstudio_core_kernel::matrix::valid_matrix(matrix, &before).unwrap();
+fn consolidated_fresh_refusals_preserve_history_and_exact_identity() {
+    // Consolidated operation-sequence invariant: every row starts from the same
+    // fresh-identity source, derives the mirror map from that source, mutates one
+    // input, and must be refused while leaving caller history untouched. The
+    // shared runner sources the mirror map, snapshots, and history assertions so
+    // the rows only declare their mutation and expected refusal.
+    for (name, expect) in [
+        (
+            "missing historical constraint endpoint",
+            "must reference exactly one actual Part",
+        ),
+        (
+            "missing actual child parent context",
+            "parent identity",
+        ),
+        (
+            "phantom historical association",
+            "r99c99",
+        ),
+        (
+            "duplicate same-board registration",
+            "exactly one",
+        ),
+        (
+            "non-finite historical local pose",
+            "non-finite geometry",
+        ),
+    ] {
+        match name {
+            "missing historical constraint endpoint" => {
+                run_fresh_identity_refusal(
+                |before, _| {
+                    let Constraint::Offset { target_part_id, .. } = before
+                        .constraints
+                        .iter_mut()
+                        .find(|c| c.id() == "retained-second-key-offset")
+                        .unwrap()
+                    else {
+                        unreachable!()
+                    };
+                    *target_part_id = "missing-historical-endpoint".into();
+                    assert!(
+                        !before
+                            .parts
+                            .iter()
+                            .any(|p| p.id == "missing-historical-endpoint")
+                    );
+                    assert!(
+                        boardstudio_core_mechanical::mechanical::halves::validate_document(
+                            &before
+                        )
+                        .is_ok()
+                    );
+                },
+                expect,
+            );
+            }
+            "missing actual child parent context" => {
+                run_fresh_identity_refusal(
+                |_, context| {
+                    let child = context
+                        .associations
+                        .iter_mut()
+                        .find(|a| a.source_id == "matrix/source-matrix/r1c3/diode")
+                        .unwrap();
+                    child.parent_source_id = None;
+                    child.parent_mirror_id = None;
+                },
+                expect,
+            );
+            }
+            "phantom historical association" => {
+                run_fresh_identity_refusal(
+                |before, context| {
+                    let mut phantom = context
+                        .associations
+                        .iter()
+                        .find(|a| a.source_id == "matrix/source-matrix/r0c0")
+                        .unwrap()
+                        .clone();
+                    phantom.source_id = "matrix/source-matrix/r99c99".into();
+                    phantom.mirror_id = "matrix/mirror-matrix/r99c99".into();
+                    assert!(
+                        !before
+                            .parts
+                            .iter()
+                            .any(|p| p.id == phantom.source_id || p.id == phantom.mirror_id)
+                    );
+                    context.associations.push(phantom);
+                },
+                expect,
+            );
+            }
+            "duplicate same-board registration" => {
+                run_fresh_identity_refusal(
+                |before, _| {
+                    let id = "matrix/mirror-matrix/r1c1/diode";
+                    before
+                        .boards
+                        .iter_mut()
+                        .find(|b| b.id == "mirror-board")
+                        .unwrap()
+                        .part_ids
+                        .push(id.into());
+                },
+                expect,
+            );
+            }
+            "non-finite historical local pose" => {
+                run_fresh_identity_refusal(
+                |before, _| {
+                    before
+                        .parts
+                        .iter_mut()
+                        .find(|p| p.id == "matrix/mirror-matrix/r1c1/diode")
+                        .unwrap()
+                        .pose
+                        .at
+                        .x = f64::INFINITY;
+                },
+                expect,
+            );
+            }
+            _ => unreachable!("unknown fresh-identity refusal row {name}"),
+        }
     }
-
-    let mirror_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-
-    assert!(
-        result.is_err(),
-        "valid-before touched constraint endpoints must exist before identity success"
-    );
 }
 
-#[test]
-fn consolidated_fresh_refuses_missing_actual_child_parent_context() {
-    let (before, _, mut context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().unwrap();
-    let child = context
-        .associations
-        .iter_mut()
-        .find(|a| a.source_id == "matrix/source-matrix/r1c3/diode")
-        .unwrap();
-    assert_eq!(
-        child.parent_source_id.as_deref(),
-        Some("matrix/source-matrix/r1c3")
-    );
-    assert_eq!(
-        child.parent_mirror_id.as_deref(),
-        Some("matrix/mirror-matrix/r1c3")
-    );
-    child.parent_source_id = None;
-    child.parent_mirror_id = None;
-
-    let mirror_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-
-    assert!(
-        result.is_err(),
-        "a canonical historical child cannot lose its actual parent closure"
-    );
-}
-
-#[test]
-fn consolidated_fresh_refuses_phantom_historical_association() {
-    let (before, _, mut context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().unwrap();
-    let mut phantom = context
-        .associations
-        .iter()
-        .find(|a| a.source_id == "matrix/source-matrix/r0c0")
-        .unwrap()
-        .clone();
-    phantom.source_id = "matrix/source-matrix/r99c99".into();
-    phantom.mirror_id = "matrix/mirror-matrix/r99c99".into();
-    assert!(
-        !before
-            .parts
-            .iter()
-            .any(|p| p.id == phantom.source_id || p.id == phantom.mirror_id)
-    );
-    context.associations.push(phantom);
-
-    let mirror_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-
-    assert!(
-        result.is_err(),
-        "historical association identities must bind actual members/owners, including extra records"
-    );
-}
-
-#[test]
-fn consolidated_fresh_refuses_duplicate_same_board_registration() {
-    let (mut before, _, context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().unwrap();
-    let id = "matrix/mirror-matrix/r1c1/diode";
-    assert_eq!(
-        before
-            .boards
-            .iter()
-            .flat_map(|b| &b.part_ids)
-            .filter(|p| p.as_str() == id)
-            .count(),
-        1
-    );
-    before
-        .boards
-        .iter_mut()
-        .find(|b| b.id == "mirror-board")
-        .unwrap()
-        .part_ids
-        .push(id.into());
-    assert_eq!(
-        before
-            .boards
-            .iter()
-            .flat_map(|b| &b.part_ids)
-            .filter(|p| p.as_str() == id)
-            .count(),
-        2
-    );
-
-    let mirror_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-
-    assert!(
-        result.is_err(),
-        "Board final owner must have exactly one actual registration, even within one board"
-    );
-}
-
-#[test]
-fn consolidated_fresh_refuses_nonfinite_historical_local_pose() {
-    let (mut before, _, context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().unwrap();
-    let part = before
-        .parts
-        .iter_mut()
-        .find(|p| p.id == "matrix/mirror-matrix/r1c1/diode")
-        .unwrap();
-    part.pose.at.x = f64::INFINITY;
-    assert!(!part.pose.at.x.is_finite());
-
-    let mirror_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-
-    assert!(
-        result.is_err(),
-        "historical retained Local geometry must be finite before every success"
-    );
-}
 
 /// The finite check is one `Constraint::is_finite`, so every kind a transition can meet
 /// must be refused by it with the message that names the constraint.
