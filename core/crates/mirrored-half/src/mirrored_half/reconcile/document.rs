@@ -10,15 +10,13 @@ use super::{
     validate_local_circuit_targets,
 };
 use crate::model::{
-    MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Part, Pose2,
-    ProjectDoc, Vec2,
+    MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Pose2, ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 mod independent;
-mod targets;
+use super::hosted::HostedTargets;
 use independent::{IndependentStage, stage_independent_transitions};
-use targets::{CorrespondenceTargets, correspondence_targets};
 
 #[doc(hidden)]
 pub fn reconcile(
@@ -45,17 +43,7 @@ fn reconcile_projection(
     projection: &Projection,
     explicit: bool,
 ) -> Result<Vec<String>, String> {
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The mirrored hardware configuration is unavailable".to_owned())?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or_else(|| format!("The mirrored pair {pair_id:?} is unavailable"))?;
-    if pairs.next().is_some() {
-        return Err(format!("The mirrored pair {pair_id:?} is ambiguous"));
-    }
+    let pair = super::selected_pair(document, pair_id, "mirrored")?;
     let halves = pair
         .halves
         .as_ref()
@@ -312,13 +300,17 @@ fn reconcile_projection(
         &mut independent_part_targets,
     )?;
 
-    let CorrespondenceTargets {
-        part_targets,
-        reference_part_targets,
-        omitted_part_sources,
-        net_targets,
-        reference_net_targets,
-    } = correspondence_targets(document, halves, &circuit_links, projection)?;
+    let (parts, nets) = HostedTargets::derive(document, halves, &circuit_links, projection)?;
+    let HostedTargets {
+        linked: part_targets,
+        references: reference_part_targets,
+        omitted: omitted_part_sources,
+    } = parts;
+    let HostedTargets {
+        linked: net_targets,
+        references: reference_net_targets,
+        ..
+    } = nets;
     let replayed_circuit_additions: BTreeSet<_> = projection
         .hosted_transitions
         .iter()
@@ -477,40 +469,17 @@ fn reconcile_projection(
                 .ok_or_else(|| {
                     format!("The mirrored circuit member {target_id:?} is unavailable")
                 })?;
-            let correspondence = MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: member_id.clone(),
-                mirror_id: target_id.clone(),
-            };
-            *target_part = project_part(
+            *target_part = crate::mirrored_half::derive::part(
                 source_part,
-                target_part,
-                &correspondence,
+                target_id,
+                &target_part.definition_id,
+                &target_part.reference,
                 pair.mapping,
-                super::super::derive::is_controller(
+                crate::mirrored_half::derive::is_controller(
                     &document.definitions,
                     &source_part.definition_id,
                 ),
-            )?;
-        }
-        for source_member_id in &source.part_ids {
-            let Some(target_id) = part_targets.get(source_member_id) else {
-                continue;
-            };
-            let source_part = document
-                .parts
-                .iter()
-                .find(|part| part.id == *source_member_id)
-                .ok_or_else(|| format!("The circuit member {source_member_id:?} is unavailable"))?;
-            let target_part = staged
-                .parts
-                .iter()
-                .find(|part| part.id == *target_id)
-                .ok_or_else(|| {
-                    format!("The mirrored circuit member {target_id:?} is unavailable")
-                })?;
+            );
             let source_namespace = format!("embedded/{source_id}/");
             let Some(suffix) = source_part.definition_id.strip_prefix(&source_namespace) else {
                 continue;

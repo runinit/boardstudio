@@ -145,39 +145,17 @@ pub(super) fn stage_independent_transitions(
                 "The independent target {mirror_id:?} has conflicting mirror-board registration"
             ));
         }
-        let correspondence = MirroredCorrespondence {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: MirroredItemKind::Part,
-            source_id: source_id.clone(),
-            mirror_id: mirror_id.clone(),
-        };
-        let target_seed = existing_target.cloned().unwrap_or_else(|| Part {
-            id: mirror_id.clone(),
-            definition_id: mirror_definition_id.clone(),
-            reference: mirror_reference.clone(),
-            pose: Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            },
-            side: source.side.clone(),
-            anchor: None,
-            keycap: None,
-            outline: None,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
-        let projected = project_part(
+        let projected = crate::mirrored_half::derive::part(
             source,
-            &target_seed,
-            &correspondence,
+            mirror_id,
+            mirror_definition_id,
+            mirror_reference,
             mapping,
-            super::super::super::derive::is_controller(
+            crate::mirrored_half::derive::is_controller(
                 &document.definitions,
                 &source.definition_id,
             ),
-        )?;
+        );
         if let Some(staged_target) = staged.parts.iter_mut().find(|part| part.id == *mirror_id) {
             *staged_target = projected;
         } else {

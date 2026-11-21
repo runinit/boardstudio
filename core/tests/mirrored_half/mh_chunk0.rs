@@ -1,73 +1,38 @@
 use super::*;
 
 #[test]
-fn a_vertical_axis_map_reflects_every_part_by_the_pair_rule() {
-    let synthetic_input = synthetic_half::document();
-    let (mut engine, seed) = seed(&synthetic_input, "left");
-    let reply = create(
-        &mut engine,
-        &seed,
-        "pair-flat",
-        "left",
-        new_board("mirror", "mirror"),
+fn creation_reflects_every_part_for_axis_rotated_and_seeded_maps() {
+    let input = synthetic_half::document();
+    let mut maps = vec![
         mapping(300.0),
-    )
-    .unwrap();
-    assert_reflects_every_part(&reply["document"], "pair-flat", "synthetic");
-}
-
-#[test]
-fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
-    let synthetic_input = synthetic_half::document();
-    for (pair_id, map) in [
-        (
-            "pair-axis",
-            json!({"at": {"x": 300.0, "y": 0.0}, "rotation": 0.0}),
-        ),
-        (
-            "pair-rotated",
-            json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
-        ),
-    ] {
-        let (mut engine, seed) = seed(&synthetic_input, "left");
-        let source = part(&seed, "left/U1");
+        json!({"at":{"x":310.0,"y":42.0},"rotation":27.0}),
+    ];
+    let mut seed_value = 109_u32;
+    let mut coordinate = || {
+        seed_value = seed_value.wrapping_mul(1664525).wrapping_add(1013904223);
+        f64::from(seed_value % 721) - 360.0
+    };
+    for _ in 0..8 {
+        maps.push(json!({"at":{"x":coordinate(),"y":coordinate()},"rotation":coordinate()}));
+    }
+    for map in maps {
+        let (mut engine, seed) = seed(&input, "left");
         let reply = create(
             &mut engine,
             &seed,
-            pair_id,
+            "pair",
             "left",
             new_board("mirror", "mirror"),
             map.clone(),
         )
         .unwrap();
-        let mirrored = part(&reply["document"], "mirror/U1");
-        let expected = reflected_point(
-            &map,
-            (
-                source["pose"]["at"]["x"].as_f64().unwrap(),
-                source["pose"]["at"]["y"].as_f64().unwrap(),
-            ),
-        );
-        assert_point(
-            (
-                mirrored["pose"]["at"]["x"].as_f64().unwrap(),
-                mirrored["pose"]["at"]["y"].as_f64().unwrap(),
-            ),
-            expected,
-            pair_id,
-        );
-        let source_heading = source["pose"]["rotation"].as_f64().unwrap();
-        // U1 is a controller, so it keeps the reflected heading without the half turn.
-        let expected_heading =
-            (map["rotation"].as_f64().unwrap() - source_heading).rem_euclid(360.0);
-        assert!(angles_match(
-            mirrored["pose"]["rotation"].as_f64().unwrap(),
-            expected_heading
-        ));
-        assert_eq!(mirrored["side"], source["side"]);
+        let document = &reply["document"];
+        assert_eq!(pair(document, "pair")["mapping"], map);
+        assert_eq!(part(document, "left/U1"), part(&seed, "left/U1"));
+        assert_reflects_every_part(document, "pair", &map.to_string());
         assert_eq!(
-            mirrored["generatorParameters"],
-            source["generatorParameters"]
+            part(document, "mirror/U1")["generatorParameters"],
+            part(&seed, "left/U1")["generatorParameters"]
         );
     }
 }

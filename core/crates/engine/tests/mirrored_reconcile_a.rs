@@ -4,9 +4,12 @@
 // each submodule inherits this crate's imports via `use super::*`.
 #[path = "support/base.rs"]
 pub mod base_fixtures;
+#[path = "mirrored_reconcile_a/fixture_rows.rs"]
+pub mod fixture_rows;
 #[path = "support/reconcile.rs"]
 pub mod reconcile_fixtures;
 pub mod support;
+use fixture_rows::{FixturePair, FixtureRows};
 
 use base_fixtures::*;
 use boardstudio_core_mirrored_half::mirrored_half::reconcile::*;

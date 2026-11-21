@@ -309,10 +309,7 @@ fn omitted_absence_and_source_identity_survive_document_round_trip() {
             .iter()
             .all(|board| !board.part_ids.iter().any(|id| id == "mirror-part"))
     );
-    let halves = decoded.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = decoded.first_halves();
     let exception = &halves.exceptions[0];
     assert_eq!(halves.overlay_source(exception), Some("source-part"));
     assert_eq!(exception.mirror_id, "mirror-part");
@@ -568,11 +565,7 @@ fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
             "expected four generated closure holes on {board_id}"
         );
         let hole_ids: BTreeSet<_> = holes.iter().map(|part| part.id.as_str()).collect();
-        let owner = document
-            .boards
-            .iter()
-            .find(|board| board.id == board_id)
-            .unwrap();
+        let owner = document.boards.by_id(board_id);
         let registered: BTreeSet<_> = owner.part_ids.iter().map(String::as_str).collect();
         assert_eq!(
             registered, hole_ids,

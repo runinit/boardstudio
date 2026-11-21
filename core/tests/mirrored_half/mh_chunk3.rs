@@ -1,22 +1,6 @@
 use super::*;
 
 #[test]
-fn a_rotated_pair_map_reflects_keys_companions_and_other_parts_by_the_pair_rule() {
-    let synthetic_input = synthetic_half::document();
-    let (mut engine, seed) = seed(&synthetic_input, "left");
-    let reply = create(
-        &mut engine,
-        &seed,
-        "pair-rotated",
-        "left",
-        new_board("mirror", "mirror"),
-        json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
-    )
-    .unwrap();
-    assert_reflects_every_part(&reply["document"], "pair-rotated", "synthetic");
-}
-
-#[test]
 fn mirror_only_part_refuses_a_reuse_board_pair_target() {
     let synthetic_input = synthetic_half::with_construction_features(synthetic_half::document());
     let (mut engine, seed) = seed(&synthetic_input, "left");

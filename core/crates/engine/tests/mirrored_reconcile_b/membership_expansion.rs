@@ -14,11 +14,7 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
         additions,
         final_owners,
     ) = membership_expansion_fixture();
-    let source_matrix = post_source
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
+    let source_matrix = post_source.matrices.by_id("source-matrix");
     let before_associations = context.associations.len();
 
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
@@ -37,12 +33,7 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
     // Operation-sequence invariants, all derived from the source operation:
     // the mirror frame follows the source frame, every slot is an exact
     // row/column identity, and the association delta equals the addition count.
-    let mirror = output
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror = output.draft.matrices.by_id("mirror-matrix");
     assert_eq!(
         (mirror.rows, mirror.columns),
         (source_matrix.rows, source_matrix.columns),
@@ -52,13 +43,7 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
     assert_exact_matrix_identities(&output.draft, "source-matrix");
     for addition in &additions {
         assert_eq!(
-            output
-                .draft
-                .parts
-                .iter()
-                .find(|part| part.id == addition.mirror_id)
-                .unwrap()
-                .reference,
+            output.draft.parts.by_id(&addition.mirror_id).reference,
             addition.mirror_reference
         );
     }
@@ -117,12 +102,7 @@ fn membership_transition_mutated_row_slot_breaks_exact_identity() {
 #[test]
 fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     let assert_pose = |document: &ProjectDoc, id: &str, expected: Pose2| {
-        let actual = document
-            .parts
-            .iter()
-            .find(|part| part.id == id)
-            .unwrap()
-            .pose;
+        let actual = document.parts.by_id(id).pose;
         assert!(
             (actual.at.x - expected.at.x).abs() < 1e-9,
             "{id}: {actual:?}"
@@ -154,12 +134,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         crate::support::test_dispatch().apply_unscripted,
     )
     .expect("the mirror fixture narrows to three columns");
-    let mut initial_source = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut initial_source = before.matrices.by_id("source-matrix").clone();
     initial_source.origin = Vec2 { x: 3.0, y: -2.0 };
     initial_source.edge_gap = Some(Vec2 { x: 4.25, y: 6.5 });
     boardstudio_core_kernel::matrix::set_matrix(&mut before, &initial_source)
@@ -171,16 +146,8 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         .find(|association| association.kind == MirroredItemKind::Matrix)
         .unwrap();
     let projected_initial = project_matrix(
-        before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap(),
-        before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap(),
+        before.matrices.by_id("source-matrix"),
+        before.matrices.by_id("mirror-matrix"),
         matrix_association,
         context.mapping,
     )
@@ -199,24 +166,14 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             .unwrap();
         cell.offset = Some(Vec2 { x, y });
         cell.rotation = Some(-90.0);
-        let diode = cell
-            .assemblies
-            .iter_mut()
-            .find(|assembly| assembly.id == "diode")
-            .unwrap();
+        let diode = cell.assemblies.by_id_mut("diode");
         diode.offset = Vec2 { x: 2.0, y: 3.0 };
         diode.rotation = Some(30.0);
         diode.side = Some(Side::Back);
     }
     boardstudio_core_kernel::matrix::set_matrix(&mut before, &initial_mirror)
         .expect("both Local keys and diode children are materialized independently");
-    let mirror_members_now = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .clone();
+    let mirror_members_now = before.matrices.by_id("mirror-matrix").part_ids.clone();
     before.nets.push(boardstudio_model::model::Net {
         id: "net-clean".into(),
         name: "PROBE OMITTED LINKED".into(),
@@ -248,17 +205,11 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             }],
         });
     }
-    before
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
-        .net_ids
-        .extend([
-            "net-clean".into(),
-            "net-local-r0".into(),
-            "net-local-r1".into(),
-        ]);
+    before.boards.by_id_mut("mirror-board").net_ids.extend([
+        "net-clean".into(),
+        "net-local-r0".into(),
+        "net-local-r1".into(),
+    ]);
     before
         .constraints
         .push(boardstudio_model::model::Constraint::Offset {
@@ -338,9 +289,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         });
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .outline_ids
         .push("outline-mirror".into());
     before.outline.retain(|feature| {
@@ -348,9 +297,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     });
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .outline_ids
         .retain(|id| id != "retained-keys-envelope");
     if let Some(boardstudio_model::model::Constraint::Offset { offset, .. }) = before.constraints.iter_mut()
@@ -358,24 +305,9 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     {
         *offset = Vec2 { x: 36.0, y: 68.0 };
     }
-    let source_members = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .part_ids
-        .clone();
-    let mirror_members = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .clone();
-    let halves = before.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let source_members = before.matrices.by_id("source-matrix").part_ids.clone();
+    let mirror_members = before.matrices.by_id("mirror-matrix").part_ids.clone();
+    let halves = before.first_halves_mut();
     halves.correspondences.retain(|association| {
         association.kind == MirroredItemKind::Matrix
             || source_members.contains(&association.source_id)
@@ -385,10 +317,10 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             || source_members.contains(&association.source_id)
                 && mirror_members.contains(&association.mirror_id)
     });
+    context.pair_right = halves.clone();
     context
         .owners
         .retain(|id, _| before.parts.iter().any(|part| part.id == *id));
-    context.pair_right = halves.clone();
     for (source_id, state) in [
         ("matrix/source-matrix/r0c1", TransitionState::Local),
         ("matrix/source-matrix/r0c1/diode", TransitionState::Local),
@@ -522,9 +454,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             assert_eq!(
                 document
                     .matrices
-                    .iter()
-                    .find(|matrix| matrix.id == "mirror-matrix")
-                    .unwrap()
+                    .by_id("mirror-matrix")
                     .part_ids
                     .iter()
                     .filter(|member| *member == id)
@@ -608,16 +538,8 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     };
     assert_local_retention(&before, "before");
 
-    let source_before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror_before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let source_before = before.matrices.by_id("source-matrix");
+    let mirror_before = before.matrices.by_id("mirror-matrix");
     let mut expanded_source = source_before.clone();
     expanded_source.columns = 4;
     expanded_source.origin = Vec2 { x: 5.0, y: 1.0 };
@@ -680,11 +602,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
                 format!("CHAIN_M_D_R{row}C3"),
             ),
         ] {
-            let source_part = expanded_source_document
-                .parts
-                .iter()
-                .find(|part| part.id == source_id)
-                .unwrap();
+            let source_part = expanded_source_document.parts.by_id(&source_id);
             additions.push(PlannedAddition {
                 source_id,
                 mirror_id,
@@ -731,12 +649,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     })
     .expect("the approved expansion removes the initial Omitted companion and adds four planned identities");
     assert_local_retention(&expanded.draft, "expanded");
-    let cleaned_net = expanded
-        .draft
-        .nets
-        .iter()
-        .find(|net| net.id == "net-clean")
-        .unwrap();
+    let cleaned_net = expanded.draft.nets.by_id("net-clean");
     assert_eq!(
         cleaned_net.pins,
         vec![
@@ -759,9 +672,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     let repeat_source_map: BTreeMap<_, _> = expanded
         .draft
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -769,9 +680,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     let repeat_mirror_map: BTreeMap<_, _> = expanded
         .draft
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -805,16 +714,8 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             offset: Vec2 { x: 72.0, y: -59.0 },
             rotation: 60.0,
         });
-    let probe = shrink_before
-        .parts
-        .iter()
-        .find(|part| part.id == "geometry-probe")
-        .unwrap();
-    let linked_endpoint = shrink_before
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r1c2/diode")
-        .unwrap();
+    let probe = shrink_before.parts.by_id("geometry-probe");
+    let linked_endpoint = shrink_before.parts.by_id("matrix/mirror-matrix/r1c2/diode");
     assert_eq!(
         probe.pose,
         Pose2 {
@@ -834,11 +735,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     assert!((linked_endpoint.pose.at.y - probe.pose.at.y + 59.0).abs() < 1e-9);
 
     let mut trimmed_source = shrink_before.clone();
-    let source_matrix = shrink_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
+    let source_matrix = shrink_before.matrices.by_id("source-matrix");
     let mut trimmed = source_matrix.clone();
     trimmed.columns = 2;
     trimmed.cells.retain(|cell| cell.column < 2);
@@ -857,11 +754,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
             (id.clone(), (column < 2).then(|| id.clone()))
         })
         .collect();
-    let mirror_matrix = shrink_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror_matrix = shrink_before.matrices.by_id("mirror-matrix");
     let mirror_identity_map: BTreeMap<_, _> = mirror_matrix
         .part_ids
         .iter()
@@ -918,12 +811,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     })
     .expect("the private expansion draft and full context chain into the two-column trim");
     assert_local_retention(&trimmed.draft, "trimmed");
-    let final_mirror = trimmed
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let final_mirror = trimmed.draft.matrices.by_id("mirror-matrix");
     assert_eq!((final_mirror.rows, final_mirror.columns), (2, 2));
     assert_eq!(final_mirror.part_ids.len(), 8);
     assert_eq!(
@@ -999,13 +887,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         4
     );
     assert_eq!(
-        trimmed
-            .draft
-            .nets
-            .iter()
-            .find(|net| net.id == "net-clean")
-            .unwrap()
-            .pins,
+        trimmed.draft.nets.by_id("net-clean").pins,
         vec![boardstudio_model::model::Pin {
             part_id: "geometry-probe".into(),
             pad_id: "pad-two".into()
@@ -1042,12 +924,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     assert_eq!(retired_omitted_child.state, TransitionState::Omitted);
     assert!(!retired_omitted_child.explicit_state);
     assert_eq!(trimmed.context.pair_right, context.pair_right);
-    let final_source = trimmed
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
+    let final_source = trimmed.draft.matrices.by_id("source-matrix");
     let repeat_source_map: BTreeMap<_, _> = final_source
         .part_ids
         .iter()

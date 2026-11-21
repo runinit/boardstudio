@@ -9,9 +9,7 @@ fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
     accepted.parts.retain(|part| part.id != "right/U1");
     accepted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/U1");
     let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
@@ -53,9 +51,7 @@ fn open_repairs_a_missing_framed_linked_part_before_validating_its_endpoint() {
     accepted.parts.retain(|item| item.id != "right/RST");
     accepted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/RST");
 
@@ -90,9 +86,7 @@ fn open_does_not_repair_a_missing_part_for_a_stale_or_omitted_framed_binding() {
     stale.parts.retain(|item| item.id != "right/RST");
     stale
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/RST");
     let stale_error = crate::support::prepare_open(&stale, &[]).unwrap_err();
@@ -114,15 +108,11 @@ fn open_does_not_repair_a_missing_part_for_a_stale_or_omitted_framed_binding() {
     omitted.parts.retain(|item| item.id != "right/RST");
     omitted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/RST");
-    omitted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    omitted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Part,
@@ -487,9 +477,7 @@ fn open_preparation_restores_a_missing_part_with_one_expected_board_registration
     assert_eq!(
         prepared
             .boards
-            .iter()
-            .find(|board| board.id == "right")
-            .unwrap()
+            .by_id("right")
             .part_ids
             .iter()
             .filter(|id| *id == "right/U1")
@@ -507,9 +495,7 @@ fn open_preparation_refuses_conflicting_or_repeated_missing_part_registrations()
     repeated.parts.retain(|part| part.id != "right/U1");
     repeated
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .push("right/U1".into());
     let repeated_error = crate::support::prepare_open(&repeated, &[]).unwrap_err();
@@ -519,16 +505,12 @@ fn open_preparation_refuses_conflicting_or_repeated_missing_part_registrations()
     misplaced.parts.retain(|part| part.id != "right/U1");
     misplaced
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/U1");
     misplaced
         .boards
-        .iter_mut()
-        .find(|board| board.id == "left")
-        .unwrap()
+        .by_id_mut("left")
         .part_ids
         .push("right/U1".into());
     let misplaced_error = crate::support::prepare_open(&misplaced, &[]).unwrap_err();
@@ -538,10 +520,7 @@ fn open_preparation_refuses_conflicting_or_repeated_missing_part_registrations()
 #[test]
 fn open_preparation_preserves_a_missing_omitted_matrix() {
     let mut accepted = pair_document();
-    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = accepted.first_halves_mut();
     let matrix = halves
         .correspondences
         .iter()
@@ -550,9 +529,7 @@ fn open_preparation_preserves_a_missing_omitted_matrix() {
         .clone();
     let mirror_members: std::collections::BTreeSet<_> = accepted
         .matrices
-        .iter()
-        .find(|candidate| candidate.id == matrix.mirror_id)
-        .unwrap()
+        .by_id(&matrix.mirror_id)
         .part_ids
         .iter()
         .cloned()
@@ -565,15 +542,11 @@ fn open_preparation_preserves_a_missing_omitted_matrix() {
         .retain(|part| !mirror_members.contains(&part.id));
     accepted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| !mirror_members.contains(id));
-    accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    accepted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Matrix,
@@ -599,10 +572,7 @@ fn open_preparation_preserves_a_missing_omitted_matrix() {
 #[test]
 fn open_preparation_repairs_linked_parts_without_matrix_correspondence() {
     let mut accepted = pair_document();
-    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = accepted.first_halves_mut();
     halves.correspondences.retain(|association| {
         association.kind != boardstudio_model::model::MirroredItemKind::Matrix
     });
@@ -625,10 +595,8 @@ fn open_preserves_unassociated_local_and_omitted_matrix_children() {
         let mut accepted = pair_document();
         let source_id = "matrix/left-keys/r0c1/diode";
         let mirror_id = "matrix/right-keys/r0c1/diode";
-        let original_association = accepted.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
+        let original_association = accepted
+            .first_halves()
             .correspondences
             .iter()
             .find(|association| {
@@ -640,10 +608,7 @@ fn open_preserves_unassociated_local_and_omitted_matrix_children() {
             .clone();
         let retained_part = part(&accepted, mirror_id).clone();
         {
-            let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-                .halves
-                .as_mut()
-                .unwrap();
+            let halves = accepted.first_halves_mut();
             halves.correspondences.retain(|association| {
                 !(association.kind == boardstudio_model::model::MirroredItemKind::Part
                     && association.source_id == source_id
@@ -709,10 +674,7 @@ fn open_preserves_unassociated_local_and_omitted_matrix_children() {
 fn open_preparation_preserves_local_and_omitted_exceptions() {
     let mut local = pair_document();
     part_mut(&mut local, "right/U1").pose.at.x = 260.0;
-    let halves = local.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = local.first_halves_mut();
     halves
         .exceptions
         .push(boardstudio_model::model::MirroredException {
@@ -729,17 +691,11 @@ fn open_preparation_preserves_local_and_omitted_exceptions() {
     assert!(local_findings.is_empty());
 
     let mut omitted = pair_document();
-    let right = omitted
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap();
+    let right = omitted.boards.by_id_mut("right");
     right.part_ids.retain(|id| id != "right/U1");
     omitted.parts.retain(|part| part.id != "right/U1");
-    omitted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    omitted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Part,
@@ -774,10 +730,7 @@ fn open_preparation_preserves_unpaired_legacy_data_and_refuses_ambiguous_associa
     assert!(findings.is_empty());
 
     let mut ambiguous = pair_document();
-    let halves = ambiguous.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = ambiguous.first_halves_mut();
     let association = halves
         .correspondences
         .iter()
@@ -800,10 +753,7 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
     second_pair.id = "ambiguous-pair".into();
     accepted.hardware.as_mut().unwrap().pairs.push(second_pair);
     let before = serde_json::to_vec(&accepted).unwrap();
-    let halves = accepted.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = accepted.first_halves();
     let mut part = accepted.parts[0].clone();
     part.id = "right/ambiguous-target-addition".into();
     part.reference = "AMB1".into();
@@ -837,17 +787,10 @@ fn open_preparation_refuses_missing_part_identity_and_reference_collisions() {
     id_collision.parts.retain(|part| part.id != "right/U1");
     id_collision
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/U1");
-    let mut colliding_board = id_collision
-        .boards
-        .iter()
-        .find(|board| board.id == "right")
-        .unwrap()
-        .clone();
+    let mut colliding_board = id_collision.boards.by_id("right").clone();
     colliding_board.id = "right/U1".into();
     id_collision.boards.push(colliding_board);
     let identity_error = crate::support::prepare_open(&id_collision, &[]).unwrap_err();
@@ -862,9 +805,7 @@ fn open_preparation_refuses_missing_part_identity_and_reference_collisions() {
         .retain(|part| part.id != "right/U1");
     reference_collision
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/U1");
     let mut collision = part(&reference_collision, "left/U1").clone();
@@ -873,9 +814,7 @@ fn open_preparation_refuses_missing_part_identity_and_reference_collisions() {
     reference_collision.parts.push(collision);
     reference_collision
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .push("right/J2".into());
     let reference_error = crate::support::prepare_open(&reference_collision, &[]).unwrap_err();
@@ -922,9 +861,7 @@ fn canonical_mirror_move_seeds_downstream_constraint_resolution() {
     accepted.parts.push(dependent);
     accepted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "left")
-        .unwrap()
+        .by_id_mut("left")
         .part_ids
         .push("left/J1".into());
     accepted.constraints.push(Constraint::Offset {
@@ -1039,10 +976,7 @@ fn replacement_is_validated_as_a_whole_without_old_pair_associations() {
 fn final_validation_rejects_a_duplicate_correspondence_from_replacement() {
     let accepted = pair_document();
     let mut replacement = accepted.clone();
-    let halves = replacement.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = replacement.first_halves_mut();
     let duplicate = halves
         .correspondences
         .iter()
@@ -1089,10 +1023,8 @@ fn independent_add_on_the_mirror_board_creates_one_native_correspondence() {
     let mirror = part(&prepared, "right/J1");
     assert_eq!(mirror.pose.at, Vec2 { x: 240.0, y: 15.0 });
     assert_eq!(
-        prepared.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
+        prepared
+            .first_halves()
             .correspondences
             .iter()
             .filter(|association| {
@@ -1122,10 +1054,8 @@ fn independent_add_on_the_mirror_board_creates_one_native_correspondence() {
     assert!(removal_changes.contains(&"right/J1".to_owned()));
     assert!(removal_changes.contains(&"pair".to_owned()));
     assert!(
-        removed.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
+        removed
+            .first_halves()
             .correspondences
             .iter()
             .all(|association| association.source_id != "left/J1"
@@ -1168,12 +1098,7 @@ fn new_matrix_addition_and_its_members_are_composed_before_reconciliation() {
 #[test]
 fn matrix_member_addition_updates_both_memberships_and_associations() {
     let accepted = pair_document();
-    let mut expanded = accepted
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
-        .clone();
+    let mut expanded = accepted.matrices.by_id("left-keys").clone();
     expanded.columns = 3;
     for row in 0..expanded.rows {
         let mut added = expanded
@@ -1193,24 +1118,8 @@ fn matrix_member_addition_updates_both_memberships_and_associations() {
     let (prepared, _) = prepare_transaction(&accepted, &[], &operation)
         .expect("new source matrix members join the mirror membership in the same draft");
 
-    assert_eq!(
-        prepared
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "left-keys")
-            .unwrap()
-            .columns,
-        3
-    );
-    assert_eq!(
-        prepared
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "right-keys")
-            .unwrap()
-            .columns,
-        3
-    );
+    assert_eq!(prepared.matrices.by_id("left-keys").columns, 3);
+    assert_eq!(prepared.matrices.by_id("right-keys").columns, 3);
     assert!(
         prepared
             .parts
@@ -1230,9 +1139,7 @@ fn selected_cell_removal_composes_membership_for_every_changed_matrix_pair() {
         let selected_child_prefix = format!("{selected_key}/");
         accepted
             .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
+            .by_id(matrix_id)
             .part_ids
             .iter()
             .filter(|id| *id == &selected_key || id.starts_with(&selected_child_prefix))
@@ -1277,10 +1184,7 @@ fn selected_cell_removal_composes_membership_for_every_changed_matrix_pair() {
                 .iter()
                 .any(|board| board.part_ids.iter().any(|member| member == id))
     }));
-    let halves = prepared.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = prepared.first_halves();
     assert!(halves.correspondences.iter().all(|association| {
         !source_members.contains(&association.source_id)
             && !mirror_members.contains(&association.mirror_id)
@@ -1295,9 +1199,7 @@ fn mirror_side_matrix_removal_retires_its_complete_correspondence_closure() {
     let accepted = pair_document();
     let source_members: std::collections::BTreeSet<_> = accepted
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
+        .by_id("left-keys")
         .part_ids
         .iter()
         .cloned()
@@ -1324,10 +1226,7 @@ fn mirror_side_matrix_removal_retires_its_complete_correspondence_closure() {
     assert!(changed.contains(&"left-keys".to_owned()));
     assert!(changed.contains(&"right-keys".to_owned()));
     assert!(source_members.iter().all(|id| changed.contains(id)));
-    let halves = prepared.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = prepared.first_halves();
     assert!(halves.correspondences.iter().all(|association| {
         association.source_id != "left-keys"
             && association.mirror_id != "right-keys"

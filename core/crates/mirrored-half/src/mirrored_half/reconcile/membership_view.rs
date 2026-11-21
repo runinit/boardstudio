@@ -159,21 +159,25 @@ pub(super) fn fixed_membership_view(
     // Explicitly Omitted mirror slots stay suppressed while their source slot
     // stays live (spec §5): only unexplained asymmetry refuses here. The
     // strict per-slot provenance check below still applies.
-    let overlaid_omitted_slots: BTreeSet<Slot> = mirror
-        .cells
+    let overlaid_omitted_slots: BTreeSet<Slot> = halves
+        .exceptions
         .iter()
-        .filter(|cell| cell.deleted && !cell.enabled)
-        .filter(|cell| {
-            let mirror_id = format!("matrix/{}/r{}c{}", mirror.id, cell.row, cell.column);
-            let source_id = format!("matrix/{}/r{}c{}", source.id, cell.row, cell.column);
-            halves.exceptions.iter().any(|exception| {
-                exception.kind == MirroredItemKind::Part
-                    && exception.mirror_id == mirror_id
-                    && exception.state == crate::model::MirroredExceptionState::Omitted
-                    && halves.overlay_source(exception) == Some(source_id.as_str())
-            })
+        .filter(|exception| {
+            exception.kind == MirroredItemKind::Part
+                && exception.state == MirroredExceptionState::Omitted
         })
-        .map(|cell| (cell.row, cell.column))
+        .filter_map(|exception| {
+            let (row, column, "") = super::matrix_identity_slot(&exception.mirror_id, &mirror.id)?
+            else {
+                return None;
+            };
+            // Parsing accepts leading zeroes and trailing separators; only exact canonical
+            // identities on both sides authorize a suppressed slot.
+            (exception.mirror_id == crate::matrix::member_id(&mirror.id, row, column)
+                && halves.overlay_source(exception)
+                    == Some(crate::matrix::member_id(&source.id, row, column).as_str()))
+            .then_some((row, column))
+        })
         .collect();
     let mirror_inactive: BTreeSet<Slot> = inactive_slots(&mirror)
         .difference(&overlaid_omitted_slots)
@@ -240,20 +244,8 @@ pub(super) fn fixed_membership_view(
         .cells
         .iter()
         .filter(|cell| cell.enabled && !cell.deleted)
-        .filter_map(|cell| {
-            let source_id = format!("matrix/{}/r{}c{}", source.id, cell.row, cell.column);
-            let mirror_id = format!("matrix/{}/r{}c{}", mirror.id, cell.row, cell.column);
-            halves
-                .exceptions
-                .iter()
-                .any(|exception| {
-                    exception.kind == MirroredItemKind::Part
-                        && exception.mirror_id == mirror_id
-                        && exception.state == crate::model::MirroredExceptionState::Omitted
-                        && halves.overlay_source(exception) == Some(source_id.as_str())
-                })
-                .then_some((cell.row, cell.column))
-        })
+        .map(|cell| (cell.row, cell.column))
+        .filter(|slot| overlaid_omitted_slots.contains(slot))
         .collect();
     tombstone_omitted_cells(&mut projected, &omitted_slot_ids);
 

@@ -30,7 +30,7 @@ pub(super) fn prepare_lifecycle_projection(
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     use super::super::{FinalOwner, MembershipContextDelta, MembershipTransitionOutput};
-    use crate::model::{MirroredItemKind, Part};
+    use crate::model::MirroredItemKind;
     use std::collections::BTreeMap;
 
     fn selected_pair<'a>(
@@ -72,29 +72,17 @@ pub(super) fn prepare_lifecycle_projection(
     let mut draft = post_source.clone();
     // Omit takes the mirror copper that belonged only to the omitted items before any part goes.
     let removed_copper = capture_omitted_copper(&mut draft, post_source, context)?;
-    let matrix_members: BTreeSet<_> = context
-        .matrix_pair
-        .as_ref()
-        .map(|matrix_pair| {
-            before
-                .matrices
-                .iter()
-                .filter(|matrix| {
-                    matrix.id == matrix_pair.source_id || matrix.id == matrix_pair.mirror_id
-                })
-                .flat_map(|matrix| matrix.part_ids.iter().cloned())
-                .collect()
+    let matrix_members: BTreeSet<_> = before
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            context
+                .matrix_pair
+                .as_ref()
+                .is_none_or(|pair| matrix.id == pair.source_id || matrix.id == pair.mirror_id)
         })
-        .or_else(|| {
-            context.matrix_pair.is_none().then(|| {
-                before
-                    .matrices
-                    .iter()
-                    .flat_map(|matrix| matrix.part_ids.iter().cloned())
-                    .collect()
-            })
-        })
-        .unwrap_or_default();
+        .flat_map(|matrix| matrix.part_ids.iter().cloned())
+        .collect();
     let mut removed = BTreeSet::new();
     let retired = classify_source_retirements(before, post_source, context, false)?;
 
@@ -246,16 +234,16 @@ pub(super) fn prepare_lifecycle_projection(
         .iter()
         .filter(|a| a.kind == MirroredItemKind::Part)
     {
-        if !post_source
+        let mut sources = post_source
             .parts
             .iter()
-            .any(|part| part.id == association.source_id)
-        {
+            .filter(|part| part.id == association.source_id);
+        let Some(source) = sources.next() else {
             if association.state != TransitionState::Local {
                 removed.insert(association.mirror_id.clone());
             }
             continue;
-        }
+        };
         let matrix_owned = matrix_members.contains(&association.source_id)
             || matrix_members.contains(&association.mirror_id);
         if (context.matrix_pair.is_none()
@@ -267,68 +255,44 @@ pub(super) fn prepare_lifecycle_projection(
         if association.state == TransitionState::Omitted {
             removed.insert(association.mirror_id.clone());
         } else if context.pending_rejoins.contains_key(&association.source_id) {
-            let mut sources = post_source
-                .parts
-                .iter()
-                .filter(|part| part.id == association.source_id);
-            let source = sources
-                .next()
-                .ok_or("The exact Rejoin source Part is unavailable")?;
             if sources.next().is_some() {
                 return Err("The exact Rejoin source Part is ambiguous".into());
             }
-            let target = draft
-                .parts
-                .iter()
-                .find(|part| part.id == association.mirror_id)
-                .cloned();
-            let seed = match target {
-                Some(part) => part,
-                None if context.pending_rejoins.get(&association.source_id)
-                    == Some(&TransitionState::Omitted) =>
-                {
-                    let mut references = draft
-                        .parts
-                        .iter()
-                        .map(|part| part.reference.clone())
-                        .collect();
-                    Part {
-                        id: association.mirror_id.clone(),
-                        definition_id: source.definition_id.clone(),
-                        reference: super::super::super::free_reference(
-                            &format!("{}-{}", context.mirror_board_id, source.reference),
-                            &mut references,
-                        ),
-                        ..source.clone()
-                    }
-                }
-                None => return Err("The Local Rejoin target Part is unavailable".into()),
+            let project = |definition: &str, reference: &str| {
+                crate::mirrored_half::derive::part(
+                    source,
+                    &association.mirror_id,
+                    definition,
+                    reference,
+                    context.mapping,
+                    crate::mirrored_half::derive::is_controller(
+                        &post_source.definitions,
+                        &source.definition_id,
+                    ),
+                )
             };
-            let record = crate::model::MirroredCorrespondence {
-                kind: association.kind,
-                source_id: association.source_id.clone(),
-                mirror_id: association.mirror_id.clone(),
-                companion_mode: association.raw_mode_override,
-                companion_tweak: association.raw_tweak,
-            };
-            let projected = super::super::project_part(
-                source,
-                &seed,
-                &record,
-                context.mapping,
-                super::super::super::derive::is_controller(
-                    &post_source.definitions,
-                    &source.definition_id,
-                ),
-            )?;
             if let Some(target) = draft
                 .parts
                 .iter_mut()
                 .find(|part| part.id == association.mirror_id)
             {
-                *target = projected;
+                *target = project(&target.definition_id, &target.reference);
             } else {
-                draft.parts.push(projected);
+                if context.pending_rejoins.get(&association.source_id)
+                    != Some(&TransitionState::Omitted)
+                {
+                    return Err("The Local Rejoin target Part is unavailable".into());
+                }
+                let mut references = draft
+                    .parts
+                    .iter()
+                    .map(|part| part.reference.clone())
+                    .collect();
+                let reference = super::super::super::free_reference(
+                    &format!("{}-{}", context.mirror_board_id, source.reference),
+                    &mut references,
+                );
+                draft.parts.push(project(&source.definition_id, &reference));
                 let board = draft
                     .boards
                     .iter_mut()

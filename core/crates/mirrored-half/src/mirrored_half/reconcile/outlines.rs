@@ -13,23 +13,6 @@ struct RetiredOutlineItem {
     mirror_id: String,
 }
 
-fn pair_bytes(document: &ProjectDoc, pair_id: &str) -> Result<Vec<u8>, String> {
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The outline reconciliation hardware is unavailable".to_owned())?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or_else(|| format!("The outline reconciliation pair {pair_id:?} is unavailable"))?;
-    if pairs.next().is_some() {
-        return Err(format!(
-            "The outline reconciliation pair {pair_id:?} is ambiguous"
-        ));
-    }
-    serde_json::to_vec(pair).map_err(|error| error.to_string())
-}
-
 fn removal_associations(
     document: &ProjectDoc,
     pair_id: &str,
@@ -45,7 +28,7 @@ fn removal_associations(
         crate::mechanical::halves::validate_document(baseline).map_err(|error| {
             format!("Outline removal {source_id:?} has an invalid pre-source baseline: {error}")
         })?;
-        if pair_bytes(baseline, pair_id)? != pair_bytes(document, pair_id)? {
+        if !super::same_pair_bytes(baseline, document, pair_id, "outline reconciliation")? {
             return Err(format!(
                 "Outline removal {source_id:?} changed durable pair bytes before reconciliation"
             ));
@@ -242,71 +225,6 @@ fn mapped_identity(
         .unwrap_or_else(|| crate::mirrored_half::mirror_id(source_board, mirror_board, id))
 }
 
-fn map_snapshot(
-    snapshot: &crate::model::OutlineSnapshot,
-    projection: &Projection,
-    associations: &BTreeMap<String, String>,
-    part_associations: &BTreeMap<String, String>,
-    matrix_associations: &BTreeMap<String, String>,
-    matrix_owned_parts: &BTreeSet<String>,
-    controller_parts: &BTreeSet<String>,
-) -> crate::model::OutlineSnapshot {
-    let identity = |id: &str| {
-        mapped_identity(
-            &projection.source_board_id,
-            &projection.mirror_board_id,
-            id,
-            associations,
-        )
-    };
-    let part = |id: &str| {
-        part_associations
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| id.to_owned())
-    };
-    let full_rule_part =
-        |id: &str| !matrix_owned_parts.contains(id) && !controller_parts.contains(id);
-    let renames = super::super::Renames {
-        identity: &identity,
-        part: &part,
-        full_rule_part: &full_rule_part,
-    };
-    let matrix_map: BTreeMap<_, _> = matrix_associations
-        .iter()
-        .map(|(source, target)| (source.clone(), target.clone()))
-        .collect();
-    super::super::mirror_snapshot(snapshot, projection.mapping, &renames, &matrix_map)
-}
-
-#[allow(clippy::too_many_arguments)] // The two part-rule sets travel with the map they qualify.
-fn map_feature(
-    feature: &OutlineFeature,
-    mapping: crate::model::Pose2,
-    source_board: &str,
-    mirror_board: &str,
-    associations: &BTreeMap<String, String>,
-    part_associations: &BTreeMap<String, String>,
-    matrix_owned_parts: &BTreeSet<String>,
-    controller_parts: &BTreeSet<String>,
-) -> OutlineFeature {
-    let identity = |id: &str| mapped_identity(source_board, mirror_board, id, associations);
-    let part = |id: &str| {
-        part_associations
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| id.to_owned())
-    };
-    let full_rule_part =
-        |id: &str| !matrix_owned_parts.contains(id) && !controller_parts.contains(id);
-    let renames = super::super::Renames {
-        identity: &identity,
-        part: &part,
-        full_rule_part: &full_rule_part,
-    };
-    super::super::mirror_feature(feature, mapping, &renames)
-}
-
 fn is_local(document: &ProjectDoc, mirror_id: &str, kind: MirroredItemKind) -> bool {
     document
         .hardware
@@ -410,19 +328,7 @@ pub(super) fn reconcile_draft(
     pair_id: &str,
     projection: &Projection,
 ) -> Result<(), String> {
-    let hardware = draft
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The outline reconciliation hardware is unavailable".to_owned())?;
-    let mut pair_matches = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pair_matches
-        .next()
-        .ok_or_else(|| format!("The outline reconciliation pair {pair_id:?} is unavailable"))?;
-    if pair_matches.next().is_some() {
-        return Err(format!(
-            "The outline reconciliation pair {pair_id:?} is ambiguous"
-        ));
-    }
+    let pair = super::selected_pair(draft, pair_id, "outline reconciliation")?;
     let halves = pair.halves.as_ref().ok_or_else(|| {
         format!("The outline reconciliation pair {pair_id:?} has no halves context")
     })?;
@@ -432,33 +338,20 @@ pub(super) fn reconcile_draft(
     {
         return Err("The outline reconciliation context does not match its pair".into());
     }
-    let pair_bytes_before = pair_bytes(draft, pair_id)?;
     let retired = removal_associations(draft, pair_id, projection)?;
 
-    let outline_map: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::Outline)
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let version_map: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::OutlineVersion)
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let part_map: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::Part)
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let matrix_map: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::Matrix)
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
+    let targets = |kind| {
+        halves
+            .correspondences
+            .iter()
+            .filter(|association| association.kind == kind)
+            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let outline_map = targets(MirroredItemKind::Outline);
+    let version_map = targets(MirroredItemKind::OutlineVersion);
+    let part_map = targets(MirroredItemKind::Part);
+    let matrix_map = targets(MirroredItemKind::Matrix);
     let target_outline_ids: BTreeSet<_> = draft
         .boards
         .iter()
@@ -497,6 +390,18 @@ pub(super) fn reconcile_draft(
         .ok_or_else(|| "The selected source board is unavailable".to_owned())?;
     let matrix_owned_parts = super::super::matrix_owned_parts(draft, &source_board.id);
     let controller_parts = super::super::controller_parts(draft, &source_board.id);
+    let renames = super::super::Renames {
+        identity: &|id| {
+            mapped_identity(
+                &projection.source_board_id,
+                &projection.mirror_board_id,
+                id,
+                &outline_map,
+            )
+        },
+        part: &|id| part_map.get(id).cloned().unwrap_or_else(|| id.to_owned()),
+        full_rule_part: &|id| !matrix_owned_parts.contains(id) && !controller_parts.contains(id),
+    };
     for outline_id in &source_board.outline_ids {
         if !outline_map.contains_key(outline_id) && !retired_outline_ids.contains(outline_id) {
             return Err(format!(
@@ -544,16 +449,7 @@ pub(super) fn reconcile_draft(
                     association.source_id
                 )
             })?;
-        let projected = map_feature(
-            source,
-            projection.mapping,
-            &projection.source_board_id,
-            &projection.mirror_board_id,
-            &outline_map,
-            &part_map,
-            &matrix_owned_parts,
-            &controller_parts,
-        );
+        let projected = super::super::mirror_feature(source, projection.mapping, &renames);
         let target = draft
             .outline
             .iter_mut()
@@ -609,9 +505,6 @@ pub(super) fn reconcile_draft(
             .iter()
             .any(|item| item.kind == MirroredItemKind::OutlineVersion);
     if !version_work {
-        if pair_bytes(draft, pair_id)? != pair_bytes_before {
-            return Err("Outline reconciliation changed durable pair bytes".into());
-        }
         return Ok(());
     }
 
@@ -649,14 +542,11 @@ pub(super) fn reconcile_draft(
                         )
                     }),
                 },
-                geometry: map_snapshot(
+                geometry: super::super::mirror_snapshot(
                     &source_version.geometry,
-                    projection,
-                    &outline_map,
-                    &part_map,
+                    projection.mapping,
+                    &renames,
                     &matrix_map,
-                    &matrix_owned_parts,
-                    &controller_parts,
                 ),
                 ownership: source_version.ownership,
             };
@@ -730,8 +620,5 @@ pub(super) fn reconcile_draft(
         }
     }
 
-    if pair_bytes(draft, pair_id)? != pair_bytes_before {
-        return Err("Outline reconciliation changed durable pair bytes".into());
-    }
     Ok(())
 }

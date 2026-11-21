@@ -1,9 +1,7 @@
 //! Hosted embedded-circuit staging and hosted baseline validation.
 
-use super::{HostedTransition, Projection, project_part};
-use crate::model::{
-    MirroredCorrespondence, MirroredHalves, MirroredItemKind, Part, Pose2, ProjectDoc, Vec2,
-};
+use super::{HostedTransition, Projection};
+use crate::model::{MirroredCorrespondence, MirroredHalves, MirroredItemKind, Pose2, ProjectDoc};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,6 +53,87 @@ pub fn stage_hosted_correspondence(
             halves.correspondences.push(correspondence);
             Ok(())
         }
+    }
+}
+
+/// Linked items receive projected values. References also resolve Local items, while
+/// Omitted items release references and electrical assignments.
+#[derive(Default)]
+pub(super) struct HostedTargets {
+    pub(super) linked: BTreeMap<String, String>,
+    pub(super) references: BTreeMap<String, String>,
+    pub(super) omitted: BTreeSet<String>,
+}
+
+impl HostedTargets {
+    pub(super) fn derive(
+        document: &ProjectDoc,
+        halves: &MirroredHalves,
+        circuits: &[&MirroredCorrespondence],
+        projection: &Projection,
+    ) -> Result<(Self, Self), String> {
+        let (mut parts, mut nets) = (Self::default(), Self::default());
+        for link in &halves.correspondences {
+            let targets = match link.kind {
+                MirroredItemKind::Part => &mut parts,
+                MirroredItemKind::Net => &mut nets,
+                _ => continue,
+            };
+            let state = super::effective_circuit_child_state(
+                document,
+                halves,
+                link,
+                circuits.iter().copied(),
+            );
+            if state.is_none() {
+                targets
+                    .linked
+                    .insert(link.source_id.clone(), link.mirror_id.clone());
+            }
+            if state == Some(crate::model::MirroredExceptionState::Omitted) {
+                targets.omitted.insert(link.source_id.clone());
+            } else {
+                targets
+                    .references
+                    .insert(link.source_id.clone(), link.mirror_id.clone());
+            }
+        }
+        for transition in &projection.hosted_transitions {
+            let HostedTransition::AddCircuit {
+                member_ids,
+                net_ids,
+                ..
+            } = transition
+            else {
+                continue;
+            };
+            for (kind, targets, additions) in [
+                (MirroredItemKind::Part, &mut parts, member_ids),
+                (MirroredItemKind::Net, &mut nets, net_ids),
+            ] {
+                for (source, mirror) in additions {
+                    if targets
+                        .references
+                        .iter()
+                        .any(|(s, m)| s != source && m == mirror)
+                    {
+                        return Err(format!(
+                            "The selected hosted {kind:?} reference target {mirror:?} is already in use"
+                        ));
+                    }
+                    if targets
+                        .references
+                        .insert(source.clone(), mirror.clone())
+                        .is_some_and(|old| old != *mirror)
+                    {
+                        return Err(format!(
+                            "The selected hosted {kind:?} reference conflicts with an existing identity"
+                        ));
+                    }
+                }
+            }
+        }
+        Ok((parts, nets))
     }
 }
 
@@ -179,52 +258,24 @@ pub(super) fn stage_hosted_circuit_additions(
                     "The selected circuit member reference {target_reference:?} is already in use"
                 ));
             }
-            let correspondence = MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: source_member_id.clone(),
-                mirror_id: target_member_id.clone(),
-            };
-            let target_part = if let Some(index) = existing {
-                project_part(
-                    source_part,
-                    &staged.parts[index],
-                    &correspondence,
-                    pair.mapping,
-                    super::super::derive::is_controller(
-                        &document.definitions,
-                        &source_part.definition_id,
-                    ),
-                )?
-            } else {
-                let seed = Part {
-                    id: target_member_id.clone(),
-                    definition_id: target_definition.clone(),
-                    reference: (*target_reference).clone(),
-                    pose: Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    },
-                    side: source_part.side.clone(),
-                    anchor: None,
-                    keycap: None,
-                    outline: None,
-                    locked: None,
-                    properties: None,
-                    generator_parameters: None,
-                };
-                project_part(
-                    source_part,
-                    &seed,
-                    &correspondence,
-                    pair.mapping,
-                    super::super::derive::is_controller(
-                        &document.definitions,
-                        &source_part.definition_id,
-                    ),
-                )?
-            };
+            let (definition, reference) = existing.map_or(
+                (target_definition.as_str(), target_reference.as_str()),
+                |index| {
+                    let part = &staged.parts[index];
+                    (part.definition_id.as_str(), part.reference.as_str())
+                },
+            );
+            let target_part = crate::mirrored_half::derive::part(
+                source_part,
+                target_member_id,
+                definition,
+                reference,
+                pair.mapping,
+                crate::mirrored_half::derive::is_controller(
+                    &document.definitions,
+                    &source_part.definition_id,
+                ),
+            );
             if let Some(index) = existing {
                 staged.parts[index] = target_part;
             } else {
@@ -368,21 +419,6 @@ pub(super) fn validate_hosted_removal_baselines(
     projection: &Projection,
     accepted: Option<&ProjectDoc>,
 ) -> Result<(), String> {
-    fn pair_bytes(document: &ProjectDoc, pair_id: &str) -> Result<Vec<u8>, String> {
-        let hardware = document
-            .hardware
-            .as_ref()
-            .ok_or_else(|| "The hosted removal hardware configuration is unavailable".to_owned())?;
-        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-        let pair = pairs
-            .next()
-            .ok_or_else(|| format!("The hosted removal pair {pair_id:?} is unavailable"))?;
-        if pairs.next().is_some() {
-            return Err(format!("The hosted removal pair {pair_id:?} is ambiguous"));
-        }
-        serde_json::to_vec(pair).map_err(|error| error.to_string())
-    }
-
     for transition in &projection.hosted_transitions {
         let (operation, source_id, mirror_id) = match transition {
             HostedTransition::RemoveModule {
@@ -410,7 +446,7 @@ pub(super) fn validate_hosted_removal_baselines(
             })?;
             baseline
         };
-        if pair_bytes(baseline, pair_id)? != pair_bytes(document, pair_id)? {
+        if !super::same_pair_bytes(baseline, document, pair_id, "hosted removal")? {
             return Err(format!(
                 "Hosted removal {source_id:?} changed its durable pair record before reconciliation"
             ));
@@ -520,20 +556,6 @@ pub(super) fn validate_hosted_omission_baselines(
     pair_id: &str,
     projection: &Projection,
 ) -> Result<HostedOmissionClosure, String> {
-    fn pair_bytes(document: &ProjectDoc, pair_id: &str) -> Result<Vec<u8>, String> {
-        let hardware = document.hardware.as_ref().ok_or_else(|| {
-            "The hosted omission hardware configuration is unavailable".to_owned()
-        })?;
-        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-        let pair = pairs
-            .next()
-            .ok_or_else(|| format!("The hosted omission pair {pair_id:?} is unavailable"))?;
-        if pairs.next().is_some() {
-            return Err(format!("The hosted omission pair {pair_id:?} is ambiguous"));
-        }
-        serde_json::to_vec(pair).map_err(|error| error.to_string())
-    }
-
     let mut closure = HostedOmissionClosure::default();
     for ((context_pair_id, source_id, mirror_id), baseline) in
         projection.hosted_omission_baselines.borrow().iter()
@@ -546,7 +568,7 @@ pub(super) fn validate_hosted_omission_baselines(
                 "Hosted omission context for {source_id:?} has an invalid historical owner baseline: {error}"
             )
         })?;
-        if pair_bytes(baseline, pair_id)? != pair_bytes(document, pair_id)? {
+        if !super::same_pair_bytes(baseline, document, pair_id, "hosted omission")? {
             return Err(format!(
                 "Hosted omission context for {source_id:?} changed its durable pair record"
             ));
