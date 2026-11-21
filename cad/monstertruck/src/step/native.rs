@@ -1,8 +1,9 @@
-//! Source-authored AP214 analytic BReps. Every occurrence must be supported before
+//! Source-authored analytic BReps. Every occurrence must be supported before
 //! the importer can publish native preview data for the asset.
 mod assembly;
 mod carrier;
 mod cone;
+mod cylinder_band;
 mod geometry;
 mod oblique;
 mod trim;
@@ -102,15 +103,25 @@ pub(super) fn build(
     options: StepImportOptions,
     deflection_mm: f64,
 ) -> Result<Asset, String> {
-    let ap214 = exchange.header.iter().any(|record| {
-        record.name == "FILE_SCHEMA"
-            && matches!(&record.parameter, Parameter::List(params)
-                if matches!(params.as_slice(), [Parameter::List(names)]
-                    if matches!(names.as_slice(), [Parameter::String(schema)]
-                        if schema.split_ascii_whitespace().next() == Some("AUTOMOTIVE_DESIGN"))))
+    let mut schemas = exchange.header.iter().filter(|r| r.name == "FILE_SCHEMA");
+    let schema = schemas.next().and_then(|record| {
+        if let Parameter::List(params) = &record.parameter
+            && let [Parameter::List(names)] = params.as_slice()
+            && let [Parameter::String(schema)] = names.as_slice()
+        {
+            return Some(schema.as_str());
+        }
+        None
     });
-    if !ap214 || !exchange.reference.is_empty() || !exchange.anchor.is_empty() {
-        return Err("outside native AP214 exchange class".into());
+    let config_control = schema == Some("CONFIG_CONTROL_DESIGN");
+    let automotive = schema.and_then(|schema| schema.split_ascii_whitespace().next())
+        == Some("AUTOMOTIVE_DESIGN");
+    if !(automotive || config_control)
+        || schemas.next().is_some()
+        || !exchange.reference.is_empty()
+        || !exchange.anchor.is_empty()
+    {
+        return Err("outside native analytic exchange class".into());
     }
     let records = source_records(exchange);
     let mut ids = Vec::new();
@@ -137,7 +148,7 @@ pub(super) fn build(
     let factors = units::solid_representation_units(&ids, items, units)?;
     let scene = scene::Scene::new(exchange, items, units, &ids);
     scene.validate()?;
-    let occurrences = assembly::occurrences(&records, &scene)?;
+    let occurrences = assembly::occurrences(&records, &scene, config_control)?;
     if occurrences.is_empty()
         || occurrences
             .iter()

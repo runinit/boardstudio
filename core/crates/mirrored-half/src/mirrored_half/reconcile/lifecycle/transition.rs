@@ -457,7 +457,7 @@ pub(super) fn prepare_lifecycle_projection(
             return Err("Omitted circuit ownership leaves an owned net in use; preserve that net explicitly first".into());
         }
     }
-    project_lifecycle_matrix(&mut draft, context, &additions, dispatch)?;
+    draft = project_lifecycle_matrix(draft, context, &additions, dispatch)?;
     restore_rejoined_nets(&mut draft, post_source, context)?;
     for added in &additions {
         let source = post_source
@@ -507,7 +507,7 @@ pub(super) fn prepare_lifecycle_projection(
     output.context_delta.retired = retired;
     let empty_map = BTreeMap::new();
     let empty_set = BTreeSet::new();
-    apply_membership_context_delta(
+    let mut output = apply_membership_context_delta(
         MembershipTransitionInput {
             dispatch,
             valid_before: before,
@@ -520,7 +520,7 @@ pub(super) fn prepare_lifecycle_projection(
             final_owners: &context.owners,
             explicit_removal_closure: &empty_set,
         },
-        &mut output,
+        output,
     )?;
 
     let projection = if context.matrix_pair.is_none() {
@@ -906,8 +906,8 @@ pub fn transition_exception_context(
 
 pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     input: super::super::MembershipTransitionInput<'_>,
-    output: &mut super::super::MembershipTransitionOutput,
-) -> Result<(), String> {
+    mut output: super::super::MembershipTransitionOutput,
+) -> Result<super::super::MembershipTransitionOutput, String> {
     use crate::model::{MirroredCorrespondence, MirroredExceptionState, MirroredItemKind};
 
     if output.context_delta.added.is_empty()
@@ -916,11 +916,11 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         && input.context.pending_rejoins.is_empty()
         && input.context.pending_pair_transitions.is_empty()
     {
-        return Ok(());
+        return Ok(output);
     }
 
-    let mut candidate = output.draft.clone();
-    let hardware = candidate
+    let hardware = output
+        .draft
         .hardware
         .as_mut()
         .ok_or_else(|| "The lifecycle candidate has no hardware configuration".to_owned())?;
@@ -1212,7 +1212,8 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
                 association.source_id
             ));
         }
-        let mut targets = candidate
+        let mut targets = output
+            .draft
             .parts
             .iter_mut()
             .filter(|part| part.id == association.mirror_id);
@@ -1232,12 +1233,11 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     }
 
     *halves = next_halves.clone();
-    crate::mechanical::halves::validate_document(&candidate)
+    crate::mechanical::halves::validate_document(&output.draft)
         .map_err(|error| format!("The lifecycle transaction candidate is invalid: {error}"))?;
-    output.draft = candidate;
     output.context.pair_right = next_halves;
     output.context.pending_rejoins.clear();
     output.context.pending_pair_transitions.clear();
     output.context.pending_pair_baseline = None;
-    Ok(())
+    Ok(output)
 }

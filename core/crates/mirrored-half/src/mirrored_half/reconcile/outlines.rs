@@ -404,13 +404,13 @@ fn retain_target_envelope_members(
     }
 }
 
-/// Project the source board's established outline correspondences into a candidate document.
-pub(super) fn reconcile(
-    document: &mut ProjectDoc,
+/// Project the source board's outlines onto the caller's private reconciliation draft.
+pub(super) fn reconcile_draft(
+    draft: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
-) -> Result<Vec<String>, String> {
-    let hardware = document
+) -> Result<(), String> {
+    let hardware = draft
         .hardware
         .as_ref()
         .ok_or_else(|| "The outline reconciliation hardware is unavailable".to_owned())?;
@@ -432,8 +432,8 @@ pub(super) fn reconcile(
     {
         return Err("The outline reconciliation context does not match its pair".into());
     }
-    let pair_bytes_before = pair_bytes(document, pair_id)?;
-    let retired = removal_associations(document, pair_id, projection)?;
+    let pair_bytes_before = pair_bytes(draft, pair_id)?;
+    let retired = removal_associations(draft, pair_id, projection)?;
 
     let outline_map: BTreeMap<_, _> = halves
         .correspondences
@@ -459,7 +459,7 @@ pub(super) fn reconcile(
         .filter(|association| association.kind == MirroredItemKind::Matrix)
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
         .collect();
-    let target_outline_ids: BTreeSet<_> = document
+    let target_outline_ids: BTreeSet<_> = draft
         .boards
         .iter()
         .find(|board| board.id == projection.mirror_board_id)
@@ -468,7 +468,7 @@ pub(super) fn reconcile(
         .iter()
         .cloned()
         .collect();
-    let prior_target_envelope_members: BTreeMap<_, _> = document
+    let prior_target_envelope_members: BTreeMap<_, _> = draft
         .outline
         .iter()
         .filter_map(|feature| match feature {
@@ -490,13 +490,13 @@ pub(super) fn reconcile(
         .filter(|item| item.kind == MirroredItemKind::OutlineVersion)
         .map(|item| item.source_id.clone())
         .collect();
-    let source_board = document
+    let source_board = draft
         .boards
         .iter()
         .find(|board| board.id == projection.source_board_id)
         .ok_or_else(|| "The selected source board is unavailable".to_owned())?;
-    let matrix_owned_parts = super::super::matrix_owned_parts(document, &source_board.id);
-    let controller_parts = super::super::controller_parts(document, &source_board.id);
+    let matrix_owned_parts = super::super::matrix_owned_parts(draft, &source_board.id);
+    let controller_parts = super::super::controller_parts(draft, &source_board.id);
     for outline_id in &source_board.outline_ids {
         if !outline_map.contains_key(outline_id) && !retired_outline_ids.contains(outline_id) {
             return Err(format!(
@@ -504,7 +504,7 @@ pub(super) fn reconcile(
             ));
         }
     }
-    if let Some(source_outline) = document
+    if let Some(source_outline) = draft
         .board_outlines
         .iter()
         .find(|outline| outline.board_id == projection.source_board_id)
@@ -520,7 +520,6 @@ pub(super) fn reconcile(
         }
     }
 
-    let mut staged = document.clone();
     let mut changed = BTreeSet::new();
     let outline_correspondences: Vec<_> = halves
         .correspondences
@@ -532,10 +531,10 @@ pub(super) fn reconcile(
         if retired_outline_ids.contains(&association.source_id) {
             continue;
         }
-        if is_local(&staged, &association.mirror_id, MirroredItemKind::Outline) {
+        if is_local(draft, &association.mirror_id, MirroredItemKind::Outline) {
             continue;
         }
-        let source = staged
+        let source = draft
             .outline
             .iter()
             .find(|feature| feature.id() == association.source_id)
@@ -555,7 +554,7 @@ pub(super) fn reconcile(
             &matrix_owned_parts,
             &controller_parts,
         );
-        let target = staged
+        let target = draft
             .outline
             .iter_mut()
             .find(|feature| feature.id() == association.mirror_id)
@@ -571,14 +570,14 @@ pub(super) fn reconcile(
         }
     }
     retain_target_envelope_members(
-        &mut staged,
+        draft,
         &projection.mirror_board_id,
         &prior_target_envelope_members,
         &mut changed,
     );
 
     if !retired_outline_ids.is_empty() {
-        let target_board = staged
+        let target_board = draft
             .boards
             .iter_mut()
             .find(|board| board.id == projection.mirror_board_id)
@@ -587,7 +586,7 @@ pub(super) fn reconcile(
             .iter()
             .filter(|item| item.kind == MirroredItemKind::Outline)
         {
-            let had_feature = staged
+            let had_feature = draft
                 .outline
                 .iter()
                 .any(|feature| feature.id() == item.mirror_id);
@@ -595,7 +594,7 @@ pub(super) fn reconcile(
                 .outline_ids
                 .iter()
                 .any(|id| id == &item.mirror_id);
-            staged
+            draft
                 .outline
                 .retain(|feature| feature.id() != item.mirror_id);
             target_board.outline_ids.retain(|id| id != &item.mirror_id);
@@ -610,32 +609,30 @@ pub(super) fn reconcile(
             .iter()
             .any(|item| item.kind == MirroredItemKind::OutlineVersion);
     if !version_work {
-        if pair_bytes(&staged, pair_id)? != pair_bytes_before {
+        if pair_bytes(draft, pair_id)? != pair_bytes_before {
             return Err("Outline reconciliation changed durable pair bytes".into());
         }
-        let changed = changed.into_iter().collect();
-        *document = staged;
-        return Ok(changed);
+        return Ok(());
     }
 
-    let source_outlines: Vec<_> = staged
+    let source_outlines: Vec<_> = draft
         .board_outlines
         .iter()
         .filter(|outline| outline.board_id == projection.source_board_id)
         .cloned()
         .collect();
-    let target_index = staged
+    let target_index = draft
         .board_outlines
         .iter()
         .position(|outline| outline.board_id == projection.mirror_board_id)
         .ok_or_else(|| "The selected target board outline is unavailable".to_owned())?;
     if let Some(source_outline) = source_outlines.first() {
-        let mut target_outline = staged.board_outlines[target_index].clone();
+        let mut target_outline = draft.board_outlines[target_index].clone();
         for source_version in &source_outline.versions {
             let Some(target_id) = version_map.get(&source_version.id) else {
                 continue;
             };
-            if is_local(&staged, target_id, MirroredItemKind::OutlineVersion) {
+            if is_local(draft, target_id, MirroredItemKind::OutlineVersion) {
                 continue;
             }
             let projected = OutlineVersion {
@@ -717,7 +714,7 @@ pub(super) fn reconcile(
             && version_map
                 .values()
                 .any(|target_id| target_id == &target_active)
-            && !is_local(&staged, &target_active, MirroredItemKind::OutlineVersion)
+            && !is_local(draft, &target_active, MirroredItemKind::OutlineVersion)
         {
             target_outline.active_version_id = None;
             changed.insert(target_active);
@@ -728,15 +725,13 @@ pub(super) fn reconcile(
         {
             target_outline.generated_last_valid = None;
         }
-        if staged.board_outlines[target_index] != target_outline {
-            staged.board_outlines[target_index] = target_outline;
+        if draft.board_outlines[target_index] != target_outline {
+            draft.board_outlines[target_index] = target_outline;
         }
     }
 
-    if pair_bytes(&staged, pair_id)? != pair_bytes_before {
+    if pair_bytes(draft, pair_id)? != pair_bytes_before {
         return Err("Outline reconciliation changed durable pair bytes".into());
     }
-    let changed = changed.into_iter().collect();
-    *document = staged;
-    Ok(changed)
+    Ok(())
 }

@@ -1,4 +1,4 @@
-//! AP214 product occurrence links and their source-authored frame placements.
+//! Product occurrence links and their source-authored frame placements.
 use super::*;
 use std::collections::BTreeMap;
 
@@ -7,6 +7,7 @@ type Instances = Vec<(u64, Matrix4, u64)>;
 pub(super) fn occurrences(
     records: &SourceRecords<'_>,
     scene: &scene::Scene<'_>,
+    config_control: bool,
 ) -> Result<Instances, String> {
     let mut nodes = BTreeMap::new();
     let mut shape_definitions = HashMap::new();
@@ -46,7 +47,7 @@ pub(super) fn occurrences(
         let definition = reference(&shape[2])?;
         let record = simple_record(records, definition)?;
         if record.name == "PRODUCT_DEFINITION" {
-            validate_product(records, record)?;
+            validate_product(records, record, config_control)?;
             let representation = *shape_definitions
                 .get(&id)
                 .ok_or("product lacks shape definition representation")?;
@@ -154,13 +155,31 @@ fn insert_unique<T>(index: &mut HashMap<u64, T>, id: u64, value: T) -> Result<()
     Ok(())
 }
 
-fn validate_product(records: &SourceRecords<'_>, product: &Record) -> Result<(), String> {
+fn validate_product(
+    records: &SourceRecords<'_>,
+    product: &Record,
+    config_control: bool,
+) -> Result<(), String> {
     let definition = parameters(product, 4)?;
-    named_record(
-        records,
-        reference(&definition[3])?,
-        "PRODUCT_DEFINITION_CONTEXT",
-    )?;
+    let context = simple_record(records, reference(&definition[3])?)?;
+    match context.name.as_str() {
+        "PRODUCT_DEFINITION_CONTEXT" if !config_control => {}
+        "DESIGN_CONTEXT" | "PRODUCT_DEFINITION_CONTEXT" if config_control => {
+            let context = parameters(context, 3)?;
+            if !matches!(
+                (&context[0], &context[2]),
+                (Parameter::String(_), Parameter::String(_))
+            ) {
+                return Err("invalid native design context".into());
+            }
+            let application =
+                named_record(records, reference(&context[1])?, "APPLICATION_CONTEXT")?;
+            if !matches!(parameters(application, 1)?, [Parameter::String(_)]) {
+                return Err("invalid native application context".into());
+            }
+        }
+        _ => return Err("unsupported native product definition context".into()),
+    }
     let formation = simple_record(records, reference(&definition[2])?)?;
     if !matches!(
         formation.name.as_str(),

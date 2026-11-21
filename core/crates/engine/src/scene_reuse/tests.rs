@@ -1,10 +1,7 @@
 use super::*;
 
 fn fixture() -> ProjectDoc {
-    let mut doc: ProjectDoc = serde_json::from_str(include_str!(
-        "../../../../tests/fixtures/synthetic-outline.json"
-    ))
-    .unwrap();
+    let mut doc = synthetic_outline();
     // Stagger accumulates across columns. Edit the last column so one
     // cutout moves while the cutout attached to the first key is reusable.
     for (column, id) in ["stationary-cutout", "moved-cutout"]
@@ -23,6 +20,231 @@ fn fixture() -> ProjectDoc {
         doc.boards[0].outline_ids.push(id.into());
     }
     doc
+}
+
+fn synthetic_outline() -> ProjectDoc {
+    serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/synthetic-outline.json"
+    ))
+    .unwrap()
+}
+
+// Match the release Chrome profile's authored 5 × 12 fixture.
+fn stagger_profile_document(large: bool) -> ProjectDoc {
+    let mut document = synthetic_outline();
+    if large {
+        let mut matrix = document.matrices[0].clone();
+        matrix.rows = 5;
+        matrix.columns = 12;
+        matrix.row_layout = vec![
+            RowLayout::default(),
+            RowLayout {
+                shift: Vec2 { x: 4.75, y: 0.0 },
+                ..Default::default()
+            },
+        ];
+        let mut engine = CoreEngine::new();
+        assert!(matches!(
+            engine.handle(CoreRequest::Open {
+                id: "fixture-open".into(),
+                document
+            }),
+            CoreReply::Scene { .. }
+        ));
+        let CoreReply::Scene {
+            document: resized, ..
+        } = engine.handle(edit(
+            0,
+            EditOperation::SetMatrix {
+                matrix,
+                definitions: None,
+            },
+        ))
+        else {
+            panic!("could not resize profile fixture");
+        };
+        document = *resized;
+        assert_eq!(document.matrices[0].part_ids.len(), 60);
+        let OutlineFeature::PartEnvelope { part_ids, .. } = &mut document.outline[0] else {
+            panic!("expected a part envelope");
+        };
+        *part_ids = document.parts.iter().map(|part| part.id.clone()).collect();
+        document.id.push_str("-60-keys");
+        document.revision = 0;
+    }
+    document
+}
+
+fn stagger(column: u32, value: f64) -> EditOperation {
+    EditOperation::SetMatrixPlacement {
+        matrix_id: "matrix".into(),
+        change: MatrixPlacementChange::ColumnStagger { column, value },
+    }
+}
+
+#[test]
+fn settled_stagger_matches_cold_wire_and_history() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = stagger_profile_document(true);
+    document.matrices[0].column_layout = vec![ColumnLayout {
+        splay: 9.0,
+        ..Default::default()
+    }];
+    document.matrices[0].mirror = Some(Mirror::X);
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    );
+    let before = serde_json::to_vec(&engine.document).unwrap();
+    for operation in [stagger(11, -0.0), stagger(12, 4.0), stagger(11, f64::NAN)] {
+        compare(&mut engine, &mut cold, edit(0, operation));
+        assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
+        assert!(engine.undo.is_empty());
+    }
+    let mut draft = engine.document.clone();
+    let last = stagger(11, 4.0);
+    let expected = ["matrix".to_string()]
+        .into_iter()
+        .chain((0..5).map(|row| format!("matrix/matrix/r{row}c11")))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        engine.apply_layout_edit(&mut draft, &[], &last).unwrap(),
+        (expected.clone(), true),
+    );
+    let mut preview = edit(0, last.clone());
+    let CoreRequest::Edit { command, .. } = &mut preview else {
+        unreachable!()
+    };
+    command.phase = EditPhase::Preview;
+    assert!(matches!(
+        compare(&mut engine, &mut cold, preview),
+        CoreReply::Preview { scene, .. } if scene.changed_ids == expected
+    ));
+    assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
+    assert!(matches!(
+        compare(&mut engine, &mut cold, edit(0, last)),
+        CoreReply::Scene { scene, .. } if scene.changed_ids == expected && scene.revision == 1
+    ));
+    for request in [
+        edit(1, stagger(0, 2.0)),
+        edit(2, stagger(11, -0.0)),
+        edit(3, stagger(11, 0.0)),
+        CoreRequest::Undo { id: "undo".into() },
+        CoreRequest::Redo { id: "redo".into() },
+        CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        },
+    ] {
+        compare(&mut engine, &mut cold, request);
+    }
+    assert_eq!(
+        engine.document.matrices[0].column_layout[11]
+            .stagger
+            .to_bits(),
+        (-0.0f64).to_bits()
+    );
+}
+
+#[test]
+fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = synthetic_outline();
+    let OutlineFeature::PartEnvelope { part_ids, .. } = &mut document.outline[0] else {
+        panic!("expected a part envelope");
+    };
+    let missing = part_ids.pop().unwrap();
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    );
+    let operation = stagger(1, 4.0);
+    let mut draft = engine.document.clone();
+    assert!(
+        !engine
+            .apply_layout_edit(&mut draft, &[], &operation)
+            .unwrap()
+            .1
+    );
+    compare(&mut engine, &mut cold, edit(0, operation));
+    let OutlineFeature::PartEnvelope { part_ids, .. } = &engine.document.outline[0] else {
+        panic!("expected a part envelope");
+    };
+    assert_eq!(part_ids.last(), Some(&missing));
+}
+
+#[test]
+#[ignore = "Focused native phase comparison; run with --ignored --nocapture"]
+fn settled_stagger_layout_profile() {
+    use std::{hint::black_box, time::Instant};
+
+    for large in [false, true] {
+        let mut engine = CoreEngine::new();
+        assert!(matches!(
+            engine.handle(CoreRequest::Open {
+                id: "profile".into(),
+                document: stagger_profile_document(large),
+            }),
+            CoreReply::Scene { .. }
+        ));
+        let columns = engine.document.matrices[0].columns;
+        for column in [0, columns - 1] {
+            let operation = stagger(column, 4.0);
+            let mut samples = [Vec::new(), Vec::new()];
+            for i in 0..124 {
+                let mut results = [None, None];
+                for route in [i % 2, (i + 1) % 2] {
+                    let mut draft = engine.document.clone();
+                    let start = Instant::now();
+                    let changed = if route == 0 {
+                        // The parent profile measured apply followed by full layout resolve.
+                        let changed =
+                            apply_with_ledger(&mut draft, &[], &operation, &engine.identity_ledger)
+                                .unwrap();
+                        layout::resolve(&mut draft).unwrap();
+                        changed
+                    } else {
+                        let (changed, settled) = engine
+                            .apply_layout_edit(&mut draft, &[], &operation)
+                            .unwrap();
+                        assert!(settled);
+                        changed
+                    };
+                    let elapsed = start.elapsed();
+                    if i >= 24 {
+                        samples[route].push(elapsed.as_secs_f64() * 1_000.0);
+                    }
+                    results[route] = Some((black_box(changed), draft));
+                }
+                let [(changed_full, full), (changed_settled, settled)] =
+                    results.map(Option::unwrap);
+                assert_eq!(changed_settled, changed_full);
+                assert_eq!(
+                    serde_json::to_vec(&settled).unwrap(),
+                    serde_json::to_vec(&full).unwrap()
+                );
+            }
+            for (label, samples) in ["full", "targeted"].into_iter().zip(&mut samples) {
+                samples.sort_by(f64::total_cmp);
+                eprintln!(
+                    "{} keys, column {column}, {label}, n={}: p50={:.3} ms p95={:.3} ms",
+                    engine.document.matrices[0].part_ids.len(),
+                    samples.len(),
+                    samples[49],
+                    samples[94]
+                );
+            }
+        }
+    }
 }
 
 fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
@@ -292,6 +514,63 @@ fn legacy_mirror_adoption_preview_does_not_publish_copy_or_membership() {
 }
 
 #[test]
+fn stagger_shares_only_the_same_ordered_outline_composition() {
+    for (mut document, shares_composition) in [
+        (fixture(), true),
+        (stagger_profile_document(true), true),
+        (fixture(), false),
+    ] {
+        if !shares_composition {
+            // Applying the subtractions before the envelope changes the board
+            // but leaves the legacy project contour in its original order.
+            document.boards[0].outline_ids.rotate_left(1);
+        }
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let before = serde_json::to_vec(&engine.document).unwrap();
+        let accepted = engine.reusable_scene.as_ref().unwrap().clone();
+        let column = engine.document.matrices[0].columns - 1;
+        let mut preview = edit(0, stagger(column, 4.0));
+        let CoreRequest::Edit { command, .. } = &mut preview else {
+            unreachable!()
+        };
+        command.phase = EditPhase::Preview;
+        let board_projections = engine.independent_board_projections.get();
+        let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview) else {
+            panic!("expected a stagger preview");
+        };
+        assert_ne!(scene.contours, accepted.contours);
+        assert_eq!(
+            scene.contours == scene.board_contours[0].contours,
+            shares_composition
+        );
+        let expected_extra_projections = usize::from(!shares_composition);
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            expected_extra_projections
+        );
+        assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
+        assert_eq!(engine.reusable_scene.as_ref(), Some(&accepted));
+        assert!(engine.undo.is_empty() && engine.redo.is_empty());
+
+        let cold_projections = cold.independent_board_projections.get();
+        assert!(matches!(
+            compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
+            CoreReply::Scene { .. }
+        ));
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            2 * expected_extra_projections
+        );
+        // The independently projected cold reply and the fresh scene used by
+        // compare both went through separate board composition.
+        assert_eq!(
+            cold.independent_board_projections.get() - cold_projections,
+            2
+        );
+    }
+}
+
+#[test]
 fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
@@ -422,11 +701,16 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         panic!("expected a saved fixed outline");
     };
     assert!(engine.reusable_scene.is_none());
+    let board_projections = engine.independent_board_projections.get();
     let CoreReply::Preview { scene: preview, .. } =
         compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
     else {
         panic!("expected a preview with a fixed outline");
     };
+    assert_eq!(
+        engine.independent_board_projections.get(),
+        board_projections + 1
+    );
     assert_eq!(preview.board_contours, fixed.board_contours);
     assert_eq!(
         serde_json::to_vec(&engine.document).unwrap(),

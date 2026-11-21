@@ -1049,6 +1049,5 @@ pub(super) fn prepare_membership_projection(
         });
         output.context_delta.retired.push(association);
     }
-    lifecycle::apply_membership_context_delta(input, &mut output)?;
-    Ok(output)
+    lifecycle::apply_membership_context_delta(input, output)
 }

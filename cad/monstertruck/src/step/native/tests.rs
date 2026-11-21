@@ -1,6 +1,7 @@
 use super::*;
 
 mod cone_tests;
+mod cylinder_band_tests;
 
 const MOLEX: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Socket_2pin.step"

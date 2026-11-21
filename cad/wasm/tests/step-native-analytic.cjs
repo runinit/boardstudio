@@ -277,6 +277,24 @@ const path = require('node:path');
   }
   console.log('PASS packaged conical switch, apex, seamed and notched frustums, and Panasonic fallback');
 
+  const bands = read('cad/monstertruck/tests/fixtures/vik-connector-bands.step');
+  // Both routes retain the 15 faces. At these deflections the vendor meshes
+  // contain 184 and 12618 triangles, respectively, so this pins native delivery.
+  for (const [deflection, triangles] of [[0.1, 128], [0.001, 372]]) {
+    const { vendorStep: asset, bounds } = importModel(bands, deflection);
+    try {
+      assert.equal(asset.faceOccurrences.length, 15);
+      assert.equal(new Set(asset.faceOccurrences.map(f => f.solidOccurrenceIndex)).size, 2);
+      assert.equal(asset.triangleFaceOccurrenceIndices.length, triangles);
+      assert.equal(asset.accuracy.meshClosedOriented, true);
+      assert.equal(asset.sourceQualification.state, 'unknown');
+      const expected = [7.2, -5.25, 0.2, 7.7, -0.75, 2.1];
+      assert([...bounds.min, ...bounds.max].every((v, i) => Math.abs(v - expected[i]) < 1e-10));
+    } finally {
+      asset.analysisHandle.free();
+    }
+  }
+
   const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);
