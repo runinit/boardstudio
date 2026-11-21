@@ -1,24 +1,7 @@
 //! The Case Inspector's summary of the tree-owned PCB part selection.
-use boardstudio_application::{ReadModel, Scope};
+use boardstudio_application::ReadModel;
 use boardstudio_web_ui_model::tree::ScopedTreeContext;
-
-/// Host-compatible copy of the ui-model selection currency check. The ui-model
-/// selection module owns the presentation copy (wasm-only through its Dioxus
-/// adapter); the Case summary keeps this copy so its unit tests run under
-/// `cargo test`. Resolvability is covered by the `resolve_selection` step below:
-/// an unresolvable context resolves to `None` there too.
-fn selection_context_is_current(
-    model: &ReadModel,
-    scope: &Scope,
-    _context: &crate::objects::TreeContext,
-) -> bool {
-    model.active_board_id == scope.board_id
-        && model.active_instance_id == scope.instance_id
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == scope.session_epoch
-                && snapshot.document.id == scope.document_id
-        })
-}
+use boardstudio_web_ui_model::tree::selection_context_is_current;
 
 pub struct SelectedPartSummary {
     pub title: String,

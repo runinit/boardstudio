@@ -49,6 +49,7 @@ pub(crate) mod parts {
 
 pub mod case_display;
 pub mod case_generation_admission;
+pub mod case_gesture_math;
 pub mod closure_clearance;
 pub mod mechanical_feedback;
 pub mod mechanical_pair;

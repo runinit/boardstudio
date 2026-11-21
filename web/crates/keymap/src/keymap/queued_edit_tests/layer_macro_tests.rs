@@ -257,6 +257,47 @@ async fn a_newer_macro_field_draft_keeps_an_older_failure_inline_only() {
 }
 
 #[wasm_bindgen_test]
+async fn a_macro_field_save_failure_preserves_the_newer_draft_after_rollback() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_document()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
+    let revision = runtime_revision(&runtime).unwrap();
+    let label = "Original tapMs";
+    let input = macro_input(&root, label);
+
+    support::fail_next_persist(&runtime, "macro disk failure");
+    let mark = probe.renders.get();
+    commit_input_value(&input, "55");
+    rendered_after(&probe, mark).await;
+    type_value(&input, "66");
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the macro edit's save failure is shown inline",
+        || {
+            macro_field_failure(&root, label)
+                .and_then(|alert| alert.text_content())
+                .is_some_and(|message| message.contains("macro disk failure"))
+        },
+    )
+    .await;
+    let model = runtime.model();
+    assert!(matches!(
+        model.durability,
+        boardstudio_application::Durability::Failed { revision: failed, reason }
+            if failed == revision + 1 && reason.contains("macro disk failure")
+    ));
+    let accepted = model.accepted.unwrap();
+    assert_eq!(accepted.document.revision, revision);
+    assert_eq!(
+        accepted.document.keymap.as_ref().unwrap().macros[0].tap_ms,
+        30
+    );
+    assert_eq!(macro_input(&root, label).value(), "66");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inline_failure() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, macro_document()).await;

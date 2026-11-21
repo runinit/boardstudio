@@ -120,13 +120,7 @@ pub fn context_is_current(
     scope: &Scope,
     context: &TreeContext,
 ) -> bool {
-    model.active_board_id == scope.board_id
-        && model.active_instance_id == scope.instance_id
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == scope.session_epoch
-                && snapshot.document.id == scope.document_id
-        })
-        && objects::context_is_resolvable(model, context)
+    crate::tree::selection_context_is_current(model, scope, context)
 }
 
 pub fn resolve_context(
@@ -497,12 +491,7 @@ pub fn active_board_scope_matches(
     model: &boardstudio_application::ReadModel,
     scope: &Scope,
 ) -> bool {
-    model.active_board_id == scope.board_id
-        && model.active_instance_id == scope.instance_id
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == scope.session_epoch
-                && snapshot.document.id == scope.document_id
-        })
+    crate::tree::active_board_scope_matches(model, scope)
 }
 
 pub fn current_layout_owner(

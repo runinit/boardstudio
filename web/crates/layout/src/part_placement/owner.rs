@@ -12,67 +12,10 @@ use boardstudio_application::{
 use boardstudio_model::model::{
     EditOperation, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
+use boardstudio_web_catalogue::matrix_input::matrix_input_available;
+use boardstudio_web_ui_model::tree::matrix_visible_on_board;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use std::rc::Rc;
-
-/// Host-compatible copy of the objects-tree visibility predicate. The Layout
-/// objects tree owns the presentation copy; the owner keeps this copy so its
-/// unit tests run under `cargo test` without the wasm-only objects tree.
-fn matrix_visible_on_board(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool {
-    let board_parts = document
-        .boards
-        .iter()
-        .find(|board| board.id == board_id)
-        .map(|board| board.part_ids.iter().map(String::as_str).collect())
-        .unwrap_or_default();
-    boardstudio_web_ui_model::tree::visible_matrices(document, board_id, &board_parts)
-        .iter()
-        .any(|matrix| matrix.id == matrix_id)
-}
-
-/// Host-compatible copy of the Parts library predicate. The Parts workspace owns
-/// the presentation copy; the owner keeps this copy so its unit tests run under
-/// `cargo test` without the wasm-only parts tree.
-fn matrix_input_available(definition: &PartDefinition) -> bool {
-    let press = if let Some(profile) = definition.input_profile.as_ref() {
-        profile
-            .press
-            .as_ref()
-            .map(|press| (press.row.clone(), press.column.clone(), press.independent))
-    } else {
-        definition
-            .matrix_terminals
-            .as_ref()
-            .map(|press| (press.row.clone(), press.column.clone(), true))
-            .or_else(|| {
-                definition
-                    .generator
-                    .as_ref()
-                    .filter(|generator| generator.source == "ceoloide/rotary_encoder_ec11_ec12")
-                    .map(|_| ("S1".into(), "S2".into(), true))
-            })
-    };
-    let Some((row_terminal, column_terminal, independent)) = press else {
-        return definition.input_profile.is_none()
-            && definition.pads.iter().any(|pad| pad.id == "one")
-            && definition.pads.iter().any(|pad| pad.id == "two");
-    };
-    let pads_for = |terminal: &str| {
-        definition
-            .terminals
-            .get(terminal)
-            .cloned()
-            .unwrap_or_else(|| {
-                definition
-                    .pads
-                    .iter()
-                    .filter(|pad| pad.number == terminal)
-                    .map(|pad| pad.id.clone())
-                    .collect::<Vec<_>>()
-            })
-    };
-    independent && !pads_for(&row_terminal).is_empty() && !pads_for(&column_terminal).is_empty()
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementWorkflow {

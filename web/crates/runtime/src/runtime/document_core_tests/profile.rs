@@ -184,8 +184,8 @@ fn page_core_profiles_outline_rebuild_in_isolation() {
             CoreReply::Scene { document, .. } => document,
             reply => panic!("could not open outline profile fixture: {reply:?}"),
         };
-        // Both edit routes rebuild the outline without a prior cache. Replay that
-        // work in isolation on the authored fixture to bound its share of Core time.
+        // Measure the full outline rebuild on the authored fixture, independent
+        // of any reuse exercised by the edit submission profiler.
         let mut samples = Vec::with_capacity(100);
         for i in 0..124 {
             let start = now();

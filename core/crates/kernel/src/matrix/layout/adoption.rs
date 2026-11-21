@@ -407,14 +407,14 @@ pub fn set_pair_gap(
 /// members/companions (whose world poses the refresh owns), and legacy pairs
 /// without a stored gap, whose parts stay board-coordinate.
 pub fn part_half_offset(doc: &ProjectDoc, part_id: &str) -> Option<Vec2> {
-    if is_member_or_companion(doc, part_id) {
-        return None;
-    }
     let layout = doc
         .layouts
         .iter()
         .find(|layout| layout.part_ids.iter().any(|id| id == part_id))?;
-    layout_half_offset(doc, &layout.id)
+    let offset = layout_half_offset(doc, &layout.id)?;
+    // Membership only matters when the owning layout stores a half-frame offset.
+    // In a flat layout there is no need to enumerate every matrix's cells for each part.
+    (!is_member_or_companion(doc, part_id)).then_some(offset)
 }
 
 /// Ticket 12: evaluation offset of one layout in a stored-gap pair: the split

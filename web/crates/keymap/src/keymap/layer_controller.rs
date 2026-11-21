@@ -68,8 +68,13 @@ pub(super) fn provide_idle_context() {
 }
 
 pub(super) fn action_pending(request: &KeymapLayerOperation) -> bool {
-    try_consume_context::<LayerEditsContext>()
-        .is_some_and(|context| context.edits.read().is_pending(&LayerKey::from(request)))
+    try_consume_context::<LayerEditsContext>().is_some_and(|context| {
+        context
+            .edits
+            .read()
+            .helper
+            .is_pending(&LayerKey::from(request))
+    })
 }
 
 /// The accepted name of the layer a rename key addresses.
@@ -124,12 +129,14 @@ pub fn use_layer_operations(
         let mut bound = bound_layer.borrow_mut();
         if *bound != displayed {
             if let Some(old) = bound.take() {
-                pending.peek().unbind_field(&LayerKey::Rename(old));
+                pending.peek().helper.unbind_field(&LayerKey::Rename(old));
             }
             if let Some(layer_id) = displayed.clone() {
-                pending
-                    .peek()
-                    .bind_field(LayerKey::Rename(layer_id), name_draft, name_failure);
+                pending.peek().helper.bind_field(
+                    LayerKey::Rename(layer_id),
+                    name_draft,
+                    name_failure,
+                );
             }
             *bound = displayed;
         }
@@ -162,11 +169,11 @@ pub fn use_layer_operations(
                     name_failure.set(None);
                 }
             }
-            if !pending.peek().has_terminal() {
+            if !pending.peek().helper.has_terminal() {
                 return;
             }
             let results = pending
-                .peek()
+                .write()
                 .helper
                 .settle(true, |key| accepted_layer_name(&runtime, key));
             for result in results {
@@ -197,7 +204,6 @@ pub fn use_layer_operations(
                     }));
                 }
             }
-            pending.write().prune();
         }
     }));
     let enabled = current_source(
@@ -236,7 +242,7 @@ pub fn use_layer_operations(
                 return;
             };
             if !matches!(request, KeymapLayerOperation::Rename { .. })
-                && pending.peek().is_pending(&LayerKey::from(&request))
+                && pending.peek().helper.is_pending(&LayerKey::from(&request))
             {
                 return;
             }
@@ -273,7 +279,7 @@ pub fn use_layer_operations(
                 KeymapLayerOperation::Rename { name, .. } => name.clone(),
                 _ => String::new(),
             };
-            pending.peek().helper.begin_field(
+            pending.write().helper.begin_field(
                 &runtime,
                 key.clone(),
                 "keymap-layer",
@@ -281,7 +287,6 @@ pub fn use_layer_operations(
                 resolver,
                 &submitted,
             );
-            pending.write().remember(key.clone());
             feedback.set(Some(LayerFeedbackState {
                 scope: source.scope.clone(),
                 generation: captured_generation,

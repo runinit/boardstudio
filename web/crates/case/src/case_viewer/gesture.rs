@@ -1,4 +1,8 @@
 use super::*;
+use crate::case_gesture_math::{
+    MountMoveConstraints, mount_radius, move_case_mount, move_gasket_support,
+    supports_equal_positions,
+};
 use crate::mechanical_settings;
 
 #[derive(Clone)]
@@ -22,12 +26,6 @@ pub(super) enum CaseGestureDraft {
 pub(super) enum CaseMountTarget {
     Mechanical(mechanical_settings::MechanicalMountCollection),
     Authored { body_id: String },
-}
-
-#[derive(Clone)]
-pub(super) struct MountMoveConstraints {
-    outer: Vec<Vec<Vec2>>,
-    holes: Vec<Vec<Vec2>>,
 }
 
 pub(super) fn case_viewer_handles(
@@ -712,15 +710,6 @@ fn case_gesture_preview_document(scene: &CadScene, draft: &CaseGestureDraft) -> 
     Some(document)
 }
 
-fn supports_equal_positions(a: &[MechanicalGasketSupport], b: &[MechanicalGasketSupport]) -> bool {
-    a.len() == b.len()
-        && a.iter().all(|support| {
-            b.iter()
-                .find(|candidate| candidate.id == support.id)
-                .is_some_and(|candidate| (support.anchor - candidate.anchor).abs() <= 1e-7)
-        })
-}
-
 fn gasket_handles(
     original_handles: &[ViewerHandle],
     supports: &[MechanicalGasketSupport],
@@ -786,92 +775,6 @@ fn same_mount_target(left: &CaseMountTarget, right: &CaseMountTarget) -> bool {
     }
 }
 
-fn move_gasket_support(
-    point: Vec2,
-    id: &str,
-    supports: &[MechanicalGasketSupport],
-    tracks: &[MechanicalGasketTrack],
-) -> Option<Vec<MechanicalGasketSupport>> {
-    let original = supports.iter().find(|support| support.id == id)?;
-    let moved = project_gasket(point, original, tracks)?;
-    let mut replacements = BTreeMap::from([(id.to_owned(), moved)]);
-    if let Some(pair_id) = original.pair_id.as_ref()
-        && let Some(axis) = original.mirror_axis
-        && !original.unlinked
-    {
-        let pair = supports.iter().find(|support| support.id == *pair_id)?;
-        if !pair.unlinked {
-            let moved = replacements.get(id)?;
-            let reflected = project_gasket(
-                Vec2 {
-                    x: 2.0 * axis - moved.at.x,
-                    y: moved.at.y,
-                },
-                pair,
-                tracks,
-            )?;
-            if (reflected.at.x - (2.0 * axis - moved.at.x)).hypot(reflected.at.y - moved.at.y)
-                > 0.001
-            {
-                return None;
-            }
-            replacements.insert(pair.id.clone(), reflected);
-        }
-    }
-    Some(
-        supports
-            .iter()
-            .map(|support| replacements.get(&support.id).unwrap_or(support).clone())
-            .collect(),
-    )
-}
-
-fn project_gasket(
-    point: Vec2,
-    support: &MechanicalGasketSupport,
-    tracks: &[MechanicalGasketTrack],
-) -> Option<MechanicalGasketSupport> {
-    let mut best = None;
-    let mut best_distance = f64::INFINITY;
-    for track in tracks
-        .iter()
-        .filter(|track| track.region_id == support.region_id)
-    {
-        let dx = track.end.x - track.start.x;
-        let dy = track.end.y - track.start.y;
-        let length_squared = dx * dx + dy * dy;
-        if length_squared <= f64::EPSILON {
-            continue;
-        }
-        let length = length_squared.sqrt();
-        let t = (((point.x - track.start.x) * dx + (point.y - track.start.y) * dy)
-            / length_squared)
-            .clamp(0.0, 1.0);
-        let at = Vec2 {
-            x: track.start.x + t * dx,
-            y: track.start.y + t * dy,
-        };
-        let distance = (point.x - at.x).hypot(point.y - at.y);
-        if distance >= best_distance {
-            continue;
-        }
-        best_distance = distance;
-        let mut next = support.clone();
-        next.at = at;
-        next.anchor = track.start_anchor + t * (track.end_anchor - track.start_anchor);
-        next.tangent = Vec2 {
-            x: dx / length,
-            y: dy / length,
-        };
-        next.normal = Vec2 {
-            x: dy / length,
-            y: -dx / length,
-        };
-        best = Some(next);
-    }
-    best
-}
-
 fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<MountMoveConstraints> {
     let body = scene
         .prepared
@@ -910,86 +813,4 @@ fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<MountMoveConstra
         return None;
     }
     Some(MountMoveConstraints { outer, holes })
-}
-
-fn move_case_mount(
-    point: Vec2,
-    id: &str,
-    mounts: &[Mount],
-    constraints: &MountMoveConstraints,
-) -> Option<Vec<Mount>> {
-    if !point.x.is_finite() || !point.y.is_finite() {
-        return None;
-    }
-    let original = mounts.iter().find(|mount| mount.id == id)?;
-    let radius = mount_radius(original);
-    let margin = radius + 0.5;
-    if !radius.is_finite() || radius <= 0.0 {
-        return None;
-    }
-    if !constraints
-        .outer
-        .iter()
-        .any(|outer| polygon_contains(outer, point) && edge_distance(point, outer) >= margin)
-    {
-        return None;
-    }
-    if constraints
-        .holes
-        .iter()
-        .any(|hole| polygon_contains(hole, point) || edge_distance(point, hole) < margin)
-    {
-        return None;
-    }
-    if mounts.iter().any(|other| {
-        if other.id == id {
-            return false;
-        }
-        let other_radius = mount_radius(other);
-        !other_radius.is_finite()
-            || other_radius <= 0.0
-            || (point.x - other.at.x).hypot(point.y - other.at.y) < radius + other_radius + 0.5
-    }) {
-        return None;
-    }
-    Some(
-        mounts
-            .iter()
-            .map(|mount| {
-                if mount.id == id {
-                    let mut moved = mount.clone();
-                    moved.at = point;
-                    moved
-                } else {
-                    mount.clone()
-                }
-            })
-            .collect(),
-    )
-}
-
-fn mount_radius(mount: &Mount) -> f64 {
-    if mount.kind == MountKind::Boss {
-        mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0
-    } else {
-        mount.hole_diameter / 2.0
-    }
-}
-
-fn edge_distance(point: Vec2, polygon: &[Vec2]) -> f64 {
-    let mut nearest = f64::INFINITY;
-    for index in 0..polygon.len() {
-        let a = &polygon[index];
-        let b = &polygon[(index + 1) % polygon.len()];
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let length = dx * dx + dy * dy;
-        let t = if length > 0.0 {
-            (((point.x - a.x) * dx + (point.y - a.y) * dy) / length).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        nearest = nearest.min((point.x - a.x - t * dx).hypot(point.y - a.y - t * dy));
-    }
-    nearest
 }

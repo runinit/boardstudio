@@ -11,10 +11,9 @@ use super::shared_viewer::{
 use super::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::polygon_contains;
 use boardstudio_model::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
-    MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
+    MechanicalGasketTrack, MechanicalMount, Mount, ProjectDoc, Vec2,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_shared::ui::{

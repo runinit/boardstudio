@@ -1,6 +1,11 @@
 use super::apply::{affects_outline, apply_with_ledger, edit_dispatch, uses_prepared_transaction};
 use super::preview::{changed_ids, preview_electrical_loss_findings};
+use super::scene_reuse::{replacement_keeps_scene, stagger_outline_changes};
 use super::*;
+
+#[cfg(test)]
+#[path = "scene_reuse/tests.rs"]
+mod scene_reuse_tests;
 
 impl CoreEngine {
     /// Validate a typed Open candidate before retiring editor work, without changing Core.
@@ -75,19 +80,9 @@ impl CoreEngine {
                 self.undo.clear();
                 self.redo.clear();
                 self.recompute();
+                let cacheable = repaired_findings.is_empty();
                 self.findings.extend(repaired_findings);
-                self.scene(
-                    id,
-                    SceneInput {
-                        transaction: "open",
-                        changed: vec![],
-                        document: &self.document,
-                        contours: &self.contours,
-                        geom_findings: &self.findings,
-                        cache: &self.outline_cache,
-                        kind: SceneKind::Committed,
-                    },
-                )
+                self.project_committed_scene(id, "open", vec![], cacheable)
             }
             CoreRequest::Edit { id, command } => self.edit(id, command),
             CoreRequest::Undo { id } => self.history(id, History::Undo),
@@ -256,6 +251,7 @@ impl CoreEngine {
                     return self.error(id, "The PCB handoff changed; review it again");
                 }
                 config.protected_handoff = None;
+                self.reusable_scene = None;
                 self.document.revision = revision;
                 self.scene(
                     id,
@@ -313,6 +309,7 @@ impl CoreEngine {
                     .map(|baseline| baseline.assignments.clone())
                     .unwrap_or_default();
                 assignments.extend(electrical::handoff_assignments(&plan));
+                self.reusable_scene = None;
                 board.protected_handoff = Some(ElectricalHandoffBaseline {
                     fingerprint: plan.fingerprint.clone(),
                     revision: self.document.revision,
@@ -504,8 +501,7 @@ impl CoreEngine {
                 EditOperation::CreateMirroredPair { .. } | EditOperation::CreateMirroredHalf { .. }
             )
         {
-            let accepted = self.document.clone();
-            let mut adapted = match layout::adapt_spacing(&mut next, &accepted) {
+            let mut adapted = match layout::adapt_spacing(&mut next, &self.document) {
                 Ok(adapted) => adapted,
                 Err(message) => return self.error(id, &message),
             };
@@ -554,30 +550,41 @@ impl CoreEngine {
                 },
             );
         }
-        let (cache, contours, findings) = if prepared_route || affects_outline(&command.operation) {
-            let previous = if matches!(command.operation, EditOperation::MoveParts { .. }) {
-                Some(&self.outline_cache)
-            } else {
-                None
-            };
-            outlines(&next, previous, &changed)
+        let reuse_scene = command.phase == EditPhase::Commit
+            && self.reusable_scene.is_some()
+            && matches!(command.operation, EditOperation::ReplaceDocument { .. })
+            && replacement_keeps_scene(&self.document, &mut next);
+        let reported_move = matches!(command.operation, EditOperation::MoveParts { .. });
+        let outline = if reuse_scene || (!prepared_route && !affects_outline(&command.operation)) {
+            None
+        } else if reported_move {
+            Some(outlines(&next, Some(&self.outline_cache), &changed))
         } else {
-            (
-                self.outline_cache.clone(),
-                self.contours.clone(),
-                self.findings.clone(),
-            )
+            let stagger_changes = self
+                .reusable_scene
+                .as_ref()
+                .and_then(|_| stagger_outline_changes(&self.document, &next, &command.operation));
+            Some(match stagger_changes {
+                Some(parts) => outlines(&next, Some(&self.outline_cache), &parts),
+                None => outlines(&next, None, &[]),
+            })
         };
         if command.phase == EditPhase::Preview {
+            let accepted = (&self.outline_cache, &self.contours, &self.findings);
+            let (cache, contours, findings) = outline
+                .as_ref()
+                .map_or(accepted, |(cache, contours, findings)| {
+                    (cache, contours, findings)
+                });
             return self.scene(
                 id,
                 SceneInput {
                     transaction: &command.transaction_id,
                     changed,
                     document: &next,
-                    contours: &contours,
-                    geom_findings: &findings,
-                    cache: &cache,
+                    contours,
+                    geom_findings: findings,
+                    cache,
                     kind: SceneKind::Preview,
                 },
             );
@@ -588,9 +595,11 @@ impl CoreEngine {
                 transaction: command.transaction_id,
                 document: next,
                 changed,
-                cache,
-                contours,
-                findings,
+                outline,
+                reuse_scene,
+                // MoveParts uses reported IDs as hints. Subsequent reuse
+                // starts from a full rebuild or dependency-checked stagger.
+                cacheable: !reported_move,
             },
         )
     }
@@ -600,9 +609,9 @@ impl CoreEngine {
             transaction,
             document: mut next,
             changed,
-            cache,
-            contours,
-            findings,
+            outline,
+            reuse_scene,
+            cacheable,
         } = prepared;
         if let Some(message) = validate::duplicate_top_level_identity(&next) {
             return self.error(id, &message);
@@ -611,30 +620,41 @@ impl CoreEngine {
             return self.error(id, "Document revision is exhausted");
         };
         next.revision = revision;
-        outline_versions::refresh_recovery(&mut next, &cache);
+        if !reuse_scene {
+            let cache = outline
+                .as_ref()
+                .map_or(&self.outline_cache, |(cache, _, _)| cache);
+            outline_versions::refresh_recovery(&mut next, cache);
+        }
         // Keep the latest 100 committed edits without retaining an unbounded document history.
         if self.undo.len() == 100 {
             self.undo.remove(0);
         }
-        self.undo.push(self.document.clone());
+        self.undo.push(std::mem::replace(&mut self.document, next));
         self.redo.clear();
-        self.document = next;
         self.identity_ledger.capture(&self.document);
-        self.contours = contours;
-        self.findings = findings;
-        self.outline_cache = cache;
-        self.scene(
-            id,
-            SceneInput {
-                transaction: &transaction,
-                changed,
-                document: &self.document,
-                contours: &self.contours,
-                geom_findings: &self.findings,
-                cache: &self.outline_cache,
-                kind: SceneKind::Committed,
-            },
-        )
+        if reuse_scene {
+            let mut scene = self
+                .reusable_scene
+                .as_ref()
+                .expect("checked before publication")
+                .clone();
+            scene.revision = revision;
+            scene.transaction_id = transaction;
+            scene.changed_ids = changed;
+            return CoreReply::Scene {
+                id,
+                scene,
+                document: Box::new(self.document.clone()),
+            };
+        }
+        let rebuilt = outline.is_some();
+        if let Some((cache, contours, findings)) = outline {
+            self.outline_cache = cache;
+            self.contours = contours;
+            self.findings = findings;
+        }
+        self.project_committed_scene(id, &transaction, changed, cacheable && rebuilt)
     }
 
     fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
@@ -772,7 +792,17 @@ impl CoreEngine {
             History::Undo => "undo",
             History::Redo => "redo",
         };
-        self.scene(
+        self.project_committed_scene(id, transaction, changed, true)
+    }
+
+    fn project_committed_scene(
+        &mut self,
+        id: String,
+        transaction: &str,
+        changed: Vec<String>,
+        cacheable: bool,
+    ) -> CoreReply {
+        let reply = self.scene(
             id,
             SceneInput {
                 transaction,
@@ -783,7 +813,18 @@ impl CoreEngine {
                 cache: &self.outline_cache,
                 kind: SceneKind::Committed,
             },
-        )
+        );
+        // Recovery and linked alternatives can select snapshots that differ from
+        // the inputs used to build the outline cache. Keep those on the full path.
+        self.reusable_scene = match &reply {
+            CoreReply::Scene { scene, .. }
+                if cacheable && self.document.board_outlines.is_empty() =>
+            {
+                Some(scene.clone())
+            }
+            _ => None,
+        };
+        reply
     }
 
     fn recompute(&mut self) {
@@ -1056,9 +1097,9 @@ struct PreparedEdit {
     transaction: String,
     document: ProjectDoc,
     changed: Vec<String>,
-    cache: OutlineCache,
-    contours: Vec<Contour>,
-    findings: Vec<Finding>,
+    outline: Option<(OutlineCache, Vec<Contour>, Vec<Finding>)>,
+    reuse_scene: bool,
+    cacheable: bool,
 }
 
 enum SceneKind {
@@ -1217,9 +1258,9 @@ impl CoreEngine {
                 transaction,
                 document,
                 changed,
-                cache,
-                contours,
-                findings,
+                outline: Some((cache, contours, findings)),
+                reuse_scene: false,
+                cacheable: false,
             },
         )
     }
