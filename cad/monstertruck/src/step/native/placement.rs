@@ -19,6 +19,7 @@ struct Frame {
     y: Option<u64>,
     z: Option<u64>,
     scale: Option<u64>,
+    mapped: bool,
 }
 
 impl Inputs {
@@ -65,6 +66,7 @@ impl Inputs {
                 )
                 .ok()?;
                 Frame {
+                    mapped,
                     origin: reference(&params[4]).ok()?,
                     x: direction(&params[2])?,
                     y: direction(&params[3])?,
@@ -74,6 +76,7 @@ impl Inputs {
             } else {
                 let params = named_parameters(records, id, "AXIS2_PLACEMENT_3D", 4).ok()?;
                 Frame {
+                    mapped,
                     origin: reference(&params[1]).ok()?,
                     x: direction(&params[3])?,
                     y: None,
@@ -153,6 +156,12 @@ impl Frame {
             } else if authored != y {
                 return None;
             }
+        }
+        // For a mapped operator, second_proj_axis projects default +Y onto
+        // the remaining axis. The renderer uses Z × X for an omitted axis2.
+        // On signed coordinate frames the two agree exactly only in this case.
+        if self.mapped && self.y.is_none() && y != [0, 1, 0] {
+            return None;
         }
         let scale = match self.scale {
             Some(id) => source.placement_scale(id)?,

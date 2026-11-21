@@ -173,8 +173,9 @@ fn mapped_signed_axes_and_decimal_scale_compose_with_product_placement() {
         "#15=SHAPE_REPRESENTATION_RELATIONSHIP('SRR','None',#4442,#16);",
         "#9900=REPRESENTATION_MAP(#2827,#16);
          #9901=MAPPED_ITEM('',#9900,#9902);
-         #9902=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',#9903,$,#3663,1.0000000000000001,$);
-         #9903=DIRECTION('',(0.,1.,0.));",
+         #9902=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',#9903,#9904,#3663,1.0000000000000001,$);
+         #9903=DIRECTION('',(0.,1.,0.));
+         #9904=DIRECTION('',(-1.,0.,0.));",
     );
     let mapped = replace_record(
         mapped.as_bytes(),
@@ -193,6 +194,33 @@ fn mapped_signed_axes_and_decimal_scale_compose_with_product_placement() {
     let lower_y = original * scale;
     assert!(Q::from_float(bounds[0][1]).unwrap() <= lower_y);
     assert!(Q::from_float(bounds[0][1].next_up()).unwrap() > lower_y);
+
+    let omitted = replace_record(mapped.as_bytes(), "#9903,#9904,#3663", "#9903,$,#3663");
+    for x in ["(0.,1.,0.)", "(-1.,0.,0.)"] {
+        // With X=+Y the default second axis projects to zero. With X=-X
+        // it projects to +Y while the renderer uses -Y.
+        let source = replace_record(
+            omitted.as_bytes(),
+            "#9903=DIRECTION('',(0.,1.,0.));",
+            &format!("#9903=DIRECTION('',{x});"),
+        );
+        let error = native_candidate(source.as_bytes(), StepImportOptions::default())
+            .err()
+            .unwrap();
+        assert!(
+            error.contains("unsupported exact shared trim placement axes"),
+            "{error}"
+        );
+    }
+    let standard = replace_record(
+        omitted.as_bytes(),
+        "#9903=DIRECTION('',(0.,1.,0.));",
+        "#9903=DIRECTION('',(1.,0.,0.));",
+    );
+    assert_eq!(
+        native_model(standard.as_bytes(), StepImportOptions::default()).occurrence_count(),
+        1
+    );
 }
 
 #[test]
