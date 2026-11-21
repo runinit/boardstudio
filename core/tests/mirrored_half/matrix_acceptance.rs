@@ -431,7 +431,7 @@ fn sequence_operation(
         }
     }
 }
-fn verify_matrix_sequence(kind: MatrixSequenceKind, before: &Value, after: &Value) {
+fn verify_matrix_sequence(kind: MatrixSequenceKind, author: &str, before: &Value, after: &Value) {
     match kind {
         MatrixSequenceKind::Placement => {
             assert_projected_key_pose(after, SRC_R0C1, MIR_R0C1, 19.0, 4.0);
@@ -515,10 +515,8 @@ fn verify_matrix_sequence(kind: MatrixSequenceKind, before: &Value, after: &Valu
             }
         }
         MatrixSequenceKind::Replacement => {
-            let sx = matrix(after, SOURCE_MATRIX)["origin"]["x"]
-                .as_f64()
-                .unwrap();
-            assert!(sx == 2.0 || sx == -2.0, "unexpected source origin {sx}");
+            let sx = if author == "left" { 2.0 } else { -2.0 };
+            assert_eq!(matrix(after, SOURCE_MATRIX)["origin"]["x"], sx);
             assert_eq!(matrix(after, MIRROR_MATRIX)["origin"]["x"], 200.0 - sx);
             assert_projected_key_pose(after, SRC_R0C0, MIR_R0C0, sx, 0.0);
         }
@@ -630,7 +628,7 @@ fn parent19_matrix_operation_sequences_cover_linked_local_omitted_reverse_matrix
                     before["revision"].as_u64().unwrap() + 1,
                     "{label}"
                 );
-                verify_matrix_sequence(kind, &before, &after);
+                verify_matrix_sequence(kind, author, &before, &after);
                 assert_thumb_matrix_unchanged(&before, &after);
                 let changed: Vec<String> = committed["scene"]["changedIds"]
                     .as_array()
