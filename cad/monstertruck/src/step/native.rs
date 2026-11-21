@@ -240,6 +240,9 @@ pub(super) fn build(
                         asset.source_faces[face.source].face_id
                     )
                 })?;
+            if face_mesh.is_empty() {
+                return Err("native face produced no triangles".into());
+            }
             let tag = asset.face_occurrences.len();
             asset.face_occurrences.push(StepFaceOccurrence {
                 source_face: face.source,
@@ -259,7 +262,9 @@ pub(super) fn build(
                 triangle.map(|point| world.transform_point(point))
             }));
         }
-        let origin = triangles[0][0];
+        let origin = triangles
+            .first()
+            .ok_or("native solid produced no triangles")?[0];
         let mut volume = 0.0;
         for &[a, b, c] in &triangles {
             for p in [a, b, c] {
