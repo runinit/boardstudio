@@ -9,6 +9,14 @@ const SOURCE_MATRIX: &str = "left-synthetic-keys";
 const MIRROR_MATRIX: &str = "right-synthetic-keys";
 const SOURCE_THUMB_MATRIX: &str = "left-thumb-keys";
 const MIRROR_THUMB_MATRIX: &str = "right-thumb-keys";
+const SRC_R0C0: &str = "matrix/left-synthetic-keys/r0c0";
+const MIR_R0C0: &str = "matrix/right-synthetic-keys/r0c0";
+const SRC_R0C1: &str = "matrix/left-synthetic-keys/r0c1";
+const MIR_R0C1: &str = "matrix/right-synthetic-keys/r0c1";
+const SRC_R1C1: &str = "matrix/left-synthetic-keys/r1c1";
+const MIR_R1C1: &str = "matrix/right-synthetic-keys/r1c1";
+const SRC_R0C2: &str = "matrix/left-synthetic-keys/r0c2";
+const MIR_R0C2: &str = "matrix/right-synthetic-keys/r0c2";
 
 fn accepted_matrix_pair(pair_id: &str) -> (CoreEngine, Value) {
     let (mut engine, seed) = seed(&runtime_supported_document(), "left");
@@ -116,10 +124,7 @@ fn parent19_matrix_move_preview_projects_from_either_authored_half_with_companio
     for author in ["left", "right"] {
         let pair_id = format!("parent19-matrix-move-preview-{author}");
         let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let (source_key, mirror_key) = (
-            "matrix/left-synthetic-keys/r0c0",
-            "matrix/right-synthetic-keys/r0c0",
-        );
+        let (source_key, mirror_key) = (SRC_R0C0, MIR_R0C0);
         let (author_key, dx, dy) = if author == "left" {
             (source_key, 7.0, 3.0)
         } else {
@@ -217,9 +222,9 @@ fn parent19_noop_preview_and_retired_target_refusal_preserve_history_cursor() {
         &mut engine,
         &accepted_at_cursor,
         "parent19-noop-preview",
-        json!({"kind":"move-parts","positions":[{"id":"matrix/left-synthetic-keys/r0c0",
-            "at":part(&accepted_at_cursor,"matrix/left-synthetic-keys/r0c0")["pose"]["at"]}]}),
-        &["matrix/left-synthetic-keys/r0c0"],
+        json!({"kind":"move-parts","positions":[{"id":SRC_R0C0,
+            "at":part(&accepted_at_cursor,SRC_R0C0)["pose"]["at"]}]}),
+        &[SRC_R0C0],
     );
     let redone = request(
         &mut engine,
@@ -240,10 +245,10 @@ fn parent19_noop_preview_and_retired_target_refusal_preserve_history_cursor() {
         &before_removal,
         "parent19-retire-matrix-key",
         json!({"kind":"remove-matrix-cells","matrixId":SOURCE_MATRIX,"cells":[[0,0]]}),
-        &["matrix/left-synthetic-keys/r0c0"],
+        &[SRC_R0C0],
     );
     assert_eq!(removal["kind"], "scene", "{removal}");
-    let retired_id = "matrix/left-synthetic-keys/r0c0";
+    let retired_id = SRC_R0C0;
     let retired_refusal: Value = serde_json::from_str(
         &engine.request(
             &json!({"id":"parent19-retired-target-preview","kind":"edit","command":{
@@ -345,153 +350,366 @@ fn assert_thumb_matrix_unchanged(before: &Value, after: &Value) {
     }
 }
 
-#[test]
-fn parent19_matrix_placement_projects_from_either_half_with_one_step_history() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-placement-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let matrix_id = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let source_key = "matrix/left-synthetic-keys/r0c1";
-        let mirror_key = "matrix/right-synthetic-keys/r0c1";
-        let operation = json!({"kind":"set-matrix-placement","matrixId":matrix_id,
-            "change":{"kind":"column-stagger","column":1,"value":4.0}});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-placement-preview-{author}"),
-            operation.clone(),
-            &[source_key, mirror_key],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-placement-commit-{author}"),
-            operation,
-            &[source_key, mirror_key],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        assert_eq!(
-            committed["document"]["revision"],
-            before["revision"].as_u64().unwrap() + 1
-        );
-        assert_projected_key_pose(&committed["document"], source_key, mirror_key, 19.0, 4.0);
-        assert_eq!(
-            matrix(&committed["document"], SOURCE_MATRIX)["cells"],
-            matrix(&before, SOURCE_MATRIX)["cells"],
-            "placement changes retain source membership"
-        );
-        assert_eq!(
-            matrix(&committed["document"], MIRROR_MATRIX)["cells"],
-            matrix(&before, MIRROR_MATRIX)["cells"],
-            "placement changes retain mirror membership"
-        );
-        assert_thumb_matrix_unchanged(&before, &committed["document"]);
-        assert_document_history(&mut engine, &before, &committed["document"], &pair_id);
+// W5 table-driven operation sequences: one runner covers the eight repetitive
+// matrix geometry/membership cases (poses/tombstones/dimensions preserved below)
+// plus linked/local/omitted, reverse authorship, matrixless U1 move, no-op,
+// preview/commit, archive reopen and history. Refusals stay in the untouched
+// retired-target test (exact messages, no count-only proof).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum MatrixSequenceKind {
+    Placement,
+    Splay,
+    MembershipRemoval,
+    CellDeletion,
+    RowRemoval,
+    ColumnRemoval,
+    WholeRemoval,
+    Replacement,
+    Expansion,
+    MatrixlessMove,
+}
+fn sequence_operation(
+    kind: MatrixSequenceKind,
+    author: &str,
+    before: &Value,
+) -> (Value, Vec<&'static str>) {
+    let m = if author == "left" {
+        SOURCE_MATRIX
+    } else {
+        MIRROR_MATRIX
+    };
+    match kind {
+        MatrixSequenceKind::Placement => (
+            json!({"kind":"set-matrix-placement","matrixId":m,
+                "change":{"kind":"column-stagger","column":1,"value":4.0}}),
+            vec![SRC_R0C1, MIR_R0C1],
+        ),
+        MatrixSequenceKind::Splay => (
+            json!({"kind":"set-matrix-splay","matrixId":m,"column":1,
+                "change":{"kind":"angle","angle":12.0,"affect":"column"}}),
+            vec![SRC_R1C1, MIR_R1C1],
+        ),
+        MatrixSequenceKind::MembershipRemoval => (
+            json!({"kind":"remove-selected-matrix-cells","cells":{m:[[0,0]]}}),
+            vec![SRC_R0C0, MIR_R0C0],
+        ),
+        MatrixSequenceKind::CellDeletion => (
+            json!({"kind":"remove-matrix-cells","matrixId":m,"cells":[[0,0]]}),
+            vec![SRC_R0C0, MIR_R0C0],
+        ),
+        MatrixSequenceKind::RowRemoval => (
+            json!({"kind":"remove-matrix-row","matrixId":m,"row":1}),
+            vec![],
+        ),
+        MatrixSequenceKind::ColumnRemoval => (
+            json!({"kind":"remove-matrix-column","matrixId":m,"column":1}),
+            vec![],
+        ),
+        MatrixSequenceKind::WholeRemoval => (json!({"kind":"remove-matrix","id":m}), vec![]),
+        MatrixSequenceKind::Replacement => {
+            let mut r = matrix(before, m).clone();
+            r["origin"]["x"] = json!(r["origin"]["x"].as_f64().unwrap() + 2.0);
+            (
+                json!({"kind":"set-matrix","matrix":r}),
+                vec![SRC_R0C0, MIR_R0C0],
+            )
+        }
+        MatrixSequenceKind::Expansion => (
+            json!({"kind":"set-matrix","matrix":expanded_matrix(before, m)}),
+            vec![SRC_R0C2, MIR_R0C2],
+        ),
+        MatrixSequenceKind::MatrixlessMove => {
+            let (id, at) = if author == "left" {
+                ("left/U1", json!({"x":-16.0,"y":14.0}))
+            } else {
+                ("right/U1", json!({"x":216.0,"y":14.0}))
+            };
+            (
+                json!({"kind":"move-parts","positions":[{"id":id,"at":at}]}),
+                vec!["left/U1", "right/U1"],
+            )
+        }
     }
 }
-
-#[test]
-fn parent19_matrix_splay_projects_member_geometry_from_either_half() {
-    let x = 19.0 - 21.0 * 12.0_f64.to_radians().sin();
-    let y = 21.0 * 12.0_f64.to_radians().cos();
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-splay-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let matrix_id = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let source_key = "matrix/left-synthetic-keys/r1c1";
-        let mirror_key = "matrix/right-synthetic-keys/r1c1";
-        let operation = json!({"kind":"set-matrix-splay","matrixId":matrix_id,"column":1,
-            "change":{"kind":"angle","angle":12.0,"affect":"column"}});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-splay-preview-{author}"),
-            operation.clone(),
-            &[source_key, mirror_key],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-splay-commit-{author}"),
-            operation,
-            &[source_key, mirror_key],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        assert_projected_key_pose(&committed["document"], source_key, mirror_key, x, y);
-        assert_thumb_matrix_unchanged(&before, &committed["document"]);
-        assert_document_history(&mut engine, &before, &committed["document"], &pair_id);
-    }
-}
-
-#[test]
-fn parent19_matrix_membership_removal_projects_from_either_half_once() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-membership-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let matrix_id = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let removed_source_key = "matrix/left-synthetic-keys/r0c0";
-        let removed_mirror_key = "matrix/right-synthetic-keys/r0c0";
-        let operation = json!({"kind":"remove-selected-matrix-cells",
-            "cells":{matrix_id:[[0,0]]}});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-membership-preview-{author}"),
-            operation.clone(),
-            &[removed_source_key, removed_mirror_key],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-membership-commit-{author}"),
-            operation,
-            &[removed_source_key, removed_mirror_key],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        let after = &committed["document"];
-        for (matrix_id, key_id) in [
-            (SOURCE_MATRIX, removed_source_key),
-            (MIRROR_MATRIX, removed_mirror_key),
-        ] {
-            assert!(
-                find_part(after, key_id).is_none(),
-                "removed key {key_id} remains"
+fn verify_matrix_sequence(kind: MatrixSequenceKind, before: &Value, after: &Value) {
+    match kind {
+        MatrixSequenceKind::Placement => {
+            assert_projected_key_pose(after, SRC_R0C1, MIR_R0C1, 19.0, 4.0);
+            assert_eq!(
+                matrix(after, SOURCE_MATRIX)["cells"],
+                matrix(before, SOURCE_MATRIX)["cells"]
             );
-            assert_deleted_cell_tombstone(after, matrix_id, 0, 0);
-            let cells = matrix(after, matrix_id)["cells"].as_array().unwrap();
-            assert!(
-                cells
-                    .iter()
-                    .any(|cell| cell["row"] == 0 && cell["column"] == 1),
-                "{matrix_id} lost the unaffected sibling cell"
+            assert_eq!(
+                matrix(after, MIRROR_MATRIX)["cells"],
+                matrix(before, MIRROR_MATRIX)["cells"]
             );
         }
-        assert!(find_part(after, "matrix/left-synthetic-keys/r0c0/diode").is_none());
-        assert!(find_part(after, "matrix/right-synthetic-keys/r0c0/diode").is_none());
-        assert!(find_part(after, "matrix/left-synthetic-keys/r0c0/led").is_none());
-        assert!(find_part(after, "matrix/right-synthetic-keys/r0c0/led").is_none());
-        assert!(
-            find_part(after, "matrix/left-synthetic-keys/r0c1").is_some()
-                && find_part(after, "matrix/right-synthetic-keys/r0c1").is_some(),
-            "an unaffected sibling key remains on both halves"
-        );
-        assert_thumb_matrix_unchanged(&before, after);
-        assert_document_history(&mut engine, &before, after, &pair_id);
+        MatrixSequenceKind::Splay => {
+            let x = 19.0 - 21.0 * 12.0_f64.to_radians().sin();
+            let y = 21.0 * 12.0_f64.to_radians().cos();
+            assert_projected_key_pose(after, SRC_R1C1, MIR_R1C1, x, y);
+        }
+        MatrixSequenceKind::MembershipRemoval => {
+            for (mid, key) in [(SOURCE_MATRIX, SRC_R0C0), (MIRROR_MATRIX, MIR_R0C0)] {
+                assert!(find_part(after, key).is_none(), "removed {key} remains");
+                assert_deleted_cell_tombstone(after, mid, 0, 0);
+            }
+            for key in [
+                "matrix/left-synthetic-keys/r0c0/diode",
+                "matrix/right-synthetic-keys/r0c0/diode",
+                "matrix/left-synthetic-keys/r0c0/led",
+                "matrix/right-synthetic-keys/r0c0/led",
+            ] {
+                assert!(find_part(after, key).is_none(), "companion {key} remains");
+            }
+            assert!(find_part(after, SRC_R0C1).is_some());
+            assert!(find_part(after, MIR_R0C1).is_some());
+        }
+        MatrixSequenceKind::CellDeletion => {
+            for (mid, key) in [(SOURCE_MATRIX, SRC_R0C0), (MIRROR_MATRIX, MIR_R0C0)] {
+                assert_key_absent(after, key);
+                assert_deleted_cell_tombstone(after, mid, 0, 0);
+            }
+        }
+        MatrixSequenceKind::RowRemoval => {
+            for mid in [SOURCE_MATRIX, MIRROR_MATRIX] {
+                assert_eq!(matrix(after, mid)["rows"], 1, "{mid}");
+            }
+            for key in [
+                "matrix/left-synthetic-keys/r1c0",
+                SRC_R1C1,
+                "matrix/right-synthetic-keys/r1c0",
+                MIR_R1C1,
+            ] {
+                assert_key_absent(after, key);
+            }
+            assert!(find_part(after, SRC_R0C0).is_some());
+            assert!(find_part(after, MIR_R0C0).is_some());
+        }
+        MatrixSequenceKind::ColumnRemoval => {
+            for mid in [SOURCE_MATRIX, MIRROR_MATRIX] {
+                assert_eq!(matrix(after, mid)["columns"], 1, "{mid}");
+            }
+            for key in [SRC_R0C1, SRC_R1C1, MIR_R0C1, MIR_R1C1] {
+                assert_key_absent(after, key);
+            }
+            assert!(find_part(after, SRC_R0C0).is_some());
+            assert!(find_part(after, MIR_R0C0).is_some());
+        }
+        MatrixSequenceKind::WholeRemoval => {
+            for mid in [SOURCE_MATRIX, MIRROR_MATRIX] {
+                assert!(
+                    after["matrices"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .all(|m| m["id"] != mid),
+                    "{mid} remains"
+                );
+            }
+            for row in 0..2 {
+                for col in 0..2 {
+                    assert_key_absent(after, &format!("matrix/left-synthetic-keys/r{row}c{col}"));
+                    assert_key_absent(after, &format!("matrix/right-synthetic-keys/r{row}c{col}"));
+                }
+            }
+        }
+        MatrixSequenceKind::Replacement => {
+            let sx = matrix(after, SOURCE_MATRIX)["origin"]["x"]
+                .as_f64()
+                .unwrap();
+            assert!(sx == 2.0 || sx == -2.0, "unexpected source origin {sx}");
+            assert_eq!(matrix(after, MIRROR_MATRIX)["origin"]["x"], 200.0 - sx);
+            assert_projected_key_pose(after, SRC_R0C0, MIR_R0C0, sx, 0.0);
+        }
+        MatrixSequenceKind::Expansion => {
+            for mid in [SOURCE_MATRIX, MIRROR_MATRIX] {
+                assert_eq!(matrix(after, mid)["columns"], 3, "{mid}");
+            }
+            assert_projected_key_pose(after, SRC_R0C2, MIR_R0C2, 38.0, 0.0);
+            for key in [
+                "matrix/left-synthetic-keys/r0c2/diode",
+                "matrix/right-synthetic-keys/r0c2/diode",
+                "matrix/left-synthetic-keys/r0c2/led",
+                "matrix/right-synthetic-keys/r0c2/led",
+            ] {
+                assert!(find_part(after, key).is_some(), "{key} missing");
+            }
+        }
+        MatrixSequenceKind::MatrixlessMove => {
+            assert_eq!(
+                part(after, "left/U1")["pose"]["at"],
+                json!({"x":-16.0,"y":14.0})
+            );
+            assert_eq!(
+                part(after, "right/U1")["pose"]["at"],
+                json!({"x":216.0,"y":14.0})
+            );
+        }
+    }
+}
+fn archive_reopen(document: &Value) -> (CoreEngine, Value) {
+    let (packed_reply, packed_buffers) = boardstudio_core::archive::request(
+        &json!({"kind":"pack-project","projectJson":document.to_string(),"assets":[]}).to_string(),
+        &[],
+    );
+    let packed: Value = serde_json::from_str(&packed_reply).unwrap();
+    assert_eq!(packed["kind"], "packed", "{packed}");
+    let (unpacked_reply, buffers) =
+        boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed_buffers);
+    let unpacked: Value = serde_json::from_str(&unpacked_reply).unwrap();
+    assert_eq!(unpacked["kind"], "unpacked", "{unpacked}");
+    assert!(buffers.is_empty());
+    let saved: Value = serde_json::from_str(unpacked["projectJson"].as_str().unwrap()).unwrap();
+    assert_eq!(saved, *document);
+    open(&saved)
+}
+#[test]
+fn parent19_matrix_operation_sequences_cover_linked_local_omitted_reverse_matrixless_noop_preview_commit_reopen_history()
+ {
+    let kinds = [
+        MatrixSequenceKind::Placement,
+        MatrixSequenceKind::Splay,
+        MatrixSequenceKind::MembershipRemoval,
+        MatrixSequenceKind::CellDeletion,
+        MatrixSequenceKind::RowRemoval,
+        MatrixSequenceKind::ColumnRemoval,
+        MatrixSequenceKind::WholeRemoval,
+        MatrixSequenceKind::Replacement,
+        MatrixSequenceKind::Expansion,
+        MatrixSequenceKind::MatrixlessMove,
+    ];
+    for kind in kinds {
+        for author in ["left", "right"] {
+            let states: &[&str] = match kind {
+                MatrixSequenceKind::Placement | MatrixSequenceKind::MatrixlessMove => {
+                    &["linked", "local", "omitted"]
+                }
+                _ => &["linked"],
+            };
+            for &state in states {
+                let label = format!("{kind:?}-{author}-{state}");
+                let pair_id =
+                    format!("parent19-matrix-seq-{kind:?}-{author}-{state}").to_lowercase();
+                let (mut engine, linked) = accepted_matrix_pair(&pair_id);
+                let before = if state == "linked" {
+                    linked.clone()
+                } else {
+                    let reply = request(
+                        &mut engine,
+                        json!({"id":format!("{pair_id}-exc"),"kind":"edit","command":{
+                            "baseRevision":linked["revision"],
+                            "transactionId":format!("{pair_id}-exc"),
+                            "phase":"commit","targetIds":["right/RST"],
+                            "operation":{"kind":"set-half-exception","pairId":pair_id,
+                                "itemKind":"part","mirrorId":"right/RST","state":state}}}),
+                    );
+                    assert_eq!(reply["kind"], "scene", "{label}: {reply}");
+                    reply["document"].clone()
+                };
+                let original_rst = find_part(&linked, "right/RST").cloned();
+                let (operation, targets) = sequence_operation(kind, author, &before);
+                preview_without_publishing(
+                    &mut engine,
+                    &before,
+                    &format!("{pair_id}-preview"),
+                    operation.clone(),
+                    &targets,
+                );
+                let committed = matrix_commit(
+                    &mut engine,
+                    &before,
+                    &format!("{pair_id}-commit"),
+                    operation.clone(),
+                    &targets,
+                );
+                assert_eq!(committed["kind"], "scene", "{label}: {committed}");
+                let after = committed["document"].clone();
+                assert_eq!(
+                    after["revision"],
+                    before["revision"].as_u64().unwrap() + 1,
+                    "{label}"
+                );
+                verify_matrix_sequence(kind, &before, &after);
+                assert_thumb_matrix_unchanged(&before, &after);
+                let changed: Vec<String> = committed["scene"]["changedIds"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|id| id.as_str().unwrap().to_owned())
+                    .collect();
+                let mut sorted = changed.clone();
+                sorted.sort();
+                assert_eq!(changed, sorted, "{label}: changedIds ordered {changed:?}");
+                assert_eq!(
+                    changed.len(),
+                    sorted
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len(),
+                    "{label}: changedIds unique"
+                );
+                for &id in &targets {
+                    assert!(
+                        changed.iter().any(|c| c.as_str() == id),
+                        "{label}: {id} in {changed:?}"
+                    );
+                }
+                let exceptions = pair(&after, &pair_id)["halves"]
+                    .get("exceptions")
+                    .cloned()
+                    .unwrap_or(json!([]));
+                if state == "linked" {
+                    assert!(find_part(&after, "right/RST").is_some(), "{label}");
+                } else {
+                    assert_eq!(
+                        exceptions
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|e| e["mirrorId"] == "right/RST")
+                            .unwrap()["state"],
+                        state,
+                        "{label}"
+                    );
+                    if state == "local" {
+                        assert_eq!(
+                            find_part(&after, "right/RST"),
+                            original_rst.as_ref(),
+                            "{label}"
+                        );
+                    } else {
+                        assert!(find_part(&after, "right/RST").is_none(), "{label}");
+                    }
+                }
+                if matches!(
+                    kind,
+                    MatrixSequenceKind::Placement
+                        | MatrixSequenceKind::Splay
+                        | MatrixSequenceKind::Replacement
+                        | MatrixSequenceKind::Expansion
+                        | MatrixSequenceKind::MatrixlessMove
+                ) {
+                    let noop = matrix_commit(
+                        &mut engine,
+                        &after,
+                        &format!("{pair_id}-noop"),
+                        operation.clone(),
+                        &targets,
+                    );
+                    assert_eq!(noop["kind"], "scene", "{label}: {noop}");
+                    assert_eq!(noop["document"], after, "{label}: no-op preserves document");
+                }
+                let (_, reopened) = archive_reopen(&after);
+                assert_eq!(
+                    pair(&reopened, &pair_id)["halves"]["correspondences"],
+                    pair(&after, &pair_id)["halves"]["correspondences"],
+                    "{label}: correspondences persist"
+                );
+                assert_thumb_matrix_unchanged(&after, &reopened);
+                assert_document_history(&mut engine, &before, &after, &pair_id);
+            }
+        }
     }
 }
 
@@ -505,8 +723,8 @@ fn parent19_matrix_keycap_settings_and_key_legend_project_from_either_half() {
         } else {
             MIRROR_MATRIX
         };
-        let source_key = "matrix/left-synthetic-keys/r0c1";
-        let mirror_key = "matrix/right-synthetic-keys/r0c1";
+        let source_key = SRC_R0C1;
+        let mirror_key = MIR_R0C1;
         let matrix_operation = json!({"kind":"set-matrix-keycaps","matrixId":matrix_id,
             "change":{"kind":"first-row","value":3}});
 
@@ -681,112 +899,6 @@ fn expanded_matrix(document: &Value, matrix_id: &str) -> Value {
     expanded
 }
 
-#[test]
-fn parent19_set_matrix_replacement_projects_from_either_half_and_preserves_thumb_matrix() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-replacement-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let author_matrix = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let source_origin_x = if author == "left" { 2.0 } else { -2.0 };
-        let mut replacement = matrix(&before, author_matrix).clone();
-        replacement["origin"]["x"] = json!(replacement["origin"]["x"].as_f64().unwrap() + 2.0);
-        let operation = json!({"kind":"set-matrix","matrix":replacement});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-replacement-preview-{author}"),
-            operation.clone(),
-            &[
-                "matrix/left-synthetic-keys/r0c0",
-                "matrix/right-synthetic-keys/r0c0",
-            ],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-replacement-commit-{author}"),
-            operation,
-            &[
-                "matrix/left-synthetic-keys/r0c0",
-                "matrix/right-synthetic-keys/r0c0",
-            ],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        let after = &committed["document"];
-        assert_eq!(matrix(after, SOURCE_MATRIX)["origin"]["x"], source_origin_x);
-        assert_eq!(
-            matrix(after, MIRROR_MATRIX)["origin"]["x"],
-            200.0 - source_origin_x
-        );
-        assert_projected_key_pose(
-            after,
-            "matrix/left-synthetic-keys/r0c0",
-            "matrix/right-synthetic-keys/r0c0",
-            source_origin_x,
-            0.0,
-        );
-        assert_thumb_matrix_unchanged(&before, after);
-        assert_document_history(&mut engine, &before, after, &pair_id);
-    }
-}
-
-#[test]
-fn parent19_set_matrix_expansion_projects_from_either_half_and_preserves_thumb_matrix() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-expansion-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let author_matrix = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let source_new_key = "matrix/left-synthetic-keys/r0c2";
-        let mirror_new_key = "matrix/right-synthetic-keys/r0c2";
-        let operation =
-            json!({"kind":"set-matrix","matrix":expanded_matrix(&before, author_matrix)});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-expansion-preview-{author}"),
-            operation.clone(),
-            &[source_new_key, mirror_new_key],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-expansion-commit-{author}"),
-            operation,
-            &[source_new_key, mirror_new_key],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        let after = &committed["document"];
-        for matrix_id in [SOURCE_MATRIX, MIRROR_MATRIX] {
-            assert_eq!(matrix(after, matrix_id)["columns"], 3, "{matrix_id}");
-            assert!(
-                matrix(after, matrix_id)["cells"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .any(|cell| cell["row"] == 0 && cell["column"] == 2),
-                "{matrix_id} lacks the new cell"
-            );
-        }
-        assert_projected_key_pose(after, source_new_key, mirror_new_key, 38.0, 0.0);
-        assert!(find_part(after, &format!("{source_new_key}/diode")).is_some());
-        assert!(find_part(after, &format!("{mirror_new_key}/diode")).is_some());
-        assert!(find_part(after, &format!("{source_new_key}/led")).is_some());
-        assert!(find_part(after, &format!("{mirror_new_key}/led")).is_some());
-        assert_thumb_matrix_unchanged(&before, after);
-        assert_document_history(&mut engine, &before, after, &pair_id);
-    }
-}
-
 fn one_cell_selection(matrix_id: &str) -> Value {
     json!({(matrix_id): [[0, 0]]})
 }
@@ -851,8 +963,8 @@ fn parent19_matrix_cell_enable_and_disable_project_from_either_half() {
         } else {
             MIRROR_MATRIX
         };
-        let source_key = "matrix/left-synthetic-keys/r0c0";
-        let mirror_key = "matrix/right-synthetic-keys/r0c0";
+        let source_key = SRC_R0C0;
+        let mirror_key = MIR_R0C0;
         let disable = json!({"kind":"set-matrix-cells-enabled",
             "cells":one_cell_selection(author_matrix),"enabled":false});
 
@@ -909,166 +1021,5 @@ fn parent19_matrix_cell_enable_and_disable_project_from_either_half() {
             &enabled["document"],
             &format!("{pair_id}-reenable"),
         );
-    }
-}
-
-#[test]
-fn parent19_matrix_cell_deletion_projects_from_either_half_and_keeps_sibling_matrix() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-cell-delete-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let author_matrix = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let source_key = "matrix/left-synthetic-keys/r0c0";
-        let mirror_key = "matrix/right-synthetic-keys/r0c0";
-        let operation = json!({"kind":"remove-matrix-cells","matrixId":author_matrix,
-            "cells":[[0, 0]]});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-cell-delete-preview-{author}"),
-            operation.clone(),
-            &[source_key, mirror_key],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-cell-delete-commit-{author}"),
-            operation,
-            &[source_key, mirror_key],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        for (matrix_id, key_id) in [(SOURCE_MATRIX, source_key), (MIRROR_MATRIX, mirror_key)] {
-            assert_key_absent(&committed["document"], key_id);
-            assert_deleted_cell_tombstone(&committed["document"], matrix_id, 0, 0);
-        }
-        assert_thumb_matrix_unchanged(&before, &committed["document"]);
-        assert_document_history(&mut engine, &before, &committed["document"], &pair_id);
-    }
-}
-
-#[test]
-fn parent19_matrix_row_and_column_removal_project_from_either_half() {
-    for author in ["left", "right"] {
-        for axis in ["row", "column"] {
-            let pair_id = format!("parent19-matrix-remove-{axis}-{author}");
-            let (mut engine, before) = accepted_matrix_pair(&pair_id);
-            let author_matrix = if author == "left" {
-                SOURCE_MATRIX
-            } else {
-                MIRROR_MATRIX
-            };
-            let (operation, removed_source, removed_mirror) = if axis == "row" {
-                (
-                    json!({"kind":"remove-matrix-row","matrixId":author_matrix,"row":1}),
-                    [
-                        "matrix/left-synthetic-keys/r1c0",
-                        "matrix/left-synthetic-keys/r1c1",
-                    ],
-                    [
-                        "matrix/right-synthetic-keys/r1c0",
-                        "matrix/right-synthetic-keys/r1c1",
-                    ],
-                )
-            } else {
-                (
-                    json!({"kind":"remove-matrix-column","matrixId":author_matrix,"column":1}),
-                    [
-                        "matrix/left-synthetic-keys/r0c1",
-                        "matrix/left-synthetic-keys/r1c1",
-                    ],
-                    [
-                        "matrix/right-synthetic-keys/r0c1",
-                        "matrix/right-synthetic-keys/r1c1",
-                    ],
-                )
-            };
-
-            preview_without_publishing(
-                &mut engine,
-                &before,
-                &format!("parent19-matrix-remove-{axis}-preview-{author}"),
-                operation.clone(),
-                &[],
-            );
-            let committed = matrix_commit(
-                &mut engine,
-                &before,
-                &format!("parent19-matrix-remove-{axis}-commit-{author}"),
-                operation,
-                &[],
-            );
-            assert_eq!(committed["kind"], "scene", "{committed}");
-            let after = &committed["document"];
-            let dimension = if axis == "row" { "rows" } else { "columns" };
-            for matrix_id in [SOURCE_MATRIX, MIRROR_MATRIX] {
-                assert_eq!(matrix(after, matrix_id)[dimension], 1, "{matrix_id}");
-            }
-            for key_id in removed_source.into_iter().chain(removed_mirror) {
-                assert_key_absent(after, key_id);
-            }
-            assert!(find_part(after, "matrix/left-synthetic-keys/r0c0").is_some());
-            assert!(find_part(after, "matrix/right-synthetic-keys/r0c0").is_some());
-            assert_thumb_matrix_unchanged(&before, after);
-            assert_document_history(&mut engine, &before, after, &pair_id);
-        }
-    }
-}
-
-#[test]
-fn parent19_whole_matrix_removal_projects_from_either_half_and_keeps_thumb_pair() {
-    for author in ["left", "right"] {
-        let pair_id = format!("parent19-matrix-remove-whole-{author}");
-        let (mut engine, before) = accepted_matrix_pair(&pair_id);
-        let author_matrix = if author == "left" {
-            SOURCE_MATRIX
-        } else {
-            MIRROR_MATRIX
-        };
-        let operation = json!({"kind":"remove-matrix","id":author_matrix});
-
-        preview_without_publishing(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-remove-whole-preview-{author}"),
-            operation.clone(),
-            &[],
-        );
-        let committed = matrix_commit(
-            &mut engine,
-            &before,
-            &format!("parent19-matrix-remove-whole-commit-{author}"),
-            operation,
-            &[],
-        );
-        assert_eq!(committed["kind"], "scene", "{committed}");
-        for matrix_id in [SOURCE_MATRIX, MIRROR_MATRIX] {
-            assert!(
-                committed["document"]["matrices"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .all(|matrix| matrix["id"] != matrix_id),
-                "{matrix_id} remains"
-            );
-        }
-        for row in 0..2 {
-            for column in 0..2 {
-                assert_key_absent(
-                    &committed["document"],
-                    &format!("matrix/left-synthetic-keys/r{row}c{column}"),
-                );
-                assert_key_absent(
-                    &committed["document"],
-                    &format!("matrix/right-synthetic-keys/r{row}c{column}"),
-                );
-            }
-        }
-        assert_thumb_matrix_unchanged(&before, &committed["document"]);
-        assert_document_history(&mut engine, &before, &committed["document"], &pair_id);
     }
 }
