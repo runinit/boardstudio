@@ -41,7 +41,7 @@ fn observed_requests(edits: &KeycapsEdits) -> Vec<(Option<KeycapsEditRequest>, b
         .shared
         .observations()
         .into_iter()
-        .chain(edits.key.observations().into_iter())
+        .chain(edits.key.observations())
         .map(|(key, pending)| (Some(key.0.clone()), pending))
         .collect()
 }

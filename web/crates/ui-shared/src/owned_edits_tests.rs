@@ -60,7 +60,7 @@ fn owner_replacement_retires_observations_and_preserves_mounted_signals() {
         edits.follow_owner(scope.as_ref(), 2);
         assert!(!edits.owner_changed(scope.as_ref(), 2));
         assert!(!edits.edits.is_pending(&"name"));
-        assert_eq!(edits.edits.pending_keys().into_iter().count(), 0);
+        assert_eq!(edits.edits.pending_keys().len(), 0);
         assert!(!edits.edits.has_terminal());
         runtime.release_core();
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Old owner");
@@ -131,7 +131,7 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     );
 
     runtime.release_core();
-    assert_eq!(edits.edits.pending_keys().into_iter().count(), 0);
+    assert_eq!(edits.edits.pending_keys().len(), 0);
     assert!(edits.edits.has_terminal());
     assert!(
         edits.edits.has_terminal(),

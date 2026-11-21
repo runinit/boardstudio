@@ -481,7 +481,7 @@ pub fn use_keycaps_settings_actions(
             .shared
             .pending_keys()
             .into_iter()
-            .chain(guard.key.pending_keys().into_iter())
+            .chain(guard.key.pending_keys())
             .map(|KeycapsPendingKey(request)| request)
             .filter(|request| {
                 request_owner_is_current(

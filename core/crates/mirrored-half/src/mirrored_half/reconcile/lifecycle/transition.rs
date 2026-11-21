@@ -167,26 +167,24 @@ pub(super) fn prepare_lifecycle_projection(
     if let (Some(_owner), Some(matrix_pair)) = (
         matrix_owner.filter(|owner| source_matrix_removed && owner.state != TransitionState::Local),
         context.matrix_pair.as_ref(),
-    ) {
-        if let Some(matrix) = draft
-            .matrices
-            .iter_mut()
-            .find(|m| m.id == matrix_pair.mirror_id)
-        {
-            let retained: BTreeSet<_> = context
-                .associations
-                .iter()
-                .filter(|a| a.kind == MirroredItemKind::Part && a.state != TransitionState::Omitted)
-                .map(|a| a.mirror_id.as_str())
-                .collect();
-            matrix.part_ids.retain(|id| !retained.contains(id.as_str()));
-            (dispatch.apply_unscripted)(
-                &mut draft,
-                &crate::model::EditOperation::RemoveMatrix {
-                    id: matrix_pair.mirror_id.clone(),
-                },
-            )?;
-        }
+    ) && let Some(matrix) = draft
+        .matrices
+        .iter_mut()
+        .find(|m| m.id == matrix_pair.mirror_id)
+    {
+        let retained: BTreeSet<_> = context
+            .associations
+            .iter()
+            .filter(|a| a.kind == MirroredItemKind::Part && a.state != TransitionState::Omitted)
+            .map(|a| a.mirror_id.as_str())
+            .collect();
+        matrix.part_ids.retain(|id| !retained.contains(id.as_str()));
+        (dispatch.apply_unscripted)(
+            &mut draft,
+            &crate::model::EditOperation::RemoveMatrix {
+                id: matrix_pair.mirror_id.clone(),
+            },
+        )?;
     }
     if let Some(matrix_pair) = context.matrix_pair.as_ref()
         && matrix_owner.is_some_and(|owner| owner.state == TransitionState::Linked)
