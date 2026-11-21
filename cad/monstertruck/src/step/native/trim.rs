@@ -18,9 +18,14 @@ impl Face {
         epsilon: f64,
         deflection: f64,
     ) -> Result<Triangles, String> {
-        match self.surface.radius {
-            None => self.mesh_plane(edges, samples, epsilon),
-            Some(radius) => self.mesh_cylinder(radius, edges, samples, epsilon, deflection),
+        match self.surface.kind {
+            SurfaceKind::Plane => self.mesh_plane(edges, samples, epsilon),
+            SurfaceKind::Cylinder(radius) => {
+                self.mesh_cylinder(radius, edges, samples, epsilon, deflection)
+            }
+            SurfaceKind::Cone { radius, slope, .. } => {
+                self.mesh_cone(radius, slope, edges, samples, epsilon, deflection)
+            }
         }
     }
 
@@ -306,7 +311,7 @@ impl Face {
     }
 }
 
-fn triangulate_trim(
+pub(super) fn triangulate_trim(
     uv: &[Point2<f64>],
     rings: &[std::ops::Range<usize>],
     loops: &[Boundary],

@@ -2,13 +2,14 @@
 //! the importer can publish native preview data for the asset.
 mod assembly;
 mod carrier;
+mod cone;
 mod geometry;
 mod oblique;
 mod trim;
 
 use super::*;
 use cgmath::Vector3;
-use geometry::{Edge, Surface};
+use geometry::{Edge, Surface, SurfaceKind};
 
 const ANGULAR_TOLERANCE: f64 = 0.5;
 
@@ -113,9 +114,11 @@ pub(super) fn build(
     }
     let records = source_records(exchange);
     let mut ids = Vec::new();
+    let mut has_cone = false;
     for (&id, parts) in &records {
         for part in parts {
             match part.name.as_str() {
+                "CONICAL_SURFACE" => has_cone = true,
                 "MANIFOLD_SOLID_BREP" if parts.len() == 1 => ids.push(id),
                 "MANIFOLD_SOLID_BREP"
                 | "BREP_WITH_VOIDS"
@@ -146,11 +149,16 @@ pub(super) fn build(
         return Err("empty or unreferenced native solid".into());
     }
     let owners: HashMap<_, _> = precision.iter().map(|p| (p.representation_id, p)).collect();
+    let cone_angles = if has_cone {
+        units::conical_angle_factors(exchange)?
+    } else {
+        HashMap::new()
+    };
     let mut retained = HashSet::new();
     let mut source_faces = Vec::new();
     let mut solids = HashMap::new();
     for id in ids.iter().copied() {
-        let solid = Solid::read(id, &records, &scene, &mut source_faces)?;
+        let solid = Solid::read(id, &records, &scene, &cone_angles, &mut source_faces)?;
         retained.extend(solid.edges.keys().copied());
         solids.insert(id, solid);
         retained.insert(id);
@@ -165,7 +173,10 @@ pub(super) fn build(
             && factors[id] == 1.0
             && solid.faces.len() == 6
             && solid.edges.len() == 12
-            && solid.faces.iter().all(|face| face.surface.radius.is_none())
+            && solid
+                .faces
+                .iter()
+                .all(|face| matches!(face.surface.kind, SurfaceKind::Plane))
             && solid
                 .edges
                 .values()
@@ -231,8 +242,8 @@ pub(super) fn build(
                 edge.sample(deflection_mm / source_to_world, epsilon)
                     .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
             );
-            // Along each admitted cylindrical generator, a world coordinate is
-            // affine in height. Its extremes lie on the authored trim curves.
+            // Along each admitted cylindrical or conical generator a world
+            // coordinate is affine in height. Its extrema lie on the trim.
             edge.include_bounds(world, epsilon, &mut asset.bounds)?;
         }
         let mut triangles = Vec::new();
@@ -296,6 +307,7 @@ impl Solid {
         id: u64,
         records: &SourceRecords<'_>,
         scene: &scene::Scene<'_>,
+        cone_angles: &HashMap<u64, f64>,
         catalogue: &mut Vec<StepSourceFace>,
     ) -> Result<Self, String> {
         let solid = named_parameters(records, id, "MANIFOLD_SOLID_BREP", 2)?;
@@ -307,7 +319,7 @@ impl Solid {
             let face = named_parameters(records, face_id, "ADVANCED_FACE", 4)?;
             let support_id = reference(&face[2])?;
             let support = simple_record(records, support_id)?;
-            let surface = Surface::read(support, scene)?;
+            let surface = Surface::read(support, scene, cone_angles.get(&support_id).copied())?;
             let same_sense = flag(&face[3])?;
             let mut loops = Vec::new();
             for bound_id in references(&face[1])? {
@@ -331,7 +343,7 @@ impl Solid {
                     let edge_id = reference(&item[3])?;
                     if let std::collections::hash_map::Entry::Vacant(entry) = edges.entry(edge_id) {
                         entry.insert(
-                            Edge::read(edge_id, records, scene)
+                            Edge::read(edge_id, records, scene, cone_angles)
                                 .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
                         );
                     }

@@ -1,5 +1,7 @@
 use super::*;
 
+mod cone_tests;
+
 const MOLEX: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Socket_2pin.step"
 );
@@ -203,7 +205,7 @@ fn finite_ellipse_bounds_include_its_rotated_interior_extremum() {
     let items = units::representation_items(&exchange).unwrap();
     let factors = units::length_factors(&exchange).unwrap();
     let scene = scene::Scene::new(&exchange, &items, &factors, &[25]);
-    let edge = Edge::read(3655, &source_records(&exchange), &scene).unwrap();
+    let edge = Edge::read(3655, &source_records(&exchange), &scene, &HashMap::new()).unwrap();
     let world = Matrix4::from_angle_y(cgmath::Rad(std::f64::consts::FRAC_PI_4));
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
     edge.include_bounds(world, 1e-8, &mut bounds).unwrap();
@@ -221,7 +223,14 @@ fn planar_ellipse_refuses_a_crossing_between_mesh_samples() {
     let factors = units::length_factors(&exchange).unwrap();
     let scene = scene::Scene::new(&exchange, &items, &factors, &[25]);
     let mut catalogue = Vec::new();
-    let mut solid = Solid::read(25, &source_records(&exchange), &scene, &mut catalogue).unwrap();
+    let mut solid = Solid::read(
+        25,
+        &source_records(&exchange),
+        &scene,
+        &HashMap::new(),
+        &mut catalogue,
+    )
+    .unwrap();
     let face = solid
         .faces
         .iter()

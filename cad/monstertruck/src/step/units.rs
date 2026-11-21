@@ -221,8 +221,7 @@ pub(super) fn normalize_conical_exchange(
             exchange.data.len()
         ));
     }
-    let representation_factors = radians_per_unit_by_representation(exchange)?;
-    let cone_factors = conical_surface_factors(exchange, &representation_factors)?;
+    let cone_factors = conical_angle_factors(exchange)?;
     let changed = exchange.data[0].entities.iter().any(|entity| {
         let EntityInstance::Simple { id, record } = entity else {
             return false;
@@ -299,6 +298,10 @@ pub(super) fn normalize_conical_exchange(
         }
     }
     Ok(std::borrow::Cow::Owned(exchange))
+}
+
+pub(super) fn conical_angle_factors(exchange: &Exchange) -> Result<HashMap<u64, f64>, String> {
+    conical_surface_factors(exchange, &radians_per_unit_by_representation(exchange)?)
 }
 
 fn radians_per_unit_by_representation(exchange: &Exchange) -> Result<HashMap<u64, f64>, String> {

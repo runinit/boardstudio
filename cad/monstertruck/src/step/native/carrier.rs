@@ -11,13 +11,14 @@ use std::f64::consts::TAU;
 pub(super) struct Carrier {
     pub(super) supports: [u64; 2],
     curves: [Curve; 2],
-    seam_gap: Option<f64>,
+    seam: Option<(f64, Surface)>,
 }
 
 impl Carrier {
     pub(super) fn read(
         records: &SourceRecords<'_>,
         scene: &scene::Scene<'_>,
+        cone_angles: &HashMap<u64, f64>,
         id: u64,
         kind: &str,
     ) -> Result<(u64, Self), String> {
@@ -28,12 +29,12 @@ impl Carrier {
         let [a, b] = references(&params[2])?[..] else {
             return Err("native surface curve requires two distinct pcurves".into());
         };
-        let (s1, c1, u1) = lift_pcurve(records, scene, a)?;
-        let (s2, c2, u2) = lift_pcurve(records, scene, b)?;
-        let seam_gap = match (kind, s1 == s2, u1.zip(u2)) {
+        let (s1, c1, u1) = lift_pcurve(records, scene, cone_angles, a)?;
+        let (s2, c2, u2) = lift_pcurve(records, scene, cone_angles, b)?;
+        let seam = match (kind, s1 == s2, u1.zip(u2)) {
             ("SURFACE_CURVE", false, _) => None,
-            ("SEAM_CURVE", true, Some(((angle1, radius), (angle2, _)))) => {
-                Some(((angle1 - angle2).abs() - TAU).abs() * radius)
+            ("SEAM_CURVE", true, Some(((angle1, surface), (angle2, _)))) => {
+                Some((((angle1 - angle2).abs() - TAU).abs(), surface))
             }
             _ => return Err("invalid native surface curve associations".into()),
         };
@@ -42,14 +43,27 @@ impl Carrier {
             Self {
                 supports: [s1, s2],
                 curves: [c1, c2],
-                seam_gap,
+                seam,
             },
         ))
     }
 
     pub(super) fn validate(&self, edge: &Edge, epsilon: f64) -> Result<(), String> {
-        if !self.seam_gap.is_none_or(|gap| gap <= epsilon) {
-            return Err("native seam pcurves are not one period apart".into());
+        if let Some((gap, surface)) = self.seam {
+            let radius = match surface.kind {
+                SurfaceKind::Cylinder(radius) => radius,
+                _ => edge
+                    .points
+                    .map(|p| {
+                        let local = surface.local(p);
+                        local.x.hypot(local.y)
+                    })
+                    .into_iter()
+                    .fold(0.0, f64::max),
+            };
+            if !(gap * radius <= epsilon) {
+                return Err("native seam pcurves are not one period apart".into());
+            }
         }
         for pcurve in &self.curves {
             let residual = match (&edge.curve, pcurve) {
@@ -98,18 +112,22 @@ impl Carrier {
     }
 }
 
-// The restricted cylindrical chart returns the angle and radius of a generator
-// for checking the two copies of a seam.
-type Generator = (f64, f64);
+// Keep the chart angle and support for checking the two copies of a seam.
+type Generator = (f64, Surface);
 
 fn lift_pcurve(
     records: &SourceRecords<'_>,
     scene: &scene::Scene<'_>,
+    cone_angles: &HashMap<u64, f64>,
     id: u64,
 ) -> Result<(u64, Curve, Option<Generator>), String> {
     let params = named_parameters(records, id, "PCURVE", 3)?;
     let support = reference(&params[1])?;
-    let surface = Surface::read(simple_record(records, support)?, scene)?;
+    let surface = Surface::read(
+        simple_record(records, support)?,
+        scene,
+        cone_angles.get(&support).copied(),
+    )?;
     let repr = named_parameters(
         records,
         reference(&params[2])?,
@@ -151,9 +169,12 @@ fn lift_pcurve(
     }
     let frame = surface.frame;
     let kind = simple_record(records, id)?.name.as_str();
+    if !matches!(kind, "LINE" | "CIRCLE") {
+        return Err(format!("unsupported native pcurve {kind}"));
+    }
     let curve = named_parameters(records, id, kind, 3)?;
-    let (lifted, generator) = match (kind, surface.radius) {
-        ("LINE", radius) => {
+    let (lifted, generator) = match (kind, surface.kind) {
+        ("LINE", kind) => {
             let origin = vector_2d(records, &curve[1], "CARTESIAN_POINT")?;
             let vector = named_parameters(records, reference(&curve[2])?, "VECTOR", 3)?;
             positive(&vector[2])?;
@@ -162,8 +183,8 @@ fn lift_pcurve(
                 return Err("invalid native pcurve direction".into());
             }
             let direction = direction.normalize();
-            match radius {
-                None => (
+            match kind {
+                SurfaceKind::Plane => (
                     Curve::Line {
                         origin: frame.transform_point(Point3::new(origin.x, origin.y, 0.0)),
                         direction: frame.transform_vector(direction.extend(0.0)),
@@ -171,38 +192,19 @@ fn lift_pcurve(
                     },
                     None,
                 ),
-                // The cylindrical chart is (azimuth in radians, axial length).
-                Some(radius) if direction.x == 0.0 => (
-                    Curve::Line {
-                        origin: frame.transform_point(Point3::new(
-                            radius * origin.x.cos(),
-                            radius * origin.x.sin(),
-                            origin.y,
-                        )),
-                        direction: frame.z.truncate() * direction.y,
-                        forward: true,
-                    },
-                    Some((origin.x, radius)),
-                ),
-                Some(radius) if direction.y == 0.0 => {
-                    let mut frame =
-                        frame * Matrix4::from_translation(Vector3::new(0.0, 0.0, origin.y));
-                    let sense = direction.x.signum();
-                    frame.y *= sense;
-                    frame.z *= sense;
-                    (
-                        Curve::Circle {
-                            frame,
-                            radius,
-                            forward: true,
-                        },
-                        None,
-                    )
+                SurfaceKind::Cylinder(radius) => {
+                    lift_revolved_line(surface, origin, direction, radius, 0.0, 1.0)?
                 }
-                Some(_) => return Err("native cylindrical pcurve is not a chart axis".into()),
+                SurfaceKind::Cone {
+                    radius,
+                    slope,
+                    radians_per_unit,
+                } => {
+                    lift_revolved_line(surface, origin, direction, radius, slope, radians_per_unit)?
+                }
             }
         }
-        ("CIRCLE", None) => {
+        ("CIRCLE", SurfaceKind::Plane) => {
             let axes = named_parameters(records, reference(&curve[1])?, "AXIS2_PLACEMENT_2D", 3)?;
             let origin = vector_2d(records, &axes[1], "CARTESIAN_POINT")?;
             // A valid planar reference direction changes only the circle's parameter origin.
@@ -224,6 +226,48 @@ fn lift_pcurve(
         _ => return Err(format!("unsupported native pcurve {kind}")),
     };
     Ok((support, lifted, generator))
+}
+
+fn lift_revolved_line(
+    surface: Surface,
+    origin: Vector2<f64>,
+    direction: Vector2<f64>,
+    reference_radius: f64,
+    slope: f64,
+    radians_per_unit: f64,
+) -> Result<(Curve, Option<Generator>), String> {
+    // ISO 10303-42 uses axial length for v, with radius R + v tan(semi_angle).
+    let frame = surface.frame;
+    let radius = reference_radius + origin.y * slope;
+    if direction.x == 0.0 {
+        let angle = origin.x * radians_per_unit;
+        let (sin, cos) = angle.sin_cos();
+        return Ok((
+            Curve::Line {
+                origin: frame.transform_point(Point3::new(radius * cos, radius * sin, origin.y)),
+                direction: frame.transform_vector(
+                    Vector3::new(slope * cos, slope * sin, 1.0).normalize() * direction.y,
+                ),
+                forward: true,
+            },
+            Some((angle, surface)),
+        ));
+    }
+    if direction.y == 0.0 && radius > 0.0 {
+        let mut frame = frame * Matrix4::from_translation(Vector3::new(0.0, 0.0, origin.y));
+        let sense = direction.x.signum();
+        frame.y *= sense;
+        frame.z *= sense;
+        return Ok((
+            Curve::Circle {
+                frame,
+                radius,
+                forward: true,
+            },
+            None,
+        ));
+    }
+    Err("native revolved pcurve is not a supported chart axis".into())
 }
 
 fn vector_2d(

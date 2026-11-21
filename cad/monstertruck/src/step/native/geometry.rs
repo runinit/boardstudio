@@ -1,19 +1,54 @@
 //! Analytic edge intervals and surface frames in authored length units.
 use super::carrier::Carrier;
 use super::*;
-use std::f64::consts::TAU;
+use std::f64::consts::{FRAC_PI_2, TAU};
 
 #[derive(Clone, Copy)]
 pub(super) struct Surface {
     pub(super) frame: Matrix4,
-    pub(super) radius: Option<f64>,
+    pub(super) kind: SurfaceKind,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum SurfaceKind {
+    Plane,
+    Cylinder(f64),
+    Cone {
+        radius: f64,
+        slope: f64,
+        radians_per_unit: f64,
+    },
 }
 
 impl Surface {
-    pub(super) fn read(record: &Record, scene: &scene::Scene<'_>) -> Result<Self, String> {
-        let params = match record.name.as_str() {
-            "PLANE" => parameters(record, 2)?,
-            "CYLINDRICAL_SURFACE" => parameters(record, 3)?,
+    pub(super) fn read(
+        record: &Record,
+        scene: &scene::Scene<'_>,
+        cone_angle: Option<f64>,
+    ) -> Result<Self, String> {
+        let (params, kind) = match record.name.as_str() {
+            "PLANE" => (parameters(record, 2)?, SurfaceKind::Plane),
+            "CYLINDRICAL_SURFACE" => {
+                let params = parameters(record, 3)?;
+                (params, SurfaceKind::Cylinder(positive(&params[2])?))
+            }
+            "CONICAL_SURFACE" => {
+                let params = parameters(record, 4)?;
+                let radians_per_unit = cone_angle.ok_or("missing native cone angle context")?;
+                let radius = scene::real(&params[2])?;
+                let angle = scene::real(&params[3])? * radians_per_unit;
+                if radius < 0.0 || !(angle > 0.0 && angle < FRAC_PI_2) {
+                    return Err("invalid native conical radius or semi-angle".into());
+                }
+                (
+                    params,
+                    SurfaceKind::Cone {
+                        radius,
+                        slope: angle.tan(),
+                        radians_per_unit,
+                    },
+                )
+            }
             _ => return Err(format!("unsupported native surface {}", record.name)),
         };
         if !matches!(params[0], Parameter::String(_)) {
@@ -21,7 +56,7 @@ impl Surface {
         }
         Ok(Self {
             frame: scene.frame(reference(&params[1])?, 1.0)?,
-            radius: params.get(2).map(positive).transpose()?,
+            kind,
         })
     }
 
@@ -69,6 +104,7 @@ impl Edge {
         id: u64,
         records: &SourceRecords<'_>,
         scene: &scene::Scene<'_>,
+        cone_angles: &HashMap<u64, f64>,
     ) -> Result<Self, String> {
         let edge = named_parameters(records, id, "EDGE_CURVE", 5)?;
         let vertices = [reference(&edge[1])?, reference(&edge[2])?];
@@ -83,7 +119,7 @@ impl Edge {
         let id = reference(&edge[3])?;
         let mut kind = simple_record(records, id)?.name.as_str();
         let (curve_id, carrier) = if matches!(kind, "SURFACE_CURVE" | "SEAM_CURVE") {
-            let (id, carrier) = Carrier::read(records, scene, id, kind)?;
+            let (id, carrier) = Carrier::read(records, scene, cone_angles, id, kind)?;
             kind = simple_record(records, id)?.name.as_str();
             (id, Some(Box::new(carrier)))
         } else {
@@ -144,7 +180,7 @@ impl Edge {
     ) -> Result<(f64, f64), String> {
         let chart = Surface {
             frame,
-            radius: Some(radius),
+            kind: SurfaceKind::Plane,
         };
         let local = self.points.map(|p| chart.local(p));
         for p in local {
@@ -181,7 +217,7 @@ impl Edge {
         let chart = frame * Matrix4::from_nonuniform_scale(major, minor, 1.0);
         let local = Surface {
             frame,
-            radius: None,
+            kind: SurfaceKind::Plane,
         };
         let [start, end] = self.points.map(|p| {
             let q = local.local(p);
