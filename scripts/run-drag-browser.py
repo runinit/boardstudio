@@ -19,9 +19,10 @@ ARROW_LEFT = "\ue012"
 SAVED = "document.querySelector('.header-save')?.dataset.state === 'saved'"
 SCENE = """[...document.querySelectorAll('[data-geometry="scene-part"]')]
     .map(el => [el.dataset.partId, el.getAttribute('transform')]).sort()"""
-PART = '[data-geometry="scene-part"][data-part-id^="matrix/"][data-part-id$="/r1c2"]'
+PART = '[data-geometry="scene-part"][data-part-id^="matrix/"][data-part-id$="/r1c1"]'
 HIT_AREA = PART + ' [data-geometry="part-hit-area"]'
 ROWS = '[role="slider"][aria-label="Rows"]'
+COLUMNS = '[role="slider"][aria-label="Columns"]'
 FINDINGS = ('document.querySelector("[data-case-collision-findings]") ?? '
             """document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])')""")
 VIEWER = ('document.querySelector("[data-case-viewer-canvas]") ?? '
@@ -145,25 +146,34 @@ class Smoke:
             return null;
             """, selector, name, scroll), name or selector, 60)
 
+    def set_slider(self, selector, target):
+        raw = wait_for(lambda: self.evaluate("document.querySelector(arguments[0])?.getAttribute('aria-valuenow')",
+                                             selector), f"slider {selector}", 60)
+        current = int(raw)
+        self.browser.execute_sync("document.querySelector(arguments[0]).focus();", selector)
+        while current > target:
+            key(self.browser, ARROW_LEFT, "keyDown", "keyUp")
+            current -= 1
+            wait_for(lambda expected=str(current): self.evaluate(
+                "document.querySelector(arguments[0])?.getAttribute('aria-valuenow') === arguments[1]",
+                selector, expected), f"slider {selector} -> {current}", 10)
+
     def onboarding(self, url):
         self.browser.get(url)
         self.point('button,[role="button"]', "Import project")
         self.button("Create new keyboard")
         self.button("Continue to layout")
-        rows = wait_for(lambda: self.evaluate("document.querySelector(arguments[0])?.getAttribute('aria-valuenow')",
-                                              ROWS), "matrix rows", 60)
-        # The setup form at this base starts at 5×6; move down one row when needed.
-        if rows == "5":
-            self.browser.execute_sync("document.querySelector(arguments[0]).focus();", ROWS)
-            key(self.browser, ARROW_LEFT, "keyDown", "keyUp")
+        # Keep a 2×2 Choc matrix so the combined drag and Case collision smoke finishes well inside budget.
+        self.set_slider(ROWS, 2)
+        self.set_slider(COLUMNS, 2)
         # Choc is covered by the packaged baked STEP inventory.
         self.click('[aria-label="New matrix assembly"] button:nth-of-type(2)')
         self.button("Create matrix")
         wait_for(lambda: self.evaluate("!!document.querySelector(arguments[0])", HIT_AREA), "created matrix", 60)
         self.button("Hide guide")
         self.saved()
-        require(any((m["rows"], m["columns"]) == (4, 6) for m in self.project()["matrices"]),
-                "onboarding did not persist a 4×6 matrix")
+        require(any((m["rows"], m["columns"]) == (2, 2) for m in self.project()["matrices"]),
+                "onboarding did not persist a 2×2 matrix")
 
     def saved(self):
         wait_for(lambda: self.evaluate(SAVED), "project save")
@@ -352,17 +362,17 @@ def verify_edit(name, field, before, after):
             return {(cell["row"], cell["column"]): cell["offset"] for cell in matrix.get(field, [])
                     if cell.get("offset") and any(cell["offset"].values())}
         left, right = cell_offsets(before), cell_offsets(after)
-        require({cell for cell in left.keys() | right.keys() if left.get(cell) != right.get(cell)} == {(1, 2)},
+        require({cell for cell in left.keys() | right.keys() if left.get(cell) != right.get(cell)} == {(1, 1)},
                 f"{name}: expected only the selected cell offset to change")
     else:
         def column(matrix, index):
             cols = matrix.get(field, [])
             return cols[index] if index < len(cols) else {}
-        left, right = column(before, 2), column(after, 2)
+        left, right = column(before, 1), column(after, 1)
         require(left.get("offset") != right.get("offset") and "offset" in right
                 and {key: value for key, value in left.items() if key != "offset"}
                 == {key: value for key, value in right.items() if key != "offset"}
-                and all(column(before, i) == column(after, i) for i in range(before["columns"]) if i != 2),
+                and all(column(before, i) == column(after, i) for i in range(before["columns"]) if i != 1),
                 f"{name}: expected only the latched column offset to change")
 
 
