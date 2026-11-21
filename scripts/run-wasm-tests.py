@@ -777,7 +777,8 @@ def main(argv=None):
     root = Path(args.root).resolve()
     try:
         if args.build_only:
-            print(build_page_test(root, os.environ))
+            build_env = {k: v for k, v in os.environ.items() if k != PAGE_ARTIFACT}
+            print(build_page_test(root, build_env))
             return 0
         known = load_known_failures()
         custom_runner = bool(os.environ.get(RUNNER_ENV))

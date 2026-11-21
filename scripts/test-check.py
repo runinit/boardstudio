@@ -982,6 +982,25 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(seen[2], [*check.PAGE_SUITE, "--test-binary", str(self.wasm_dir / "page.wasm")])
         self.assertEqual(len(seen), 3)
 
+    def test_compile_page_test_artifact_strips_inherited_artifact_env(self):
+        with tempfile.TemporaryDirectory() as directory:
+            built = Path(directory) / "fresh.wasm"
+            built.write_bytes(b"wasm")
+            seen_env = {}
+
+            def fake_run_serial(command, environment, cwd, *, outputs=None, **_kwargs):
+                seen_env.update(environment)
+                outputs.append((command, f"{built}\n"))
+                return 0.1, 0, "start", "end"
+
+            env = {"PATH": "/usr/bin", check.PAGE_TEST_ARTIFACT_ENV: "/stale/old.wasm"}
+            with mock.patch.object(check, "run_serial", side_effect=fake_run_serial):
+                elapsed, artifact = check.compile_page_test_artifact(env, Path(directory))
+            self.assertEqual(elapsed, 0.1)
+            self.assertEqual(artifact, built)
+            self.assertNotIn(check.PAGE_TEST_ARTIFACT_ENV, seen_env)
+            self.assertEqual(seen_env["PATH"], "/usr/bin")
+
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
         for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):

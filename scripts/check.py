@@ -294,7 +294,9 @@ def prebuilt_page_path(output: str, cwd: Path) -> Path:
 def compile_page_test_artifact(environment, cwd):
     # Partial and packaged-only plans have no full crate prebuild to combine with.
     outputs: list[tuple[Command, str]] = []
-    elapsed, code, _, _ = run_serial(PAGE_TEST_BUILD, environment, cwd, outputs=outputs)
+    # Never let an inherited artifact override satisfy a fresh prebuild request.
+    build_env = {k: v for k, v in environment.items() if k != PAGE_TEST_ARTIFACT_ENV}
+    elapsed, code, _, _ = run_serial(PAGE_TEST_BUILD, build_env, cwd, outputs=outputs)
     if not code:
         try:
             return elapsed, prebuilt_page_path(outputs[-1][1], cwd)
