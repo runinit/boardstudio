@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
 
 #[component]
 pub(super) fn AssemblyDraftFields(
@@ -473,20 +474,18 @@ fn AssemblyMemberFields(
                 { let checked = parameters.get("hotswap").and_then(serde_json::Value::as_bool).unwrap_or(false);
                   let mut params = parameters.clone();
                   let hotswap_id = member.id.clone(); let hotswap_draft = draft.clone();
-                  rsx! { FieldLabel { html_for: format!("assembly-hotswap-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
-                    Checkbox {
-                        id: format!("assembly-hotswap-{}", dioxus::core::current_scope_id().0),
-                        aria_label: "Hotswap socket",
-                        disabled,
-                        checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                        on_checked_change: move |state: CheckboxState| {
-                            let enabled = bool::from(state);
-                            params.insert("hotswap".into(), serde_json::Value::Bool(enabled));
-                            params.insert("solder".into(), serde_json::Value::Bool(!enabled));
-                            update_member(value, assets, hotswap_draft.clone(), on_change, hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
-                        },
-                    }
-                    span { "Hotswap socket" }
+                  rsx! { CheckboxField {
+                    id: format!("assembly-hotswap-{}", dioxus::core::current_scope_id().0),
+                    label: "Hotswap socket",
+                    aria_label: Some("Hotswap socket".to_owned()),
+                    disabled,
+                    checked: if checked { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                    on_checked_change: move |state: CheckboxState| {
+                        let enabled = bool::from(state);
+                        params.insert("hotswap".into(), serde_json::Value::Bool(enabled));
+                        params.insert("solder".into(), serde_json::Value::Bool(!enabled));
+                        update_member(value, assets, hotswap_draft.clone(), on_change, hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
+                    },
                   } }
                 }
             }
@@ -594,22 +593,23 @@ fn AssemblyModelFields(
     let scale_draft = draft.clone();
     let remove_draft = draft.clone();
     let remove_id = member_id.clone();
+    let mut model_open = use_signal(|| true);
     rsx! {
-        Collapsible { keep_mounted: true, default_open: true,
-            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Model {index + 1}" }
-            CollapsibleContent { class: "data-[open=false]:hidden grid gap-2",
-                EditorChoiceField {
-                    label: "Asset",
-                    value: "{model.asset_id}",
-                    options: model_asset_option_rows(&asset_options, &model.asset_id),
-                    disabled,
-                    on_select: move |selected: String| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, selected)),
-                }
-                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
-                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
-                ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
+        InspectorSection {
+            title: "Model {index + 1}",
+            open: model_open(),
+            on_open_change: move |next: bool| model_open.set(next),
+            EditorChoiceField {
+                label: "Asset",
+                value: "{model.asset_id}",
+                options: model_asset_option_rows(&asset_options, &model.asset_id),
+                disabled,
+                on_select: move |selected: String| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, selected)),
             }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change }
+            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
         }
     }
 }
@@ -632,19 +632,29 @@ fn ModelVectorFields(
         ModelVector::Rotation => "Rotation (°)",
         ModelVector::Scale => "Scale",
     };
-    let axis_x_id = member_id.clone();
-    let axis_y_id = member_id.clone();
-    let axis_z_id = member_id.clone();
-    let x_draft = draft.clone();
-    let y_draft = draft.clone();
-    let z_draft = draft.clone();
+    let axes = [
+        ("X", ModelAxis::X, vector.x),
+        ("Y", ModelAxis::Y, vector.y),
+        ("Z", ModelAxis::Z, vector.z),
+    ];
     rsx! {
         div { class: "grid gap-1",
             strong { "{label}" }
             ModelAxisGrid {
-                ModelAxisField { axis: "X", value: vector.x.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, x_draft.clone(), on_change, axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) }
-                ModelAxisField { axis: "Y", value: vector.y.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, y_draft.clone(), on_change, axis_y_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Y, event.value())) }
-                ModelAxisField { axis: "Z", value: vector.z.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, z_draft.clone(), on_change, axis_z_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Z, event.value())) }
+                for (axis_label, axis, axis_value) in axes {
+                    {
+                        let member_id = member_id.clone();
+                        let draft = draft.clone();
+                        rsx! {
+                            ModelAxisField {
+                                axis: axis_label,
+                                value: axis_value.to_string(),
+                                disabled,
+                                oninput: move |event: FormEvent| update_member(value, assets, draft.clone(), on_change, member_id.clone(), MemberPatch::ModelVector(index, field, axis, event.value()))
+                            }
+                        }
+                    }
+                }
             }
         }
     }

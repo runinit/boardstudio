@@ -14,6 +14,15 @@ use std::collections::BTreeSet;
 pub fn prepare_membership_transition_kernel(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
+    let mut output = project_membership(input)?;
+    (output.changed_document_ids, output.changed_field_paths) =
+        super::changed_document_fields(input.post_source, &output.draft)?;
+    Ok(output)
+}
+
+pub(super) fn project_membership(
+    input: MembershipTransitionInput<'_>,
+) -> Result<MembershipTransitionOutput, String> {
     let matrix_pair = require_matrix_pair(input.context)?;
 
     let validated = validate_transition_input(input)?;
@@ -1001,7 +1010,7 @@ pub fn prepare_membership_transition(
     if input.context.matrix_pair.is_none() {
         return Err("Matrix membership transition requires an exact Matrix correspondence".into());
     }
-    let mut output = prepare_membership_transition_kernel(input)?;
+    let mut output = project_membership(input)?;
     // The membership kernel retains detached Local geometry. Once its source is explicitly
     // deleted, the durable lifecycle also retires that geometry's former association.
     let detached: Vec<_> = output
@@ -1032,5 +1041,7 @@ pub fn prepare_membership_transition(
         output.context_delta.retired.push(association);
     }
     lifecycle::apply_membership_context_delta(input, &mut output)?;
+    (output.changed_document_ids, output.changed_field_paths) =
+        super::changed_document_fields(input.post_source, &output.draft)?;
     Ok(output)
 }

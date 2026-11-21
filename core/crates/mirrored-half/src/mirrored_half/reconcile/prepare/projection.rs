@@ -6,6 +6,7 @@ pub(super) fn reconcile_pairs(
     accepted: &ProjectDoc,
     document: &mut ProjectDoc,
     canonical: &Canonical,
+    report: ChangeScope,
 ) -> Result<Vec<String>, String> {
     let pair_views = native_pair_views(document);
     let mut changed = Vec::new();
@@ -35,7 +36,12 @@ pub(super) fn reconcile_pairs(
                     false,
                 )?
                 .0;
-                changed.extend(reconcile(document, &pair.pair_id, &projection)?);
+                changed.extend(reconcile_with_report(
+                    document,
+                    &pair.pair_id,
+                    &projection,
+                    Some(report),
+                )?);
             }
             continue;
         }
@@ -55,7 +61,12 @@ pub(super) fn reconcile_pairs(
                 mirror_matrix_id,
                 index == 0,
             )?;
-            changed.extend(reconcile(document, &pair.pair_id, &projection)?);
+            changed.extend(reconcile_with_report(
+                document,
+                &pair.pair_id,
+                &projection,
+                Some(report),
+            )?);
         }
     }
     Ok(changed)
@@ -471,97 +482,4 @@ pub(super) fn circuit_owner<'a>(document: &'a ProjectDoc, id: &str) -> Option<&'
         .iter()
         .find(|circuit| circuit.id == id)
         .map(|circuit| circuit.host_board_id.as_str())
-}
-
-pub(super) fn entity_changed(
-    before: &ProjectDoc,
-    after: &ProjectDoc,
-    id: &str,
-) -> Result<bool, String> {
-    fn entities(
-        document: &ProjectDoc,
-        id: &str,
-    ) -> Result<BTreeMap<&'static str, serde_json::Value>, String> {
-        let value = serde_json::to_value(document).map_err(|error| error.to_string())?;
-        let root = value
-            .as_object()
-            .ok_or_else(|| "The prepared document did not serialize as an object".to_owned())?;
-        // A physical instance may share its board's id. Keep each domain owner in
-        // the comparison so an unchanged Board cannot hide changed instance data.
-        let mut matches = BTreeMap::new();
-        for key in [
-            "parts",
-            "matrices",
-            "boards",
-            "definitions",
-            "nets",
-            "constraints",
-            "outline",
-            "layouts",
-            "modules",
-            "embeddedCircuits",
-            "caseBodies",
-        ] {
-            if let Some(item) = root
-                .get(key)
-                .and_then(serde_json::Value::as_array)
-                .and_then(|items| {
-                    items
-                        .iter()
-                        .find(|item| item.get("id").and_then(serde_json::Value::as_str) == Some(id))
-                })
-            {
-                matches.insert(key, item.clone());
-            }
-        }
-        if let Some(hardware) = root.get("hardware") {
-            if let Some(pairs) = hardware.get("pairs").and_then(serde_json::Value::as_array) {
-                let owned: Vec<_> = pairs
-                    .iter()
-                    .filter(|pair| {
-                        pair.get("members")
-                            .and_then(serde_json::Value::as_array)
-                            .is_some_and(|members| {
-                                members.iter().any(|member| member.as_str() == Some(id))
-                            })
-                    })
-                    .cloned()
-                    .collect();
-                if !owned.is_empty() {
-                    // Shared construction and linked features change a member's
-                    // effective configuration without changing its local slot.
-                    matches.insert("hardware.memberPairs", serde_json::Value::Array(owned));
-                }
-            }
-            for (key, owner) in [
-                ("pairs", "hardware.pairs"),
-                ("instances", "hardware.instances"),
-            ] {
-                if let Some(item) = hardware
-                    .get(key)
-                    .and_then(serde_json::Value::as_array)
-                    .and_then(|items| {
-                        items.iter().find(|item| {
-                            item.get("id").and_then(serde_json::Value::as_str) == Some(id)
-                        })
-                    })
-                {
-                    matches.insert(owner, item.clone());
-                }
-            }
-            if let Some(item) = hardware
-                .get("boards")
-                .and_then(serde_json::Value::as_array)
-                .and_then(|items| {
-                    items.iter().find(|item| {
-                        item.get("boardId").and_then(serde_json::Value::as_str) == Some(id)
-                    })
-                })
-            {
-                matches.insert("hardware.boards", item.clone());
-            }
-        }
-        Ok(matches)
-    }
-    Ok(entities(before, id)? != entities(after, id)?)
 }

@@ -12,13 +12,9 @@ use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::collapsible::{
-    Collapsible, CollapsibleContent, CollapsibleTrigger,
-};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
 use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
-use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};

@@ -33,7 +33,9 @@ mod outlines;
 #[doc(hidden)]
 pub mod settings;
 
+mod changes;
 mod document;
+pub use changes::changed_document_fields;
 mod hosted;
 mod matrix_stage;
 mod membership_view;
@@ -725,147 +727,6 @@ pub fn matrix_identity_slot<'a>(id: &'a str, matrix_id: &str) -> Option<(u32, u3
         .map_or((suffix, ""), |(slot, child)| (slot, child));
     let (row, column) = slot.split_once('c')?;
     Some((row.parse().ok()?, column.parse().ok()?, companion))
-}
-
-#[doc(hidden)]
-pub fn changed_document_fields(
-    before: &ProjectDoc,
-    after: &ProjectDoc,
-) -> Result<(Vec<String>, Vec<String>), String> {
-    fn walk(
-        before: &serde_json::Value,
-        after: &serde_json::Value,
-        path: &str,
-        owner_id: Option<&str>,
-        entity_array: bool,
-        ids: &mut BTreeSet<String>,
-        fields: &mut BTreeSet<String>,
-    ) {
-        if before == after {
-            return;
-        }
-        match (before, after) {
-            (serde_json::Value::Object(left), serde_json::Value::Object(right)) => {
-                let keys: BTreeSet<_> = left.keys().chain(right.keys()).collect();
-                for key in keys {
-                    let child_path = format!("{path}.{key}");
-                    let child_entity_array = (path == "$"
-                        && matches!(
-                            key.as_str(),
-                            "parts"
-                                | "matrices"
-                                | "boards"
-                                | "definitions"
-                                | "nets"
-                                | "constraints"
-                                | "outline"
-                                | "layouts"
-                                | "modules"
-                                | "embeddedCircuits"
-                        ))
-                        || child_path == "$.hardware.pairs";
-                    match (left.get(key), right.get(key)) {
-                        (Some(left), Some(right)) => walk(
-                            left,
-                            right,
-                            &child_path,
-                            owner_id,
-                            child_entity_array,
-                            ids,
-                            fields,
-                        ),
-                        _ if owner_id.is_some() => {
-                            ids.insert(owner_id.unwrap().to_owned());
-                        }
-                        _ => {
-                            fields.insert(child_path);
-                        }
-                    }
-                }
-            }
-            (serde_json::Value::Array(left), serde_json::Value::Array(right)) => {
-                let left_by_id: Option<BTreeMap<_, _>> = left
-                    .iter()
-                    .map(|value| {
-                        value
-                            .get("id")
-                            .and_then(serde_json::Value::as_str)
-                            .map(|id| (id, value))
-                    })
-                    .collect();
-                let right_by_id: Option<BTreeMap<_, _>> = right
-                    .iter()
-                    .map(|value| {
-                        value
-                            .get("id")
-                            .and_then(serde_json::Value::as_str)
-                            .map(|id| (id, value))
-                    })
-                    .collect();
-                if let (Some(left_by_id), Some(right_by_id)) = (left_by_id, right_by_id) {
-                    let keys: BTreeSet<_> = left_by_id
-                        .keys()
-                        .chain(right_by_id.keys())
-                        .copied()
-                        .collect();
-                    for id in keys {
-                        match (left_by_id.get(id), right_by_id.get(id)) {
-                            (Some(left), Some(right)) => {
-                                let item_owner = if entity_array { Some(id) } else { owner_id };
-                                walk(
-                                    left,
-                                    right,
-                                    &format!("{path}[id={id:?}]"),
-                                    item_owner,
-                                    false,
-                                    ids,
-                                    fields,
-                                )
-                            }
-                            _ => {
-                                if entity_array {
-                                    ids.insert(id.to_owned());
-                                } else if let Some(owner_id) = owner_id {
-                                    ids.insert(owner_id.to_owned());
-                                } else {
-                                    fields.insert(format!("{path}[id={id:?}]"));
-                                }
-                            }
-                        }
-                    }
-                    return;
-                }
-                let count = left.len().max(right.len());
-                for index in 0..count {
-                    let child_path = format!("{path}[{index}]");
-                    match (left.get(index), right.get(index)) {
-                        (Some(left), Some(right)) => {
-                            walk(left, right, &child_path, owner_id, false, ids, fields)
-                        }
-                        _ if owner_id.is_some() => {
-                            ids.insert(owner_id.unwrap().to_owned());
-                        }
-                        _ => {
-                            fields.insert(child_path);
-                        }
-                    }
-                }
-            }
-            _ if owner_id.is_some() => {
-                ids.insert(owner_id.unwrap().to_owned());
-            }
-            _ => {
-                fields.insert(path.to_owned());
-            }
-        }
-    }
-
-    let before = serde_json::to_value(before).map_err(|error| error.to_string())?;
-    let after = serde_json::to_value(after).map_err(|error| error.to_string())?;
-    let mut ids = BTreeSet::new();
-    let mut fields = BTreeSet::new();
-    walk(&before, &after, "$", None, false, &mut ids, &mut fields);
-    Ok((ids.into_iter().collect(), fields.into_iter().collect()))
 }
 
 fn deduplicate_outline_members(document: &mut ProjectDoc) {

@@ -15,9 +15,7 @@ use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
-    checkbox::{Checkbox, CheckboxState},
-    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::FieldLabel,
+    checkbox::CheckboxState,
     item::{Item, ItemGroup, ItemSize},
 };
 use dioxus::prelude::*;
