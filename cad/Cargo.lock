@@ -109,6 +109,7 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_json",
+ "spade",
  "step-p21",
  "wasm-bindgen-test",
 ]

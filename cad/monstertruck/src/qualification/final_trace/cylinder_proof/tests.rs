@@ -106,7 +106,7 @@ fn circular_drilled_input(thickness: f64, elevation: f64) -> boardstudio_contrac
 #[test]
 fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
     for input in [drilled_input(1., 1.6), circular_drilled_input(1.6, 0.)] {
-        let model = crate::build_case(&input).unwrap();
+        let mut model = crate::build_case(&input).unwrap();
         let (mesh, trace) = checked_trace(&model, Some(0.01));
         assert!(bind(&model, &mesh, &trace).is_ok());
         assert_eq!(mesh.bounds[0][2], 0.);
@@ -164,9 +164,10 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
             trim.height > n(0),
             "exercise the real retained nonplanarity"
         );
-        assert!(
-            circle.mesh_height > n(0),
-            "exercise final evaluation rounding"
+        assert_eq!(
+            circle.mesh_height,
+            n(0),
+            "direct wall samples use authored Z"
         );
         let (coarse, coarse_trace) = checked_trace(&model, None);
         let coarse_error = bound(&model, &coarse, &coarse_trace);
@@ -176,6 +177,16 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
             input.body.pcb_source.is_some()
         );
         assert_eq!(mesh.analysis_error_bound_mm, None);
+
+        // The existing fallback still exercises evaluation rounding away from
+        // the exact end height. Its bound must cover that displacement too.
+        model.layered_mesh = None;
+        let (mesh, trace) = checked_trace(&model, Some(0.01));
+        let groups = bind(&model, &mesh, &trace).unwrap();
+        let (ci, _) = upper_circular_trim(&trace);
+        let (circle, _) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
+        assert!(circle.mesh_height > n(0));
+        assert!(q(bound(&model, &mesh, &trace)).unwrap() >= circle.mesh_height);
     }
 }
 
@@ -422,6 +433,7 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
         let model = crate::build_case(&input).unwrap();
         let translated = ExactModel {
             circles: Default::default(),
+            layered_mesh: None,
             solids: model
                 .solids
                 .iter()
@@ -439,6 +451,7 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
         }
         let reflected = ExactModel {
             circles: Default::default(),
+            layered_mesh: None,
             solids: translated
                 .solids
                 .iter()
@@ -648,17 +661,21 @@ fn cylinder_proof_cone_remains_unknown() {
 
 #[test]
 fn cylinder_proof_source_translation_and_large_coordinate_controls() {
-    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let mut input = drilled_input(1., 2.);
+    let model = crate::build_case(&input).unwrap();
     let (mesh, trace) = checked_trace(&model, None);
     let e = bound(&model, &mesh, &trace);
-    let translated = ExactModel {
-        circles: Default::default(),
-        solids: model
-            .solids
-            .iter()
-            .map(|s| builder::translated(s, Vector3::new(32., 16., 8.)))
-            .collect(),
-    };
+    input.body.z = Some(8.);
+    let region = &mut input.regions[0];
+    for point in region
+        .outer
+        .iter_mut()
+        .chain(region.mounts.iter_mut().map(|m| &mut m.at))
+    {
+        point.x += 32.;
+        point.y += 16.;
+    }
+    let translated = crate::build_case(&input).unwrap();
     let (mesh, trace) = checked_trace(&translated, None);
     let moved = bound(&translated, &mesh, &trace);
     assert!((moved - e).abs() < 1e-12); // test observation only; each proof bounds its own final rounding.
@@ -735,7 +752,13 @@ fn cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown()
     }
     assert!(bind(&model, &mesh, &trace).is_ok());
     unknown(&model, &mesh, &trace);
-    let model = crate::build_case(&drilled_input(2., 4.)).unwrap();
+    let mut model = crate::build_case(&drilled_input(2., 4.)).unwrap();
+    let (mesh, trace) = checked_trace(&model, None);
+    assert!(mesh.mesh_closed_oriented);
+    assert!(bound(&model, &mesh, &trace) < 0.2);
+
+    // The vendor mesh of the same native source has an open periodic seam.
+    model.layered_mesh = None;
     let (mesh, trace) = checked_trace(&model, None);
     match qualify(&model, &mesh, &trace) {
         GeneratedQualification::Unknown { reasons } => {

@@ -1,5 +1,5 @@
 use monstertruck_meshing::rexport_polymesh::PolygonMesh;
-use monstertruck_modeling::{InnerSpace, Point3};
+use monstertruck_modeling::{InnerSpace, Point3, Vector3};
 
 /// Triangle-soup render buffers in millimeters, matching the CAD worker protocol.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -52,6 +52,18 @@ pub(crate) fn mesh_buffers(
 }
 
 pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> Result<(), String> {
+    let normal = triangle_normal(points)?;
+    for point in points {
+        push_point(&mut buffers.positions, point)?;
+        push_point(
+            &mut buffers.normals,
+            Point3::new(normal.x, normal.y, normal.z),
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
     let normal = (points[1] - points[0]).cross(points[2] - points[0]);
     let length = normal.x.hypot(normal.y).hypot(normal.z);
     if !length.is_finite() || length == 0.0 {
@@ -76,15 +88,7 @@ pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> R
             "Monstertruck mesh triangle loses its orientation at f32 render precision".into(),
         );
     }
-    let normal = normal / length;
-    for point in points {
-        push_point(&mut buffers.positions, point)?;
-        push_point(
-            &mut buffers.normals,
-            Point3::new(normal.x, normal.y, normal.z),
-        )?;
-    }
-    Ok(())
+    Ok(normal / length)
 }
 
 pub(crate) fn append_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {

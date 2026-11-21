@@ -1,6 +1,7 @@
 use super::{
     Feature,
     contours::{self, Profile, Ring},
+    tessellation::{LayeredMesh, WallStrip},
 };
 use crate::{ExactModel, profile::CircleEdge};
 use cavalier_contours::polyline::*;
@@ -22,11 +23,11 @@ struct Cap {
     profile: Profile,
     up: bool,
 }
-#[derive(Clone)]
 struct Patch {
     wire: Wire,
     surface: Surface,
     reversed: bool,
+    strip: WallStrip,
 }
 #[derive(Default)]
 struct Cache {
@@ -78,6 +79,7 @@ impl Cache {
                     center: Point3::new(center.x, center.y, first.z),
                     radius,
                     axis_z: bulge.signum(),
+                    sweep: 4. * bulge.atan(),
                 },
             );
             edge
@@ -379,7 +381,8 @@ fn wall_patches(
                     let right = cache.edge(q, s, 0.)?;
                     let upper = cache.edge(r, s, bulge)?;
                     let left = cache.edge(p, r, 0.)?;
-                    let wire: Wire = vec![lower, right, upper.inverse(), left.inverse()].into();
+                    let wire: Wire =
+                        vec![lower.clone(), right, upper.inverse(), left.inverse()].into();
                     let authored = if bulge == 0. {
                         None
                     } else {
@@ -438,6 +441,12 @@ fn wall_patches(
                         wire,
                         surface,
                         reversed,
+                        strip: WallStrip {
+                            lower,
+                            upper,
+                            axis: authored.map(|(center, _, _)| center),
+                            tapered: authored.is_some_and(|(_, low, high)| low != high),
+                        },
                     });
                 }
             }
@@ -445,12 +454,13 @@ fn wall_patches(
     }
     Ok(groups)
 }
-fn merge(mut patches: Vec<Patch>) -> Result<Vec<Face>> {
+fn merge(mut patches: Vec<Patch>, layered_mesh: &mut LayeredMesh) -> Result<Vec<Face>> {
     let mut faces = vec![];
     while let Some(seed) = patches.pop() {
         let surface = seed.surface;
         let reversed = seed.reversed;
         let mut boundary: Vec<Edge> = seed.wire.into_iter().collect();
+        let mut strips = vec![seed.strip];
         loop {
             let index = patches.iter().position(|p| {
                 p.wire
@@ -460,7 +470,9 @@ fn merge(mut patches: Vec<Patch>) -> Result<Vec<Face>> {
             let Some(index) = index else {
                 break;
             };
-            for edge in patches.remove(index).wire {
+            let patch = patches.remove(index);
+            strips.push(patch.strip);
+            for edge in patch.wire {
                 if let Some(i) = boundary.iter().position(|e| e.id() == edge.id()) {
                     if boundary[i].orientation() == edge.orientation() {
                         return Err("coincident wall patches have inconsistent orientation".into());
@@ -499,6 +511,7 @@ fn merge(mut patches: Vec<Patch>) -> Result<Vec<Face>> {
         };
         let face =
             Face::try_new(absolute, surface).map_err(|e| format!("merged exact face: {e:?}"))?;
+        layered_mesh.walls.insert(face.id(), strips);
         faces.push(if reversed { face.inverse() } else { face });
     }
     Ok(faces)
@@ -520,8 +533,9 @@ pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Re
             faces.push(if cap.up { face } else { face.inverse() });
         }
     }
+    let mut layered_mesh = LayeredMesh::default();
     for patches in wall_patches(bands, &points, &mut cache)?.into_values() {
-        faces.extend(merge(patches)?);
+        faces.extend(merge(patches, &mut layered_mesh)?);
     }
     let shell: Shell = faces.into();
 
@@ -560,5 +574,10 @@ pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Re
                 .map(|&circle| (edge.id(), circle))
         })
         .collect();
-    Ok(ExactModel { solids, circles })
+    layered_mesh.arcs = cache.circles;
+    Ok(ExactModel {
+        solids,
+        circles,
+        layered_mesh: Some(layered_mesh),
+    })
 }

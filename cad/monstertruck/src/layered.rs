@@ -1,8 +1,9 @@
-//! Private 013 prototype. Every operation before topology assembly is planar.
+//! Layered case and PCB construction. Every operation before topology assembly is planar.
 use crate::ExactModel;
 use boardstudio_contracts::{CaseFeature, CaseKind, MountKind, PreparedCaseIR, Vec2};
 mod contours;
 mod pcb;
+pub(crate) mod tessellation;
 mod topology;
 use contours::{Profile, Ring, difference, from_rings, polygon, union};
 
@@ -155,6 +156,7 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
     let mut model = ExactModel {
         solids: Vec::new(),
         circles: Default::default(),
+        layered_mesh: Some(Default::default()),
     };
     for (region_index, region) in input.regions.iter().enumerate() {
         let exterior: Vec<_> = region.outer.iter().map(|p| [p.x, p.y]).collect();
@@ -435,6 +437,11 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
         }
         model.solids.extend(built.solids);
         model.circles.extend(built.circles);
+        model.layered_mesh.as_mut().unwrap().extend(
+            built
+                .layered_mesh
+                .expect("layered assembly retains mesh geometry"),
+        );
     }
     if model.solids.is_empty() {
         return Err("Layered case has no material".into());

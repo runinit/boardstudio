@@ -449,6 +449,7 @@ fn empty_body_geometry_is_refused_without_silently_dropping_identity() {
     let empty = ExactModel {
         solids: vec![],
         circles: Default::default(),
+        layered_mesh: None,
     };
     assert!(export_step(&empty).is_err());
     assert!(export_step_bodies(&[]).is_err());
@@ -590,6 +591,7 @@ fn curved_exact_solids_are_written_and_never_measured_as_vertex_chords() {
     let bytes = export_step(&crate::ExactModel {
         solids: vec![solid],
         circles: Default::default(),
+        layered_mesh: None,
     })
     .unwrap();
     let text = std::str::from_utf8(&bytes).unwrap();

@@ -1,9 +1,9 @@
-use crate::{MeshBuffers, mesh::mesh_buffers};
+use crate::{MeshBuffers, layered::tessellation::LayeredMesh, mesh::mesh_buffers};
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-use monstertruck_modeling::{Curve, Face, Invertible, Point3, Solid, Surface};
+use monstertruck_modeling::{Curve, Face, Invertible, Point3, Shell, Solid, Surface};
 use monstertruck_topology::EdgeId;
 use std::collections::HashMap;
 
@@ -14,6 +14,7 @@ const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;
 pub struct ExactModel {
     pub(crate) solids: Vec<Solid>,
     pub(crate) circles: HashMap<EdgeId<Curve>, CircleEdge>,
+    pub(crate) layered_mesh: Option<LayeredMesh>,
 }
 
 /// Circular support in model coordinates, directed along the absolute edge.
@@ -22,6 +23,7 @@ pub(crate) struct CircleEdge {
     pub center: Point3,
     pub radius: f64,
     pub axis_z: f64,
+    pub sweep: f64,
 }
 
 impl ExactModel {
@@ -34,6 +36,11 @@ impl ExactModel {
                     .saturating_add(1)
                     .saturating_add(face.edge_iter().count());
             }
+        }
+        if let Some(layered) = &self.layered_mesh {
+            // Both views share the native edge allocations. Charge the strip
+            // inventory if many bands were coalesced into a small native shell.
+            topology = topology.max(layered.cache_complexity());
         }
         (self.solids.len(), topology)
     }
@@ -67,11 +74,30 @@ pub fn mesh_profile(model: &ExactModel) -> Result<MeshBuffers, String> {
         .iter()
         .flat_map(Solid::boundaries)
         .map(|shell| {
-            shell_to_polygon_strict_with(shell, mesh_options(PROFILE_MESH_TOLERANCE_MM))
-                .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))
+            let options = mesh_options(PROFILE_MESH_TOLERANCE_MM);
+            if let Some(layered) = &model.layered_mesh {
+                match layered.tessellate(
+                    shell,
+                    options.tolerance,
+                    PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
+                ) {
+                    Ok(faces) => return Ok(faces),
+                    Err(reason) => {
+                        return vendor_preview(shell, options)
+                            .map_err(|error| format!("{reason}. {error}"));
+                    }
+                }
+            }
+            vendor_preview(shell, options)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    mesh_buffers(meshes)
+    mesh_buffers(meshes.into_iter().flatten())
+}
+
+fn vendor_preview(shell: &Shell, options: TessellationOptions) -> Result<Vec<PolygonMesh>, String> {
+    shell_to_polygon_strict_with(shell, options)
+        .map(|mesh| vec![mesh])
+        .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))
 }
 
 fn mesh_options(tolerance: f64) -> TessellationOptions {
@@ -153,28 +179,30 @@ pub(crate) fn mesh_profile_observed(
     for (solid_index, solid) in model.solids.iter().enumerate() {
         let mut signed_volume = 0.0;
         for (shell_index, shell) in solid.boundaries().iter().enumerate() {
-            // Validate whole-shell strict tessellation first so edge/metric failures refuse.
-            let _ = shell_to_polygon_strict_with(shell, options)
-                .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))?;
-            let meshed = triangulation_with(shell, options);
-            if meshed.face_iter().count() != shell.face_iter().count() {
-                return Err("Generated analysis dropped a source face".into());
-            }
+            let polygons = match &model.layered_mesh {
+                Some(layered) => layered
+                    .tessellate(shell, deflection_mm, PROFILE_EDGE_ANGULAR_TOLERANCE_RAD)
+                    .map(|polygons| {
+                        polygons
+                            .into_iter()
+                            .zip(shell.face_iter().map(Face::orientation))
+                            .collect()
+                    })
+                    .or_else(|reason| {
+                        vendor_analysis(shell, options)
+                            .map_err(|error| format!("{reason}. {error}"))
+                    })?,
+                None => vendor_analysis(shell, options)?,
+            };
             let mut shell_triangles = Vec::new();
-            for ((face_index, face), meshed_face) in
-                shell.face_iter().enumerate().zip(meshed.face_iter())
+            for ((face_index, face), (poly, orientation)) in
+                shell.face_iter().enumerate().zip(polygons)
             {
                 let support_kind = match face.surface() {
                     Surface::Plane(_) => "PLANE",
                     Surface::RevolutionSurface(_) => "REVOLUTION_SURFACE",
                     _ => "SURFACE",
                 };
-                let mut poly = meshed_face.surface().ok_or_else(|| {
-                    format!("Monstertruck dropped generated case face {face_index}")
-                })?;
-                if !meshed_face.orientation() {
-                    poly.invert();
-                }
                 let occurrence_index = source_faces.len();
                 source_faces.push(GeneratedSourceFace {
                     solid_index,
@@ -182,12 +210,7 @@ pub(crate) fn mesh_profile_observed(
                     face_index,
                     support_kind: support_kind.into(),
                 });
-                observer.face(
-                    &source_faces[occurrence_index],
-                    face,
-                    meshed_face.orientation(),
-                    &poly,
-                );
+                observer.face(&source_faces[occurrence_index], face, orientation, &poly);
                 let mut face_triangles = 0usize;
                 for triangle in poly.faces().triangle_iter() {
                     let points = triangle.map(|v| poly.positions()[v.pos]);
@@ -254,7 +277,32 @@ pub(crate) fn mesh_profile_observed(
     })
 }
 
-fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
+fn vendor_analysis(
+    shell: &Shell,
+    options: TessellationOptions,
+) -> Result<Vec<(PolygonMesh, bool)>, String> {
+    // Validate whole-shell strict tessellation first so edge/metric failures refuse.
+    let _ = vendor_preview(shell, options)?;
+    let meshed = triangulation_with(shell, options);
+    if meshed.face_iter().count() != shell.face_iter().count() {
+        return Err("Generated analysis dropped a source face".into());
+    }
+    meshed
+        .face_iter()
+        .enumerate()
+        .map(|(index, face)| {
+            let mut poly = face
+                .surface()
+                .ok_or_else(|| format!("Monstertruck dropped generated case face {index}"))?;
+            if !face.orientation() {
+                poly.invert();
+            }
+            Ok((poly, face.orientation()))
+        })
+        .collect()
+}
+
+pub(crate) fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
     let point = |p: Point3| {
         if !p.x.is_finite() || !p.y.is_finite() || !p.z.is_finite() {
             return None;

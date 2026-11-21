@@ -2,11 +2,10 @@
 //!
 //! Coordinates are body-local, including authored elevation/source placement.
 //! No physical row transform is accepted or applied here. The hook observes the
-//! existing polygon fan after orientation and render rejection, without another
-//! tessellation. UVs are attributes, not evidence of evaluation or trim coverage.
-//! In particular the mesher's preview fallback has placeholder UVs, and its
-//! periodic lifting decisions are not exposed. Never infer an unwrap or an
-//! angular/height bound from the requested meshing settings.
+//! oriented triangle emission after render rejection, without another tessellation.
+//! Direct wall strips have local charts. Vendor polygon UVs may be placeholders.
+//! The proof independently binds final points and topology to the native support
+//! and trims. UV attributes and requested settings alone prove no error bound.
 
 use crate::profile::{EmissionObserver, ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace};
 #[cfg(test)]
@@ -421,6 +420,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     assert_eq!(mesh.bounds, [[0., 0., 7.], [20., 16., 8.6]]);
     let translated = ExactModel {
         circles: Default::default(),
+        layered_mesh: None,
         solids: elevated
             .solids
             .iter()
@@ -431,6 +431,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     assert_eq!(mesh.bounds, [[32., -16., 7.], [52., 0., 8.6]]);
     let rotated = ExactModel {
         circles: Default::default(),
+        layered_mesh: None,
         solids: plate()
             .solids
             .iter()
@@ -441,6 +442,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     // Reflection reverses winding to preserve the solid; no physical row is applied.
     let reflected = ExactModel {
         circles: Default::default(),
+        layered_mesh: None,
         solids: plate()
             .solids
             .iter()
@@ -576,6 +578,7 @@ fn final_trace_does_not_retain_triangles_rejected_by_real_emission() {
     use monstertruck_modeling::Matrix4;
     let model = ExactModel {
         circles: Default::default(),
+        layered_mesh: None,
         solids: plate()
             .solids
             .iter()

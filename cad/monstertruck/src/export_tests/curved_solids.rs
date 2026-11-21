@@ -29,6 +29,7 @@ fn circular_profile_step(shape: crate::step_accuracy::CircularExtrusion, radii: 
     step_text(&crate::ExactModel {
         solids: vec![solid],
         circles: Default::default(),
+        layered_mesh: None,
     })
 }
 
@@ -49,6 +50,7 @@ fn noncircular_rational_edges_round_trip_as_splines() {
     let text = step_text(&crate::ExactModel {
         solids: vec![solid],
         circles: Default::default(),
+        layered_mesh: None,
     });
     let records = StepRecords::parse(&text);
     assert_eq!(records.named("CIRCLE").count(), 0);

@@ -17,7 +17,10 @@ pub(super) fn material(
     );
 }
 
-fn mesh_winding<'a>(meshes: impl IntoIterator<Item = &'a PolygonMesh>, point: Point3) -> f64 {
+pub(super) fn mesh_winding<'a>(
+    meshes: impl IntoIterator<Item = &'a PolygonMesh>,
+    point: Point3,
+) -> f64 {
     let angle: f64 = meshes
         .into_iter()
         .flat_map(|mesh| {
@@ -48,6 +51,74 @@ pub(super) fn point_bounds(points: impl IntoIterator<Item = Point3>) -> [[f64; 3
 pub(super) fn check_solid(solid: &Solid) {
     Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented topology");
     assert!(solid.is_geometric_consistent());
+}
+
+/// Check the public analysis rolls up exactly the direct shell emission in
+/// native face order, so a vendor fallback cannot pass an analytic fixture.
+pub(super) fn direct_analysis(model: &ExactModel, target: Option<f64>) -> Vec<Vec<PolygonMesh>> {
+    let analysis = crate::mesh_profile_for_analysis(model, target).unwrap();
+    assert!(analysis.mesh_closed_oriented);
+    assert_eq!(analysis.analysis_error_bound_mm, None);
+    assert_eq!(
+        analysis.mesh.positions,
+        analysis
+            .positions_mm_f64
+            .iter()
+            .map(|&x| x as f32)
+            .collect::<Vec<_>>()
+    );
+    if target.is_none() {
+        assert_eq!(crate::mesh_profile(model).unwrap(), analysis.mesh);
+    }
+
+    let layered = model.layered_mesh.as_ref().unwrap();
+    let mut triangles = analysis
+        .positions_mm_f64
+        .chunks_exact(9)
+        .zip(&analysis.triangle_face_occurrence_indices);
+    let mut occurrences = analysis.source_faces.iter().enumerate();
+    let mut solids = Vec::new();
+    for (solid_index, solid) in model.solids.iter().enumerate() {
+        let mut meshes = Vec::new();
+        for (shell_index, shell) in solid.boundaries().iter().enumerate() {
+            let faces = layered
+                .tessellate(shell, analysis.deflection_mm, analysis.angular_rad)
+                .expect("analytic fixture must use direct tessellation");
+            for (face_index, (poly, face)) in faces.iter().zip(shell.face_iter()).enumerate() {
+                let (occurrence, source) = occurrences.next().unwrap();
+                assert_eq!(
+                    (source.solid_index, source.shell_index, source.face_index),
+                    (solid_index, shell_index, face_index)
+                );
+                assert_eq!(
+                    source.support_kind,
+                    match face.surface() {
+                        Surface::Plane(_) => "PLANE",
+                        Surface::RevolutionSurface(_) => "REVOLUTION_SURFACE",
+                        _ => panic!("unexpected source surface"),
+                    }
+                );
+                assert!(poly.faces().triangle_iter().count() > 0);
+                for tri in poly.faces().triangle_iter() {
+                    let (points, &tag) = triangles.next().unwrap();
+                    assert_eq!(tag, occurrence);
+                    assert_eq!(
+                        points,
+                        tri.map(|v| {
+                            let p = poly.positions()[v.pos];
+                            [p.x, p.y, p.z]
+                        })
+                        .as_flattened()
+                    );
+                }
+            }
+            meshes.extend(faces);
+        }
+        solids.push(meshes);
+    }
+    assert!(triangles.next().is_none());
+    assert!(occurrences.next().is_none());
+    solids
 }
 
 fn rectangle(x: f64, y: f64, w: f64, h: f64) -> Vec<Vec2> {
@@ -282,6 +353,106 @@ fn boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss() {
         0,
     );
 }
+#[test]
+fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
+    let mut boss = plate();
+    boss.body.kind = CaseKind::Tray;
+    boss.body.thickness = 2.;
+    boss.body.wall_height = Some(4.);
+    boss.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
+    let mount = &mut boss.regions[0].mounts[0];
+    mount.kind = MountKind::Boss;
+    mount.hole_diameter = 1.;
+    mount.boss_diameter = Some(4.);
+    mount.height = Some(3.);
+    let mut cone = plate();
+    cone.regions[0].mounts.clear();
+    cone.body.features = Some(vec![CaseFeature::ConicalSeat {
+        id: "countersink".into(),
+        at: Vec2 { x: 10., y: 8. },
+        z: 2.,
+        height: 2.,
+        diameter: 4.,
+        end_diameter: 2.,
+    }]);
+    let is_cone = |input: &PreparedCaseIR| input.body.kind == CaseKind::Plate;
+    for (input, exact_volume, test_points) in [
+        (
+            boss,
+            1152. + 10.75 * std::f64::consts::PI,
+            [
+                ([10., 8., 1.], false),
+                ([10., 8., 4.], false),
+                ([11., 8., 4.], true),
+                ([13., 8., 4.], false),
+            ],
+        ),
+        (
+            cone,
+            1280. - 14. * std::f64::consts::PI / 3.,
+            [
+                ([10., 8., 1.], true),
+                ([10., 8., 3.], false),
+                ([11.7, 8., 2.5], false),
+                ([11.7, 8., 3.5], true),
+            ],
+        ),
+    ] {
+        let model = crate::build_case(&input).unwrap();
+        let coarse = direct_analysis(&model, None);
+        let tolerance = 0.0005;
+        let fine = direct_analysis(&model, Some(tolerance));
+        let [coarse] = coarse.as_slice() else {
+            panic!("expected one material solid")
+        };
+        let [fine] = fine.as_slice() else {
+            panic!("expected one material solid")
+        };
+        let volume = |faces: &[PolygonMesh]| faces.iter().map(PolygonMesh::volume).sum::<f64>();
+        let fine_error = (volume(fine) - exact_volume).abs();
+        assert!(fine_error < 0.025, "{fine_error}");
+        assert!(fine_error < (volume(coarse) - exact_volume).abs());
+        for (p, inside) in test_points {
+            let expected = if inside { 1. } else { 0. };
+            assert!((mesh_winding(fine, Point3::from(p)) - expected).abs() < 1e-8);
+        }
+        let shell = &model.solids[0].boundaries()[0];
+        for (mesh, deflection) in [(coarse, 0.1), (fine, tolerance)] {
+            for (native, face) in shell.face_iter().zip(mesh) {
+                if !matches!(native.surface(), Surface::RevolutionSurface(_)) {
+                    continue;
+                }
+                let radial = |p: Point3| Vector2::new(p.x - 10., p.y - 8.);
+                let r = if radial(face.positions()[0]).magnitude() < 1. {
+                    0.5
+                } else {
+                    2.
+                };
+                let radius = |z| if is_cone(&input) { 3. - z / 2. } else { r };
+                for triangle in face.faces().triangle_iter() {
+                    let points = triangle.map(|v| face.positions()[v.pos]);
+                    for (a, b) in points.into_iter().zip(points.into_iter().cycle().skip(1)) {
+                        let (u, v) = (radial(a), radial(b));
+                        assert!((u.magnitude() - radius(a.z)).abs() < 1e-12);
+                        assert!(u.perp_dot(v).atan2(u.dot(v)).abs() <= 0.5);
+                        let midpoint_radius = ((u + v) / 2.).magnitude();
+                        assert!((radius((a.z + b.z) / 2.) - midpoint_radius).abs() <= deflection);
+                    }
+                }
+            }
+        }
+        if is_cone(&input) {
+            use crate::qualification::{SourceQualification, prepare_generated_analysis};
+            assert!(matches!(
+                prepare_generated_analysis(&model, Some(0.01))
+                    .unwrap()
+                    .source_qualification(),
+                SourceQualification::Unknown { .. }
+            ));
+        }
+    }
+}
+
 #[test]
 fn boss_no_wider_than_its_hole_is_rejected() {
     let mut input = plate();

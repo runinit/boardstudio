@@ -245,6 +245,42 @@ fn source_line_arc_loop_is_authoritative_through_public_build_case() {
 }
 
 #[test]
+fn direct_pcb_reflex_arc_covers_the_major_segment() {
+    use boardstudio_contracts::{MechanicalShape, Vec2};
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/pcb-source/line-arc-tracer.json"
+    ))
+    .unwrap();
+    let primitives = &mut input.body.pcb_source.as_mut().unwrap().contours[0].primitives;
+    let end = Vec2 { x: -2., y: 0. };
+    let MechanicalShape::Arc { end: arc_end, .. } = &mut primitives[0].geometry else {
+        unreachable!();
+    };
+    *arc_end = end;
+    primitives[0].curve_support.as_mut().unwrap().sweep_radians = 1.5 * std::f64::consts::PI;
+    let MechanicalShape::Line { start, .. } = &mut primitives[1].geometry else {
+        unreachable!();
+    };
+    *start = end;
+
+    let model = crate::build_case(&input).unwrap();
+    super::tests::direct_analysis(&model, None);
+    let fine = super::tests::direct_analysis(&model, Some(0.0005));
+    let [faces] = fine.as_slice() else {
+        panic!("expected one PCB solid")
+    };
+    let volume = faces.iter().map(|face| face.volume()).sum::<f64>();
+    // Major sector plus the right triangle between the chord and the center,
+    // extruded through the 2 mm PCB.
+    let expected = 6. * std::f64::consts::PI + 4.;
+    assert!((volume - expected).abs() < 0.01, "{volume}");
+    for p in [[1., -1., 1.], [-1., 1., 1.]] {
+        assert!(super::tests::mesh_winding(faces, Point3::from(p)) > 0.999);
+    }
+    assert!(super::tests::mesh_winding(faces, Point3::new(-1.2, -1.2, 1.)).abs() < 1e-8);
+}
+
+#[test]
 fn source_body_round_drills_do_not_use_polygon_region_filtering() {
     use boardstudio_contracts::{Mount, MountKind, Vec2};
     let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
@@ -339,6 +375,7 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
     let solid = &model.solids[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 48); // 42 cylinders, four walls, two caps.
+    super::tests::direct_analysis(&model, None);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!(
         (mesh.volume() - decimal(&oracle["volume_mm3"])).abs() < 0.02,
@@ -708,6 +745,13 @@ fn adoption_pcb_slot_preserves_both_material_components() {
             .fold(f64::NEG_INFINITY, f64::max);
         extents.push([low, high]);
         material(&mesh, [10., 8., 0.8], false);
+    }
+    let direct = super::tests::direct_analysis(&model, None);
+    assert_eq!(direct.len(), 2);
+    for faces in &direct {
+        let volume = faces.iter().map(|face| face.volume()).sum::<f64>();
+        assert!((volume - 9. * 16. * 1.6).abs() < 1e-8);
+        assert!(super::tests::mesh_winding(faces, Point3::new(10., 8., 0.8)).abs() < 1e-8);
     }
     extents.sort_by(|a, b| a[0].total_cmp(&b[0]));
     assert_eq!(extents, vec![[0., 9.], [11., 20.]]);
