@@ -2,8 +2,9 @@
 use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
+use crate::preview_logic::*;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_model::model::{Pad, PadShape, PartDefinition, Side, Vec2};
 use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -49,22 +50,6 @@ fn take_parts_preview_for_test() -> Option<boardstudio_model::model::PcbPreview>
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct PreviewInput {
-    scope: Option<Scope>,
-    snapshot_token: SnapshotToken,
-    definition_id: String,
-    definition_json: String,
-    recipe_identity: String,
-    selection_generation: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct PreviewOwner {
-    input: PreviewInput,
-    generation: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 struct PreviewLayer {
     id: String,
     label: String,
@@ -98,12 +83,6 @@ struct PreviewGeometry {
     at: Vec2,
     rotation: f64,
     side: Side,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Visibility {
-    definition_id: String,
-    hidden: BTreeSet<String>,
 }
 
 /// The Parts slot supplies accepted immutable source identity; this component
@@ -614,6 +593,11 @@ async fn load_single_preview(
         .await
         .map_err(PreviewFailure::Failed)?
         .ok_or(PreviewFailure::Unsupported)?;
+    let defaults = (
+        defaults.keycap_width,
+        defaults.keycap_height,
+        defaults.include_keycap,
+    );
     let keycap = keycap_size(definition, defaults);
     let include_keycap = include_keycap(definition, defaults);
     // React draws the library envelope separately from generator graphics.
@@ -678,71 +662,6 @@ fn source_backed_preview(
         layers,
         view_box,
     })
-}
-
-fn next_preview_owner(
-    last_input: &Rc<RefCell<Option<PreviewInput>>>,
-    generation_counter: &Rc<Cell<u64>>,
-    input: PreviewInput,
-) -> PreviewOwner {
-    let mut previous = last_input.borrow_mut();
-    if previous.as_ref() != Some(&input) {
-        generation_counter.set(generation_counter.get().wrapping_add(1));
-        *previous = Some(input.clone());
-    }
-    PreviewOwner {
-        input,
-        generation: generation_counter.get(),
-    }
-}
-
-fn valid_size(size: Vec2) -> Option<Vec2> {
-    (size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0).then_some(size)
-}
-
-fn keycap_size(
-    definition: &PartDefinition,
-    defaults: footprint_graphics::GeneratorPreviewDefaults,
-) -> Option<Vec2> {
-    let saved = definition.keycap.and_then(valid_size);
-    let authored = definition
-        .envelope_source
-        .as_ref()
-        .is_none_or(|source| source.keycap == Some(EnvelopeOrigin::Authored));
-    if authored && let Some(saved) = saved {
-        return Some(saved);
-    }
-
-    let parameters = definition
-        .generator
-        .as_ref()
-        .map(|generator| &generator.parameters);
-    let width = parameters
-        .and_then(|parameters| parameters.get("keycap_width"))
-        .and_then(serde_json::Value::as_f64)
-        .or(defaults.keycap_width);
-    let height = parameters
-        .and_then(|parameters| parameters.get("keycap_height"))
-        .and_then(serde_json::Value::as_f64)
-        .or(defaults.keycap_height);
-    let generated = width
-        .zip(height)
-        .map(|(x, y)| Vec2 { x, y })
-        .and_then(valid_size);
-    generated.or(saved)
-}
-
-fn include_keycap(
-    definition: &PartDefinition,
-    defaults: footprint_graphics::GeneratorPreviewDefaults,
-) -> bool {
-    definition
-        .generator
-        .as_ref()
-        .and_then(|generator| generator.parameters.get("include_keycap"))
-        .and_then(serde_json::Value::as_bool)
-        .or(defaults.include_keycap)
-        .unwrap_or(true)
 }
 
 fn rectangle_points(size: Vec2) -> Vec<Vec2> {
@@ -854,18 +773,6 @@ fn copper_id(pad: &Pad, definition: &PartDefinition, part_side: &Side) -> String
         },
     );
     side.into()
-}
-
-fn owner_is_current(captured: &PreviewOwner, current: &PreviewOwner) -> bool {
-    captured == current
-}
-
-fn visible_hidden(definition_id: &str, visibility: &Visibility) -> BTreeSet<String> {
-    if visibility.definition_id == definition_id {
-        visibility.hidden.clone()
-    } else {
-        BTreeSet::new()
-    }
 }
 
 fn recipe_view_box(members: &[PreviewGeometry]) -> Option<String> {
@@ -1011,14 +918,6 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
                 text { class: "font-mono text-[1.8px] fill-geometry-label pointer-events-none", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
             }
         }
-    }
-}
-
-fn drill_class(pad: &Pad) -> &'static str {
-    if pad.plated == Some(false) {
-        "fill-canvas stroke-geometry-outline stroke-[0.1] is-mechanical"
-    } else {
-        "fill-canvas stroke-geometry-outline stroke-[0.1]"
     }
 }
 

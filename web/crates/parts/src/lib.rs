@@ -61,6 +61,9 @@ pub mod parts_mechanical_profile;
 pub mod parts_new_component;
 pub mod parts_view_generation;
 
+#[path = "parts/preview_logic.rs"]
+mod preview_logic;
+
 #[cfg(target_arch = "wasm32")]
 pub mod parts;
 
