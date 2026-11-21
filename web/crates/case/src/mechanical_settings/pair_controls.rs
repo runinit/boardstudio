@@ -19,6 +19,7 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
+use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -31,7 +32,6 @@ use boardstudio_web_ui_shared::ui::{
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
     item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
@@ -315,28 +315,21 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
         || mapping.is_none()
         || preview.is_none()
         || option.reviewed_fingerprint.is_none();
-    let selected_value = use_memo(move || selected().to_string());
-    let construction_value = use_memo(move || {
-        (if construction_from_other() {
-            "other"
-        } else {
-            "this"
-        })
-        .to_string()
-    });
     rsx! {
         section { aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
             p { class: "text-muted-foreground text-sm leading-normal",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
-            SettingsChoiceField {
+            ChoiceField {
+                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                mode: ChoiceFieldMode::Indexed { placeholder: None },
                 label: "Link with",
                 aria_label: "Link with",
                 disabled: !props.editable,
-                value: selected_value,
+                value: selected().to_string(),
                 options: options.iter().enumerate().map(|(candidate, item)| (candidate.to_string(), item.other_name.clone())).collect::<Vec<_>>(),
-                on_change: {
+                on_value_change: {
                         let mut selected = selected;
                         move |next: Option<String>| {
                             if let Some(next) = next && let Ok(value) = next.parse::<usize>() {
@@ -345,19 +338,22 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
                         }
                     },
             }
-            SettingsSelect {
+            ChoiceField {
                 label: "Construction from",
                 aria_label: "Pair construction source",
                 disabled: !props.editable,
-                value: construction_value,
-                on_change: {
+                value: (if construction_from_other_value { "other" } else { "this" }).to_owned(),
+                on_value_change: {
                         let mut construction_from_other = construction_from_other;
                         move |next: Option<String>| {
                             construction_from_other.set(next.as_deref() == Some("other"));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "this".to_owned(), text_value: option.instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.instance_id}" }
-                    SelectOption::<String> { index: 1usize, value: "other".to_owned(), text_value: option.other_instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.other_instance_id}" }
+                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                options: vec![
+                    ("this".into(), option.instance_id.clone()),
+                    ("other".into(), option.other_instance_id.clone()),
+                ],
             }
             if option.derived_mapping.is_none() {
                 div {
@@ -413,12 +409,12 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
                         fieldset { key: "{row_id}",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
-                            SettingsSelect {
+                            ChoiceField {
                                 label: "Shared geometry from",
                                 aria_label: "Source for {key}",
                                 disabled: !props.editable,
                                 value: chosen.clone(),
-                                on_change: {
+                                on_value_change: {
                                         let mut sources = sources;
                                         let key = key.clone();
                                         move |next: Option<String>| {
@@ -427,12 +423,11 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
                                             }
                                         }
                                     },
-                                SelectOption::<String> { index: 0usize, value: matched.source_instance_id.clone(), text_value: format!("{} · {first_label}", matched.source_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                        "{matched.source_instance_id} · {first_label}"
-                                    }
-                                    SelectOption::<String> { index: 1usize, value: option.other_instance_id.clone(), text_value: format!("{} · {second_label}", option.other_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                        "{option.other_instance_id} · {second_label}"
-                                    }
+                                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                                options: vec![
+                                    (matched.source_instance_id.clone(), format!("{} · {first_label}", matched.source_instance_id)),
+                                    (option.other_instance_id.clone(), format!("{} · {second_label}", option.other_instance_id)),
+                                ],
                             }
                         }
                     }
@@ -640,12 +635,12 @@ pub(crate) fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Elem
                                 }
                             } else {
                                 if offers_own_source {
-                                    SettingsSelect {
+                                    ChoiceField {
                                         label: "Rejoin from",
                                         aria_label: "Rejoin source for {row.feature_id}",
                                         disabled: !props.editable,
                                         value: chosen_source.clone(),
-                                        on_change: {
+                                        on_value_change: {
                                                 let mut rejoin_sources = rejoin_sources;
                                                 let feature_id = row.feature_id.clone();
                                                 move |next: Option<String>| {
@@ -656,12 +651,11 @@ pub(crate) fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Elem
                                                     }
                                                 }
                                             },
-                                        SelectOption::<String> { index: 0usize, value: row.instance_id.clone(), text_value: format!("this half · {}", row.own_geometry.clone().unwrap_or_default()), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                                "this half · {row.own_geometry.clone().unwrap_or_default()}"
-                                            }
-                                            SelectOption::<String> { index: 1usize, value: row.counterpart_instance_id.clone(), text_value: format!("the other half · {}", row.preview.clone().unwrap_or_else(|| "no geometry".to_owned())), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                                "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
-                                            }
+                                        layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                                        options: vec![
+                                            (row.instance_id.clone(), format!("this half · {}", row.own_geometry.clone().unwrap_or_default())),
+                                            (row.counterpart_instance_id.clone(), format!("the other half · {}", row.preview.clone().unwrap_or_else(|| "no geometry".to_owned()))),
+                                        ],
                                     }
                                 }
                                 if let Some(geometry) = source_geometry.clone() {

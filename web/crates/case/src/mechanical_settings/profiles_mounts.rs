@@ -19,6 +19,7 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
+use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -31,7 +32,6 @@ use boardstudio_web_ui_shared::ui::{
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
     item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
@@ -83,11 +83,11 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                             if target.part_id.ends_with("foam") {
                                 output { "Cut sheet" }
                             } else {
-                                SettingsSelect {
+                                ChoiceField {
                                     label: "Method",
                                     disabled: !props.editable,
                                     value: method_id(&process.method).to_string(),
-                                    on_change: {
+                                    on_value_change: {
                                         let part_id = target.part_id.clone();
                                         let identity = props.identity.clone();
                                         let mut sequence = props.request_sequence;
@@ -96,19 +96,24 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
                                         }
                                     },
-                                    SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "PCB FR-4" }
-                                        SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D printed" }
-                                        SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "CNC machined" }
-                                        SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cut sheet" }
+                                    layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                                    options: vec![
+                                        ("pcb-fr4".into(), "PCB FR-4".into()),
+                                        ("printed".into(), "3D printed".into()),
+                                        ("cnc".into(), "CNC machined".into()),
+                                        ("cut-sheet".into(), "Cut sheet".into()),
+                                    ],
                                 }
                             }
-                            SettingsChoiceField {
+                            ChoiceField {
+                                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                                mode: ChoiceFieldMode::Indexed { placeholder: None },
                                 label: "Material",
                                 aria_label: "Material",
                                 disabled: !props.editable,
                                 value: process.material.clone(),
                                 options: process_material_options(&target.part_id, &process.method).iter().map(|material| (material.to_string(), material.to_string())).collect::<Vec<_>>(),
-                                on_change: {
+                                on_value_change: {
                                         let part_id = target.part_id.clone();
                                         let identity = props.identity.clone();
                                         let mut sequence = props.request_sequence;
@@ -157,12 +162,12 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                 for stabilizer in props.stabilizers.iter() {
                     div { class: "grid gap-1.5", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
-                        SettingsSelect {
+                        ChoiceField {
                             label: "Stabilizer",
                             aria_label: "Stabilizer for {stabilizer.reference}",
                             disabled: !props.editable,
                             value: stabilizer_kind_id(&stabilizer.current.kind).to_string(),
-                            on_change: {
+                            on_value_change: {
                                     let mut current = stabilizer.current.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
@@ -172,11 +177,17 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                                         send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
                                     }
                                 },
-                            SelectOption::<String> { index: 0usize, value: "pcb-mount".to_owned(), text_value: format!("Cherry PCB mount · {}u", stabilizer.default.units), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cherry PCB mount · {stabilizer.default.units}u" }
-                                SelectOption::<String> { index: 1usize, value: "none".to_owned(), text_value: "None".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "None" }
+                            layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                            options: {
+                                let mut options = vec![
+                                    ("pcb-mount".into(), format!("Cherry PCB mount · {}u", stabilizer.default.units)),
+                                    ("none".into(), "None".into()),
+                                ];
                                 if stabilizer.current.profile.is_some() {
-                                    SelectOption::<String> { index: 2usize, value: "plate-mount".to_owned(), text_value: "Custom plate mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom plate mount" }
+                                    options.push(("plate-mount".into(), "Custom plate mount".into()));
                                 }
+                                options
+                            },
                         }
                         p { class: "text-muted-foreground text-sm leading-normal", "Size and orientation follow the key layout." }
                     }
@@ -223,11 +234,11 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
-                        SettingsSelect {
+                        ChoiceField {
                             label: "Switch fit family",
                             disabled: !props.editable,
                             value: (profile.family.map(family_id).unwrap_or("")).to_string(),
-                            on_change: {
+                            on_value_change: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
@@ -238,10 +249,13 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                         }
                                     }
                                 },
-                            SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose switch family…".to_owned(), "Choose switch family…" }
-                                SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX".to_owned(), "MX" }
-                                SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1".to_owned(), "Choc v1" }
-                                SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2".to_owned(), "Choc v2" }
+                            layout: ChoiceFieldLayout::StackedNarrow,
+                            options: vec![
+                                ("".into(), "Choose switch family…".into()),
+                                ("mx".into(), "MX".into()),
+                                ("choc-v1".into(), "Choc v1".into()),
+                                ("choc-v2".into(), "Choc v2".into()),
+                            ],
                         }
                     } else if let Some(family) = profile.family {
                         p { "Switch fit: {family_label(family)}" }
@@ -284,23 +298,28 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
             }
             if props.targets.iter().any(|target| target.switch_profile) {
                 div {
-                    SettingsSelect {
+                    ChoiceField {
                         label: "Library fit profile",
                         aria_label: "Library fit profile",
                         disabled: !props.editable,
                         value: (selected_family()).to_string(),
-                        on_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
-                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a switch family…".to_owned(), "Choose a switch family…" }
-                            SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX switch".to_owned(), "MX switch" }
-                            SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1 switch".to_owned(), "Choc v1 switch" }
-                            SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2 switch".to_owned(), "Choc v2 switch" }
+                        on_value_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
+                        layout: ChoiceFieldLayout::StackedNarrow,
+                        options: vec![
+                            ("".into(), "Choose a switch family…".into()),
+                            ("mx".into(), "MX switch".into()),
+                            ("choc-v1".into(), "Choc v1 switch".into()),
+                            ("choc-v2".into(), "Choc v2 switch".into()),
+                        ],
                     }
-                    ProfileTargetField {
+                    ChoiceField {
+                        layout: ChoiceFieldLayout::StackedNarrow,
+                        value: "",
                         label: "Assign library fit profile to",
                         aria_label: "Assign library fit profile to",
                         disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
 
-                        on_change: {
+                        on_value_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
@@ -322,26 +341,32 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                        placeholder: "Choose a placed switch type…", options: props.targets.iter().filter(|target| target.switch_profile).cloned().collect(),
+                        mode: ChoiceFieldMode::Prompt { placeholder: "Choose a placed switch type…".into() },
+                        options: props.targets.iter().filter(|target| target.switch_profile).map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
                 }
                 div {
-                    SettingsSelect {
+                    ChoiceField {
                         label: "Library stabilizer profile",
                         aria_label: "Library stabilizer profile",
                         disabled: !props.editable,
                         value: (selected_stabilizer()).to_string(),
-                        on_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
-                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a stabilizer size…".to_owned(), "Choose a stabilizer size…" }
-                            SelectOption::<String> { index: 1usize, value: "mx-stab2u".to_owned(), text_value: "MX stabilizer · 2u".to_owned(), "MX stabilizer · 2u" }
-                            SelectOption::<String> { index: 2usize, value: "mx-stab625u".to_owned(), text_value: "MX stabilizer · 6.25u".to_owned(), "MX stabilizer · 6.25u" }
+                        on_value_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
+                        layout: ChoiceFieldLayout::StackedNarrow,
+                        options: vec![
+                            ("".into(), "Choose a stabilizer size…".into()),
+                            ("mx-stab2u".into(), "MX stabilizer · 2u".into()),
+                            ("mx-stab625u".into(), "MX stabilizer · 6.25u".into()),
+                        ],
                     }
-                    ProfileTargetField {
+                    ChoiceField {
+                        layout: ChoiceFieldLayout::StackedNarrow,
+                        value: "",
                         label: "Assign library stabilizer profile to",
                         aria_label: "Assign library stabilizer profile to",
                         disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
 
-                        on_change: {
+                        on_value_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
@@ -367,17 +392,20 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                        placeholder: "Choose a placed switch type…", options: props.targets.to_vec(),
+                        mode: ChoiceFieldMode::Prompt { placeholder: "Choose a placed switch type…".into() },
+                        options: props.targets.iter().map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
                 }
             }
             if props.targets.iter().any(|target| target.imported_geometry) {
-                ProfileTargetField {
+                ChoiceField {
+                    layout: ChoiceFieldLayout::StackedNarrow,
+                    value: "",
                     label: "Custom KiCad geometry",
                     aria_label: "Assign custom geometry profile to",
                     disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
 
-                    on_change: {
+                    on_value_change: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
@@ -394,7 +422,8 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                 }
                             }
                         },
-                    placeholder: "Choose imported part type…", options: props.targets.iter().filter(|target| target.imported_geometry).cloned().collect(),
+                    mode: ChoiceFieldMode::Prompt { placeholder: "Choose imported part type…".into() },
+                    options: props.targets.iter().filter(|target| target.imported_geometry).map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
             }
             p { "Current plate thickness: {props.plate_thickness:.2} mm." }
@@ -487,12 +516,12 @@ pub(crate) fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Elemen
                                     }
                                     span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
                                 }
-                                SettingsSelect {
+                                ChoiceField {
                                     label: "Purpose",
                                     aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
                                     disabled: !props.editable || busy(),
                                     value: (purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose))).to_string(),
-                                    on_change: {
+                                    on_value_change: {
                                             let id = primitive.id.clone();
                                             let mut purposes = purposes;
                                             move |event: Option<String>| {
@@ -503,10 +532,13 @@ pub(crate) fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Elemen
                                                 purposes.set(entries);
                                             }
                                         },
-                                    SelectOption::<String> { index: 0usize, value: "plate-cutout".to_owned(), text_value: "Plate cutout".to_owned(), "Plate cutout" }
-                                        SelectOption::<String> { index: 1usize, value: "electrical-pcb-mounting-hole".to_owned(), text_value: "PCB mounting hole".to_owned(), "PCB mounting hole" }
-                                        SelectOption::<String> { index: 2usize, value: "clearance-envelope".to_owned(), text_value: "Clearance envelope".to_owned(), "Clearance envelope" }
-                                        SelectOption::<String> { index: 3usize, value: "drawing-guide".to_owned(), text_value: "Drawing guide".to_owned(), "Drawing guide" }
+                                    layout: ChoiceFieldLayout::StackedNarrow,
+                                    options: vec![
+                                        ("plate-cutout".into(), "Plate cutout".into()),
+                                        ("electrical-pcb-mounting-hole".into(), "PCB mounting hole".into()),
+                                        ("clearance-envelope".into(), "Clearance envelope".into()),
+                                        ("drawing-guide".into(), "Drawing guide".into()),
+                                    ],
                                 }
                             }
                         }
