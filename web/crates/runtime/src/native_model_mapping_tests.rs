@@ -1,3 +1,4 @@
+use super::scene_preview::resolve_native_model_paths;
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use wasm_bindgen_test::*;
