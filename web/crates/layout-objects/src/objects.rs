@@ -163,21 +163,7 @@ fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
     }
 }
 
-pub fn matrix_visible_on_board(
-    document: &boardstudio_model::model::ProjectDoc,
-    board_id: &str,
-    matrix_id: &str,
-) -> bool {
-    let board_parts = document
-        .boards
-        .iter()
-        .find(|board| board.id == board_id)
-        .map(|board| board.part_ids.iter().map(String::as_str).collect())
-        .unwrap_or_default();
-    tree::visible_matrices(document, board_id, &board_parts)
-        .iter()
-        .any(|matrix| matrix.id == matrix_id)
-}
+pub use boardstudio_web_ui_model::tree::matrix_visible_on_board;
 
 pub fn context_label(model: &ReadModel, context: &TreeContext) -> Option<String> {
     tree::context_label(model, context)

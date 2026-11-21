@@ -127,6 +127,25 @@ pub fn visible_matrices<'a>(
         .collect()
 }
 
+/// Host-compatible objects-tree visibility shared by every presentation crate.
+/// The Layout objects tree owns the presentation call sites; this predicate is
+/// the single production implementation used on both targets and in native tests.
+pub fn matrix_visible_on_board(
+    document: &ProjectDoc,
+    board_id: &str,
+    matrix_id: &str,
+) -> bool {
+    let board_parts = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.part_ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    visible_matrices(document, board_id, &board_parts)
+        .iter()
+        .any(|matrix| matrix.id == matrix_id)
+}
+
 pub fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return BTreeSet::new();
@@ -1042,10 +1061,12 @@ mod selection;
 #[cfg(test)]
 use selection::component_context_for_explicit_part;
 pub use selection::{
-    component_context_for_finding_part, context_for_cell, context_for_part, context_label,
-    resolve_selection,
+    active_board_scope_matches, component_context_for_finding_part, context_for_cell,
+    context_for_part, context_label, resolve_selection, selection_context_is_current,
 };
-pub(super) use selection::{context_is_resolvable, eligible_live_ids};
+#[cfg(test)]
+pub(super) use selection::context_is_resolvable;
+pub(super) use selection::eligible_live_ids;
 #[cfg(test)]
 #[path = "tree_tests.rs"]
 mod tests;

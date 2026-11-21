@@ -214,63 +214,9 @@ pub struct GeneratorPreviewDraft {
 #[derive(Clone, Copy)]
 pub struct GeneratorDraftStore(pub Signal<Option<GeneratorPreviewDraft>>);
 /// React's library predicate is advisory; Core remains authoritative when SetMatrix is accepted.
-pub fn matrix_input_available(definition: &boardstudio_model::model::PartDefinition) -> bool {
-    let press = if let Some(profile) = definition.input_profile.as_ref() {
-        profile
-            .press
-            .as_ref()
-            .map(|press| (press.row.clone(), press.column.clone(), press.independent))
-    } else {
-        definition
-            .matrix_terminals
-            .as_ref()
-            .map(|press| (press.row.clone(), press.column.clone(), true))
-            .or_else(|| {
-                definition
-                    .generator
-                    .as_ref()
-                    .filter(|generator| generator.source == "ceoloide/rotary_encoder_ec11_ec12")
-                    .map(|_| ("S1".into(), "S2".into(), true))
-            })
-    };
-    let Some((row_terminal, column_terminal, independent)) = press else {
-        return definition.input_profile.is_none()
-            && definition.pads.iter().any(|pad| pad.id == "one")
-            && definition.pads.iter().any(|pad| pad.id == "two");
-    };
-    let pads_for = |terminal: &str| {
-        definition
-            .terminals
-            .get(terminal)
-            .cloned()
-            .unwrap_or_else(|| {
-                definition
-                    .pads
-                    .iter()
-                    .filter(|pad| pad.id == terminal || pad.number == terminal)
-                    .map(|pad| pad.id.clone())
-                    .collect()
-            })
-    };
-    let row = pads_for(&row_terminal);
-    let column = pads_for(&column_terminal);
-    let rotation = definition
-        .input_profile
-        .as_ref()
-        .and_then(|profile| profile.rotary.as_ref())
-        .into_iter()
-        .flat_map(|rotation| [&rotation.a, &rotation.b, &rotation.common])
-        .flat_map(|terminal| pads_for(terminal))
-        .collect::<std::collections::BTreeSet<_>>();
-    independent
-        && !row.is_empty()
-        && !column.is_empty()
-        && row.iter().all(|id| !column.contains(id))
-        && row
-            .iter()
-            .chain(&column)
-            .all(|id| definition.pads.iter().any(|pad| pad.id == *id) && !rotation.contains(id))
-}
+/// Single host-compatible implementation lives in the catalogue; this re-export keeps
+/// the Parts presentation call sites stable on both targets and in tests.
+pub use boardstudio_web_catalogue::matrix_input::matrix_input_available;
 
 #[derive(Clone)]
 struct CatalogueView {
@@ -310,39 +256,7 @@ pub fn placement_label(definition: &boardstudio_model::model::PartDefinition) ->
     preferred_label(definition)
 }
 
-fn has_unique_mirror_board_pair(document: &ProjectDoc, board_id: &str) -> bool {
-    let Some(hardware) = document.hardware.as_ref() else {
-        return false;
-    };
-    let mut matches = hardware.pairs.iter().filter(|pair| {
-        pair.halves
-            .as_ref()
-            .is_some_and(|halves| halves.mirror_board_id == board_id)
-    });
-    let Some(pair) = matches.next() else {
-        return false;
-    };
-    if matches.next().is_some() {
-        return false;
-    }
-    let Some(halves) = pair.halves.as_ref() else {
-        return false;
-    };
-    halves.source_board_id != halves.mirror_board_id
-        && [
-            halves.source_board_id.as_str(),
-            halves.mirror_board_id.as_str(),
-        ]
-        .into_iter()
-        .all(|id| {
-            document
-                .boards
-                .iter()
-                .filter(|board| board.id == id)
-                .count()
-                == 1
-        })
-}
+pub use boardstudio_web_catalogue::mirror_pair::has_unique_mirror_board_pair;
 
 #[component]
 fn AddObjectChoice(

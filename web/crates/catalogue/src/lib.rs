@@ -5,7 +5,9 @@
 
 pub mod bundled;
 pub mod catalogue;
+pub mod matrix_input;
 pub mod matrix_setup_operation;
+pub mod mirror_pair;
 pub mod physical_setup;
 
 #[cfg(all(test, target_arch = "wasm32"))]

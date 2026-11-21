@@ -611,3 +611,31 @@ pub fn context_label(
         }
     }
 }
+
+/// Host-compatible scope currency shared by every presentation crate. The wasm
+/// selection module owns the Dioxus adapter, but this predicate is the single
+/// production implementation used on both targets and in native tests.
+/// Full behavior: the accepted board, instance, session and document still match
+/// `scope`, and the tree context still resolves against the accepted document.
+/// Stale scopes and unresolvable selections both return `false`.
+pub fn active_board_scope_matches(
+    model: &boardstudio_application::ReadModel,
+    scope: &boardstudio_application::Scope,
+) -> bool {
+    model.active_board_id == scope.board_id
+        && model.active_instance_id == scope.instance_id
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.session_epoch == scope.session_epoch
+                && snapshot.document.id == scope.document_id
+        })
+}
+
+/// Host-compatible selection currency shared by every presentation crate. See
+/// [`active_board_scope_matches`]: scope currency plus tree resolvability.
+pub fn selection_context_is_current(
+    model: &boardstudio_application::ReadModel,
+    scope: &boardstudio_application::Scope,
+    context: &TreeContext,
+) -> bool {
+    active_board_scope_matches(model, scope) && context_is_resolvable(model, context)
+}

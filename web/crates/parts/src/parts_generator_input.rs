@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 /// The value the form, preview and render agree on: a non-null draft wins, a null draft
 /// or a null/missing saved value selects the declared default, and no default stays absent.
-pub(crate) fn effective_value<'a>(
+pub fn effective_value<'a>(
     draft: Option<&'a Value>,
     saved: Option<&'a Value>,
     spec: &'a Value,
@@ -23,7 +23,7 @@ pub(crate) fn effective_value<'a>(
     }
 }
 
-pub(crate) fn apply_input(
+pub fn apply_input(
     definition: &PartDefinition,
     schema: &BTreeMap<String, Value>,
     edits: &BTreeMap<String, Value>,

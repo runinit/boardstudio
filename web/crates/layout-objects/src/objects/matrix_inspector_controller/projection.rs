@@ -1,5 +1,6 @@
 //! Accepted-document projection for the Matrix Inspector: identity, choices, and text.
 use super::*;
+use boardstudio_web_catalogue::matrix_input::matrix_input_available;
 
 pub(super) fn project_current(
     runtime: &Runtime,
@@ -165,71 +166,6 @@ pub(super) fn preset_variant(
     } else {
         format!("preset/{}/{}", preset.as_str(), orientation.as_str())
     }
-}
-
-fn matrix_input_available(definition: &PartDefinition) -> bool {
-    let press = if let Some(profile) = definition.input_profile.as_ref() {
-        profile
-            .press
-            .as_ref()
-            .map(|press| (press.row.as_str(), press.column.as_str(), press.independent))
-    } else if let Some(press) = definition.matrix_terminals.as_ref() {
-        Some((press.row.as_str(), press.column.as_str(), true))
-    } else if definition
-        .generator
-        .as_ref()
-        .is_some_and(|generator| generator.source == "ceoloide/rotary_encoder_ec11_ec12")
-    {
-        Some(("S1", "S2", true))
-    } else {
-        None
-    };
-    let Some((row, column, independent)) = press else {
-        return definition.input_profile.is_none()
-            && definition.pads.iter().any(|pad| pad.id == "one")
-            && definition.pads.iter().any(|pad| pad.id == "two");
-    };
-    if !independent {
-        return false;
-    }
-    let pads_for = |terminal: &str| {
-        definition
-            .terminals
-            .get(terminal)
-            .cloned()
-            .unwrap_or_else(|| {
-                definition
-                    .pads
-                    .iter()
-                    .filter(|pad| pad.id == terminal || pad.number == terminal)
-                    .map(|pad| pad.id.clone())
-                    .collect()
-            })
-    };
-    let row_pads = pads_for(row);
-    let column_pads = pads_for(column);
-    if row_pads.is_empty()
-        || column_pads.is_empty()
-        || row_pads.iter().any(|pad| column_pads.contains(pad))
-        || row_pads
-            .iter()
-            .chain(&column_pads)
-            .any(|id| !definition.pads.iter().any(|pad| &pad.id == id))
-    {
-        return false;
-    }
-    let rotary_pads: Vec<_> = definition
-        .input_profile
-        .as_ref()
-        .and_then(|profile| profile.rotary.as_ref())
-        .into_iter()
-        .flat_map(|rotary| [&rotary.a, &rotary.b, &rotary.common])
-        .flat_map(|terminal| pads_for(terminal))
-        .collect();
-    !row_pads
-        .iter()
-        .chain(&column_pads)
-        .any(|id| rotary_pads.contains(id))
 }
 
 pub(super) fn project_current_for(
