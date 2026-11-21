@@ -2,12 +2,11 @@
 
 use super::{
     FinalOwner, MembershipContextDelta, MembershipTransitionInput, MembershipTransitionOutput,
-    TransitionAssociation, TransitionState, cell_offset_delta, deduplicate_outline_members,
-    emit_validated_transition, lifecycle, matrix_identity_slot, project_matrix,
-    remove_omitted_matrix_parts, require_matrix_pair, transition_matrix_by_id,
+    TransitionAssociation, TransitionState, deduplicate_outline_members, emit_validated_transition,
+    lifecycle, matrix_identity_slot, require_matrix_pair, transition_matrix_by_id,
     validate_transition_input, validate_transition_output,
 };
-use crate::model::{EditOperation, Matrix, MirroredItemKind, Vec2};
+use crate::model::{EditOperation, MirroredItemKind};
 use std::collections::BTreeSet;
 
 /// Axis intent is already known while applying an editor command. Replay callers
@@ -55,28 +54,6 @@ fn project_membership(
     input: MembershipTransitionInput<'_>,
     axis: Option<RemovedAxis>,
 ) -> Result<MembershipTransitionOutput, String> {
-    Ok(
-        project_membership_if_changed(input, axis)?.unwrap_or_else(|| MembershipTransitionOutput {
-            draft: input.post_source.clone(),
-            context: input.context.clone(),
-            context_delta: MembershipContextDelta {
-                owners: input.final_owners.clone(),
-                ..MembershipContextDelta::default()
-            },
-            final_owners: input.final_owners.clone(),
-            changed_document_ids: Vec::new(),
-            changed_field_paths: Vec::new(),
-            notices: Vec::new(),
-        }),
-    )
-}
-
-/// An identity membership transition validates its output in place. Callers that already own
-/// the draft can carry it into correspondence projection without materializing a second copy.
-pub(super) fn project_membership_if_changed(
-    input: MembershipTransitionInput<'_>,
-    axis: Option<RemovedAxis>,
-) -> Result<Option<MembershipTransitionOutput>, String> {
     let matrix_pair = require_matrix_pair(input.context)?;
 
     let validated = validate_transition_input(input)?;
@@ -233,7 +210,7 @@ pub(super) fn project_membership_if_changed(
         if !skip_mirror_removal && mirror_removal.is_empty() {
             return Err("The paired mirror matrix removal produced no document changes".into());
         }
-        return Ok(Some(output));
+        return Ok(output);
     }
 
     let is_identity = input.valid_before == input.post_source
@@ -262,7 +239,18 @@ pub(super) fn project_membership_if_changed(
             input.final_owners,
             mapped_mirror_ids,
         )?;
-        return Ok(None);
+        return Ok(MembershipTransitionOutput {
+            draft: input.post_source.clone(),
+            context: input.context.clone(),
+            context_delta: MembershipContextDelta {
+                owners: input.final_owners.clone(),
+                ..MembershipContextDelta::default()
+            },
+            final_owners: input.final_owners.clone(),
+            changed_document_ids: Vec::new(),
+            changed_field_paths: Vec::new(),
+            notices: Vec::new(),
+        });
     }
 
     let detached_state = context
@@ -412,272 +400,33 @@ pub(super) fn project_membership_if_changed(
             )?;
         }
     }
-    let source = transition_matrix_by_id(&staged, matrix_pair.source_id.as_str())?.clone();
-    let mirror: Option<Matrix> = staged
+    let mirror = staged
         .matrices
         .iter()
-        .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str())
+        .find(|m| m.id == matrix_pair.mirror_id)
         .cloned();
-    if mirror.is_none() && !mirror_absent {
-        return Err(format!(
-            "The transition matrix {:?} is unavailable",
-            matrix_pair.mirror_id
-        ));
-    }
-    // Detached Local: the mirror owns its descriptor and geometry, so the
-    // projection below is skipped and the owned descriptor is reused verbatim.
-    // An absent mirror likewise skips everything: the placeholder below never
-    // reaches the write-back. (The per-cell loop carries a no-op filter to
-    // keep this diff flat; the preservation pass stays empty, so no
-    // compensation dirties the mirror.)
-    let mut projected = mirror.clone().unwrap_or_else(|| source.clone());
-    let mut local_key_preservations = Vec::new();
-    let mut omitted_target_parts = BTreeSet::new();
-    if !matrix_detached_local && !mirror_absent {
-        let matrix_correspondence = context
-            .pair_right
-            .correspondences
-            .iter()
-            .find(|association| {
-                association.kind == MirroredItemKind::Matrix
-                    && association.source_id == matrix_pair.source_id.as_str()
-                    && association.mirror_id == matrix_pair.mirror_id.as_str()
-            })
-            .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
-        let present = mirror.clone().ok_or_else(|| {
-            format!(
-                "The transition matrix {:?} is unavailable",
-                matrix_pair.mirror_id
-            )
-        })?;
-        projected = project_matrix(&source, &present, matrix_correspondence, context.mapping)?;
-    }
-    // The loop only executes with a present mirror (see its filter); the owned
-    // snapshot keeps the body total without re-proving presence per cell.
-    let mirror_cells: Vec<_> = mirror
-        .iter()
-        .flat_map(|present| present.cells.iter().cloned())
-        .collect();
-    for cell in projected
-        .cells
-        .iter_mut()
-        .filter(|_| !matrix_detached_local && !mirror_absent)
-    {
-        if !cell.enabled || cell.deleted {
-            continue;
-        }
-        let source_key_id = format!(
-            "matrix/{}/r{}c{}",
-            matrix_pair.source_id.as_str(),
-            cell.row,
-            cell.column
-        );
-        let Some(source_key) = staged.parts.iter().find(|part| part.id == source_key_id) else {
-            return Err(format!(
-                "The projected source key {source_key_id:?} is unavailable"
-            ));
-        };
-        let original_key = context.associations.iter().find(|association| {
-            association.kind == MirroredItemKind::Part
-                && input.source_identity_map.get(&association.source_id)
-                    == Some(&Some(source_key_id.clone()))
-        });
-        if original_key.is_none() && matrix_detached_omitted {
-            // An Omitted mirror follows the source record without
-            // materializing: novel slots stay disabled with no companions, so
-            // later member accounting sees a canonical absent mirror.
-            cell.deleted = true;
-            cell.enabled = false;
-            cell.assemblies.clear();
-            cell.assemblies_local = None;
-            continue;
-        }
-        if original_key.is_some_and(|association| association.state == TransitionState::Omitted) {
-            cell.deleted = true;
-            cell.enabled = false;
-            cell.assemblies.clear();
-            cell.assemblies_local = None;
-            continue;
-        }
-        if original_key.is_some_and(|association| association.state == TransitionState::Local) {
-            let local_cell = mirror_cells
-                .iter()
-                .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
-                .ok_or_else(|| {
-                    format!(
-                        "The retained Local matrix cell r{}c{} is unavailable",
-                        cell.row, cell.column
-                    )
-                })?;
-            let association = original_key.expect("the Local key association was checked");
-            let mapped_source = input
-                .source_identity_map
-                .get(&association.source_id)
-                .and_then(Clone::clone)
-                .ok_or_else(|| {
-                    "The retained Local key has no source identity mapping".to_owned()
-                })?;
-            let target_id = input
-                .mirror_identity_map
-                .get(&association.mirror_id)
-                .and_then(Clone::clone)
-                .or_else(|| {
-                    mapped_source
-                        .strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
-                        .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
+    let projection = if matrix_detached_local || mirror_absent {
+        None
+    } else {
+        let mirror = mirror.as_ref().ok_or("The target matrix is unavailable")?;
+        Some(super::matrix_membership::slot_projection(
+            &staged,
+            input.valid_before,
+            context,
+            mirror,
+            |id| {
+                context.associations.iter().find(|a| {
+                    a.kind == MirroredItemKind::Part
+                        && input
+                            .source_identity_map
+                            .get(&a.source_id)
+                            .and_then(Option::as_deref)
+                            == Some(id)
                 })
-                .ok_or_else(|| {
-                    "The retained Local key has no target identity mapping".to_owned()
-                })?;
-            local_key_preservations.push((
-                cell.row,
-                cell.column,
-                association.mirror_id.clone(),
-                target_id,
-            ));
-            *cell = local_cell.clone();
-            for assembly in &cell.assemblies {
-                let source_child_id = crate::matrix::companion_id(&source_key_id, &assembly.id);
-                if context.associations.iter().any(|child| {
-                    child.kind == MirroredItemKind::Part
-                        && input.source_identity_map.get(&child.source_id)
-                            == Some(&Some(source_child_id.clone()))
-                        && child.state == TransitionState::Omitted
-                        && child.explicit_state
-                }) {
-                    omitted_target_parts.insert(crate::matrix::companion_id(
-                        &format!(
-                            "matrix/{}/r{}c{}",
-                            matrix_pair.mirror_id.as_str(),
-                            cell.row,
-                            cell.column
-                        ),
-                        &assembly.id,
-                    ));
-                }
-            }
-            continue;
-        }
-        let mut next_assemblies = Vec::with_capacity(cell.assemblies.len());
-        for mut assembly in std::mem::take(&mut cell.assemblies) {
-            let source_child_id = crate::matrix::companion_id(&source_key_id, &assembly.id);
-            let mirror_child_id = crate::matrix::companion_id(
-                &format!(
-                    "matrix/{}/r{}c{}",
-                    matrix_pair.mirror_id.as_str(),
-                    cell.row,
-                    cell.column
-                ),
-                &assembly.id,
-            );
-            let original = context.associations.iter().find(|association| {
-                association.kind == MirroredItemKind::Part
-                    && input.source_identity_map.get(&association.source_id)
-                        == Some(&Some(source_child_id.clone()))
-            });
-            if original.is_none()
-                && !input
-                    .planned_additions
-                    .iter()
-                    .any(|addition| addition.source_id == source_child_id)
-            {
-                return Err(format!(
-                    "The companion settings for {source_child_id:?} are unavailable"
-                ));
-            }
-            if original.is_some_and(|association| association.state == TransitionState::Omitted) {
-                omitted_target_parts.insert(mirror_child_id);
-                next_assemblies.push(assembly);
-                continue;
-            }
-            if original.is_some_and(|association| association.state == TransitionState::Local) {
-                let local_assembly = mirror_cells
-                    .iter()
-                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
-                    .and_then(|candidate| {
-                        candidate
-                            .assemblies
-                            .iter()
-                            .find(|item| item.id == assembly.id)
-                    })
-                    .ok_or_else(|| {
-                        format!("The retained Local companion {mirror_child_id:?} is unavailable")
-                    })?;
-                assembly = local_assembly.clone();
-                next_assemblies.push(assembly);
-                continue;
-            }
-            let mode = original
-                .map(|association| association.effective_mode)
-                .unwrap_or(context.pair_right.companion_mode);
-            let tweak = original.and_then(|association| association.effective_tweak);
-            let source_companion = staged
-                .parts
-                .iter()
-                .find(|part| part.id == source_child_id)
-                .ok_or_else(|| {
-                    format!("The projected source companion {source_child_id:?} is unavailable")
-                })?;
-            let (offset, rotation) = super::super::derive::companion_assembly(
-                super::super::derive::CompanionAssemblyInput {
-                    offset: assembly.offset,
-                    rotation: assembly.rotation,
-                    key: Some(source_key),
-                    companion: Some(source_companion),
-                    mapping: context.mapping,
-                    mode,
-                    tweak,
-                    stabiliser: super::super::SYMMETRIC_DEFINITIONS
-                        .contains(&source_companion.definition_id.as_str()),
-                    fallback: false,
-                },
-            )
-            .map_err(str::to_owned)?;
-            if !offset.x.is_finite()
-                || !offset.y.is_finite()
-                || rotation.is_some_and(|value| !value.is_finite())
-            {
-                return Err("The projected matrix companion contains non-finite geometry".into());
-            }
-            assembly.offset = offset;
-            assembly.rotation = rotation;
-            next_assemblies.push(assembly);
-        }
-        cell.assemblies = next_assemblies;
-    }
-    if !local_key_preservations.is_empty() {
-        let mut candidate = staged.clone();
-        crate::matrix::set_matrix(&mut candidate, &projected)?;
-        for (row, column, old_id, target_id) in &local_key_preservations {
-            let before_part = input
-                .valid_before
-                .parts
-                .iter()
-                .find(|part| part.id == *old_id)
-                .ok_or_else(|| format!("The Local key snapshot {old_id:?} is unavailable"))?;
-            let candidate_part = candidate
-                .parts
-                .iter()
-                .find(|part| part.id == *target_id)
-                .ok_or_else(|| format!("The candidate Local key {target_id:?} is unavailable"))?;
-            let world_delta = Vec2 {
-                x: before_part.pose.at.x - candidate_part.pose.at.x,
-                y: before_part.pose.at.y - candidate_part.pose.at.y,
-            };
-            let offset_delta =
-                cell_offset_delta(&projected, *row, *column, world_delta, &candidate)?;
-            let cell = projected
-                .cells
-                .iter_mut()
-                .find(|cell| cell.row == *row && cell.column == *column)
-                .ok_or_else(|| format!("The Local matrix cell r{row}c{column} is unavailable"))?;
-            let offset = cell.offset.unwrap_or_default();
-            cell.offset = Some(Vec2 {
-                x: offset.x + offset_delta.x,
-                y: offset.y + offset_delta.y,
-            });
-        }
-    }
+            },
+            |id| input.planned_additions.iter().any(|a| a.source_id == id),
+        )?)
+    };
     // Detached Local keeps the mapped (identity) members: rejoins cannot be
     // pending here by construction, and additions are refused above, so both
     // extensions below are naturally empty on the detached path.
@@ -735,14 +484,16 @@ pub(super) fn project_membership_if_changed(
     // A detached Local mirror reuses its owned descriptor verbatim, and an
     // absent mirror has no record to write: in both cases the projection
     // write-back is skipped (the prune set above is empty here).
-    if !matrix_detached_local && !mirror_absent {
-        crate::matrix::set_matrix(&mut staged, &projected)?;
+    if let Some((projected, omitted)) = projection {
+        let retained = context
+            .associations
+            .iter()
+            .filter(|a| a.kind == MirroredItemKind::Part && a.state == TransitionState::Local)
+            .filter_map(|a| input.mirror_identity_map.get(&a.mirror_id)?.as_ref())
+            .filter_map(|id| staged.parts.iter().find(|p| p.id == *id).cloned())
+            .collect();
+        super::matrix_membership::materialize_slots(&mut staged, &projected, &omitted, retained)?;
     }
-    remove_omitted_matrix_parts(
-        &mut staged,
-        matrix_pair.mirror_id.as_str(),
-        &omitted_target_parts,
-    );
     deduplicate_outline_members(&mut staged);
     for addition in input.planned_additions {
         let source_part = input
@@ -926,7 +677,6 @@ pub(super) fn project_membership_if_changed(
         delta,
         &expected_final_mirror_members,
     )
-    .map(Some)
 }
 
 enum MembershipRemoval {
@@ -1074,5 +824,10 @@ pub(super) fn prepare_membership_projection(
         });
         output.context_delta.retired.push(association);
     }
-    lifecycle::apply_membership_context_delta(input, output)
+    lifecycle::apply_membership_context_delta(
+        input.valid_before,
+        input.post_source,
+        input.context,
+        output,
+    )
 }

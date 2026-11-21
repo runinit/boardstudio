@@ -776,6 +776,17 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         TransitionState::Local,
     )
     .unwrap();
+    let changed_after_selection = prepare_lifecycle_transition(
+        &before,
+        &wrong_membership,
+        &pending,
+        crate::support::test_dispatch(),
+    )
+    .expect_err("a valid selection cannot authorize a stale post-operation membership");
+    assert!(
+        changed_after_selection.contains("membership"),
+        "{changed_after_selection}"
+    );
     let membership_error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &wrong_membership,
         &wrong_membership,

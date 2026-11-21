@@ -356,66 +356,7 @@ pub(super) fn validate_transition_input<'a>(
         return Err("The historical Part associations omit canonical source membership".into());
     }
     for association in &part_associations {
-        let (row, column, child) =
-            matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
-                .ok_or_else(|| {
-                    format!(
-                        "The associated source identity {:?} is not canonical",
-                        association.source_id
-                    )
-                })?;
-        let suffix = if child.is_empty() {
-            String::new()
-        } else {
-            format!("/{child}")
-        };
-        let expected_mirror = format!(
-            "matrix/{}/r{}c{}{}",
-            matrix_pair.mirror_id.as_str(),
-            row,
-            column,
-            suffix
-        );
-        let expected_parents = if child.is_empty() {
-            (None, None)
-        } else {
-            (
-                Some(format!(
-                    "matrix/{}/r{}c{}",
-                    matrix_pair.source_id.as_str(),
-                    row,
-                    column
-                )),
-                Some(format!(
-                    "matrix/{}/r{}c{}",
-                    matrix_pair.mirror_id.as_str(),
-                    row,
-                    column
-                )),
-            )
-        };
-        // A top-level key owned by its matrix pair names that pair (spec
-        // §5) instead of standing parentless.
-        let expected_matrix_parents = (
-            Some(matrix_pair.source_id.clone()),
-            Some(matrix_pair.mirror_id.clone()),
-        );
-        if association.mirror_id != expected_mirror
-            || ((
-                association.parent_source_id.clone(),
-                association.parent_mirror_id.clone(),
-            ) != expected_parents
-                && !(child.is_empty()
-                    && (
-                        association.parent_source_id.clone(),
-                        association.parent_mirror_id.clone(),
-                    ) == expected_matrix_parents))
-        {
-            return Err(format!(
-                "The Part association {:?} disagrees with canonical membership or parent identity",
-                association.source_id
-            ));
-        }
+        validate_slot_association(matrix_pair, association)?;
         if input.baseline_kind == BaselineKind::MaterializedCurrentSchema {
             // The correspondence is the identity in every state; Local and Omitted are an
             // overlay on it. The persisted overlay must be the state the pair held before any
@@ -551,20 +492,8 @@ pub(super) fn validate_transition_input<'a>(
                 "The source identity {old_source:?} has no private association"
             ));
         };
-        let pending_rejoin = context.pending_rejoins.contains_key(old_source);
-        if association.state == TransitionState::Linked
-            && new_source.is_some()
-            && (crate::matrix::layout::companion_mode(input.valid_before, old_source)
-                != crate::model::MatrixCompanionMode::Follows
-                || (!pending_rejoin
-                    && crate::matrix::layout::companion_mode(
-                        input.valid_before,
-                        &association.mirror_id,
-                    ) != crate::model::MatrixCompanionMode::Follows))
-        {
-            return Err(
-                "Linked matrix placements cannot retain authored or constrained geometry".into(),
-            );
+        if new_source.is_some() {
+            validate_linked_placement(input.valid_before, context, association)?;
         }
         let expected_mirror = new_source.as_ref().and_then(|id| {
             id.strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
@@ -971,4 +900,64 @@ pub(super) fn validate_transition_input<'a>(
         mapped_source_ids,
         mapped_mirror_ids,
     })
+}
+
+pub(super) fn validate_linked_placement(
+    document: &crate::model::ProjectDoc,
+    context: &super::MembershipContext,
+    association: &super::TransitionAssociation,
+) -> Result<(), String> {
+    let pending_rejoin = context.pending_rejoins.contains_key(&association.source_id);
+    if association.state == TransitionState::Linked
+        && (crate::matrix::layout::companion_mode(document, &association.source_id)
+            != crate::model::MatrixCompanionMode::Follows
+            || (!pending_rejoin
+                && crate::matrix::layout::companion_mode(document, &association.mirror_id)
+                    != crate::model::MatrixCompanionMode::Follows))
+    {
+        return Err(
+            "Linked matrix placements cannot retain authored or constrained geometry".into(),
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn validate_slot_association(
+    matrix_pair: &super::MatrixPairContext,
+    association: &super::TransitionAssociation,
+) -> Result<(), String> {
+    let (row, column, child) =
+        matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str()).ok_or_else(
+            || {
+                format!(
+                    "The associated source identity {:?} is not canonical",
+                    association.source_id
+                )
+            },
+        )?;
+    let source_key = crate::matrix::member_id(&matrix_pair.source_id, row, column);
+    let mirror_key = crate::matrix::member_id(&matrix_pair.mirror_id, row, column);
+    let parents = (
+        association.parent_source_id.as_deref(),
+        association.parent_mirror_id.as_deref(),
+    );
+    let valid = if child.is_empty() {
+        association.mirror_id == mirror_key
+            && (parents == (None, None)
+                || parents
+                    == (
+                        Some(matrix_pair.source_id.as_str()),
+                        Some(matrix_pair.mirror_id.as_str()),
+                    ))
+    } else {
+        association.mirror_id == crate::matrix::companion_id(&mirror_key, child)
+            && parents == (Some(source_key.as_str()), Some(mirror_key.as_str()))
+    };
+    if !valid {
+        return Err(format!(
+            "The Part association {:?} disagrees with canonical membership or parent identity",
+            association.source_id
+        ));
+    }
+    Ok(())
 }

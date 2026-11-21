@@ -433,20 +433,25 @@ pub(super) fn fixed_membership_view(
                         .boards
                         .iter()
                         .any(|board| board.part_ids.contains(id));
-                let owner = owner_for(id);
-                let owner_ok = owner == Some(halves.mirror_board_id.as_str())
-                    || (!materialized && owner.is_none());
-                if !owner_ok {
-                    return Err(
-                        "An Omitted matrix member has an incomplete or stale owner input".into(),
-                    );
-                }
                 let explicit_local_child = id != mirror_id
                     && halves.exceptions.iter().any(|exception| {
                         exception.kind == MirroredItemKind::Part
                             && exception.mirror_id == *id
                             && exception.state == crate::model::MirroredExceptionState::Local
                     });
+                let owner = owner_for(id);
+                let owner_ok = owner == Some(halves.mirror_board_id.as_str())
+                    || (!materialized && owner.is_none())
+                    // The canonical pass has no matrix-owner entry for a detached Local
+                    // child. Its live board registration is checked directly below.
+                    || (explicit.is_none() && explicit_local_child && owner.is_none()
+                        && document.parts.iter().filter(|part| part.id == *id).count() == 1
+                        && !document.matrices.iter().any(|matrix| matrix.part_ids.contains(id)));
+                if !owner_ok {
+                    return Err(
+                        "An Omitted matrix member has an incomplete or stale owner input".into(),
+                    );
+                }
                 if explicit_local_child {
                     if unique_board_owner(document, id, "mirrored")? != halves.mirror_board_id {
                         return Err(
@@ -835,17 +840,6 @@ pub(super) fn fixed_membership_view(
             .iter()
             .find(|part| part.id == mirror_companion_id)
             .ok_or_else(|| format!("The mirrored part {mirror_companion_id:?} is unavailable"))?;
-        let (sin, cos) = (-key_pose.rotation.to_radians()).sin_cos();
-        let dx = companion.pose.at.x - key_pose.at.x;
-        let dy = companion.pose.at.y - key_pose.at.y;
-        let local_offset = Vec2 {
-            x: dx * cos - dy * sin,
-            y: dx * sin + dy * cos,
-        };
-        let local_rotation = companion.pose.rotation - key_pose.rotation;
-        if !point_is_finite(local_offset) || !local_rotation.is_finite() {
-            return Err("The retained Local matrix companion has non-finite geometry".into());
-        }
         let assembly = projected
             .cells
             .iter_mut()
@@ -856,8 +850,7 @@ pub(super) fn fixed_membership_view(
                     .find(|assembly| assembly.id == assembly_id)
             })
             .ok_or_else(|| "A projected matrix assembly is unavailable".to_owned())?;
-        assembly.offset = local_offset;
-        assembly.rotation = Some(local_rotation);
+        retain_companion_pose(assembly, *key_pose, companion)?;
     }
     for cell in &projected.cells {
         let key_pose = projected_key_poses
@@ -1213,4 +1206,25 @@ fn canonical_members<'a>(
         return Err("The reconciliation matrix membership is not canonical".into());
     }
     Ok(members)
+}
+
+pub(super) fn retain_companion_pose(
+    assembly: &mut crate::model::MatrixAssembly,
+    key_pose: crate::model::Pose2,
+    companion: &Part,
+) -> Result<(), String> {
+    let (sin, cos) = (-key_pose.rotation.to_radians()).sin_cos();
+    let dx = companion.pose.at.x - key_pose.at.x;
+    let dy = companion.pose.at.y - key_pose.at.y;
+    let local_offset = Vec2 {
+        x: dx * cos - dy * sin,
+        y: dx * sin + dy * cos,
+    };
+    let local_rotation = companion.pose.rotation - key_pose.rotation;
+    if !point_is_finite(local_offset) || !local_rotation.is_finite() {
+        return Err("The retained Local matrix companion has non-finite geometry".into());
+    }
+    assembly.offset = local_offset;
+    assembly.rotation = Some(local_rotation);
+    Ok(())
 }
