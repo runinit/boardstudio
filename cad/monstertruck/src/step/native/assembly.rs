@@ -163,8 +163,8 @@ fn validate_product(
     let definition = parameters(product, 4)?;
     let context = simple_record(records, reference(&definition[3])?)?;
     match context.name.as_str() {
-        "PRODUCT_DEFINITION_CONTEXT" => {}
-        "DESIGN_CONTEXT" if config_control => {
+        "PRODUCT_DEFINITION_CONTEXT" if !config_control => {}
+        "DESIGN_CONTEXT" | "PRODUCT_DEFINITION_CONTEXT" if config_control => {
             let context = parameters(context, 3)?;
             if !matches!(
                 (&context[0], &context[2]),
@@ -172,7 +172,11 @@ fn validate_product(
             ) {
                 return Err("invalid native design context".into());
             }
-            named_record(records, reference(&context[1])?, "APPLICATION_CONTEXT")?;
+            let application =
+                named_record(records, reference(&context[1])?, "APPLICATION_CONTEXT")?;
+            if !matches!(parameters(application, 1)?, [Parameter::String(_)]) {
+                return Err("invalid native application context".into());
+            }
         }
         _ => return Err("unsupported native product definition context".into()),
     }

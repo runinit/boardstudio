@@ -111,6 +111,15 @@ fn cylindrical_bands_refuse_moved_misaligned_or_reversed_trims() {
 }
 
 #[test]
+fn malformed_ap203_application_context_refuses_public_import() {
+    let valid = "APPLICATION_CONTEXT('configuration controlled 3d designs of mechanical parts and assemblies')";
+    assert_eq!(BANDS.matches(valid).count(), 1);
+    let invalid = BANDS.replace(valid, "APPLICATION_CONTEXT(123)");
+    assert!(import_step(invalid.as_bytes().to_vec()).is_err());
+    assert!(native_candidate(invalid.as_bytes(), StepImportOptions::default()).is_err());
+}
+
+#[test]
 fn cylindrical_band_refinement_and_bounds_use_mm() {
     let options = StepImportOptions {
         target_deflection_mm: Some(0.001),
