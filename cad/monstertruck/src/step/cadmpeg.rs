@@ -163,7 +163,7 @@ pub(super) fn build(
             .find(|p| p.representation_id == representation_id)
             .ok_or("missing precision context")?;
         // A generic context owns no uncertainty, so it may not borrow any
-        // allowance beyond numerical noise.
+        // allowance beyond numerical noise unless the caller selects an explicit budget.
         let allowance = if owner.uncertainty_mm().is_some() {
             repair_allowance(
                 options.preview_repair_budget_mm,
@@ -171,7 +171,7 @@ pub(super) fn build(
                 matrix,
             )
         } else {
-            options.preview_repair_budget_mm.unwrap_or(1e-8).min(1e-8)
+            options.preview_repair_budget_mm.unwrap_or(1e-8)
         };
         let settings = Options {
             closure_tolerance: owner.uncertainty_mm(),

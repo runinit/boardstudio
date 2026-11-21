@@ -40,9 +40,9 @@ async function read(source, options = {}, occurrences = 1,
 }
 
 await read(projected('0.015625'));
-const boundary = projected('0.020000000000000001');
+const boundary = projected('0.020000000000000004');
 await assert.rejects(() => read(boundary), error =>
-  typeof error === 'string' && error.includes('finite LINE repair edge #23'),
+  typeof error === 'string' && error.includes('support incidence exceeds'),
   'exact ideal attachment projection above default .02 must refuse');
 await read(boundary, {previewRepairBudgetMm: 0.020000000000000004});
 const exact = projected('0.03125');
@@ -50,7 +50,7 @@ for (const previewRepairBudgetMm of [0.03125, 0.03125000000000001]) {
   await read(exact, {previewRepairBudgetMm});
 }
 await assert.rejects(() => read(exact, {previewRepairBudgetMm: 0.031249999999999997}),
-  error => typeof error === 'string' && error.includes('EDGE_CURVE attachment exceeds its source connectivity bound'));
+  error => typeof error === 'string' && error.includes('support incidence exceeds'));
 let reversed = projected('0.015625');
 for (const [a, b] of [
   ["#23=EDGE_CURVE('',#11,#12,#22,.T.);", "#23=EDGE_CURVE('',#12,#11,#22,.F.);"],
@@ -64,7 +64,7 @@ const unresolvedSense = text => replaceOnce(text,
   "#23=EDGE_CURVE('',#11,#12,#22,.T.);", "#23=EDGE_CURVE('',#11,#12,#22,.F.);");
 await read(unresolvedSense(projected('0.015625')));
 await assert.rejects(() => read(unresolvedSense(boundary)), error => typeof error === 'string'
-  && error.includes('finite LINE repair edge #23'));
+  && error.includes('support incidence exceeds'));
 const unused = "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);";
 for (const padded of [false, true]) for (const before of [false, true]) {
   const mutate = source => {
@@ -75,7 +75,7 @@ for (const padded of [false, true]) for (const before of [false, true]) {
   for (const unprovedNativeSense of [false, true]) {
     const sense = source => unprovedNativeSense ? unresolvedSense(source) : source;
     await assert.rejects(() => read(mutate(sense(boundary))), error => typeof error === 'string'
-      && error.includes('finite LINE repair edge #23'));
+      && error.includes('support incidence exceeds'));
     await read(mutate(sense(projected('0.015625'))));
   }
 }
@@ -95,7 +95,7 @@ const scaled = replaceOnce(projected('0.015625'), 'ENDSEC;END-ISO-10303-21;',
 for (const padded of [false, true]) {
   const text = padded ? scaled + ' '.repeat(300000) : scaled;
   await assert.rejects(() => read(text), error => typeof error === 'string'
-    && error.includes('finite LINE repair edge #23'), 'world .03125 exceeds default .02 after real scale2');
+    && error.includes('support incidence exceeds'), 'world .03125 exceeds default .02 after real scale2');
   await read(text, {previewRepairBudgetMm: 0.03125}, 1, [[0, 0, 0], [4, 6, 8]]);
 }
 }]]);

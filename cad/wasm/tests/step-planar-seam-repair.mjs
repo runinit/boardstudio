@@ -14,7 +14,7 @@ const closed = replace(replace(replace(source,
   "#10=EDGE_LOOP('',(#9));", "#10=EDGE_LOOP('',(#9,#74));"),
   "#13=CLOSED_SHELL('',(#12));", "#13=CLOSED_SHELL('',(#12,#75));"),
   'ENDSEC;END-ISO-10303-21;',
-  "#70=DIRECTION('',(0.,-1.,0.));#71=VECTOR('',#70,1.);#72=LINE('',#34,#71);#73=EDGE_CURVE('',#32,#2,#72,.T.);#74=ORIENTED_EDGE('',*,*,#73,.T.);#75=ADVANCED_FACE('',(#11),#6,.F.);ENDSEC;END-ISO-10303-21;");
+  "#70=DIRECTION('',(0.,-1.,0.));#71=VECTOR('',#70,1.);#72=LINE('',#34,#71);#73=EDGE_CURVE('',#32,#2,#72,.T.);#74=ORIENTED_EDGE('',*,*,#73,.T.);#76=FACE_OUTER_BOUND('',#10,.F.);#75=ADVANCED_FACE('',(#76),#6,.F.);ENDSEC;END-ISO-10303-21;");
 
 async function options(bytes, selected) {
   return {sourceSha256: await sha256Hex(bytes), ...selected};

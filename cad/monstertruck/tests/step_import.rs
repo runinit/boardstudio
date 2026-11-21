@@ -1369,3 +1369,34 @@ fn round_plane_trim_leaves_the_bundled_plated_hole_open() {
     }
     assert!((area - std::f64::consts::PI * (0.6985_f64.powi(2) - 0.4064_f64.powi(2))).abs() < 0.05);
 }
+
+#[test]
+fn explicit_preview_repair_budget_is_honored_on_generic_context() {
+    let source = include_bytes!("fixtures/repair-finite-domain.step");
+    let default_err = import_step(source.to_vec())
+        .err()
+        .expect("0.03125 mm shifted LINE on generic context refuses at default noise floor");
+    assert!(default_err.contains("support incidence"), "{default_err}");
+
+    let tight_err = import_step_with_options(
+        source.to_vec(),
+        StepImportOptions {
+            preview_repair_budget_mm: Some(0.031249999999999997),
+            target_deflection_mm: None,
+        },
+    )
+    .err()
+    .expect("budget just below 0.03125 mm still refuses");
+    assert!(tight_err.contains("support incidence"), "{tight_err}");
+
+    let model = import_step_with_options(
+        source.to_vec(),
+        StepImportOptions {
+            preview_repair_budget_mm: Some(0.03125),
+            target_deflection_mm: None,
+        },
+    )
+    .expect("explicit 0.03125 mm preview repair budget is honored on generic context");
+    assert_eq!(model.accuracy().selected_repair_budget_mm, Some(0.03125));
+    assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+}

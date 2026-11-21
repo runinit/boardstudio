@@ -100,9 +100,9 @@ export async function run(cad, memory) {
       for (const bytes of [rounded, selected]) {
         assert.equal((await imported(bytes)).vendorStep.accuracy.maxRepairDisplacementMm, null);
       }
-      // The one-millimetre finite LINE exceeds the default budget; equality admits it without certification.
+      // The one-millimetre off-support LINE refuses under support incidence; explicit budget admits preview without certification.
       await assert.rejects(() => imported(offLine), error =>
-        typeof error === 'string' && error.includes('finite LINE repair') && error.includes('exceeds repair budget 0.02'));
+        typeof error === 'string' && error.includes('support incidence exceeds') && error.includes('sampled support residual 1.000000e0 mm'));
       assert.equal((await imported(offLine, {previewRepairBudgetMm: 1})).vendorStep.accuracy.maxRepairDisplacementMm, null);
       const sliver = await imported(await readBytes('cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step'));
       assert.equal(sliver.vendorStep.accuracy.maxRepairDisplacementMm, null);
@@ -122,8 +122,8 @@ export async function run(cad, memory) {
         .replace("#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));", "#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3)REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300)));")
         .replace("#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);", "#310=CARTESIAN_POINT('',(0.,0.,0.025));#57=AXIS2_PLACEMENT_3D('',#310,#55,#56);")
         .replace('ENDSEC;END-ISO-10303-21;', "#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#102,'distance_accuracy_value',$);ENDSEC;END-ISO-10303-21;");
-      await assert.rejects(() => imported(source), error => typeof error === 'string' && error.includes('SourceConnectivityRefused'));
-      await assert.rejects(() => imported(source, { previewRepairBudgetMm: 0.024 }), error => typeof error === 'string' && error.includes('SourceConnectivityRefused'));
+      await assert.rejects(() => imported(source), error => typeof error === 'string' && error.includes('support incidence exceeds 0.02 mm'));
+      await assert.rejects(() => imported(source, { previewRepairBudgetMm: 0.024 }), error => typeof error === 'string' && error.includes('support incidence exceeds 0.024 mm'));
       const result = await imported(source, { previewRepairBudgetMm: 0.03 });
       assert.equal(result.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
       assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, null);

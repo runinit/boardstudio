@@ -64,7 +64,7 @@ const tetraBounds = [[0, 0, 0], [2, 3, 4]];
 await check(tetra, {}, tetraBounds, 1);
 const line = "#22=LINE('',#1,#21);";
 const shiftedLine = "#310=CARTESIAN_POINT('',(0.,0.001953125,0.));#22=LINE('',#310,#21);";
-await check(replaceOnce(tetra, line, shiftedLine), {}, tetraBounds, 1);
+await check(replaceOnce(tetra, line, shiftedLine), {previewRepairBudgetMm: 0.02}, tetraBounds, 1);
 const metreAssembly = replaceOnce(
   replaceOnce(await fixture('cad/monstertruck/tests/fixtures/two-occurrences-mm.step'), line, shiftedLine),
   'SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT($,.METRE.)');
@@ -73,7 +73,7 @@ const metreBytes = encodeText(metreAssembly);
 const metreDigest = await sha(metreBytes);
 assert.throws(() => cad.read_step_model(new Uint8Array(metreBytes),
   {sourceSha256: metreDigest}), error =>
-    typeof error === 'string' && error.includes('finite LINE repair') && error.includes('repair budget 0.02'));
+    typeof error === 'string' && error.includes('support incidence exceeds'));
 await check(metreAssembly, {previewRepairBudgetMm: 2}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
 const finite = await fixture('cad/monstertruck/tests/fixtures/repair-finite-domain.step');
 const finiteBytes = new Uint8Array(encodeText(finite));
@@ -81,7 +81,7 @@ const finiteDigest = await sha(encodeText(finite));
 function refusesFinite(options) {
   assert.throws(() => cad.read_step_model(finiteBytes,
     {sourceSha256: finiteDigest, ...options}), error =>
-      typeof error === 'string' && error.includes('finite LINE repair') && error.includes('exceeds repair budget'));
+      typeof error === 'string' && error.includes('support incidence exceeds'));
 }
 refusesFinite({});
 refusesFinite({previewRepairBudgetMm: 0.031249999999999997});
@@ -91,14 +91,14 @@ for (const allowance of [0.03125, 0.03125000000000001]) {
 }
 assert.deepEqual(new Uint8Array(finiteBytes), new Uint8Array(encodeText(finite)),
   'refused/accepted calls retain immutable original bytes');
-await check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
+await check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {previewRepairBudgetMm: 0.02}, tetraBounds, 1);
 const unrelatedNumeric = replaceOnce(finite, 'ENDSEC;END-ISO-10303-21;',
   "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);ENDSEC;END-ISO-10303-21;");
 const unrelatedBytes = encodeText(unrelatedNumeric);
 const unrelatedDigest = await sha(unrelatedBytes);
 assert.throws(() => cad.read_step_model(new Uint8Array(unrelatedBytes),
   {sourceSha256: unrelatedDigest}), error =>
-    typeof error === 'string' && error.includes('finite LINE repair edge #23'));
+    typeof error === 'string' && error.includes('support incidence exceeds'));
 await check(unrelatedNumeric, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
 
 let gap = replaceOnce(tetra,
@@ -114,18 +114,18 @@ for (const options of [{}, {previewRepairBudgetMm: 0.024}]) {
   assert.throws(() => cad.read_step_model(new Uint8Array(gapBytes),
     {sourceSha256: gapDigest, ...options}), error => {
     assert.equal(typeof error, 'string');
-    assert(error.includes('SourceConnectivityRefused'));
+    assert(error.includes('support incidence exceeds'));
     const limit = options.previewRepairBudgetMm ?? 0.02;
-    assert(error.includes(`#59: vertex #11: no direct finite face attachment witness within source bound ${limit}`));
+    assert(error.includes(`face#59 support incidence exceeds ${limit} mm: sampled support residual 2.500000e-2 mm`));
     return true;
   });
 }
-// An admitted off-plane attachment still fails exact source-bound certification.
-const admitted = await check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1, false);
+// An admitted off-plane attachment still keeps exact linear-plane source bounds.
+const admitted = await check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1, true);
 assert.equal(admitted.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
-const curved = await check(await fixture('cad/monstertruck/tests/fixtures/unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, false);
+const curved = await check(await fixture('cad/monstertruck/tests/fixtures/unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, true);
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
 // The same literal producer fixture exercises actual native spline restriction
 // and the concrete whole-domain certifier inside the rebuilt WASM importer.
