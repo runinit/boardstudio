@@ -1114,7 +1114,7 @@ fn stagger_preview_commit_profile() {
     for large in [false, true] {
         let document = stagger_profile_document(large);
         for column in [0, document.matrices[0].columns - 1] {
-            let mut samples = [vec![], vec![], vec![]];
+            let mut samples = [vec![], vec![], vec![], vec![]];
             for i in 0..124 {
                 let mut engine = CoreEngine::new();
                 let CoreReply::Scene { .. } = engine.handle(CoreRequest::Open {
@@ -1124,7 +1124,7 @@ fn stagger_preview_commit_profile() {
                     panic!("could not open profile fixture");
                 };
                 let start_pair = Instant::now();
-                for value in [1.25, 2.75, 4.0] {
+                for (index, value) in [1.25, 2.75, 4.0].into_iter().enumerate() {
                     let mut request = edit(0, stagger(column, value));
                     let CoreRequest::Edit { command, .. } = &mut request else {
                         unreachable!()
@@ -1133,7 +1133,7 @@ fn stagger_preview_commit_profile() {
                     let start = Instant::now();
                     let reply = engine.handle(request);
                     if i >= 24 {
-                        samples[0].push(start.elapsed().as_secs_f64() * 1e3);
+                        samples[usize::from(index > 0)].push(start.elapsed().as_secs_f64() * 1e3);
                     }
                     assert!(matches!(black_box(reply), CoreReply::Preview { .. }));
                 }
@@ -1141,13 +1141,14 @@ fn stagger_preview_commit_profile() {
                 let start = Instant::now();
                 let reply = engine.handle(request);
                 if i >= 24 {
-                    samples[1].push(start.elapsed().as_secs_f64() * 1e3);
-                    samples[2].push(start_pair.elapsed().as_secs_f64() * 1e3);
+                    samples[2].push(start.elapsed().as_secs_f64() * 1e3);
+                    samples[3].push(start_pair.elapsed().as_secs_f64() * 1e3);
                 }
                 assert!(matches!(black_box(reply), CoreReply::Scene { .. }));
             }
             for (label, samples) in [
-                "changing previews",
+                "first preview",
+                "subsequent distinct previews",
                 "matching commit",
                 "3 previews + commit",
             ]
@@ -1171,8 +1172,10 @@ fn stagger_preview_commit_profile() {
 fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
     for document in [fixture(), stagger_profile_document(true)] {
         let (mut engine, mut cold) = open_preview_fixture(document);
-        let column = engine.document.matrices[0].columns - 1;
-        let preview = |value| {
+        let accepted = engine.document.clone();
+        let matrix = &accepted.matrices[0];
+        let column = matrix.columns - 1;
+        let preview = |column, value| {
             let mut request = edit(0, stagger(column, value));
             let CoreRequest::Edit { command, .. } = &mut request else {
                 unreachable!()
@@ -1181,15 +1184,61 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
             request
         };
         let mut runs = engine.stagger_outline_projections.get();
-        for (value, projected) in [(1.25, true), (1.25, false), (4.0, true)] {
-            let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview(value))
+        for (start, value, projected) in [
+            (column, 1.25, true),
+            (column, 1.25, false),
+            (column, 2.75, true),
+            (0, 2.0, true),
+            (column, 4.0, true),
+        ] {
+            let CoreReply::Preview { scene, .. } =
+                compare(&mut engine, &mut cold, preview(start, value))
             else {
                 panic!("expected a stagger preview");
             };
             assert!(!scene.contours.is_empty());
+            let mut changed = vec!["matrix".into()];
+            for row in 0..matrix.rows {
+                for col in 0..matrix.columns {
+                    let id = format!("matrix/matrix/r{row}c{col}");
+                    let before = accepted.parts.iter().find(|part| part.id == id).unwrap();
+                    let transform = scene.transforms.iter().find(|pose| pose.id == id).unwrap();
+                    let mut expected = before.pose;
+                    if col >= start {
+                        changed.push(id.clone());
+                        expected.at.y += value;
+                    }
+                    assert_eq!(transform.pose, expected, "{id}");
+                    if matrix.columns == 2 {
+                        let finding_id = format!("board:main:outline:body:{id}");
+                        assert!(scene.findings.iter().any(|finding| {
+                            finding.id == finding_id
+                                && finding.target_ids == ["main", id.as_str()]
+                                && finding.severity == Severity::Error
+                        }));
+                        let marker = scene
+                            .finding_markers
+                            .iter()
+                            .find(|marker| marker.finding_id == finding_id)
+                            .unwrap();
+                        assert_eq!(marker.board_id, "main");
+                        let (sin, cos) = expected.rotation.to_radians().sin_cos();
+                        assert_eq!(
+                            marker.contours[0].points[0],
+                            Vec2 {
+                                x: expected.at.x - 9.0 * cos + 9.0 * sin,
+                                y: expected.at.y - 9.0 * sin - 9.0 * cos,
+                            }
+                        );
+                    }
+                }
+            }
+            changed.sort();
+            assert_eq!(scene.changed_ids, changed);
             runs += usize::from(projected);
             assert_eq!(engine.stagger_outline_projections.get(), runs);
         }
+        assert_eq!(engine.document, accepted);
         assert!(engine.undo.is_empty() && engine.redo.is_empty());
 
         // Reopening at the same revision with the same poses must retire the
@@ -1209,7 +1258,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
         );
         assert!(engine.stagger_preview.is_none());
         assert!(matches!(
-            compare(&mut engine, &mut cold, preview(4.0)),
+            compare(&mut engine, &mut cold, preview(column, 4.0)),
             CoreReply::Preview { .. }
         ));
         runs += 1;
