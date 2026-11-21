@@ -775,8 +775,6 @@ fn same_mount_target(left: &CaseMountTarget, right: &CaseMountTarget) -> bool {
     }
 }
 
-
-
 fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<MountMoveConstraints> {
     let body = scene
         .prepared
@@ -816,6 +814,3 @@ fn mount_constraints(scene: &CadScene, body_id: &str) -> Option<MountMoveConstra
     }
     Some(MountMoveConstraints { outer, holes })
 }
-
-
-

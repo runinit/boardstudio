@@ -1,7 +1,7 @@
 //! The Case Inspector's summary of the tree-owned PCB part selection.
 use boardstudio_application::ReadModel;
-use boardstudio_web_ui_model::tree::selection_context_is_current;
 use boardstudio_web_ui_model::tree::ScopedTreeContext;
+use boardstudio_web_ui_model::tree::selection_context_is_current;
 
 pub struct SelectedPartSummary {
     pub title: String,

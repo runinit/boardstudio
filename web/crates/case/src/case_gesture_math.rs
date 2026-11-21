@@ -4,8 +4,7 @@
 //! single production implementation of the pure placement math used on both targets
 //! and in native tests. No runtime, signals, or DOM here.
 use boardstudio_model::model::{
-    MechanicalGasketSupport, MechanicalGasketTrack, Mount, MountKind, Vec2,
-    polygon_contains,
+    MechanicalGasketSupport, MechanicalGasketTrack, Mount, MountKind, Vec2, polygon_contains,
 };
 use std::collections::BTreeMap;
 
@@ -17,7 +16,10 @@ pub struct MountMoveConstraints {
 }
 
 /// Whether two gasket support sets place every support identically.
-pub fn supports_equal_positions(a: &[MechanicalGasketSupport], b: &[MechanicalGasketSupport]) -> bool {
+pub fn supports_equal_positions(
+    a: &[MechanicalGasketSupport],
+    b: &[MechanicalGasketSupport],
+) -> bool {
     a.len() == b.len()
         && a.iter().all(|support| {
             b.iter()
@@ -234,8 +236,13 @@ mod tests {
     #[test]
     fn valid_mount_move_updates_only_the_dragged_mount() {
         let mounts = vec![mount("mount-1", 20.0, 20.0), mount("mount-2", 80.0, 80.0)];
-        let moved = move_case_mount(Vec2 { x: 30.0, y: 30.0 }, "mount-1", &mounts, &constraints())
-            .expect("interior point respects the edge");
+        let moved = move_case_mount(
+            Vec2 { x: 30.0, y: 30.0 },
+            "mount-1",
+            &mounts,
+            &constraints(),
+        )
+        .expect("interior point respects the edge");
         assert_eq!(moved[0].at, Vec2 { x: 30.0, y: 30.0 });
         assert_eq!(moved[1].at, Vec2 { x: 80.0, y: 80.0 });
     }
@@ -244,29 +251,38 @@ mod tests {
     fn mount_move_rejects_outside_collisions_and_nonfinite_points() {
         let mounts = vec![mount("mount-1", 20.0, 20.0), mount("mount-2", 30.0, 30.0)];
         // Outside the 100x100 outer contour.
-        assert!(move_case_mount(
-            Vec2 { x: 200.0, y: 200.0 },
-            "mount-1",
-            &mounts,
-            &constraints()
-        )
-        .is_none());
+        assert!(
+            move_case_mount(
+                Vec2 { x: 200.0, y: 200.0 },
+                "mount-1",
+                &mounts,
+                &constraints()
+            )
+            .is_none()
+        );
         // Overlapping the peer mount (radius 2 + 2 + 0.5 keep-out).
-        assert!(move_case_mount(
-            Vec2 { x: 31.0, y: 30.0 },
-            "mount-1",
-            &mounts,
-            &constraints()
-        )
-        .is_none());
+        assert!(
+            move_case_mount(
+                Vec2 { x: 31.0, y: 30.0 },
+                "mount-1",
+                &mounts,
+                &constraints()
+            )
+            .is_none()
+        );
         // Non-finite drag points never move.
-        assert!(move_case_mount(
-            Vec2 { x: f64::NAN, y: 30.0 },
-            "mount-1",
-            &mounts,
-            &constraints()
-        )
-        .is_none());
+        assert!(
+            move_case_mount(
+                Vec2 {
+                    x: f64::NAN,
+                    y: 30.0
+                },
+                "mount-1",
+                &mounts,
+                &constraints()
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -296,13 +312,8 @@ mod tests {
             start_anchor: 0.0,
             end_anchor: 1.0,
         }];
-        let moved = move_gasket_support(
-            Vec2 { x: 30.0, y: 5.0 },
-            "gasket-1",
-            &[support],
-            &tracks,
-        )
-        .expect("nearby point projects onto the track");
+        let moved = move_gasket_support(Vec2 { x: 30.0, y: 5.0 }, "gasket-1", &[support], &tracks)
+            .expect("nearby point projects onto the track");
         assert!((moved[0].at.x - 30.0).abs() < 1e-9);
         assert!((moved[0].at.y).abs() < 1e-9);
         // Other regions do not attract the support.
@@ -313,11 +324,6 @@ mod tests {
             start_anchor: 0.0,
             end_anchor: 1.0,
         }];
-        assert!(project_gasket(
-            Vec2 { x: 30.0, y: 5.0 },
-            &moved[0],
-            &other
-        )
-        .is_none());
+        assert!(project_gasket(Vec2 { x: 30.0, y: 5.0 }, &moved[0], &other).is_none());
     }
 }
