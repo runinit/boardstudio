@@ -23,6 +23,10 @@ mod presentation;
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
 mod model_decode_boundary_tests;
 
+// Real-browser window-listener regression for the ui-model Layout Space-pan listener.
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+mod layout_space_pan_listener_tests;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);

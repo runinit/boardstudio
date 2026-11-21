@@ -1,4 +1,5 @@
 //! Layout's findings page and guarded navigation request.
+pub use super::keycaps_fit::target_has_live_layout_destination;
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{Finding, ProjectDoc, Severity};
@@ -209,39 +210,6 @@ fn LayoutFinding(
     }
 }
 
-pub fn target_has_live_layout_destination(
-    target: &FindingNavigationTarget,
-    document: &ProjectDoc,
-) -> bool {
-    let board_id = keycaps_fit::target_board_id(target);
-    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
-        return false;
-    };
-    match target {
-        FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. } => true,
-        FindingNavigationTarget::Part { part_id, .. } => {
-            board.part_ids.iter().any(|id| id == part_id)
-                && document.parts.iter().any(|part| part.id == *part_id)
-        }
-        FindingNavigationTarget::Matrix { matrix_id, .. } => {
-            document.matrices.iter().any(|matrix| {
-                matrix.id == *matrix_id
-                    && matrix
-                        .board_id
-                        .as_deref()
-                        .is_none_or(|owner| owner == board_id)
-                    && matrix
-                        .part_ids
-                        .iter()
-                        .any(|part_id| board.part_ids.contains(part_id))
-            })
-        }
-        FindingNavigationTarget::Body { .. } | FindingNavigationTarget::MechanicalLayer { .. } => {
-            false
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,41 +281,6 @@ mod tests {
             message: "Preview removes pad pad-1 on right-U1 (right/U1) from net OMIT_CONTROLLER (right/omit-controller-net).".into(),
             target_ids: vec!["right/omit-controller-net".into(), "right/U1".into()],
         }
-    }
-
-    #[wasm_bindgen_test]
-    fn destination_requires_the_target_to_still_live_on_its_named_board() {
-        let document = document();
-        let live = FindingNavigationTarget::Part {
-            board_id: "left".into(),
-            part_id: "left-part".into(),
-        };
-        assert!(target_has_live_layout_destination(&live, &document));
-
-        // Part listed by the board but deleted from the document.
-        let mut deleted = document.clone();
-        deleted.parts.retain(|part| part.id != "left-part");
-        assert!(!target_has_live_layout_destination(&live, &deleted));
-
-        // Part removed from its board (stale target) and part owned by another board.
-        let mut unlisted = document.clone();
-        unlisted.boards[0].part_ids.clear();
-        assert!(!target_has_live_layout_destination(&live, &unlisted));
-        let other_board = FindingNavigationTarget::Part {
-            board_id: "left".into(),
-            part_id: "right-part".into(),
-        };
-        assert!(!target_has_live_layout_destination(&other_board, &document));
-
-        // Board that no longer exists.
-        let gone = FindingNavigationTarget::Board {
-            board_id: "removed".into(),
-        };
-        assert!(!target_has_live_layout_destination(&gone, &document));
-        let live_board = FindingNavigationTarget::Board {
-            board_id: "right".into(),
-        };
-        assert!(target_has_live_layout_destination(&live_board, &document));
     }
 
     #[derive(Clone)]

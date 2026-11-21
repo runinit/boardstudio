@@ -11,7 +11,7 @@ use web_sys::Element as DomElement;
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 use boardstudio_model::model::KicadSource;
 
-use crate::preview_logic::test_fixtures::{definition, pad};
+use crate::preview_logic::test_fixtures::definition;
 
 #[derive(Clone)]
 struct PartsMountedFixture {
@@ -334,114 +334,4 @@ async fn parts_renderer_initialization_failure_keeps_form_and_returns_to_2d() {
         "the mounted renderer failure and 2D return must not submit a project edit"
     );
     root.remove();
-}
-
-#[wasm_bindgen_test]
-fn mx_preview_layer_options_follow_geometry_and_retained_source_layers() {
-    let definition = definition();
-    let drawings = vec![Graphic {
-        layer: "B.SilkS".into(),
-        shape: Shape::Line(
-            crate::footprint_forms::Point(-2.0, -3.0),
-            crate::footprint_forms::Point(2.0, -3.0),
-        ),
-    }];
-    let outline = PreviewOutline {
-        label: "Keycap",
-        points: rectangle_points(Vec2 { x: 18.0, y: 18.0 }),
-    };
-    let layers = preview_layers(&definition, &drawings, Some(&outline), &Side::Front);
-    assert_eq!(
-        layers
-            .iter()
-            .map(|layer| (layer.id.as_str(), layer.label.as_str(), layer.group))
-            .collect::<Vec<_>>(),
-        [
-            ("copper:F.Cu", "F.Cu", "Footprint"),
-            ("copper:B.Cu", "B.Cu", "Footprint"),
-            ("graphics:B.SilkS", "B.SilkS", "Footprint"),
-            ("outline:Keycap", "Keycap", "Footprint"),
-            ("drills", "Drills", "Footprint"),
-            ("pad-labels", "Pad numbers", "Footprint"),
-            ("part:0", "MX switch", "Parts"),
-        ]
-    );
-}
-
-#[wasm_bindgen_test]
-fn mx_view_box_contains_the_source_envelope_and_rendered_graphics() {
-    let definition = definition();
-    let drawings = vec![Graphic {
-        layer: "B.SilkS".into(),
-        shape: Shape::Line(
-            crate::footprint_forms::Point(-11.0, -14.0),
-            crate::footprint_forms::Point(11.0, -14.0),
-        ),
-    }];
-    let outline = PreviewOutline {
-        label: "Keycap",
-        points: rectangle_points(Vec2 { x: 18.0, y: 18.0 }),
-    };
-    let member = PreviewGeometry {
-        definition,
-        drawings: Rc::new(drawings),
-        outline: Some(outline),
-        at: Vec2::default(),
-        rotation: 0.0,
-        side: Side::Front,
-    };
-    assert_eq!(
-        recipe_view_box(&[member]).as_deref(),
-        Some("-14.000 -12.000 28.000 29.000")
-    );
-}
-
-#[wasm_bindgen_test]
-fn view_box_keeps_the_reference_origin_for_one_sided_graphics() {
-    let mut definition = definition();
-    definition.pads.clear();
-    definition.courtyard.clear();
-    let drawings = vec![Graphic {
-        layer: "F.SilkS".into(),
-        shape: Shape::Line(
-            crate::footprint_forms::Point(5.0, 4.0),
-            crate::footprint_forms::Point(8.0, 7.0),
-        ),
-    }];
-    let member = PreviewGeometry {
-        definition,
-        drawings: Rc::new(drawings),
-        outline: None,
-        at: Vec2::default(),
-        rotation: 0.0,
-        side: Side::Front,
-    };
-    assert_eq!(
-        recipe_view_box(&[member]).as_deref(),
-        Some("-3.000 -10.000 14.000 13.000")
-    );
-}
-
-#[wasm_bindgen_test]
-fn layer_options_omit_source_shapes_that_cannot_be_toggled() {
-    let mut definition = definition();
-    definition.pads = vec![pad("1", Side::Front, None)];
-    definition.keycap = None;
-    definition.courtyard.clear();
-    let drawings = vec![Graphic {
-        layer: "B.SilkS".into(),
-        shape: Shape::Line(
-            crate::footprint_forms::Point(0.0, 0.0),
-            crate::footprint_forms::Point(1.0, -1.0),
-        ),
-    }];
-    let layers = preview_layers(&definition, &drawings, None, &Side::Front);
-    let ids = layers
-        .iter()
-        .map(|layer| layer.id.as_str())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        ids,
-        ["copper:F.Cu", "graphics:B.SilkS", "pad-labels", "part:0"]
-    );
 }

@@ -720,7 +720,7 @@ class CheckCliTests(unittest.TestCase):
     def test_browser_preflight_invalid_driver_keeps_plan(self):
         path = Path(self.temporary.name) / "invalid-driver.json"
         collector = receipt.Collector(path=path, source={})
-        plan = [("browser", [["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-model"]])]
+        plan = [("browser", [["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-shared"]])]
         with mock.patch.object(check, "_RECEIPT", collector), \
                 mock.patch.dict(os.environ, {"CHROMEDRIVER": "/nonexistent/boardstudio-driver"}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
