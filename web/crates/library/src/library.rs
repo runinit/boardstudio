@@ -513,6 +513,70 @@ fn start_new_keyboard(
     }
 }
 
+/// Shared draft/focus/save semantics for the two project-name inputs (the
+/// current-project row and the rename-tool row). Both keep the existing
+/// queued-submit path: typing only marks the draft dirty, Enter blurs into the
+/// blur commit, Escape restores the accepted name, and blur commits the draft
+/// through [`ProjectNameCommitAction`] (empty drafts restore instead). The
+/// rename-tool row additionally closes itself on Escape via `close_tool`.
+fn project_name_key_handler(
+    mut dirty: Signal<bool>,
+    mut draft: Signal<String>,
+    accepted_name: String,
+    close_tool: Option<Signal<bool>>,
+) -> impl FnMut(KeyboardEvent) {
+    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+        "Enter" => {
+            event.prevent_default();
+            if let Some(input) = event
+                .data()
+                .try_as_web_event()
+                .and_then(|event| event.target())
+                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+            {
+                let _ = input.blur();
+            }
+        }
+        "Escape" => {
+            dirty.set(false);
+            draft.set(accepted_name.clone());
+            if let Some(mut close_tool) = close_tool {
+                close_tool.set(false);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn project_name_blur_handler(
+    mut dirty: Signal<bool>,
+    mut draft: Signal<String>,
+    empty_fallback: String,
+    action: Option<ProjectNameCommitAction>,
+) -> impl FnMut(FocusEvent) {
+    move |_| {
+        if !dirty() {
+            return;
+        }
+        dirty.set(false);
+        let current = draft();
+        if current.trim().is_empty() {
+            draft.set(empty_fallback.clone());
+        } else if let Some(action) = action.clone() {
+            action.commit(&current);
+        }
+    }
+}
+
+/// Shared validation-error row for the two project-name inputs. Keeps the
+/// existing `library-project-name-error` description target both inputs point at.
+#[component]
+fn ProjectNameError(message: String) -> Element {
+    rsx! {
+        div { id: "library-project-name-error", FieldError { "{message}" } }
+    }
+}
+
 #[component]
 pub fn Library(
     project_menu: bool,
@@ -872,37 +936,19 @@ pub fn Library(
                             oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
 
 
-                            attributes: vec![dioxus::events::onkeydown({
-                                let accepted_name = current_name.clone();
-                                move |event: KeyboardEvent| {
-                                    match event.data().key().to_string().as_str() {
-                                        "Enter" => {
-                                            event.prevent_default();
-                                            if let Some(input) = event
-                                                .data()
-                                                .try_as_web_event()
-                                                .and_then(|event| event.target())
-                                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                            {
-                                                let _ = input.blur();
-                                            }
-                                        }
-                                        "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); },
-                                        _ => {}
-                                    }
-                                }
-                            }),dioxus::events::onblur(move |_| {
-                                if !name_dirty() { return; }
-                                name_dirty.set(false);
-                                let draft = project_name();
-                                if draft.trim().is_empty() {
-                                    project_name.set(current_name_for_blur.clone());
-                                } else if let Some(action) = rename_action_for_blur.clone() {
-                                    action.commit(&draft);
-                                }
-                            })], } }
+                            attributes: vec![dioxus::events::onkeydown(project_name_key_handler(
+                                name_dirty,
+                                project_name,
+                                current_name.clone(),
+                                None,
+                            )),dioxus::events::onblur(project_name_blur_handler(
+                                name_dirty,
+                                project_name,
+                                current_name_for_blur.clone(),
+                                rename_action_for_blur.clone(),
+                            ))], } }
                         }
-                    if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
+                    if let Some(message) = name_failure() { ProjectNameError { message } }
                     span { class: "text-muted-foreground text-[11px]", "Revision {current_revision} · {current_durability}" }
                     }
                 }
@@ -1112,30 +1158,22 @@ pub fn Library(
 
                                     attributes: vec![dioxus::events::onmounted(move |event: MountedEvent| {
                                             rename_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
-                                        }),dioxus::events::onkeydown({
-                                            let accepted_name = current_name.clone();
-                                            move |event: KeyboardEvent| {
-                                                match event.data().key().to_string().as_str() {
-                                                    "Enter" => {
-                                                        event.prevent_default();
-                                                        if let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok()) { let _ = input.blur(); }
-                                                    }
-                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); rename_tool_open.set(false); },
-                                                    _ => {}
-                                                }
-                                            }
-                                        }),dioxus::events::onblur(move |_| {
-                                            if !name_dirty() { return; }
-                                            name_dirty.set(false);
-                                            let draft = project_name();
-                                            if draft.trim().is_empty() { project_name.set(selection_name_for_blur.clone()); }
-                                            else if let Some(action) = selection_rename_action_for_blur.clone() { action.commit(&draft); }
-                                        })], } }
+                                        }),dioxus::events::onkeydown(project_name_key_handler(
+                                            name_dirty,
+                                            project_name,
+                                            current_name.clone(),
+                                            Some(rename_tool_open),
+                                        )),dioxus::events::onblur(project_name_blur_handler(
+                                            name_dirty,
+                                            project_name,
+                                            selection_name_for_blur.clone(),
+                                            selection_rename_action_for_blur.clone(),
+                                        ))], } }
                                 }
                                 }
                             }
                         }
-                        if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
+                        if let Some(message) = name_failure() { ProjectNameError { message } }
                         p { class: "m-0 text-foreground text-sm",
                             "{selected_summary}"
                         }

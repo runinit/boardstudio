@@ -14,6 +14,7 @@ use i_overlay::mesh::float::{
 use std::collections::BTreeMap;
 #[path = "outline.rs"]
 mod automatic;
+pub use automatic::EnvelopeCache;
 #[path = "outline_cleanup.rs"]
 mod cleanup;
 
@@ -212,13 +213,13 @@ pub(super) struct FeatureShape {
 }
 type FeatureGeometry = Result<FeatureShape, String>;
 fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeometry {
-    feature_geometry_with_offsets(doc, feature, None)
+    feature_geometry_with_reuse(doc, feature, None)
 }
 
-fn feature_geometry_with_offsets(
+fn feature_geometry_with_reuse(
     doc: &ProjectDoc,
     feature: &OutlineFeature,
-    reuse: Option<&mut automatic::OffsetReuse<'_>>,
+    reuse: Option<&mut automatic::EnvelopeReuse<'_>>,
 ) -> FeatureGeometry {
     if let OutlineFeature::Polygon { points, .. } = feature {
         automatic::check_persisted_path_size(points.len())?;
@@ -577,19 +578,17 @@ pub fn outlines(
 /// Project the draft's outlines and share the composition with the board scene
 /// when the board consumes exactly the project's ordered feature list.
 ///
-/// Keep the offset cache within one accepted document. Parts outside `moved`
-/// must have stationary envelope inputs so the cache stays bounded.
+/// Keep the cache within one accepted document with stable feature and part
+/// order, membership, and envelope sources. Parts outside `moved` must have
+/// stationary evaluated poses. Each feature retains at most one union prefix.
 pub fn outlines_with_board_reuse(
     doc: &ProjectDoc,
     previous: &OutlineCache,
     moved: &[String],
-    offsets: &mut EnvelopeOffsets,
+    cache: &mut EnvelopeCache,
 ) -> (OutlineProjection, Option<BoardSceneGeometry>) {
-    project_outlines(doc, Some(previous), moved, Some(offsets))
+    project_outlines(doc, Some(previous), moved, Some(cache))
 }
-
-#[derive(Default)]
-pub struct EnvelopeOffsets(automatic::EnvelopeOffsets);
 
 fn shared_outline_board(doc: &ProjectDoc) -> Option<&Board> {
     let [board] = doc.boards.as_slice() else {
@@ -614,7 +613,7 @@ fn project_outlines(
     doc: &ProjectDoc,
     previous: Option<&OutlineCache>,
     moved: &[String],
-    offsets: Option<&mut EnvelopeOffsets>,
+    envelopes: Option<&mut EnvelopeCache>,
 ) -> (OutlineProjection, Option<BoardSceneGeometry>) {
     let mut cache = OutlineCache {
         layouts: doc.layouts.clone(),
@@ -626,20 +625,26 @@ fn project_outlines(
             features.extend(crate::outline_versions::features(doc, board));
         }
     }
-    let shared_board = offsets.as_ref().and_then(|_| shared_outline_board(doc));
-    let mut reuse = offsets.and_then(|offsets| {
-        shared_board.map(|_| automatic::OffsetReuse {
+    let shared_board = envelopes.as_ref().and_then(|_| shared_outline_board(doc));
+    let mut reuse = envelopes.and_then(|cache| {
+        shared_board.map(|_| automatic::EnvelopeReuse {
             moved: moved.iter().map(String::as_str).collect(),
-            offsets: &mut offsets.0,
+            cache,
+            feature_index: 0,
         })
     });
-    for feature in features {
+    for (feature_index, feature) in features.into_iter().enumerate() {
         let paths = previous
             .filter(|old| old.layouts == doc.layouts)
             .and_then(|old| old.paths.get(feature.id()))
             .filter(|(old_feature, _)| old_feature == &feature && !depends_on(&feature, moved))
             .map(|(_, paths)| paths.clone())
-            .unwrap_or_else(|| feature_geometry_with_offsets(doc, &feature, reuse.as_mut()));
+            .unwrap_or_else(|| {
+                if let Some(reuse) = &mut reuse {
+                    reuse.feature_index = feature_index;
+                }
+                feature_geometry_with_reuse(doc, &feature, reuse.as_mut())
+            });
         cache.paths.insert(feature.id().into(), (feature, paths));
     }
     // Independent board composition takes the first feature for a duplicate ID.
@@ -1418,13 +1423,14 @@ mod tests {
     }
 
     #[test]
-    fn stagger_offset_cache_keeps_only_stationary_envelopes() {
-        let mut doc = fixture(3);
+    fn stagger_envelope_cache_keeps_only_stationary_offsets_and_one_ordered_prefix() {
+        let mut doc = fixture(4);
         doc.outline.truncate(1);
         let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] else {
             unreachable!();
         };
-        *part_ids = doc.parts.iter().map(|part| part.id.clone()).collect();
+        // Union order follows the document's parts, regardless of feature membership order.
+        *part_ids = doc.parts.iter().rev().map(|part| part.id.clone()).collect();
         doc.boards.push(Board {
             id: "board".into(),
             name: "Board".into(),
@@ -1438,12 +1444,20 @@ mod tests {
         doc.parts[0].pose.rotation = 7.0;
         doc.parts[1].side = Side::Back;
         let (accepted, _, _) = outlines(&doc, None, &[]);
-        let mut offsets = EnvelopeOffsets::default();
-        let moved = ["key-2".into()];
-        for value in [0.125, -4.0, 27.123] {
-            doc.parts[2].pose.at.y = value;
+        let mut envelopes = EnvelopeCache::default();
+        for (index, value, prefix_len, offset_count) in [
+            (3, 0.125, 3, 3),
+            (3, -4.0, 3, 3),
+            (0, 27.123, 3, 4),
+            (3, 4.125, 3, 4),
+            (2, -7.0, 2, 4),
+            (2, 1.125, 2, 4),
+            (3, 3.125, 3, 4),
+        ] {
+            doc.parts[index].pose.at.y = value;
+            let moved = [doc.parts[index].id.clone()];
             let ((cache, contours, findings), board) =
-                outlines_with_board_reuse(&doc, &accepted, &moved, &mut offsets);
+                outlines_with_board_reuse(&doc, &accepted, &moved, &mut envelopes);
             let (expected, cold_contours, cold_findings) = outlines(&doc, None, &[]);
             assert_eq!(cache.paths, expected.paths);
             let board = board.unwrap();
@@ -1451,7 +1465,10 @@ mod tests {
             assert_eq!(board.outlines, board_outline_scenes(&doc, &expected));
             assert_eq!(contours, cold_contours);
             assert_eq!(findings, cold_findings);
-            assert_eq!(offsets.0.len(), 2);
+            assert_eq!(envelopes.offsets.len(), offset_count);
+            assert_eq!(envelopes.prefixes.len(), 1);
+            assert_eq!(envelopes.prefixes[&0].0, prefix_len);
+            doc.parts[index].pose.at.y = 0.0;
         }
     }
 

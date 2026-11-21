@@ -575,71 +575,19 @@ fn apply_point_sample(drag: &mut PointDrag, world: Vec2, inputs: &PointSnapInput
     drag.snap = Some(result);
 }
 
+/// Shared numeric inspector row behind [`OutlineDimension`] and [`OutlineCoordinate`].
+///
+/// Both rows keep the existing Field/InputGroup structure, exact ordering (label,
+/// input with mm unit, then the dimension-only range error), Enter-to-blur and
+/// Escape-to-reset focus semantics, and blur-to-commit finite-parse save behavior.
+/// A `None` minimum disables the floor check, the `min` attribute and the range
+/// error, which is the only behavioral difference between the two rows.
 #[component]
-pub(super) fn OutlineDimension(
-    label: &'static str,
-    value: f64,
-    minimum: f64,
-    editable: bool,
-    on_commit: EventHandler<f64>,
-) -> Element {
-    let mut field = use_signal(|| (value, value.to_string()));
-    use_effect(use_reactive!(|value| {
-        if field.peek().0 != value {
-            field.set((value, value.to_string()));
-        }
-    }));
-    let draft = if field().0 == value {
-        field().1
-    } else {
-        value.to_string()
-    };
-    let parsed = draft.trim().parse::<f64>();
-    let valid = !draft.trim().is_empty()
-        && parsed.is_ok_and(|parsed| parsed.is_finite() && parsed >= minimum);
-    let error = !valid;
-    rsx! {
-            { let control_input_id = format!("layout-input-{}-2", dioxus::core::current_scope_id().0); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
-                span { "{label}" }
-                 } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-    step: "0.1",
-    min: "{minimum}",
-    value: "{draft}",
-    disabled: !editable,
-    aria_label: label,
-    oninput: move |event: FormEvent| field.set((value, event.value())),
-    id: control_input_id.clone(),
-    attributes: vec![dioxus::core::Attribute::new("aria-invalid", error, None, false),dioxus::events::onblur(move |_| {
-                            if field().0 != value {
-                                field.set((value, value.to_string()));
-                            } else if let Ok(next) = field().1.trim().parse::<f64>()
-                                && next.is_finite() && next >= minimum && next != value
-                            { on_commit.call(next); }
-                        }),dioxus::events::onkeydown(move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                            "Enter" => {
-                                event.prevent_default();
-                                if let Some(input) = event.data().try_as_web_event()
-                                    .and_then(|event| event.target())
-                                    .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                { let _ = input.blur(); }
-                            }
-                            "Escape" => {
-                                event.prevent_default();
-                                let has_draft = field().1 != value.to_string();
-                                field.set((value, value.to_string()));
-                                if has_draft { event.stop_propagation(); }
-                            }
-                            _ => {}
-                        })], } InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "mm" } } }
-                if error { boardstudio_web_ui_shared::ui::field::FieldError { "Enter a finite value greater than or equal to {minimum} mm." } }
-             } } }
-        }
-}
-
-#[component]
-pub(super) fn OutlineCoordinate(
+fn OutlineNumericField(
     label: String,
     value: f64,
+    minimum: Option<f64>,
+    id_suffix: &'static str,
     editable: bool,
     on_commit: EventHandler<f64>,
 ) -> Element {
@@ -658,22 +606,25 @@ pub(super) fn OutlineCoordinate(
         && draft
             .trim()
             .parse::<f64>()
-            .is_ok_and(|parsed| parsed.is_finite());
+            .is_ok_and(|parsed| parsed.is_finite() && minimum.is_none_or(|floor| parsed >= floor));
+    let error = !valid;
+    let floor = minimum.unwrap_or(0.0);
     rsx! {
-            { let control_input_id = format!("layout-input-{}-1", dioxus::core::current_scope_id().0); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
+            { let control_input_id = format!("layout-input-{}{}", dioxus::core::current_scope_id().0, id_suffix); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
                 span { "{label}" }
                  } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
     step: "0.1",
+    min: minimum.map(|floor| floor.to_string()),
     value: "{draft}",
     disabled: !editable,
     aria_label: "{label}",
     oninput: move |event: FormEvent| field.set((value, event.value())),
     id: control_input_id.clone(),
-    attributes: vec![dioxus::core::Attribute::new("aria-invalid", !valid, None, false),dioxus::events::onblur(move |_| {
+    attributes: vec![dioxus::core::Attribute::new("aria-invalid", error, None, false),dioxus::events::onblur(move |_| {
                             if field().0 != value {
                                 field.set((value, value.to_string()));
                             } else if let Ok(next) = field().1.trim().parse::<f64>()
-                                && next.is_finite() && next != value
+                                && next.is_finite() && minimum.is_none_or(|floor| next >= floor) && next != value
                             { on_commit.call(next); }
                         }),dioxus::events::onkeydown(move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
                             "Enter" => {
@@ -691,6 +642,46 @@ pub(super) fn OutlineCoordinate(
                             }
                             _ => {}
                         })], } InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "mm" } } }
+                if error && minimum.is_some() { boardstudio_web_ui_shared::ui::field::FieldError { "Enter a finite value greater than or equal to {floor} mm." } }
              } } }
         }
+}
+
+#[component]
+pub(super) fn OutlineDimension(
+    label: &'static str,
+    value: f64,
+    minimum: f64,
+    editable: bool,
+    on_commit: EventHandler<f64>,
+) -> Element {
+    rsx! {
+        OutlineNumericField {
+            label: label.to_owned(),
+            value,
+            minimum: Some(minimum),
+            id_suffix: "-2",
+            editable,
+            on_commit,
+        }
+    }
+}
+
+#[component]
+pub(super) fn OutlineCoordinate(
+    label: String,
+    value: f64,
+    editable: bool,
+    on_commit: EventHandler<f64>,
+) -> Element {
+    rsx! {
+        OutlineNumericField {
+            label,
+            value,
+            minimum: None,
+            id_suffix: "-1",
+            editable,
+            on_commit,
+        }
+    }
 }
