@@ -59,6 +59,8 @@ pub struct CoreEngine {
     reusable_scene: Option<SceneDelta>,
     #[cfg(test)]
     full_scene_projections: std::cell::Cell<usize>,
+    #[cfg(test)]
+    independent_board_projections: std::cell::Cell<usize>,
     /// Session high-water marks; not part of any Undo snapshot or saved document.
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
@@ -129,6 +131,8 @@ impl CoreEngine {
             reusable_scene: None,
             #[cfg(test)]
             full_scene_projections: std::cell::Cell::default(),
+            #[cfg(test)]
+            independent_board_projections: std::cell::Cell::default(),
             identity_ledger: mechanical::edit::MechanicalIdentityLedger::default(),
         }
     }

@@ -514,6 +514,63 @@ fn legacy_mirror_adoption_preview_does_not_publish_copy_or_membership() {
 }
 
 #[test]
+fn stagger_shares_only_the_same_ordered_outline_composition() {
+    for (mut document, shares_composition) in [
+        (fixture(), true),
+        (stagger_profile_document(true), true),
+        (fixture(), false),
+    ] {
+        if !shares_composition {
+            // Applying the subtractions before the envelope changes the board
+            // but leaves the legacy project contour in its original order.
+            document.boards[0].outline_ids.rotate_left(1);
+        }
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let before = serde_json::to_vec(&engine.document).unwrap();
+        let accepted = engine.reusable_scene.as_ref().unwrap().clone();
+        let column = engine.document.matrices[0].columns - 1;
+        let mut preview = edit(0, stagger(column, 4.0));
+        let CoreRequest::Edit { command, .. } = &mut preview else {
+            unreachable!()
+        };
+        command.phase = EditPhase::Preview;
+        let board_projections = engine.independent_board_projections.get();
+        let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview) else {
+            panic!("expected a stagger preview");
+        };
+        assert_ne!(scene.contours, accepted.contours);
+        assert_eq!(
+            scene.contours == scene.board_contours[0].contours,
+            shares_composition
+        );
+        let expected_extra_projections = usize::from(!shares_composition);
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            expected_extra_projections
+        );
+        assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
+        assert_eq!(engine.reusable_scene.as_ref(), Some(&accepted));
+        assert!(engine.undo.is_empty() && engine.redo.is_empty());
+
+        let cold_projections = cold.independent_board_projections.get();
+        assert!(matches!(
+            compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
+            CoreReply::Scene { .. }
+        ));
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            2 * expected_extra_projections
+        );
+        // The independently projected cold reply and the fresh scene used by
+        // compare both went through separate board composition.
+        assert_eq!(
+            cold.independent_board_projections.get() - cold_projections,
+            2
+        );
+    }
+}
+
+#[test]
 fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
@@ -644,11 +701,16 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         panic!("expected a saved fixed outline");
     };
     assert!(engine.reusable_scene.is_none());
+    let board_projections = engine.independent_board_projections.get();
     let CoreReply::Preview { scene: preview, .. } =
         compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
     else {
         panic!("expected a preview with a fixed outline");
     };
+    assert_eq!(
+        engine.independent_board_projections.get(),
+        board_projections + 1
+    );
     assert_eq!(preview.board_contours, fixed.board_contours);
     assert_eq!(
         serde_json::to_vec(&engine.document).unwrap(),
