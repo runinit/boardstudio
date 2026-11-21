@@ -324,6 +324,17 @@ where
         self.shared.edits.borrow().is_pending(key)
     }
 
+    /// The draft the key's pending edit was submitted with, if it is still pending.
+    /// This is the authoritative admission memory: a blur on an untouched draft does
+    /// not resubmit while the edit is pending, and Escape restores this value.
+    pub fn pending_submission(&self, key: &K) -> Option<D> {
+        self.shared
+            .edits
+            .borrow()
+            .pending_payload(key)
+            .and_then(|submission| submission.text.clone())
+    }
+
     /// Whether any terminal observation still awaits settlement.
     pub fn has_terminal(&self) -> bool {
         self.shared.edits.borrow().has_terminal()

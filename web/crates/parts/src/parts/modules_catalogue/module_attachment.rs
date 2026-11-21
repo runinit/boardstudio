@@ -6,8 +6,7 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::Button,
@@ -23,11 +22,8 @@ use wasm_bindgen_futures::spawn_local;
 
 const AUTOMATIC_CONNECTOR_SELECTION: &str = "__automatic_vik_host_connector__";
 
-/// This action's one bounded key.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AttachKey {
-    Attach,
-}
+/// This panel's attachment intent: preparation is cancellable, the ticket observes the
+/// committed edit and its mounted-module identity drives the Landed follow-up.
 
 #[derive(Clone)]
 pub struct AttachedModuleNavigation {
@@ -51,11 +47,10 @@ pub fn ModuleAttachment(
     let toasts = use_toast();
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
-    let mut pending = use_signal(|| false);
-    let pending_edits = use_hook(PendingEditSignals::<AttachKey>::new);
-    // The mounted-module identity this panel's attachment was submitted with; the
-    // Landed follow-up selects exactly that module.
-    let attached_module_id = use_signal(|| None::<String>);
+    let mut preparing = use_signal(|| false);
+    // The committed attachment and the mounted-module identity its Landed follow-up
+    // selects; the ticket itself is the pending observation.
+    let waiting = use_signal(|| None::<(EditTicket, String)>);
     let mut feedback = use_signal(String::new);
     let connectors = eligible_host_connectors(
         &snapshot,
@@ -91,34 +86,37 @@ pub fn ModuleAttachment(
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let pending_edits = pending_edits.clone();
-        let mut pending = pending;
+        let mut waiting = waiting;
+        let mut preparing = preparing;
         let mut feedback = feedback;
         let selected = selected;
-        let mut attached_module_id = attached_module_id;
         let scope = owner_scope.clone();
         let definition = definition.clone();
         let expected_selection = expected_selection.clone();
         move |_| {
-            let (Some(attach_scope), Some(module_id)) =
-                (scope.clone(), attached_module_id.peek().clone())
-            else {
+            let Some((ticket, module_id)) = waiting.peek().clone() else {
                 return;
             };
-            let live = attachment_selection_current(
-                &runtime,
-                &attach_scope,
-                selected,
-                selection_generation,
-                &expected_selection,
-                initial_generation,
-                workspace,
-            );
-            for result in pending_edits.settle(live, |_| String::new()) {
-                pending.set(false);
-                attached_module_id.take();
-                match result {
-                    PendingEditResult::Landed { .. } => {
+            let attach_scope = scope.clone();
+            let live = attach_scope.as_ref().is_some_and(|attach_scope| {
+                attachment_selection_current(
+                    &runtime,
+                    attach_scope,
+                    selected,
+                    selection_generation,
+                    &expected_selection,
+                    initial_generation,
+                    workspace,
+                )
+            });
+            let settlement = ticket.settlement(live);
+            if settlement == Settlement::Pending {
+                return;
+            }
+            waiting.set(None);
+            preparing.set(false);
+            match settlement {
+                Settlement::Landed { .. } => {
                         let model = runtime.model();
                         let Some(accepted) = model.accepted.as_ref() else {
                             return;
@@ -134,8 +132,11 @@ pub fn ModuleAttachment(
                         else {
                             return;
                         };
+                        let Some(attach_scope) = attach_scope.clone() else {
+                            return;
+                        };
                         let navigation = AttachedModuleNavigation {
-                            scope: attach_scope.clone(),
+                            scope: attach_scope,
                             snapshot_token: accepted.token,
                             revision: accepted.document.revision,
                             module_id: mounted.id.clone(),
@@ -146,10 +147,9 @@ pub fn ModuleAttachment(
                         feedback.set(String::new());
                         on_attached.call(navigation);
                     }
-                    PendingEditResult::Failed { message, .. } => feedback.set(message),
-                    PendingEditResult::Retired { .. } => {}
+                    Settlement::Failed { message } => feedback.set(message),
+                    Settlement::Retired | Settlement::Pending => {}
                 }
-            }
         }
     }));
     let can_attach = scope.as_ref().is_some_and(|scope| {
@@ -172,11 +172,9 @@ pub fn ModuleAttachment(
         .unwrap_or_else(|| "selected board".into());
 
     let attachment_port_id = module_port_id.clone();
-    let attach_pending_edits = pending_edits.clone();
     let attach = move |_| {
-        let pending_edits = attach_pending_edits.clone();
         let module_port_id = &attachment_port_id;
-        if pending() || pending_edits.is_pending(&AttachKey::Attach) {
+        if preparing() || waiting.peek().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) {
             return;
         }
         let Some(scope) = owner_scope.clone() else {
@@ -272,7 +270,7 @@ pub fn ModuleAttachment(
             service_clearance: 0.0,
             mount_supports: Vec::new(),
         };
-        pending.set(true);
+        preparing.set(true);
         feedback.set(if needs_host_connector {
             "Loading the source-backed VIK host connector…".into()
         } else {
@@ -286,9 +284,8 @@ pub fn ModuleAttachment(
         let expected_selection = expected_selection.clone();
         let workspace = workspace;
         let alive = alive.clone();
-        let pending_edits = pending_edits.clone();
-        let mut attached_module_id = attached_module_id;
-        let mut pending = pending;
+        let mut waiting = waiting;
+        let mut preparing = preparing;
         let mut feedback = feedback;
         spawn_local(async move {
             let connector_definition = if needs_host_connector {
@@ -308,7 +305,7 @@ pub fn ModuleAttachment(
                 initial_generation,
                 workspace,
             ) {
-                pending.set(false);
+                preparing.set(false);
                 return;
             }
             let Some(_current) = attachment_owner_current(
@@ -321,7 +318,7 @@ pub fn ModuleAttachment(
                 workspace,
             ) else {
                 feedback.set("The accepted project changed while the connector was loading. Reselect the module before attaching it.".into());
-                pending.set(false);
+                preparing.set(false);
                 return;
             };
             let connector_definition = match connector_definition {
@@ -330,14 +327,13 @@ pub fn ModuleAttachment(
                     feedback.set(format!(
                         "Could not load the source-backed VIK connector: {error}"
                     ));
-                    pending.set(false);
+                    preparing.set(false);
                     return;
                 }
                 None => None,
             };
-            pending_edits.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                AttachKey::Attach,
                 "attach-mounted-module",
                 Some("module attachment".into()),
                 attachment_resolver(
@@ -347,17 +343,17 @@ pub fn ModuleAttachment(
                     connector_definition,
                 ),
             );
-            attached_module_id.set(Some(module_id));
+            waiting.set(Some((ticket, module_id)));
             feedback.set(String::new());
             // Preparation is over: the settle pass observes the edit's terminal.
-            pending.set(false);
+            preparing.set(false);
         });
     };
 
     rsx! {
         section { "aria-label": "Attach module to PCB",
             Button { class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || !can_attach,
+                disabled: preparing() || waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) || !can_attach,
                 onclick: attach,
                 "Attach module to {board_name}"
             }
@@ -367,7 +363,7 @@ pub fn ModuleAttachment(
                     id: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
                     aria_label: "Assign host connection",
                     checked: Some(if host_connection_enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || module_port_id.is_none(),
+                    disabled: preparing() || waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) || module_port_id.is_none(),
                     on_checked_change: move |value: CheckboxState| {
                         let checked = bool::from(value);
                         host_connection_enabled.set(checked);
@@ -381,7 +377,7 @@ pub fn ModuleAttachment(
             if host_connection_enabled() && module_port_id.is_some() {
                 super::super::PartsChoiceField {
                     label: "Host connector", aria_label: "Module host connector",
-                    value: connector_selection(), disabled: pending(),
+                    value: connector_selection(), disabled: preparing(),
                     options: std::iter::once((AUTOMATIC_CONNECTOR_SELECTION.to_owned(), "Add source-backed horizontal VIK connector beside module".into()))
                         .chain(connectors.iter().map(|(id, reference)| (id.clone(), reference.clone()))).collect(),
                     on_value_change: move |value| connector_selection.set(value),
@@ -394,7 +390,7 @@ pub fn ModuleAttachment(
                 div { role: "status", Callout { "Choose a PCB in the Parts workspace before attaching this module." } }
             }
             if !feedback().is_empty() {
-                if pending() { div { role: "status", Spinner {} "{feedback()}" } }
+                if preparing() { div { role: "status", Spinner {} "{feedback()}" } }
                 else { Alert { variant: AlertVariant::Destructive, "{feedback()}" } }
             }
         }

@@ -180,8 +180,7 @@ mod ui {
     use super::{ImportCapture, ImportOwner, ScopedMessage, import_resolver, owner_matches};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
-    use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -196,21 +195,15 @@ mod ui {
     use wasm_bindgen_futures::{JsFuture, spawn_local};
     use web_sys::HtmlInputElement;
 
-    /// This action's one bounded key: the helper keeps one observation for the import
-    /// edit; preparation (file reading and compiling) happens before it begins.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum ImportKey {
-        Footprint,
-    }
-
     /// The import this panel tracks: preparation is cancellable; once the resolver is
-    /// admitted the helper owns the observation until it settles.
+    /// admitted the ticket observes the committed edit until it settles.
     #[derive(Clone)]
     enum ImportPhase {
         Preparing {
             filename: String,
         },
         Committed {
+            ticket: EditTicket,
             capture: ImportCapture,
             filename: String,
             diagnostics: Vec<String>,
@@ -263,7 +256,6 @@ mod ui {
         let version = use_context::<Signal<u64>>();
         let pending = use_signal(|| None::<ImportPhase>);
         let mut file_input = use_signal(|| None::<HtmlInputElement>);
-        let edits = use_hook(PendingEditSignals::<ImportKey>::new);
         let mut error = use_signal(|| None::<ScopedMessage>);
         let mut notice = use_signal(|| None::<ScopedMessage>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
@@ -280,12 +272,12 @@ mod ui {
         use_effect(use_reactive((&version(),), {
             let runtime = runtime.clone();
             let owner_is_mounted = owner_is_mounted.clone();
-            let edits = edits.clone();
             let mut pending = pending;
             let mut selected = selected;
             let mut query = query;
             move |_| {
                 let Some(ImportPhase::Committed {
+                    ticket,
                     capture,
                     filename,
                     diagnostics,
@@ -306,26 +298,20 @@ mod ui {
                     workspace(),
                 );
                 let live = owner_is_mounted.get() && owner_matches(&capture, &owner);
-                let mut landed = false;
-                for result in edits.settle(live, |_| String::new()) {
-                    match result {
-                        PendingEditResult::Landed { .. } => {
-                            landed = true;
-                            pending.set(None);
-                        }
-                        PendingEditResult::Failed { message, .. } => {
-                            pending.set(None);
-                            publish_message(&mut error, Some(owner), message);
-                            return;
-                        }
-                        PendingEditResult::Retired { .. } => {
-                            pending.set(None);
-                            return;
-                        }
-                    }
-                }
-                if !landed {
+                let settlement = ticket.settlement(live);
+                if settlement == Settlement::Pending {
                     return;
+                }
+                pending.set(None);
+                match settlement {
+                    Settlement::Landed { .. } => {}
+                    Settlement::Failed { message } => {
+                        publish_message(&mut error, Some(owner), message);
+                        return;
+                    }
+                    Settlement::Retired | Settlement::Pending => {
+                        return;
+                    }
                 }
                 // The resolver appends the newly allocated definition. Read its accepted
                 // identity only after the edit confirms landing.
@@ -385,7 +371,6 @@ mod ui {
             let selected = selected;
             let scope = scope.clone();
             move |event: FormEvent| {
-                let edits = edits.clone();
                 let Some(input) = event
                     .data()
                     .try_as_web_event()
@@ -640,14 +625,14 @@ mod ui {
                         }
                         return;
                     }
-                    edits.begin_one_shot(
+                    let ticket = EditTicket::begin(
                         &runtime,
-                        ImportKey::Footprint,
                         "parts-import-footprint",
                         Some("KiCad footprint".into()),
                         import_resolver(capture.clone(), compiled),
                     );
                     pending.set(Some(ImportPhase::Committed {
+                        ticket,
                         capture,
                         filename,
                         diagnostics,

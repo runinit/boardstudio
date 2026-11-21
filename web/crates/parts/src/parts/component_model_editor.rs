@@ -754,9 +754,6 @@ fn ModelVectorEditor(
     let mut synced = use_signal(|| current);
     let mut error = use_signal(|| None::<(usize, String)>);
     let failure = use_signal(|| None::<String>);
-    // Admission memory: the text each axis edit was submitted with, so a blur on an
-    // untouched draft does not resubmit while the edit is pending.
-    let mut submitted = use_signal(|| [None::<String>, None, None]);
     for index in 0..3 {
         pending.bind_field(
             ModelKey::Transform {
@@ -808,8 +805,6 @@ fn ModelVectorEditor(
                 Axis::Y => 1,
                 Axis::Z => 2,
             };
-            // Blur admission lasts only as long as the latest axis edit is pending.
-            submitted.write()[index] = None;
             if drafts[index].peek().as_str() == current[index].to_string() {
                 dirty.write()[index] = false;
             }
@@ -847,8 +842,10 @@ fn ModelVectorEditor(
                             }
                             let number = parsed.unwrap_or_default();
                             error.set(None);
-                            let already_submitted = submitted.peek()[index].as_deref() == Some(raw.as_str());
-                            let axis_pending = pending.is_pending(&ModelKey::Transform { field, axis });
+                            let key = ModelKey::Transform { field, axis };
+                            let already_submitted =
+                                pending.pending_submission(&key).as_deref() == Some(raw.as_str());
+                            let axis_pending = pending.is_pending(&key);
                             if !axis_pending && number == current[index] {
                                 dirty.write()[index] = false;
                                 return;
@@ -860,13 +857,12 @@ fn ModelVectorEditor(
                                 // older outcome can never clobber a newer draft.
                                 pending.begin_field(
                                     &runtime,
-                                    ModelKey::Transform { field, axis },
+                                    key,
                                     "parts-component-model",
                                     Some("component model".into()),
                                     resolver,
                                     &raw,
                                 );
-                                submitted.write()[index] = Some(raw);
                             }
                         },
                         onkeydown: move |event: KeyboardEvent| {
@@ -876,8 +872,11 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                let restored = if pending_for_escape.is_pending(&ModelKey::Transform { field, axis }) {
-                                    submitted.peek()[index].clone().unwrap_or_else(|| current[index].to_string())
+                                let escape_key = ModelKey::Transform { field, axis };
+                                let restored = if pending_for_escape.is_pending(&escape_key) {
+                                    pending_for_escape
+                                        .pending_submission(&escape_key)
+                                        .unwrap_or_else(|| current[index].to_string())
                                 } else {
                                     current[index].to_string()
                                 };

@@ -123,9 +123,9 @@ pub struct PartInputActions {
 }
 
 /// The shared projection the rendered controls read: the latest committed intent per
-/// field. The collection owns the ticket lifetime and settlement.
+/// field. The collection owns the ticket lifetime, its pending payloads and settlement.
 #[derive(Clone, Copy)]
-struct InputDrafts(Signal<Vec<(PartInputKey, PartInputEditRequest)>>);
+struct InputDrafts(Signal<PendingEdits<PartInputKey, PartInputEditRequest>>);
 
 /// Reapply the committed pending intents for this part over the accepted projection.
 pub(super) fn apply_drafts(
@@ -138,7 +138,7 @@ pub(super) fn apply_drafts(
     for (_, request) in drafts
         .0
         .read()
-        .iter()
+        .pending_entries()
         .filter(|(key, _)| key.same_part(identity))
     {
         match &request.intent {
@@ -179,13 +179,10 @@ pub fn use_part_input_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartInputActions {
-    let edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<PartInputKey>::default())));
-    let drafts = use_signal(Vec::<(PartInputKey, PartInputEditRequest)>::new);
+    let mut edits = use_signal(PendingEdits::<PartInputKey, PartInputEditRequest>::default);
     let latest = use_signal(|| None::<PartInputKey>);
     let failure = use_signal(|| None::<PartInputFailure>);
-    let settlement_tick = use_signal(|| 0u64);
-    let _ = settlement_tick();
-    use_context_provider(|| InputDrafts(drafts));
+    use_context_provider(|| InputDrafts(edits));
     // Schema preparation is serial so slower module loading cannot reorder committed values.
     let queue = use_hook(|| Rc::new(RefCell::new(VecDeque::<PartInputEditRequest>::new())));
     let preparing = use_hook(|| Rc::new(Cell::new(false)));
@@ -196,36 +193,30 @@ pub fn use_part_input_edits(
     });
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
-        let edits = edits.clone();
-        let mut drafts = drafts;
         let mut failure = failure;
-        let mut settlement_tick = settlement_tick;
         move |_| {
-            // The collection owns the ticket lifetime and retires each ticket whose
-            // captured Scope departed; the keyed drafts are this panel's projection.
-            let results = edits.borrow_mut().settle(workspace() == "PCB");
-            if results.is_empty() {
+            // The collection owns the ticket lifetime, its pending payload projection and
+            // Scope retirement; the keyed payloads are this panel's projection.
+            let live = workspace() == "PCB";
+            if live && !edits.peek().has_terminal() {
                 return;
             }
-            for result in results {
+            for (result, _) in edits.write().settle_with(live) {
                 let (key, message) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
                         (key, None)
                     }
                 };
-                drafts.write().retain(|(existing, _)| existing != &key);
                 if latest.peek().as_ref() == Some(&key) {
                     failure.set(message.map(|message| PartInputFailure::of(&key, message)));
                 }
             }
-            settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let edits = edits.clone();
         move |request: PartInputEditRequest| {
             if current_snapshot(
                 &runtime,
@@ -243,13 +234,6 @@ pub fn use_part_input_edits(
             latest.set(Some(key.clone()));
             let mut failure = failure;
             failure.set(None);
-            let mut drafts = drafts;
-            let mut entries = drafts.write();
-            match entries.iter_mut().find(|(existing, _)| existing == &key) {
-                Some(entry) => entry.1 = request.clone(),
-                None => entries.push((key.clone(), request.clone())),
-            }
-            drop(entries);
             queue.borrow_mut().push_back(request);
             if preparing.replace(true) {
                 return;
@@ -258,7 +242,6 @@ pub fn use_part_input_edits(
             let preparing = preparing.clone();
             let alive = alive.clone();
             let runtime = runtime.clone();
-            let edits = edits.clone();
             spawn_local(async move {
                 loop {
                     let request = queue.borrow_mut().pop_front();
@@ -290,15 +273,16 @@ pub fn use_part_input_edits(
                         && runtime.scope().as_ref() == Some(&key.ui_scope)
                         && runtime.model().selected_part_ids.as_slice() == [key.part_id.as_str()];
                     if !live {
-                        drafts.write().retain(|(existing, _)| existing != &key);
                         continue;
                     }
-                    edits.borrow_mut().begin(
+                    let submitted = request.clone();
+                    edits.write().begin_with(
                         &runtime,
                         key,
                         "pcb-part-settings",
                         Some("setting".into()),
                         input_resolver(request, schema),
+                        submitted,
                     );
                 }
             });
@@ -316,9 +300,8 @@ pub fn use_part_input_edits(
             && runtime.scope().as_ref() == Some(ui_scope)
             && runtime.model().selected_part_ids.as_slice() == [part_id]
     };
-    let pending = drafts.read().iter().any(|(key, _)| {
-        live_target(&key.ui_scope, key.scope_generation, &key.part_id)
-            && edits.borrow().is_pending(key)
+    let pending = edits.read().observations().any(|(key, pending)| {
+        pending && live_target(&key.ui_scope, key.scope_generation, &key.part_id)
     });
     let failure = failure().filter(|failure| {
         live_target(
