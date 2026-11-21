@@ -690,7 +690,138 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             exception(&rejoined, Matrix, MATRIX, Linked).unwrap(),
             rejoined
         );
+
+        // Rejoining only the child while its matrix owner remains unlinked clears
+        // the child exception and inherits the current Local or Omitted owner.
+        let child_rejoined = exception(&child, Part, CHILD, Linked).unwrap_or_else(|e| {
+            panic!("child rejoin under {owner_state:?} owner ({child_state:?} child): {e}")
+        });
+        assert_eq!(
+            child_rejoined.first_halves().exceptions,
+            std::slice::from_ref(&owner.first_halves().exceptions[0])
+        );
+        assert_eq!(
+            child_rejoined.matrices.iter().any(|m| m.id == MATRIX),
+            owner_state == Local
+        );
+        assert_eq!(
+            child_rejoined.parts.iter().find(|p| p.id == CHILD),
+            (owner_state == Local).then(|| owner.parts.by_id(CHILD))
+        );
+        assert_eq!(
+            child_rejoined.parts.iter().find(|p| p.id == diode),
+            (owner_state == Local).then(|| owner.parts.by_id(diode))
+        );
+        assert_eq!(
+            exception(&child_rejoined, Part, CHILD, Linked).unwrap(),
+            child_rejoined
+        );
     }
+}
+
+#[test]
+fn omitting_a_key_under_a_local_matrix_round_trips_through_undo_and_redo() {
+    use HalfExceptionState::{Local, Omitted};
+    use MirroredItemKind::{Matrix, Part};
+
+    let start = independent_lifecycle_fixture();
+    let local_owner = exception(&start, Matrix, MATRIX, Local).unwrap();
+    let pair_id = local_owner.hardware.as_ref().unwrap().pairs[0].id.clone();
+    let mut engine = boardstudio_core_engine::CoreEngine::new();
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "open-local-matrix".into(),
+            document: local_owner,
+        }),
+        CoreReply::Scene { .. }
+    ));
+
+    let before_omit = engine.document_for_test().clone();
+    let diode = "matrix/mirror-matrix/r0c0/diode";
+    assert!(before_omit.parts.iter().any(|p| p.id == CHILD));
+    assert!(before_omit.parts.iter().any(|p| p.id == diode));
+
+    let operation = EditOperation::SetHalfException {
+        pair_id,
+        kind: Part,
+        mirror_id: CHILD.into(),
+        state: Omitted,
+    };
+    let (expected_omitted, _) =
+        support::prepare_transaction(&before_omit, &[], &operation).unwrap();
+
+    let commit = CoreRequest::Edit {
+        id: "omit-key".into(),
+        command: EditCommand {
+            base_revision: before_omit.revision,
+            transaction_id: "omit-key".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![CHILD.into()],
+            operation,
+        },
+    };
+    assert!(matches!(engine.handle(commit), CoreReply::Scene { .. }));
+    let committed = engine.document_for_test().clone();
+    assert_eq!(committed.parts, expected_omitted.parts);
+    assert_eq!(committed.first_halves(), expected_omitted.first_halves());
+    assert!(!committed.parts.iter().any(|p| p.id == CHILD));
+    assert!(!committed.parts.iter().any(|p| p.id == diode));
+    assert_eq!(committed.first_halves().exceptions.len(), 2);
+
+    assert!(matches!(
+        engine.handle(CoreRequest::Undo {
+            id: "undo-omit-key".into(),
+        }),
+        CoreReply::Scene { .. }
+    ));
+    let undone = engine.document_for_test().clone();
+    assert_eq!(undone.parts, before_omit.parts);
+    assert_eq!(undone.first_halves(), before_omit.first_halves());
+    assert!(undone.parts.iter().any(|p| p.id == CHILD));
+    assert!(undone.parts.iter().any(|p| p.id == diode));
+    assert_eq!(undone.first_halves().exceptions.len(), 1);
+
+    assert!(matches!(
+        engine.handle(CoreRequest::Redo {
+            id: "redo-omit-key".into(),
+        }),
+        CoreReply::Scene { .. }
+    ));
+    let redone = engine.document_for_test().clone();
+    assert_eq!(redone.parts, committed.parts);
+    assert_eq!(redone.first_halves(), committed.first_halves());
+    assert!(!redone.parts.iter().any(|p| p.id == CHILD));
+    assert!(!redone.parts.iter().any(|p| p.id == diode));
+    assert_eq!(redone.first_halves().exceptions.len(), 2);
+
+    // Omitting and rejoining only the companion diode under a Local matrix preserves the key
+    // and restores the diode matching its pre-omit definition and pose.
+    let omit_diode = EditOperation::SetHalfException {
+        pair_id: undone.hardware.as_ref().unwrap().pairs[0].id.clone(),
+        kind: Part,
+        mirror_id: diode.into(),
+        state: Omitted,
+    };
+    let (diode_omitted, _) = support::prepare_transaction(&before_omit, &[], &omit_diode).unwrap();
+    assert!(diode_omitted.parts.iter().any(|p| p.id == CHILD));
+    assert!(!diode_omitted.parts.iter().any(|p| p.id == diode));
+
+    let rejoin_diode = EditOperation::SetHalfException {
+        pair_id: undone.hardware.as_ref().unwrap().pairs[0].id.clone(),
+        kind: Part,
+        mirror_id: diode.into(),
+        state: HalfExceptionState::Linked,
+    };
+    let (diode_rejoined, _) =
+        support::prepare_transaction(&diode_omitted, &[], &rejoin_diode).unwrap();
+    assert_eq!(
+        diode_rejoined.first_halves().exceptions,
+        before_omit.first_halves().exceptions
+    );
+    assert_eq!(
+        diode_rejoined.parts.by_id(diode),
+        before_omit.parts.by_id(diode)
+    );
 }
 
 #[test]

@@ -153,41 +153,14 @@ pub(super) fn slot_projection<'a>(
                 next_assemblies.push(assembly);
                 continue;
             }
-            let mode = original
-                .map(|association| association.effective_mode)
-                .unwrap_or(context.pair_right.companion_mode);
-            let tweak = original.and_then(|association| association.effective_tweak);
-            let source_companion = staged
-                .parts
-                .iter()
-                .find(|part| part.id == source_child_id)
-                .ok_or_else(|| {
-                    format!("The projected source companion {source_child_id:?} is unavailable")
-                })?;
-            let (offset, rotation) = crate::mirrored_half::derive::companion_assembly(
-                crate::mirrored_half::derive::CompanionAssemblyInput {
-                    offset: assembly.offset,
-                    rotation: assembly.rotation,
-                    key: Some(source_key),
-                    companion: Some(source_companion),
-                    mapping: context.mapping,
-                    mode,
-                    tweak,
-                    stabiliser: crate::mirrored_half::SYMMETRIC_DEFINITIONS
-                        .contains(&source_companion.definition_id.as_str()),
-                    fallback: false,
-                },
-            )
-            .map_err(str::to_owned)?;
-            if !offset.x.is_finite()
-                || !offset.y.is_finite()
-                || rotation.is_some_and(|value| !value.is_finite())
-            {
-                return Err("The projected matrix companion contains non-finite geometry".into());
-            }
-            assembly.offset = offset;
-            assembly.rotation = rotation;
-            next_assemblies.push(assembly);
+            next_assemblies.push(project_cell_assembly(
+                staged,
+                context,
+                &source_key_id,
+                source_key,
+                original,
+                assembly,
+            )?);
         }
         cell.assemblies = next_assemblies;
     }
@@ -307,26 +280,7 @@ pub(super) fn materialize_selection(
             .ok_or("The Local lifecycle Matrix is unavailable")?
             .clone();
         let mut next = current.clone();
-        for cell in &mut next.cells {
-            let key = crate::matrix::member_id(&matrix_pair.mirror_id, cell.row, cell.column);
-            if context.associations.iter().any(|a| {
-                a.kind == MirroredItemKind::Part
-                    && a.mirror_id == key
-                    && a.state == TransitionState::Omitted
-            }) {
-                cell.enabled = false;
-                cell.deleted = true;
-                cell.assemblies.clear();
-            } else {
-                cell.assemblies.retain(|assembly| {
-                    !context.associations.iter().any(|a| {
-                        a.kind == MirroredItemKind::Part
-                            && a.state == TransitionState::Omitted
-                            && a.mirror_id == crate::matrix::companion_id(&key, &assembly.id)
-                    })
-                });
-            }
-        }
+        restore_local_matrix_cells(draft, context, &current, &mut next)?;
         if next != current {
             materialize_slots(draft, &next, &BTreeSet::new(), retained)?;
         }
@@ -469,5 +423,207 @@ fn set_slots<'a>(
         }
     }
     crate::matrix::set_matrix(draft, projected)?;
+    Ok(())
+}
+
+fn project_cell_assembly(
+    staged: &ProjectDoc,
+    context: &MembershipContext,
+    source_key_id: &str,
+    source_key: &crate::model::Part,
+    original: Option<&TransitionAssociation>,
+    mut assembly: crate::model::MatrixAssembly,
+) -> Result<crate::model::MatrixAssembly, String> {
+    let source_child_id = crate::matrix::companion_id(source_key_id, &assembly.id);
+    let mode = original
+        .map(|association| association.effective_mode)
+        .unwrap_or(context.pair_right.companion_mode);
+    let tweak = original.and_then(|association| association.effective_tweak);
+    let source_companion = staged
+        .parts
+        .iter()
+        .find(|part| part.id == source_child_id)
+        .ok_or_else(|| {
+            format!("The projected source companion {source_child_id:?} is unavailable")
+        })?;
+    let (offset, rotation) = crate::mirrored_half::derive::companion_assembly(
+        crate::mirrored_half::derive::CompanionAssemblyInput {
+            offset: assembly.offset,
+            rotation: assembly.rotation,
+            key: Some(source_key),
+            companion: Some(source_companion),
+            mapping: context.mapping,
+            mode,
+            tweak,
+            stabiliser: crate::mirrored_half::SYMMETRIC_DEFINITIONS
+                .contains(&source_companion.definition_id.as_str()),
+            fallback: false,
+        },
+    )
+    .map_err(str::to_owned)?;
+    if !offset.x.is_finite()
+        || !offset.y.is_finite()
+        || rotation.is_some_and(|value| !value.is_finite())
+    {
+        return Err("The projected matrix companion contains non-finite geometry".into());
+    }
+    assembly.offset = offset;
+    assembly.rotation = rotation;
+    Ok(assembly)
+}
+
+fn reflected_local_cell<'a>(
+    reflected: &'a mut Option<Matrix>,
+    draft: &'a ProjectDoc,
+    context: &MembershipContext,
+    current: &Matrix,
+    source_key: &str,
+    row: u32,
+    column: u32,
+) -> Result<(&'a crate::model::MatrixCell, &'a crate::model::Part), String> {
+    let matrix_pair = require_matrix_pair(context)?;
+    if reflected.is_none() {
+        let source = transition_matrix_by_id(draft, &matrix_pair.source_id)?;
+        let record = context
+            .pair_right
+            .correspondences
+            .iter()
+            .find(|record| {
+                record.kind == MirroredItemKind::Matrix
+                    && record.source_id == matrix_pair.source_id
+                    && record.mirror_id == matrix_pair.mirror_id
+            })
+            .ok_or("The transition matrix association is unavailable")?;
+        *reflected = Some(project_matrix(source, current, record, context.mapping)?);
+    }
+    let projected_cell = reflected
+        .as_ref()
+        .unwrap()
+        .cells
+        .iter()
+        .find(|candidate| candidate.row == row && candidate.column == column)
+        .ok_or_else(|| {
+            format!("The projected source matrix cell r{row}c{column} is unavailable")
+        })?;
+    let source_key_part = draft
+        .parts
+        .iter()
+        .find(|part| part.id == source_key)
+        .ok_or_else(|| format!("The projected source key {source_key:?} is unavailable"))?;
+    Ok((projected_cell, source_key_part))
+}
+
+fn restore_local_matrix_cells(
+    draft: &ProjectDoc,
+    context: &MembershipContext,
+    current: &Matrix,
+    next: &mut Matrix,
+) -> Result<(), String> {
+    let matrix_pair = require_matrix_pair(context)?;
+    let is_omitted = |mirror_id: &str| {
+        context.associations.iter().any(|a| {
+            a.kind == MirroredItemKind::Part
+                && a.state == TransitionState::Omitted
+                && a.mirror_id == mirror_id
+        })
+    };
+    let mut reflected: Option<Matrix> = None;
+
+    for cell in &mut next.cells {
+        let key = crate::matrix::member_id(&matrix_pair.mirror_id, cell.row, cell.column);
+        let source_key = crate::matrix::member_id(&matrix_pair.source_id, cell.row, cell.column);
+        if is_omitted(&key) {
+            cell.enabled = false;
+            cell.deleted = true;
+            cell.assemblies.clear();
+            continue;
+        }
+
+        if (cell.deleted || !cell.enabled)
+            && context.pending_pair_transitions.get(&source_key) == Some(&TransitionState::Omitted)
+        {
+            let (projected_cell, source_key_part) = reflected_local_cell(
+                &mut reflected,
+                draft,
+                context,
+                current,
+                &source_key,
+                cell.row,
+                cell.column,
+            )?;
+            let mut restored_cell = projected_cell.clone();
+            let mut restored_assemblies = Vec::with_capacity(restored_cell.assemblies.len());
+            for assembly in restored_cell.assemblies {
+                let mirror_child_id = crate::matrix::companion_id(&key, &assembly.id);
+                if is_omitted(&mirror_child_id) {
+                    continue;
+                }
+                let source_child_id = crate::matrix::companion_id(&source_key, &assembly.id);
+                let original = context
+                    .associations
+                    .iter()
+                    .find(|a| a.kind == MirroredItemKind::Part && a.source_id == source_child_id);
+                restored_assemblies.push(project_cell_assembly(
+                    draft,
+                    context,
+                    &source_key,
+                    source_key_part,
+                    original,
+                    assembly,
+                )?);
+            }
+            restored_cell.assemblies = restored_assemblies;
+            *cell = restored_cell;
+        } else if !cell.deleted && cell.enabled {
+            let companion_prefix = format!("{source_key}/");
+            let restoring_companions: Vec<String> = context
+                .associations
+                .iter()
+                .filter(|a| {
+                    a.kind == MirroredItemKind::Part
+                        && a.state != TransitionState::Omitted
+                        && a.source_id.starts_with(&companion_prefix)
+                        && context.pending_pair_transitions.get(&a.source_id)
+                            == Some(&TransitionState::Omitted)
+                })
+                .map(|a| a.source_id.clone())
+                .collect();
+            if !restoring_companions.is_empty() {
+                let (projected_cell, source_key_part) = reflected_local_cell(
+                    &mut reflected,
+                    draft,
+                    context,
+                    current,
+                    &source_key,
+                    cell.row,
+                    cell.column,
+                )?;
+                for assembly in &projected_cell.assemblies {
+                    let source_child_id = crate::matrix::companion_id(&source_key, &assembly.id);
+                    if restoring_companions.contains(&source_child_id)
+                        && !cell
+                            .assemblies
+                            .iter()
+                            .any(|existing| existing.id == assembly.id)
+                    {
+                        let original = context.associations.iter().find(|a| {
+                            a.kind == MirroredItemKind::Part && a.source_id == source_child_id
+                        });
+                        cell.assemblies.push(project_cell_assembly(
+                            draft,
+                            context,
+                            &source_key,
+                            source_key_part,
+                            original,
+                            assembly.clone(),
+                        )?);
+                    }
+                }
+            }
+        }
+
+        cell.assemblies
+            .retain(|assembly| !is_omitted(&crate::matrix::companion_id(&key, &assembly.id)));
+    }
     Ok(())
 }
