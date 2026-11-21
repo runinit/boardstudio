@@ -9,6 +9,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 pub mod anchor_badge;
 pub mod anchor_pick;
 pub mod canvas_keys;
+pub mod component_offset;
 pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;

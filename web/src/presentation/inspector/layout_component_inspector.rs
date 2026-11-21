@@ -5,6 +5,13 @@ use boardstudio_core::model::{
     Constraint, ConstraintRelation, Follow, HalfExceptionState, MirrorAxis, OffsetAxes,
     PartAnchorValueChange, PartOutline, Vec2,
 };
+pub(crate) use boardstudio_web_layout::component_offset::{
+    BoardPartChoice, LayoutConstraintValues,
+};
+use boardstudio_web_layout::component_offset::{
+    default_axes_for_source, offset_axes_from_value, offset_axes_value, offset_drafts,
+    offset_values, position_commit_value, position_input_disabled,
+};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
@@ -154,120 +161,6 @@ pub struct LayoutChoice {
     pub name: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BoardPartChoice {
-    pub id: String,
-    pub reference: String,
-    /// A matrix key: a new offset from it defaults to its own axes.
-    pub matrix_key: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum LayoutConstraintValues {
-    Offset { offset: Vec2, rotation: f64 },
-    PartOffset { offset: Vec2, rotation: f64 },
-    Mirror { axis: MirrorAxis, coordinate: f64 },
-    Framed { relation: ConstraintRelation },
-}
-
-/// A new offset from a matrix key follows the key's own axes; any other source uses the board's.
-pub(crate) fn default_offset_axes(source_is_matrix_key: bool) -> OffsetAxes {
-    if source_is_matrix_key {
-        OffsetAxes::Part
-    } else {
-        OffsetAxes::Board
-    }
-}
-
-/// The default axes for an offset from the board part `source_id`.
-fn default_axes_for_source(board_parts: &[BoardPartChoice], source_id: &str) -> OffsetAxes {
-    default_offset_axes(
-        board_parts
-            .iter()
-            .any(|part| part.id == source_id && part.matrix_key),
-    )
-}
-
-/// The value the Offset axes `<select>` uses for `axes`, and the inverse.
-fn offset_axes_value(axes: OffsetAxes) -> &'static str {
-    match axes {
-        OffsetAxes::Board => "board",
-        OffsetAxes::Part => "part",
-    }
-}
-
-fn offset_axes_from_value(value: &str) -> OffsetAxes {
-    if value == offset_axes_value(OffsetAxes::Part) {
-        OffsetAxes::Part
-    } else {
-        OffsetAxes::Board
-    }
-}
-
-/// What the Properties form shows for one part's layout constraint: the source part, the
-/// offset axes and the Offset X / Y and rotation drafts. The form's first render, every
-/// accepted-constraint resync and the reset all take their values from here.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct OffsetDrafts {
-    pub source_part_id: String,
-    pub axes: OffsetAxes,
-    pub offset_x: String,
-    pub offset_y: String,
-    pub rotation: String,
-}
-
-/// The drafts for `part_id` given the constraint that drives it, if any. A saved Framed
-/// constraint keeps its endpoint source, even when that part is on the paired board. A legacy
-/// constraint with an off-board source falls back to the first other part. Saved offset axes
-/// and numbers are preserved; otherwise axes follow the source and numbers are zero.
-pub(crate) fn offset_drafts(
-    constraint: Option<&Constraint>,
-    board_parts: &[BoardPartChoice],
-    part_id: &str,
-) -> OffsetDrafts {
-    let source_part_id = constraint
-        .filter(|constraint| {
-            matches!(constraint, Constraint::Framed { .. })
-                || board_parts
-                    .iter()
-                    .any(|part| part.id == constraint.source())
-        })
-        .map(Constraint::source)
-        .map(str::to_owned)
-        .or_else(|| {
-            board_parts
-                .iter()
-                .find(|part| part.id != part_id)
-                .map(|part| part.id.clone())
-        })
-        .unwrap_or_default();
-    let axes = constraint
-        .and_then(Constraint::offset_axes)
-        .unwrap_or_else(|| default_axes_for_source(board_parts, &source_part_id));
-    let (offset, rotation) = constraint
-        .and_then(Constraint::offset_numbers)
-        .unwrap_or((Vec2::default(), 0.0));
-    OffsetDrafts {
-        source_part_id,
-        axes,
-        offset_x: offset.x.to_string(),
-        offset_y: offset.y.to_string(),
-        rotation: rotation.to_string(),
-    }
-}
-
-/// The constraint values the Save button submits for the chosen axes.
-pub(crate) fn offset_values(
-    axes: OffsetAxes,
-    offset: Vec2,
-    rotation: f64,
-) -> LayoutConstraintValues {
-    match axes {
-        OffsetAxes::Board => LayoutConstraintValues::Offset { offset, rotation },
-        OffsetAxes::Part => LayoutConstraintValues::PartOffset { offset, rotation },
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentPositionAxis {
     X,
@@ -405,10 +298,6 @@ fn position_unavailable(projection: &LayoutComponentInspectorProjection) -> bool
     projection.locked || projection.active_constraint.is_some()
 }
 
-fn position_input_disabled(locked: bool) -> bool {
-    locked
-}
-
 /// Ticket 13: an anchor number draft, two decimals like the position drafts.
 fn anchor_draft(
     anchor: Option<&PartAnchorProjection>,
@@ -423,16 +312,6 @@ fn anchor_draft(
 fn anchor_commit_value(draft: &str) -> Option<f64> {
     draft.parse::<f64>().ok().filter(|value| value.is_finite())
 }
-
-fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
-    if locked {
-        return None;
-    }
-    draft.parse::<f64>().ok().filter(|value| value.is_finite())
-}
-
-#[cfg(test)]
-mod offset_axes_tests;
 
 mod sections;
 use sections::render_inspector;

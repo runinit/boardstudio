@@ -54,7 +54,7 @@ pub(crate) use boardstudio_web_ui_shared::{
 pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 
 pub use boardstudio_web_layout_core::{
-    anchor_badge, anchor_pick, matrix_relations, matrix_transform_lifecycle,
+    anchor_badge, anchor_pick, component_offset, matrix_relations, matrix_transform_lifecycle,
     matrix_transform_operation, mirror_existing_half, mirrored_pair_geometry,
     mirrored_pair_lifecycle, outline_settings, part_rail, screen_scale, setup_guide_state,
 };
