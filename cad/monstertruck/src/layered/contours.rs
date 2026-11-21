@@ -181,11 +181,24 @@ pub(super) struct Region {
 }
 pub(super) type Profile = Vec<Region>;
 pub(super) fn validate(r: &Ring) -> Result<(), String> {
-    if r.sources.len() != r.vertex_count()
-        || r.iter_vertexes()
-            .zip(&r.sources)
-            .any(|(vertex, source)| vertex.bulge != 0. && source.is_none())
-        || !r.is_closed()
+    if r.sources.len() != r.vertex_count() {
+        return Err("contour is missing structural segment sources".into());
+    }
+    for (vertex, source) in r.iter_vertexes().zip(&r.sources) {
+        match (vertex.bulge == 0., source) {
+            (true, Some(Source::Line(_, _))) => (),
+            (false, Some(Source::Circle(circle)))
+                if circle.radius.is_finite()
+                    && circle.radius > 0.
+                    && circle.center.into_iter().all(f64::is_finite) => {}
+            _ => {
+                return Err(
+                    "contour segment has no matching structural line or circular source".into(),
+                );
+            }
+        }
+    }
+    if !r.is_closed()
         || r.vertex_count() < 2
         || r.iter_vertexes().any(|p| {
             !p.x.is_finite() || !p.y.is_finite() || !p.bulge.is_finite() || p.bulge.abs() > 1.

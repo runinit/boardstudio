@@ -847,3 +847,25 @@ fn prepared_source_bits(input: &PreparedCaseIR) {
         check(id, &[drill.at.x, drill.at.y, drill.hole_diameter], record);
     }
 }
+
+#[test]
+fn actual_pcb_contours_require_structural_circle_and_arc_support() {
+    for json in [
+        include_str!("../../tests/fixtures/pcb-source/circle-tracer.json"),
+        include_str!("../../tests/fixtures/pcb-source/line-arc-tracer.json"),
+    ] {
+        let mut input: PreparedCaseIR = serde_json::from_str(json).unwrap();
+        crate::build_case(&input).expect("authored circular carrier");
+        let primitives = &mut input.body.pcb_source.as_mut().unwrap().contours[0].primitives;
+        let primitive = primitives
+            .iter_mut()
+            .find(|p| p.curve_support.is_some())
+            .unwrap();
+        let id = primitive.source_id.clone();
+        primitive.curve_support = None;
+        let error = crate::build_case(&input)
+            .err()
+            .expect("missing structural support");
+        assert!(error.contains(&id) && error.contains("support"), "{error}");
+    }
+}

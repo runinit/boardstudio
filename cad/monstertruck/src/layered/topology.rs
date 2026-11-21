@@ -31,9 +31,11 @@ struct Patch {
 #[derive(Default)]
 struct Cache {
     vertices: BTreeMap<[u64; 3], usize>,
-    edges: BTreeMap<([u64; 3], [u64; 3], [u64; 4]), usize>,
+    edges: BTreeMap<EdgeKey, usize>,
     topology: Topology,
 }
+type EdgeKey = ([u64; 3], [u64; 3], [u64; 4]);
+
 fn bits(x: f64) -> u64 {
     if x == 0. { 0 } else { x.to_bits() }
 }
@@ -63,8 +65,8 @@ impl Cache {
         };
         let circle = match source {
             Some(contours::Source::Circle(circle)) if bulge != 0. => Some(circle),
-            _ if bulge == 0. => None,
-            _ => return Err("circular edge has no structural authored source".into()),
+            Some(contours::Source::Line(_, _)) | None if bulge == 0. => None,
+            _ => return Err("edge has no matching structural line or circular source".into()),
         };
         let support = circle.map_or([0; 4], |circle| {
             let [x, y] = circle.center;
