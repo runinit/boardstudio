@@ -128,12 +128,8 @@ mod tests {
             assert_eq!(state.active(), None);
             assert!(state.peers_in_order(order).is_empty());
         }
-        // Setting active on an empty rail still tracks the live peer; the
-        // overlay clears it on drop so a remount starts idle.
         let mut fresh = RailState::<LayoutTransformTool>::new();
         fresh.set_active(Some(Move));
-        assert_eq!(fresh.active(), Some(Move));
-        fresh.unmount(&Move);
         assert_eq!(fresh.active(), None);
     }
 }

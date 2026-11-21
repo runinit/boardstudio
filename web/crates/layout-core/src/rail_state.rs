@@ -42,7 +42,9 @@ impl<T: Clone + PartialEq> RailState<T> {
     /// Mark the live peer (`None` clears). The canvas sets this on drag/pick
     /// start and clears it on drop, cancel, Escape or owner change.
     pub fn set_active(&mut self, tool: Option<T>) {
-        self.active = tool;
+        if !self.tools.is_empty() {
+            self.active = tool;
+        }
     }
 
     /// The live peer, if any.
