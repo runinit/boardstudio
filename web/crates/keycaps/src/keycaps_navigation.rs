@@ -566,15 +566,20 @@ mod tests {
     use boardstudio_model::model::{
         Contour, Finding, FindingMarker, Scope as FindingScope, Severity, Vec2,
     };
+    #[cfg(target_arch = "wasm32")]
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::{
         cell::RefCell,
         task::{Context, Waker},
     };
+    #[cfg(target_arch = "wasm32")]
     use wasm_bindgen::JsCast;
+    #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::*;
+    #[cfg(target_arch = "wasm32")]
     use web_sys::{Element as DomElement, HtmlElement};
 
+    #[cfg(target_arch = "wasm32")]
     wasm_bindgen_test_configure!(run_in_browser);
 
     fn request(
@@ -859,7 +864,7 @@ mod tests {
         }
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn current_part_route_selects_layout_and_pins_inspector() {
         let target = keycaps_fit::FindingNavigationTarget::Part {
             board_id: "left".into(),
@@ -931,7 +936,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn stale_route_and_changed_target_produce_no_ui_effects() {
         let target = keycaps_fit::FindingNavigationTarget::Body {
             board_id: "left".into(),
@@ -975,7 +980,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn active_case_layer_replaces_retained_body_as_inspector_owner() {
         let body_request = request(keycaps_fit::FindingNavigationTarget::Body {
             board_id: "left".into(),
@@ -1003,7 +1008,7 @@ mod tests {
         assert!(navigation_owner_is_current(&layer_owner, &live_layer));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn generated_layer_uses_case_early_route_without_desktop_pin() {
         let target = keycaps_fit::FindingNavigationTarget::MechanicalLayer {
             board_id: "left".into(),
@@ -1024,7 +1029,7 @@ mod tests {
         assert!(!performed.contains(&RouteAction::PinInspector));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn destination_fit_uses_layout_bounds_and_suppresses_stale_side_effects() {
         let owner = owner_fixture();
         let current_owner = live(&owner);
@@ -1067,7 +1072,7 @@ mod tests {
         assert!(stale_effects.is_empty());
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn mounted_layout_fit_drops_when_selection_changes_without_scope_change() {
         let owner = owner_fixture();
         let (probe, mut dom) = mounted_probe(owner.clone());
@@ -1085,7 +1090,7 @@ mod tests {
         assert!(probe.pending.borrow().unwrap()().is_none());
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn mounted_delayed_focus_rechecks_same_scope_selection_before_focusing() {
         let owner = owner_fixture();
         let (probe, mut dom) = mounted_probe(owner.clone());
@@ -1109,7 +1114,7 @@ mod tests {
         drop(dom);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn mounted_delayed_focus_runs_for_current_owner_and_stops_after_unmount() {
         let owner = owner_fixture();
         let (probe, mut dom) = mounted_probe(owner);
@@ -1143,6 +1148,7 @@ mod tests {
         assert_eq!(probe.focus_count.get(), 1);
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     async fn mounted_accepted_route_publishes_layout_marker_then_retires_it_on_workspace_change() {
         let probe = make_mounted_probe(owner_fixture());
@@ -1187,6 +1193,7 @@ mod tests {
         root.remove();
     }
 
+    #[cfg(target_arch = "wasm32")]
     fn mount_navigation_probe(probe: MountedProbe) -> (DomElement, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
@@ -1198,6 +1205,7 @@ mod tests {
         (root, mounted)
     }
 
+    #[cfg(target_arch = "wasm32")]
     fn navigation_marker() -> Option<DomElement> {
         web_sys::window()
             .unwrap()
@@ -1207,6 +1215,7 @@ mod tests {
             .unwrap()
     }
 
+    #[cfg(target_arch = "wasm32")]
     fn click_probe(id: &str) {
         web_sys::window()
             .unwrap()
@@ -1219,6 +1228,7 @@ mod tests {
             .click();
     }
 
+    #[cfg(target_arch = "wasm32")]
     async fn settle_navigation_probe() {
         gloo_timers::future::TimeoutFuture::new(40).await;
     }

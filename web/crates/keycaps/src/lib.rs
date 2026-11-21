@@ -26,11 +26,11 @@ pub(crate) mod objects {
 
 pub mod keycaps_scene;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_finding_marker;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_fit;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_navigation;
 #[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_settings;

@@ -1,4 +1,5 @@
 //! Accepted-snapshot keycap-fit request lifecycle and contextual findings presentation.
+#[cfg(target_arch = "wasm32")]
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{
@@ -16,6 +17,7 @@ use boardstudio_web_ui_shared::ui::item::{Item, ItemContent, ItemSize};
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -123,6 +125,7 @@ impl KeycapsFitState {
                 .is_some_and(|accepted| accepted.source == self.source)
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn current_preview_input(&self) -> Option<crate::runtime::KeycapsPreviewInput> {
         let accepted = self.accepted.as_ref()?;
         (self.is_current()
@@ -181,6 +184,7 @@ impl KeycapsFitState {
 
 /// Keep one accepted result per active board while a newer immutable snapshot is being checked.
 /// The root calls this unconditionally so Keymap-originated legend edits also refresh the result.
+#[cfg(target_arch = "wasm32")]
 pub fn use_keycaps_fit(
     runtime: Rc<Runtime>,
     source: Option<KeycapsFitSource>,
@@ -1251,5 +1255,5 @@ pub fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> Keycaps
     state
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(test)]
 mod tests;
