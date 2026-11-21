@@ -1,6 +1,7 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
 use super::editor_fields::{EditorNumberField, EditorSelect, EditorTextField, EditorTextarea};
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
+use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(test)]
@@ -226,21 +227,6 @@ fn parameters(
     entries
 }
 
-/// The value the form, preview and render agree on: a non-null draft wins, a null draft
-/// or a null/missing saved value selects the declared default, and no default stays absent.
-fn effective_value<'a>(
-    draft: Option<&'a Value>,
-    saved: Option<&'a Value>,
-    spec: &'a Value,
-) -> Option<&'a Value> {
-    let default = spec.get("value").filter(|value| !value.is_null());
-    match draft {
-        Some(value) if !value.is_null() => Some(value),
-        Some(_) => default,
-        None => saved.filter(|value| !value.is_null()).or(default),
-    }
-}
-
 fn parameter_label(key: &str) -> String {
     key.replace('_', " ")
         .split_whitespace()
@@ -304,79 +290,6 @@ fn input_value(value: &Value, kind: &str) -> String {
         }
         _ => value.to_string(),
     }
-}
-
-fn apply_input(
-    definition: &PartDefinition,
-    schema: &BTreeMap<String, Value>,
-    edits: &BTreeMap<String, Value>,
-) -> Result<PartDefinition, String> {
-    let Some(base) = definition.generator.as_ref() else {
-        return Err("The selected part is no longer generator-backed.".into());
-    };
-    let mut generator = base.clone();
-    for (key, spec) in schema {
-        let Some(kind) = spec.get("type").and_then(Value::as_str) else {
-            continue;
-        };
-        let raw = effective_value(edits.get(key), generator.parameters.get(key), spec);
-        let Some(raw) = raw else {
-            continue;
-        };
-        let value = match kind {
-            "number" => {
-                let number = match raw {
-                    Value::Number(number) => number.as_f64(),
-                    Value::String(text) if !text.trim().is_empty() => text.trim().parse().ok(),
-                    _ => None,
-                }
-                .filter(|number: &f64| number.is_finite())
-                .ok_or_else(|| format!("{} must be a finite number.", key.replace('_', " ")))?;
-                serde_json::Number::from_f64(number)
-                    .map(Value::Number)
-                    .ok_or_else(|| format!("{} must be a finite number.", key.replace('_', " ")))?
-            }
-            "boolean" => raw
-                .as_bool()
-                .map(Value::Bool)
-                .ok_or_else(|| format!("{} must be true or false.", key.replace('_', " ")))?,
-            "string" | "net" => raw
-                .as_str()
-                .map(|value| Value::String(value.to_owned()))
-                .ok_or_else(|| format!("{} must be text.", key.replace('_', " ")))?,
-            "array" | "object" | "anchor" => {
-                let value = if let Some(text) = raw.as_str() {
-                    serde_json::from_str::<Value>(text).map_err(|_| {
-                        format!("{} must contain valid JSON.", key.replace('_', " "))
-                    })?
-                } else {
-                    raw.clone()
-                };
-                let valid = if kind == "array" {
-                    value.is_array()
-                } else {
-                    value.is_object()
-                };
-                if !valid {
-                    return Err(format!(
-                        "{} must be {}.",
-                        key.replace('_', " "),
-                        if kind == "array" {
-                            "a JSON array"
-                        } else {
-                            "a JSON object"
-                        }
-                    ));
-                }
-                value
-            }
-            _ => continue,
-        };
-        generator.parameters.insert(key.clone(), value);
-    }
-    let mut candidate = definition.clone();
-    candidate.generator = Some(generator);
-    Ok(candidate)
 }
 
 pub async fn prepare_generator_candidate(
@@ -1131,8 +1044,3 @@ fn GeneratorParameterField(
 
 #[cfg(test)]
 mod tests;
-
-/// What the Parts editor submits must pass Core's parameter check (ADR-0009). The parse is
-/// browser-only (`parts` is `wasm32`-only), so these run with the browser tests.
-#[cfg(test)]
-mod core_check_tests;

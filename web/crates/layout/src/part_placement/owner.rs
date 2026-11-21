@@ -2,7 +2,9 @@
 //! keep a placement proposal bound to the snapshot, scope and generation that began it.
 pub use super::plan::PendingPart;
 use super::plan::{PlacementIntent, next_component_reference, placement_operation_for_intent};
+#[cfg(target_arch = "wasm32")]
 use crate::runtime::Runtime;
+#[cfg(target_arch = "wasm32")]
 use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
@@ -12,6 +14,65 @@ use boardstudio_model::model::{
 };
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use std::rc::Rc;
+
+/// Host-compatible copy of the objects-tree visibility predicate. The Layout
+/// objects tree owns the presentation copy; the owner keeps this copy so its
+/// unit tests run under `cargo test` without the wasm-only objects tree.
+fn matrix_visible_on_board(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool {
+    let board_parts = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.part_ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    boardstudio_web_ui_model::tree::visible_matrices(document, board_id, &board_parts)
+        .iter()
+        .any(|matrix| matrix.id == matrix_id)
+}
+
+/// Host-compatible copy of the Parts library predicate. The Parts workspace owns
+/// the presentation copy; the owner keeps this copy so its unit tests run under
+/// `cargo test` without the wasm-only parts tree.
+fn matrix_input_available(definition: &PartDefinition) -> bool {
+    let press = if let Some(profile) = definition.input_profile.as_ref() {
+        profile
+            .press
+            .as_ref()
+            .map(|press| (press.row.clone(), press.column.clone(), press.independent))
+    } else {
+        definition
+            .matrix_terminals
+            .as_ref()
+            .map(|press| (press.row.clone(), press.column.clone(), true))
+            .or_else(|| {
+                definition
+                    .generator
+                    .as_ref()
+                    .filter(|generator| generator.source == "ceoloide/rotary_encoder_ec11_ec12")
+                    .map(|_| ("S1".into(), "S2".into(), true))
+            })
+    };
+    let Some((row_terminal, column_terminal, independent)) = press else {
+        return definition.input_profile.is_none()
+            && definition.pads.iter().any(|pad| pad.id == "one")
+            && definition.pads.iter().any(|pad| pad.id == "two");
+    };
+    let pads_for = |terminal: &str| {
+        definition
+            .terminals
+            .get(terminal)
+            .cloned()
+            .unwrap_or_else(|| {
+                definition
+                    .pads
+                    .iter()
+                    .filter(|pad| pad.number == terminal)
+                    .map(|pad| pad.id.clone())
+                    .collect::<Vec<_>>()
+            })
+    };
+    independent && !pads_for(&row_terminal).is_empty() && !pads_for(&column_terminal).is_empty()
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementWorkflow {
@@ -36,6 +97,7 @@ pub(crate) struct ControllerChooserOwner {
 pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 
 impl ControllerChooserOwner {
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn is_current(&self, runtime: &Runtime, generation: u64, workspace: &str) -> bool {
         workspace == "Parts"
             && generation == self.generation
@@ -232,9 +294,11 @@ pub(crate) struct PlacementAdmission {
     generation: u64,
     workspace: &'static str,
     expected_workspace: &'static str,
+    #[cfg(target_arch = "wasm32")]
     preferences: Option<SetupGuidePreferences>,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl PlacementAdmission {
     pub(crate) fn capture(
         runtime: &Runtime,
@@ -280,6 +344,7 @@ impl PlacementAdmission {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 #[derive(Clone)]
 pub(crate) struct ComponentActionOwner {
     pub(crate) accepted: AcceptedSnapshot,
@@ -289,6 +354,7 @@ pub(crate) struct ComponentActionOwner {
     pub(crate) selected_context: Option<ScopedTreeContext>,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl ComponentActionOwner {
     pub(crate) fn capture(
         runtime: &Runtime,
@@ -331,6 +397,7 @@ impl ComponentActionOwner {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn accepted_snapshot_is_current(runtime: &Runtime, accepted: &AcceptedSnapshot) -> bool {
     let model = runtime.model();
     model.lifecycle == Lifecycle::Ready
@@ -375,8 +442,7 @@ pub fn selected_key_component_operation(
         .matrices
         .iter()
         .find(|matrix| {
-            matrix.id == *matrix_id
-                && crate::objects::matrix_visible_on_board(accepted, &scope.board_id, matrix_id)
+            matrix.id == *matrix_id && matrix_visible_on_board(accepted, &scope.board_id, matrix_id)
         })
         .filter(|matrix| {
             matrix
@@ -393,8 +459,8 @@ pub fn selected_key_component_operation(
         .iter()
         .find(|cell| cell.row == *row && cell.column == *column)
         .cloned();
-    let can_drive_matrix = matches!(definition.kind, PartKind::Switch)
-        || crate::parts::matrix_input_available(definition);
+    let can_drive_matrix =
+        matches!(definition.kind, PartKind::Switch) || matrix_input_available(definition);
     let mut cell = current.clone().unwrap_or(MatrixCell {
         shift: None,
         bend: None,

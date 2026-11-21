@@ -1,7 +1,4 @@
 use super::*;
-use wasm_bindgen_test::wasm_bindgen_test;
-
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 fn test_scope() -> Scope {
     Scope {
@@ -12,7 +9,7 @@ fn test_scope() -> Scope {
     }
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn width_and_depth_intents_merge_with_the_latest_accepted_sibling() {
     let scope = test_scope();
     let document = ProjectDoc {
@@ -71,7 +68,7 @@ fn width_and_depth_intents_merge_with_the_latest_accepted_sibling() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn setting_noop_preserves_null_and_blank_legend() {
     let scope = test_scope();
     let document = ProjectDoc {
@@ -102,7 +99,7 @@ fn setting_noop_preserves_null_and_blank_legend() {
     ));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn selection_owner_generation_changes_when_a_key_is_reselected() {
     let scope = Scope {
         session_epoch: boardstudio_application::SessionEpoch(1),
@@ -117,7 +114,7 @@ fn selection_owner_generation_changes_when_a_key_is_reselected() {
     assert!(first < other && other < returned);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn latest_same_owner_retry_intent_survives_older_operation_failure() {
     let scope = Scope {
         session_epoch: boardstudio_application::SessionEpoch(1),
@@ -194,7 +191,7 @@ fn latest_same_owner_retry_intent_survives_older_operation_failure() {
     assert!(!drafts.contains_key(&(target, KeycapEditField::UnitsWidth)));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn untouched_inherited_legend_does_not_materialize_an_explicit_blank() {
     assert!(!legend_change_required("", None));
     assert!(!legend_change_required("", Some("")));
@@ -203,7 +200,7 @@ fn untouched_inherited_legend_does_not_materialize_an_explicit_blank() {
     assert!(!legend_blur_requires_reconciliation("", None, false));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn board_and_matrix_settings_use_existing_core_operations() {
     let scope = test_scope();
     let document = ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test");
