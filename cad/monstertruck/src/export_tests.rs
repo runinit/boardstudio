@@ -446,7 +446,7 @@ fn valid_wrong_geometry_fails_existing_reference_measurements() {
 #[test]
 fn empty_body_geometry_is_refused_without_silently_dropping_identity() {
     use crate::{ExactModel, StepBody, export_step_bodies};
-    let empty = ExactModel::from_test_solids(vec![]);
+    let empty = ExactModel::empty();
     assert!(export_step(&empty).is_err());
     assert!(export_step_bodies(&[]).is_err());
     assert!(
@@ -569,30 +569,6 @@ fn current_profiles_export_all_concavity_holes_and_separate_regions() {
             assert!(!solids[0].contains([15.0, 15.0, 5.0]));
         }
     }
-}
-
-#[test]
-fn curved_exact_solids_are_written_and_never_measured_as_vertex_chords() {
-    use monstertruck_modeling::{Point3, Solid, Vector3, builder};
-    let vertex = builder::vertex(Point3::new(2.0, 0.0, 0.0));
-    let circle = builder::revolve(
-        &vertex,
-        Point3::new(0.0, 0.0, 0.0),
-        Vector3::unit_z(),
-        builder::SweepAngle::Closed,
-        2,
-    );
-    let disk = builder::try_attach_plane(&[circle]).unwrap();
-    let solid: Solid = builder::extrude(&disk, Vector3::new(0.0, 0.0, 3.0));
-    let bytes = export_step(&crate::ExactModel::from_test_solids(vec![solid])).unwrap();
-    let text = std::str::from_utf8(&bytes).unwrap();
-    assert!(text.contains("RATIONAL_B_SPLINE_CURVE") || text.contains("CIRCLE("));
-    assert!(!text.contains("TRIANGULATED"));
-    assert!(text.parse::<Exchange>().is_ok());
-    assert!(matches!(
-        crate::step_accuracy::inspect(text),
-        Err(crate::step_accuracy::Error::Unsupported)
-    ));
 }
 
 #[test]

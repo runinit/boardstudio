@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the pure-Rust Monstertruck CAD WASM provider."""
+"""Build the pure-Rust CAD WASM provider."""
 import argparse
 
 from cad_build import build_wasm

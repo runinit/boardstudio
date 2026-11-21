@@ -1,39 +1,13 @@
 //! Complete representation-item traversal, including exact mapped occurrences.
 mod presentation;
+use super::{Matrix4, Vector3};
 use super::{SourceRecords, named_record, parameters, reference, simple_record, source_records};
-use monstertruck_modeling::{InnerSpace, Matrix4, SquareMatrix, Vector3};
+use cgmath::{InnerSpace, SquareMatrix};
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use step_p21::ast::{Exchange, Parameter, Record};
 
 // shortcut: refuse mapping nesting beyond 128 levels; use an iterative walk if real inputs need more.
 const MAX_MAPPING_DEPTH: usize = 128;
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub(super) struct PlacementStep {
-    pub from_frame: u64,
-    pub from_rep: u64,
-    pub to_frame: u64,
-    pub to_rep: u64,
-    pub mapped: bool,
-}
-
-#[derive(Clone, Default)]
-pub(super) struct PlacementPath(Option<Rc<(Self, PlacementStep)>>);
-
-impl PlacementPath {
-    pub fn through(&self, step: PlacementStep) -> Self {
-        Self(Some(Rc::new((self.clone(), step))))
-    }
-
-    /// Steps from the definition back towards the root.
-    pub fn steps(&self) -> impl Iterator<Item = PlacementStep> {
-        std::iter::successors(self.0.as_deref(), |(parent, _)| parent.0.as_deref())
-            .map(|(_, step)| *step)
-    }
-}
-
-pub(super) type TracedInstance = ((u64, Matrix4, u64), Option<PlacementPath>);
 
 pub(super) struct Scene<'a> {
     records: SourceRecords<'a>,
@@ -130,24 +104,10 @@ impl<'a> Scene<'a> {
         placement: Matrix4,
         budget: &mut super::OccurrenceBudget,
     ) -> Result<Vec<(u64, Matrix4, u64)>, String> {
-        Ok(self
-            .traced_instances(representation, placement, None, budget)?
-            .into_iter()
-            .map(|(instance, _)| instance)
-            .collect())
-    }
-
-    pub(super) fn traced_instances(
-        &self,
-        representation: u64,
-        placement: Matrix4,
-        source: Option<PlacementPath>,
-        budget: &mut super::OccurrenceBudget,
-    ) -> Result<Vec<TracedInstance>, String> {
         let mut result = Vec::new();
         self.walk(
             representation,
-            (placement, source),
+            placement,
             &mut HashSet::new(),
             &mut result,
             budget,
@@ -157,12 +117,11 @@ impl<'a> Scene<'a> {
     fn walk(
         &self,
         representation: u64,
-        transform: (Matrix4, Option<PlacementPath>),
+        placement: Matrix4,
         path: &mut HashSet<u64>,
-        result: &mut Vec<TracedInstance>,
+        result: &mut Vec<(u64, Matrix4, u64)>,
         budget: &mut super::OccurrenceBudget,
     ) -> Result<(), String> {
-        let (placement, source) = transform;
         budget.traverse()?;
         if path.len() >= MAX_MAPPING_DEPTH || !path.insert(representation) {
             return Err("cyclic or excessively deep mapped representation graph".into());
@@ -175,14 +134,14 @@ impl<'a> Scene<'a> {
             budget.traverse()?;
             if self.solids.contains(id) {
                 budget.emit()?;
-                result.push(((*id, placement, representation), source.clone()));
+                result.push((*id, placement, representation));
                 continue;
             }
             let record = self.simple(*id)?;
             match record.name.as_str() {
                 "GEOMETRIC_CURVE_SET" => {
                     budget.emit()?;
-                    result.push(((*id, placement, representation), source.clone()));
+                    result.push((*id, placement, representation));
                 }
                 "AXIS2_PLACEMENT_3D" => {
                     self.frame(*id, self.factor(representation)?)?;
@@ -210,16 +169,7 @@ impl<'a> Scene<'a> {
                     let target = self.operator(to_frame, parent_factor)?;
                     let next = target * origin.invert().ok_or("singular mapping origin")?;
                     super::units::validate_placement_matrix(next)?;
-                    let source = source.as_ref().map(|source| {
-                        source.through(PlacementStep {
-                            from_frame,
-                            from_rep: child,
-                            to_frame,
-                            to_rep: representation,
-                            mapped: true,
-                        })
-                    });
-                    self.walk(child, (placement * next, source), path, result, budget)?;
+                    self.walk(child, placement * next, path, result, budget)?;
                 }
                 kind => {
                     return Err(format!(
@@ -229,7 +179,7 @@ impl<'a> Scene<'a> {
             }
         }
         for child in self.related(representation)? {
-            self.walk(child, (placement, source.clone()), path, result, budget)?;
+            self.walk(child, placement, path, result, budget)?;
         }
         path.remove(&representation);
         Ok(())

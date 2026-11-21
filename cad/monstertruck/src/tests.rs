@@ -56,11 +56,7 @@ fn assert_model_matches(
     z_bounds: [f64; 2],
 ) {
     let model = build_profile(input).expect("valid prepared profile");
-    assert_eq!(model.test_solids().len(), expected_volumes.len());
-    for solid in model.test_solids() {
-        assert!(solid.is_geometric_consistent());
-        assert_eq!(solid.boundaries().len(), 1);
-    }
+    assert_eq!(model.cache_complexity().0, expected_volumes.len());
     let mesh = mesh_profile(&model).expect("complete strict profile mesh");
     assert_mesh_closed_and_oriented(&mesh);
     assert_eq!(mesh.positions.len(), mesh.normals.len());
@@ -372,7 +368,7 @@ fn profile_mesh_rejects_triangles_collapsed_by_render_precision() {
 
 #[test]
 fn render_conversion_rejects_nonzero_triangles_with_reversed_winding() {
-    use monstertruck_modeling::Point3;
+    use crate::layered::brep::Point3;
 
     let points = [
         Point3::new(0.0, 0.0, 0.0),

@@ -92,7 +92,7 @@ class CadBuildTests(unittest.TestCase):
                 self.root / "Cargo.lock",
                 self.root / "wasm/src/lib.rs",
                 self.root / "monstertruck/src/lib.rs",
-                self.root / "vendor/monstertruck-core/src/lib.rs",
+                self.root / "vendor/cadmpeg-tessellate/src/lib.rs",
                 self.project / "contracts/rust/src/lib.rs",
             ):
                 with self.subTest(path=path):

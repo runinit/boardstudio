@@ -1,4 +1,4 @@
-//! Qualification verdict shared by the native and fixture proofs.
+//! Qualification verdict of the native generated proof.
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GeneratedQualification {
@@ -13,6 +13,3 @@ pub enum GeneratedQualification {
         reasons: Vec<String>,
     },
 }
-
-#[cfg(test)]
-mod vendor_fixture;

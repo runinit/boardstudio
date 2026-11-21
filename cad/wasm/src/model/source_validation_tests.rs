@@ -81,8 +81,7 @@ fn triple(value: &Value) -> [f64; 3] {
 fn check_vik_step_mesh(asset: &Value, tight: &Value) {
     let file = asset["bundledFile"].as_str().unwrap();
     let input = fs::read(root().join(file)).unwrap();
-    let model = read_step_model_data(input.clone())
-        .unwrap_or_else(|e| panic!("{file}: {e}"));
+    let model = read_step_model_data(input.clone()).unwrap_or_else(|e| panic!("{file}: {e}"));
     assert!(
         model.mesh.positions.len() >= 9,
         "{file}: nonempty triangle mesh"
@@ -115,9 +114,7 @@ fn check_vik_step_mesh(asset: &Value, tight: &Value) {
         .unwrap()
         .iter()
         .find(|m| m["assetId"] == asset["assetId"])
-        .unwrap_or_else(|| {
-            panic!("no independent tight bound for {}", asset["assetId"])
-        });
+        .unwrap_or_else(|| panic!("no independent tight bound for {}", asset["assetId"]));
     assert_eq!(
         sha256(&input),
         measurement["sha256"].as_str().unwrap(),
@@ -212,8 +209,7 @@ fn check_vik_step_mesh(asset: &Value, tight: &Value) {
                     let x = f64::from(p[0]) + offset[0];
                     let y = f64::from(p[1]) + offset[1];
                     let z = f64::from(p[2]) + offset[2];
-                    ((x - mx).hypot(y - my) - radius).abs() < 0.035
-                        && (z.abs() - 0.8).abs() < 0.035
+                    ((x - mx).hypot(y - my) - radius).abs() < 0.035 && (z.abs() - 0.8).abs() < 0.035
                 })
                 .count();
             assert!(
@@ -437,7 +433,8 @@ fn thq_pins_align_with_leads_and_front_back_transform_oracle() {
                             .filter(|p| {
                                 p["drill"].is_number()
                                     && contacts.contains(&p["number"].as_str().unwrap_or(""))
-                                    && (!["A", "B", "C"].contains(&p["number"].as_str().unwrap_or(""))
+                                    && (!["A", "B", "C"]
+                                        .contains(&p["number"].as_str().unwrap_or(""))
                                         || p["at"]["x"].as_f64().unwrap() > -6.0)
                             })
                             .collect::<Vec<_>>();
@@ -478,7 +475,8 @@ fn thq_pins_align_with_leads_and_front_back_transform_oracle() {
                                     max[axis] = max[axis].max(point[axis]);
                                 }
                             }
-                            let expected = &source["placements"][side]["exactTransformedSolidBounds"];
+                            let expected =
+                                &source["placements"][side]["exactTransformedSolidBounds"];
                             let expected_min = triple(&expected["min"]);
                             let expected_max = triple(&expected["max"]);
                             // At 37 deg yaw, the inscribed 0.1 mm-deflection mesh chords recess

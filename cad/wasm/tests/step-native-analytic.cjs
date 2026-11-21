@@ -213,7 +213,7 @@ const path = require('node:path');
         assert.throws(() => cad.read_step_model(input, {
           sourceSha256,
           previewRepairBudgetMm: 3.8e-7,
-        }), /finite LINE repair/);
+        }), /support incidence exceeds/);
       }
       assert.deepEqual(Buffer.from(input), source, size);
     } finally {
@@ -248,7 +248,7 @@ const path = require('node:path');
   assert(!centimetres.equals(reset));
   const scaled = importModel(centimetres, 0.01);
   try {
-    for (const [deflection, expectedSegments] of [[0.1, 4], [0.001, 10]]) {
+    for (const [deflection, expectedSegments] of [[0.1, 5], [0.001, 15]]) {
       const result = importModel(reset, deflection);
       const asset = result.vendorStep;
       try {
@@ -289,11 +289,10 @@ const path = require('node:path');
   }
   console.log('PASS packaged reset switch shared elliptical rims, centimetre scaling, and both cable fallbacks');
 
-  // At 0.01 mm the native and vendor triangulations have distinct facet counts.
-  // The vendor controls emit 6906, 8148, 4032 and 3746 triangles respectively.
+  // Pin cadmpeg tessellation at 0.01 mm alongside the source-geometry checks.
   for (const [file, faces, occurrences, triangles, bounds] of [
-    [vendorDirectory + '/Switch_Power.step', 143, 5, 750, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
-    ...[['occt-cone-apex', 2, 88], ['occt-frustum-pcurves', 3, 150], ['freecad-notched-frustum', 7, 280]].map(
+    [vendorDirectory + '/Switch_Power.step', 143, 5, 838, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
+    ...[['occt-cone-apex', 2, 2406], ['occt-frustum-pcurves', 3, 1740], ['freecad-notched-frustum', 7, 1684]].map(
       ([name, count, triangles]) => ['cad/monstertruck/tests/fixtures/' + name + '.step', count, 1, triangles, [-1, -6, 7, 7, 2, 12]]),
   ]) {
     const source = read(file);
@@ -303,6 +302,12 @@ const path = require('node:path');
       assert.equal(asset.sourceSha256, crypto.createHash('sha256').update(source).digest('hex'));
       assert.equal(asset.faceOccurrences.length, faces);
       assert.equal(asset.triangleFaceOccurrenceIndices.length, triangles, file);
+      const coarse = importModel(source, 0.1).vendorStep;
+      try {
+        assert(triangles > coarse.triangleFaceOccurrenceIndices.length, `${file} refines at 0.01 mm`);
+      } finally {
+        coarse.analysisHandle.free();
+      }
       assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, occurrences);
       assert(asset.sourceFaces.some(face => face.supportKind === 'CONICAL_SURFACE'));
       assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
@@ -323,9 +328,8 @@ const path = require('node:path');
   console.log('PASS packaged conical switch, apex, seamed and notched frustums, and Panasonic fallback');
 
   const bands = read('cad/monstertruck/tests/fixtures/vik-connector-bands.step');
-  // Both routes retain the 15 faces. At these deflections the vendor meshes
-  // contain 184 and 12618 triangles, respectively, so this pins native delivery.
-  for (const [deflection, triangles] of [[0.1, 128], [0.001, 372]]) {
+  // Pin the cadmpeg mesh at both deflections to check refinement.
+  for (const [deflection, triangles] of [[0.1, 152], [0.001, 1712]]) {
     const { vendorStep: asset, bounds } = importModel(bands, deflection);
     try {
       assert.equal(asset.faceOccurrences.length, 15);
@@ -352,7 +356,6 @@ const path = require('node:path');
         assert.equal(asset.faceOccurrences.length, 73);
         assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, 4);
         assert.equal(asset.sourceFaces.filter(face => face.supportKind === 'SPHERICAL_SURFACE').length, 8);
-        // The vendor route reports mesh-derived bounds for this source.
         assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
         assert.equal(asset.accuracy.meshClosedOriented, true);
         assert.equal(asset.sourceQualification.state, 'unknown');

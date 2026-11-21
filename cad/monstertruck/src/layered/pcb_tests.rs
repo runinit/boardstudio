@@ -1,8 +1,10 @@
+#[allow(unused_imports)]
+use super::tests::{Point3, PolygonMesh, Surface, TestSolids, Vector3, shell_to_polygon_strict};
 use super::tests::{check_solid, material, point_bounds};
 use crate::export_tests::{StepRecords, id, list, num, step_text};
 use boardstudio_contracts::PreparedCaseIR;
-use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
-use monstertruck_modeling::Surface;
+#[allow(unused_imports)]
+use cgmath::prelude::*;
 
 fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
     let input: PreparedCaseIR = serde_json::from_str(json).unwrap();

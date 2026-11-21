@@ -215,6 +215,7 @@ pub struct CadStepAccuracy {
     pub sampled_support_checks: u32,
     pub max_sampled_support_residual_mm: Option<f64>,
     pub fallback_meshed_faces: u32,
+    pub discarded_display_triangles: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1165,6 +1166,7 @@ mod tests {
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
                 fallback_meshed_faces: 0,
+                discarded_display_triangles: 0,
                 selected_repair_budget_mm: None,
                 max_repair_displacement_mm: None,
             },

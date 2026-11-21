@@ -290,14 +290,25 @@ fn trimmed_cylinder_sector_excludes_the_full_circle_extrema() {
 }
 
 #[test]
-fn complete_vendor_sphere_can_display_without_exact_interior_bounds() {
-    let model = import_step(include_bytes!("fixtures/unsupported-non-ruled-sphere.step").to_vec())
-        .expect("complete vendor geometry can preview without an exact tight BRep bound");
-    assert_eq!(model.solid_count(), 1);
-    assert_eq!(model.occurrence_count(), 1);
-    assert!(!model.mesh().positions.is_empty());
-    assert!(!model.accuracy().bounds_from_source_geometry);
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+fn spherical_octant_has_source_bounds_at_both_deflections() {
+    let source = include_bytes!("fixtures/unsupported-non-ruled-sphere.step");
+    for deflection in [0.1, 0.001] {
+        let model = import_step_with_options(
+            source.to_vec(),
+            StepImportOptions {
+                target_deflection_mm: Some(deflection),
+                ..Default::default()
+            },
+        )
+        .expect("the directed great-circle trims bound the authored octant");
+        assert_eq!(model.solid_count(), 1);
+        assert_eq!(model.occurrence_count(), 1);
+        assert_eq!(model.source_faces().len(), 4);
+        assert!(model.accuracy().mesh_closed_oriented);
+        assert!(model.accuracy().bounds_from_source_geometry);
+        assert_bounds(model.bounds(), [[0., 0., 0.], [1., 1., 1.]]);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
 }
 
 #[test]
@@ -680,7 +691,8 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
     assert_eq!(model.source_faces().len(), 4);
     assert_eq!(model.face_occurrences().len(), 4);
     assert_eq!(model.triangle_faces().len(), 4);
-    assert!(!model.accuracy().bounds_from_source_geometry);
+    assert!(model.accuracy().bounds_from_source_geometry);
+    assert_bounds(model.bounds(), [[0., 0., 0.], [2., 3., 4.]]);
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     assert!(
         model
@@ -1103,7 +1115,10 @@ fn boundary_off_its_cylinder_beyond_the_allowance_refuses_with_the_measured_resi
         error.contains("support incidence"),
         "wrong refusal: {error}"
     );
-    assert!(error.contains("sampled support residual 0.001"), "{error}");
+    assert!(
+        error.contains("sampled support residual 1.000000e-3 mm"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -1298,7 +1313,7 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
             "source face #{face_id} analysis area {actual:e} vs source segment area {segment_area:e}"
         );
     }
-    // Each cap keeps its two fallback triangles, all degraded at f32 render precision. The
+    // Each cap keeps its fallback triangle, degraded at f32 render precision. The
     // render buffer stays the f32 image of the analysis positions.
     for face_id in [214, 244] {
         let triangles = model
@@ -1308,7 +1323,7 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
                 model.source_faces()[model.face_occurrences()[**tag].source_face].face_id == face_id
             })
             .count();
-        assert_eq!(triangles, 2, "source face #{face_id}");
+        assert_eq!(triangles, 1, "source face #{face_id}");
     }
     assert_eq!(
         model.mesh().positions.len(),
@@ -1322,6 +1337,35 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
     {
         assert_eq!(*exact as f32, *render);
     }
-    assert_eq!(model.accuracy().render_degraded_fallback_triangles, 4);
+    assert_eq!(model.accuracy().render_degraded_fallback_triangles, 2);
     assert_eq!(areas.len(), 4, "every source face keeps analysis coverage");
+}
+
+#[test]
+fn round_plane_trim_leaves_the_bundled_plated_hole_open() {
+    let bytes =
+        include_bytes!("../../../ergogen/library/vendor/infused-kim/3d_models/Nice_View.step");
+    let model = import_step(bytes.to_vec()).unwrap();
+    let tag = model
+        .face_occurrences()
+        .iter()
+        .position(|occurrence| model.source_faces()[occurrence.source_face].face_id == 1041)
+        .unwrap();
+    // Face #1041 is the annulus centered at (7, 1.3) in the z=0.01 plane.
+    // The authored hole radius is 0.4064; exact winding excludes its center.
+    let mut area = 0.0;
+    for (triangle, _) in model
+        .preview_positions_f64()
+        .chunks_exact(3)
+        .zip(model.triangle_faces())
+        .filter(|(_, face)| **face == tag)
+    {
+        let [a, b, c] = [triangle[0], triangle[1], triangle[2]];
+        let side =
+            |p: [f64; 3], q: [f64; 3]| (q[0] - p[0]) * (1.3 - p[1]) - (q[1] - p[1]) * (7.0 - p[0]);
+        let sides = [side(a, b), side(b, c), side(c, a)];
+        assert!(sides.iter().any(|value| *value > 0.0) && sides.iter().any(|value| *value < 0.0));
+        area += ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])).abs() / 2.0;
+    }
+    assert!((area - std::f64::consts::PI * (0.6985_f64.powi(2) - 0.4064_f64.powi(2))).abs() < 0.05);
 }

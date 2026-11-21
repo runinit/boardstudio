@@ -375,8 +375,6 @@ fn outside_native_gate() -> Vec<(&'static str, String)> {
             "two-schemas",
             schema("FILE_SCHEMA(('AUTOMOTIVE_DESIGN','CONFIG_CONTROL_DESIGN'));"),
         ),
-        ("no-file-schema", schema("")),
-        ("repeated-file-schema", schema(&format!("{header}{header}"))),
         (
             // Native rejects the nested definition target even under AUTOMOTIVE_DESIGN.
             "nested-product-definition-shape",
@@ -391,6 +389,14 @@ fn outside_native_gate() -> Vec<(&'static str, String)> {
 
 #[test]
 fn certified_cuboids_outside_the_native_gate_keep_complete_zero_repair() {
+    let text = std::str::from_utf8(BOX).unwrap();
+    let header = "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));";
+    for malformed in [
+        replace_once(text, header, ""),
+        replace_once(text, header, &format!("{header}{header}")),
+    ] {
+        assert!(import_step(malformed.into_bytes()).is_err());
+    }
     let uncertified: Vec<_> = outside_native_gate()
         .into_iter()
         .filter(|(_, text)| {
@@ -484,14 +490,6 @@ fn benign_exchange_sections_keep_the_certificate() {
                 &format!("/* {smuggle} */ENDSEC;DATA;"),
             ),
         ),
-        (
-            "signature",
-            replace_once(
-                text,
-                "END-ISO-10303-21;",
-                "END-ISO-10303-21;SIGNATURE abc= ENDSEC;",
-            ),
-        ),
     ] {
         let model = import_step(text.clone().into_bytes()).unwrap();
         assert_eq!(model.original_bytes(), text.as_bytes(), "{name}");
@@ -503,15 +501,21 @@ fn benign_exchange_sections_keep_the_certificate() {
         );
         assert_eq!(model.accuracy().analysis_error_bound_mm, None, "{name}");
     }
+    let signature = replace_once(
+        text,
+        "END-ISO-10303-21;",
+        "END-ISO-10303-21;SIGNATURE abc= ENDSEC;",
+    );
+    assert!(import_step(signature.into_bytes()).is_err());
 }
 
 #[test]
 fn spellings_outside_data_never_supply_numeric_authority() {
     let origin = "#900=CARTESIAN_POINT('',(0.,0.,0.));";
-    // Without the smuggled spelling the finite LINE authority refuses the
+    // Without the smuggled spelling the support incidence authority refuses the
     // vendor's 1 mm support substitution.
     let refusal = import_step(off_vertex_line().into_bytes()).err().unwrap();
-    assert!(refusal.contains("finite LINE repair edge #33"), "{refusal}");
+    assert!(refusal.contains("support incidence"), "{refusal}");
     for section in [
         format!("ANCHOR;<{origin}>=$;ENDSEC;"),
         format!("ANCHOR;<o>=#1;<{origin}>=(#1,$);ENDSEC;"),

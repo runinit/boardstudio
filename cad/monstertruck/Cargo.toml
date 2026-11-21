@@ -8,13 +8,12 @@ publish = false
 crate-type = ["rlib"]
 
 [dependencies]
+cadmpeg-codec-step = "=0.6.12"
+cadmpeg-ir = "=0.6.12"
+cadmpeg-tessellate = "=0.6.12"
 cavalier_contours = "=0.9.0"
 cgmath = "=0.18.0"
 boardstudio-contracts = { path = "../../contracts/rust" }
-monstertruck-io = { version = "=0.4.1", default-features = false, features = ["step"] }
-monstertruck-meshing = { version = "=0.4.1", default-features = false, features = ["tessellation", "analyzers"] }
-monstertruck-modeling = { version = "=0.4.1", default-features = false }
-monstertruck-topology = "=0.4.1"
 
 num-rational = { version = "=0.4.2", features = ["num-bigint"] }
 num-traits = "=0.2.19"

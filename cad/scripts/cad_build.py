@@ -1,4 +1,4 @@
-"""Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
+"""Pure-Rust CAD WASM build and native test orchestration."""
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -16,15 +16,8 @@ OUT_NAME = "boardstudio_cad_wasm"
 WASM_BUILD_TARGET = "wasm/target"
 NATIVE_TEST_TARGETS = ("target",)
 VENDOR_CRATES = (
+    "cadmpeg-tessellate",
     "inflector",
-    "monstertruck-core",
-    "monstertruck-derive",
-    "monstertruck-geometry",
-    "monstertruck-io",
-    "monstertruck-mesh",
-    "monstertruck-meshing",
-    "monstertruck-modeling",
-    "monstertruck-traits",
 )
 WASM_TEST_ONLY_SOURCES = frozenset({
     "src/model/source_validation_tests.rs",
@@ -200,8 +193,6 @@ def _test_cad_unified(output):
     production_tests = sorted({name for _, kind, name, _ in production_targets if kind == "test"})
     example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
     production_expected = {(pkg, kind, name) for pkg, kind, name, _ in production_targets}
-    # Production suites need monstertruck-io/-meshing optimized at runtime
-    # (cad-test; see cad/Cargo.toml).
     command = [
         "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
         *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),

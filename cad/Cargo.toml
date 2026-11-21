@@ -5,15 +5,8 @@ members = [
     "wasm",
 ]
 exclude = [
+    "vendor/cadmpeg-tessellate",
     "vendor/inflector",
-    "vendor/monstertruck-core",
-    "vendor/monstertruck-derive",
-    "vendor/monstertruck-geometry",
-    "vendor/monstertruck-io",
-    "vendor/monstertruck-mesh",
-    "vendor/monstertruck-meshing",
-    "vendor/monstertruck-modeling",
-    "vendor/monstertruck-traits",
 ]
 
 [profile.cad-test]
@@ -21,18 +14,6 @@ inherits = "dev"
 opt-level = 1
 debug = false
 incremental = false
-
-[profile.cad-test.package.monstertruck-modeling]
-opt-level = 2
-
-[profile.cad-test.package.monstertruck-geometry]
-opt-level = 2
-
-[profile.cad-test.package.monstertruck-mesh]
-opt-level = 2
-
-[profile.cad-test.package.monstertruck-core]
-opt-level = 2
 
 [profile.cad-test.package.manifold-rust]
 opt-level = 2
@@ -57,13 +38,6 @@ opt-level = 2
 
 
 [patch.crates-io]
+cadmpeg-tessellate = { path = "vendor/cadmpeg-tessellate" }
 Inflector = { path = "vendor/inflector" }
 cgmath = { path = "../renderer/vendor/cgmath-next-0.18.1" }
-monstertruck-core = { path = "vendor/monstertruck-core" }
-monstertruck-derive = { path = "vendor/monstertruck-derive" }
-monstertruck-geometry = { path = "vendor/monstertruck-geometry" }
-monstertruck-io = { path = "vendor/monstertruck-io" }
-monstertruck-mesh = { path = "vendor/monstertruck-mesh" }
-monstertruck-meshing = { path = "vendor/monstertruck-meshing" }
-monstertruck-modeling = { path = "vendor/monstertruck-modeling" }
-monstertruck-traits = { path = "vendor/monstertruck-traits" }

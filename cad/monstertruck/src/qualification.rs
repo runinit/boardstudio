@@ -2,8 +2,6 @@
 //! read-only values; only preparation can create an evidence owner.
 mod final_trace;
 mod generated_qualification;
-#[cfg(test)]
-pub(crate) mod proof_geometry;
 mod types;
 use crate::{ExactModel, GeneratedAnalysisMesh, ImportedStep, StepFaceOccurrence, StepSourceFace};
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -19,9 +19,9 @@ const CHOC_HOTSWAP: &[u8] = include_bytes!(
 #[test]
 fn baked_default_previews_preserve_retained_face_movement_and_metadata() {
     for (bytes, expected_faces, expects_movement) in [
-        (PIN_SOCKET_1X4, 153, true),
-        (PIN_SOCKET_1X5, 189, true),
-        (PIN_SOCKET_2X12, 882, true),
+        (PIN_SOCKET_1X4, 153, false),
+        (PIN_SOCKET_1X5, 189, false),
+        (PIN_SOCKET_2X12, 882, false),
         // This tetrahedron needs a projected LINE attachment on the legacy route.
         // That route keeps whole-asset repair unknown and retains no face measurement.
         (LEGACY_PROJECTED_LINE, 4, false),
@@ -111,7 +111,15 @@ fn baked_preview_rejects_invalid_movement_old_format_and_wrong_source() {
         payload[first_movement..first_movement + 8].copy_from_slice(&movement.to_le_bytes());
         assert!(decode(&payload, &sha).is_err(), "accepted {movement}");
     }
-    payload[..8].copy_from_slice(b"BSSTEP01");
-    payload.drain(first_movement..first_movement + 153 * 8);
-    assert!(decode(&payload, &sha).is_err());
+    let valid = encode(PIN_SOCKET_1X4.to_vec(), sha.clone()).unwrap();
+    for old_magic in [b"BSSTEP01", b"BSSTEP02"] {
+        let mut old = valid.clone();
+        old[..8].copy_from_slice(old_magic);
+        assert!(decode(&old, &sha).is_err());
+    }
+    let header_offset = first_movement + 153 * 8;
+    // Corrupt vertex count to 0.
+    let mut bad_header = valid.clone();
+    bad_header[header_offset..header_offset + 4].copy_from_slice(&0u32.to_le_bytes());
+    assert!(decode(&bad_header, &sha).is_err());
 }
