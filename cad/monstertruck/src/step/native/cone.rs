@@ -45,6 +45,12 @@ impl Face {
             radius,
             slope,
         };
+        let mut available = MAX_TRIM_SAMPLES;
+        for (id, _) in self.loops.iter().flat_map(|ring| &ring.edges) {
+            available = available
+                .checked_sub(samples[id].len().saturating_sub(1))
+                .ok_or("native conical trim sample limit")?;
+        }
         if let [ring] = self.loops.as_slice()
             && let Some(mesh) = cone.apex_fan(ring, edges, samples, epsilon, self.same_sense)?
         {
@@ -81,9 +87,6 @@ impl Face {
             if lower.is_empty() || lower != seam(hi) {
                 return Err("native full-period cone requires shared seam generators".into());
             }
-        }
-        if rings.iter().map(|r| r.samples.len()).sum::<usize>() > MAX_TRIM_SAMPLES {
-            return Err("native conical trim sample limit".into());
         }
         let mut vertices = Vec::new();
         let mut ranges = Vec::new();
@@ -387,10 +390,15 @@ impl Cone {
         // these limits, apart from the singular tip. Check the minimum normal dot product.
         let opposite = normal.y.atan2(normal.x) + std::f64::consts::PI;
         let minimum = lo + (opposite - lo).rem_euclid(TAU);
+        let min_alignment =
+            normal.magnitude() * self.slope.hypot(1.0) * (ANGULAR_TOLERANCE + ANGLE_ROUNDOFF).cos();
         for u in [lo, hi, minimum.min(hi)] {
             let alignment = normal.x * u.cos() + normal.y * u.sin() - normal.z * self.slope;
             if !alignment.is_finite() || alignment <= 0.0 {
                 return Err("native conical chart folds when lifted to its support".into());
+            }
+            if alignment < min_alignment {
+                return Err("native conical facet normal exceeds angular tolerance".into());
             }
         }
         Ok(())

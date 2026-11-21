@@ -244,6 +244,36 @@ const path = require('node:path');
   }
   console.log('PASS packaged reset switch shared elliptical rims, centimetre scaling, and both cable fallbacks');
 
+  for (const [file, faces, occurrences, bounds] of [
+    [vendorDirectory + '/Switch_Power.step', 143, 5, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
+    ...[['occt-cone-apex', 2], ['occt-frustum-pcurves', 3], ['freecad-notched-frustum', 7]].map(
+      ([name, count]) => ['cad/monstertruck/tests/fixtures/' + name + '.step', count, 1, [-1, -6, 7, 7, 2, 12]]),
+  ]) {
+    const source = read(file);
+    const result = importModel(source, 0.01);
+    const asset = result.vendorStep;
+    try {
+      assert.equal(asset.sourceSha256, crypto.createHash('sha256').update(source).digest('hex'));
+      assert.equal(asset.faceOccurrences.length, faces);
+      assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, occurrences);
+      assert(asset.sourceFaces.some(face => face.supportKind === 'CONICAL_SURFACE'));
+      assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
+      assert.equal(asset.accuracy.meshClosedOriented, true);
+      assert.equal(asset.sourceQualification.state, 'unknown');
+      assert([...result.bounds.min, ...result.bounds.max].every((value, i) => Math.abs(value - bounds[i]) < 1e-9));
+    } finally {
+      asset.analysisHandle.free();
+    }
+  }
+  const panasonic = importModel(read('ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step'));
+  try {
+    assert.equal(panasonic.vendorStep.accuracy.meshClosedOriented, false);
+    assert.equal(panasonic.vendorStep.faceOccurrences.length, 155);
+  } finally {
+    panasonic.vendorStep.analysisHandle.free();
+  }
+  console.log('PASS packaged conical switch, apex, seamed and notched frustums, and Panasonic fallback');
+
   const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);

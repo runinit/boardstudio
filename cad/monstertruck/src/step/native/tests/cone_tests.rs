@@ -122,6 +122,33 @@ fn exported_conical_apex_seam_and_hole_keep_shared_boundaries() {
 }
 
 #[test]
+fn thin_frustum_with_mismatched_rim_counts_refuses_tilted_facets() {
+    let source = FRUSTUM
+        .replace("(5.,-2.,12.)", "(6.999999,-2.,7.001)")
+        .replace("(3.,-2.,12.)", "(3.,-2.,7.001)")
+        .replace("#26,2.)", "#26,3.999999)")
+        .replace("#50,2.)", "#50,3.999999)")
+        .replace(
+            "4.,0.380506377112)",
+            &format!("4.,{:.17})", 0.001_f64.atan()),
+        )
+        .replace("(-0.,-5.)", "(-0.,-0.001)")
+        .replace(
+            "(-0.371390676354,9.096448060604E-17,0.928476690885)",
+            "(-0.001,0.,1.)",
+        );
+    let options = StepImportOptions {
+        target_deflection_mm: Some(0.0874095861385776),
+        ..Default::default()
+    };
+    let error = native_candidate(source.as_bytes(), options).err().unwrap();
+    assert!(
+        error.contains("facet normal exceeds angular tolerance"),
+        "{error}"
+    );
+}
+
+#[test]
 fn native_cone_uses_representation_angle_and_length_units() {
     let degrees = replace_once(
         FRUSTUM,
