@@ -2,120 +2,24 @@ use super::*;
 
 #[test]
 fn membership_transition_expands_with_planned_pair_identities_and_references() {
-    let (before, _, mut context, _, _, _) =
-        membership_compaction_fixture().expect("the linked matrix fixture is valid");
-    for (source_id, explicit_state) in [
-        ("matrix/source-matrix/r1c1", true),
-        ("matrix/source-matrix/r1c1/diode", false),
-    ] {
-        let association = context
-            .associations
-            .iter_mut()
-            .find(|association| association.source_id == source_id)
-            .unwrap();
-        association.state = TransitionState::Local;
-        association.explicit_state = explicit_state;
-    }
-    let mut post_source = before.clone();
-    let source_matrix = before
+    // Consolidated onto the shared expansion fixture: the planned source column,
+    // identity maps, additions, and owners are sourced from the operation once
+    // instead of re-typed here. All expectations below derive from that source.
+    let (
+        before,
+        post_source,
+        context,
+        source_identity_map,
+        mirror_identity_map,
+        additions,
+        final_owners,
+    ) = membership_expansion_fixture();
+    let source_matrix = post_source
         .matrices
         .iter()
         .find(|matrix| matrix.id == "source-matrix")
         .unwrap();
-    let mut expanded = source_matrix.clone();
-    expanded.columns = 5;
-    for row in 0..2 {
-        expanded.cells.push(MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row,
-            column: 4,
-            enabled: true,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![MatrixAssembly {
-                id: "diode".into(),
-                definition_id: "diode".into(),
-                offset: Vec2 { x: 2.0, y: 3.0 },
-                rotation: Some(30.0),
-                side: Some(Side::Back),
-            }],
-            assemblies_local: None,
-        });
-    }
-    boardstudio_core_kernel::matrix::set_matrix(&mut post_source, &expanded)
-        .expect("the planned source additions materialize");
-
-    let source_identity_map: BTreeMap<_, _> = source_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mirror_identity_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mut additions = Vec::new();
-    for row in 0..2 {
-        let source_key = format!("matrix/source-matrix/r{row}c4");
-        let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-        for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-            (
-                source_key.clone(),
-                mirror_key.clone(),
-                None,
-                None,
-                format!("EXP_M_R{row}C4"),
-            ),
-            (
-                format!("{source_key}/diode"),
-                format!("{mirror_key}/diode"),
-                Some(source_key.clone()),
-                Some(mirror_key.clone()),
-                format!("EXP_M_D_R{row}C4"),
-            ),
-        ] {
-            let source_part = post_source
-                .parts
-                .iter()
-                .find(|part| part.id == source_id)
-                .unwrap();
-            additions.push(PlannedAddition {
-                source_id,
-                mirror_id,
-                source_reference: source_part.reference.clone(),
-                mirror_reference,
-                parent_source_id,
-                parent_mirror_id,
-            });
-        }
-    }
-    let mut final_owners: BTreeMap<_, _> = post_source
-        .parts
-        .iter()
-        .map(|part| {
-            let board = post_source
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&part.id))
-                .unwrap();
-            (part.id.clone(), FinalOwner::Board(board.id.clone()))
-        })
-        .collect();
-    for addition in &additions {
-        final_owners.insert(
-            addition.mirror_id.clone(),
-            FinalOwner::Board("mirror-board".into()),
-        );
-    }
+    let before_associations = context.associations.len();
 
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
         dispatch: crate::support::test_dispatch(),
@@ -130,14 +34,22 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
         explicit_removal_closure: &BTreeSet::new(),
     })
     .expect("a complete planned expansion is projected atomically");
+    // Operation-sequence invariants, all derived from the source operation:
+    // the mirror frame follows the source frame, every slot is an exact
+    // row/column identity, and the association delta equals the addition count.
     let mirror = output
         .draft
         .matrices
         .iter()
         .find(|matrix| matrix.id == "mirror-matrix")
         .unwrap();
-    assert_eq!((mirror.rows, mirror.columns), (2, 5));
-    assert_eq!(mirror.part_ids.len(), 20);
+    assert_eq!(
+        (mirror.rows, mirror.columns),
+        (source_matrix.rows, source_matrix.columns),
+        "mirror frame follows the source operation"
+    );
+    assert_exact_matrix_identities(&output.draft, "mirror-matrix");
+    assert_exact_matrix_identities(&output.draft, "source-matrix");
     for addition in &additions {
         assert_eq!(
             output
@@ -150,9 +62,56 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
             addition.mirror_reference
         );
     }
-    assert_eq!(output.context_delta.added.len(), 4);
-    assert_eq!(output.context.associations.len(), 21);
+    assert_eq!(output.context_delta.added.len(), additions.len());
+    assert_eq!(
+        output.context.associations.len(),
+        before_associations + additions.len()
+    );
     assert_eq!(output.context.pair_right, context.pair_right);
+}
+
+#[test]
+fn membership_transition_mutated_row_slot_breaks_exact_identity() {
+    // Deliberate input mutation: retargeting one surviving source row proves the
+    // transition checks exact row identities instead of accepting any shape.
+    let (
+        before,
+        post_source,
+        context,
+        mut source_identity_map,
+        mirror_identity_map,
+        additions,
+        final_owners,
+    ) = membership_expansion_fixture();
+    let mutated = source_identity_map
+        .iter()
+        .find(|(old, _)| *old == "matrix/source-matrix/r0c0")
+        .map(|(_, new)| new.clone())
+        .unwrap();
+    source_identity_map.insert(
+        "matrix/source-matrix/r0c0".into(),
+        mutated.map(|_| "matrix/source-matrix/r1c0".into()),
+    );
+    let snapshot = before.clone();
+    let context_snapshot = context.clone();
+    let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::support::test_dispatch(),
+        valid_before: &before,
+        post_source: &post_source,
+        context: &context,
+        baseline_kind: BaselineKind::MaterializedCurrentSchema,
+        source_identity_map: &source_identity_map,
+        mirror_identity_map: &mirror_identity_map,
+        planned_additions: &additions,
+        final_owners: &final_owners,
+        explicit_removal_closure: &BTreeSet::new(),
+    })
+    .expect_err("a single mistyped row identity is refused");
+    assert_membership_inputs_unchanged(&before, &snapshot, &context, &context_snapshot);
+    assert!(
+        error.contains("not injective") || error.contains("does not cover"),
+        "row mutation is refused as an identity mismatch: {error}"
+    );
 }
 
 #[test]

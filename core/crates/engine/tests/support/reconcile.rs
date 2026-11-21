@@ -1016,6 +1016,169 @@ pub fn matrix(id: &str, board_id: &str, rows: u32, columns: u32, origin: Vec2) -
     }
 }
 
+/// Mirror identity map derived from one source identity map.
+///
+/// Every mirrored membership refusal test must translate the source operation
+/// into mirror slots the same way; deriving it here keeps the operation
+/// sequence sourced from the input instead of re-typed per test.
+pub fn mirror_map_from_source(
+    source_map: &BTreeMap<String, Option<String>>,
+) -> BTreeMap<String, Option<String>> {
+    source_map
+        .iter()
+        .map(|(old, new)| {
+            (
+                old.replace("matrix/source-matrix/", "matrix/mirror-matrix/"),
+                new.as_ref()
+                    .map(|id| id.replace("matrix/source-matrix/", "matrix/mirror-matrix/")),
+            )
+        })
+        .collect()
+}
+
+/// Identity mirror map derived from the source document's actual matrix members.
+///
+/// Fresh-identity transitions keep every historical member, so the expected map
+/// is exactly the document's own part list; deriving it proves the test checks
+/// exact row/column identities instead of a hand-typed subset.
+pub fn fresh_identity_mirror_map(before: &ProjectDoc) -> BTreeMap<String, Option<String>> {
+    before
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "mirror-matrix")
+        .expect("the mirror matrix exists")
+        .part_ids
+        .iter()
+        .map(|id| (id.clone(), Some(id.clone())))
+        .collect()
+}
+
+/// Exact row/column identity invariant for one matrix, derived from its dimensions.
+///
+/// Every member id must parse to an in-bounds `(row, column, child)` slot, every
+/// slot present in the matrix must resolve to a live part registered on exactly
+/// one board, and the member set must equal the full source-derived slot
+/// universe (one key plus one diode child per cell). A single mistyped row or
+/// column fails either the parse, the bound, or the exact-set comparison.
+pub fn assert_exact_matrix_identities(document: &ProjectDoc, matrix_id: &str) {
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+        .unwrap_or_else(|| panic!("{matrix_id} exists"));
+    let mut expected = BTreeSet::new();
+    for row in 0..matrix.rows {
+        for column in 0..matrix.columns {
+            expected.insert(format!("matrix/{matrix_id}/r{row}c{column}"));
+            expected.insert(format!("matrix/{matrix_id}/r{row}c{column}/diode"));
+        }
+    }
+    let actual: BTreeSet<_> = matrix.part_ids.iter().cloned().collect();
+    assert_eq!(
+        actual, expected,
+        "{matrix_id}: member set is exactly the source-derived row/column universe"
+    );
+    for id in &actual {
+        let (row, column, _) = matrix_identity_slot(id, matrix_id)
+            .unwrap_or_else(|| panic!("{id} parses as a {matrix_id} slot"));
+        assert!(
+            row < matrix.rows && column < matrix.columns,
+            "{id} is in bounds for {matrix_rows}x{matrix_columns}",
+            matrix_rows = matrix.rows,
+            matrix_columns = matrix.columns,
+        );
+        assert!(
+            document.parts.iter().any(|part| part.id == *id),
+            "{id} resolves to a live part"
+        );
+        assert_eq!(
+            document
+                .boards
+                .iter()
+                .filter(|board| board.part_ids.contains(id))
+                .count(),
+            1,
+            "{id} is registered on exactly one board"
+        );
+    }
+}
+
+/// History invariant: a refused transition must leave caller inputs untouched.
+pub fn assert_membership_inputs_unchanged(
+    before: &ProjectDoc,
+    snapshot: &ProjectDoc,
+    context: &MembershipContext,
+    context_snapshot: &MembershipContext,
+) {
+    assert_eq!(before, snapshot, "caller document remains unchanged");
+    assert_eq!(
+        context, context_snapshot,
+        "caller context remains unchanged"
+    );
+}
+
+/// Operation-sequence invariant: an exact repeat stages nothing new.
+pub fn assert_repeat_is_noop(
+    repeated_draft: &ProjectDoc,
+    draft: &ProjectDoc,
+    repeated_context: &MembershipContext,
+    context: &MembershipContext,
+    changed_ids: &[String],
+    changed_paths: &[String],
+    phase: &str,
+) {
+    assert_eq!(repeated_draft, draft, "{phase}: repeated draft is identical");
+    assert_eq!(
+        repeated_context, context,
+        "{phase}: repeated context is identical"
+    );
+    assert!(
+        changed_ids.is_empty(),
+        "{phase}: no changed document ids"
+    );
+    assert!(
+        changed_paths.is_empty(),
+        "{phase}: no changed field paths"
+    );
+}
+
+/// Run one fresh-identity refusal case: apply `mutate`, derive the mirror map
+/// from the mutated source, snapshot history, run the transition, assert the
+/// refusal and that history is preserved, and return the refusal message.
+///
+/// Centralizing the sequence keeps every row sourced from the same operation
+/// instead of duplicating fixture/mirror-map/snapshot assertions per refusal.
+pub fn run_fresh_identity_refusal(
+    mutate: impl FnOnce(&mut ProjectDoc, &mut MembershipContext),
+    expect: &str,
+) -> String {
+    let (mut before, _, mut context, source_map, owners, _) =
+        consolidated_fresh_identity_fixture().expect("the fresh identity fixture is valid");
+    mutate(&mut before, &mut context);
+    let mirror_map = fresh_identity_mirror_map(&before);
+    let snapshot = before.clone();
+    let context_snapshot = context.clone();
+    let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::support::test_dispatch(),
+        valid_before: &before,
+        post_source: &before,
+        context: &context,
+        baseline_kind: BaselineKind::MaterializedCurrentSchema,
+        source_identity_map: &source_map,
+        mirror_identity_map: &mirror_map,
+        planned_additions: &[],
+        final_owners: &owners,
+        explicit_removal_closure: &BTreeSet::new(),
+    });
+    assert_membership_inputs_unchanged(&before, &snapshot, &context, &context_snapshot);
+    let message = result.unwrap_err();
+    assert!(
+        message.contains(expect),
+        "expected refusal containing {expect:?}, got {message:?}"
+    );
+    message
+}
+
 pub fn part(
     id: &str,
     definition_id: &str,
