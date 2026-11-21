@@ -37,6 +37,7 @@ mod changes;
 mod document;
 pub use changes::changed_document_fields;
 mod hosted;
+mod matrix_membership;
 mod matrix_stage;
 mod membership_view;
 mod transition;

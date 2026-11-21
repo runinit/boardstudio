@@ -441,7 +441,7 @@ pub(super) fn copy_part_payload(target: &mut crate::model::Part, source: &crate:
 /// projection copies the anchor verbatim, so remap every target through the
 /// pair's matrix correspondences and refuse — naming the missing key —
 /// instead of materializing a cross-half anchor or silently retargeting.
-pub(super) fn adopt_rejoined_anchor(
+pub(in crate::mirrored_half::reconcile) fn adopt_rejoined_anchor(
     projected: &mut crate::model::Matrix,
     draft: &crate::model::ProjectDoc,
     context: &MembershipContext,

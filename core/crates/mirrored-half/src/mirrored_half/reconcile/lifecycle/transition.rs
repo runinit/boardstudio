@@ -2,9 +2,8 @@
 
 use super::super::{MembershipContext, TransitionState};
 use super::{
-    adopt_rejoined_anchor, capture_omitted_copper, classify_source_retirements, copy_part_payload,
-    durable_state, effective, project_lifecycle_matrix, restore_rejoined_nets,
-    restore_saved_copper, validate_lifecycle_context,
+    capture_omitted_copper, classify_source_retirements, copy_part_payload, durable_state,
+    effective, restore_rejoined_nets, restore_saved_copper, validate_lifecycle_context,
 };
 use crate::model::MirroredExceptionState;
 use std::collections::BTreeSet;
@@ -30,9 +29,7 @@ pub(super) fn prepare_lifecycle_projection(
     context: &MembershipContext,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
-    use super::super::{
-        FinalOwner, MembershipContextDelta, MembershipTransitionInput, MembershipTransitionOutput,
-    };
+    use super::super::{FinalOwner, MembershipContextDelta, MembershipTransitionOutput};
     use crate::model::{MirroredItemKind, Part};
     use std::collections::BTreeMap;
 
@@ -100,7 +97,7 @@ pub(super) fn prepare_lifecycle_projection(
         .unwrap_or_default();
     let mut removed = BTreeSet::new();
     let retired = classify_source_retirements(before, post_source, context, false)?;
-    let mut additions = Vec::new();
+
     for owner in context.associations.iter().filter(|a| {
         a.kind == MirroredItemKind::EmbeddedCircuit
             && a.state == TransitionState::Linked
@@ -167,20 +164,6 @@ pub(super) fn prepare_lifecycle_projection(
             .iter()
             .any(|matrix| matrix.id == matrix_pair.source_id)
     });
-    // A matrix-level Omitted mirror with a live source goes live-yet-absent
-    // (spec §5): the mirror record is dropped while its correspondences stay
-    // live. The layout shell keeps naming the absent matrix so the pair's
-    // layout correspondence keeps following the reconciled matrix pair;
-    // Rejoin recreates the matrix from source. A source removal with a
-    // non-Local mirror still retires the whole pair side through the full
-    // removal cascade below.
-    if let (Some(_owner), Some(matrix_pair)) = (
-        matrix_owner
-            .filter(|owner| owner.state == TransitionState::Omitted && !source_matrix_removed),
-        context.matrix_pair.as_ref(),
-    ) {
-        draft.matrices.retain(|m| m.id != matrix_pair.mirror_id);
-    }
     if let (Some(_owner), Some(matrix_pair)) = (
         matrix_owner.filter(|owner| source_matrix_removed && owner.state != TransitionState::Local),
         context.matrix_pair.as_ref(),
@@ -204,115 +187,62 @@ pub(super) fn prepare_lifecycle_projection(
                 },
             )?;
         }
-    } else if let (Some(matrix_owner), Some(matrix_pair)) = (
-        matrix_owner.filter(|owner| context.pending_rejoins.contains_key(&owner.source_id)),
-        context.matrix_pair.as_ref(),
-    ) {
-        let source = draft
-            .matrices
-            .iter()
-            .find(|m| m.id == matrix_pair.source_id)
-            .ok_or("The Rejoin source Matrix is unavailable")?
-            .clone();
-        let retained: Vec<_> = context
+    }
+    if let Some(matrix_pair) = context.matrix_pair.as_ref()
+        && matrix_owner.is_some_and(|owner| owner.state == TransitionState::Linked)
+        && !source_matrix_removed
+    {
+        super::super::validate_no_native_legacy_overlap(post_source, context)?;
+        super::super::validate_net_pad_ids(post_source)?;
+        super::super::validate_constraints(post_source)?;
+        super::super::validate_association_settings(context)?;
+
+        for association in context
             .associations
             .iter()
-            .filter(|a| a.kind == MirroredItemKind::Part && a.state == TransitionState::Local)
-            .filter_map(|a| draft.parts.iter().find(|p| p.id == a.mirror_id).cloned())
-            .collect();
-        let mut seed = source.clone();
-        seed.id = matrix_pair.mirror_id.clone();
-        seed.board_id = Some(context.mirror_board_id.clone());
-        seed.part_ids.clear();
-        let record = crate::model::MirroredCorrespondence {
-            kind: MirroredItemKind::Matrix,
-            source_id: source.id.clone(),
-            mirror_id: seed.id.clone(),
-            companion_mode: matrix_owner.raw_mode_override,
-            companion_tweak: matrix_owner.raw_tweak,
-        };
-        let mut projected = super::super::project_matrix(&source, &seed, &record, context.mapping)?;
-        adopt_rejoined_anchor(&mut projected, &draft, context, matrix_pair)?;
-        for cell in &mut projected.cells {
-            let key = format!(
-                "matrix/{}/r{}c{}",
-                matrix_pair.source_id, cell.row, cell.column
-            );
-            if context.associations.iter().any(|a| {
-                a.kind == MirroredItemKind::Part
-                    && a.source_id == key
-                    && a.state == TransitionState::Omitted
-            }) {
-                cell.enabled = false;
-                cell.deleted = true;
-                cell.assemblies.clear();
-            } else {
-                cell.assemblies.retain(|assembly| {
-                    !context.associations.iter().any(|a| {
-                        a.kind == MirroredItemKind::Part
-                            && a.source_id == crate::matrix::companion_id(&key, &assembly.id)
-                            && a.state == TransitionState::Omitted
-                    })
-                });
-            }
-        }
-        seed.part_ids = retained.iter().map(|part| part.id.clone()).collect();
-        if !draft.matrices.iter().any(|m| m.id == seed.id) {
-            draft.matrices.push(seed);
-        }
-        crate::matrix::set_matrix(&mut draft, &projected)?;
-        for local in retained {
-            let target = draft
-                .parts
-                .iter_mut()
-                .find(|p| p.id == local.id)
-                .ok_or("An explicit Local child is outside the current Rejoin Matrix")?;
-            *target = local;
-        }
-        // New cells introduced while an owner was Local acquire associations only on this
-        // explicitly authorized owner Rejoin, after the normal setter assigns their targets.
-        for id in &source.part_ids {
-            if context
-                .associations
-                .iter()
-                .any(|a| a.kind == MirroredItemKind::Part && a.source_id == *id)
-            {
-                continue;
-            }
-            let (row, column, suffix) =
-                super::super::matrix_identity_slot(id, &matrix_pair.source_id)
-                    .ok_or("A new owner Rejoin member is not canonical")?;
-            let mirror_id = if suffix.is_empty() {
-                format!("matrix/{}/r{row}c{column}", matrix_pair.mirror_id)
-            } else {
-                format!("matrix/{}/r{row}c{column}/{suffix}", matrix_pair.mirror_id)
-            };
-            if draft.parts.iter().filter(|p| p.id == mirror_id).count() != 1 {
-                return Err("A new owner Rejoin member lacks its exact materialized target".into());
-            }
-            additions.push(super::super::TransitionAssociation {
-                kind: MirroredItemKind::Part,
-                source_id: id.clone(),
-                mirror_id,
-                parent_source_id: Some(if suffix.is_empty() {
-                    matrix_pair.source_id.clone()
-                } else {
-                    format!("matrix/{}/r{row}c{column}", matrix_pair.source_id)
-                }),
-                parent_mirror_id: Some(if suffix.is_empty() {
-                    matrix_pair.mirror_id.clone()
-                } else {
-                    format!("matrix/{}/r{row}c{column}", matrix_pair.mirror_id)
-                }),
-                state: TransitionState::Linked,
-                explicit_state: false,
-                raw_mode_override: None,
-                raw_tweak: None,
-                effective_mode: context.pair_right.companion_mode,
-                effective_tweak: None,
-            });
+            .filter(|a| a.kind == MirroredItemKind::Part && matrix_members.contains(&a.source_id))
+        {
+            super::super::transition_input::validate_slot_association(matrix_pair, association)?;
+            super::super::transition_input::validate_linked_placement(
+                post_source,
+                context,
+                association,
+            )?;
         }
     }
+    let additions = if let Some(owner) = matrix_owner
+        && context
+            .pending_pair_transitions
+            .keys()
+            .any(|source| source == &owner.source_id || matrix_members.contains(source))
+    {
+        // A sparse exception authorizes a change to these slots only after the
+        // real source operation has left their established memberships intact.
+        if [&owner.source_id, &owner.mirror_id]
+            .into_iter()
+            .any(|id| super::super::matrix_membership_changed(before, post_source, id))
+        {
+            return Err(
+                "The pending exception's Matrix membership changed outside its selection".into(),
+            );
+        }
+        if post_source != before {
+            validate_lifecycle_context(post_source, context)?;
+        }
+        if owner.state == TransitionState::Linked {
+            super::super::source_members(post_source, &owner.source_id, context, false)?;
+            if before
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == owner.mirror_id)
+            {
+                super::super::source_members(before, &owner.mirror_id, context, true)?;
+            }
+        }
+        super::super::matrix_membership::materialize_selection(&mut draft, before, context, owner)?
+    } else {
+        Vec::new()
+    };
     for association in context
         .associations
         .iter()
@@ -458,7 +388,6 @@ pub(super) fn prepare_lifecycle_projection(
             return Err("Omitted circuit ownership leaves an owned net in use; preserve that net explicitly first".into());
         }
     }
-    draft = project_lifecycle_matrix(draft, context, &additions, dispatch)?;
     restore_rejoined_nets(&mut draft, post_source, context)?;
     for added in &additions {
         let source = post_source
@@ -506,23 +435,7 @@ pub(super) fn prepare_lifecycle_projection(
         }
     }
     output.context_delta.retired = retired;
-    let empty_map = BTreeMap::new();
-    let empty_set = BTreeSet::new();
-    let mut output = apply_membership_context_delta(
-        MembershipTransitionInput {
-            dispatch,
-            valid_before: before,
-            post_source,
-            context,
-            baseline_kind: super::super::BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &empty_map,
-            mirror_identity_map: &empty_map,
-            planned_additions: &[],
-            final_owners: &context.owners,
-            explicit_removal_closure: &empty_set,
-        },
-        output,
-    )?;
+    let mut output = apply_membership_context_delta(before, post_source, context, output)?;
 
     // The lifecycle already staged matrix geometry. Pass only the matrix identity so
     // reconciliation can validate it and project the other linked records.
@@ -838,7 +751,9 @@ pub fn transition_exception_context(
 }
 
 pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
-    input: super::super::MembershipTransitionInput<'_>,
+    before: &crate::model::ProjectDoc,
+    post_source: &crate::model::ProjectDoc,
+    context: &MembershipContext,
     mut output: super::super::MembershipTransitionOutput,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     use crate::model::{MirroredCorrespondence, MirroredExceptionState, MirroredItemKind};
@@ -846,8 +761,8 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     if output.context_delta.added.is_empty()
         && output.context_delta.retired.is_empty()
         && output.context_delta.relocated.is_empty()
-        && input.context.pending_rejoins.is_empty()
-        && input.context.pending_pair_transitions.is_empty()
+        && context.pending_rejoins.is_empty()
+        && context.pending_pair_transitions.is_empty()
     {
         return Ok(output);
     }
@@ -860,21 +775,20 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     let mut pairs = hardware
         .pairs
         .iter_mut()
-        .filter(|pair| pair.id == input.context.pair_id);
+        .filter(|pair| pair.id == context.pair_id);
     let pair = pairs
         .next()
         .ok_or_else(|| "The lifecycle candidate has no selected pair".to_owned())?;
     if pairs.next().is_some() {
         return Err("The lifecycle candidate pair is ambiguous".into());
     }
-    let mut baseline_pairs = input
-        .valid_before
+    let mut baseline_pairs = before
         .hardware
         .as_ref()
         .ok_or_else(|| "The lifecycle baseline has no hardware configuration".to_owned())?
         .pairs
         .iter()
-        .filter(|baseline| baseline.id == input.context.pair_id);
+        .filter(|baseline| baseline.id == context.pair_id);
     let baseline_pair = baseline_pairs
         .next()
         .ok_or_else(|| "The lifecycle baseline has no selected pair".to_owned())?;
@@ -928,8 +842,7 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         plan_change(retired, None)?;
     }
     for (old_id, new_id) in &output.context_delta.relocated {
-        let old = input
-            .context
+        let old = context
             .associations
             .iter()
             .find(|a| a.kind == MirroredItemKind::Part && a.source_id == *old_id)
@@ -986,27 +899,27 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         });
     }
 
-    if output.context.pair_right != input.context.pair_right
-        || output.context.pending_pair_transitions != input.context.pending_pair_transitions
-        || output.context.pending_pair_baseline != input.context.pending_pair_baseline
+    if output.context.pair_right != context.pair_right
+        || output.context.pending_pair_transitions != context.pending_pair_transitions
+        || output.context.pending_pair_baseline != context.pending_pair_baseline
     {
         return Err("The reconciliation kernel changed pending private pair evidence".into());
     }
     match (
-        input.context.pending_pair_transitions.is_empty(),
-        input.context.pending_pair_baseline.as_ref(),
+        context.pending_pair_transitions.is_empty(),
+        context.pending_pair_baseline.as_ref(),
     ) {
         (true, None) => {}
         (false, Some(snapshot))
             if baseline_pair.halves.as_ref() == Some(snapshot)
-                && snapshot == &input.context.pair_right => {}
+                && snapshot == &context.pair_right => {}
         _ => return Err("The private pending pair baseline is stale or incomplete".into()),
     }
 
     // Apply exact association changes only after the projection kernel succeeds. `next_halves`
     // starts as the authentic durable pair, so unrelated rows and their order are preserved.
     // Identity never moves: the correspondence stays in every state and only its overlay changes.
-    for (source_id, prior_state) in &input.context.pending_pair_transitions {
+    for (source_id, prior_state) in &context.pending_pair_transitions {
         let mut associations = output
             .context
             .associations
@@ -1096,7 +1009,7 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
 
     // Inherited child Rejoins keep their existing durable correspondence, but their geometry
     // and payload still derive from the current source within this same candidate.
-    for source_id in input.context.pending_rejoins.keys().filter(|source_id| {
+    for source_id in context.pending_rejoins.keys().filter(|source_id| {
         output
             .context
             .associations
@@ -1114,8 +1027,7 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         if associations.next().is_some() {
             return Err(format!("The pending Rejoin {source_id:?} is ambiguous"));
         }
-        let mut sources = input
-            .post_source
+        let mut sources = post_source
             .parts
             .iter()
             .filter(|part| part.id == association.source_id);

@@ -691,3 +691,45 @@ fn parent19_replace_document_preserves_authored_local_companion_fields() {
         "ReplaceDocument retains Local authored fields while reconciliation rebases its cell"
     );
 }
+
+#[test]
+fn omitted_key_detaches_its_local_companion_through_reopen_and_rejoin() {
+    let (mut engine, doc) = accepted_pair();
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let diode = "matrix/right-synthetic-keys/r0c0/diode";
+    let local = set_exception(&mut engine, &doc, diode, "local");
+    let moved = move_part(&mut engine, &local["document"], diode, 123.0, 47.0);
+    let expected = part(&moved["document"], diode).clone();
+    assert_eq!(expected["pose"]["at"], json!({"x":123.0,"y":47.0}));
+    let omitted = set_exception(&mut engine, &moved["document"], key, "omitted");
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    let (mut engine, reopened) = save_archive_and_open(&omitted["document"]);
+    assert!(find_part(&reopened, key).is_none());
+    assert_eq!(part(&reopened, diode), &expected);
+    let membership = |doc: &Value| {
+        doc["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|matrix| matrix["id"] == "right-synthetic-keys")
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == diode)
+    };
+    assert!(!membership(&reopened));
+    let rejoined = set_exception(&mut engine, &reopened, key, "linked");
+    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
+    assert!(membership(&rejoined["document"]));
+    assert!(find_part(&rejoined["document"], key).is_some());
+    assert_eq!(part(&rejoined["document"], diode), &expected);
+    assert_eq!(
+        exception(&rejoined["document"], diode).unwrap()["state"],
+        "local"
+    );
+    for (action, expected) in [("undo", &reopened), ("redo", &rejoined["document"])] {
+        let result = request(&mut engine, json!({"id":action, "kind":action}));
+        assert_history_document(&result["document"], expected, action);
+    }
+}

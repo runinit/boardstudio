@@ -11,11 +11,10 @@ mod edit_transition;
 mod membership_edit;
 mod transition;
 
-use context::project_lifecycle_matrix;
 pub use context::validate_lifecycle_context;
+pub(super) use copper::adopt_rejoined_anchor;
 use copper::{
-    adopt_rejoined_anchor, capture_omitted_copper, copy_part_payload, restore_rejoined_nets,
-    restore_saved_copper,
+    capture_omitted_copper, copy_part_payload, restore_rejoined_nets, restore_saved_copper,
 };
 pub use edit_transition::retire_replacement_records;
 pub(super) use edit_transition::{native_detach_proposal, prepare_edit_transition};
