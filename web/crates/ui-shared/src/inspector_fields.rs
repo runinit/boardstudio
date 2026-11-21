@@ -51,6 +51,7 @@ pub fn NumericField(
                 InputGroupInput {
                     id: id.clone(),
                     r#type: InputType::Number,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     value: "{value}",
                     disabled,
                     readonly,
@@ -108,6 +109,7 @@ pub fn TextField(
             InputGroup {
                 InputGroupInput {
                     id: id.clone(),
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     r#type,
                     value: "{value}",
                     disabled,
@@ -231,7 +233,7 @@ pub fn CheckboxField(
         Field { variant: FieldVariant::Horizontal, invalid: error.is_some(), disabled,
             Checkbox { id: id.clone(), aria_label, checked: Some(checked), disabled, on_checked_change }
             FieldContent {
-                FieldLabel { html_for: id, "{label}" }
+                FieldLabel { html_for: id, class: "min-h-control-touch", "{label}" }
                 if let Some(description) = description { FieldDescription { "{description}" } }
                 if let Some(error) = error { FieldError { "{error}" } }
             }
