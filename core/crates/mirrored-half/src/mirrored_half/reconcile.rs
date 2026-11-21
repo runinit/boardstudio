@@ -7,7 +7,7 @@
 //!   independent part Add/Remove; `overlay_state` and circuit pairs; hosted `AddCircuit`;
 //!   board/layout correspondences; module targets; final validation, `outlines::reconcile`.
 //! - Membership-transition kernel: `prepare_membership_transition_kernel`, `prepare_membership_transition`.
-//! - Child modules: `lifecycle` (lifecycle.rs), `outlines` (reconcile/outlines.rs).
+//! - Child modules: `lifecycle` (reconcile/lifecycle.rs), `outlines` (reconcile/outlines.rs).
 //! - `mod tests` in reconcile/tests.rs; outline tests are included from
 //!   reconcile/outlines/tests.rs.
 
@@ -17,7 +17,6 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[path = "lifecycle.rs"]
 #[doc(hidden)]
 pub mod lifecycle;
 #[doc(hidden)]
