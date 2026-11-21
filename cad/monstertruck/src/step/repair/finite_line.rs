@@ -6,7 +6,7 @@ use num_traits::{Signed, Zero};
 
 type Point = [Q; 3];
 
-pub(super) struct Source {
+pub(in crate::step) struct Source {
     points: [Point; 2],
     origin: Point,
     direction: Point,
@@ -134,6 +134,31 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>>
     Some(result)
 }
 
+// Inputs are record IDs resolved by the native reader from plain LINE edges.
+// Capture only affected edges, without a second geometry conversion.
+pub(in crate::step) fn capture_native(
+    bytes: &[u8],
+    inputs: &HashMap<u64, ([u64; 4], bool)>,
+) -> Option<HashMap<u64, Source>> {
+    let needed = inputs.values().flat_map(|(ids, _)| *ids).collect();
+    let values = numbers(bytes, &needed)?;
+    let point = |id| values.get(&id)?.point();
+    inputs
+        .iter()
+        .map(|(&edge, &([origin, direction, start, end], same_sense))| {
+            Some((
+                edge,
+                Source {
+                    origin: point(origin)?,
+                    direction: point(direction)?,
+                    points: [point(start)?, point(end)?],
+                    same_sense,
+                },
+            ))
+        })
+        .collect()
+}
+
 pub(super) fn capture(table: &Table, bytes: &[u8]) -> HashMap<u64, Source> {
     let mut needed = HashSet::new();
     for edge in table.edge_curve.values() {
@@ -239,6 +264,51 @@ fn world_square(
 }
 
 impl Source {
+    /// Bound the original endpoint chord, its projected LINE interval, and the
+    /// repaired chord against one another. Affine correspondence places each
+    /// maximum at an endpoint, in either direction after instance placement.
+    pub(in crate::step) fn shared_repair_bound(
+        &self,
+        repaired: [Point3; 2],
+        factor: f64,
+        placement: Matrix4,
+        allowance: f64,
+    ) -> Result<(f64, [Point3; 2]), &'static str> {
+        use num_traits::ToPrimitive;
+
+        if dot(&self.direction, &self.direction).is_zero() {
+            return Err("zero authored LINE direction");
+        }
+        let projected = self.projected_controls();
+        let candidate = repaired.map(rational_point);
+        let [Some(a), Some(b)] = candidate else {
+            return Err("nonfinite repaired LINE");
+        };
+        for (start, end) in [(&projected[0], &projected[1]), (&a, &b)] {
+            let advance = dot(&sub(end, start), &self.direction);
+            if advance.is_zero() || advance.is_positive() != self.same_sense {
+                return Err("finite LINE interval is degenerate or contradicts its sense");
+            }
+        }
+        let mut squared = Q::zero();
+        for ((vertex, line), candidate) in self.points.iter().zip(&projected).zip([&a, &b]) {
+            for (before, after) in [(vertex, line), (vertex, candidate), (line, candidate)] {
+                squared = squared.max(world_square(before, after, factor, placement)?);
+            }
+        }
+        let budget = Q::from_float(allowance)
+            .filter(|q| q.is_positive())
+            .ok_or("invalid shared LINE repair allowance")?;
+        if squared > &budget * &budget {
+            return Err("finite LINE displacement exceeds preview repair budget");
+        }
+        let point = |p: Point| Some(Point3::new(p[0].to_f64()?, p[1].to_f64()?, p[2].to_f64()?));
+        let [Some(a), Some(b)] = projected.map(point) else {
+            return Err("nonfinite projected LINE");
+        };
+        Ok((sqrt_upper(&squared, "shared LINE movement range")?, [a, b]))
+    }
+
     fn projected_controls(&self) -> [Point; 2] {
         let project = |point: &Point| {
             let parameter = dot(&sub(point, &self.origin), &self.direction)

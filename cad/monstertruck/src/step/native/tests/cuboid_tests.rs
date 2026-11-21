@@ -329,6 +329,7 @@ fn gate_refused_cuboids_are_certified_on_legacy_delivery_without_native_admissio
     );
     let exchange = parser::parse(&ap242).unwrap();
     let refusal = build(
+        ap242.as_bytes(),
         &exchange,
         &units::representation_items(&exchange).unwrap(),
         &units::length_factors(&exchange).unwrap(),

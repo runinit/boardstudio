@@ -8,6 +8,7 @@ mod cylinder_band;
 mod facet;
 mod geometry;
 mod oblique;
+mod planar_repair;
 mod rational_trim;
 mod sphere;
 mod sphere_bounds;
@@ -46,6 +47,7 @@ pub(super) struct Asset {
     face_occurrences: Vec<StepFaceOccurrence>,
     triangle_faces: Vec<usize>,
     deflection_mm: f64,
+    relaxed_beyond_declared_precision: bool,
 }
 
 impl Asset {
@@ -83,9 +85,9 @@ impl Asset {
                     .preview_repair_budget_mm
                     .map_or(PREVIEW_DECLARED_MULTIPLIER, |_| 0.0),
                 selected_repair_budget_mm: options.preview_repair_budget_mm,
-                // Decoded f64 source carries no decimal movement proof of its own.
+                // Finite boundary movement does not qualify the whole delivered asset.
                 max_repair_displacement_mm: None,
-                relaxed_beyond_declared_precision: false,
+                relaxed_beyond_declared_precision: self.relaxed_beyond_declared_precision,
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
                 fallback_meshed_faces: 0,
@@ -112,6 +114,7 @@ pub(super) fn certify_cuboid(model: &mut ImportedStep) {
 }
 
 pub(super) fn build(
+    bytes: &[u8],
     exchange: &Exchange,
     items: &HashMap<u64, Vec<u64>>,
     units: &HashMap<u64, f64>,
@@ -203,6 +206,7 @@ pub(super) fn build(
         face_occurrences: Vec::new(),
         triangle_faces: Vec::new(),
         deflection_mm,
+        relaxed_beyond_declared_precision: false,
     };
     for (index, (id, placement, representation)) in asset.occurrences.iter().copied().enumerate() {
         units::validate_placement_matrix(placement)?;
@@ -227,8 +231,8 @@ pub(super) fn build(
         if uncertainty.is_some_and(|value| !value.is_finite()) {
             return Err("nonfinite placed source precision".into());
         }
-        // Admission is limited to floating-point attachment noise. Source that
-        // needs the declared or preview repair allowance goes through the ledger.
+        // Attachment validation stays limited to floating-point noise. Planar
+        // trim repair separately checks the actual movement against the allowance.
         let allowance = repair_allowance(
             options.preview_repair_budget_mm,
             owner.uncertainty_mm(),
@@ -240,6 +244,20 @@ pub(super) fn build(
             .min(deflection_mm * 1e-4)
             / source_to_world;
         let solid = &solids[&id];
+        let repaired = solid.repair_planar_trims(
+            &records,
+            bytes,
+            planar_repair::RepairFrame {
+                epsilon,
+                allowance_mm: allowance,
+                mm_per_unit: factors[&id],
+                placement,
+            },
+            &mut asset.bounds,
+        )?;
+        let edges = repaired
+            .as_ref()
+            .map_or(&solid.edges, |repair| &repair.edges);
         let deflection = deflection_mm / source_to_world;
         // Both faces sharing a spherical boundary must use the same samples.
         // Reserve slack on the edges for the interior spherical facets.
@@ -252,8 +270,8 @@ pub(super) fn build(
         } else {
             deflection
         };
-        let mut samples = HashMap::with_capacity(solid.edges.len());
-        for (&edge_id, edge) in &solid.edges {
+        let mut samples = HashMap::with_capacity(edges.len());
+        for (&edge_id, edge) in edges {
             samples.insert(
                 edge_id,
                 edge.sample(edge_deflection, epsilon)
@@ -267,7 +285,7 @@ pub(super) fn build(
         for face in &solid.faces {
             let face_mesh = face
                 .mesh(
-                    &solid.edges,
+                    edges,
                     &samples,
                     epsilon,
                     deflection,
@@ -284,12 +302,21 @@ pub(super) fn build(
                 return Err("native face produced no triangles".into());
             }
             let tag = asset.face_occurrences.len();
+            let repair_displacement_mm = repaired.as_ref().map_or(0.0, |repair| {
+                face.loops
+                    .iter()
+                    .flat_map(|ring| &ring.edges)
+                    .filter_map(|(id, _)| repair.movement_mm.get(id).copied())
+                    .fold(0.0, f64::max)
+            });
+            asset.relaxed_beyond_declared_precision |=
+                uncertainty.is_some_and(|declared| repair_displacement_mm > declared);
             asset.face_occurrences.push(StepFaceOccurrence {
                 source_face: face.source,
                 occurrence: index,
                 representation_id: representation,
                 source_uncertainty_mm: uncertainty,
-                repair_displacement_mm: 0.0,
+                repair_displacement_mm,
             });
             asset
                 .triangle_faces
