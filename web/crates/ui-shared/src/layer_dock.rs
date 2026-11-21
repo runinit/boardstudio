@@ -46,6 +46,7 @@ pub fn LayerDockOutlet() -> Element {
 mod tests {
     use super::*;
     use crate::test_mount::MountedFixture;
+    use crate::ui::button::Button;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -53,7 +54,7 @@ mod tests {
     fn Source() -> Element {
         let mut visible = use_signal(|| true);
         use_docked_layers(rsx! {
-            button { id: "layer-dock-toggle", aria_pressed: "{visible()}",
+            Button { id: "layer-dock-toggle", aria_pressed: visible(),
                 onclick: move |_| visible.set(!visible()), "Switches" }
         })
     }
@@ -62,7 +63,7 @@ mod tests {
         use_layer_dock_provider();
         let mut mounted = use_signal(|| true);
         rsx! {
-            button { id: "layer-dock-unmount", onclick: move |_| mounted.set(false), "Unmount viewer" }
+            Button { id: "layer-dock-unmount", onclick: move |_| mounted.set(false), "Unmount viewer" }
             aside { LayerDockOutlet {} }
             section { if mounted() { Source {} } }
         }

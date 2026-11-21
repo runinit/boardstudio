@@ -120,6 +120,7 @@ mod tests {
     use super::*;
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_test_runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::ui::button::Button;
     use boardstudio_web_ui_shared::{
         test_mount::MountedFixture, test_role::by_role_name, test_wait::wait_until,
     };
@@ -132,14 +133,14 @@ mod tests {
         use_context_provider(|| version);
         let edit = use_setup_project_name(use_context::<Rc<Runtime>>());
         rsx! {
-            button {
+            Button {
                 onclick: move |_| {
                     edit.on_change.call("  ".into());
                     edit.on_commit.call(());
                 },
                 "Commit blank"
             }
-            button {
+            Button {
                 onclick: move |_| {
                     edit.on_change.call("  Setup name  ".into());
                     edit.on_commit.call(());

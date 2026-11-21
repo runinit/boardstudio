@@ -612,8 +612,8 @@ mod tests {
         *use_context::<Rc<RefCell<Option<HostFixtureState>>>>().borrow_mut() =
             Some(HostFixtureState { mounted, palette });
         rsx! {
-            button { onclick: move |_| palette.show(), "Open fixture palette" }
-            button { "Outside fixture" }
+            Button { onclick: move |_| palette.show(), "Open fixture palette" }
+            Button { "Outside fixture" }
             if mounted() { CommandPalette { state: palette } }
         }
     }

@@ -165,6 +165,7 @@ impl SetupWorkspaceState {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_web_ui_shared::test_wait::wait_until;
+    use boardstudio_web_ui_shared::ui::button::Button;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -188,12 +189,12 @@ mod workspace_state_tests {
             .map(|preferences| format!("{:?}:{}", preferences.current_stage, preferences.open))
             .unwrap_or_else(|| "none".into());
         rsx! {
-            button {
+            Button {
                 id: "setup-state-stage",
                 onclick: move |_| { state.update_guide_stage("setup-state", setup_guide::SetupGuideStage::Layout); },
                 "Change stage"
             }
-            button { id: "setup-state-dismiss", onclick: move |_| state.dismiss_guide("setup-state"), "Dismiss" }
+            Button { id: "setup-state-dismiss", onclick: move |_| state.dismiss_guide("setup-state"), "Dismiss" }
             output { id: "setup-state-status", "{status}" }
         }
     }

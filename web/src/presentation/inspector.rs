@@ -366,7 +366,7 @@ mod tests {
         });
         rsx! {
             Inspector {}
-            button {
+            Button {
                 id: "position-test-deselect",
                 onclick: {
                     let runtime = runtime.clone();
@@ -381,7 +381,7 @@ mod tests {
                 },
                 "Deselect"
             }
-            button {
+            Button {
                 id: "position-test-select-a",
                 onclick: move |_| {
                     runtime.submit(Event::SelectParts {

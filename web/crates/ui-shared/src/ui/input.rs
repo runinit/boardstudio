@@ -52,7 +52,10 @@ pub fn Input(
     #[props(optional)] disabled: bool,
     #[props(optional)] readonly: bool,
     #[props(optional)] required: bool,
+    #[props(into, optional)] accept: Option<String>,
+    #[props(optional)] hidden: bool,
     #[props(into, optional)] oninput: Option<EventHandler<FormEvent>>,
+    #[props(into, optional)] onchange: Option<EventHandler<FormEvent>>,
 ) -> Element {
     let merged_class = tw_merge!(
         "text-foreground file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-control w-full min-w-0 rounded-md bg-field px-3 py-1 text-base transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
@@ -75,8 +78,15 @@ pub fn Input(
             disabled: disabled,
             readonly: readonly,
             required: required,
+            accept: accept,
+            hidden: hidden,
             oninput: move |e| {
                 if let Some(handler) = &oninput {
+                    handler.call(e);
+                }
+            },
+            onchange: move |e| {
+                if let Some(handler) = &onchange {
                     handler.call(e);
                 }
             },

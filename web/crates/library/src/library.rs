@@ -25,7 +25,7 @@ use boardstudio_web_ui_shared::ui::collapsible::{
 };
 use boardstudio_web_ui_shared::ui::empty::{Empty, EmptyDescription, EmptyTitle};
 use boardstudio_web_ui_shared::ui::field::FieldError;
-use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input::{Input, InputType};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupAddon, InputGroupInput};
 use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
@@ -912,7 +912,7 @@ pub fn Library(
                           },
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
                             "Open project…" }
-                            input { id: "library-menu-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
+                            Input { id: "library-menu-file", hidden: true, class: "hidden", r#type: InputType::File, accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
@@ -1001,7 +1001,7 @@ pub fn Library(
                                 Button { variant: ButtonVariant::Default, class: "w-full", disabled: import_disabled, onclick: move |_| {
                                     if let Some(input) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("library-import-file")).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) { input.click(); }
                                 }, "Import project" }
-                                input { id: "library-import-file", hidden: true, class: "hidden", r#type: "file", accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
+                                Input { id: "library-import-file", hidden: true, class: "hidden", r#type: InputType::File, accept: ".boardstudio", disabled: import_disabled, onchange: move |event: FormEvent| {
                                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                                     let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                     super::close_project_menu();

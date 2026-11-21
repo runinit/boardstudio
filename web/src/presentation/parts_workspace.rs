@@ -193,7 +193,7 @@ mod workspace_state_tests {
             .map(|(_, id)| id.clone())
             .unwrap_or_else(|| "none".into());
         rsx! {
-            button {
+            Button {
                 id: "select-mounted-module",
                 onclick: move |_| state.select_mounted_module(scope.clone(), "module-definition"),
                 "Select module"

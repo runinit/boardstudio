@@ -613,8 +613,8 @@ mod mounted_settlement_tests {
                 selected,
                 on_attached: move |navigation| probe.navigations.borrow_mut().push(navigation),
             }
-            button { id: "depart-attachment-owner", onclick: move |_| selected.set(None), "Depart" }
-            button { id: "return-attachment-owner", onclick: move |_| selected.set(Some((runtime.scope(), "module:module".into()))), "Return" }
+            Button { id: "depart-attachment-owner", onclick: move |_| selected.set(None), "Depart" }
+            Button { id: "return-attachment-owner", onclick: move |_| selected.set(Some((runtime.scope(), "module:module".into()))), "Return" }
             }
         }
     }
