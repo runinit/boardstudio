@@ -1020,7 +1020,14 @@ impl CoreEngine {
                 });
             }
         }
-        findings.extend(validate::validate(doc));
+        let validate::SceneDiagnostics {
+            findings: document_findings,
+            hardware_markers,
+            keycaps,
+            modules: module_scenes,
+            matrices: mut matrix_scenes,
+        } = validate::scene_diagnostics(doc);
+        findings.extend(document_findings);
         let ValidatedBoardScene {
             geometry:
                 geometry::BoardSceneGeometry {
@@ -1060,29 +1067,26 @@ impl CoreEngine {
         ));
         findings.extend(outline_findings);
         finding_markers.extend(inputs::finding_markers(doc, &findings));
-        finding_markers.extend(hardware::nominal_fit(doc).1);
+        finding_markers.extend(hardware_markers);
         finding_markers.extend(modules::finding_markers(doc, &findings));
         let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
-        for marker in outline_validation::feature_markers(doc, &findings) {
+        for marker in outline_validation::feature_markers(doc, &findings, &finding_markers) {
             generic_markers
                 .entry((marker.finding_id, marker.board_id))
                 .or_default()
                 .extend(marker.contours);
         }
         for ((finding_id, board_id), contours) in generic_markers {
-            if !finding_markers
-                .iter()
-                .any(|marker| marker.finding_id == finding_id && marker.board_id == board_id)
-            {
-                finding_markers.push(FindingMarker {
-                    finding_id,
-                    board_id,
-                    contours,
-                });
-            }
+            finding_markers.push(FindingMarker {
+                finding_id,
+                board_id,
+                contours,
+            });
         }
         finding_markers.extend(corner_markers);
-        finding_markers.extend(keycaps::finding_markers(doc, &findings));
+        for (board, keycaps) in doc.boards.iter().zip(keycaps) {
+            finding_markers.extend(keycaps.finding_markers(&board.id, &findings));
+        }
         for board in &board_contours {
             if board.contours.is_empty() {
                 findings.push(Finding {
@@ -1195,11 +1199,7 @@ impl CoreEngine {
                 .iter()
                 .any(|f| matches!(f.scope, Scope::Case) && matches!(f.severity, Severity::Error));
         let scene = SceneDelta {
-            module_scenes: doc
-                .boards
-                .iter()
-                .flat_map(|b| modules::resolve(doc, &b.id).modules)
-                .collect(),
+            module_scenes,
             revision: doc.revision,
             transaction_id: transaction.into(),
             changed_ids: changed,
@@ -1214,16 +1214,8 @@ impl CoreEngine {
                 })
                 .collect(),
             matrix_scenes: matrix_order
-                .iter()
-                .map(|index| &doc.matrices[*index])
-                .filter_map(|matrix| {
-                    matrix::project_valid_matrix(matrix, doc)
-                        .map(|mut scene| {
-                            scene.companions = matrix::scene_companions(matrix, doc);
-                            scene
-                        })
-                        .ok()
-                })
+                .into_iter()
+                .filter_map(|index| matrix_scenes[index].take())
                 .collect(),
             contours: contours.to_vec(),
             board_contours,

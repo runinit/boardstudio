@@ -119,7 +119,7 @@ impl OutlineClipper {
     pub fn difference(
         &mut self,
         required: &(impl ShapeResource<[f64; 2]> + ?Sized),
-        material: &[Path],
+        material: &(impl ShapeResource<[f64; 2]> + ?Sized),
     ) -> Shapes {
         self.overlay(
             required,
