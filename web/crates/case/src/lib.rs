@@ -8,6 +8,8 @@
 //! unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
+mod layer_projection;
+
 // Modules keep the page bin's paths: `super::InstanceSelection`, `super::objects::TreeContext`,
 // `crate::presentation::model_delivery`, `crate::runtime`.
 #[allow(unused_imports)]

@@ -1,3 +1,4 @@
+use crate::layer_projection::project_layer_rows;
 use super::*;
 
 pub(super) fn current_settings(owner: &CurrentSettingsOwner) -> Option<MechanicalSettingsCurrent> {
@@ -257,38 +258,6 @@ pub(super) fn project_scene_rows(
     })
 }
 
-pub(super) fn project_layer_rows(
-    display_assembly: Option<&MechanicalAssembly>,
-    current_assembly: Option<&MechanicalAssembly>,
-    internal_gasket: bool,
-    is_previous: bool,
-) -> Rc<[MechanicalLayerRow]> {
-    // Current assemblies have already passed the exact scope/token/revision admission above.
-    // Prefer their rows so the settings view can show the accepted resolved stack before the
-    // viewport publishes a current scene; only fall back to display geometry as explicitly
-    // previous rows when no current assembly is available.
-    let (assembly, rows_are_previous) = current_assembly
-        .map(|assembly| (Some(assembly), false))
-        .unwrap_or((display_assembly, is_previous));
-    let layers: Vec<_> = assembly
-        .into_iter()
-        .flat_map(|assembly| assembly.stack.iter().map(move |layer| (assembly, layer)))
-        .map(|(assembly, layer)| MechanicalLayerRow {
-            id: layer.id.clone(),
-            label: mechanical_layer_label(&layer.id, internal_gasket),
-            z: layer.z,
-            thickness: layer.thickness,
-            resolved_body_thickness: assembly
-                .case
-                .bodies
-                .iter()
-                .find(|body| body.body.id == layer.id)
-                .map(|body| body.body.thickness),
-            is_previous: rows_are_previous,
-        })
-        .collect();
-    Rc::from(layers)
-}
 
 pub(super) fn current_source_key(runtime: &Runtime) -> Option<SettingsSourceKey> {
     let model = runtime.model();
@@ -553,19 +522,6 @@ pub(super) fn stabilizer_fits(
         .collect()
 }
 
-pub(super) fn mechanical_layer_label(id: &str, internal_gasket: bool) -> String {
-    if id == "retainer" && internal_gasket {
-        return "Top case".into();
-    }
-    if id == "pcb" {
-        return "PCB".into();
-    }
-    let label = id.replace('-', " ");
-    let mut chars = label.chars();
-    chars.next().map_or_else(String::new, |first| {
-        first.to_uppercase().chain(chars).collect()
-    })
-}
 
 pub(super) fn profile_choices(
     accepted: &AcceptedSnapshot,

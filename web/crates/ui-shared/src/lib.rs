@@ -31,6 +31,7 @@ pub mod board_reference_effect;
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
+pub mod board_layer;
 pub mod choice_field;
 #[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;

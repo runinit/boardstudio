@@ -213,21 +213,6 @@ fn stabilizer_projection_uses_accepted_wide_mx_keys_and_current_override_kind() 
     assert_eq!(fits[0].current.rotation, Some(90.0));
 }
 
-#[wasm_bindgen_test]
-fn current_resolution_layers_precede_previous_display_layers() {
-    let previous = assembly_with_plate(1.5);
-    let current = assembly_with_plate(2.0);
-    let rows = project_layer_rows(Some(&previous), Some(&current), false, true);
-
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].thickness, 2.0);
-    assert!(!rows[0].is_previous);
-
-    let fallback = project_layer_rows(Some(&previous), None, false, true);
-    assert_eq!(fallback.len(), 1);
-    assert_eq!(fallback[0].thickness, 1.5);
-    assert!(fallback[0].is_previous);
-}
 
 #[wasm_bindgen_test]
 fn mounted_current_resolution_layer_is_selectable_before_scene_completion() {

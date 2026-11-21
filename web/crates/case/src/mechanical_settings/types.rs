@@ -125,18 +125,7 @@ pub struct MechanicalStabilizerFit {
     pub current: MechanicalStabilizerOverride,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct MechanicalLayerRow {
-    pub id: String,
-    pub label: String,
-    pub z: f64,
-    pub thickness: f64,
-    /// Present only when the displayed completed Case assembly contains a body with this ID.
-    pub resolved_body_thickness: Option<f64>,
-    /// The row is retained from the last completed same-owner assembly while
-    /// the accepted physical inputs have changed.
-    pub is_previous: bool,
-}
+pub use crate::layer_projection::MechanicalLayerRow;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MechanicalGasketSupportRow {

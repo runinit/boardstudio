@@ -823,8 +823,6 @@ pub fn use_mechanical_settings_mount(
 
 #[path = "mechanical_settings_mount/projection.rs"]
 mod projection;
-#[cfg(test)]
-use projection::project_layer_rows;
 use projection::{
     MechanicalSettingsResolvedProjection, MechanicalSettingsSourceProjection, SettingsSourceKey,
     current_settings, current_source_key, disabled_reason, mechanical_assembly_has_layer,
