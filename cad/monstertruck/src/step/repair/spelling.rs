@@ -117,40 +117,145 @@ fn instance(input: &[u8]) -> Option<(&[u8], Instance<'_>)> {
     }
 }
 
-pub(in crate::step) fn instances(mut input: &[u8]) -> impl Iterator<Item = Option<Instance<'_>>> {
+/// Entity instances of the one DATA section, located by the exchange structure
+/// the parser accepts (ISO 10303-21 `exchange_file`). Header records, ANCHOR
+/// names, REFERENCE resources, comments, strings and trailing signatures never
+/// supply an instance. Any structure this walk cannot follow yields one `None`.
+pub(in crate::step) fn instances(input: &[u8]) -> impl Iterator<Item = Option<Instance<'_>>> {
+    let mut body = data_body(input).ok_or(());
     std::iter::from_fn(move || {
-        while !input.is_empty() {
-            let Some(next) = separators(input) else {
-                input = &[];
+        let rest = match body {
+            Ok(rest) => rest,
+            Err(()) => {
+                body = Ok(&[]);
                 return Some(None);
-            };
-            if next.is_empty() {
-                input = &[];
-                return None;
             }
-            if next.starts_with(b"#") {
-                return match instance(next) {
-                    Some((rest, instance)) => {
-                        input = rest;
-                        Some(Some(instance))
-                    }
-                    None => {
-                        input = &[];
-                        Some(None)
-                    }
-                };
-            }
-            let rest = if next.starts_with(b"'") {
-                string(next)
-            } else {
-                next.get(1..)
-            };
-            let Some(rest) = rest else {
-                input = &[];
-                return Some(None);
-            };
-            input = rest;
+        };
+        let next = separators(rest)?;
+        if next.is_empty() {
+            return None;
         }
-        None
+        let Some((rest, instance)) = instance(next) else {
+            body = Ok(&[]);
+            return Some(None);
+        };
+        body = Ok(rest);
+        Some(Some(instance))
     })
+}
+
+fn data_body(input: &[u8]) -> Option<&[u8]> {
+    let mut rest = token(input, b"ISO-10303-21;")?;
+    rest = statements(token(rest, b"HEADER;")?)?;
+    for section in [&b"ANCHOR;"[..], b"REFERENCE;"] {
+        if let Some(inner) = token(rest, section) {
+            rest = statements(inner)?;
+        }
+    }
+    rest = separators(token(rest, b"DATA")?)?;
+    if let Some(meta) = rest.strip_prefix(b"(") {
+        rest = statement(meta, b')')?;
+    }
+    let start = token(rest, b";")?;
+    rest = start;
+    loop {
+        let next = separators(rest)?;
+        if let Some(after) = next.strip_prefix(b"ENDSEC;") {
+            // A second DATA section is not this single-section grammar.
+            token(after, b"END-ISO-10303-21;")?;
+            return Some(&start[..start.len() - next.len()]);
+        }
+        rest = instance(next)?.0;
+    }
+}
+
+fn token<'a>(input: &'a [u8], keyword: &[u8]) -> Option<&'a [u8]> {
+    separators(input)?.strip_prefix(keyword)
+}
+
+/// Header, ANCHOR and REFERENCE statements through their `ENDSEC;`.
+fn statements(mut input: &[u8]) -> Option<&[u8]> {
+    loop {
+        let next = separators(input)?;
+        if let Some(rest) = next.strip_prefix(b"ENDSEC;") {
+            return Some(rest);
+        }
+        input = statement(next, b';')?;
+    }
+}
+
+/// Skips to just past `end` at depth zero. A resource or anchor name runs to
+/// its first `>` and a string to its closing quote, whatever they contain.
+fn statement(mut input: &[u8], end: u8) -> Option<&[u8]> {
+    let mut depth = 0_usize;
+    loop {
+        input = separators(input)?;
+        match *input.first()? {
+            b'\'' => input = string(input)?,
+            b'<' => {
+                let close = input.iter().position(|byte| *byte == b'>')?;
+                input = &input[close + 1..];
+            }
+            byte if byte == end && depth == 0 => return Some(&input[1..]),
+            b'(' => {
+                depth = depth.checked_add(1)?;
+                input = &input[1..];
+            }
+            b')' => {
+                depth = depth.checked_sub(1)?;
+                input = &input[1..];
+            }
+            b';' => return None,
+            _ => input = &input[1..],
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ids(text: &str) -> Option<Vec<u64>> {
+        instances(text.as_bytes())
+            .map(|instance| instance.map(|instance| instance.id))
+            .collect()
+    }
+
+    #[test]
+    fn only_the_data_section_supplies_instances() {
+        let smuggled = "#2=CARTESIAN_POINT('',(9.,0.,0.));";
+        let text = format!(
+            "ISO-10303-21;HEADER;/* {smuggled} */FILE_DESCRIPTION(('{smuggled}'),'2;1');\
+             FILE_NAME('a','','',(),'','','');FILE_SCHEMA(('X'));ENDSEC;\
+             ANCHOR;<{smuggled}>=#1{{t:'{smuggled}'}};<b>=(1,'x;y',$);ENDSEC;\
+             REFERENCE;#900=<{smuggled}>;ENDSEC;\
+             DATA(('meta;{smuggled}'));/* {smuggled} */#1=CARTESIAN_POINT('{smuggled}',(0.,0.,0.));\
+             #3=(A()B('{smuggled}'));ENDSEC;END-ISO-10303-21;SIGNATURE {smuggled} ENDSEC;"
+        );
+        assert_eq!(ids(&text), Some(vec![1, 3]));
+        let kinds: Vec<_> = instances(text.as_bytes())
+            .map(|instance| instance.unwrap().kind.to_vec())
+            .collect();
+        assert_eq!(kinds, [b"CARTESIAN_POINT".to_vec(), Vec::new()]);
+    }
+
+    #[test]
+    fn structure_outside_the_single_data_grammar_yields_no_instances() {
+        let data = "DATA;#1=A();ENDSEC;";
+        let header = "ISO-10303-21;HEADER;FILE_SCHEMA(('X'));ENDSEC;";
+        assert_eq!(
+            ids(&format!("{header}{data}END-ISO-10303-21;")),
+            Some(vec![1])
+        );
+        for text in [
+            format!("{header}{data}{data}END-ISO-10303-21;"),
+            format!("{header}{data}"),
+            format!("HEADER;FILE_SCHEMA(('X'));ENDSEC;{data}END-ISO-10303-21;"),
+            format!("{header}REFERENCE;#9=<unterminated;ENDSEC;{data}END-ISO-10303-21;"),
+            format!("{header}DATA;#1=A();#2=B(;ENDSEC;END-ISO-10303-21;"),
+            format!("ISO-10303-21;HEADER;FILE_SCHEMA(('X');ENDSEC;{data}END-ISO-10303-21;"),
+        ] {
+            assert_eq!(ids(&text), None, "{text}");
+        }
+    }
 }

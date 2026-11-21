@@ -1,4 +1,5 @@
 //! Integer authority for the narrow cuboid proof, borrowed from original spellings.
+use super::{EntityInstance, parts};
 use crate::step::repair::spelling;
 
 pub(super) struct Scalars {
@@ -11,22 +12,37 @@ impl Scalars {
     }
 }
 
-pub(super) fn validate(bytes: &[u8]) -> Option<()> {
+/// Every DATA spelling binds to exactly one parsed record of the same kind and
+/// every parsed record has exactly one spelling. `records` is sorted by ID.
+pub(super) fn validate(bytes: &[u8], records: &[&EntityInstance]) -> Option<()> {
     if !bytes.is_ascii() {
         return None;
     }
+    let mut seen = Vec::new();
+    seen.try_reserve_exact(records.len()).ok()?;
+    seen.resize(records.len(), false);
     for instance in spelling::instances(bytes) {
         let instance = instance?;
+        let index = records
+            .binary_search_by_key(&instance.id, |record| parts(record).0)
+            .ok()?;
+        let kind = match parts(records[index]).1 {
+            [record] => record.name.as_bytes(),
+            _ => b"",
+        };
+        if std::mem::replace(&mut seen[index], true) || instance.kind != kind {
+            return None;
+        }
         if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR") {
             geometry_numbers(instance.parameters)?;
         }
     }
-    Some(())
+    seen.iter().all(|seen| *seen).then_some(())
 }
 
 pub(super) fn values(bytes: &[u8], id: u64) -> Option<Scalars> {
-    // Document checked every parsed ID for uniqueness and every numeric record
-    // before these lookups; retain no per-entity numeric map or label copies.
+    // Document bound every DATA spelling one-to-one to its parsed record before
+    // these lookups; retain no per-entity numeric map or label copies.
     for instance in spelling::instances(bytes) {
         let instance = instance?;
         if instance.id == id {
