@@ -82,3 +82,7 @@ the accepted value is the confirmation. Failures keep their inline message.
   fields loses every edit after the first and asks the user to re-enter it.
 - **Serialize at each form** (no new commit while one is pending): prevents the
   overwrite within one form only; different panels still race.
+
+## Update (2026-11-21)
+
+`Session` still resolves queued edits against the accepted document at execution under [ADR-0013](0013-save-before-publication-and-explicit-recovery.md), while the shared `PendingEdits` / `EditTicket` registry ceremony was removed in `a5e78a28e` in favor of direct `Runtime` operation outcomes and local UI `DraftEdits`.

@@ -9,15 +9,12 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0001](0001-fixed-edited-outlines.md) | An edited board outline is a separate copy and stays fixed when components move. | outline edits |
 | [0002](0002-linked-outline-refinements.md) | An accepted outline refinement stays linked to its components; Freeze makes a fixed copy. | outline suggestions and refinements |
 | [0003](0003-rust-footprint-generators-in-core.md) | Footprint generators are Rust inside Core; the JavaScript is gone. | footprint generators |
-| [0004](0004-document-format-version-and-id-rename.md) | Persisted documents carry a format version; migrations run at Core's load boundary and a build refuses a newer version. | the saved document shape |
 | [0005](0005-resolve-queued-edits-at-execution.md) | A commit is an intent; Core resolves each queued edit against the accepted document when it runs. | edit queuing and resolvers |
 | [0006](0006-replace-document-for-import-and-recovery.md) | Whole-document replacement is reserved for import and recovery. | `ReplaceDocument` or an edit resolver |
 | [0007](0007-matrix-gestures-edit-named-parameters.md) | Matrix gestures edit named placement parameters through Core. | matrix placement, stagger, splay |
 | [0008](0008-linked-halves-stay-linked.md) | A mechanical pair keeps everything linked; exceptions are explicit. | mechanical features of a pair |
 | [0009](0009-generator-parameters-checked-in-core.md) | Core checks generator parameter types and names. | generator parameters |
 | [0010](0010-mirrored-half-is-a-core-maintained-reflection.md) | A mirrored half is a Core-maintained reflection with explicit exceptions. | mirrored halves, correspondences |
-| [0011](0011-part-offset-is-its-own-constraint-kind.md) | A part-axes offset is its own constraint kind, not a property on Offset. | placement constraints |
-| [0012](0012-bounded-outline-validation.md) | Outline validity uses exact 0.001 mm contacts and a 1024-point budget per persisted path. | outline path validation |
 | [0013](0013-save-before-publication-and-explicit-recovery.md) | Publish the accepted document only after saving; retry retained results without replaying edits and recover explicitly after unknown outcomes. | saving, accepted state and recovery |
 | [0014](0014-document-authority-and-captured-lifetimes.md) | Keep one writable document authority and operation-specific lifetimes; preview recovery respects automatic-preview mode with bounded retry. | application ownership, scope changes, asynchronous results and preview recovery |
 | [0015](0015-exact-generated-cad-and-mesh-preview-scope.md) | Generate exact case/PCB output from accepted inputs; keep keycap and vendor preview meshes distinct from manufacturing authority. | CAD construction, STEP export and preview geometry |
@@ -43,14 +40,17 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0036](0036-matrices-follow-ergogen-point-layout.md) | Matrices follow ergogen's point-layout model with deliberate exceptions; saved projects are not migrated. | matrix layout parameters, ergogen parity, format version |
 | [0037](0037-split-half-frame-and-stored-gap.md) | Split halves share one stored gap and each half keeps its own frame; legacy boards open unchanged and adopt on first edit. | mirrored pair links, split gap, half-frame origins |
 | [0038](0038-adaptive-split-spacing-on-commit.md) | After every committed edit each stored-gap pair spaces to max(stored gap, minimum) in the same Undo; touching legacy pairs space on first edit. | adaptive spacing, current spacing, split minimum |
-| [0039](0039-half-frame-parts-mirrored-controller.md) | Parts on a stored-gap half store half-frame poses; new controllers mirror by Part correspondence, either copy edits both, and the toggle pins locals. | mirrored part, local part, half-frame part, split clamp |
 | [0040](0040-part-anchoring-column-vocabulary.md) | Independent parts anchor to a key of their own layout with Follow plus carried Spread/Stagger/Splay and local Offset/Rotation; mirrors share values through a mapped target. | part anchor, anchored part, counterpart key, carried values |
 
-## Deprecated records
+## Superseded and deprecated records
 
 | ADR | Disposition | Read when you change |
 |---|---|---|
-| [0029](0029-constrain-geometry-scripts-and-apply-results-atomically.md) | User-authored geometry scripting is out of product scope; the earlier feature premise was incorrect. Existing code safety remains required pending separately scoped removal. | scripting code, its UI and saved-script compatibility |
+| [0004](0004-document-format-version-and-id-rename.md) | Superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md); format v7 refuses older documents without migration. | historical format v1–v6 notes |
+| [0011](0011-part-offset-is-its-own-constraint-kind.md) | Superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md) and [ADR-0040](0040-part-anchoring-column-vocabulary.md). | legacy constraint format compatibility |
+| [0012](0012-bounded-outline-validation.md) | Retired; the 0.001 mm grid and 1024-point path budget live in code and tests. | outline validation constants |
+| [0029](0029-constrain-geometry-scripts-and-apply-results-atomically.md) | Deprecated; user-authored `rhai` geometry scripting is out of product scope and has been removed from the workspace. | saved-script deserialization compatibility |
+| [0039](0039-half-frame-parts-mirrored-controller.md) | Superseded by [ADR-0040](0040-part-anchoring-column-vocabulary.md) and derived bilateral symmetry work. | legacy substitute-pin controller mirroring |
 
 ## Notes
 

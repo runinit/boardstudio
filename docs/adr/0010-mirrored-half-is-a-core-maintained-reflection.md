@@ -214,3 +214,7 @@ a complete Local matrix and its surviving Layout ownership, retiring only the de
 correspondence. Rejoin cannot target a deleted source or silently bind a replacement.
 The linked-half decision names the exact inverse/refusal rules and required prepared-route
 acceptance; it does not claim production implementation.
+
+## Update (2026-11-21)
+
+The domain reflection rules and explicit `Local`/`Omitted` exceptions remain active, while post-hoc `before`/`after` tree-diff reconciliation is being replaced by derived bilateral symmetry over `MirroredHalves` and sparse `MirroredException` overrides.

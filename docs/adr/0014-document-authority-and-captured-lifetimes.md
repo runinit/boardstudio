@@ -8,11 +8,11 @@ This reconstructs the ownership decision approved by the user on 2026-10-01 in t
 
 Keep Core as the only writable document/history authority. The headless application Session orders work and owns the accepted-snapshot read model and interaction state; Runtime composes Session with execution, persistence, and browser workflows; Host supplies browser storage, worker, and renderer integrations, while Runtime still retains browser-bound state and handles; presentation owns local draft, focus, workspace, and display state, not a second writable project document. This records ownership, not ADR-0005's edit-resolution policy or ADR-0006's replacement direction.
 
-Async publication is guarded by the identity relevant to that operation, not a universal identity tuple. For example, an edit ticket captures application `Scope` (session epoch, document ID, board ID, optional instance) for observation, and permanently retires that observation after an observed owner/scope departure; this does not cancel the Session-owned operation. Core replies separately match request and executor epochs, and other jobs use their own captured identities. A successful reopen advances the Session epoch even when document ID and revision are reused; returning to a board does not revive an already-retired observation. Unmounting a panel drops its observation, not its operation; editor Close is separate, and the Session drains active work before closing.
+Async publication is guarded by the identity relevant to that operation, not a universal identity tuple. For example, an edit observation captures application `Scope` (session epoch, document ID, board ID, optional instance) for observation, and permanently retires that observation after an observed owner/scope departure; this does not cancel the Session-owned operation. Core replies separately match request and executor epochs, and other jobs use their own captured identities. A successful reopen advances the Session epoch even when document ID and revision are reused; returning to a board does not revive an already-retired observation. Unmounting a panel drops its observation, not its operation; editor Close is separate, and the Session drains active work before closing.
 
 The original ADR rejected coupling application lifetimes to a mounted Dioxus store and putting browser/application coordination inside Core. Later module-deepening choices kept this ownership boundary while making captured-Scope retirement and per-workspace presentation state explicit; they did not freeze exact crate edges or require further Host extraction.
 
-Evidence: [current responsibility map](../architecture.md), [Core](../../core/src/lib.rs), [Session](../../application/src/session.rs), [Runtime](../../web/crates/runtime/src/runtime.rs), [edit-observation implementation](../../web/crates/runtime/src/operation_outcomes.rs) and [regressions](../../web/crates/runtime/src/edit_outcome_tests.rs), and the [module-deepening outcomes](../plans/module-deepening/map.md).
+Evidence: [current responsibility map](../architecture.md), Core (`core/src/lib.rs`), Session (`application/src/session.rs`), Runtime (`web/crates/runtime/src/runtime.rs`), edit-observation implementation (`web/crates/runtime/src/operation_outcomes.rs`) and regressions (`web/crates/runtime/src/edit_outcome_tests.rs`), and the [module-deepening outcomes](../plans/module-deepening/map.md).
 
 ## Amendment: preview recovery respects automatic preview (2026-10-20)
 
@@ -42,8 +42,8 @@ across project reopening or browser restarts. A new editor session may start wit
 fitted overview; do not add saved-document fields or a cross-session preference
 merely to retain the viewpoint.
 
-Current [renderer lifecycle handling](../../web/crates/host/src/renderer_host.rs),
+Current renderer lifecycle handling (`web/crates/host/src/renderer_host.rs`),
 `install_lifecycle`, fail-stops on context loss/render failure; the Case
-[Live preview control](../../web/crates/case/src/cad_presentation.rs), `CasePanel`,
+Live preview control (`web/crates/case/src/cad_presentation.rs`), `CasePanel`,
 currently controls generation. Those facts do not establish implementation of the
 accepted renderer recovery policy or genuine GPU-loss acceptance.

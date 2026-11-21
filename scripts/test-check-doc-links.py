@@ -219,6 +219,21 @@ class DocLinkTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("absolute symlink destination", issues[0])
 
+    def test_skips_historical_doc_directories_and_checks_living_root_docs(self):
+        for folder in ("plans", "research", "investigations", "archive", "design"):
+            self.write(f"docs/{folder}/snapshot.md", "[old](../missing.rs)\n")
+        self.write("docs/adr/0001-keep.md", "[bad](../missing.md)\n")
+        self.write("CODING_STANDARDS.md", "[bad](missing-cs.md)\n")
+        self.write("GLOSSARY.md", "[bad](missing-gl.md)\n")
+        self.write("AGENTS.md", "[bad](missing-ag.md)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 4)
+        joined = "\n".join(issues)
+        self.assertIn("docs/adr/0001-keep.md", joined)
+        self.assertIn("CODING_STANDARDS.md", joined)
+        self.assertIn("GLOSSARY.md", joined)
+        self.assertIn("AGENTS.md", joined)
+
 
 if __name__ == "__main__":
     unittest.main()

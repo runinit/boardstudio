@@ -1,11 +1,8 @@
 ---
-status: accepted
+status: superseded
 ---
 
-> The ordered migrations below record earlier formats. For planned layout-parity
-> version 7, that migration policy is superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md)
-> and [ticket 13](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer):
-> refuse older input without migration; preserve stored data until explicit deletion.
+> **Superseded (2026-11-21):** Ordered v1–v6 migrations are superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md) (format v7 refuses older documents without migration; preserve stored data until explicit deletion).
 
 # Version persisted documents and remove Ergogen identifiers
 

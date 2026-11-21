@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded
 ---
+
+> **Superseded (2026-11-21):** The interim substitute-pin controller mirroring rules below are superseded by [ADR-0040](0040-part-anchoring-column-vocabulary.md) and ongoing derived bilateral symmetry work in Core.
 
 # Parts live in the half frame; mirrored by default, local by pin
 

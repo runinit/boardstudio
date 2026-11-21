@@ -1,5 +1,8 @@
-status: accepted
 ---
+status: retired
+---
+
+> **Retired (2026-11-21):** The 0.001 mm geometry grid and 1024-point per-path budget constants are maintained directly in code and tests.
 
 # Validate outlines on the fabrication grid with a per-path budget
 

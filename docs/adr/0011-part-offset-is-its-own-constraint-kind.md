@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded
 ---
+
+> **Superseded (2026-11-21):** The format-5/6 constraint compatibility rationale below is superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md) (no-migration format v7) and [ADR-0040](0040-part-anchoring-column-vocabulary.md) (part anchoring and Attach/Align semantics).
 
 # A part-axes offset is its own constraint kind
 

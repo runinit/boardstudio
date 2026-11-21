@@ -18,8 +18,11 @@ import subprocess
 import sys
 from urllib.parse import unquote
 
-EXCLUDED = {"node_modules", "dist", "pkg", "target", ".git", ".impeccable", ".generated", "library"}
-ROOT_DOCUMENTS = ("README.md", "PRODUCT.md", "DESIGN.md")
+EXCLUDED = {
+    "node_modules", "dist", "pkg", "target", ".git", ".impeccable", ".generated", "library",
+    "plans", "research", "investigations", "archive", "design",
+}
+ROOT_DOCUMENTS = ("README.md", "PRODUCT.md", "DESIGN.md", "CODING_STANDARDS.md", "GLOSSARY.md", "AGENTS.md")
 FENCE = re.compile(r"```[\s\S]*?```")
 LINK = re.compile(r'\[[^\]]*\]\((?:<([^>]+)>|([^\s)]+))(?:\s+"[^"]*")?\)')
 EXTERNAL = re.compile(r"^(?:[a-z][a-z\d+.-]*:|#)", re.IGNORECASE)
