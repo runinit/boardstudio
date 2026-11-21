@@ -3,9 +3,11 @@
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
 //! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
+use super::changes::ChangeScope;
+use super::document::reconcile_with_report;
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
-    is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
+    is_omitted_matrix_link, omitted_mirror_matrix, unique_board_owner,
 };
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
@@ -26,7 +28,7 @@ use canonical::{
     bind_deferred_constraints, initial_framed_constraints, operation_positions,
     prepare_lifecycle_pairs, record_id, restore_local_matrix_companion_parts,
 };
-use projection::{entity_changed, projection_for, reconcile_pairs, record_independent_additions};
+use projection::{PairProjection, projection_for, reconcile_pairs, record_independent_additions};
 
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
@@ -61,30 +63,17 @@ pub fn prepare_open(
     crate::generators::document_error(&draft)?;
 
     restore_local_matrix_companion_parts(accepted, &mut draft, &[])?;
-    for pair in pair_views.iter().cloned() {
-        let matrices: Vec<_> = pair
-            .halves
-            .correspondences
-            .iter()
-            .filter(|association| association.kind == MirroredItemKind::Matrix)
-            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-            .collect();
-        if matrices.is_empty() {
+    for pair in &pair_views {
+        let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
+        let mut matrices = pair_projection.matrix_links().peekable();
+        if matrices.peek().is_none() {
             let projection = super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
-            reconcile(&mut draft, &pair.pair_id, &projection)?;
+            reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
         }
-        for (source_matrix_id, mirror_matrix_id) in matrices {
-            let projection = projection_for(
-                &draft,
-                &draft,
-                None,
-                &pair.halves,
-                pair.mapping,
-                &source_matrix_id,
-                &mirror_matrix_id,
-                false,
-            )?;
-            reconcile(&mut draft, &pair.pair_id, &projection)?;
+        for matrix_link in matrices {
+            let projection =
+                projection_for(&draft, &draft, None, &pair_projection, matrix_link, false)?;
+            reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
         }
     }
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
@@ -110,7 +99,6 @@ pub fn prepare_open(
     Ok((draft, findings))
 }
 
-#[derive(Clone)]
 struct NativePairView {
     pair_id: String,
     mapping: Pose2,
@@ -637,7 +625,7 @@ fn prepare_transaction(
     operation: &EditOperation,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
     dispatch: crate::mirrored_half::EditDispatch,
-    project_settings: bool,
+    directed: bool,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
     let mut canonical = inverse::canonicalize_with_dispatch(accepted, operation, dispatch)
@@ -669,17 +657,19 @@ fn prepare_transaction(
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    if project_settings
+    if directed
         && let Some(changed) = settings_edit::project(accepted, &mut draft, &canonical.operation)?
     {
         validate_prepared_draft(accepted, &draft, &canonical.operation)?;
         return Ok((draft, changed));
     }
-    // Topology, placement, hosted content, outlines, nets, lifecycle edits and document
-    // replacement still use full reconciliation. Open also projects all linked settings
-    // to repair persisted drift.
+    let report = if directed && stable_placement(accepted, &draft, &canonical.operation) {
+        ChangeScope::Placement
+    } else {
+        ChangeScope::Full
+    };
     changed.extend(prepare_lifecycle_pairs(
-        accepted, &mut draft, &canonical, dispatch,
+        accepted, &mut draft, &canonical, dispatch, report,
     )?);
 
     for addition in &canonical.matrix_additions {
@@ -706,7 +696,7 @@ fn prepare_transaction(
         &mut draft,
         operation_positions(&canonical.operation),
     )?);
-    changed.extend(reconcile_pairs(accepted, &mut draft, &canonical)?);
+    changed.extend(reconcile_pairs(accepted, &mut draft, &canonical, report)?);
     // Ticket 29: a plain detach that moved its linked native partner
     // refuses with the ticket-23 confirmation proposal instead of silently
     // jumping geometry; the draft is discarded unchanged.
@@ -734,15 +724,65 @@ fn prepare_transaction(
 
     validate_prepared_draft(accepted, &draft, &canonical.operation)?;
 
-    let (mut actual_ids, _) = super::changed_document_fields(accepted, &draft)?;
-    for id in changed {
-        if entity_changed(accepted, &draft, &id)? {
-            actual_ids.push(id);
-        }
+    let changed = report.ids(accepted, &draft, &changed)?;
+    Ok((draft, changed))
+}
+
+fn stable_placement(before: &ProjectDoc, after: &ProjectDoc, operation: &EditOperation) -> bool {
+    fn matrix_membership(matrix: &Matrix) -> (&str, Option<&str>, u32, u32, &[String]) {
+        (
+            &matrix.id,
+            matrix.board_id.as_deref(),
+            matrix.rows,
+            matrix.columns,
+            &matrix.part_ids,
+        )
     }
-    actual_ids.sort();
-    actual_ids.dedup();
-    Ok((draft, actual_ids))
+
+    // A SetLayout/SetMatrix payload can carry structural intent even though the
+    // same operation is used by ordinary renderer placement gestures.
+    matches!(
+        operation,
+        EditOperation::MoveParts { .. }
+            | EditOperation::SetPartRotation { .. }
+            | EditOperation::SetPartAnchor { .. }
+            | EditOperation::SetPartAnchorFollow { .. }
+            | EditOperation::SetPartAnchorValues { .. }
+            | EditOperation::DetachPartAnchor { .. }
+            | EditOperation::SetMatrixPlacement { .. }
+            | EditOperation::SetMatrixSplay { .. }
+            | EditOperation::SetMatrix {
+                definitions: None,
+                ..
+            }
+            | EditOperation::SetLayout { .. }
+            | EditOperation::SetCompanionPlacement { .. }
+    ) && before
+        .layouts
+        .iter()
+        .zip(&after.layouts)
+        .all(|(left, right)| {
+            left.mirror_link.is_none()
+                && right.mirror_link.is_none()
+                && left.id == right.id
+                && left.board_id == right.board_id
+                && left.part_ids == right.part_ids
+                && left.matrix_ids == right.matrix_ids
+        })
+        && before.layouts.len() == after.layouts.len()
+        && before
+            .boards
+            .iter()
+            .map(|board| (&board.id, &board.part_ids))
+            .eq(after
+                .boards
+                .iter()
+                .map(|board| (&board.id, &board.part_ids)))
+        && before
+            .matrices
+            .iter()
+            .map(matrix_membership)
+            .eq(after.matrices.iter().map(matrix_membership))
 }
 
 /// Plans replacement pin assignments after reconciliation has projected linked pins and locks.

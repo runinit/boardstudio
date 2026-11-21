@@ -1,9 +1,9 @@
 //! Complete representation-item traversal, including exact mapped occurrences.
 mod presentation;
 use super::{SourceRecords, named_record, parameters, reference, simple_record, source_records};
-use monstertruck_io::step::load::step_p21::ast::{Exchange, Parameter, Record};
 use monstertruck_modeling::{InnerSpace, Matrix4, SquareMatrix, Vector3};
 use std::collections::{HashMap, HashSet};
+use step_p21::ast::{Exchange, Parameter, Record};
 
 // shortcut: refuse mapping nesting beyond 128 levels; use an iterative walk if real inputs need more.
 const MAX_MAPPING_DEPTH: usize = 128;
@@ -226,7 +226,7 @@ impl<'a> Scene<'a> {
         result.sort_unstable();
         Ok(result)
     }
-    fn factor(&self, representation: u64) -> Result<f64, String> {
+    pub(super) fn factor(&self, representation: u64) -> Result<f64, String> {
         self.units
             .get(&representation)
             .copied()
@@ -238,7 +238,7 @@ impl<'a> Scene<'a> {
     fn named(&self, id: u64, name: &str) -> Result<&Record, String> {
         named_record(&self.records, id, name)
     }
-    fn vector(&self, id: u64, kind: &str) -> Result<Vector3, String> {
+    pub(super) fn vector(&self, id: u64, kind: &str) -> Result<Vector3, String> {
         let params = parameters(self.named(id, kind)?, 2)?;
         let Parameter::List(values) = &params[1] else {
             return Err(format!("{kind} #{id} lacks coordinates"));
@@ -252,7 +252,7 @@ impl<'a> Scene<'a> {
             real(&values[2])?,
         ))
     }
-    fn direction(&self, param: &Parameter) -> Result<Option<Vector3>, String> {
+    pub(super) fn direction(&self, param: &Parameter) -> Result<Option<Vector3>, String> {
         if matches!(param, Parameter::NotProvided) {
             return Ok(None);
         }
@@ -281,7 +281,7 @@ impl<'a> Scene<'a> {
         let x = x.normalize();
         Ok((x, z.cross(x), z))
     }
-    fn frame(&self, id: u64, factor: f64) -> Result<Matrix4, String> {
+    pub(super) fn frame(&self, id: u64, factor: f64) -> Result<Matrix4, String> {
         let params = parameters(self.named(id, "AXIS2_PLACEMENT_3D")?, 4)?;
         let origin = self.vector(reference(&params[1])?, "CARTESIAN_POINT")? * factor;
         let (x, y, z) = self.axes(self.direction(&params[2])?, self.direction(&params[3])?)?;
@@ -323,7 +323,7 @@ impl<'a> Scene<'a> {
         ))
     }
 }
-fn real(parameter: &Parameter) -> Result<f64, String> {
+pub(super) fn real(parameter: &Parameter) -> Result<f64, String> {
     let value = match parameter {
         Parameter::Real(v) => *v,
         Parameter::Integer(v) => *v as f64,

@@ -16,6 +16,18 @@ pub fn prepare_lifecycle_transition(
     context: &MembershipContext,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
+    let mut output = prepare_lifecycle_projection(before, post_source, context, dispatch)?;
+    (output.changed_document_ids, output.changed_field_paths) =
+        super::super::changed_document_fields(post_source, &output.draft)?;
+    Ok(output)
+}
+
+pub(super) fn prepare_lifecycle_projection(
+    before: &crate::model::ProjectDoc,
+    post_source: &crate::model::ProjectDoc,
+    context: &MembershipContext,
+    dispatch: crate::mirrored_half::EditDispatch,
+) -> Result<super::super::MembershipTransitionOutput, String> {
     use super::super::{
         FinalOwner, MembershipContextDelta, MembershipTransitionInput, MembershipTransitionOutput,
     };
@@ -633,7 +645,12 @@ pub fn prepare_lifecycle_transition(
                 removed_copper: None,
             });
     }
-    super::super::reconcile(&mut output.draft, &context.pair_id, &projection)?;
+    super::super::document::reconcile_with_report(
+        &mut output.draft,
+        &context.pair_id,
+        &projection,
+        None,
+    )?;
     output
         .draft
         .hardware
@@ -646,8 +663,6 @@ pub fn prepare_lifecycle_transition(
         .halves = Some(output.context.pair_right.clone());
     restore_saved_copper(&mut output, context)?;
     crate::mechanical::halves::validate_document(&output.draft)?;
-    (output.changed_document_ids, output.changed_field_paths) =
-        super::super::changed_document_fields(post_source, &output.draft)?;
     for part in &output.draft.parts {
         let mut boards = output
             .draft
@@ -1219,12 +1234,8 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     *halves = next_halves.clone();
     crate::mechanical::halves::validate_document(&candidate)
         .map_err(|error| format!("The lifecycle transaction candidate is invalid: {error}"))?;
-    let (changed_document_ids, changed_field_paths) =
-        super::super::changed_document_fields(input.post_source, &candidate)?;
     output.draft = candidate;
     output.context.pair_right = next_halves;
-    output.changed_document_ids = changed_document_ids;
-    output.changed_field_paths = changed_field_paths;
     output.context.pending_rejoins.clear();
     output.context.pending_pair_transitions.clear();
     output.context.pending_pair_baseline = None;

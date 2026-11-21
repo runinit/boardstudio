@@ -10,8 +10,7 @@ mod ui {
     use super::{created_definition, new_component_resolver};
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
-    use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -21,16 +20,8 @@ mod ui {
     use std::{cell::Cell, rc::Rc};
     use wasm_bindgen::{JsCast, JsValue};
 
-    /// This action's one bounded key: the helper keeps one observation for the create,
-    /// whatever the panel's owner generation.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum CreateKey {
-        NewComponent,
-    }
-
-    /// The create this panel observes: the identity base the resolver derives the
-    /// definition from and the identities that already existed when the click was
-    /// admitted. The settlement itself is the helper's observation.
+    /// Creation identity captured at admission so only the exact landed definition
+    /// is selected, even if other queued edits create definitions too.
     #[derive(Clone)]
     struct CreationIntent {
         base: String,
@@ -54,8 +45,7 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
-        let pending = use_hook(PendingEditSignals::<CreateKey>::new);
-        let mut waiting = use_signal(|| None::<CreationIntent>);
+        let mut waiting = use_signal(|| None::<(EditTicket, CreationIntent)>);
         let mut error = use_signal(|| None::<(Scope, u64, u64, String)>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
         use_drop({
@@ -68,14 +58,14 @@ mod ui {
         use_effect(use_reactive((&version(),), {
             let runtime = runtime.clone();
             let owner_is_mounted = owner_is_mounted.clone();
-            let pending = pending.clone();
             let mut selected = selected;
             let mut query = query;
             let view_generation = view_generation;
             let scope_generation = scope_generation;
             let workspace = workspace;
             move |_| {
-                let Some(intent) = waiting.read().clone() else {
+                let observed = waiting.read().clone();
+                let Some((ticket, intent)) = observed else {
                     return;
                 };
                 let owner_is_live = owner_is_mounted.get()
@@ -87,52 +77,51 @@ mod ui {
                         current.session_epoch == intent.scope.session_epoch
                             && current.document.id == intent.scope.document_id
                     });
-                for result in pending.settle(owner_is_live, |_| String::new()) {
-                    match result {
-                        PendingEditResult::Landed { .. } => {
-                            waiting.set(None);
-                            // Landed means landed: select the created definition by reading the
-                            // accepted document at the landing, and only if it still exists.
-                            let created = runtime.model().accepted.as_ref().and_then(|current| {
-                                created_definition(
-                                    &intent.base,
-                                    &intent.known,
-                                    &current.document.definitions,
-                                )
-                                .map(|definition| definition.id.clone())
-                            });
-                            if let Some(definition_id) = created {
-                                selected.set(Some((Some(intent.scope.clone()), definition_id)));
-                                query.set(String::new());
-                                on_select.call(());
-                            }
+                let settlement = ticket.settlement(owner_is_live);
+                if settlement == Settlement::Pending {
+                    return;
+                }
+                waiting.set(None);
+                match settlement {
+                    Settlement::Landed { .. } => {
+                        let created = runtime.model().accepted.as_ref().and_then(|current| {
+                            created_definition(
+                                &intent.base,
+                                &intent.known,
+                                &current.document.definitions,
+                            )
+                            .map(|definition| definition.id.clone())
+                        });
+                        if let Some(definition_id) = created {
+                            selected.set(Some((Some(intent.scope), definition_id)));
+                            query.set(String::new());
+                            on_select.call(());
                         }
-                        PendingEditResult::Failed { message, .. } => {
-                            waiting.set(None);
-                            error.set(Some((
-                                intent.scope.clone(),
-                                intent.view_generation,
-                                intent.scope_generation,
-                                message,
-                            )));
-                        }
-                        PendingEditResult::Retired { .. } => waiting.set(None),
                     }
+                    Settlement::Failed { message } => error.set(Some((
+                        intent.scope,
+                        intent.view_generation,
+                        intent.scope_generation,
+                        message,
+                    ))),
+                    Settlement::Retired | Settlement::Pending => {}
                 }
             }
         }));
 
         let create = {
             let runtime = runtime.clone();
-            let pending = pending.clone();
             let owner_is_mounted = owner_is_mounted.clone();
             let view_generation = view_generation;
             let scope_generation = scope_generation;
             let workspace = workspace;
             move |_| {
-                if pending.is_pending(&CreateKey::NewComponent)
-                    || !owner_is_mounted.get()
+                if !owner_is_mounted.get()
                     || workspace() != "Parts"
+                    || waiting
+                        .peek()
+                        .as_ref()
+                        .is_some_and(|(ticket, _)| ticket.is_pending())
                 {
                     return;
                 }
@@ -157,20 +146,22 @@ mod ui {
                     .map(|definition| definition.id.clone())
                     .collect::<Vec<_>>();
                 error.set(None);
-                pending.begin_one_shot(
+                let ticket = EditTicket::begin(
                     &runtime,
-                    CreateKey::NewComponent,
                     "parts-new-component",
                     Some("component".into()),
                     new_component_resolver(base.clone()),
                 );
-                waiting.set(Some(CreationIntent {
-                    base,
-                    known,
-                    scope: current_scope,
-                    view_generation: view_generation(),
-                    scope_generation: scope_generation(),
-                }));
+                waiting.set(Some((
+                    ticket,
+                    CreationIntent {
+                        base,
+                        known,
+                        scope: current_scope,
+                        view_generation: view_generation(),
+                        scope_generation: scope_generation(),
+                    },
+                )));
             }
         };
 
@@ -178,7 +169,7 @@ mod ui {
             Button {
                 variant: ButtonVariant::Secondary,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: pending.is_pending(&CreateKey::NewComponent),
+                disabled: waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()),
                 onclick: create,
                 "New custom component"
             }

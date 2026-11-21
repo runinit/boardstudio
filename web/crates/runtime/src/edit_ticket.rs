@@ -24,6 +24,7 @@ use crate::operation_outcomes::{LandingSlot, OutcomeSlot};
 use boardstudio_application::{
     DOCUMENT_SESSION_CHANGED, EditResolver, Event, Landing, OperationId, TerminalOutcome,
 };
+use std::{cell::Cell, rc::Rc};
 
 /// How a pending edit settled, as the controller should present it.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,29 +55,17 @@ pub trait EditTicketPort {
     fn submit(&self, event: Event);
 }
 
-pub struct EditTicket {
+#[derive(Clone)]
+pub struct EditTicket(Rc<Observation>);
+
+struct Observation {
     operation: OperationId,
     outcome: OutcomeSlot,
     landing: LandingSlot,
     feature: Option<String>,
     captured_scope: Option<boardstudio_application::Scope>,
     current_scope: std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>>,
-    retired: std::rc::Rc<std::cell::Cell<bool>>,
-}
-
-impl Clone for EditTicket {
-    fn clone(&self) -> Self {
-        // The observation slots are shared: a clone observes the same settlement.
-        Self {
-            operation: self.operation,
-            outcome: self.outcome.clone(),
-            landing: self.landing.clone(),
-            feature: self.feature.clone(),
-            captured_scope: self.captured_scope.clone(),
-            current_scope: self.current_scope.clone(),
-            retired: self.retired.clone(),
-        }
-    }
+    retired: Cell<bool>,
 }
 
 impl EditTicket {
@@ -99,26 +88,26 @@ impl EditTicket {
             label: label.to_owned(),
             resolver,
         });
-        Self {
+        Self(Rc::new(Observation {
             operation,
             outcome,
             landing,
             feature,
             captured_scope,
             current_scope,
-            retired: std::rc::Rc::new(std::cell::Cell::new(false)),
-        }
+            retired: Cell::new(false),
+        }))
     }
 
     /// The operation the edit runs under.
     pub fn operation(&self) -> OperationId {
-        self.operation
+        self.0.operation
     }
 
     /// Whether the edit has not settled yet. One-shot actions disable their control while
     /// this answers true.
     pub fn is_pending(&self) -> bool {
-        self.is_live() && self.outcome.borrow().is_none()
+        self.is_live() && self.0.outcome.borrow().is_none()
     }
 
     /// Read the settlement. `owner_is_live` answers only whether the panel's selection or
@@ -126,25 +115,25 @@ impl EditTicket {
     /// A departed owner permanently retires the ticket whatever the outcome.
     pub fn settlement(&self, owner_is_live: bool) -> Settlement {
         if !owner_is_live {
-            self.retired.set(true);
+            self.0.retired.set(true);
             return Settlement::Retired;
         }
         if !self.is_live() {
             return Settlement::Retired;
         }
-        let Some(outcome) = self.outcome.borrow().clone() else {
+        let Some(outcome) = self.0.outcome.borrow().clone() else {
             return Settlement::Pending;
         };
-        let landing = *self.landing.borrow();
-        settlement_of(outcome, landing, self.feature.as_deref())
+        let landing = *self.0.landing.borrow();
+        settlement_of(outcome, landing, self.0.feature.as_deref())
     }
 
     fn is_live(&self) -> bool {
-        if self.retired.get() {
+        if self.0.retired.get() {
             return false;
         }
-        if (self.current_scope)() != self.captured_scope {
-            self.retired.set(true);
+        if (self.0.current_scope)() != self.0.captured_scope {
+            self.0.retired.set(true);
             return false;
         }
         true

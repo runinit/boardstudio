@@ -626,15 +626,14 @@ fn directed_settings_dispatch_preserves_pair_identity_and_local_bindings() {
     assert_eq!(warning["targetIds"], json!(["right"]));
 }
 
-#[test]
-fn parent19_replace_document_retires_rows_for_two_pairs_in_one_batch() {
+pub(super) fn open_two_pairs(first_id: &str, second_id: &str) -> (CoreEngine, Value) {
     let mut input = runtime_supported_document();
     duplicate_source_half(&mut input);
     let (mut engine, seed) = open(&input);
     let first = create(
         &mut engine,
         &seed,
-        "parent19-replace-two-pair-a",
+        first_id,
         "left",
         new_board("right", "right"),
         mapping(200.0),
@@ -643,16 +642,22 @@ fn parent19_replace_document_retires_rows_for_two_pairs_in_one_batch() {
     let second = commit_named(
         &mut engine,
         &first["document"],
-        "parent19-replace-two-pair-b",
+        second_id,
         operation(
-            "parent19-replace-two-pair-b",
+            second_id,
             "other-left",
             new_board("other-right", "other-right"),
             mapping(600.0),
         ),
     );
     assert_eq!(second["kind"], "scene", "second independent pair: {second}");
-    let paired = second["document"].clone();
+    (engine, second["document"].clone())
+}
+
+#[test]
+fn parent19_replace_document_retires_rows_for_two_pairs_in_one_batch() {
+    let (mut engine, paired) =
+        open_two_pairs("parent19-replace-two-pair-a", "parent19-replace-two-pair-b");
     let instance_ids: BTreeSet<_> = paired["hardware"]["instances"]
         .as_array()
         .unwrap()

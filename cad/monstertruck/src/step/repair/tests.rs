@@ -1,5 +1,23 @@
 use super::*;
 
+// These controls inspect the vendor conversion ledger directly. The production
+// analytic importer has no vendor operations to census.
+fn legacy_model(bytes: Vec<u8>) -> Result<ImportedStep, String> {
+    let exchange = parser::parse(&units::decode_step_bytes(&bytes)).map_err(|e| e.to_string())?;
+    let precision = units::precision::resolve(&exchange)?;
+    let lengths = units::length_factors(&exchange)?;
+    let items = units::representation_items(&exchange)?;
+    drop(exchange);
+    import_legacy(
+        bytes,
+        StepImportOptions::default(),
+        TOLERANCE_MM,
+        precision,
+        lengths,
+        items,
+    )
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn native_line_authority_borrows_holder_graph_and_preserves_refusal() {
@@ -147,7 +165,7 @@ fn approved_corpus_operation_census() {
         )
         .unwrap();
         assert_eq!(bytes.len() as u64, row["source_bytes"].as_u64().unwrap());
-        let model = import_step(bytes.clone()).unwrap_or_else(|error| panic!("{path}: {error}"));
+        let model = legacy_model(bytes.clone()).unwrap_or_else(|error| panic!("{path}: {error}"));
         assert_eq!(model.original_bytes(), bytes);
         let expected = &row["expected"]["bounds_mm"];
         let bounds = model.bounds();
@@ -1101,8 +1119,11 @@ fn tilted_native_support_and_selected_pcurves_cannot_borrow_the_line_proof() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn unchanged_parsed_line_support_does_not_certify_the_asset_or_source_trim() {
-    let model =
-        import_step(include_bytes!("../../../tests/fixtures/tetra-mm.step").to_vec()).unwrap();
+    let bytes = include_bytes!("../../../tests/fixtures/tetra-mm.step");
+    let native = import_step(bytes.to_vec()).unwrap();
+    assert_eq!(native.accuracy().max_repair_displacement_mm, None);
+    assert_eq!(native.accuracy().analysis_error_bound_mm, None);
+    let model = legacy_model(bytes.to_vec()).unwrap();
     let operation = model
         ._repair_ledger
         .0

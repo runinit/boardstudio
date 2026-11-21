@@ -1,10 +1,11 @@
 //! Forward reconciliation of the mirror half from a validated projection.
 
+use super::changes::ChangeScope;
 use super::{
     HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, MatrixStage,
-    Projection, changed_document_fields, effective_circuit_child_state, outlines, project_part,
-    settings, stage_hosted_circuit_additions, stage_hosted_correspondence, stage_matrix,
-    unique_board_owner, validate_hosted_omission_baselines, validate_hosted_removal_baselines,
+    Projection, effective_circuit_child_state, outlines, project_part, settings,
+    stage_hosted_circuit_additions, stage_hosted_correspondence, stage_matrix, unique_board_owner,
+    validate_hosted_omission_baselines, validate_hosted_removal_baselines,
     validate_local_circuit_targets,
 };
 use crate::model::{
@@ -23,6 +24,15 @@ pub fn reconcile(
     document: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
+) -> Result<Vec<String>, String> {
+    reconcile_with_report(document, pair_id, projection, Some(ChangeScope::Full))
+}
+
+pub(super) fn reconcile_with_report(
+    document: &mut ProjectDoc,
+    pair_id: &str,
+    projection: &Projection,
+    report: Option<ChangeScope>,
 ) -> Result<Vec<String>, String> {
     let hardware = document
         .hardware
@@ -1306,7 +1316,10 @@ pub fn reconcile(
     crate::mechanical::halves::validate_document(&validated_draft)
         .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
 
-    let (changed_ids, _) = changed_document_fields(document, &staged)?;
+    let changed_ids = match report {
+        Some(scope) => scope.ids(document, &staged, &[])?,
+        None => Vec::new(),
+    };
     *document = staged;
     {
         let mut applied_additions = projection.applied_independent_additions.borrow_mut();

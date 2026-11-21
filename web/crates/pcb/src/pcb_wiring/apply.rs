@@ -1,13 +1,12 @@
 //! Apply the exact current accepted board plan through the normal Session edit owner.
 use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::pcb_wiring_mode_operation::BoardWiringModeIdentity;
+use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -42,54 +41,35 @@ pub fn use_board_wiring_apply(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let edits = use_hook(PendingEditSignals::<BoardWiringApplyKey>::new);
-    let apply_disabled = use_signal(|| false);
-    let release_disabled = use_signal(|| false);
-    edits.bind_one_shot(BoardWiringApplyKey::Apply, apply_disabled);
-    edits.bind_one_shot(
-        BoardWiringApplyKey::ReleaseReviewedConnections,
-        release_disabled,
-    );
+    let mut edits =
+        use_signal(PendingEdits::<BoardWiringApplyKey, BoardWiringModeFeedbackTarget>::default);
     let latest = use_signal(|| None::<BoardWiringApplyKey>);
-    // The target of the newest submission, so its failure is attributed to that board.
-    let latest_target =
-        use_signal(|| None::<crate::pcb_wiring_mode_operation::BoardWiringModeFeedbackTarget>);
     let failure = use_signal(|| None::<BoardWiringFailure>);
-    let settlement_tick = use_signal(|| 0u64);
-    let _ = settlement_tick();
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
-        let edits = edits.clone();
         let mut failure = failure;
-        let mut settlement_tick = settlement_tick;
         move |_| {
-            // No field binds to these one-shot keys, so the drained results are placed here.
-            let results = edits.settle(workspace() == "PCB", |_| String::new());
-            if results.is_empty() {
+            let live = workspace() == "PCB";
+            if live && !edits.peek().has_terminal() {
                 return;
             }
-            for result in results {
+            for (result, target) in edits.write().settle_with(live) {
                 let (key, message) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
                         (key, None)
                     }
                 };
-                if latest.peek().as_ref() == Some(&key)
-                    && let Some(target) = latest_target.peek().clone()
-                {
+                if latest.peek().as_ref() == Some(&key) {
                     failure.set(message.map(|message| BoardWiringFailure { target, message }));
                 }
             }
-            settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let submit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let edits = edits.clone();
         let mut latest = latest;
-        let mut latest_target = latest_target;
         let mut failure = failure;
         move |(identity, release): (BoardWiringModeIdentity, bool)| {
             let key = if release {
@@ -97,7 +77,7 @@ pub fn use_board_wiring_apply(
             } else {
                 BoardWiringApplyKey::Apply
             };
-            if edits.is_pending(&key) {
+            if edits.peek().is_pending(&key) {
                 return;
             }
             let Some(snapshot) = current_edit_snapshot(
@@ -126,15 +106,16 @@ pub fn use_board_wiring_apply(
                 return;
             }
             latest.set(Some(key));
-            latest_target.set(Some(identity.feedback_target()));
             // One-shot actions stay quiet while their own ticket is pending.
             failure.set(None);
-            edits.begin_one_shot(
+            let target = identity.feedback_target();
+            edits.write().begin_with(
                 &runtime,
                 key,
                 "pcb-wiring-apply",
                 Some("wiring plan".into()),
                 apply_resolver(identity, (*plan).clone(), review),
+                target,
             );
         }
     });
@@ -142,7 +123,7 @@ pub fn use_board_wiring_apply(
     let on_release_reviewed_connections =
         use_callback(move |identity| submit.call((identity, true)));
     let identity = source.as_ref().map(mode_identity);
-    let editable = !apply_disabled()
+    let editable = !edits.read().is_pending(&BoardWiringApplyKey::Apply)
         && identity.as_ref().is_some_and(|identity| {
             current_edit_snapshot(
                 &runtime,
@@ -164,7 +145,9 @@ pub fn use_board_wiring_apply(
     BoardWiringApplyActions {
         identity,
         editable,
-        release_disabled: release_disabled(),
+        release_disabled: edits
+            .read()
+            .is_pending(&BoardWiringApplyKey::ReleaseReviewedConnections),
         failure,
         on_apply,
         on_release_reviewed_connections,

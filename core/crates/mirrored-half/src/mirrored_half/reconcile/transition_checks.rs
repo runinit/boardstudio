@@ -2,8 +2,8 @@
 
 use super::{
     FinalOwner, MembershipContext, MembershipContextDelta, MembershipTransitionOutput,
-    TransitionState, ValidatedTransitionContext, changed_document_fields,
-    exact_omitted_matrix_companions, lifecycle, matrix_identity_slot, require_matrix_pair,
+    TransitionState, ValidatedTransitionContext, exact_omitted_matrix_companions, lifecycle,
+    matrix_identity_slot, require_matrix_pair,
 };
 use crate::model::{Matrix, MirroredExceptionState, MirroredItemKind, Pose2, ProjectDoc, Vec2};
 use std::collections::{BTreeMap, BTreeSet};
@@ -856,12 +856,10 @@ pub(super) fn emit_validated_transition(
             }
         }
     }
-    let (changed_document_ids, changed_field_paths) =
-        changed_document_fields(input.post_source, &draft)?;
     Ok(MembershipTransitionOutput {
         draft,
-        changed_document_ids,
-        changed_field_paths,
+        changed_document_ids: Vec::new(),
+        changed_field_paths: Vec::new(),
         context: next_context,
         context_delta,
         final_owners: input.final_owners.clone(),

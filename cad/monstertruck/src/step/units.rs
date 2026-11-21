@@ -10,21 +10,20 @@ use monstertruck_modeling::{Matrix3, Matrix4, Plane, SquareMatrix, Transformed};
 
 use std::collections::{HashMap, HashSet};
 
-use monstertruck_io::step::load::step_p21::ast::{
-    EntityInstance, Exchange, Name, Parameter, Record,
-};
-use monstertruck_io::step::load::step_p21::parser;
+use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
+#[cfg(test)]
+use step_p21::parser;
 
-type Records = HashMap<u64, Vec<Record>>;
+type Records<'a> = super::SourceRecords<'a>;
 type Shell = StepCompressedShell;
 
 /// Decode bytes using the same policy as `Table::from_step_bytes`: preserve
 /// valid UTF-8 unchanged, otherwise map each byte to its same-valued Unicode
 /// code point so raw ISO-8859-1 metadata is not replaced or lost.
-pub fn decode_step_bytes(bytes: &[u8]) -> String {
+pub(super) fn decode_step_bytes(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
     match std::str::from_utf8(bytes) {
-        Ok(text) => text.to_owned(),
-        Err(_) => bytes.iter().map(|&byte| char::from(byte)).collect(),
+        Ok(text) => std::borrow::Cow::Borrowed(text),
+        Err(_) => std::borrow::Cow::Owned(bytes.iter().map(|&byte| char::from(byte)).collect()),
     }
 }
 
@@ -43,24 +42,28 @@ fn resolve_mm_per_unit(step: &str) -> Result<f64, String> {
     Ok(expected)
 }
 
-pub fn resolve_mm_per_unit_by_representation(step: &str) -> Result<HashMap<u64, f64>, String> {
+#[cfg(test)]
+fn resolve_mm_per_unit_by_representation(step: &str) -> Result<HashMap<u64, f64>, String> {
     let exchange = parser::parse(step).map_err(|error| format!("STEP AST parse: {error}"))?;
+    length_factors(&exchange)
+}
+
+fn checked_records(exchange: &Exchange) -> Result<Records<'_>, String> {
+    let records = super::source_records(exchange);
+    if records.len() != exchange.data[0].entities.len() {
+        return Err("duplicate STEP entity identity".into());
+    }
+    Ok(records)
+}
+
+pub(super) fn length_factors(exchange: &Exchange) -> Result<HashMap<u64, f64>, String> {
     if exchange.data.len() != 1 {
         return Err(format!(
             "unit resolver requires exactly one DATA section, got {}",
             exchange.data.len()
         ));
     }
-    let mut records = Records::new();
-    for instance in &exchange.data[0].entities {
-        let (id, entity_records) = match instance {
-            EntityInstance::Simple { id, record } => (*id, vec![record.clone()]),
-            EntityInstance::Complex { id, subsuper } => (*id, subsuper.0.clone()),
-        };
-        if records.insert(id, entity_records).is_some() {
-            return Err(format!("duplicate entity id #{id}"));
-        }
-    }
+    let records = checked_records(exchange)?;
 
     let mut assignments = HashMap::<u64, Vec<u64>>::new();
     let mut units = HashMap::<u64, f64>::new();
@@ -299,16 +302,7 @@ pub(super) fn normalize_conical_exchange(
 }
 
 fn radians_per_unit_by_representation(exchange: &Exchange) -> Result<HashMap<u64, f64>, String> {
-    let mut records = Records::new();
-    for instance in &exchange.data[0].entities {
-        let (id, entity_records) = match instance {
-            EntityInstance::Simple { id, record } => (*id, vec![record.clone()]),
-            EntityInstance::Complex { id, subsuper } => (*id, subsuper.0.clone()),
-        };
-        if records.insert(id, entity_records).is_some() {
-            return Err(format!("duplicate entity id #{id}"));
-        }
-    }
+    let records = checked_records(exchange)?;
     let mut assignments = HashMap::<u64, Vec<u64>>::new();
     let mut unit_factors = HashMap::<u64, f64>::new();
     for (&context_id, entity_records) in &records {
@@ -512,7 +506,7 @@ fn collect_entity_refs(parameter: &Parameter, output: &mut Vec<u64>) {
 
 fn plane_angle_factor_radians(
     id: u64,
-    records: &Records,
+    records: &Records<'_>,
     stack: &mut HashSet<u64>,
 ) -> Result<f64, String> {
     const MAX_CONVERSION_DEPTH: usize = 64;
@@ -626,8 +620,7 @@ fn plane_angle_measure(parameter: &Parameter) -> Result<f64, String> {
     Ok(value)
 }
 
-pub fn shape_representation_items(step: &str) -> Result<HashMap<u64, Vec<u64>>, String> {
-    let exchange = parser::parse(step).map_err(|error| format!("STEP AST parse: {error}"))?;
+pub(super) fn representation_items(exchange: &Exchange) -> Result<HashMap<u64, Vec<u64>>, String> {
     if exchange.data.len() != 1 {
         return Err(format!(
             "representation item resolver requires exactly one DATA section, got {}",
@@ -709,7 +702,7 @@ enum UnitKind {
     SolidAngle,
 }
 
-fn unit_kind(id: u64, entity_records: &[Record]) -> Result<UnitKind, String> {
+fn unit_kind(id: u64, entity_records: &[&Record]) -> Result<UnitKind, String> {
     let length_count = entity_records
         .iter()
         .filter(|r| r.name == "LENGTH_UNIT")
@@ -755,7 +748,7 @@ fn unit_kind(id: u64, entity_records: &[Record]) -> Result<UnitKind, String> {
     }
 }
 
-fn unit_factor_mm(id: u64, records: &Records, stack: &mut HashSet<u64>) -> Result<f64, String> {
+fn unit_factor_mm(id: u64, records: &Records<'_>, stack: &mut HashSet<u64>) -> Result<f64, String> {
     const MAX_CONVERSION_DEPTH: usize = 64;
     if stack.len() >= MAX_CONVERSION_DEPTH {
         return Err(format!(

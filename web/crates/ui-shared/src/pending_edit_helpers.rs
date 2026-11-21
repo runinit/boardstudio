@@ -111,8 +111,7 @@ struct OneShotBinding<K> {
 /// What the latest edit for a key was submitted with, and which bindings were live then.
 /// A settlement writes a Signal only while the same binding is still bound, so an old
 /// outcome never reaches a component that unmounted or a remount that took its key.
-struct Submission<K, D> {
-    key: K,
+struct Submission<D> {
     /// The submitted draft value, for field edits.
     text: Option<D>,
     field_epoch: Option<u64>,
@@ -122,10 +121,9 @@ struct Submission<K, D> {
 /// The collection, the bound views and the submitted-draft memory, shared by every
 /// clone of [`PendingEditSignals`].
 struct Shared<K, D> {
-    edits: RefCell<PendingEdits<K>>,
+    edits: RefCell<PendingEdits<K, Submission<D>>>,
     fields: RefCell<Vec<Binding<K, D>>>,
     one_shots: RefCell<Vec<OneShotBinding<K>>>,
-    submitted: RefCell<Vec<Submission<K, D>>>,
     next_epoch: Cell<u64>,
 }
 
@@ -158,7 +156,6 @@ where
                 edits: RefCell::new(PendingEdits::default()),
                 fields: RefCell::new(Vec::new()),
                 one_shots: RefCell::new(Vec::new()),
-                submitted: RefCell::new(Vec::new()),
                 next_epoch: Cell::new(1),
             }),
         }
@@ -258,15 +255,6 @@ where
             .map(|binding| binding.epoch)
     }
 
-    fn one_shot_epoch(&self, key: &K) -> Option<u64> {
-        self.shared
-            .one_shots
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == *key)
-            .map(|binding| binding.epoch)
-    }
-
     /// Submit a field edit as intent under `key`, remembering the draft it was
     /// submitted with so a later settlement cannot clobber a newer draft.
     pub fn begin_value(
@@ -277,36 +265,15 @@ where
         feature: Option<String>,
         resolver: EditResolver,
         current_draft: &D,
-    ) where
-        K: Clone,
-    {
-        // A composite field action may also bind the same logical key as a one-shot
-        // control. Keep its disabling lifetime inside the collection as well.
-        let disabled = self
-            .shared
-            .one_shots
-            .borrow()
-            .iter()
-            .find(|binding| binding.key == key)
-            .map(|binding| binding.view.disabled);
-        if let Some(mut disabled) = disabled {
-            disabled.set(true);
-        }
-        self.shared
-            .edits
-            .borrow_mut()
-            .begin(port, key.clone(), label, feature, resolver);
-        let entry = Submission {
-            field_epoch: self.field_epoch(&key),
-            one_shot_epoch: self.one_shot_epoch(&key),
-            text: Some(current_draft.clone()),
-            key: key.clone(),
-        };
-        let mut submitted = self.shared.submitted.borrow_mut();
-        match submitted.iter_mut().find(|existing| existing.key == key) {
-            Some(existing) => *existing = entry,
-            None => submitted.push(entry),
-        }
+    ) {
+        self.begin(
+            port,
+            key,
+            label,
+            feature,
+            resolver,
+            Some(current_draft.clone()),
+        );
     }
 
     /// Submit a one-shot edit as intent under `key` and disable its bound control until
@@ -318,38 +285,38 @@ where
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
-    ) where
-        K: Clone,
-    {
-        let disabled = self
+    ) {
+        self.begin(port, key, label, feature, resolver, None);
+    }
+
+    fn begin(
+        &self,
+        port: &dyn EditTicketPort,
+        key: K,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+        text: Option<D>,
+    ) {
+        let one_shot = self
             .shared
             .one_shots
             .borrow()
             .iter()
             .find(|binding| binding.key == key)
-            .map(|binding| binding.view.disabled);
-        if let Some(mut disabled) = disabled {
+            .map(|binding| (binding.view.disabled, binding.epoch));
+        if let Some((mut disabled, _)) = one_shot {
             disabled.set(true);
         }
+        let submission = Submission {
+            field_epoch: text.as_ref().and_then(|_| self.field_epoch(&key)),
+            one_shot_epoch: one_shot.map(|(_, epoch)| epoch),
+            text,
+        };
         self.shared
             .edits
             .borrow_mut()
-            .begin(port, key.clone(), label, feature, resolver);
-        let one_shot_epoch = self.one_shot_epoch(&key);
-        let mut submitted = self.shared.submitted.borrow_mut();
-        match submitted.iter_mut().find(|existing| existing.key == key) {
-            Some(existing) => {
-                existing.text = None;
-                existing.field_epoch = None;
-                existing.one_shot_epoch = one_shot_epoch;
-            }
-            None => submitted.push(Submission {
-                key,
-                text: None,
-                field_epoch: None,
-                one_shot_epoch,
-            }),
-        }
+            .begin_with(port, key, label, feature, resolver, submission);
     }
 
     /// Whether the key's latest edit is still pending in its captured document scope.
@@ -364,15 +331,14 @@ where
 
     /// Borrow the observations for presentation. Release the borrow before submitting
     /// or settling an edit.
-    pub fn edits(&self) -> Ref<'_, PendingEdits<K>> {
-        self.shared.edits.borrow()
+    pub fn edits(&self) -> EditObservations<'_, K, D> {
+        EditObservations(self.shared.edits.borrow())
     }
 
     /// Retire observations silently while keeping the mounted field bindings. One-shot
     /// bindings belong to the old owner. Dropping tickets leaves their Session edits running.
     pub(crate) fn retire_owner(&self) {
         *self.shared.edits.borrow_mut() = PendingEdits::default();
-        self.shared.submitted.borrow_mut().clear();
         self.shared.one_shots.borrow_mut().clear();
     }
 
@@ -402,46 +368,27 @@ where
         owner_is_live: bool,
         accepted: impl Fn(&K) -> D,
     ) -> Vec<PendingEditResult<K>> {
-        let results = self.shared.edits.borrow_mut().settle(owner_is_live);
-
-        for result in &results {
-            match result {
-                PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key } => {
-                    self.apply_to_field(key, result, &accepted);
-                    self.release_one_shot(key);
-                    // Both consumers need the captured epochs before releasing this record.
-                    self.shared
-                        .submitted
-                        .borrow_mut()
-                        .retain(|submission| submission.key != *key);
-                }
-            }
-        }
+        let results = self.shared.edits.borrow_mut().settle_with(owner_is_live);
         results
-    }
-
-    /// The submission record of the key's latest edit, if one is held.
-    fn submission_of(&self, key: &K) -> Option<(Option<D>, Option<u64>, Option<u64>)> {
-        self.shared
-            .submitted
-            .borrow()
-            .iter()
-            .find(|existing| existing.key == *key)
-            .map(|existing| {
-                (
-                    existing.text.clone(),
-                    existing.field_epoch,
-                    existing.one_shot_epoch,
-                )
+            .into_iter()
+            .map(|(result, submission)| {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                self.apply_to_field(key, &result, &submission, &accepted);
+                self.release_one_shot(key, submission.one_shot_epoch);
+                result
             })
+            .collect()
     }
 
-    fn apply_to_field(&self, key: &K, result: &PendingEditResult<K>, accepted: &impl Fn(&K) -> D) {
-        let Some((submitted, field_epoch, _)) = self.submission_of(key) else {
-            return;
-        };
+    fn apply_to_field(
+        &self,
+        key: &K,
+        result: &PendingEditResult<K>,
+        submission: &Submission<D>,
+        accepted: &impl Fn(&K) -> D,
+    ) {
         let (mut view, epoch) = match self
             .shared
             .fields
@@ -452,7 +399,7 @@ where
             Some(binding) => (binding.view, binding.epoch),
             None => return,
         };
-        if field_epoch != Some(epoch) {
+        if submission.field_epoch != Some(epoch) {
             // The edit was submitted for a binding that has since been replaced.
             return;
         }
@@ -467,15 +414,12 @@ where
         }
         let current = view.draft.peek().clone();
         let projected = accepted(key);
-        if draft_may_restore(submitted.as_ref(), &current) && current != projected {
+        if draft_may_restore(submission.text.as_ref(), &current) && current != projected {
             view.draft.set(projected);
         }
     }
 
-    fn release_one_shot(&self, key: &K) {
-        let Some((_, _, one_shot_epoch)) = self.submission_of(key) else {
-            return;
-        };
+    fn release_one_shot(&self, key: &K, one_shot_epoch: Option<u64>) {
         let bound = self
             .shared
             .one_shots
@@ -491,6 +435,15 @@ where
     }
 }
 
+/// Read-only access to the ticket state used by controllers with custom projections.
+pub struct EditObservations<'a, K, D>(Ref<'a, PendingEdits<K, Submission<D>>>);
+
+impl<K: PartialEq, D> EditObservations<'_, K, D> {
+    pub fn pending_keys(&self) -> impl Iterator<Item = &K> {
+        self.0.pending_keys()
+    }
+}
+
 impl<K: PartialEq + 'static> PendingEditSignals<K> {
     /// Submit a String field's exact text, preserving the existing borrowed-str interface.
     pub fn begin_field(
@@ -501,9 +454,7 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
         feature: Option<String>,
         resolver: EditResolver,
         current_draft: &str,
-    ) where
-        K: Clone,
-    {
+    ) {
         self.begin_value(
             port,
             key,
@@ -530,7 +481,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "pending_edit_helpers/mounted_tests.rs"]
 mod mounted_tests;

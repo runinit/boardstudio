@@ -1,0 +1,419 @@
+//! Source-authored AP214 analytic BReps. Every occurrence must be supported before
+//! the importer can publish native preview data for the asset.
+mod assembly;
+mod geometry;
+mod trim;
+
+use super::*;
+use cgmath::Vector3;
+use geometry::{Edge, Surface};
+
+const ANGULAR_TOLERANCE: f64 = 0.5;
+
+struct Face {
+    source: usize,
+    surface: Surface,
+    same_sense: bool,
+    loops: Vec<Boundary>,
+}
+
+struct Boundary {
+    explicit_outer: bool,
+    edges: Vec<(u64, bool)>,
+}
+
+struct Solid {
+    edges: HashMap<u64, Edge>,
+    faces: Vec<Face>,
+}
+
+pub(super) struct Asset {
+    solid_count: usize,
+    occurrences: Vec<(u64, Matrix4, u64)>,
+    bounds: [[f64; 3]; 2],
+    mesh: MeshBuffers,
+    positions: Vec<[f64; 3]>,
+    source_faces: Vec<StepSourceFace>,
+    face_occurrences: Vec<StepFaceOccurrence>,
+    triangle_faces: Vec<usize>,
+    deflection_mm: f64,
+}
+
+impl Asset {
+    pub(super) fn finish(
+        self,
+        bytes: Vec<u8>,
+        exchange: Exchange,
+        precision: Vec<StepPrecision>,
+        options: StepImportOptions,
+    ) -> Result<ImportedStep, String> {
+        let imported = ImportedStep {
+            original_bytes: bytes,
+            analysis_options: options,
+            _original_source: exchange,
+            _repair_ledger: repair::Ledger::default(),
+            #[cfg(test)]
+            solids: HashMap::new(),
+            solid_count: self.solid_count,
+            occurrences: self.occurrences,
+            bounds: self.bounds,
+            mesh: self.mesh,
+            preview_positions_f64: self.positions,
+            source_faces: self.source_faces,
+            face_occurrences: self.face_occurrences,
+            triangle_faces: self.triangle_faces,
+            precision,
+            accuracy: StepAccuracy {
+                preview_deflection_mm: self.deflection_mm,
+                preview_angular_rad: ANGULAR_TOLERANCE,
+                analysis_error_bound_mm: None,
+                bounds_from_source_geometry: true,
+                mesh_closed_oriented: true,
+                preview_floor_mm: options.preview_repair_budget_mm.unwrap_or(PREVIEW_FLOOR_MM),
+                preview_declared_multiplier: options
+                    .preview_repair_budget_mm
+                    .map_or(PREVIEW_DECLARED_MULTIPLIER, |_| 0.0),
+                selected_repair_budget_mm: options.preview_repair_budget_mm,
+                // Native preview uses decoded f64 source. It carries no decimal movement proof.
+                max_repair_displacement_mm: None,
+                relaxed_beyond_declared_precision: false,
+                sampled_support_checks: 0,
+                max_sampled_support_residual_mm: None,
+                fallback_meshed_faces: 0,
+                render_degraded_fallback_triangles: 0,
+            },
+            wireframe: wireframe::Wireframe::default(),
+        };
+        imported
+            .validate_invariants()
+            .map_err(|errors| format!("import invariants failed: {}", errors.join("; ")))?;
+        Ok(imported)
+    }
+}
+
+pub(super) fn build(
+    exchange: &Exchange,
+    items: &HashMap<u64, Vec<u64>>,
+    units: &HashMap<u64, f64>,
+    precision: &[StepPrecision],
+    options: StepImportOptions,
+    deflection_mm: f64,
+) -> Result<Asset, String> {
+    let ap214 = exchange.header.iter().any(|record| {
+        record.name == "FILE_SCHEMA"
+            && matches!(&record.parameter, Parameter::List(params)
+                if matches!(params.as_slice(), [Parameter::List(names)]
+                    if matches!(names.as_slice(), [Parameter::String(schema)]
+                        if schema.split_ascii_whitespace().next() == Some("AUTOMOTIVE_DESIGN"))))
+    });
+    if !ap214 || !exchange.reference.is_empty() || !exchange.anchor.is_empty() {
+        return Err("outside native AP214 exchange class".into());
+    }
+    let records = source_records(exchange);
+    let mut ids = Vec::new();
+    for (&id, parts) in &records {
+        for part in parts {
+            match part.name.as_str() {
+                "MANIFOLD_SOLID_BREP" if parts.len() == 1 => ids.push(id),
+                "MANIFOLD_SOLID_BREP"
+                | "BREP_WITH_VOIDS"
+                | "FACETED_BREP"
+                | "OPEN_SHELL"
+                | "ORIENTED_CLOSED_SHELL"
+                | "SHELL_BASED_SURFACE_MODEL"
+                | "GEOMETRIC_CURVE_SET" => {
+                    return Err(format!("native preview does not handle {}", part.name));
+                }
+                _ => {}
+            }
+        }
+    }
+    ids.sort_unstable();
+    let factors = units::solid_representation_units(&ids, items, units)?;
+    let scene = scene::Scene::new(exchange, items, units, &ids);
+    scene.validate()?;
+    let occurrences = assembly::occurrences(&records, &scene)?;
+    if occurrences.is_empty()
+        || occurrences
+            .iter()
+            .any(|(id, _, _)| !factors.contains_key(id))
+        || ids
+            .iter()
+            .any(|id| !occurrences.iter().any(|(placed, _, _)| placed == id))
+    {
+        return Err("empty or unreferenced native solid".into());
+    }
+    let owners: HashMap<_, _> = precision.iter().map(|p| (p.representation_id, p)).collect();
+    let mut retained = HashSet::new();
+    let mut source_faces = Vec::new();
+    let mut solids = HashMap::new();
+    for id in ids.iter().copied() {
+        let solid = Solid::read(id, &records, &scene, &mut source_faces)?;
+        retained.extend(solid.edges.keys().copied());
+        solids.insert(id, solid);
+        retained.insert(id);
+    }
+    retained.extend(source_faces.iter().map(|f| f.face_id));
+    retained.extend(occurrences.iter().map(|(_, _, owner)| *owner));
+    scene.require_complete_presentations(&retained)?;
+    if let [(id, placement, _)] = occurrences.as_slice() {
+        let solid = &solids[id];
+        // Keep the existing source-decimal cuboid producer and its proof admission.
+        if *placement == Matrix4::identity()
+            && factors[id] == 1.0
+            && solid.faces.len() == 6
+            && solid.edges.len() == 12
+            && solid.faces.iter().all(|face| face.surface.radius.is_none())
+            && solid
+                .edges
+                .values()
+                .flat_map(|edge| edge.vertices)
+                .collect::<HashSet<_>>()
+                .len()
+                == 8
+        {
+            return Err("source-decimal cuboid proof candidate".into());
+        }
+    }
+    let mut asset = Asset {
+        solid_count: solids.len(),
+        occurrences,
+        bounds: [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]],
+        mesh: MeshBuffers::default(),
+        positions: Vec::new(),
+        source_faces,
+        face_occurrences: Vec::new(),
+        triangle_faces: Vec::new(),
+        deflection_mm,
+    };
+    for (index, (id, placement, representation)) in asset.occurrences.iter().copied().enumerate() {
+        units::validate_placement_matrix(placement)?;
+        let world = placement * Matrix4::from_scale(factors[&id]);
+        let scale = placement
+            .x
+            .truncate()
+            .magnitude()
+            .max(placement.y.truncate().magnitude())
+            .max(placement.z.truncate().magnitude());
+        let source_to_world = scale * factors[&id];
+        if !source_to_world.is_finite() || source_to_world <= 0.0 {
+            return Err("invalid native source-to-world scale".into());
+        }
+        let owner = owners
+            .get(&representation)
+            .ok_or("missing native precision context")?;
+        if owner.geometric_dimension.is_some_and(|d| d != 3) {
+            return Err("native solid representation is not three dimensional".into());
+        }
+        let uncertainty = owner.uncertainty_mm().map(|value| value * scale);
+        if uncertainty.is_some_and(|value| !value.is_finite()) {
+            return Err("nonfinite placed source precision".into());
+        }
+        // Admission is limited to floating-point attachment noise. Source that
+        // needs the declared or preview repair allowance goes through the ledger.
+        let allowance = repair_allowance(
+            options.preview_repair_budget_mm,
+            owner.uncertainty_mm(),
+            placement,
+        );
+        let epsilon = 1e-8_f64
+            .min(allowance)
+            .min(uncertainty.unwrap_or(f64::INFINITY))
+            .min(deflection_mm * 1e-4)
+            / source_to_world;
+        let solid = &solids[&id];
+        let mut samples = HashMap::with_capacity(solid.edges.len());
+        for (&edge_id, edge) in &solid.edges {
+            samples.insert(
+                edge_id,
+                edge.sample(deflection_mm / source_to_world, epsilon)?,
+            );
+            edge.include_bounds(world, epsilon, &mut asset.bounds)?;
+        }
+        let mut triangles = Vec::new();
+        for face in &solid.faces {
+            let face_mesh = face
+                .mesh(&solid.edges, &samples, epsilon)
+                .map_err(|error| {
+                    format!(
+                        "native face #{}: {error}",
+                        asset.source_faces[face.source].face_id
+                    )
+                })?;
+            if face_mesh.is_empty() {
+                return Err("native face produced no triangles".into());
+            }
+            let tag = asset.face_occurrences.len();
+            asset.face_occurrences.push(StepFaceOccurrence {
+                source_face: face.source,
+                occurrence: index,
+                representation_id: representation,
+                source_uncertainty_mm: uncertainty,
+                repair_displacement_mm: 0.0,
+            });
+            asset
+                .triangle_faces
+                .extend(std::iter::repeat_n(tag, face_mesh.len()));
+            let mirrored = placement.determinant() < 0.0;
+            triangles.extend(face_mesh.into_iter().map(|mut triangle| {
+                if mirrored {
+                    triangle.swap(1, 2);
+                }
+                triangle.map(|point| world.transform_point(point))
+            }));
+        }
+        let origin = triangles
+            .first()
+            .ok_or("native solid produced no triangles")?[0];
+        let mut volume = 0.0;
+        for &[a, b, c] in &triangles {
+            for p in [a, b, c] {
+                check_coordinate(p)?;
+                asset.positions.push(p.into());
+            }
+            volume += (a - origin).dot((b - origin).cross(c - origin)) / 6.0;
+            crate::mesh::push_triangle(&mut asset.mesh, [a, b, c])?;
+        }
+        if !volume.is_finite() || volume <= 0.0 || !closed_oriented_mesh(&triangles) {
+            return Err("native preview is not a positively oriented closed mesh".into());
+        }
+    }
+    Ok(asset)
+}
+
+impl Solid {
+    fn read(
+        id: u64,
+        records: &SourceRecords<'_>,
+        scene: &scene::Scene<'_>,
+        catalogue: &mut Vec<StepSourceFace>,
+    ) -> Result<Self, String> {
+        let solid = named_parameters(records, id, "MANIFOLD_SOLID_BREP", 2)?;
+        let shell = named_parameters(records, reference(&solid[1])?, "CLOSED_SHELL", 2)?;
+        let mut faces = Vec::new();
+        let mut edges = HashMap::new();
+        let mut uses = HashMap::<u64, Vec<bool>>::new();
+        for face_id in references(&shell[1])? {
+            let face = named_parameters(records, face_id, "ADVANCED_FACE", 4)?;
+            let support_id = reference(&face[2])?;
+            let support = simple_record(records, support_id)?;
+            let surface = Surface::read(support, scene)?;
+            let same_sense = flag(&face[3])?;
+            let mut loops = Vec::new();
+            for bound_id in references(&face[1])? {
+                let bound = simple_record(records, bound_id)?;
+                let explicit_outer = match bound.name.as_str() {
+                    "FACE_OUTER_BOUND" => true,
+                    "FACE_BOUND" => false,
+                    _ => return Err("unsupported native face bound".into()),
+                };
+                let bound = parameters(bound, 3)?;
+                let ring = named_parameters(records, reference(&bound[1])?, "EDGE_LOOP", 2)?;
+                let mut boundary = Vec::new();
+                for oriented_id in references(&ring[1])? {
+                    let item = named_parameters(records, oriented_id, "ORIENTED_EDGE", 5)?;
+                    if !matches!(
+                        (&item[1], &item[2]),
+                        (Parameter::Omitted, Parameter::Omitted)
+                    ) {
+                        return Err("explicit ORIENTED_EDGE vertex override".into());
+                    }
+                    let edge_id = reference(&item[3])?;
+                    if let std::collections::hash_map::Entry::Vacant(entry) = edges.entry(edge_id) {
+                        entry.insert(Edge::read(edge_id, records, scene)?);
+                    }
+                    boundary.push((edge_id, flag(&item[4])?));
+                }
+                if !flag(&bound[2])? {
+                    boundary.reverse();
+                    for (_, forward) in &mut boundary {
+                        *forward = !*forward;
+                    }
+                }
+                let endpoints = |(id, forward): (u64, bool)| {
+                    let [a, b] = edges[&id].vertices;
+                    if forward { [a, b] } else { [b, a] }
+                };
+                for (i, &(id, forward)) in boundary.iter().enumerate() {
+                    if endpoints((id, forward))[1]
+                        != endpoints(boundary[(i + 1) % boundary.len()])[0]
+                    {
+                        return Err(format!(
+                            "source face #{face_id} has a disconnected boundary"
+                        ));
+                    }
+                    uses.entry(id).or_default().push(forward);
+                }
+                loops.push(Boundary {
+                    explicit_outer,
+                    edges: boundary,
+                });
+            }
+            faces.push(Face {
+                source: catalogue.len(),
+                surface,
+                same_sense,
+                loops,
+            });
+            catalogue.push(StepSourceFace {
+                solid_id: id,
+                shell_index: 0,
+                face_id,
+                support_id,
+                support_kind: support.name.clone(),
+            });
+        }
+        if uses
+            .values()
+            .any(|directions| !matches!(directions.as_slice(), [a,b] if a != b))
+        {
+            return Err("incomplete or nonmanifold native shell edge uses".into());
+        }
+        Ok(Self { edges, faces })
+    }
+}
+
+fn named_parameters<'a>(
+    records: &SourceRecords<'a>,
+    id: u64,
+    kind: &str,
+    count: usize,
+) -> Result<&'a [Parameter], String> {
+    let params = parameters(named_record(records, id, kind)?, count)?;
+    if !matches!(params.first(), Some(Parameter::String(_))) {
+        return Err(format!("invalid {kind} name for #{id}"));
+    }
+    Ok(params)
+}
+
+fn references(list: &Parameter) -> Result<Vec<u64>, String> {
+    let Parameter::List(list) = list else {
+        return Err("missing native reference aggregate".into());
+    };
+    let ids = list.iter().map(reference).collect::<Result<Vec<_>, _>>()?;
+    if ids.is_empty() || ids.iter().copied().collect::<HashSet<_>>().len() != ids.len() {
+        return Err("empty or repeated native topology references".into());
+    }
+    Ok(ids)
+}
+
+fn flag(param: &Parameter) -> Result<bool, String> {
+    match param {
+        Parameter::Enumeration(value) if value == "T" => Ok(true),
+        Parameter::Enumeration(value) if value == "F" => Ok(false),
+        _ => Err("invalid native orientation flag".into()),
+    }
+}
+
+fn check_coordinate(p: Point3) -> Result<(), String> {
+    if [p.x, p.y, p.z]
+        .iter()
+        .any(|v| !(*v as f32).is_finite() || (v * 1e7).abs() >= i64::MAX as f64)
+    {
+        return Err("nonfinite or unsupported mesh coordinate range".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

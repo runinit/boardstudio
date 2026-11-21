@@ -588,7 +588,7 @@ pub(super) fn project_lifecycle_matrix(
         .find(|p| p.id == context.pair_id)
         .unwrap()
         .halves = Some(matrix_context.pair_right.clone());
-    let output = super::super::prepare_membership_transition_kernel(MembershipTransitionInput {
+    let output = super::super::transition::project_membership(MembershipTransitionInput {
         dispatch,
         valid_before: &frame,
         post_source: &frame,

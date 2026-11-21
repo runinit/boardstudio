@@ -34,16 +34,7 @@ pub(in crate::step) fn resolve(exchange: &Exchange) -> Result<Vec<StepPrecision>
     if exchange.data.len() != 1 {
         return Err("precision requires one DATA section".into());
     }
-    let mut records = Records::new();
-    for instance in &exchange.data[0].entities {
-        let (id, parts) = match instance {
-            EntityInstance::Simple { id, record } => (*id, vec![record.clone()]),
-            EntityInstance::Complex { id, subsuper } => (*id, subsuper.0.clone()),
-        };
-        if records.insert(id, parts).is_some() {
-            return Err("duplicate precision entity identity".into());
-        }
-    }
+    let records = checked_records(exchange)?;
     let mut result = Vec::new();
     for (id, parts) in &records {
         let Some(representation) = parts.iter().find(|r| is_shape_representation_kind(&r.name))

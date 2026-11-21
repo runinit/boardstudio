@@ -10,13 +10,13 @@ use boardstudio_model::model::{Asset, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
-    checkbox::{Checkbox, CheckboxState},
-    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::{FieldError, FieldLabel},
+    checkbox::CheckboxState,
+    field::FieldError,
     spinner::Spinner,
 };
 use dioxus::prelude::*;
@@ -839,15 +839,30 @@ pub fn GeneratorSettingsEditor(
         "3D model placement",
         "Advanced footprint options",
     ];
+    let mut open_groups = use_signal(|| {
+        BTreeSet::from([
+            "Footprint options".to_owned(),
+            "Keycap dimensions".to_owned(),
+        ])
+    });
     rsx! {
         section { class: "grid gap-2", "aria-label": "Generator settings",
             for group in groups {
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
+                  let group_name = group.to_owned();
+                  let is_open = open_groups().contains(group);
                   rsx! {
                     if !group_entries.is_empty() {
-                    Collapsible { keep_mounted: true, default_open: group == "Footprint options" || group == "Keycap dimensions",
-                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{group}" }
-                        CollapsibleContent { class: "data-[open=false]:hidden",
+                    InspectorSection {
+                        title: "{group}",
+                        open: is_open,
+                        on_open_change: move |next: bool| {
+                            if next {
+                                open_groups.write().insert(group_name.clone());
+                            } else {
+                                open_groups.write().remove(&group_name);
+                            }
+                        },
                         fieldset {
                             class: "grid gap-2",
                             "aria-label": "{group}",
@@ -870,7 +885,6 @@ pub fn GeneratorSettingsEditor(
                                         .map(|message| message.message),
                                 }
                             }
-                        }
                         }
                     }
                     }
@@ -993,14 +1007,12 @@ fn GeneratorParameterField(
     }
     match entry.kind.as_str() {
         "boolean" => rsx! {
-            FieldLabel { html_for: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
-                Checkbox {
-                    id: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0),
-                    aria_label: "{key}",
-                    checked: Some(if value.as_bool().unwrap_or(false) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    on_checked_change: move |state: CheckboxState| on_change.call(Value::Bool(bool::from(state))),
-                }
-                span { "{label}" }
+            CheckboxField {
+                id: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0),
+                label: "{label}",
+                aria_label: Some(key.clone()),
+                checked: if value.as_bool().unwrap_or(false) { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                on_checked_change: move |state: CheckboxState| on_change.call(Value::Bool(bool::from(state))),
             }
         },
         "array" | "object" | "anchor" => {
