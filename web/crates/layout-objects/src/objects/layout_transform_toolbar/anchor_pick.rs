@@ -181,8 +181,6 @@ pub fn LayoutAnchorPickOverlay(
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.0.clone();
         let mut waiting = waiting;
-        let mut feedback = feedback;
-        let mut toast_gen = toast_gen;
         move |_| {
             let Some((ticket, follow_up)) = waiting.read().clone() else {
                 return;
@@ -210,24 +208,15 @@ pub fn LayoutAnchorPickOverlay(
                         runtime.report("The anchor target is no longer available.");
                         return;
                     }
-                    feedback.set(advance_feedback(
-                        &feedback(),
-                        FeedbackEvent::Commit {
-                            value: format!(
-                                "{} anchored to {}",
-                                follow_up.item_label, follow_up.new_anchor_label
-                            ),
-                            delta: FeedbackDelta::Text(format!(
-                                "was {}",
-                                follow_up.old_anchor_label
-                            )),
-                        },
-                    ));
-                    let seen = {
-                        toast_gen.set(toast_gen() + 1);
-                        toast_gen()
-                    };
-                    arm_commit_toast_expiry(feedback, toast_gen, seen);
+                    raise_commit_toast(
+                        feedback,
+                        toast_gen,
+                        format!(
+                            "{} anchored to {}",
+                            follow_up.item_label, follow_up.new_anchor_label
+                        ),
+                        FeedbackDelta::Text(format!("was {}", follow_up.old_anchor_label)),
+                    );
                 }
                 Settlement::Failed { message } => {
                     waiting.set(None);

@@ -306,21 +306,6 @@ pub(super) fn cancel_part_drag(
     true
 }
 
-/// Begin one composed anchored part-rail commit as intent; the caller queues
-/// the ticket for `version`-driven settlement (durable toast on landing,
-/// `Runtime::report` on failure). Queued drags compose via the resolver.
-pub(super) fn commit_part_anchor_drag(
-    runtime: &Rc<Runtime>,
-    drag: &PartDrag,
-    delta: PartAxisDelta,
-) -> EditTicket {
-    begin_transform_ticket(
-        runtime,
-        "layout-part-rail-drag",
-        part_anchor_drag_resolver(drag.part_id.clone(), drag.transaction_id.clone(), delta),
-    )
-}
-
 /// Ticket 07: why a detached Rotate edit has to retire: the part is gone,
 /// locked, anchored, a member, or driven. Mirrors the Inspector's guards so
 /// rail drags and typed edits agree.
@@ -379,20 +364,6 @@ pub(super) fn part_detached_rotate_resolver(
                 },
             )
         },
-    )
-}
-
-/// Begin one composed detached Rotate commit as intent; the caller queues the
-/// ticket for `version`-driven settlement like the anchored drag commit.
-pub(super) fn commit_part_detached_rotate(
-    runtime: &Rc<Runtime>,
-    drag: &PartDrag,
-    delta: f64,
-) -> EditTicket {
-    begin_transform_ticket(
-        runtime,
-        "layout-part-rail-drag",
-        part_detached_rotate_resolver(drag.part_id.clone(), drag.transaction_id.clone(), delta),
     )
 }
 

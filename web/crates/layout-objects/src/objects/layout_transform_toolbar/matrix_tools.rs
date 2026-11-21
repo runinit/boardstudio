@@ -783,7 +783,17 @@ pub fn LayoutTransformToolOverlay(
                 // Queue one composed commit as intent; the `version` effect
                 // raises the durable toast on landing and reports failures.
                 // Queued drags compose through the resolver (ADR-0005).
-                if let Some(ticket) = commit_transform_drag(&runtime_for_end, &active, &operation) {
+                if let Some(ticket) = transform_drag_result(&active, &operation).map(|result| {
+                    begin_transform_ticket(
+                        &runtime_for_end,
+                        "layout-transform-drag",
+                        transform_drag_resolver(
+                            active.matrix.id.clone(),
+                            active.transaction_id.clone(),
+                            result,
+                        ),
+                    )
+                }) {
                     let toast = match transform_drag_result(&active, &operation) {
                         Some(TransformDragResult::Placement { delta, .. }) => {
                             Some(PendingTransformToast {
