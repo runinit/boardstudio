@@ -1,14 +1,37 @@
 //! The contextual action toolbar and the Transform command menu.
 use super::*;
 
-#[component]
-pub fn LayoutContextActionToolbar(
-    mount: LayoutTransformMenuMount,
-    open_menu: Signal<Option<LayoutCommandMenu>>,
+/// One contextual pointer tool: the shared source data both the menu-item and the toolbar
+/// presentations render, so their labels, names and order cannot drift.
+struct ContextToolSpec {
+    tool: LayoutTransformTool,
+    label: &'static str,
+    accessible_label: String,
+    disabled: bool,
+}
+
+/// The Properties shortcut beside the tools, when the selection offers one.
+struct ContextPropertySpec {
+    label: &'static str,
+    accessible_label: String,
+}
+
+fn context_selection_label(selection_kind: LayoutSelectionKind) -> &'static str {
+    match selection_kind {
+        LayoutSelectionKind::Matrix => "Matrix",
+        LayoutSelectionKind::Row => "Row",
+        LayoutSelectionKind::Column => "Column",
+        LayoutSelectionKind::Key => "Key",
+        LayoutSelectionKind::Part => "Part",
+    }
+}
+
+fn context_property_spec(
     selection_kind: LayoutSelectionKind,
-    #[props(default)] menu_items: bool,
-) -> Element {
-    let property_action = mount.pointer_tools_visible
+    selection_label: &str,
+    mount: &LayoutTransformMenuMount,
+) -> Option<ContextPropertySpec> {
+    let offers = mount.pointer_tools_visible
         && mount.properties_available
         && (matches!(
             selection_kind,
@@ -17,167 +40,167 @@ pub fn LayoutContextActionToolbar(
                 | LayoutSelectionKind::Key
                 | LayoutSelectionKind::Part
         ) || (selection_kind == LayoutSelectionKind::Row && mount.row_available));
-    let selection_label = match selection_kind {
-        LayoutSelectionKind::Matrix => "Matrix",
-        LayoutSelectionKind::Row => "Row",
-        LayoutSelectionKind::Column => "Column",
-        LayoutSelectionKind::Key => "Key",
-        LayoutSelectionKind::Part => "Part",
-    };
+    if !offers {
+        return None;
+    }
+    if selection_kind == LayoutSelectionKind::Row {
+        Some(ContextPropertySpec {
+            label: "Row offsets",
+            accessible_label: "Open Row offsets properties for Row".to_owned(),
+        })
+    } else {
+        Some(ContextPropertySpec {
+            label: "Position",
+            accessible_label: format!(
+                "Open Position and rotation properties for {selection_label}"
+            ),
+        })
+    }
+}
+
+/// The Stagger/Offset/Spread column parameters every retargeting selection shares:
+/// (tool, label). The accessible label derives as `Activate {label}; selection
+/// changes to Column`, so the triple is written once.
+const RETARGET_COLUMN_PARAMS: [(LayoutTransformTool, &str); 3] = [
+    (LayoutTransformTool::Stagger, "Stagger column"),
+    (LayoutTransformTool::Offset, "Offset column"),
+    (LayoutTransformTool::Spread, "Spread column"),
+];
+
+/// The Column selection's own parameters: (tool, label, short name). The accessible
+/// label derives as `Activate {short} for the selected column`.
+const SELECTED_COLUMN_PARAMS: [(LayoutTransformTool, &str, &str); 3] = [
+    (LayoutTransformTool::Stagger, "Stagger column", "Stagger"),
+    (LayoutTransformTool::Offset, "Offset column", "Offset"),
+    (LayoutTransformTool::Spread, "Spread column", "Spread"),
+];
+
+/// One retargeting column parameter: choosing it changes the selection to its Column.
+fn retarget_spec(tool: LayoutTransformTool, label: &'static str) -> ContextToolSpec {
+    ContextToolSpec {
+        tool,
+        label,
+        accessible_label: format!("Activate {label}; selection changes to Column"),
+        disabled: false,
+    }
+}
+
+/// The visible pointer tools for one selection in canonical order, with Splay last.
+/// Availability filters a row out; disabled keeps it visible but inert. Hidden or
+/// unavailable pointer tools hide the whole strip, Splay included.
+fn context_tool_specs(
+    selection_kind: LayoutSelectionKind,
+    mount: &LayoutTransformMenuMount,
+    rotate_accessible_label: &str,
+) -> Vec<ContextToolSpec> {
+    if !(mount.pointer_tools_visible && mount.pointer_tools_available) {
+        return Vec::new();
+    }
+    let mut specs = Vec::new();
+    if selection_kind == LayoutSelectionKind::Matrix {
+        specs.push(ContextToolSpec {
+            tool: LayoutTransformTool::Move,
+            label: "Move matrix",
+            accessible_label: "Activate Move for the selected matrix".to_owned(),
+            disabled: false,
+        });
+        specs.push(ContextToolSpec {
+            tool: LayoutTransformTool::Rotate,
+            label: "Rotate matrix",
+            accessible_label: rotate_accessible_label.to_owned(),
+            disabled: !mount.matrix_rotate_followed.unwrap_or(true),
+        });
+    }
+    if selection_kind == LayoutSelectionKind::Row && mount.row_available {
+        specs.push(ContextToolSpec {
+            tool: LayoutTransformTool::Offset,
+            label: "Offset row",
+            accessible_label: "Activate Offset for the selected row".to_owned(),
+            disabled: false,
+        });
+    }
+    if mount.column_available {
+        match selection_kind {
+            LayoutSelectionKind::Column => {
+                specs.extend(SELECTED_COLUMN_PARAMS.iter().map(|(tool, label, short)| {
+                    ContextToolSpec {
+                        tool: *tool,
+                        label,
+                        accessible_label: format!("Activate {short} for the selected column"),
+                        disabled: false,
+                    }
+                }))
+            }
+            LayoutSelectionKind::Matrix | LayoutSelectionKind::Key | LayoutSelectionKind::Part => {
+                specs.extend(
+                    RETARGET_COLUMN_PARAMS
+                        .iter()
+                        .map(|(tool, label)| retarget_spec(*tool, label)),
+                );
+            }
+            // A Row keeps its own Offset above and only retargets Stagger and Spread.
+            LayoutSelectionKind::Row => {
+                specs.push(retarget_spec(
+                    LayoutTransformTool::Stagger,
+                    "Stagger column",
+                ));
+                specs.push(retarget_spec(LayoutTransformTool::Spread, "Spread column"));
+            }
+        }
+        if matches!(
+            selection_kind,
+            LayoutSelectionKind::Column | LayoutSelectionKind::Matrix
+        ) {
+            specs.push(ContextToolSpec {
+                tool: LayoutTransformTool::Splay,
+                label: "Splay",
+                accessible_label: "Activate Splay for the selected column".to_owned(),
+                disabled: false,
+            });
+        }
+    }
+    specs
+}
+
+/// The toolbar's short visible label for one full menu label.
+fn short_action_label(label: &str) -> &str {
+    match label {
+        "Stagger column" => "Stagger",
+        "Offset column" | "Offset row" => "Offset",
+        "Spread column" => "Spread",
+        "Move matrix" => "Move",
+        "Rotate matrix" => "Rotate",
+        _ => label,
+    }
+}
+
+#[component]
+pub fn LayoutContextActionToolbar(
+    mount: LayoutTransformMenuMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+    #[props(default)] menu_items: bool,
+) -> Element {
+    let selection_label = context_selection_label(selection_kind);
     let rotate_followed = mount.matrix_rotate_followed.unwrap_or(true);
     let rotate_accessible_label = if rotate_followed {
         "Activate Rotate for the selected matrix"
     } else {
         "Rotate matrix (unavailable: Follow rotation is off)"
     };
-    let tools = match selection_kind {
-        LayoutSelectionKind::Matrix => vec![
-            (
-                LayoutTransformTool::Move,
-                "Move matrix",
-                "Activate Move for the selected matrix",
-                true,
-                false,
-            ),
-            (
-                LayoutTransformTool::Rotate,
-                "Rotate matrix",
-                rotate_accessible_label,
-                true,
-                !rotate_followed,
-            ),
-            (
-                LayoutTransformTool::Stagger,
-                "Stagger column",
-                "Activate Stagger column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Offset,
-                "Offset column",
-                "Activate Offset column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Spread,
-                "Spread column",
-                "Activate Spread column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-        ],
-        LayoutSelectionKind::Key | LayoutSelectionKind::Part => vec![
-            (
-                LayoutTransformTool::Stagger,
-                "Stagger column",
-                "Activate Stagger column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Offset,
-                "Offset column",
-                "Activate Offset column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Spread,
-                "Spread column",
-                "Activate Spread column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-        ],
-        LayoutSelectionKind::Row => vec![
-            (
-                LayoutTransformTool::Offset,
-                "Offset row",
-                "Activate Offset for the selected row",
-                mount.row_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Stagger,
-                "Stagger column",
-                "Activate Stagger column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Spread,
-                "Spread column",
-                "Activate Spread column; selection changes to Column",
-                mount.column_available,
-                false,
-            ),
-        ],
-        LayoutSelectionKind::Column => vec![
-            (
-                LayoutTransformTool::Stagger,
-                "Stagger column",
-                "Activate Stagger for the selected column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Offset,
-                "Offset column",
-                "Activate Offset for the selected column",
-                mount.column_available,
-                false,
-            ),
-            (
-                LayoutTransformTool::Spread,
-                "Spread column",
-                "Activate Spread for the selected column",
-                mount.column_available,
-                false,
-            ),
-        ],
-    };
-    let mut visible_tools = if mount.pointer_tools_visible && mount.pointer_tools_available {
-        tools
-            .into_iter()
-            .filter(|(_, _, _, available, _)| *available)
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    if mount.pointer_tools_visible
-        && mount.pointer_tools_available
-        && mount.column_available
-        && matches!(
-            selection_kind,
-            LayoutSelectionKind::Column | LayoutSelectionKind::Matrix
-        )
-    {
-        visible_tools.push((
-            LayoutTransformTool::Splay,
-            "Splay",
-            "Activate Splay for the selected column",
-            true,
-            false,
-        ));
-    }
+    let property = context_property_spec(selection_kind, selection_label, &mount);
+    let property_action = property.is_some();
+    let visible_tools = context_tool_specs(selection_kind, &mount, rotate_accessible_label);
     if !property_action && visible_tools.is_empty() {
         return rsx! {};
     }
     let on_show_properties = mount.on_show_properties;
     let on_selection_kind = mount.on_selection_kind;
     let position_menu = open_menu;
-    let property_label = if selection_kind == LayoutSelectionKind::Row {
-        "Row offsets"
-    } else {
-        "Position"
-    };
-    let property_accessible_label = if selection_kind == LayoutSelectionKind::Row {
-        "Open Row offsets properties for Row".to_owned()
-    } else {
-        format!("Open Position and rotation properties for {selection_label}")
-    };
+    let (property_label, property_accessible_label) = property
+        .map_or(("", String::new()), |property| {
+            (property.label, property.accessible_label)
+        });
 
     rsx! {
         if menu_items {
@@ -192,16 +215,16 @@ pub fn LayoutContextActionToolbar(
                     "{property_label}"
                 }
             }
-            for (index, (tool, label, accessible_label, _, disabled)) in visible_tools.into_iter().enumerate() {
+            for (index, spec) in visible_tools.into_iter().enumerate() {
                 DropdownMenuItem {
-                    index: index + usize::from(property_action), value: tool,
-                    role: "menuitemradio", aria_checked: mount.active_tool == Some(tool),
-                    aria_label: accessible_label, disabled,
+                    index: index + usize::from(property_action), value: spec.tool,
+                    role: "menuitemradio", aria_checked: mount.active_tool == Some(spec.tool),
+                    aria_label: spec.accessible_label, disabled: spec.disabled,
                     on_select: move |_: LayoutTransformTool| {
-                        mount.on_transform_tool.call(tool);
+                        mount.on_transform_tool.call(spec.tool);
                         close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
                     },
-                    "{label}"
+                    "{spec.label}"
                 }
             }
         } else {
@@ -226,16 +249,16 @@ pub fn LayoutContextActionToolbar(
                     span { "{property_label}" }
                 }
             }
-            for (index, (tool, label, accessible_label, _, disabled)) in visible_tools.into_iter().enumerate() {
+            for (index, spec) in visible_tools.into_iter().enumerate() {
                 LayoutContextToolButton {
                     index: index + usize::from(property_action),
                     mount: mount.clone(),
                     open_menu,
-                    tool,
-                    label: label.to_owned(),
-                    accessible_label: accessible_label.to_owned(),
-                    pressed: mount.active_tool == Some(tool),
-                    disabled,
+                    tool: spec.tool,
+                    label: spec.label.to_owned(),
+                    accessible_label: spec.accessible_label,
+                    pressed: mount.active_tool == Some(spec.tool),
+                    disabled: spec.disabled,
                 }
             }
         }
@@ -290,14 +313,7 @@ pub(super) fn LayoutContextToolButton(
                 close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
             },
             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: glyph } }
-            span { {match label.as_str() {
-                "Stagger column" => "Stagger",
-                "Offset column" | "Offset row" => "Offset",
-                "Spread column" => "Spread",
-                "Move matrix" => "Move",
-                "Rotate matrix" => "Rotate",
-                _ => label.as_str(),
-            }} }
+            span { {short_action_label(label.as_str())} }
         }
         } } }
         TooltipContent { class: "layout-tool-hint",

@@ -144,6 +144,43 @@ pub(super) fn token_paint(active: bool, lit: bool) -> (&'static str, &'static st
     }
 }
 
+/// The one-dimensional rail tools: Spread drags along the pitch axis, Stagger and Offset
+/// along the stagger axis. Both rail overlays share this set for their axis guides.
+pub(super) const RAIL_AXIS_TOOLS: [LayoutTransformTool; 3] = [
+    LayoutTransformTool::Spread,
+    LayoutTransformTool::Stagger,
+    LayoutTransformTool::Offset,
+];
+
+/// Whether `tool` draws the dashed axis guide while lit.
+pub(super) fn is_axis_tool(tool: LayoutTransformTool) -> bool {
+    RAIL_AXIS_TOOLS.contains(&tool)
+}
+
+/// Whether a live drag on a peer dims this token to 35%: the active token keeps full
+/// opacity. Both rail overlays re-read the shared mount set on every Editor render.
+pub(super) fn rail_dimmed(
+    active_peer: Option<LayoutTransformTool>,
+    tool: LayoutTransformTool,
+    rail_index: Option<usize>,
+) -> bool {
+    active_peer.is_some_and(|peer| peer != tool) && rail_index.is_some()
+}
+
+/// The token opacity for `rail_dimmed`, and the guide opacity for a live drag on the token.
+pub(super) fn token_opacity(dimmed: bool) -> &'static str {
+    if dimmed { "0.35" } else { "1" }
+}
+
+pub(super) fn guide_opacity(token_active: bool) -> &'static str {
+    if token_active { "0.8" } else { "0.35" }
+}
+
+/// The shared token cursor, opacity and touch-action style both rail overlays use.
+pub(super) fn rail_token_style(opacity: &str) -> String {
+    format!("cursor:grab;opacity:{opacity};touch-action:none")
+}
+
 /// The rail's card backdrop. The first token of the rail draws it, so it paints once.
 pub(super) fn rail_backdrop(
     layout: &handle_rail::WorldRailLayout,
