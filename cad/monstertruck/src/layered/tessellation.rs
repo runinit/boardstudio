@@ -130,8 +130,12 @@ impl EdgeSamples {
         if let Some(arc) = arc {
             let radius = axis_radius.ok_or("Missing circular wall axis")?;
             // Sagitta = 2 r sin²(angle / 4). This form avoids cancellation for small angles.
-            let span = angular.min(4. * (0.5 * (deflection / radius)).sqrt().min(1.).asin());
+            let chord_span = 4. * (0.5 * (deflection / radius)).sqrt().min(1.).asin();
+            let span = angular.min(chord_span);
             let steps = (arc.sweep.abs() / span).ceil().max(1.) as usize;
+            // Leave one chord of headroom on deflection-limited arcs: the sealed
+            // cylinder proof also accounts for cap trims, beyond the chord sagitta.
+            let steps = steps.saturating_add(usize::from(chord_span < angular));
             if steps > MAX_ARC_STEPS {
                 return Err("Layered arc exceeds the sampling budget".into());
             }
