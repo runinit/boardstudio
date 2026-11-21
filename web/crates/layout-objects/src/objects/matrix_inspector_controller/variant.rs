@@ -254,14 +254,7 @@ pub(super) async fn navigate_variant_to_source_context(
     Err("The copied project board context did not settle.".into())
 }
 
-pub(super) fn variant_session_matches(
-    expected_session: boardstudio_application::SessionEpoch,
-    expected_document: &str,
-    actual_session: boardstudio_application::SessionEpoch,
-    actual_document: &str,
-) -> bool {
-    actual_session == expected_session && actual_document == expected_document
-}
+pub(super) use super::super::matrix_inspector_logic::variant_session_matches;
 
 pub(super) async fn wait_for_matrix_project(
     runtime: &Rc<Runtime>,
