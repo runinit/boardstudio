@@ -1,4 +1,4 @@
-"""Offline real-parser proof; set ERGOGEN_CHECKOUT and CAD_PROVIDER_PAGES_DRIVER."""
+"""Offline real-parser proof; set ERGOGEN_CHECKOUT."""
 import http.client
 import json
 import math
@@ -17,15 +17,12 @@ class HostBoundaryTests(unittest.TestCase):
         prepared = Path('/prepared')
         server = mock.MagicMock()
         server.server_port = 1234
-        result = mock.Mock(returncode=0, stderr='', stdout='result')
         with mock.patch.object(verified_runtime, 'verified_runtime') as prepare, \
                 mock.patch.object(host_probe, 'serve', return_value=server) as serve, \
                 mock.patch.object(host_probe.threading, 'Thread'), \
-                mock.patch('importlib.util.spec_from_file_location') as spec, \
-                mock.patch('importlib.util.module_from_spec') as module, \
+                mock.patch.object(host_probe.browser_tools, 'run_provider_page', return_value={}), \
                 mock.patch.object(host_probe, 'validate_payload', return_value={'ok': True}):
-            module.return_value.run_probe.return_value = result
-            self.assertEqual(host_probe.run('/unused', '/unused', '/driver', 'generate',
+            self.assertEqual(host_probe.run('/unused', '/unused', 'generate',
                                             prepared=prepared), {'ok': True})
         prepare.assert_not_called()
         serve.assert_called_once_with(prepared, 'generate')
@@ -73,7 +70,7 @@ class HostBoundaryTests(unittest.TestCase):
     def test_unknown_mode_fails_before_preparing(self):
         with mock.patch.object(verified_runtime, 'verified_runtime') as prepare:
             with self.assertRaisesRegex(ValueError, 'mode'):
-                host_probe.run('/unused', '/unused', '/unused', mode='typo')
+                host_probe.run('/unused', '/unused', mode='typo')
         prepare.assert_not_called()
 
 
@@ -81,28 +78,27 @@ class HostProbeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.checkout = Path(os.environ['ERGOGEN_CHECKOUT'])
-        cls.driver = Path(os.environ['CAD_PROVIDER_PAGES_DRIVER'])
         cls.cache = Path(os.environ.get('ERGOGEN_NPM_CACHE', str(Path.home() / '.npm/_cacache/content-v2/sha512')))
         cls.temp = Path(os.environ['TMPDIR'])
 
     def test_real_pinned_parser_result(self):
-        self.assertEqual(host_probe.run(self.checkout, self.cache, self.driver),
+        self.assertEqual(host_probe.run(self.checkout, self.cache),
                          {'m_a_r0': {'x': 10, 'y': 20, 'r': 30}})
         self.assertEqual(list(self.temp.glob('ergogen-verified-*')), [])
 
     def test_all_authored_cases_and_invalid_input(self):
         reference = host_probe.read_json(Path(os.environ['ERGOGEN_HOST_REFERENCE']).read_text())
-        actual = host_probe.run(self.checkout, self.cache, self.driver, 'cases', reference)
+        actual = host_probe.run(self.checkout, self.cache, 'cases', reference)
         self.assertEqual(len(actual), 42)
         self.assertEqual(sum(map(len, actual)), 360)
         with self.assertRaisesRegex(RuntimeError, 'Field.*points.*object'):
-            host_probe.run(self.checkout, self.cache, self.driver, 'invalid-case', reference)
+            host_probe.run(self.checkout, self.cache, 'invalid-case', reference)
 
     def test_browser_rejects_missing_builtin_traversal_and_parser_errors(self):
         for mode, message in [('missing', 'missing module'), ('builtin', 'unlocked or invalid module'),
                               ('traversal', 'escapes its root'), ('invalid', 'Field.*points.*object')]:
             with self.subTest(mode=mode), self.assertRaisesRegex(RuntimeError, message):
-                host_probe.run(self.checkout, self.cache, self.driver, mode)
+                host_probe.run(self.checkout, self.cache, mode)
             self.assertEqual(list(self.temp.glob('ergogen-verified-*')), [])
 
     def test_exact_routes_and_invalid_checkout(self):
@@ -123,9 +119,7 @@ class HostProbeTests(unittest.TestCase):
                 server.server_close()
                 thread.join()
         with self.assertRaises(Exception):
-            host_probe.run(self.temp / 'missing-checkout', self.cache, self.driver)
-        with self.assertRaises(FileNotFoundError):
-            host_probe.run(self.checkout, self.cache, self.temp / 'missing-driver')
+            host_probe.run(self.temp / 'missing-checkout', self.cache)
         self.assertEqual(list(self.temp.glob('ergogen-verified-*')), [])
 
     def test_duplicate_result_keys_are_rejected(self):
@@ -149,7 +143,7 @@ class HostProbeTests(unittest.TestCase):
             return read_bytes(path)
         with mock.patch.object(host_probe, 'serve', side_effect=start), \
                 mock.patch.object(Path, 'read_bytes', controlled_read):
-            self.assertEqual(host_probe.run(self.checkout, self.cache, self.driver, 'retry'),
+            self.assertEqual(host_probe.run(self.checkout, self.cache, 'retry'),
                              {'m_a_r0': {'x': 10, 'y': 20, 'r': 30}})
         self.assertEqual(len(requests), 2)
 

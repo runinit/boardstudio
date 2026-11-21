@@ -52,14 +52,13 @@ it creates/removes only its own untracked probe to verify the cleanliness guard.
 same CLI contract as the Node generator without running Node. `verified_runtime.py` validates the
 checkout (pin, clean status, no Git filters or hidden index changes) and extracts the pinned Git
 object plus every SHA-512-verified locked archive from the local npm cache (`--npm-cache`; never
-downloaded) into a private temporary tree. Only then is `cad-provider-pages` built from this
-checkout, and Chrome runs the actual pinned `points.parse` and evaluates `cases.cjs`
+downloaded) into a private temporary tree. The stdlib WebDriver runner then opens Chrome to run the actual pinned `points.parse` and evaluates `cases.cjs`
 (`host_probe.mjs`). Assembly, validation and `JSON.stringify(fixture, null, 2)`-exact output are
 Python ports. Output is written atomically and never to the legacy oracle or the checkout.
 
 `python3 scripts/ergogen-parity/sandbox_generate.py --cache CHECKOUT --temp-parent DIR [--check]`
-first verifies the Chrome for Testing tree byte-for-byte against the pinned archive
-(`BOARDSTUDIO_CFT_ZIP`), validates the checkout and copied archives, builds the driver, then runs the generator in a user/network namespace
+first verifies Chrome and ChromeDriver byte-for-byte against the pinned archives
+(`BOARDSTUDIO_CFT_ZIP` and `BOARDSTUDIO_CFT_DRIVER_ZIP`), validates the checkout and copied archives, then runs the generator in a user/network namespace
 with loopback only, Node masked, a cleared environment and a read-only view of `/usr`, `/etc`, the
 repository, checkout, browser, driver and only the locked archives; only a private staging directory is writable. After success the wrapper compares or
 atomically publishes the staged result outside the sandbox. The checkout must already exist. Chrome itself still runs with
@@ -72,7 +71,7 @@ publisher signatures. Keep the checkout, lockfile and temporary parent private a
 `cases.cjs` in Chrome and rebuilds the committed fixture byte-for-byte from its recorded poses, which
 also catches source edits without regeneration. `--upstream` (with `ERGOGEN_CHECKOUT`) runs the real
 parser through the CLI. `test_verified_runtime.py` and `test_host_probe.py` cover the preparer and
-browser host. The host tests require `ERGOGEN_CHECKOUT`, `CAD_PROVIDER_PAGES_DRIVER`, `TMPDIR`
+browser host. The host tests require `ERGOGEN_CHECKOUT`, `TMPDIR`
 and `ERGOGEN_HOST_REFERENCE`; set `ERGOGEN_NPM_CACHE` when using a non-default cache.
 Licences and notices of extracted packages are not redistributed.
 

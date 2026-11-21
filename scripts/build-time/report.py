@@ -33,7 +33,7 @@ def load(name):
 
 def tree(r):
     o = r["out"] or ""
-    t = "cad" if "/cad/" in o else "harness" if "browser-harness" in o else "root"
+    t = "cad" if "/cad/" in o else "root"
     p = next((x for x in ("wasm-check", "wasm-dev", "release", "debug") if f"/{x}/" in o), "?")
     return f"{t}/{r['target'].split('-')[0]}/{p}"
 

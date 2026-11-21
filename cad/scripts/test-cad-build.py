@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Verify pure-Rust CAD build stamp invalidation, cache reuse, and failure propagation."""
 import contextlib
-import http.server
 import importlib.util
 import io
 import json
@@ -9,13 +8,9 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
-import threading
-import time
 import tomllib
 import unittest
-import urllib.request
 from unittest.mock import MagicMock, patch
 
 import cad_build as build
@@ -334,98 +329,26 @@ class CadWorkspaceTests(unittest.TestCase):
                     self.assertEqual({package["name"] for package in metadata["packages"]}, expected_packages)
 
 
-class BrowserSmokeParserTests(unittest.TestCase):
-    def test_result_is_read_from_the_rendered_page_and_unescaped(self):
-        dom = '<html><pre id="result">{"ok":true,"error":null,"checks":[{"name":"a &amp; b","ok":true,"detail":"1 &lt; 2"}]}</pre></html>'
-        result = browser.parse_result(dom)
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["checks"][0]["name"], "a & b")
-        self.assertEqual(result["checks"][0]["detail"], "1 < 2")
+class BrowserSmokeResultTests(unittest.TestCase):
+    def test_result_reads_text_instead_of_html_entities(self):
+        with patch.object(browser.browser_tools, "WebDriverSession") as session:
+            page = session.return_value.__enter__.return_value
+            page.execute_async.return_value = '{"error":null,"checks":[{"name":"a & b","ok":true,"detail":"1 < 2"}]}'
+            result = browser.run_page("http://127.0.0.1:8000/")
+        self.assertEqual(result["checks"][0], {"name": "a & b", "ok": True, "detail": "1 < 2"})
+        page.check_page_errors.assert_called_once()
 
-    def test_missing_or_unfinished_page_is_an_error_not_a_pass(self):
-        with self.assertRaisesRegex(RuntimeError, "did not render"):
-            browser.parse_result("<html></html>")
-        with self.assertRaisesRegex(RuntimeError, "never finished"):
-            browser.parse_result('<pre id="result">pending</pre>')
+    def test_missing_result_is_an_error(self):
+        with patch.object(browser.browser_tools, "WebDriverSession") as session:
+            session.return_value.__enter__.return_value.execute_async.return_value = None
+            with self.assertRaisesRegex(RuntimeError, "did not render"):
+                browser.run_page("http://127.0.0.1:8000/")
 
     def test_a_failed_check_makes_the_run_fail(self):
-        failing = '{"ok":false,"error":null,"checks":[{"name":"x","ok":false,"detail":"d"}]}'
-        with patch.object(browser, "serve"), patch.object(browser, "run_page", return_value=f'<pre id="result">{failing}</pre>'), patch.object(browser.Path, "exists", return_value=True):
-            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:
-                browser.main()
-        self.assertEqual(raised.exception.code, 1)
-
-
-class BrowserSessionCleanupTests(unittest.TestCase):
-    def run_with_delete_delay(self, delay):
-        class DriverHandler(http.server.BaseHTTPRequestHandler):
-            def reply(self, value):
-                body = json.dumps({"value": value}).encode()
-                try:
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(body)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass
-
-            def do_GET(self):
-                self.reply({})
-
-            def do_POST(self):
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-                if self.path == "/session":
-                    self.reply({"sessionId": "test"})
-                elif self.path.endswith("/execute/sync"):
-                    self.reply("<html>done</html>" if "outerHTML" in body["script"] else "done")
-                else:
-                    self.reply(None)
-
-            def do_DELETE(self):
-                time.sleep(delay)
-                self.reply(None)
-
-            def log_message(self, *args):
-                pass
-
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DriverHandler)
-        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
-        thread.start()
-        self.addCleanup(server.server_close)
-        self.addCleanup(server.shutdown)
-        open_url = urllib.request.urlopen
-        popen = subprocess.Popen
-        drivers = []
-
-        def start_driver(*args, **kwargs):
-            driver = popen([sys.executable, "-c", "import time; time.sleep(30)"], **kwargs)
-            drivers.append(driver)
-            return driver
-
-        def redirect(request, **kwargs):
-            request.full_url = f"http://127.0.0.1:{server.server_port}" + request.selector
-            return open_url(request, **kwargs)
-
-        try:
-            with patch.object(browser, "chromedriver", return_value="fake-driver"), \
-                    patch.object(browser.subprocess, "Popen", side_effect=start_driver), \
-                    patch.object(browser.urllib.request, "urlopen", side_effect=redirect):
-                return browser.run_page("http://example.invalid", browser="fake-browser", timeout=10)
-        finally:
-            self.assertEqual(len(drivers), 1)
-            self.assertIsNotNone(drivers[0].poll(), "owned driver must exit even when deletion times out")
-
-    def test_session_delete_can_finish_after_750ms(self):
-        self.assertEqual(self.run_with_delete_delay(1.0), "<html>done</html>")
-
-    def test_session_delete_timeout_is_reported(self):
-        # A slow graceful shutdown under parallel load warns instead of failing the
-        # page: the sweep below still reaps everything, and any real remainder fails.
-        started = time.monotonic()
-        with contextlib.redirect_stderr(io.StringIO()) as warning:
-            self.assertEqual(self.run_with_delete_delay(6.0), "<html>done</html>")
-        self.assertIn("session deletion timed out", warning.getvalue())
-        self.assertGreater(time.monotonic() - started, 4.5)
-        self.assertLess(time.monotonic() - started, 10)
+        failing = {"error": None, "checks": [{"name": "x", "ok": False, "detail": "d"}]}
+        with patch.object(browser.browser_tools, "serve"), patch.object(browser, "run_page", return_value=failing), \
+                patch.object(browser.Path, "is_file", return_value=True), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(browser.main(), 1)
 
 
 if __name__ == "__main__":

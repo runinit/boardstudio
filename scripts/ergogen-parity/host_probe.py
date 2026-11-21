@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-"""Browser host for the pinned Ergogen parser and cases.cjs; generate.py drives its payload modes.
-
-A path driver is the caller's to trust (generate.py builds one from this checkout). Use a trusted temporary
-parent and stable checkout/lock. Chrome runs without its own sandbox: use an
-external OS sandbox. No publisher authentication or secure JS isolation is claimed.
-"""
+"""Browser host for the pinned Ergogen parser and cases.cjs."""
 import argparse
 from contextlib import nullcontext
 import http.server
-import importlib.util
 import json
 import math
 from pathlib import Path
@@ -19,6 +13,8 @@ from urllib.parse import quote, unquote
 import verified_runtime
 
 ROOT = verified_runtime.ROOT
+sys.path.insert(0, str(ROOT / 'scripts'))
+import browser_tools  # noqa: E402
 SUITE = 'ergogen-host-probe'
 MODES = ('normal', 'missing', 'builtin', 'traversal', 'invalid', 'retry', 'cases', 'invalid-case', 'generate', 'source')
 CASES = Path(__file__).with_name('cases.cjs')
@@ -158,35 +154,27 @@ def serve(prepared, mode, reference=None):
     return http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
 
 
-def run(checkout, npm_cache, driver, mode='normal', reference=None, *, prepared=None):
+def run(checkout, npm_cache, mode='normal', reference=None, *, prepared=None):
     if mode not in MODES:
         raise ValueError(f'unknown mode: {mode}')
     if mode in ('cases', 'invalid-case'):
         validate_reference(reference)
     elif reference is not None:
         raise ValueError('reference only applies to case modes')
-    spec = importlib.util.spec_from_file_location('probe', ROOT / 'tools/browser-harness/test-cad-target-responses.py')
-    probe = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(probe)
     # Source mode evaluates only repository-authored cases.cjs; upstream modes need a verified tree.
     # A supplied tree must have been authenticated by the outer process and mounted read-only.
     context = (nullcontext(prepared) if prepared is not None else
                nullcontext() if mode == 'source' else verified_runtime.verified_runtime(checkout, npm_cache))
     with context as prepared:
-        # A callable driver is built only after the checkout and archives verified.
-        binary = driver() if callable(driver) else driver
         server = serve(prepared, mode, reference) if reference is not None else serve(prepared, mode)
         thread = threading.Thread(target=server.serve_forever)
         thread.start()
         try:
-            result = probe.run_probe([str(binary), f'http://127.0.0.1:{server.server_port}/', SUITE], timeout=360)
-            if result.stderr:
-                sys.stderr.write(result.stderr)
-            if result.returncode:
-                raise RuntimeError(f'browser failed ({result.returncode}): {result.stderr}')
+            result = browser_tools.run_provider_page(f'http://127.0.0.1:{server.server_port}/', SUITE, timeout=360)
+            output = json.dumps(result, allow_nan=False)
             if mode in ('generate', 'source'):
-                return validate_payload(result.stdout, mode)
-            return validate_output(result.stdout, reference)
+                return validate_payload(output, mode)
+            return validate_output(output, reference)
         finally:
             server.shutdown()
             server.server_close()
@@ -197,12 +185,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('checkout', type=Path)
     parser.add_argument('--npm-cache', type=Path, default=Path.home() / '.npm/_cacache/content-v2/sha512')
-    parser.add_argument('--driver', type=Path, required=True)
     parser.add_argument('--mode', choices=MODES, default='normal')
     parser.add_argument('--reference', type=Path, help='trusted separately generated Node reference JSON')
     args = parser.parse_args()
     try:
         reference = read_json(args.reference.read_text()) if args.reference else None
-        print(json.dumps(run(args.checkout, args.npm_cache, args.driver, args.mode, reference), allow_nan=False))
+        print(json.dumps(run(args.checkout, args.npm_cache, args.mode, reference), allow_nan=False))
     except (OSError, ValueError, RuntimeError) as error:
         sys.exit(str(error))

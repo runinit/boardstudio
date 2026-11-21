@@ -3,12 +3,9 @@
 import contextlib
 import importlib.util
 import io
-import json
-import os
 from pathlib import Path
 import re
 import tempfile
-from types import SimpleNamespace
 import unittest
 from unittest import mock
 from urllib.error import HTTPError
@@ -56,12 +53,10 @@ EXPECTED_CASES = (
 
 
 class PilotTests(unittest.TestCase):
-    def test_gate_builds_driver_from_checkout(self):
-        with mock.patch.object(pilot.browser_tools, '_build_harness', return_value=Path('/built/driver')) as build, \
-             mock.patch.object(pilot, 'run') as run:
+    def test_gate_uses_checkout_source_and_recipe(self):
+        with mock.patch.object(pilot, 'run') as run:
             pilot.run_gate()
-        build.assert_called_once_with('cad-provider-pages')
-        run.assert_called_once_with(pilot.ROOT / 'scripts/model-lookup.js', Path('/built/driver'))
+        run.assert_called_once_with(pilot.ROOT / 'scripts/model-lookup.js')
 
     def test_inventory_is_the_exact_reviewed_list(self):
         self.assertEqual(pilot.CASES, EXPECTED_CASES)
@@ -76,7 +71,7 @@ class PilotTests(unittest.TestCase):
 
     def test_exact_inventory(self):
         good = {pilot.SUITE: [{'suite': pilot.SUITE, 'case': name, 'ok': True} for name in pilot.CASES]}
-        pilot.validate_results(json.dumps(good))
+        pilot.validate_results(good)
         flipped = [dict(entry) for entry in good[pilot.SUITE]]
         flipped[3].update(ok=False, error='failed')
         bad = [None, {}, {pilot.SUITE: []}, {pilot.SUITE: good[pilot.SUITE][::-1]},
@@ -86,71 +81,40 @@ class PilotTests(unittest.TestCase):
                {**good, 'extra': []}]
         for result in bad:
             with self.subTest(result=result), self.assertRaises(RuntimeError):
-                pilot.validate_results(json.dumps(result))
-        with self.assertRaisesRegex(ValueError, 'duplicate result key'):
-            pilot.validate_results('{"x":1,"x":2}')
-
+                pilot.validate_results(result)
     def test_allowlisted_routes_and_driver_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'source.js'
             source.write_text('controlled source')
-            driver = Path(directory) / 'driver'
-            driver.write_text('#!/bin/sh\n')
-            driver.chmod(0o755)
-
-            def run_probe(command, timeout):
-                self.assertEqual(command[0], str(driver))
-                self.assertEqual(command[2:], [pilot.SUITE])
+            def run_page(url, suite, *, timeout):
+                self.assertEqual(suite, pilot.SUITE)
                 self.assertEqual(timeout, pilot.TIMEOUT)
-                with urlopen(command[1] + 'model-lookup.js') as response:
+                with urlopen(url + 'model-lookup.js') as response:
                     self.assertEqual(response.read(), b'controlled source')
                     self.assertEqual(response.headers['Cache-Control'], 'no-store')
-                with urlopen(command[1] + 'model-lookup.md') as response:
+                with urlopen(url + 'model-lookup.md') as response:
                     self.assertEqual(response.read(), (pilot.ROOT / 'docs/agents/model-lookup.md').read_bytes())
-                with urlopen(command[1] + 'model-lookup-pilot-worker.js') as response:
+                with urlopen(url + 'model-lookup-pilot-worker.js') as response:
                     self.assertEqual(response.headers['Content-Security-Policy'], "default-src 'none'; script-src 'self'")
                     self.assertTrue(response.read())
                 for path in ('missing', 'fixture/../model-lookup.js', 'model-lookup-pilot.py'):
                     with self.subTest(path=path), self.assertRaises(HTTPError) as error:
-                        urlopen(command[1] + path)
+                        urlopen(url + path)
                     self.assertEqual(error.exception.code, 404)
                     error.exception.close()
-                return SimpleNamespace(returncode=7, stdout='diagnostic stdout', stderr='driver error')
+                raise RuntimeError('driver error')
 
-            with mock.patch.object(pilot.probe, 'run_probe', run_probe), \
-                 contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, 'driver error') as error:
-                pilot.run(source, driver)
-            self.assertIn('diagnostic stdout', str(error.exception))
-
-    def test_driver_must_be_an_absolute_executable_file(self):
-        with self.assertRaisesRegex(RuntimeError, 'CAD_PROVIDER_PAGES_DRIVER'):
-            pilot.run('/nonexistent/source', None)
-        with tempfile.TemporaryDirectory() as directory:
-            plain = Path(directory) / 'plain'
-            plain.write_text('')
-            relative = Path(directory) / 'relative-driver'
-            relative.write_text('#!/bin/sh\n')
-            relative.chmod(0o755)
-            cwd = os.getcwd()
-            os.chdir(directory)
-            try:
-                with self.assertRaisesRegex(RuntimeError, 'absolute path to an executable'):
-                    pilot.run('/nonexistent/source', 'relative-driver')
-            finally:
-                os.chdir(cwd)
-            for driver in (directory, plain, Path(directory) / 'absent'):
-                with self.subTest(driver=driver), self.assertRaisesRegex(RuntimeError, 'absolute path to an executable'):
-                    pilot.run('/nonexistent/source', driver)
+            with mock.patch.object(pilot.browser_tools, 'run_provider_page', side_effect=run_page), \
+                 self.assertRaisesRegex(RuntimeError, 'driver error'):
+                pilot.run(source)
 
 
 class PilotBrowserTests(unittest.TestCase):
     def test_browser_failures_are_fatal(self):
-        driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-        self.assertTrue(driver, 'CAD_PROVIDER_PAGES_DRIVER is required')
         original = Path.read_bytes
         controls = [
             ("export async function run() { throw Error('controlled rejection'); }", 'controlled rejection'),
-            ("export async function run(suite) { return [{suite,case:'source',ok:1}]; }", 'invalid result'),
+            ("export async function run(suite) { return [{suite,case:'source',ok:1}]; }", 'invalid pilot inventory'),
             ("export async function run(suite) { const done = new Promise(r => window.addEventListener('error', r, {once:true})); setTimeout(() => { throw Error('detached error'); }, 0); await done; return [{suite,case:'source',ok:true}]; }", 'detached error'),
         ]
         for module, expected in controls:
@@ -159,17 +123,15 @@ class PilotBrowserTests(unittest.TestCase):
 
             with self.subTest(expected=expected), mock.patch.object(Path, 'read_bytes', controlled_read), \
                  contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, expected):
-                pilot.run(pilot.ROOT / 'scripts/model-lookup.js', driver)
+                pilot.run(pilot.ROOT / 'scripts/model-lookup.js')
 
     def test_worker_failures_are_fatal(self):
-        driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-        self.assertTrue(driver, 'CAD_PROVIDER_PAGES_DRIVER is required')
         original = Path.read_bytes
         controls = [
             ("throw Error('worker startup failure');", 'worker startup failure'),
             ("postMessage({error: 'controlled worker failure'});", 'controlled worker failure'),
             ("postMessage({error: 'first failure wins'}); postMessage([]);", 'first failure wins'),
-            ("postMessage([]);", 'invalid results'),
+            ("postMessage([]);", 'invalid pilot inventory'),
             ("// no result", 'worker timeout'),
         ]
         for worker, expected in controls:
@@ -178,11 +140,9 @@ class PilotBrowserTests(unittest.TestCase):
 
             with self.subTest(expected=expected), mock.patch.object(Path, 'read_bytes', controlled_read), \
                  contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, expected):
-                pilot.run(pilot.ROOT / 'scripts/model-lookup.js', driver)
+                pilot.run(pilot.ROOT / 'scripts/model-lookup.js')
 
     def test_mutated_helper_is_fatal(self):
-        driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-        self.assertTrue(driver, 'CAD_PROVIDER_PAGES_DRIVER is required')
         helper = (pilot.ROOT / 'scripts/model-lookup.js').read_text()
         controls = [
             (helper + "\nPromise.reject(Error('helper rejection control'));\n", 'helper rejection control'),
@@ -199,18 +159,16 @@ class PilotBrowserTests(unittest.TestCase):
                 source.write_text(text)
                 self.assertNotEqual(text, helper)
                 with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, expected):
-                    pilot.run(source, driver)
+                    pilot.run(source)
 
     def test_recipe_probe_drift_is_fatal(self):
-        driver = os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-        self.assertTrue(driver, 'CAD_PROVIDER_PAGES_DRIVER is required')
         with tempfile.TemporaryDirectory() as directory:
             recipe = Path(directory) / 'recipe.md'
             text = (pilot.ROOT / 'docs/agents/model-lookup.md').read_text()
             self.assertIn('"code":"duplicate-match"', text)
             recipe.write_text(text.replace('"code":"duplicate-match"', '"code":"duplicate"'))
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, 'documented behavior probe stays in sync'):
-                pilot.run(pilot.ROOT / 'scripts/model-lookup.js', driver, recipe)
+                pilot.run(pilot.ROOT / 'scripts/model-lookup.js', recipe)
 
 
 if __name__ == '__main__':

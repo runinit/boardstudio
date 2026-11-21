@@ -304,16 +304,8 @@ def bootstrap(cache):
         subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', *args], env=env, check=True)
 
 
-def build_driver():
-    """Build cad-provider-pages from this checkout under the shared build lock."""
-    sys.path.insert(0, str(ROOT / 'scripts'))
-    import browser_tools
-    os.environ.setdefault('CHROME_BIN', browser_tools.locate_chrome())
-    return browser_tools._build_harness('cad-provider-pages')
-
-
-def generate(cache, npm_cache=NPM_CACHE, driver=None, *, prepared=None):
-    payload = host_probe.run(cache, npm_cache, driver or build_driver, 'generate', prepared=prepared)
+def generate(cache, npm_cache=NPM_CACHE, *, prepared=None):
+    payload = host_probe.run(cache, npm_cache, 'generate', prepared=prepared)
     return assemble(payload, payload['actual'])
 
 
@@ -346,8 +338,6 @@ def main(argv=None, *, prepared=None):
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--npm-cache', type=Path, default=NPM_CACHE,
                         help='npm content-v2/sha512 directory holding the locked archives (never downloaded)')
-    parser.add_argument('--driver', type=Path,
-                        help='cad-provider-pages already built from this checkout (default: build it)')
     args = parser.parse_args(argv)
     try:
         cache, output = Path(os.path.abspath(args.cache)), Path(os.path.abspath(args.output))
@@ -358,7 +348,7 @@ def main(argv=None, *, prepared=None):
             raise ValueError('Fixture output must not modify the pinned source checkout')
         if prepared is None:
             bootstrap(cache)
-        fixture = render(generate(cache, args.npm_cache, args.driver, prepared=prepared))
+        fixture = render(generate(cache, args.npm_cache, prepared=prepared))
         if args.check:
             if output.read_bytes() != fixture.encode('utf-8'):
                 raise ValueError(f'Fixture differs: {output}')

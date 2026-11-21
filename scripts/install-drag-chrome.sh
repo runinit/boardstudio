@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Chrome for Testing paired with tools/browser-harness's chromiumoxide 0.9.1.
+# Legacy pinned Chrome for Testing and matching ChromeDriver for Linux x64.
 set -euo pipefail
 
 version=145.0.7622.0

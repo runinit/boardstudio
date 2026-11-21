@@ -46,10 +46,7 @@ PAGE_BUILD = ["cargo", "test", "--no-run", "--target", "wasm32-unknown-unknown",
               "--profile", "wasm-check", "--no-default-features", "--features", "page,boardstudio-web-host/test-support",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--message-format=json"]
 PAGE_ARTIFACT = "BOARDSTUDIO_PAGE_TEST_ARTIFACT"
-CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 CHROME_BIN_ENV = "CHROME_BIN"
-CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
-CFT_PIN_JSON = Path(__file__).with_name("chrome-for-testing.json")
 WEBDRIVER_CONFIG_ENV = "WASM_BINDGEN_TEST_WEBDRIVER_JSON"
 TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
@@ -196,59 +193,18 @@ def wasm_bindgen_dir(root=ROOT):
                       "or set BOARDSTUDIO_WASM_BINDGEN_DIR to a matching pair")
 
 
-def pinned_cft_dir(env=None):
-    """Pinned Chrome-for-Testing install dir, or None when the pin cannot be read.
-
-    Explicit BOARDSTUDIO_CFT_DIR wins; otherwise the default cache path derived
-    from the version in scripts/chrome-for-testing.json. Never raises: an
-    unreadable pin simply means no pinned install.
-    """
-    src = os.environ if env is None else env
-    override = src.get(CFT_DIR_ENV) or os.environ.get(CFT_DIR_ENV)
-    if override:
-        return Path(override)
-    try:
-        version = json.loads(CFT_PIN_JSON.read_text())["version"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    if not version:
-        return None
-    return Path(os.path.expanduser("~/.cache/boardstudio/chrome-for-testing")) / version
-
-
-def pinned_cft_binary(kind, env=None):
-    """Path to the pinned CfT `kind` binary ('chrome' or 'chromedriver'), or None."""
-    base = pinned_cft_dir(env)
-    if base is None:
-        return None
-    candidate = base / f"{kind}-linux64" / kind
-    return str(candidate) if candidate.is_file() else None
-
-
 def resolve_chromedriver(env=None):
-    """Explicit CHROMEDRIVER > pinned CfT install > PATH discovery."""
-    src = os.environ if env is None else env
-    if src.get("CHROMEDRIVER"):
-        return src["CHROMEDRIVER"]
-    pinned = pinned_cft_binary("chromedriver", src)
-    if pinned:
-        return pinned
-    return shutil.which("chromedriver", path=src.get("PATH"))
+    try:
+        return browser_tools.locate_chromedriver(env)
+    except browser_tools.MissingBrowserTool:
+        return None
 
 
 def resolve_chrome_binary(env=None):
-    """Explicit CHROME_BIN > pinned CfT install > PATH discovery."""
-    src = os.environ if env is None else env
-    if src.get(CHROME_BIN_ENV):
-        return src[CHROME_BIN_ENV]
-    pinned = pinned_cft_binary("chrome", src)
-    if pinned:
-        return pinned
-    for name in CHROME_BINARIES:
-        found = shutil.which(name, path=src.get("PATH"))
-        if found:
-            return found
-    return None
+    try:
+        return browser_tools.locate_chrome(env)
+    except browser_tools.MissingBrowserTool:
+        return None
 
 
 def runner_environment(root=ROOT, *, browser_only=False):
@@ -590,7 +546,7 @@ def desktop_webdriver_config(env, root=ROOT):
             env[WEBDRIVER_CONFIG_ENV] = str(config)
             yield env
         return
-    chrome = resolve_chrome_binary(env)
+    chrome = env.get(CHROME_BIN_ENV) or resolve_chrome_binary(env)
     existing = next((path for path in (Path(root) / "web/webdriver.json", Path(root) / "webdriver.json")
                      if path.is_file()), None)
     try:
@@ -805,9 +761,12 @@ def main(argv=None):
                         help="with --all and --depth: run the largest child modules of a group over N "
                              "tests separately, so no one browser page runs most of the suite")
     parser.add_argument("--root", default=str(ROOT))
+    parser.add_argument("--test-binary", type=Path, help="reuse the prebuilt page test WASM")
     parser.add_argument("--result-json", metavar="PATH",
                         help="write the exact listed, selected and terminal outcomes as JSON")
     args = parser.parse_args(argv)
+    if args.test_binary is not None and (args.build_only or not args.test_binary.is_file()):
+        parser.error("--test-binary needs an existing WASM file and --all or --files")
     if args.max_group_tests is not None:
         if not args.all:
             parser.error("--max-group-tests applies to --all")
@@ -829,7 +788,7 @@ def main(argv=None):
             except ValueError as error:
                 raise RunnerError(str(error)) from error
         else:
-            env[PAGE_ARTIFACT] = str(build_page_test(root, env))
+            env[PAGE_ARTIFACT] = str(args.test_binary.resolve() if args.test_binary else build_page_test(root, env))
             env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
         with (nullcontext(env) if custom_runner else desktop_webdriver_config(env, root)) as env:
             if args.files:

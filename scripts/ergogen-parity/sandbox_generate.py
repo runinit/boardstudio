@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Run generate.py with Node masked, loopback-only networking and a minimal filesystem view.
 
-Before entering the sandbox: validate inputs, build cad-provider-pages, verify the installed
-Chrome for Testing tree byte-for-byte against the pinned archive, and copy only the locked npm
-archives into a private run directory. Chrome itself still runs with --no-sandbox (shared driver);
+Verify both installed Chrome for Testing trees against the pinned archives, validate inputs,
+and copy only the locked npm archives into a private run directory. Chrome itself still runs with --no-sandbox (shared driver);
 this outer namespace is the boundary. Requires an existing pinned checkout (no fetch inside).
 """
 import argparse
@@ -55,29 +54,38 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def verified_chrome(tree=CFT, archive=CFT_ZIP, expected=PIN['chrome_sha256']):
-    """The pinned chrome binary, once every installed file equals its pinned archive member."""
+def verified_binary(kind, tree, archive, expected):
+    """Return the executable after comparing the installed tree against its pinned archive."""
     if sha256(archive) != expected:
-        raise ValueError(f'Chrome archive does not match the pinned SHA-256: {archive}')
+        raise ValueError(f'Browser tool archive does not match the pinned SHA-256: {archive}')
     with zipfile.ZipFile(archive) as bundle:
         members = {info.filename: info for info in bundle.infolist() if not info.is_dir()}
         disk = {}
-        for directory, _, names in os.walk(tree / 'chrome-linux64'):
+        for directory, _, names in os.walk(tree / f'{kind}-linux64'):
             for name in names:
                 path = Path(directory, name)
                 disk[path.relative_to(tree).as_posix()] = path
         if disk.keys() != members.keys():
-            raise ValueError('Installed Chrome files differ from the pinned archive inventory')
+            raise ValueError('Installed browser tool files differ from the pinned archive inventory')
         for name, path in disk.items():
             if not stat.S_ISREG(path.lstat().st_mode):
-                raise ValueError(f'Installed Chrome entry is not a regular file: {name}')
+                raise ValueError(f'Installed browser tool entry is not a regular file: {name}')
             with bundle.open(members[name]) as packed, open(path, 'rb') as installed:
                 while block := packed.read(1 << 20):
                     if installed.read(len(block)) != block:
-                        raise ValueError(f'Installed Chrome file differs from the pinned archive: {name}')
+                        raise ValueError(f'Installed browser tool file differs from the pinned archive: {name}')
                 if installed.read(1):
-                    raise ValueError(f'Installed Chrome file differs from the pinned archive: {name}')
-    return tree / 'chrome-linux64/chrome'
+                    raise ValueError(f'Installed browser tool file differs from the pinned archive: {name}')
+    return tree / f'{kind}-linux64' / kind
+
+
+def verified_chrome(tree=CFT, archive=CFT_ZIP, expected=PIN['chrome_sha256']):
+    return verified_binary('chrome', tree, archive, expected)
+
+
+def verified_chromedriver():
+    archive = Path(os.environ.get('BOARDSTUDIO_CFT_DRIVER_ZIP', CFT.parent / f"chromedriver-{PIN['version']}.zip"))
+    return verified_binary('chromedriver', CFT, archive, PIN['chromedriver_sha256'])
 
 
 def locked_archives(npm_cache, destination):
@@ -110,12 +118,13 @@ def command(run, checkout, driver, chrome, output, check, prepared=None):
         binds += ['--ro-bind', str(prepared), '/prepared']
     inner = ['bwrap', '--die-with-parent', '--unshare-pid', '--unshare-ipc', '--unshare-uts', *binds,
              '--clearenv', '--setenv', 'PATH', '/usr/bin', '--setenv', 'HOME', '/tmp', '--setenv', 'TMPDIR', '/tmp',
-             '--setenv', 'LANG', 'C.UTF-8', '--setenv', 'PYTHONDONTWRITEBYTECODE', '1', '--setenv', 'CHROME_BIN', str(chrome),
+             '--setenv', 'LANG', 'C.UTF-8', '--setenv', 'PYTHONDONTWRITEBYTECODE', '1',
+             '--setenv', 'CHROME_BIN', str(chrome), '--setenv', 'CHROMEDRIVER', str(driver),
              '/bin/sh', '-euc', 'mount -t tmpfs -o noexec,nosuid,nodev,mode=1777 tmpfs /tmp; mount -t tmpfs -o noexec,nosuid,nodev,mode=1777 tmpfs /dev/shm; if command -v node || command -v nodejs; then echo "node reachable" >&2; exit 97; fi; exec setpriv --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs "$@"', 'sh',
              '/usr/bin/python3', '-I', '-c',
              'import sys; sys.path.insert(0, sys.argv.pop(1)); import generate; sys.exit(generate.main(prepared=generate.Path("/prepared")))',
              str(Path(__file__).parent), '--cache', str(checkout),
-             '--output', '/out/fixture.json', '--npm-cache', '/npm', '--driver', str(driver)]
+             '--output', '/out/fixture.json', '--npm-cache', '/npm']
     network = ('ip link set lo up; test "$(ip -o link show | cut -d: -f2 | tr -d " ")" = lo; '
                'test -z "$(ip route)"; test -z "$(ip -6 route)"; exec "$@"')
     return ['unshare', '--user', '--map-root-user', '--net', '/bin/sh', '-euc', network, 'sh', *inner]
@@ -141,13 +150,12 @@ def main():
         if generate.inside(destination, str(checkout)):
             raise ValueError('Fixture output must not modify the pinned source checkout')
         chrome = verified_chrome()
+        driver = verified_chromedriver()
         with tempfile.TemporaryDirectory(prefix='ergogen-sandbox-', dir=parent) as directory:
             run = Path(directory)
             (run / 'output').mkdir()
             locked_archives(args.npm_cache, run / 'npm')
             with verified_runtime.verified_runtime(checkout, run / 'npm', parent) as prepared:
-                os.environ['CHROME_BIN'] = str(chrome)
-                driver = generate.build_driver()
                 status = subprocess.run(command(run, checkout, driver, chrome, output, args.check, prepared)).returncode
             if status:
                 return status
