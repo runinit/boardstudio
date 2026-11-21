@@ -204,15 +204,12 @@ pub fn LayoutPartToolOverlay(
     };
     let active_peer = rail_active(Rail::Part, &svg_handle);
     let dragging_here = drag.borrow().is_some();
-    // A live drag on a peer dims this token to 35%; the active token keeps
-    // full opacity. Siblings re-read the shared mount set whenever the
-    // Editor re-renders, which each preview submit triggers.
-    let rail_dimmed = active_peer.is_some_and(|peer| peer != tool) && rail_index.is_some();
+    let rail_dimmed = rail_dimmed(active_peer, tool, rail_index);
     let token_active = dragging_here;
     let token_lit = hovered() || focused() || token_active;
     let (token_fill, glyph_stroke) = token_paint(token_active, hovered() || focused());
-    let token_opacity = if rail_dimmed { "0.35" } else { "1" };
-    let guide_opacity = if token_active { "0.8" } else { "0.35" };
+    let token_opacity = token_opacity(rail_dimmed);
+    let guide_opacity = guide_opacity(token_active);
     let guide_axis = match tool {
         LayoutTransformTool::Spread => {
             let radians = base_rotation.to_radians();
@@ -592,7 +589,7 @@ pub fn LayoutPartToolOverlay(
         escape_drag();
     });
 
-    let token_style = format!("cursor:grab;opacity:{token_opacity};touch-action:none");
+    let token_style = rail_token_style(token_opacity);
     let glyph = rail_token_glyph(tool, false, glyph_degrees, glyph_stroke);
     let face = token_face(token_fill, glyph, token_title.as_deref());
     let show_hover_name = feedback_tool_name(tool).to_owned();

@@ -292,7 +292,7 @@ where
                             {face}
                         }
                     }
-                    if token_lit && is_axis_tool(tool)
+                    if token_lit && matches!(tool, LayoutTransformTool::Spread | LayoutTransformTool::Stagger | LayoutTransformTool::Offset)
                     {
                         {axis_guide((tok_x, tok_y), guide_axis, world_per_screen, guide_opacity)}
                     }
