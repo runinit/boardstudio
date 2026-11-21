@@ -58,7 +58,8 @@ use transition_checks::{
     board_owner, cell_offset_delta, emit_validated_transition, pair_right, source_members,
     transition_matrix_by_id, validate_association_settings, validate_constraints,
     validate_context_owners, validate_matrix_association, validate_net_pad_ids,
-    validate_no_native_legacy_overlap, validate_transition_part_geometry,
+    validate_no_native_legacy_overlap, validate_transition_output,
+    validate_transition_part_geometry,
 };
 use transition_input::validate_transition_input;
 

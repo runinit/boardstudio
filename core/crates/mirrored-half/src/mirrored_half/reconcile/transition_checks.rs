@@ -585,9 +585,33 @@ pub(super) fn emit_validated_transition(
     context_delta: MembershipContextDelta,
     expected_mirror_members: &BTreeSet<String>,
 ) -> Result<MembershipTransitionOutput, String> {
+    validate_transition_output(
+        validated,
+        &draft,
+        &next_context,
+        &context_delta.owners,
+        expected_mirror_members,
+    )?;
+    Ok(MembershipTransitionOutput {
+        draft,
+        changed_document_ids: Vec::new(),
+        changed_field_paths: Vec::new(),
+        context: next_context,
+        context_delta,
+        final_owners: validated.input.final_owners.clone(),
+        notices: Vec::new(),
+    })
+}
+
+pub(super) fn validate_transition_output(
+    validated: &ValidatedTransitionContext<'_>,
+    draft: &ProjectDoc,
+    next_context: &MembershipContext,
+    delta_owners: &BTreeMap<String, FinalOwner>,
+    expected_mirror_members: &BTreeSet<String>,
+) -> Result<(), String> {
     let input = validated.input;
     let matrix_pair = require_matrix_pair(input.context)?;
-    validate_matrix_association(input.context, !validated.already_removed)?;
     // A retained Local mirror keeps its record across its source removal,
     // so only the complete-removal arm is skipped below; the gate still
     // validates the retired pair side as absent.
@@ -598,9 +622,8 @@ pub(super) fn emit_validated_transition(
             && association.state == TransitionState::Local
             && association.explicit_state
     });
-    validate_matrix_association(&next_context, !validated.removes_paired_matrices)?;
-    validate_association_settings(input.context)?;
-    validate_association_settings(&next_context)?;
+    validate_matrix_association(next_context, !validated.removes_paired_matrices)?;
+    validate_association_settings(next_context)?;
     if validated.removes_paired_matrices && !matrix_retained_local {
         if draft.matrices.iter().any(|matrix| {
             matrix.id == matrix_pair.source_id.as_str()
@@ -613,9 +636,9 @@ pub(super) fn emit_validated_transition(
         // A retained Local mirror has no source left to check; its mirror
         // must match the validated plan below.
         if !validated.removes_paired_matrices {
-            let source = transition_matrix_by_id(&draft, matrix_pair.source_id.as_str())?;
-            crate::matrix::valid_matrix(source, &draft)?;
-            if source_members(&draft, matrix_pair.source_id.as_str(), &next_context, false)?
+            let source = transition_matrix_by_id(draft, matrix_pair.source_id.as_str())?;
+            crate::matrix::valid_matrix(source, draft)?;
+            if source_members(draft, matrix_pair.source_id.as_str(), next_context, false)?
                 != validated.post_source_members
             {
                 return Err(
@@ -642,8 +665,8 @@ pub(super) fn emit_validated_transition(
                 );
             }
         } else {
-            let mirror = transition_matrix_by_id(&draft, matrix_pair.mirror_id.as_str())?;
-            crate::matrix::valid_matrix(mirror, &draft)?;
+            let mirror = transition_matrix_by_id(draft, matrix_pair.mirror_id.as_str())?;
+            crate::matrix::valid_matrix(mirror, draft)?;
             let actual_mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
             if actual_mirror_members.len() != mirror.part_ids.len()
                 || actual_mirror_members != *expected_mirror_members
@@ -654,13 +677,16 @@ pub(super) fn emit_validated_transition(
             }
         }
     }
-    if next_context.owners != *input.final_owners || context_delta.owners != *input.final_owners {
+    if next_context.owners != *input.final_owners || delta_owners != input.final_owners {
         return Err(
             "The emitted context and owner result disagree with the validated final owners".into(),
         );
     }
-    validate_context_owners(&draft, &next_context)?;
-    validate_owner_realization(&draft, input.final_owners)?;
+    // Input validation already checked this exact document and context for the identity result.
+    if !std::ptr::eq(draft, input.valid_before) || !std::ptr::eq(next_context, input.context) {
+        validate_context_owners(draft, next_context)?;
+    }
+    validate_owner_realization(draft, input.final_owners)?;
     let association_keys: BTreeSet<_> = next_context
         .associations
         .iter()
@@ -820,7 +846,7 @@ pub(super) fn emit_validated_transition(
                     .filter(|part| part.id == association.mirror_id)
                     .count()
                     != 1
-                    || board_owner(&draft, &association.mirror_id)?
+                    || board_owner(draft, &association.mirror_id)?
                         != FinalOwner::Board(input.context.mirror_board_id.clone())
                 {
                     return Err(format!(
@@ -846,7 +872,7 @@ pub(super) fn emit_validated_transition(
                         .parts
                         .iter()
                         .any(|part| part.id == association.mirror_id)
-                    || registration_count(&draft, &association.mirror_id) != 0
+                    || registration_count(draft, &association.mirror_id) != 0
                 {
                     return Err(format!(
                         "The emitted Omitted identity {:?} remains materialized",
@@ -856,13 +882,5 @@ pub(super) fn emit_validated_transition(
             }
         }
     }
-    Ok(MembershipTransitionOutput {
-        draft,
-        changed_document_ids: Vec::new(),
-        changed_field_paths: Vec::new(),
-        context: next_context,
-        context_delta,
-        final_owners: input.final_owners.clone(),
-        notices: Vec::new(),
-    })
+    Ok(())
 }

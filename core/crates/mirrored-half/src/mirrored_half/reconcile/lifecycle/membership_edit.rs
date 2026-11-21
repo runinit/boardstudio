@@ -159,12 +159,11 @@ pub fn lifecycle_context(
                     association.source_id
                 )
             })?;
-        let state = effective(&context, association, false, 0)?;
         context.owners.insert(
             association.source_id.clone(),
             FinalOwner::Board(source_owner),
         );
-        let target_owner = if state == TransitionState::Omitted {
+        let target_owner = if association.state == TransitionState::Omitted {
             FinalOwner::Absent
         } else {
             FinalOwner::Board(

@@ -5,7 +5,7 @@ use super::{
     TransitionAssociation, TransitionState, cell_offset_delta, deduplicate_outline_members,
     emit_validated_transition, lifecycle, matrix_identity_slot, project_matrix,
     remove_omitted_matrix_parts, require_matrix_pair, transition_matrix_by_id,
-    validate_transition_input,
+    validate_transition_input, validate_transition_output,
 };
 use crate::model::{Matrix, MirroredItemKind, Vec2};
 use std::collections::BTreeSet;
@@ -20,9 +20,30 @@ pub fn prepare_membership_transition_kernel(
     Ok(output)
 }
 
-pub(super) fn project_membership(
+fn project_membership(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
+    Ok(
+        project_membership_if_changed(input)?.unwrap_or_else(|| MembershipTransitionOutput {
+            draft: input.post_source.clone(),
+            context: input.context.clone(),
+            context_delta: MembershipContextDelta {
+                owners: input.final_owners.clone(),
+                ..MembershipContextDelta::default()
+            },
+            final_owners: input.final_owners.clone(),
+            changed_document_ids: Vec::new(),
+            changed_field_paths: Vec::new(),
+            notices: Vec::new(),
+        }),
+    )
+}
+
+/// An identity membership transition validates its output in place. Callers that already own
+/// the draft can carry it into correspondence projection without materializing a second copy.
+pub(super) fn project_membership_if_changed(
+    input: MembershipTransitionInput<'_>,
+) -> Result<Option<MembershipTransitionOutput>, String> {
     let matrix_pair = require_matrix_pair(input.context)?;
 
     let validated = validate_transition_input(input)?;
@@ -179,7 +200,7 @@ pub(super) fn project_membership(
         if !skip_mirror_removal && mirror_removal.is_empty() {
             return Err("The paired mirror matrix removal produced no document changes".into());
         }
-        return Ok(output);
+        return Ok(Some(output));
     }
 
     let is_identity = input.valid_before == input.post_source
@@ -201,19 +222,14 @@ pub(super) fn project_membership(
         if context.owners != *input.final_owners {
             return Err("An identity transition changes its bound owner context".into());
         }
-        let next_context = context.clone();
-        let context_delta = MembershipContextDelta {
-            owners: input.final_owners.clone(),
-            ..MembershipContextDelta::default()
-        };
-        let expected_mirror_members = validated.mapped_mirror_ids.clone();
-        return emit_validated_transition(
+        validate_transition_output(
             &validated,
-            input.post_source.clone(),
-            next_context,
-            context_delta,
-            &expected_mirror_members,
-        );
+            input.post_source,
+            context,
+            input.final_owners,
+            mapped_mirror_ids,
+        )?;
+        return Ok(None);
     }
 
     let mut removed_slots = BTreeSet::new();
@@ -1001,6 +1017,7 @@ pub(super) fn project_membership(
         delta,
         &expected_final_mirror_members,
     )
+    .map(Some)
 }
 
 #[doc(hidden)]
