@@ -1,4 +1,5 @@
 //! Analytic edge intervals and surface frames in authored length units.
+use super::carrier::Carrier;
 use super::*;
 use std::f64::consts::TAU;
 
@@ -38,6 +39,7 @@ pub(super) struct Edge {
     pub(super) vertices: [u64; 2],
     pub(super) points: [Point3; 2],
     pub(super) curve: Curve,
+    pub(super) carrier: Option<Box<Carrier>>,
 }
 
 pub(super) enum Curve {
@@ -69,8 +71,15 @@ impl Edge {
         };
         let points = [point(vertices[0])?, point(vertices[1])?];
         let forward = flag(&edge[4])?;
-        let curve_id = reference(&edge[3])?;
-        let kind = simple_record(records, curve_id)?.name.as_str();
+        let id = reference(&edge[3])?;
+        let mut kind = simple_record(records, id)?.name.as_str();
+        let (curve_id, carrier) = if matches!(kind, "SURFACE_CURVE" | "SEAM_CURVE") {
+            let (id, carrier) = Carrier::read(records, scene, id, kind)?;
+            kind = simple_record(records, id)?.name.as_str();
+            (id, Some(Box::new(carrier)))
+        } else {
+            (id, None)
+        };
         let params = named_parameters(records, curve_id, kind, 3)?;
         let curve = match kind {
             "LINE" => {
@@ -95,10 +104,11 @@ impl Edge {
             vertices,
             points,
             curve,
+            carrier,
         })
     }
 
-    fn interval(
+    pub(super) fn interval(
         &self,
         frame: Matrix4,
         radius: f64,
@@ -127,7 +137,36 @@ impl Edge {
         Ok((start, sense * sweep))
     }
 
+    pub(super) fn cylinder_sweep(
+        &self,
+        surface: Surface,
+        radius: f64,
+        epsilon: f64,
+    ) -> Result<f64, String> {
+        let Curve::Circle {
+            frame,
+            radius: edge_radius,
+            forward,
+        } = self.curve
+        else {
+            return Err("native cylinder lacks its circular trim".into());
+        };
+        let axis = surface.frame.z.truncate();
+        let center = surface.local(point_from_vector(frame.w.truncate()));
+        let radial_error = center.x.hypot(center.y)
+            + (radius - edge_radius).abs()
+            + radius * frame.z.truncate().cross(axis).magnitude();
+        if radial_error > epsilon {
+            return Err("source circular boundary is off its CYLINDRICAL_SURFACE".into());
+        }
+        let (_, sweep) = self.interval(frame, edge_radius, forward, epsilon)?;
+        Ok(sweep * frame.z.truncate().dot(axis).signum())
+    }
+
     pub(super) fn sample(&self, deflection: f64, epsilon: f64) -> Result<Vec<Point3>, String> {
+        if let Some(carrier) = &self.carrier {
+            carrier.validate(self, epsilon)?;
+        }
         match self.curve {
             Curve::Line {
                 origin,
@@ -150,9 +189,7 @@ impl Edge {
                 forward,
             } => {
                 let (start, sweep) = self.interval(frame, radius, forward, epsilon)?;
-                // Stable inversion of the circular chord sagitta.
-                let limit = (4.0 * (deflection / (2.0 * radius)).min(1.0).sqrt().asin())
-                    .min(ANGULAR_TOLERANCE);
+                let limit = circle_step(radius, deflection);
                 let count = (sweep.abs() / limit).ceil() as usize;
                 if !(1..=4096).contains(&count) {
                     return Err("native circle subdivision limit".into());
@@ -213,7 +250,7 @@ fn point_from_vector(v: Vector3<f64>) -> Point3 {
     Point3::new(v.x, v.y, v.z)
 }
 
-fn positive(parameter: &Parameter) -> Result<f64, String> {
+pub(super) fn positive(parameter: &Parameter) -> Result<f64, String> {
     let value = scene::real(parameter)?;
     if value <= 0.0 {
         return Err("expected positive analytic geometry dimension".into());
@@ -224,4 +261,9 @@ fn positive(parameter: &Parameter) -> Result<f64, String> {
 fn circle_point(frame: Matrix4, angle: f64) -> Point3 {
     // Keep the endpoint and extremum evaluations identical.
     frame.transform_point(Point3::new(angle.cos(), angle.sin(), 0.0))
+}
+
+pub(super) fn circle_step(radius: f64, deflection: f64) -> f64 {
+    // Stable inversion of the circular chord sagitta.
+    (4.0 * (deflection / (2.0 * radius)).min(1.0).sqrt().asin()).min(ANGULAR_TOLERANCE)
 }

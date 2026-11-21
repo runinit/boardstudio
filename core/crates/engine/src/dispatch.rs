@@ -1,6 +1,11 @@
-use super::apply::{affects_outline, apply_with_ledger, edit_dispatch, uses_prepared_transaction};
+use super::apply::{
+    affects_outline, apply_with_ledger, edit_dispatch, has_native_mirror_pair,
+    uses_prepared_transaction, validate_project_name,
+};
 use super::preview::{changed_ids, preview_electrical_loss_findings};
-use super::scene_reuse::{replacement_keeps_scene, stagger_outline_changes};
+use super::scene_reuse::{
+    is_column_stagger, replacement_keeps_scene, stagger_dependencies, stagger_outline_changes,
+};
 use super::*;
 
 #[cfg(test)]
@@ -335,6 +340,9 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
+        if let EditOperation::RenameProject { name } = command.operation {
+            return self.rename_project(id, command.transaction_id, command.phase, name);
+        }
         // A wholesale replacement is validated before layout can normalize
         // the incoming identities; publication validates its generated result again.
         if let EditOperation::ReplaceDocument { document } = &command.operation
@@ -447,21 +455,13 @@ impl CoreEngine {
             if let Err(message) = layout::resolve(&mut raw_next) {
                 return self.error(id, &message);
             }
-            match constraints::resolve_edit(&mut raw_next, &command.operation) {
-                Ok(ids) => raw_changed.extend(ids),
-                Err(message) => return self.error(id, &message),
-            }
-            match layout::sync_components(&mut raw_next) {
-                Ok(ids) => raw_changed.extend(ids),
-                Err(message) => return self.error(id, &message),
-            }
-            match constraints::resolve_edit(&mut raw_next, &command.operation) {
-                Ok(ids) => raw_changed.extend(ids),
-                Err(message) => return self.error(id, &message),
-            }
-            match layout::sync_components(&mut raw_next) {
-                Ok(ids) => raw_changed.extend(ids),
-                Err(message) => return self.error(id, &message),
+            if let Err(message) = settle_layout_dependents(
+                &mut raw_next,
+                &command.operation,
+                &mut raw_changed,
+                self.reusable_scene.is_some(),
+            ) {
+                return self.error(id, &message);
             }
             outline_controls::detach_removed(&self.document.parts, &mut raw_next);
             raw_changed.extend(outline_versions::prune_removed_components(
@@ -560,9 +560,8 @@ impl CoreEngine {
         } else if reported_move {
             Some(outlines(&next, Some(&self.outline_cache), &changed))
         } else {
-            let stagger_changes = self
-                .reusable_scene
-                .as_ref()
+            let stagger_changes = (!prepared_route && self.reusable_scene.is_some())
+                .then_some(())
                 .and_then(|_| stagger_outline_changes(&self.document, &next, &command.operation));
             Some(match stagger_changes {
                 Some(parts) => outlines(&next, Some(&self.outline_cache), &parts),
@@ -604,6 +603,85 @@ impl CoreEngine {
         )
     }
 
+    fn rename_project(
+        &mut self,
+        id: String,
+        transaction: String,
+        phase: EditPhase,
+        name: String,
+    ) -> CoreReply {
+        if let Err(message) = validate_project_name(&name) {
+            return self.error(id, &message);
+        }
+        let name_changed = self.document.name != name;
+        let changed = if name_changed && !has_native_mirror_pair(&self.document) {
+            // Non-prepared replacements report every Part and Outline ID. The
+            // native-pair path diffs individual entities, so a rename reports none.
+            changed_ids(&self.document, &self.document)
+        } else {
+            vec![]
+        };
+        let kind = match phase {
+            EditPhase::Preview => SceneKind::Preview,
+            EditPhase::Commit => {
+                if name_changed {
+                    let Some(revision) = self.document.revision.checked_add(1) else {
+                        return self.error(id, "Document revision is exhausted");
+                    };
+                    self.record_undo(self.document.clone());
+                    self.document.name = name;
+                    self.document.revision = revision;
+                }
+                SceneKind::Committed
+            }
+        };
+        // The accepted geometry, findings and identity ledger have no project-name dependency.
+        self.scene_with_unchanged_geometry(id, transaction, changed, kind)
+    }
+
+    fn scene_with_unchanged_geometry(
+        &self,
+        id: String,
+        transaction: String,
+        changed: Vec<String>,
+        kind: SceneKind,
+    ) -> CoreReply {
+        if let Some(mut scene) = self.reusable_scene.clone() {
+            scene.revision = self.document.revision;
+            scene.transaction_id = transaction;
+            scene.changed_ids = changed;
+            return match kind {
+                SceneKind::Preview => CoreReply::Preview { id, scene },
+                SceneKind::Committed => CoreReply::Scene {
+                    id,
+                    scene,
+                    document: Box::new(self.document.clone()),
+                },
+            };
+        }
+        self.scene(
+            id,
+            SceneInput {
+                transaction: &transaction,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind,
+            },
+        )
+    }
+
+    fn record_undo(&mut self, previous: ProjectDoc) {
+        // Keep the latest 100 committed edits without retaining an unbounded document history.
+        if self.undo.len() == 100 {
+            self.undo.remove(0);
+        }
+        self.undo.push(previous);
+        self.redo.clear();
+    }
+
     fn publish_prepared_edit(&mut self, id: String, prepared: PreparedEdit) -> CoreReply {
         let PreparedEdit {
             transaction,
@@ -626,27 +704,16 @@ impl CoreEngine {
                 .map_or(&self.outline_cache, |(cache, _, _)| cache);
             outline_versions::refresh_recovery(&mut next, cache);
         }
-        // Keep the latest 100 committed edits without retaining an unbounded document history.
-        if self.undo.len() == 100 {
-            self.undo.remove(0);
-        }
-        self.undo.push(std::mem::replace(&mut self.document, next));
-        self.redo.clear();
+        let previous = std::mem::replace(&mut self.document, next);
+        self.record_undo(previous);
         self.identity_ledger.capture(&self.document);
         if reuse_scene {
-            let mut scene = self
-                .reusable_scene
-                .as_ref()
-                .expect("checked before publication")
-                .clone();
-            scene.revision = revision;
-            scene.transaction_id = transaction;
-            scene.changed_ids = changed;
-            return CoreReply::Scene {
+            return self.scene_with_unchanged_geometry(
                 id,
-                scene,
-                document: Box::new(self.document.clone()),
-            };
+                transaction,
+                changed,
+                SceneKind::Committed,
+            );
         }
         let rebuilt = outline.is_some();
         if let Some((cache, contours, findings)) = outline {
@@ -703,7 +770,14 @@ impl CoreEngine {
         let accepted = generators::parameter_problems(&self.document);
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
-        let before_parts = self.document.parts.clone();
+        let previous_parts;
+        let before_parts = match &backup {
+            PreviewBackup::Matrix { parts, .. } => parts,
+            PreviewBackup::Parts(_) => {
+                previous_parts = self.document.parts.clone();
+                &previous_parts
+            }
+        };
         let result = apply_with_ledger(
             &mut self.document,
             &[],
@@ -716,26 +790,22 @@ impl CoreEngine {
             // edited pose, and `resolve` (which starts with `validate`)
             // refreshes every dependant exactly as commit does.
             layout::resolve(&mut self.document)?;
-            changed.extend(constraints::resolve_edit(
+            settle_layout_dependents(
                 &mut self.document,
                 &command.operation,
-            )?);
-            changed.extend(layout::sync_components(&mut self.document)?);
-            changed.extend(constraints::resolve_edit(
-                &mut self.document,
-                &command.operation,
-            )?);
-            changed.extend(layout::sync_components(&mut self.document)?);
+                &mut changed,
+                self.reusable_scene.is_some(),
+            )?;
             outline_controls::detach_removed(&attachments, &mut self.document);
             changed.extend(outline_versions::prune_removed_components(
-                &before_parts,
+                before_parts,
                 &mut self.document,
             ));
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
             matrix::placement::validate_translation(
-                &before_parts,
+                before_parts,
                 &self.document,
                 &command.operation,
             )?;
@@ -744,9 +814,31 @@ impl CoreEngine {
         let reply = match result {
             Err(message) => self.error(id, &message),
             Ok(changed) => {
-                let previous = matches!(&command.operation, EditOperation::MoveParts { .. })
-                    .then_some(&self.outline_cache);
-                let (cache, contours, findings) = outlines(&self.document, previous, &changed);
+                // Stagger and its dependent passes do not alter definitions on
+                // an unlinked layout. Use the settled part diff, not edit IDs.
+                let stagger_changes = match &backup {
+                    PreviewBackup::Matrix {
+                        definition_len,
+                        parts,
+                        layouts,
+                        boards,
+                        ..
+                    } if self.reusable_scene.is_some()
+                        && is_column_stagger(&command.operation)
+                        && self.document.definitions.len() == *definition_len =>
+                    {
+                        stagger_dependencies(layouts, boards, parts, &self.document)
+                    }
+                    _ => None,
+                };
+                let (previous, moved) = if let Some(parts) = &stagger_changes {
+                    (Some(&self.outline_cache), parts.as_slice())
+                } else if matches!(&command.operation, EditOperation::MoveParts { .. }) {
+                    (Some(&self.outline_cache), changed.as_slice())
+                } else {
+                    (None, &[][..])
+                };
+                let (cache, contours, findings) = outlines(&self.document, previous, moved);
                 self.scene(
                     id,
                     SceneInput {
@@ -861,7 +953,12 @@ impl CoreEngine {
             }
         }
         findings.extend(validate::validate(doc));
-        let (board_contours, board_findings, corner_markers) = geometry::board_contours(doc, cache);
+        let geometry::BoardSceneGeometry {
+            contours: board_contours,
+            outlines: board_outline_scenes,
+            findings: board_findings,
+            markers: corner_markers,
+        } = geometry::board_scene_geometry(doc, cache);
         let fitted_targets: BTreeSet<_> = board_findings
             .iter()
             .filter(|finding| finding.id.ends_with(":feature:outline:corners:fitted"))
@@ -883,7 +980,6 @@ impl CoreEngine {
             doc,
             &board_contours,
         ));
-        let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
@@ -1045,10 +1141,7 @@ impl CoreEngine {
                 .iter()
                 .map(|index| &doc.matrices[*index])
                 .filter_map(|matrix| {
-                    if matrix::valid_matrix(matrix, doc).is_err() {
-                        return None;
-                    }
-                    matrix::project_matrix(matrix, doc, matrix::ProjectionMode::Actual)
+                    matrix::project_valid_matrix(matrix, doc)
                         .map(|mut scene| {
                             scene.companions = matrix::scene_companions(matrix, doc);
                             scene
@@ -1086,6 +1179,36 @@ impl CoreEngine {
             revision: self.document.revision,
         }
     }
+}
+
+fn settle_layout_dependents(
+    doc: &mut ProjectDoc,
+    operation: &EditOperation,
+    changed: &mut Vec<String>,
+    accepted_projection: bool,
+) -> Result<(), String> {
+    // Unlinked, unanchored parts with no constraint or assembly driver keep
+    // their stored poses. The solver and link sync would have nothing to write.
+    if accepted_projection
+        && is_column_stagger(operation)
+        && doc.constraints.is_empty()
+        && doc
+            .layouts
+            .iter()
+            .all(|layout| layout.mirror_link.is_none())
+        && doc.parts.iter().all(|part| part.anchor.is_none())
+        && doc
+            .matrices
+            .iter()
+            .all(|matrix| matrix.cells.iter().all(|cell| cell.assemblies.is_empty()))
+    {
+        return Ok(());
+    }
+    for _ in 0..2 {
+        changed.extend(constraints::resolve_edit(doc, operation)?);
+        changed.extend(layout::sync_components(doc)?);
+    }
+    Ok(())
 }
 
 enum History {

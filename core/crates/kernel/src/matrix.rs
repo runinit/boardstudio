@@ -176,6 +176,13 @@ pub fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec<String
 }
 
 pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
+    validate_matrix_projection(matrix, doc).map(|_| ())
+}
+
+fn validate_matrix_projection(
+    matrix: &Matrix,
+    doc: &ProjectDoc,
+) -> Result<kernel::MatrixLayout, String> {
     if matrix.id.is_empty()
         || !matrix
             .id
@@ -220,7 +227,7 @@ pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
     if matrix.cells.len() > (matrix.rows * matrix.columns) as usize {
         return Err("Matrix cells exceed dimensions".into());
     }
-    valid_projection_matrix(matrix)?;
+    let projection = validated_world_projection(matrix)?;
     let gap = matrix.edge_gap.unwrap_or(Vec2 {
         x: DEFAULT_EDGE_GAP_MM,
         y: DEFAULT_EDGE_GAP_MM,
@@ -276,7 +283,19 @@ pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    Ok(projection)
+}
+
+fn with_document_frame(
+    matrix: &Matrix,
+    doc: &ProjectDoc,
+    world: kernel::MatrixLayout,
+) -> Result<kernel::MatrixLayout, String> {
+    if matrix.anchor.is_some() || layout::half_offset(doc, &matrix.id).is_some() {
+        evaluated(matrix, doc)
+    } else {
+        Ok(world)
+    }
 }
 
 pub fn evaluated(matrix: &Matrix, doc: &ProjectDoc) -> Result<kernel::MatrixLayout, String> {
@@ -304,6 +323,10 @@ pub fn valid_dimensions(matrix: &Matrix) -> Result<(), String> {
 }
 
 pub fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
+    validated_world_projection(matrix).map(|_| ())
+}
+
+fn validated_world_projection(matrix: &Matrix) -> Result<kernel::MatrixLayout, String> {
     valid_dimensions(matrix)?;
     let gap = matrix.edge_gap.unwrap_or(Vec2 {
         x: DEFAULT_EDGE_GAP_MM,
@@ -319,7 +342,6 @@ pub fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
         return Err("Matrix edge gap must be nonnegative and smaller than pitch".into());
     }
     kernel::evaluate(&evaluation::input(matrix), kernel::RawAnchorContext::World)
-        .map(|_| ())
         .map_err(str::to_owned)
 }
 
@@ -328,7 +350,26 @@ pub fn project_matrix(
     doc: &ProjectDoc,
     mode: ProjectionMode,
 ) -> Result<MatrixScene, String> {
-    let evaluated = evaluated(matrix, doc)?;
+    project_evaluated(matrix, doc, mode, evaluated(matrix, doc)?)
+}
+
+/// Project a scene only for a fully valid matrix, reusing its validated layout
+/// when world evaluation has no additional frame to resolve.
+pub fn project_valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixScene, String> {
+    project_evaluated(
+        matrix,
+        doc,
+        ProjectionMode::Actual,
+        with_document_frame(matrix, doc, validate_matrix_projection(matrix, doc)?)?,
+    )
+}
+
+fn project_evaluated(
+    matrix: &Matrix,
+    doc: &ProjectDoc,
+    mode: ProjectionMode,
+    evaluated: kernel::MatrixLayout,
+) -> Result<MatrixScene, String> {
     let members = if mode == ProjectionMode::Actual {
         cell_members(matrix)
     } else {
@@ -363,7 +404,10 @@ pub fn project_matrix(
             } else {
                 None
             };
-            let mut pose = evaluation::cell_pose(&evaluated, row, column)?;
+            let geometry = evaluated
+                .cell(row as usize, column as usize)
+                .ok_or("Matrix cell is out of bounds")?;
+            let mut pose = geometry.pose;
             if mode == ProjectionMode::Actual
                 && let Some(id) = member_id.as_deref().and_then(|id| by_id.get(id))
             {
@@ -372,11 +416,6 @@ pub fn project_matrix(
             if !pose.at.x.is_finite() || !pose.at.y.is_finite() || !pose.rotation.is_finite() {
                 return Err("Matrix projection exceeds finite geometry".into());
             }
-            let geometry = evaluated
-                .cells
-                .iter()
-                .find(|cell| cell.row == row as usize && cell.column == column as usize)
-                .ok_or("Key geometry is missing")?;
             projected.push(MatrixSceneCell {
                 row,
                 column,
@@ -591,7 +630,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
         }
     }
     let incoming = &resized;
-    valid_matrix(incoming, doc)?;
+    let world = validate_matrix_projection(incoming, doc)?;
     let old_ids: BTreeSet<_> = previous
         .as_ref()
         .map(|item| item.part_ids.iter().cloned().collect())
@@ -644,7 +683,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
         .map(|part| part.reference.clone())
         .collect();
     let mut next_reference: BTreeMap<&str, usize> = BTreeMap::new();
-    let evaluated = evaluated(incoming, doc)?;
+    let evaluated = with_document_frame(incoming, doc, world)?;
     for row in 0..incoming.rows {
         for column in 0..incoming.columns {
             let cell = cells.get(&(row, column)).copied();

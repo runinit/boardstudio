@@ -135,6 +135,17 @@ pub struct MatrixLayout {
     pub frame: ComposedFrame,
     pub cells: Vec<CellLayout>,
     pub columns: Vec<ColumnFrame>,
+    rows: usize,
+}
+
+impl MatrixLayout {
+    pub(super) fn cell(&self, row: usize, column: usize) -> Option<&CellLayout> {
+        if row >= self.rows || column >= self.columns.len() {
+            return None;
+        }
+        // The kernel evaluates every row in each column, including disabled cells.
+        self.cells.get(column * self.rows + row)
+    }
 }
 
 /// Refuses invalid dimensions/lists/coordinates, axis-zero steps, pitch ≤ edge gap,
@@ -145,8 +156,8 @@ pub fn evaluate(
 ) -> Result<MatrixLayout, &'static str> {
     validate(input, anchor)?;
     let matrix_frame = compose_matrix_frame(input, anchor)?;
-    let mut cells = Vec::new();
-    let mut columns = Vec::new();
+    let mut cells = Vec::with_capacity(input.rows * input.columns);
+    let mut columns = Vec::with_capacity(input.columns);
     let mut base = Vec2::default();
     let mut prefix = Pose2 {
         at: Vec2::default(),
@@ -300,6 +311,7 @@ pub fn evaluate(
     Ok(MatrixLayout {
         cells,
         columns,
+        rows: input.rows,
         frame: world_frame(
             Pose2 {
                 at: Vec2::default(),

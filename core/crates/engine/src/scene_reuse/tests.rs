@@ -53,6 +53,14 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
     } = &actual
     {
         let (cache, contours, findings) = outlines(document, None, &[]);
+        assert_eq!(
+            scene.board_contours,
+            geometry::board_contours(document, &cache).0
+        );
+        assert_eq!(
+            scene.board_outline_scenes,
+            geometry::board_outline_scenes(document, &cache)
+        );
         let fresh = engine.scene(
             id.clone(),
             SceneInput {
@@ -71,6 +79,142 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
         );
     }
     actual
+}
+
+#[test]
+fn stagger_preview_commit_and_invalidation_match_cold_projection() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = fixture();
+    document.matrices[0].column_layout = vec![ColumnLayout {
+        splay: -17.125,
+        ..Default::default()
+    }];
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    );
+    let stagger = |base, phase, value| {
+        let mut request = edit(
+            base,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "matrix".into(),
+                change: MatrixPlacementChange::ColumnStagger { column: 1, value },
+            },
+        );
+        let CoreRequest::Edit { command, .. } = &mut request else {
+            unreachable!()
+        };
+        command.phase = phase;
+        request
+    };
+    let value = -3.125_000_000_000_001;
+    let initial = serde_json::to_vec(&engine.document).unwrap();
+    let CoreReply::Preview { scene: preview, .. } = compare(
+        &mut engine,
+        &mut cold,
+        stagger(0, EditPhase::Preview, value),
+    ) else {
+        panic!("stagger should preview");
+    };
+    assert_eq!(serde_json::to_vec(&engine.document).unwrap(), initial);
+    assert!(engine.undo.is_empty() && engine.redo.is_empty());
+    let CoreReply::Scene {
+        mut scene,
+        document,
+        ..
+    } = compare(&mut engine, &mut cold, stagger(0, EditPhase::Commit, value))
+    else {
+        panic!("stagger should commit");
+    };
+    assert_eq!(
+        document.matrices[0].column_layout[1].stagger.to_bits(),
+        value.to_bits()
+    );
+    assert_eq!(scene.revision, 1);
+    scene.revision = preview.revision;
+    assert_eq!(scene, preview);
+
+    assert!(matches!(
+        compare(&mut engine, &mut cold, stagger(0, EditPhase::Preview, 2.0)),
+        CoreReply::Error { revision: 1, .. }
+    ));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, stagger(1, EditPhase::Commit, value)),
+        CoreReply::Scene { scene, .. } if scene.revision == 1 && scene.changed_ids.is_empty()
+    ));
+    assert_eq!(engine.undo.len(), 1);
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Undo { id: "undo".into() },
+    );
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Redo { id: "redo".into() },
+    );
+
+    let position = Position {
+        id: "main/U1".into(),
+        at: Vec2 { x: 19.0, y: 32.0 },
+    };
+    compare(
+        &mut engine,
+        &mut cold,
+        edit(
+            3,
+            EditOperation::MoveParts {
+                positions: vec![position],
+            },
+        ),
+    );
+    assert!(engine.reusable_scene.is_none());
+    compare(&mut engine, &mut cold, stagger(4, EditPhase::Preview, 1.5));
+    compare(&mut engine, &mut cold, stagger(4, EditPhase::Commit, 1.5));
+    let CoreReply::Scene { document, .. } = compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        },
+    ) else {
+        panic!("expected saved stagger scene");
+    };
+    assert_eq!(document.revision, 5);
+    assert_eq!(document.matrices[0].column_layout[1].stagger, 1.5);
+
+    let copy: EditOperation = serde_json::from_value(serde_json::json!({
+        "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "main"},
+            "change": {"copy": {"version_id": "fixed", "name": "Fixed outline"}},
+            "seed": 1, "reviewed": null
+        }
+    }))
+    .unwrap();
+    let CoreReply::Scene {
+        scene: fixed,
+        document: saved,
+        ..
+    } = compare(&mut engine, &mut cold, edit(5, copy))
+    else {
+        panic!("expected a saved fixed outline");
+    };
+    assert!(engine.reusable_scene.is_none());
+    let CoreReply::Preview { scene: preview, .. } =
+        compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
+    else {
+        panic!("expected a preview with a fixed outline");
+    };
+    assert_eq!(preview.board_contours, fixed.board_contours);
+    assert_eq!(
+        serde_json::to_vec(&engine.document).unwrap(),
+        serde_json::to_vec(&saved).unwrap(),
+    );
 }
 
 #[test]
@@ -182,4 +326,128 @@ fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
     assert_eq!(accepted.parts[0].pose.rotation, next.parts[0].pose.rotation);
     assert!(!replacement_keeps_scene(&accepted, &mut next));
     assert_eq!(next.name, "Renamed");
+}
+
+fn rename(name: &str) -> EditOperation {
+    EditOperation::RenameProject { name: name.into() }
+}
+
+#[test]
+fn typed_rename_matches_legacy_preview_commit_and_history() {
+    let mut typed = CoreEngine::new();
+    let mut legacy = CoreEngine::new();
+    let CoreReply::Scene { document, .. } = compare(
+        &mut typed,
+        &mut legacy,
+        CoreRequest::Open {
+            id: "open".into(),
+            document: fixture(),
+        },
+    ) else {
+        panic!("open should publish a scene");
+    };
+    let mut replacement = *document;
+    replacement.name = "Élan / 測試".into();
+    for phase in [EditPhase::Preview, EditPhase::Commit] {
+        let request = |operation| {
+            let mut request = edit(0, operation);
+            let CoreRequest::Edit { command, .. } = &mut request else {
+                unreachable!();
+            };
+            command.phase = phase;
+            request
+        };
+        let actual = typed.handle(request(rename(&replacement.name)));
+        let expected = legacy.handle(request(EditOperation::ReplaceDocument {
+            document: Box::new(replacement.clone()),
+        }));
+        assert_eq!(
+            boardstudio_model::wire::encode_core_reply(&actual),
+            boardstudio_model::wire::encode_core_reply(&expected),
+        );
+        assert_eq!(typed.document, legacy.document);
+        assert_eq!(
+            typed.document.revision,
+            u64::from(phase == EditPhase::Commit)
+        );
+    }
+
+    for request in [
+        edit(
+            1,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "matrix".into(),
+                change: MatrixPlacementChange::ColumnStagger {
+                    column: 1,
+                    value: 4.0,
+                },
+            },
+        ),
+        CoreRequest::Undo {
+            id: "undo stagger".into(),
+        },
+        CoreRequest::Undo {
+            id: "undo rename".into(),
+        },
+        CoreRequest::Redo {
+            id: "redo rename".into(),
+        },
+        CoreRequest::Redo {
+            id: "redo stagger".into(),
+        },
+        CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        },
+    ] {
+        compare(&mut typed, &mut legacy, request);
+    }
+    assert_eq!(typed.document.name, replacement.name);
+    assert_eq!(typed.document.revision, 6);
+}
+
+#[test]
+fn typed_rename_validates_and_preserves_scene_without_a_reusable_projection() {
+    let mut engine = CoreEngine::new();
+    let mut fresh = CoreEngine::new();
+    let mut document = fixture();
+    document.revision = u64::MAX - 1;
+    compare(
+        &mut engine,
+        &mut fresh,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    );
+    engine.reusable_scene = None;
+    let revision = u64::MAX - 1;
+    for (base, name, expected) in [
+        (revision - 1, "Valid", "Stale base revision"),
+        (revision, " \u{2003}\t", "Project name cannot be empty"),
+    ] {
+        assert!(matches!(
+            engine.handle(edit(base, rename(name))),
+            CoreReply::Error { message, revision: current, .. }
+                if message == expected && current == revision
+        ));
+        assert!(engine.undo.is_empty());
+    }
+    let previous_name = engine.document.name.clone();
+    assert!(matches!(
+        engine.handle(edit(revision, rename(&previous_name))),
+        CoreReply::Scene { scene, .. } if scene.revision == revision && scene.changed_ids.is_empty()
+    ));
+    assert!(engine.undo.is_empty());
+    assert!(matches!(
+        compare(&mut engine, &mut fresh, edit(revision, rename("  Renamed  "))),
+        CoreReply::Scene { scene, document, .. }
+            if document.name == "  Renamed  " && scene.revision == u64::MAX
+    ));
+    assert!(matches!(
+        engine.handle(edit(u64::MAX, rename("Too late"))),
+        CoreReply::Error { message, revision: u64::MAX, .. }
+            if message == "Document revision is exhausted"
+    ));
+    assert_eq!(engine.document.name, "  Renamed  ");
+    assert_eq!(engine.undo.len(), 1);
 }

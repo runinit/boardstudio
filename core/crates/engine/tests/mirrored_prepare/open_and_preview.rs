@@ -89,6 +89,41 @@ pub(crate) fn prepare_preview(
 }
 
 #[test]
+fn typed_project_rename_matches_a_name_only_replacement_on_a_native_pair() {
+    use boardstudio_model::model::{EditCommand, EditPhase};
+
+    let mut typed = open_pair_engine(pair_document());
+    let mut legacy = open_pair_engine(pair_document());
+    let mut replacement = legacy.document_for_test().clone();
+    replacement.name = "Renamed pair".into();
+    let request = |operation| CoreRequest::Edit {
+        id: "rename".into(),
+        command: EditCommand {
+            base_revision: replacement.revision,
+            transaction_id: "rename".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![replacement.id.clone()],
+            operation,
+        },
+    };
+    let expected = legacy.handle(request(EditOperation::ReplaceDocument {
+        document: Box::new(replacement.clone()),
+    }));
+    let actual = typed.handle(request(EditOperation::RenameProject {
+        name: replacement.name.clone(),
+    }));
+    assert!(matches!(
+        &actual,
+        CoreReply::Scene { scene, document, .. }
+            if scene.changed_ids.is_empty() && document.name == replacement.name
+    ));
+    assert_eq!(
+        boardstudio_model::wire::encode_core_reply(&actual),
+        boardstudio_model::wire::encode_core_reply(&expected),
+    );
+}
+
+#[test]
 fn prepared_open_preserves_an_associated_local_circuit_and_validates_its_definition() {
     let accepted = associated_local_circuit_document();
     let (opened, _) = crate::support::prepare_open(&accepted, &[])

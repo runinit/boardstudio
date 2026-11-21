@@ -1,6 +1,13 @@
 use super::preview::changed_ids;
 use super::*;
 
+pub(super) fn validate_project_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("Project name cannot be empty".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
     if matches!(
         operation,
@@ -11,6 +18,10 @@ pub(crate) fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditO
     ) {
         return true;
     }
+    has_native_mirror_pair(document)
+}
+
+pub(super) fn has_native_mirror_pair(document: &ProjectDoc) -> bool {
     document.hardware.as_ref().is_some_and(|hardware| {
         hardware.pairs.iter().any(|pair| {
             pair.halves
@@ -1157,6 +1168,11 @@ pub(crate) fn apply_with_ledger(
         | EditOperation::SetCompanionPlacement { .. }
         | EditOperation::UnlinkHalves { .. } => {
             Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
+        }
+        EditOperation::RenameProject { name } => {
+            validate_project_name(name)?;
+            doc.name.clone_from(name);
+            Ok(vec![])
         }
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {

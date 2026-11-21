@@ -346,9 +346,7 @@ pub fn origin_delta(matrix: &Matrix, doc: &ProjectDoc, delta: Vec2) -> Result<Ve
 
 pub fn cell_pose(layout: &MatrixLayout, row: u32, column: u32) -> Result<Pose2, String> {
     layout
-        .cells
-        .iter()
-        .find(|c| c.row == row as usize && c.column == column as usize)
+        .cell(row as usize, column as usize)
         .map(|c| c.pose)
         .ok_or_else(|| "Matrix cell is out of bounds".into())
 }

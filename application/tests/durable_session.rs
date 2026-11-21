@@ -628,17 +628,8 @@ fn rename_edit_command(base_revision: u64, name: &str) -> EditCommand {
         transaction_id: format!("rename-{name}"),
         phase: EditPhase::Commit,
         target_ids: vec!["project".into()],
-        operation: EditOperation::ReplaceDocument {
-            document: Box::new(rename_document(base_revision, name)),
-        },
+        operation: EditOperation::RenameProject { name: name.into() },
     }
-}
-
-fn rename_document(base_revision: u64, name: &str) -> ProjectDoc {
-    let mut document = fixture();
-    document.revision = base_revision;
-    document.name = name.into();
-    document
 }
 
 fn settled_landing(
