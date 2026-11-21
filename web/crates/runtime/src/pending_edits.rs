@@ -35,13 +35,21 @@ pub enum PendingEditResult<K> {
 /// Session and continues to execute. Keys are compared with `PartialEq`, so callers can
 /// use their existing field enum without adding ordering or hashing traits.
 pub struct PendingEdits<K> {
-    tickets: Vec<(K, EditTicket)>,
+    tickets: Vec<Observation<K>>,
+    next_submission: u64,
+}
+
+struct Observation<K> {
+    key: K,
+    ticket: EditTicket,
+    submission: u64,
 }
 
 impl<K> Default for PendingEdits<K> {
     fn default() -> Self {
         Self {
             tickets: Vec::new(),
+            next_submission: 0,
         }
     }
 }
@@ -60,14 +68,20 @@ impl<K: PartialEq> PendingEdits<K> {
     ) -> OperationId {
         let ticket = EditTicket::begin(port, label, feature, resolver);
         let operation = ticket.operation();
-        if let Some(index) = self
+        let observation = Observation {
+            key,
+            ticket,
+            submission: self.next_submission,
+        };
+        self.next_submission += 1;
+        if let Some(existing) = self
             .tickets
-            .iter()
-            .position(|(existing, _)| *existing == key)
+            .iter_mut()
+            .find(|existing| existing.key == observation.key)
         {
-            self.tickets[index] = (key, ticket);
+            *existing = observation;
         } else {
-            self.tickets.push((key, ticket));
+            self.tickets.push(observation);
         }
         operation
     }
@@ -77,8 +91,31 @@ impl<K: PartialEq> PendingEdits<K> {
     pub fn is_pending(&self, key: &K) -> bool {
         self.tickets
             .iter()
-            .find(|(existing, _)| existing == key)
-            .is_some_and(|(_, ticket)| ticket.is_pending())
+            .find(|entry| &entry.key == key)
+            .is_some_and(|entry| entry.ticket.is_pending())
+    }
+
+    /// Live payloads in submission order. Replacing a key moves its payload to the
+    /// end of this projection while retaining its original settlement position.
+    pub fn pending_keys(&self) -> impl Iterator<Item = &K> {
+        let mut pending: Vec<_> = self
+            .tickets
+            .iter()
+            .filter(|entry| entry.ticket.is_pending())
+            .collect();
+        pending.sort_unstable_by_key(|entry| entry.submission);
+        pending.into_iter().map(|entry| &entry.key)
+    }
+
+    /// All stored observations, including terminal results awaiting settlement.
+    pub fn observations(&self) -> impl Iterator<Item = (&K, bool)> {
+        self.tickets
+            .iter()
+            .map(|entry| (&entry.key, entry.ticket.is_pending()))
+    }
+
+    pub fn has_terminal(&self) -> bool {
+        self.observations().any(|(_, pending)| !pending)
     }
 
     /// Drain terminal observations once, preserving key insertion order. Pending tickets
@@ -87,9 +124,18 @@ impl<K: PartialEq> PendingEdits<K> {
     pub fn settle(&mut self, owner_is_live: bool) -> Vec<PendingEditResult<K>> {
         let mut pending = Vec::with_capacity(self.tickets.len());
         let mut results = Vec::new();
-        for (key, ticket) in self.tickets.drain(..) {
+        for entry in self.tickets.drain(..) {
+            let Observation {
+                key,
+                ticket,
+                submission,
+            } = entry;
             match ticket.settlement(owner_is_live) {
-                Settlement::Pending => pending.push((key, ticket)),
+                Settlement::Pending => pending.push(Observation {
+                    key,
+                    ticket,
+                    submission,
+                }),
                 Settlement::Landed { revision } => {
                     results.push(PendingEditResult::Landed { key, revision });
                 }

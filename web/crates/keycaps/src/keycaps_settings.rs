@@ -214,8 +214,6 @@ struct KeycapsEdits {
     shared_owner: Option<(Option<Scope>, u64, &'static str)>,
     key: KeycapsHelper,
     key_owner: u64,
-    /// Caller projection memory: the requests whose edits are still observed.
-    requests: Vec<KeycapsPendingKey>,
 }
 
 impl Default for KeycapsEdits {
@@ -225,7 +223,6 @@ impl Default for KeycapsEdits {
             shared_owner: None,
             key: KeycapsHelper::new(),
             key_owner: 0,
-            requests: Vec::new(),
         }
     }
 }
@@ -238,31 +235,27 @@ impl KeycapsEdits {
         }
     }
 
-    /// Replace a helper whose owner lifetime ended. Returns whether anything was dropped.
+    /// Replace each helper whose owner lifetime ended.
     fn follow_owner(
         &mut self,
         scope: Option<&Scope>,
         scope_generation: u64,
         workspace: &'static str,
         owner_generation: u64,
-    ) -> bool {
+    ) {
         let shared_owner = (scope.cloned(), scope_generation, workspace);
-        let mut dropped = false;
         if self.shared_owner.as_ref() != Some(&shared_owner) {
             if self.shared_owner.is_some() {
                 self.shared = KeycapsHelper::new();
-                dropped = true;
             }
             self.shared_owner = Some(shared_owner);
         }
         if self.key_owner != owner_generation {
             if self.key_owner != 0 {
                 self.key = KeycapsHelper::new();
-                dropped = true;
             }
             self.key_owner = owner_generation;
         }
-        dropped
     }
 
     fn owners_changed(
@@ -296,19 +289,7 @@ impl KeycapsEdits {
     }
 
     fn has_terminal(&self) -> bool {
-        self.requests.iter().any(|entry| !self.is_pending(entry))
-    }
-
-    fn prune(&mut self) {
-        let (shared, key) = (&self.shared, &self.key);
-        self.requests.retain(|entry| match entry.target {
-            KeycapsEditTarget::Key(_) => key.is_pending(entry),
-            _ => shared.is_pending(entry),
-        });
-    }
-
-    fn is_pending(&self, key: &KeycapsPendingKey) -> bool {
-        self.helper(&key.target).is_pending(key)
+        self.shared.has_terminal() || self.key.has_terminal()
     }
 }
 
@@ -330,16 +311,16 @@ fn pending_changes(
     };
     let edits = context.edits.read();
     edits
-        .requests
-        .iter()
+        .helper(target)
+        .edits()
+        .pending_keys()
         .filter_map(|entry| {
             let request = entry.request.as_ref()?;
             (request.scope == actions.scope
                 && request.scope_generation == actions.scope_generation
                 && request.selection_generation == actions.selection_generation
-                && request.target == *target
-                && edits.is_pending(entry))
-            .then(|| request.change.clone())
+                && request.target == *target)
+                .then(|| request.change.clone())
         })
         .collect()
 }
@@ -494,7 +475,6 @@ pub fn use_keycaps_settings_actions(
                     live_workspace,
                     owner_generation,
                 );
-                guard.prune();
                 guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
             }
             if !edits.peek().has_terminal() {
@@ -502,7 +482,7 @@ pub fn use_keycaps_settings_actions(
             }
             let document = runtime.model().accepted.map(|snapshot| snapshot.document);
             let results = {
-                let guard = edits.peek();
+                let guard = edits.write();
                 let accepted = |key: &KeycapsPendingKey| match (&key.target, &document) {
                     (KeycapsEditTarget::Key(id), Some(document)) => {
                         accepted_legend_text(document, id)
@@ -542,7 +522,6 @@ pub fn use_keycaps_settings_actions(
                     _ => {}
                 }
             }
-            edits.write().prune();
         }
     }));
 
@@ -557,10 +536,11 @@ pub fn use_keycaps_settings_actions(
             live_key_id.as_deref(),
         );
         let guard = edits.read();
-        guard
-            .requests
-            .iter()
-            .filter(|key| guard.is_pending(key))
+        let shared = guard.shared.edits();
+        let key = guard.key.edits();
+        shared
+            .pending_keys()
+            .chain(key.pending_keys())
             .filter_map(|key| key.request.as_deref())
             .filter(|request| {
                 request_owner_is_current(
@@ -658,7 +638,6 @@ pub fn use_keycaps_settings_actions(
                     live_workspace,
                     live_selection_generation,
                 );
-                guard.prune();
                 guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
             }
             submit_keycap_edit(&runtime, &mut edits, request);

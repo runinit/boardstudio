@@ -70,16 +70,20 @@ pub(super) fn use_bound_macro_field(
         if let Some(old) = previous.as_ref()
             && *old != key
         {
-            edits.0.peek().unbind_field(old);
+            edits.0.peek().helper.unbind_field(old);
         }
-        edits.0.peek().bind_field(key.clone(), draft, failure);
+        edits
+            .0
+            .peek()
+            .helper
+            .bind_field(key.clone(), draft, failure);
         *previous = Some(key);
     }
     use_drop({
         let bound = bound.clone();
         move || {
             if let (Some(edits), Some(key)) = (edits, bound.borrow_mut().take()) {
-                edits.0.peek().unbind_field(&key);
+                edits.0.peek().helper.unbind_field(&key);
             }
         }
     });
@@ -168,7 +172,9 @@ pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) ->
         tickets
             .0
             .read()
-            .pending()
+            .helper
+            .edits()
+            .pending_keys()
             .any(|entry| entry.macro_id.as_deref() == macro_id && same_action(entry.target, target))
     })
 }
@@ -184,7 +190,9 @@ pub(super) fn draft_step(
         for request in tickets
             .0
             .read()
-            .pending()
+            .helper
+            .edits()
+            .pending_keys()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
                 request.scope == *scope && request.macro_id.as_deref() == Some(macro_id)
@@ -292,12 +300,12 @@ pub fn use_macro_operations(
                         && entry.scope_generation == owner_generation
                 });
             }
-            if !pending.peek().has_terminal() {
+            if !pending.peek().helper.has_terminal() {
                 return;
             }
             let document = runtime.model().accepted.map(|snapshot| snapshot.document);
             let results = pending
-                .peek()
+                .write()
                 .helper
                 .settle(true, |key| accepted_macro_text(document.as_deref(), key));
             for result in results {
@@ -326,7 +334,6 @@ pub fn use_macro_operations(
                         .retain(|feedback| feedback.request_id != request.request_id),
                 }
             }
-            pending.write().prune();
         }
     }));
 
@@ -448,7 +455,7 @@ pub fn use_macro_operations(
                 return;
             }
             if is_action(request.target)
-                && pending.peek().pending().any(|entry| {
+                && pending.peek().helper.edits().pending_keys().any(|entry| {
                     entry.macro_id == request.macro_id && same_action(entry.target, request.target)
                 })
             {
@@ -467,7 +474,9 @@ pub fn use_macro_operations(
             // one can precede a field, so its positional effect can be captured purely.
             let preceding_structure = pending
                 .peek()
-                .pending()
+                .helper
+                .edits()
+                .pending_keys()
                 .find(|entry| entry.macro_id == request.macro_id && structural_action(entry.target))
                 .and_then(|entry| {
                     let before = entry.request.as_ref()?.step_sequence.as_ref()?.len();
@@ -502,17 +511,17 @@ pub fn use_macro_operations(
             let key = MacroKey::of(&request);
             let submitted_text = pending
                 .peek()
+                .helper
                 .bound_draft(&key)
                 .unwrap_or_else(|| submitted_macro_text(&request));
-            pending.peek().helper.begin_field(
+            pending.write().helper.begin_field(
                 &runtime,
-                key.clone(),
+                key,
                 "keymap-macro",
                 Some("macro".into()),
                 macro_resolver(request.clone(), seed, preceding_structure),
                 &submitted_text,
             );
-            pending.write().remember(key);
             last_admitted_request.set(request.request_id);
         }
     });

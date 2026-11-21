@@ -161,15 +161,12 @@ pub(super) fn submit_keycap_edit(
         KeycapEditChange::Legend(value) => value.clone().unwrap_or_default(),
         change => change_label(change),
     };
-    let mut guard = edits.write();
-    guard.helper(&key.target).begin_field(
+    edits.write().helper(&request.target).begin_field(
         runtime,
-        key.clone(),
+        key,
         "keycaps",
         Some("keycap settings".into()),
         resolver,
         &submitted,
     );
-    guard.requests.retain(|existing| *existing != key);
-    guard.requests.push(key);
 }

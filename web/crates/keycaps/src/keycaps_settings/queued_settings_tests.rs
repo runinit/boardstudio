@@ -36,6 +36,16 @@ struct Probe {
     edits: Rc<RefCell<Option<KeycapsEditsContext>>>,
 }
 
+fn observed_requests(edits: &KeycapsEdits) -> Vec<(Option<KeycapsEditRequest>, bool)> {
+    let shared = edits.shared.edits();
+    let key = edits.key.edits();
+    shared
+        .observations()
+        .chain(key.observations())
+        .map(|(key, pending)| (key.request.as_deref().cloned(), pending))
+        .collect()
+}
+
 fn host() -> Element {
     let probe = use_context::<Probe>();
     let runtime = probe.runtime.clone();
@@ -77,25 +87,17 @@ fn host() -> Element {
         0
     };
     let retirement_checkpoint = probe.retirement.borrow().as_ref().map(|expected| {
-        let entry = edits.requests.iter().find(|entry| {
-            entry
-                .request
-                .as_deref()
-                .is_some_and(|request| request == &expected.request)
-        });
+        let observed_requests = observed_requests(&edits);
+        let entry = observed_requests
+            .iter()
+            .find(|(request, _)| request.as_ref() == Some(&expected.request));
         RetirementCheckpoint {
             original_workspace: expected.original_workspace,
             shared_owner: edits.shared_owner.clone(),
             key_owner: edits.key_owner,
-            request: entry
-                .and_then(|entry| entry.request.as_ref())
-                .map(|request| (**request).clone()),
-            observed_requests: edits
-                .requests
-                .iter()
-                .map(|entry| (entry.request.as_deref().cloned(), edits.is_pending(entry)))
-                .collect(),
-            request_pending: entry.is_some_and(|entry| edits.is_pending(entry)),
+            request: entry.and_then(|(request, _)| request.clone()),
+            request_pending: entry.is_some_and(|(_, pending)| *pending),
+            observed_requests,
             terminal_outcome: expected.outcome.borrow().clone(),
             render_generation,
             effect_generation: 0,
@@ -736,21 +738,16 @@ async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
                 return false;
             };
             let edits = context.edits.peek();
-            let entry = edits.requests.iter().find(|entry| {
-                entry
-                    .request
-                    .as_deref()
-                    .is_some_and(|candidate| candidate == &request)
-            });
-            let request_ids = edits
-                .requests
+            let observed = observed_requests(&edits);
+            let entry = observed
                 .iter()
-                .map(|entry| {
-                    entry.request.as_deref().map_or_else(
-                        || format!("<none>:pending={}", edits.is_pending(entry)),
-                        |request| {
-                            format!("{}:pending={}", request.request_id, edits.is_pending(entry))
-                        },
+                .find(|(candidate, _)| candidate.as_ref() == Some(&request));
+            let request_ids = observed
+                .iter()
+                .map(|(request, pending)| {
+                    request.as_ref().map_or_else(
+                        || format!("<none>:pending={pending}"),
+                        |request| format!("{}:pending={pending}", request.request_id),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -775,9 +772,8 @@ async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
                 .borrow()
                 .as_ref()
                 .is_some_and(|expected| expected.original_workspace == "Keycaps")
-                && entry.is_some_and(|entry| {
-                    entry.request.as_deref() == Some(&request)
-                        && edits.is_pending(entry)
+                && entry.is_some_and(|(_, pending)| {
+                    *pending
                         && outcome.borrow().is_none()
                         && edits.shared_owner.as_ref()
                             == Some(&(
@@ -797,7 +793,7 @@ async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
         .expect("host exposes its workspace");
     workspace.set("Layout");
     wait_until(
-        "owner effects replace and prune the submitted edit before its reply",
+        "owner effects retire the submitted observation before its reply",
         || {
             let context = probe.edits.borrow();
             let Some(context) = context.as_ref() else {
@@ -816,12 +812,9 @@ async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
                         "Layout",
                     ))
                 && edits.key_owner != request.selection_generation
-                && !edits.requests.iter().any(|entry| {
-                    entry
-                        .request
-                        .as_deref()
-                        .is_some_and(|candidate| candidate == &request)
-                })
+                && !observed_requests(&edits)
+                    .iter()
+                    .any(|(candidate, _)| candidate.as_ref() == Some(&request))
                 && outcome.borrow().is_none()
         },
     )

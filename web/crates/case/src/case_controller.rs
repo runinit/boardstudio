@@ -125,6 +125,7 @@ pub(crate) fn use_bound_case_field(
             context
                 .pending
                 .peek()
+                .helper
                 .unbind_field(&BodyEditKey::bound(old));
             context
                 .fields
@@ -134,6 +135,7 @@ pub(crate) fn use_bound_case_field(
         context
             .pending
             .peek()
+            .helper
             .bind_field(BodyEditKey::bound(field_id), draft, failure);
         let mut fields = context.fields.borrow_mut();
         match fields.iter_mut().find(|entry| entry.field_id == field_id) {
@@ -153,6 +155,7 @@ pub(crate) fn use_bound_case_field(
         context
             .pending
             .read()
+            .helper
             .is_pending(&BodyEditKey::bound(field_id))
     });
     use_drop({
@@ -162,6 +165,7 @@ pub(crate) fn use_bound_case_field(
                 context
                     .pending
                     .peek()
+                    .helper
                     .unbind_field(&BodyEditKey::bound(&field_id));
                 context
                     .fields
@@ -296,12 +300,12 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            if !pending.peek().has_terminal() {
+            if !pending.peek().helper.has_terminal() {
                 return;
             }
             let scope = runtime.scope();
             let results = pending
-                .peek()
+                .write()
                 .helper
                 .settle(true, |key| edits_context.accepted_text(key));
             let mut next_feedback = feedback.peek().clone();
@@ -327,7 +331,6 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                 }
             }
             feedback.set(next_feedback);
-            pending.write().prune();
         }
     }));
 
@@ -503,7 +506,9 @@ fn submit_body_edit(
     if let Some(action_id) = request.edit.action_id()
         && pending
             .peek()
-            .pending()
+            .helper
+            .edits()
+            .pending_keys()
             .filter_map(|entry| entry.meta.as_deref())
             .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
     {
@@ -535,15 +540,14 @@ fn submit_body_edit(
     if pending.peek().owner_changed(Some(&scope), 0) {
         pending.write().follow_owner(Some(&scope), 0);
     }
-    pending.peek().helper.begin_field(
+    pending.write().helper.begin_field(
         runtime,
-        key.clone(),
+        key,
         "case-body",
         Some("case body".into()),
         resolver,
         &draft_text,
     );
-    pending.write().remember(key);
 }
 
 fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {

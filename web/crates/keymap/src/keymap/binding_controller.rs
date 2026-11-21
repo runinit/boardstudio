@@ -119,7 +119,9 @@ pub(super) fn draft_binding(
         for request in tickets
             .0
             .read()
-            .pending()
+            .helper
+            .edits()
+            .pending_keys()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
                 request.scope == *scope
@@ -573,10 +575,10 @@ pub fn use_binding_operations(
                     feedback.write().clear();
                 }
             }
-            if !pending.peek().has_terminal() {
+            if !pending.peek().helper.has_terminal() {
                 return;
             }
-            let results = pending.peek().helper.settle(true, |_| String::new());
+            let results = pending.write().helper.settle(true, |_| String::new());
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
                 | PendingEditResult::Failed { key, .. }
@@ -601,7 +603,6 @@ pub fn use_binding_operations(
                         .retain(|entry| entry.request.request_id != waiting.request_id),
                 }
             }
-            pending.write().prune();
         }
     }));
 
@@ -802,15 +803,14 @@ pub fn use_binding_operations(
                     .follow_owner(Some(&expected_source.scope), captured_generation);
             }
             let key = BindingKey::of(&request);
-            pending.peek().helper.begin_field(
+            pending.write().helper.begin_field(
                 &runtime,
-                key.clone(),
+                key,
                 "keymap-binding",
                 Some("binding".into()),
                 binding_resolver(request.clone()),
                 "",
             );
-            pending.write().remember(key);
             feedback.write().retain(|entry| {
                 !(entry.request.target == request.target && entry.request.field == request.field)
             });

@@ -65,7 +65,7 @@ use boardstudio_application::EditResolver;
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 
 /// Whether a settlement may write a field's draft: only while the live draft still is
@@ -355,6 +355,35 @@ where
     /// Whether the key's latest edit is still pending in its captured document scope.
     pub fn is_pending(&self, key: &K) -> bool {
         self.shared.edits.borrow().is_pending(key)
+    }
+
+    /// Whether any terminal observation still awaits settlement.
+    pub fn has_terminal(&self) -> bool {
+        self.shared.edits.borrow().has_terminal()
+    }
+
+    /// Borrow the observations for presentation. Release the borrow before submitting
+    /// or settling an edit.
+    pub fn edits(&self) -> Ref<'_, PendingEdits<K>> {
+        self.shared.edits.borrow()
+    }
+
+    /// Retire observations silently while keeping the mounted field bindings. One-shot
+    /// bindings belong to the old owner. Dropping tickets leaves their Session edits running.
+    pub(crate) fn retire_owner(&self) {
+        *self.shared.edits.borrow_mut() = PendingEdits::default();
+        self.shared.submitted.borrow_mut().clear();
+        self.shared.one_shots.borrow_mut().clear();
+    }
+
+    /// Read the current draft of a mounted field without subscribing to it.
+    pub fn bound_draft(&self, key: &K) -> Option<D> {
+        self.shared
+            .fields
+            .borrow()
+            .iter()
+            .find(|binding| &binding.key == key)
+            .map(|binding| binding.view.draft.peek().clone())
     }
 
     /// Drain terminal results once and apply the field policy:
