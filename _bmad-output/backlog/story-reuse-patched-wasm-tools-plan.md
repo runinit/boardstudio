@@ -3,7 +3,7 @@ title: Reuse the patched Wasm tools across unrelated workspace changes
 type: chore
 ticket: 1
 created: '2026-11-17'
-status: built
+status: done
 baseline_revision: '95e7091c45065f174a62c682eeeae658f4e46b30'
 route: full
 route_source: auto
