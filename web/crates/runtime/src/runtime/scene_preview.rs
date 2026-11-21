@@ -532,6 +532,10 @@ impl Runtime {
                         return Ok(None);
                     };
                     let verified = VerifiedModelBytes::verify(bytes.clone(), &sha256)?;
+                    let verified = match asset.source {
+                        ModelAssetSource::Packaged { .. } => verified.with_packaged_source(),
+                        ModelAssetSource::Document => verified,
+                    };
                     if cache_packaged {
                         runtime.assets.borrow_mut().insert(sha256, bytes);
                     }

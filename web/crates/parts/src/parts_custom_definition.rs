@@ -98,7 +98,7 @@ pub(crate) mod ui {
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_model::model::{Pad, PadShape, PartDefinition, PartKind};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -184,18 +184,14 @@ pub(crate) mod ui {
 
     impl PanelRows {
         /// Release departed row bindings before discarding their projection handles.
-        fn retain_rows(&mut self, live: &[u64], pending: &PendingEditSignals<DefinitionFieldKey>) {
+        fn retain_rows(&mut self, live: &[u64], pending: &DraftEdits<DefinitionFieldKey>) {
             self.drafts.retain(|row, _| {
                 if live.contains(row) {
                     return true;
                 }
                 for field in PadField::text_fields() {
-                    pending.unbind_field(&DefinitionFieldKey::Pad { row: *row, field });
+                    pending.detach_field(&DefinitionFieldKey::Pad { row: *row, field });
                 }
-                pending.unbind_one_shot(&DefinitionFieldKey::Pad {
-                    row: *row,
-                    field: PadField::Remove,
-                });
                 false
             });
             self.accepted.retain(|row, _| live.contains(row));
@@ -260,7 +256,7 @@ pub(crate) mod ui {
         let mut failure = use_signal(|| None::<String>);
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
         let owner_identity = (scope.clone(), selection(), definition.id.clone());
-        let pending = use_hook(PendingEditSignals::<DefinitionFieldKey>::new);
+        let pending = use_hook(DraftEdits::<DefinitionFieldKey>::default);
         // Pad-row drafts live here so a settlement can never write a Signal whose row
         // component already unmounted; the helper's bindings point at these Signals.
         let row_drafts = use_hook(|| Rc::new(RefCell::new(PanelRows::default())));
@@ -275,11 +271,8 @@ pub(crate) mod ui {
         if *observation_owner.borrow() != capture {
             // A replacement definition takes fresh bindings. Old observations retire
             // before the replacement can receive their terminal feedback.
-            pending.unbind_field(&DefinitionFieldKey::CourtyardWidth);
-            pending.unbind_field(&DefinitionFieldKey::CourtyardHeight);
-            let mut rows = row_drafts.borrow_mut();
-            rows.retain_rows(&[], &pending);
-            pending.settle(false, |_| String::new());
+            pending.clear();
+            *row_drafts.borrow_mut() = PanelRows::default();
             *observation_owner.borrow_mut() = capture.clone();
             width.set(courtyard.0.clone());
             height.set(courtyard.1.clone());
@@ -287,16 +280,6 @@ pub(crate) mod ui {
             height_dirty.set(false);
             failure.set(None);
         }
-        use_drop({
-            let pending = pending.clone();
-            let row_drafts = row_drafts.clone();
-            move || {
-                pending.unbind_field(&DefinitionFieldKey::CourtyardWidth);
-                pending.unbind_field(&DefinitionFieldKey::CourtyardHeight);
-                row_drafts.borrow_mut().retain_rows(&[], &pending);
-                pending.settle(false, |_| String::new());
-            }
-        });
 
         // Begin a pending edit for a committed field. Admission keeps stale callbacks
         // out early; value validation explains itself inline; the resolver owns every
@@ -337,23 +320,23 @@ pub(crate) mod ui {
                 if one_shot && pending.is_pending(&key) {
                     return;
                 }
-                // The helper remembers the draft each field edit was submitted with, so
-                // an older outcome can never clobber a newer draft.
-                let submitted = match key {
-                    DefinitionFieldKey::CourtyardWidth => width.peek().clone(),
-                    DefinitionFieldKey::CourtyardHeight => height.peek().clone(),
-                    DefinitionFieldKey::Pad { row, field } => row_drafts
-                        .borrow()
-                        .drafts
-                        .get(&row)
-                        .and_then(|drafts| {
-                            field
-                                .text_index()
-                                .map(|index| drafts.drafts[index].peek().clone())
+                let view = match key {
+                    DefinitionFieldKey::CourtyardWidth => Some(FieldView::new(width, failure)),
+                    DefinitionFieldKey::CourtyardHeight => Some(FieldView::new(height, failure)),
+                    DefinitionFieldKey::Pad { row, field } => {
+                        field.text_index().and_then(|index| {
+                            row_drafts
+                                .borrow()
+                                .drafts
+                                .get(&row)
+                                .map(|row| FieldView::new(row.drafts[index], failure))
                         })
-                        .unwrap_or_default(),
-                    DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => String::new(),
+                    }
+                    DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => None,
                 };
+                let submitted = view
+                    .map(|view| view.draft.peek().clone())
+                    .unwrap_or_default();
                 // A baseline value is a real new intent while an older edit waits.
                 // Otherwise compare with fresh accepted state, so retained callbacks
                 // cannot mistake a stale prop value for the accepted value.
@@ -387,25 +370,15 @@ pub(crate) mod ui {
                     _ => 0,
                 };
                 let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
-                if one_shot {
-                    // One-shot controls stay quiet while their edit is queued.
-                    pending.begin_one_shot(
-                        &runtime,
-                        key,
-                        "parts-definition-field",
-                        Some("part definition".into()),
-                        resolver,
-                    );
-                } else {
-                    pending.begin_field(
-                        &runtime,
-                        key,
-                        "parts-definition-field",
-                        Some("part definition".into()),
-                        resolver,
-                        &submitted,
-                    );
-                }
+                pending.submit(
+                    &runtime,
+                    key,
+                    "parts-definition-field",
+                    Some("part definition".into()),
+                    resolver,
+                    view.map(|view| view.submitted(submitted))
+                        .unwrap_or_default(),
+                );
                 failure.set(None);
             }
         });
@@ -457,22 +430,12 @@ pub(crate) mod ui {
         {
             let mut rows = row_drafts.borrow_mut();
             for (pad, row_key) in definition.pads.iter().zip(row_keys.iter().copied()) {
-                let row_drafts = rows.row(row_key, pad);
+                rows.row(row_key, pad);
                 for field in PadField::text_fields() {
                     rows.refresh(row_key, field, pad);
-                    pending.bind_field(
-                        DefinitionFieldKey::Pad {
-                            row: row_key,
-                            field,
-                        },
-                        row_drafts.drafts[field.text_index().unwrap_or_default()],
-                        failure,
-                    );
                 }
             }
         }
-        pending.bind_field(DefinitionFieldKey::CourtyardWidth, width, failure);
-        pending.bind_field(DefinitionFieldKey::CourtyardHeight, height, failure);
 
         // Settle the pending edits before rendering: pending fields keep their drafts,
         // failures restore the accepted value with the message inline, and landed or

@@ -9,8 +9,8 @@ use crate::{
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -21,7 +21,10 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -296,7 +299,7 @@ pub fn ComponentModelEditor(
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
     let mut file_input = use_signal(|| None::<HtmlInputElement>);
-    let pending_edits = use_hook(PendingEditSignals::<ModelKey>::new);
+    let pending_edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<ModelKey>::default())));
     let submit_owner = use_signal(|| None::<ModelEditorOwner>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -338,7 +341,7 @@ pub fn ComponentModelEditor(
                 &workspace,
             )
             .is_some();
-            let results = pending_edits.settle(live, |_| String::new());
+            let results = pending_edits.borrow_mut().settle(live);
             for result in results {
                 if let PendingEditResult::Failed { message, .. } = result {
                     error.set(Some(ModelEditorMessage {
@@ -365,8 +368,8 @@ pub fn ComponentModelEditor(
     let visible_notice = notice()
         .filter(|message| message.owner == owner && current_owner.is_some())
         .map(|message| message.text);
-    let upload_pending = pending_edits.is_pending(&ModelKey::Upload);
-    let remove_pending = pending_edits.is_pending(&ModelKey::Remove);
+    let upload_pending = pending_edits.borrow().is_pending(&ModelKey::Upload);
+    let remove_pending = pending_edits.borrow().is_pending(&ModelKey::Remove);
     let base_definition = definition.clone();
     let selected_for_upload = selected;
     let runtime_for_upload = runtime.clone();
@@ -387,7 +390,7 @@ pub fn ComponentModelEditor(
         };
         input.set_value("");
         if uploading()
-            || upload_pending_edits.is_pending(&ModelKey::Upload)
+            || upload_pending_edits.borrow().is_pending(&ModelKey::Upload)
             || current_snapshot(
                 &runtime_for_upload,
                 &owner_for_upload,
@@ -541,7 +544,7 @@ pub fn ComponentModelEditor(
             uploading.set(false);
             error.set(None);
             notice.set(None);
-            pending_edits.begin_one_shot(
+            pending_edits.borrow_mut().begin(
                 &runtime,
                 ModelKey::Upload,
                 "parts-component-model",
@@ -627,7 +630,7 @@ pub fn ComponentModelEditor(
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
-            if pending_edits.is_pending(&ModelKey::Remove) {
+            if pending_edits.borrow().is_pending(&ModelKey::Remove) {
                 return;
             }
             let live = current_snapshot(
@@ -643,7 +646,7 @@ pub fn ComponentModelEditor(
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    pending_edits.begin_one_shot(
+                    pending_edits.borrow_mut().begin(
                         &runtime,
                         ModelKey::Remove,
                         "parts-component-model",
@@ -746,7 +749,7 @@ fn ModelVectorEditor(
     // This editor's own collection: the editor is remounted per owner (its parent keys
     // it by the model owner), so its lifetime is the owner lifetime and it settles its
     // own axes here, like the render-body settlement it replaces.
-    let pending = use_hook(PendingEditSignals::<ModelKey>::new);
+    let pending = use_hook(DraftEdits::<ModelKey>::default);
     let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
@@ -754,16 +757,6 @@ fn ModelVectorEditor(
     let mut synced = use_signal(|| current);
     let mut error = use_signal(|| None::<(usize, String)>);
     let failure = use_signal(|| None::<String>);
-    for index in 0..3 {
-        pending.bind_field(
-            ModelKey::Transform {
-                field,
-                axis: axes[index],
-            },
-            drafts[index],
-            failure,
-        );
-    }
     {
         let previous = synced();
         for index in 0..3 {
@@ -855,13 +848,13 @@ fn ModelVectorEditor(
                             {
                                 // The helper remembers the submitted axis text, so an
                                 // older outcome can never clobber a newer draft.
-                                pending.begin_field(
+                                pending.submit(
                                     &runtime,
                                     key,
                                     "parts-component-model",
                                     Some("component model".into()),
                                     resolver,
-                                    &raw,
+                                    FieldView::new(drafts[index], failure).submitted(raw),
                                 );
                             }
                         },

@@ -339,7 +339,18 @@ fn mounted_component_inspector_host() -> Element {
     let action_adapter = adapter.clone();
     let action_lifetime = lifetime.clone();
     let action_workspace = workspace;
-    let action_pending_edits = pending_edits;
+    use boardstudio_web_ui_shared::draft_edits::FieldView;
+    let views = layout_component_edits::ComponentEditViews {
+        x: FieldView::new(x_draft, x_failure),
+        y: FieldView::new(y_draft, y_failure),
+        margin: FieldView::new(margin_draft, margin_failure),
+        actions: (
+            layout_pending,
+            constraint_pending,
+            remove_pending,
+            mirrored_half_pending,
+        ),
+    };
     let last_action = probe.last_action.clone();
     let action_handler = EventHandler::new(move |action: LayoutComponentInspectorAction| {
         *last_action.borrow_mut() = Some(action.clone());
@@ -349,7 +360,7 @@ fn mounted_component_inspector_host() -> Element {
             &layout_owner,
             &action_lifetime,
             (action_workspace, inspect_open),
-            action_pending_edits,
+            (pending_edits, views),
             action,
         )
     });
@@ -844,7 +855,7 @@ fn companion_placement_runtime_host() -> Element {
                         action.mode,
                         action.tweak,
                     ),
-                    None,
+                    boardstudio_web_ui_shared::draft_edits::EditDisplay::default().disabling(pending),
                 );
             }),
         }

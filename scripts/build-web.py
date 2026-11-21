@@ -145,12 +145,42 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
     return commands
 
 
+def _stage_baked_step(worker: Path, provider_root: Path) -> str:
+    source = provider_root / "web/target/providers/bundled-step"
+    manifest = source / "manifest.json"
+    destination = worker / "bundled-step"
+    if destination.exists():
+        shutil.rmtree(destination)
+    if not manifest.is_file():
+        return ""
+    assets = json.loads(manifest.read_text())["assets"]
+    destination.mkdir()
+    for digest in set(assets.values()):
+        shutil.copy2(source / f"{digest}.bstep", destination)
+    # The generated inventory authorizes sidecars for known source bytes only.
+    return (
+        f'const bakedSteps = new Map(Object.entries({json.dumps(assets)}));\n'
+        'async function loadBakedStep(sourceSha256) {\n'
+        '    const digest = bakedSteps.get(sourceSha256);\n'
+        '    if (!digest) return;\n'
+        '    const response = await fetch(new URL(`./bundled-step/${digest}.bstep`, import.meta.url));\n'
+        '    if (!response.ok) return;\n'
+        '    const bytes = await response.arrayBuffer();\n'
+        '    const actual = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),\n'
+        '        byte => byte.toString(16).padStart(2, "0")).join("");\n'
+        '    if (actual !== digest) return;\n'
+        '    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));\n'
+        '    return new Uint8Array(await new Response(stream).arrayBuffer());\n'
+        '}\n'
+    )
+
+
 def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_assets: bool = False) -> None:
     """Copy the generated providers into `assets` and write the worker entry modules."""
     if include_site_assets:
         shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
-                                                     "preview-generator"))
+                                                     "preview-generator", "bundled-step"))
         shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
                      assets / "imported-modules.json")
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
@@ -162,10 +192,13 @@ def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_a
         'import init, { start_core_worker } from "./m1_core_worker.js";\n'
         'await init();\nstart_core_worker();\n'
     )
+    baked_loader = _stage_baked_step(assets / "cad-worker", provider_root)
+    loader_argument = ", loadBakedStep" if baked_loader else ""
     (assets / "cad-worker/entry.js").write_text(
         'import init, { start_cad_worker } from "./m1_cad_worker.js";\n'
-        'await init();\n'
-        'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n'
+        + baked_loader
+        + 'await init();\n'
+        + f'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href{loader_argument});\n'
     )
 
 
@@ -479,8 +512,12 @@ def prepare_runtime_providers(fast: bool = False, *, page_build=None, defer_stag
     the wasm test prebuilds instead of behind the Cargo lock.
     """
     commands = provider_commands(fast)
+    baked_checks = [
+        ([sys.executable, "cad/scripts/bake-bundled-step.py"], ROOT),
+        (["node", "cad/wasm/tests/bundled-step-parity.cjs"], ROOT),
+    ]
     if page_build is None:
-        for command, cwd in commands:
+        for command, cwd in [*commands, *baked_checks]:
             run(command, cwd=cwd)
     else:
         # Prepare Ergogen before the page build sees the asset directory. The wasm-pack providers
@@ -488,7 +525,7 @@ def prepare_runtime_providers(fast: bool = False, *, page_build=None, defer_stag
         wasm_packs, cad, ergogen = commands[:-2], commands[-2], commands[-1]
         command, cwd = ergogen
         run(command, cwd=cwd)
-        run_lanes([[*wasm_packs, page_build], [cad]])
+        run_lanes([[*wasm_packs, page_build], [cad, *baked_checks]])
     if defer_staging:
         return
     finish_provider_staging()

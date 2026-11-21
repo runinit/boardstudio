@@ -649,28 +649,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         });
         !changed
     };
-    pending.bind_one_shot(
-        super::super::layout_component_edits::InspectorField::Layout,
-        props.layout_pending,
-    );
-    pending.bind_one_shot(
-        super::super::layout_component_edits::InspectorField::Constraint,
-        props.constraint_pending,
-    );
-    pending.bind_one_shot(
-        super::super::layout_component_edits::InspectorField::RemoveConstraint,
-        props.remove_pending,
-    );
-    pending.bind_one_shot(
-        super::super::layout_component_edits::InspectorField::MirroredHalfState,
-        props.mirrored_half_pending,
-    );
-    // The member exception buttons and the independent-part toggle never show
-    // together, so they share one pending slot.
-    pending.bind_one_shot(
-        super::super::layout_component_edits::InspectorField::PartMirror,
-        props.mirrored_half_pending,
-    );
     let mirrored_half_action = |state| {
         let mirrored_half = projection.mirrored_half.clone();
         let owner = latest_capture;
@@ -863,21 +841,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     };
-    pending.bind_field(
-        super::super::layout_component_edits::InspectorField::X,
-        x,
-        x_failure,
-    );
-    pending.bind_field(
-        super::super::layout_component_edits::InspectorField::Y,
-        y,
-        y_failure,
-    );
-    pending.bind_field(
-        super::super::layout_component_edits::InspectorField::Margin,
-        margin,
-        margin_failure,
-    );
     let accepted_projection = projection.clone();
     pending.settle(owner_is_live, move |key| match key {
         super::super::layout_component_edits::InspectorField::X => {

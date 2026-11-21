@@ -8,7 +8,7 @@ use boardstudio_model::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -320,19 +320,9 @@ pub fn ModuleProfileEditor(
     let mut rotary_dirty = use_signal(|| false);
     let mut shape = use_signal(ModuleVolumeDraft::default);
     let mut reviewed = use_signal(|| false);
-    let profile_edits = use_hook(PendingEditSignals::<ModuleProfileKey, ModuleProfileDraft>::new);
-    let rotary_edits = use_hook(PendingEditSignals::<ModuleProfileKey, ModuleRotaryDraft>::new);
+    let profile_edits = use_hook(DraftEdits::<ModuleProfileKey, ModuleProfileDraft>::default);
+    let rotary_edits = use_hook(DraftEdits::<ModuleProfileKey, ModuleRotaryDraft>::default);
     let mut failure = use_signal(|| None::<String>);
-    profile_edits.bind_field(ModuleProfileKey::Save, draft, failure);
-    rotary_edits.bind_field(ModuleProfileKey::Save, rotary, failure);
-    use_drop({
-        let profile_edits = profile_edits.clone();
-        let rotary_edits = rotary_edits.clone();
-        move || {
-            profile_edits.unbind_field(&ModuleProfileKey::Save);
-            rotary_edits.unbind_field(&ModuleProfileKey::Save);
-        }
-    });
     let mut error = use_signal(|| None::<ModuleProfileError>);
     let draft_owner = (
         owner.session_epoch,
@@ -348,15 +338,13 @@ pub fn ModuleProfileEditor(
         let profile_edits = profile_edits.clone();
         let rotary_edits = rotary_edits.clone();
         move |(next_owner,)| {
-            // Settling may read the failure Signal, so a later failure can wake this
-            // effect without changing its owner. Only a new owner resets the drafts.
             if processed_owner.peek().as_ref() == Some(&next_owner) {
                 return;
             }
             processed_owner.set(Some(next_owner));
             // A new owner retires observations before its drafts replace the old ones.
-            let _ = profile_edits.settle(false, |_| baseline.clone());
-            let _ = rotary_edits.settle(false, |_| baseline_rotary.clone());
+            profile_edits.clear();
+            rotary_edits.clear();
             draft.set(baseline.clone());
             rotary.set(baseline_rotary.clone());
             profile_dirty.set(false);
@@ -605,22 +593,22 @@ pub fn ModuleProfileEditor(
                 reviewed,
             );
             if rotary_save {
-                rotary_edits.begin_value(
+                rotary_edits.submit(
                     &runtime,
                     ModuleProfileKey::Save,
                     "parts-module-profile",
                     Some("module profile".into()),
                     resolver,
-                    &rotary.peek().clone(),
+                    FieldView::new(rotary, failure).submitted(rotary.peek().clone()),
                 );
             } else {
-                profile_edits.begin_value(
+                profile_edits.submit(
                     &runtime,
                     ModuleProfileKey::Save,
                     "parts-module-profile",
                     Some("module profile".into()),
                     resolver,
-                    &draft.peek().clone(),
+                    FieldView::new(draft, failure).submitted(draft.peek().clone()),
                 );
             }
             error.set(None);

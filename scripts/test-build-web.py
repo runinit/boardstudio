@@ -80,7 +80,11 @@ class BuildWebTests(unittest.TestCase):
             public.mkdir()
 
         def stage():
-            self.assertEqual(len([step for step in finished if step != "css"]), 7)
+            self.assertEqual(len([step for step in finished if step != "css"]), 9)
+            cad = next(i for i, step in enumerate(finished) if "cad/scripts/build-cad-wasm.py" in step)
+            bake = next(i for i, step in enumerate(finished) if "cad/scripts/bake-bundled-step.py" in step)
+            self.assertLess(cad, bake)
+            self.assertLess(bake, finished.index(["node", "cad/wasm/tests/bundled-step-parity.cjs"]))
 
         with patch.object(BUILD, "run", fake_run), patch.object(BUILD, "check_jobs", return_value=3), \
              patch.object(BUILD, "page_tools", return_value=tools), patch.object(BUILD, "PAGE_PUBLIC", public), \
@@ -490,6 +494,29 @@ class BuildWebTests(unittest.TestCase):
             self.assertEqual((dev / "cad-worker/entry.js").read_text(),
                              'import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\n'
                              'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n')
+
+    def test_baked_step_staging_uses_only_current_manifest_files(self):
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "web/target/providers/bundled-step"
+            source.mkdir(parents=True)
+            worker = root / "site/assets/cad-worker"
+            (worker / "bundled-step").mkdir(parents=True)
+            (worker / "bundled-step/old.bstep").write_bytes(b"old")
+            (source / "old.bstep").write_bytes(b"old")
+            original = hashlib.sha256(b"original STEP").hexdigest()
+            digest = hashlib.sha256(b"preview payload").hexdigest()
+            (source / f"{digest}.bstep").write_bytes(b"preview payload")
+            (source / "manifest.json").write_text(json.dumps({"assets": {original: digest}}))
+            loader = BUILD._stage_baked_step(worker, root)
+            self.assertIn(json.dumps({original: digest}), loader)
+            self.assertEqual([p.name for p in (worker / "bundled-step").iterdir()], [f"{digest}.bstep"])
+            self.assertEqual((worker / f"bundled-step/{digest}.bstep").read_bytes(), b"preview payload")
+            (source / "manifest.json").unlink()
+            self.assertEqual(BUILD._stage_baked_step(worker, root), "")
+            self.assertFalse((worker / "bundled-step").exists())
 
     def test_offline_worker_bootstrap_passes_route_manifest(self):
         import json

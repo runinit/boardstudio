@@ -18,7 +18,7 @@ use boardstudio_model::model::{
 };
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::{FieldView, PendingEditSignals};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -71,10 +71,7 @@ pub struct MechanicalSettingsController {
     requests: RefCell<Vec<SettingsEdit>>,
     /// The latest observed edit per field, for the owner it was admitted under; an older
     /// edit for the field still runs. A changed owner replaces the helper.
-    edits: RefCell<(
-        Option<MechanicalSettingsIdentity>,
-        PendingEditSignals<String>,
-    )>,
+    edits: RefCell<(Option<MechanicalSettingsIdentity>, DraftEdits<String>)>,
     last_request_id: Cell<u64>,
     fields: RefCell<Vec<MechanicalField>>,
     staged_field: RefCell<Option<PreparedField>>,
@@ -94,10 +91,6 @@ struct PreparedField {
     key: String,
     view: FieldView,
     text: String,
-}
-
-fn same_field(left: FieldView, right: FieldView) -> bool {
-    left.draft == right.draft && left.failure == right.failure
 }
 
 /// Connect actual child Signals to the existing controller without expanding panel props.
@@ -126,7 +119,7 @@ pub(super) fn use_bound_mechanical_field(
             .fields
             .borrow()
             .iter()
-            .find(|field| field.key == key && same_field(field.view, view))
+            .find(|field| field.key == key && field.view == view)
             .and_then(|field| field.latest_request);
         controller.requests.borrow().iter().any(|request| {
             request.key == key
@@ -168,7 +161,7 @@ impl MechanicalSettingsController {
         Rc::new(Self {
             ports,
             requests: RefCell::new(Vec::new()),
-            edits: RefCell::new((None, PendingEditSignals::new())),
+            edits: RefCell::new((None, DraftEdits::default())),
             last_request_id: Cell::new(0),
             fields: RefCell::new(Vec::new()),
             staged_field: RefCell::new(None),
@@ -181,14 +174,11 @@ impl MechanicalSettingsController {
 
     fn bind_field(&self, key: String, view: FieldView, accepted: String) {
         self.follow_owner();
-        self.edits
-            .borrow()
-            .1
-            .bind_field(key.clone(), view.draft, view.failure);
         let mut fields = self.fields.borrow_mut();
         match fields.iter_mut().find(|field| field.key == key) {
             Some(field) => {
-                if !same_field(field.view, view) {
+                if field.view != view {
+                    self.edits.borrow().1.detach_field(&key);
                     field.latest_request = None;
                 }
                 field.view = view;
@@ -207,9 +197,9 @@ impl MechanicalSettingsController {
         let mut fields = self.fields.borrow_mut();
         if fields
             .iter()
-            .any(|field| field.key == key && same_field(field.view, view))
+            .any(|field| field.key == key && field.view == view)
         {
-            self.edits.borrow().1.unbind_field(&key.to_owned());
+            self.edits.borrow().1.detach_field(&key.to_owned());
             fields.retain(|field| field.key != key);
         }
     }
@@ -258,18 +248,15 @@ impl MechanicalSettingsController {
         // Preparation has no ticket yet. Remember only the latest admitted request
         // for the current mounted view, including after that preparation fails.
         if let Some(submitted) = prepared_field.as_ref()
-            && let Some(field) =
-                self.fields.borrow_mut().iter_mut().find(|field| {
-                    field.key == submitted.key && same_field(field.view, submitted.view)
-                })
+            && let Some(field) = self
+                .fields
+                .borrow_mut()
+                .iter_mut()
+                .find(|field| field.key == submitted.key && field.view == submitted.view)
         {
             field.latest_request = Some(request.request_id);
-            // A newer admitted preparation owns this mounted field immediately.
-            // Detach the old ticket's UI epoch while its Session write continues;
-            // the new ticket will capture this binding only after its loader succeeds.
-            let helper = self.edits.borrow().1.clone();
-            helper.unbind_field(&field.key);
-            helper.bind_field(field.key.clone(), field.view.draft, field.view.failure);
+            // The newer preparation owns this view while the old Session edit finishes.
+            self.edits.borrow().1.detach_field(&field.key);
         }
         let opening_guard = opening_target_guard(&request.patch, &self.requests.borrow());
         let reviewed_pair_guard = reviewed_pair_guard(
@@ -378,35 +365,24 @@ impl MechanicalSettingsController {
         for (id, key, field, resolver) in prepared {
             self.follow_owner();
             let helper = self.edits.borrow().1.clone();
-            let current_view = self
-                .fields
-                .borrow()
-                .iter()
-                .find(|entry| entry.key == key)
-                .map(|entry| (entry.view, entry.latest_request));
-            let detached = field.as_ref().is_some_and(|field| {
-                current_view.is_none_or(|(view, latest)| {
-                    !same_field(view, field.view) || latest != Some(id)
+            let display = field
+                .filter(|submitted| {
+                    self.fields.borrow().iter().any(|entry| {
+                        entry.key == key
+                            && entry.view == submitted.view
+                            && entry.latest_request == Some(id)
+                    })
                 })
-            });
-            if detached {
-                // The ordered preparation prefix cannot have submitted a newer request
-                // behind this one yet. Detaching here therefore cannot invalidate a
-                // newer binding's in-flight ticket, and prevents the old preparation
-                // from acquiring a replacement child's binding epoch.
-                helper.unbind_field(&key);
-            }
-            helper.begin_field(
+                .map(|submitted| submitted.view.submitted(submitted.text))
+                .unwrap_or_default();
+            helper.submit(
                 self.ports.edit_port.as_ref(),
                 key.clone(),
                 "mechanical-settings",
                 Some("mechanical settings".into()),
                 resolver,
-                field.as_ref().map_or("", |field| field.text.as_str()),
+                display,
             );
-            if detached && let Some((view, _)) = current_view {
-                helper.bind_field(key.clone(), view.draft, view.failure);
-            }
             let mut requests = self.requests.borrow_mut();
             // The newest observation replaces the older one for its field.
             requests.retain(|entry| {
@@ -494,12 +470,9 @@ impl MechanicalSettingsController {
             .is_none_or(|owner| !same_owner(&current.identity, owner));
         if changed {
             if edits.0.is_some() {
-                edits.1 = PendingEditSignals::new();
+                edits.1.clear();
                 for field in self.fields.borrow_mut().iter_mut() {
                     field.latest_request = None;
-                    edits
-                        .1
-                        .bind_field(field.key.clone(), field.view.draft, field.view.failure);
                 }
             }
             edits.0 = Some(current.identity);
@@ -513,15 +486,12 @@ impl MechanicalSettingsController {
             .iter()
             .find(|field| {
                 field.key == submitted.key
-                    && same_field(field.view, submitted.view)
+                    && field.view == submitted.view
                     && field.latest_request == Some(request_id)
             })
             .map(|field| (field.view, field.accepted.clone()));
-        if let Some((mut view, accepted)) = field {
-            if *view.draft.peek() == submitted.text {
-                view.draft.set(accepted);
-            }
-            view.failure.set(Some(message.to_owned()));
+        if let Some((view, accepted)) = field {
+            view.restore(submitted.text.as_str(), || accepted, Some(message));
         }
     }
 

@@ -10,7 +10,7 @@ use boardstudio_model::model::{
     PartDefinition, Side, VikRole, VikSignal,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -122,15 +122,11 @@ fn PcbMountedModuleInspector(
     // Typed placement and bounded action kinds share submitted-value restoration,
     // inline failures, one-shot disabling and binding lifetime in one helper.
     let edits =
-        use_hook(PendingEditSignals::<ModuleEditKey, boardstudio_model::model::MountedModule>::new);
+        use_hook(DraftEdits::<ModuleEditKey, boardstudio_model::model::MountedModule>::default);
     let placement_failure = use_signal(|| None::<String>);
     let remove_disabled = use_signal(|| false);
     let embed_disabled = use_signal(|| false);
     let circuit_removal_disabled = use_signal(|| false);
-    edits.bind_field(ModuleEditKey::Placement, draft, placement_failure);
-    edits.bind_one_shot(ModuleEditKey::RemoveModule, remove_disabled);
-    edits.bind_one_shot(ModuleEditKey::Embed, embed_disabled);
-    edits.bind_one_shot(ModuleEditKey::RemoveCircuit, circuit_removal_disabled);
     let latest = use_signal(|| None::<ModuleEditKey>);
     let save_queue = use_hook(|| {
         Rc::new(RefCell::new(VecDeque::<(
@@ -142,14 +138,7 @@ fn PcbMountedModuleInspector(
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
-        let edits = edits.clone();
-        move || {
-            alive.set(false);
-            edits.unbind_field(&ModuleEditKey::Placement);
-            edits.unbind_one_shot(&ModuleEditKey::RemoveModule);
-            edits.unbind_one_shot(&ModuleEditKey::Embed);
-            edits.unbind_one_shot(&ModuleEditKey::RemoveCircuit);
-        }
+        move || alive.set(false)
     });
     let version = use_context::<Signal<u64>>()();
     use_effect(use_reactive((&version,), {
@@ -310,13 +299,13 @@ fn PcbMountedModuleInspector(
                 let key = ModuleEditKey::Placement;
                 latest.set(Some(key.clone()));
                 feedback.set(String::new());
-                save_edits.begin_value(
+                save_edits.submit(
                     &runtime,
                     key,
                     "mounted-module-placement",
                     Some("placement".into()),
                     module_resolver(scope.clone(), module_id.clone(), operation),
-                    &submitted,
+                    FieldView::new(draft, placement_failure).submitted(submitted),
                 );
             }
         });
@@ -346,7 +335,7 @@ fn PcbMountedModuleInspector(
         let mut latest = latest;
         latest.set(Some(key.clone()));
         feedback.set(String::new());
-        remove_actions.begin_one_shot(
+        remove_actions.submit(
             &runtime,
             key,
             "remove-mounted-module",
@@ -358,6 +347,7 @@ fn PcbMountedModuleInspector(
                     id: module_id.clone(),
                 }),
             ),
+            EditDisplay::default().disabling(remove_disabled),
         );
     };
     let boards = document.boards.clone();
@@ -509,7 +499,7 @@ fn PcbMountedModuleInspector(
         let mut latest = latest;
         latest.set(Some(key.clone()));
         feedback.set(String::new());
-        embed_actions.begin_one_shot(
+        embed_actions.submit(
             &embed_runtime,
             key,
             "embed-module-circuit",
@@ -529,6 +519,7 @@ fn PcbMountedModuleInspector(
                     joins: embed_joins.read().clone(),
                 }),
             ),
+            EditDisplay::default().disabling(embed_disabled),
         );
     };
 
@@ -887,7 +878,7 @@ fn PcbMountedModuleInspector(
                                         let mut latest = latest;
                                         latest.set(Some(key.clone()));
                                         feedback.set(String::new());
-                                        remove_actions.begin_one_shot(&remove_runtime, key, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })));
+                                        remove_actions.submit(&remove_runtime, key, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })), EditDisplay::default().disabling(circuit_removal_disabled));
                                     }
                                 },
                                 "Remove copy"

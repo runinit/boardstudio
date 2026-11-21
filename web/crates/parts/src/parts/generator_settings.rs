@@ -7,11 +7,8 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(test)]
 use boardstudio_model::model::EditOperation;
 use boardstudio_model::model::{Asset, PartDefinition};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-#[cfg(test)]
-use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -23,7 +20,7 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use serde_json::Value;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
@@ -352,9 +349,12 @@ pub fn GeneratorSettingsEditor(
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_edits = use_hook(PendingEditSignals::<GeneratorKey>::new);
-    let apply_intent = use_signal(|| None::<GeneratorAction>);
-    let upload_intent = use_signal(|| None::<GeneratorAction>);
+    let pending_edits = use_hook(|| {
+        Rc::new(RefCell::new(
+            PendingEdits::<GeneratorKey, GeneratorAction>::default(),
+        ))
+    });
+
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let draft_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -398,43 +398,19 @@ pub fn GeneratorSettingsEditor(
         let mut store = store;
         let mut edits = edits;
         let mut changed_parameters = changed_parameters;
-        let mut apply_intent = apply_intent;
-        let mut upload_intent = upload_intent;
+
         move |_| {
-            let intents = [
-                (GeneratorKey::Apply, apply_intent.peek().clone()),
-                (GeneratorKey::Upload, upload_intent.peek().clone()),
-            ];
-            let Some(observed_owner) = intents
-                .iter()
-                .find_map(|(_, intent)| intent.as_ref().map(|action| action.owner.clone()))
-            else {
-                return;
-            };
-            // The editor outlives selection changes, so owner liveness is the context
-            // owner (workspace, scope, selection, generations), not the accepted
-            // generator parameters the edit itself is about to change. Both actions
-            // belong to this editor instance, so one answer drains the collection.
-            let owner_is_live = owner_context_is_current(
-                &observed_owner,
-                &runtime,
-                selected,
-                scope_generation(),
-                selection_generation(),
-                workspace(),
-            );
-            for result in pending_edits.settle(owner_is_live, |_| String::new()) {
-                let intent = match &result {
-                    PendingEditResult::Landed { key, .. }
-                    | PendingEditResult::Failed { key, .. }
-                    | PendingEditResult::Retired { key } => match key {
-                        GeneratorKey::Apply => apply_intent.take(),
-                        GeneratorKey::Upload => upload_intent.take(),
-                    },
-                };
-                let Some(intent) = intent else {
-                    continue;
-                };
+            let results = pending_edits.borrow_mut().settle_where(|intent| {
+                owner_context_is_current(
+                    &intent.owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                )
+            });
+            for (result, intent) in results {
                 match result {
                     // Landed means landed: drop the draft store without re-checking the
                     // accepted document for the requested values.
@@ -599,7 +575,7 @@ pub fn GeneratorSettingsEditor(
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
         if model_uploading()
-            || pending_edits.is_pending(&GeneratorKey::Upload)
+            || pending_edits.borrow().is_pending(&GeneratorKey::Upload)
             || !parameter.ends_with("3dmodel_filename")
         {
             return;
@@ -626,7 +602,7 @@ pub fn GeneratorSettingsEditor(
         let mut feedback = feedback;
         let mut model_uploading = model_uploading;
         let pending_edits = pending_edits.clone();
-        let mut upload_intent = upload_intent;
+
         let draft_sequence = 0;
         spawn_local(async move {
             let imported = read_model_file(file).await;
@@ -762,7 +738,7 @@ pub fn GeneratorSettingsEditor(
             };
             model_uploading.set(false);
             let asset_seed = runtime.operation().0;
-            pending_edits.begin_one_shot(
+            pending_edits.borrow_mut().begin_with(
                 &runtime,
                 GeneratorKey::Upload,
                 "parts-generator-settings",
@@ -774,20 +750,20 @@ pub fn GeneratorSettingsEditor(
                     asset,
                     asset_seed,
                 ),
+                GeneratorAction {
+                    owner,
+                    draft_sequence,
+                    apply: false,
+                    uploaded_parameter: Some(parameter),
+                },
             );
-            upload_intent.set(Some(GeneratorAction {
-                owner,
-                draft_sequence,
-                apply: false,
-                uploaded_parameter: Some(parameter),
-            }));
             feedback.set(None);
         });
     });
     let on_apply = {
         let runtime = runtime.clone();
         let pending_edits = pending_edits.clone();
-        let mut apply_intent = apply_intent;
+
         let mut feedback = feedback;
         let current_owner = active_draft
             .as_ref()
@@ -803,7 +779,7 @@ pub fn GeneratorSettingsEditor(
             else {
                 return;
             };
-            if pending_edits.is_pending(&GeneratorKey::Apply)
+            if pending_edits.borrow().is_pending(&GeneratorKey::Apply)
                 || !owner_context_is_current(
                     &current_owner,
                     &runtime,
@@ -815,19 +791,19 @@ pub fn GeneratorSettingsEditor(
             {
                 return;
             }
-            pending_edits.begin_one_shot(
+            pending_edits.borrow_mut().begin_with(
                 &runtime,
                 GeneratorKey::Apply,
                 "parts-generator-settings",
                 Some("generator settings".into()),
                 generator_apply_resolver(current_owner.clone(), candidate, changed_parameters()),
+                GeneratorAction {
+                    owner: current_owner.clone(),
+                    draft_sequence: draft_generation.get(),
+                    apply: true,
+                    uploaded_parameter: None,
+                },
             );
-            apply_intent.set(Some(GeneratorAction {
-                owner: current_owner.clone(),
-                draft_sequence: draft_generation.get(),
-                apply: true,
-                uploaded_parameter: None,
-            }));
             feedback.set(None);
         }
     };
@@ -872,7 +848,7 @@ pub fn GeneratorSettingsEditor(
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
                                     on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
                                     on_import: import_generator_model,
-                                    busy: model_uploading() || pending_edits.is_pending(&GeneratorKey::Upload),
+                                    busy: model_uploading() || pending_edits.borrow().is_pending(&GeneratorKey::Upload),
                                     feedback: feedback()
                                         .filter(|message| owner_context_is_current(
                                             &message.owner,
@@ -914,7 +890,7 @@ pub fn GeneratorSettingsEditor(
             Button {
                 variant: ButtonVariant::Default,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
+                disabled: !preview_ready || pending_edits.borrow().is_pending(&GeneratorKey::Apply),
                 onclick: on_apply,
                 "Apply generator settings"
             }

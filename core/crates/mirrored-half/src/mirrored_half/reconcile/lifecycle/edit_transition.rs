@@ -81,7 +81,6 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
     pair_id: &str,
     operation: &crate::model::EditOperation,
     dispatch: crate::mirrored_half::EditDispatch,
-    report: super::super::changes::ChangeScope,
 ) -> Result<Option<super::super::PreparedLifecycleDraft>, String> {
     use crate::model::EditOperation;
 
@@ -370,9 +369,10 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             mirror_id,
         });
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let mut output =
+    let output =
         super::transition::prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
-    output.changed_document_ids = report.ids(post_source, &output.draft, &[])?;
+    // Caller-owned draft: no per-pair full report. The outer transaction guarantees rollback
+    // and owns the single final scoped report; the final diff already covers these IDs.
     let removed = removed_part_ids(before, &output.draft);
     prepare_lifecycle_output(
         before,

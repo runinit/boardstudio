@@ -6,7 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
+use boardstudio_web_ui_shared::{draft_edits::FieldView, owned_edits::OwnedEdits};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -72,7 +72,7 @@ pub(super) fn action_pending(request: &KeymapLayerOperation) -> bool {
         context
             .edits
             .read()
-            .helper
+            .edits
             .is_pending(&LayerKey::from(request))
     })
 }
@@ -129,14 +129,7 @@ pub fn use_layer_operations(
         let mut bound = bound_layer.borrow_mut();
         if *bound != displayed {
             if let Some(old) = bound.take() {
-                pending.peek().helper.unbind_field(&LayerKey::Rename(old));
-            }
-            if let Some(layer_id) = displayed.clone() {
-                pending.peek().helper.bind_field(
-                    LayerKey::Rename(layer_id),
-                    name_draft,
-                    name_failure,
-                );
+                pending.peek().edits.detach_field(&LayerKey::Rename(old));
             }
             *bound = displayed;
         }
@@ -169,12 +162,12 @@ pub fn use_layer_operations(
                     name_failure.set(None);
                 }
             }
-            if !pending.peek().helper.has_terminal() {
+            if !pending.peek().edits.has_terminal() {
                 return;
             }
             let results = pending
                 .write()
-                .helper
+                .edits
                 .settle(true, |key| accepted_layer_name(&runtime, key));
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
@@ -242,7 +235,7 @@ pub fn use_layer_operations(
                 return;
             };
             if !matches!(request, KeymapLayerOperation::Rename { .. })
-                && pending.peek().helper.is_pending(&LayerKey::from(&request))
+                && pending.peek().edits.is_pending(&LayerKey::from(&request))
             {
                 return;
             }
@@ -275,17 +268,21 @@ pub fn use_layer_operations(
                     .follow_owner(Some(&source.scope), captured_generation);
             }
             let key = LayerKey::from(&request);
-            let submitted = match &request {
-                KeymapLayerOperation::Rename { name, .. } => name.clone(),
-                _ => String::new(),
+            let display = match &request {
+                KeymapLayerOperation::Rename { layer_id, name }
+                    if bound_layer.borrow().as_ref() == Some(layer_id) =>
+                {
+                    FieldView::new(name_draft, name_failure).submitted(name.clone())
+                }
+                _ => Default::default(),
             };
-            pending.write().helper.begin_field(
+            pending.write().edits.submit(
                 &runtime,
                 key.clone(),
                 "keymap-layer",
                 Some("layer".into()),
                 resolver,
-                &submitted,
+                display,
             );
             feedback.set(Some(LayerFeedbackState {
                 scope: source.scope.clone(),

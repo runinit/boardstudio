@@ -20,7 +20,7 @@ use boardstudio_application::{Durability, Event, Lifecycle, SelectionMode};
 use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -104,9 +104,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| false);
     let key_edit_disabled = use_signal(|| false);
-    let pending_edits = use_hook(PendingEditSignals::<PlacementPendingKey>::new);
-    pending_edits.bind_one_shot(PlacementPendingKey::Placement, committing);
-    pending_edits.bind_one_shot(PlacementPendingKey::KeyComponent, key_edit_disabled);
+    let pending_edits = use_hook(DraftEdits::<PlacementPendingKey>::default);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -368,12 +366,13 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         {
                             return;
                         }
-                        pending_edits_for_key.begin_one_shot(
+                        pending_edits_for_key.submit(
                             &runtime,
                             PlacementPendingKey::KeyComponent,
                             "layout-key-component",
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
+                            EditDisplay::default().disabling(key_edit_disabled),
                         );
                         let pending = KeyEditOwner {
                             scope: scope.clone(),
@@ -842,7 +841,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 return;
             }
             let owner = placement.owner.clone();
-            pending_edits.begin_one_shot(
+            pending_edits.submit(
                 &runtime,
                 PlacementPendingKey::Placement,
                 "layout-component-placement",
@@ -854,6 +853,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     owner.layout_id.clone(),
                     owner.intent,
                 ),
+                EditDisplay::default().disabling(committing),
             );
             // The helper disables this canvas-owning one-shot until settlement.
             active.set(None);

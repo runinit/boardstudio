@@ -141,6 +141,7 @@ fn preparation(id: &str) -> WireRequest {
         collision_query: None,
         collision_meshes: None,
         input_bytes: vec![],
+        packaged_step: false,
         keycaps: None,
     }
 }

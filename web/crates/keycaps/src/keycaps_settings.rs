@@ -9,6 +9,7 @@ use boardstudio_model::model::{
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::FieldView;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
@@ -379,8 +380,7 @@ pub fn use_keycaps_settings_actions(
         let mut edits = edits;
         let mut retry_drafts = retry_drafts;
         let owner_tracker = owner_tracker.clone();
-        let mut legend_draft = legend_draft;
-        let mut legend_failure = legend_failure;
+        let legend = FieldView::new(legend_draft, legend_failure);
         move |_| {
             let live_key_id = live_selected_key_id(&runtime);
             let live_scope = runtime.scope();
@@ -436,18 +436,19 @@ pub fn use_keycaps_settings_actions(
                     (&request.target, &request.change)
                 {
                     let message = match &result {
-                        PendingEditResult::Failed { message, .. } => Some(message.clone()),
+                        PendingEditResult::Failed { message, .. } => Some(message.as_str()),
                         _ => None,
                     };
-                    legend_failure.set(message);
-                    let accepted = document
-                        .as_ref()
-                        .map(|document| accepted_legend_text(document, id))
-                        .unwrap_or_default();
-                    let current = legend_draft.peek().clone();
-                    if current == submitted.as_deref().unwrap_or_default() && current != accepted {
-                        legend_draft.set(accepted);
-                    }
+                    legend.restore(
+                        submitted.as_deref().unwrap_or_default(),
+                        || {
+                            document
+                                .as_ref()
+                                .map(|doc| accepted_legend_text(doc, id))
+                                .unwrap_or_default()
+                        },
+                        message,
+                    );
                 }
                 match &result {
                     PendingEditResult::Landed { .. } => remove_retry_draft_through(

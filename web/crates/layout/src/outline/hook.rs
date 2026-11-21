@@ -15,7 +15,7 @@ use boardstudio_model::model::{
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -71,7 +71,7 @@ pub(super) enum OutlineFeatureField {
 
 #[derive(Clone)]
 struct ActionState {
-    pending: PendingEditSignals<OutlinePendingKey>,
+    pending: DraftEdits<OutlinePendingKey>,
     feedback: Signal<Option<OutlineFeedback>>,
     one_shot_pending: Signal<bool>,
     version_name_draft: Signal<String>,
@@ -411,19 +411,13 @@ pub fn use_outline_lifecycle(
 ) {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
-    let pending = use_hook(PendingEditSignals::<OutlinePendingKey>::new);
+    let pending = use_hook(DraftEdits::<OutlinePendingKey>::default);
     let feedback = use_signal(|| None::<OutlineFeedback>);
     let one_shot_pending = use_signal(|| false);
     let version_name_draft = use_signal(String::new);
     let version_name_failure = use_signal(|| None::<String>);
     let pending_owner = use_signal(|| None::<OutlineOwner>);
     let inspector_mounted = use_signal(|| false);
-    pending.bind_field(
-        OutlinePendingKey::VersionName,
-        version_name_draft,
-        version_name_failure,
-    );
-    pending.bind_one_shot(OutlinePendingKey::OneShot, one_shot_pending);
     let selected_point = use_signal(|| 0usize);
     let editing_points = use_signal(|| false);
     let drawing_operation = use_signal(|| None::<OutlineDrawTool>);
@@ -1259,29 +1253,22 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         selected_context.read().clone(),
         captured_generation,
     ));
-    if one_shot {
-        pending.begin_one_shot(
-            runtime,
-            pending_key,
-            "layout-outline",
-            Some("outline".into()),
-            resolver,
-        );
+    let display = if one_shot {
+        EditDisplay::default().disabling(one_shot_pending)
+    } else if is_version_name {
+        FieldView::new(version_name_draft, version_name_failure)
+            .submitted(version_name_draft.peek().clone())
     } else {
-        let submitted_draft = version_name_draft.peek().clone();
-        pending.begin_field(
-            runtime,
-            pending_key,
-            "layout-outline",
-            Some("outline".into()),
-            resolver,
-            if is_version_name {
-                &submitted_draft
-            } else {
-                ""
-            },
-        );
-    }
+        EditDisplay::default()
+    };
+    pending.submit(
+        runtime,
+        pending_key,
+        "layout-outline",
+        Some("outline".into()),
+        resolver,
+        display,
+    );
 }
 
 fn action_pending_key(action: &OutlineAction) -> OutlinePendingKey {
