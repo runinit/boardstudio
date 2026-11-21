@@ -31,11 +31,15 @@ fn synthetic_outline() -> ProjectDoc {
 
 // Match the release Chrome profile's authored 5 × 12 fixture.
 fn stagger_profile_document(large: bool) -> ProjectDoc {
+    stagger_document(large.then_some(12))
+}
+
+fn stagger_document(columns: Option<u32>) -> ProjectDoc {
     let mut document = synthetic_outline();
-    if large {
+    if let Some(columns) = columns {
         let mut matrix = document.matrices[0].clone();
         matrix.rows = 5;
-        matrix.columns = 12;
+        matrix.columns = columns;
         matrix.row_layout = vec![
             RowLayout::default(),
             RowLayout {
@@ -64,12 +68,12 @@ fn stagger_profile_document(large: bool) -> ProjectDoc {
             panic!("could not resize profile fixture");
         };
         document = *resized;
-        assert_eq!(document.matrices[0].part_ids.len(), 60);
+        assert_eq!(document.matrices[0].part_ids.len(), 5 * columns as usize);
         let OutlineFeature::PartEnvelope { part_ids, .. } = &mut document.outline[0] else {
             panic!("expected a part envelope");
         };
         *part_ids = document.parts.iter().map(|part| part.id.clone()).collect();
-        document.id.push_str("-60-keys");
+        document.id.push_str(&format!("-{}-keys", 5 * columns));
         document.revision = 0;
     }
     document
@@ -1166,6 +1170,66 @@ fn stagger_preview_commit_profile() {
             }
         }
     }
+}
+
+#[test]
+fn first_column_stagger_preserves_rotated_precision_and_gap_wire() {
+    let mut saw_gap = false;
+    for columns in [None, Some(7), Some(12)] {
+        let mut document = stagger_document(columns);
+        let matrix = &mut document.matrices[0];
+        matrix.rotation = Some(17.375);
+        matrix.origin = Vec2 {
+            x: -74.0005,
+            y: 35.1255,
+        };
+        matrix.column_layout = vec![
+            ColumnLayout::default(),
+            ColumnLayout {
+                splay: -8.123_456,
+                stagger: 3.012_345,
+                ..Default::default()
+            },
+        ];
+        let OutlineFeature::PartEnvelope {
+            settings, margin, ..
+        } = &mut document.outline[0]
+        else {
+            panic!("expected a generated perimeter");
+        };
+        *margin = 3.9995;
+        settings.repair = Some(OutlineRepairSettings {
+            maximum_gap_span: 45.0,
+            enabled: false,
+            ..Default::default()
+        });
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let mut changed = engine.document.matrices[0].part_ids.clone();
+        changed.push("matrix".into());
+        changed.sort();
+        for value in [1.000_499_9, 1.000_500_1, -6.872_500_1, 29.124_499_9] {
+            let mut request = edit(0, stagger(0, value));
+            let CoreRequest::Edit { command, .. } = &mut request else {
+                unreachable!()
+            };
+            command.phase = EditPhase::Preview;
+            let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, request) else {
+                panic!("expected a stagger preview");
+            };
+            assert_eq!(scene.changed_ids, changed);
+            assert!(engine.stagger_preview.is_some());
+            assert!(!scene.contours.is_empty());
+            saw_gap |= scene
+                .board_outline_scenes
+                .iter()
+                .any(|outline| !outline.gaps.is_empty());
+        }
+        assert_preview_preserves_snapshot(&mut engine, &mut cold);
+    }
+    assert!(
+        saw_gap,
+        "the differential must exercise generated gap metadata"
+    );
 }
 
 #[test]
