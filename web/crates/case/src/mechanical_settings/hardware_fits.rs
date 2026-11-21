@@ -1258,4 +1258,3 @@ pub(crate) fn OpeningControls(props: OpeningControlsProps) -> Element {
             }
     }
 }
-

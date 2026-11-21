@@ -2,8 +2,8 @@
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::*;
-use boardstudio_web_ui_shared::ui::button::Button;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
+use boardstudio_web_ui_shared::ui::button::Button;
 use boardstudio_web_ui_shared::{
     test_role::{all_by_role_name, by_role_name},
     test_wait::wait_until,
@@ -14,7 +14,6 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
 
 thread_local! {
     static NEXT_RENDER_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -186,11 +185,13 @@ pub(crate) fn tap_option(option: &web_sys::HtmlElement) {
     }
 }
 
-pub(crate) fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) -> MountedFixture {
+pub(crate) fn mount_battery_test_page(
+    root_id: &'static str,
+    page: fn() -> Element,
+) -> MountedFixture {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id(root_id);
     document.body().unwrap().append_child(&root).unwrap();
     MountedFixture::new(root.clone(), test_page_dom(page))
 }
-

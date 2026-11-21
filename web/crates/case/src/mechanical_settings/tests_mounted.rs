@@ -277,8 +277,7 @@ async fn mounted_fields_with_catalogue(
     dom.provide_root_context(catalogue);
     let mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the mounted mechanical fields render", || {
-        has(&root, ".test-mechanical-dimension input")
-            && has(&root, ".test-mechanical-text input")
+        has(&root, ".test-mechanical-dimension input") && has(&root, ".test-mechanical-text input")
     })
     .await;
     (runtime, root, mounted)
@@ -487,8 +486,7 @@ async fn catalogue_failure_restores_only_unchanged_drafts_and_reports_beside_new
         let catalogue = TestCatalogue::default();
         catalogue.0.borrow_mut().push_back(reply);
         let project_id = format!("mechanical-catalogue-{field}-{expected}");
-        let (runtime, root, _mounted) =
-            mounted_fields_with_catalogue(&project_id, catalogue).await;
+        let (runtime, root, _mounted) = mounted_fields_with_catalogue(&project_id, catalogue).await;
         let input = input(&root, field);
         type_value(&input, submitted);
         input.blur().unwrap();
@@ -629,9 +627,7 @@ async fn profile_volume_siblings_bind_distinct_fields_for_the_same_domain_reques
     )
     .await;
     assert_eq!(bottom.value(), "0");
-    assert!(
-        failure_at(&bottom).is_some_and(|message| message.contains("profile volume failed"))
-    );
+    assert!(failure_at(&bottom).is_some_and(|message| message.contains("profile volume failed")));
     assert_eq!(
         height.value(),
         "15",
@@ -760,8 +756,7 @@ async fn newer_catalogue_failure_and_draft_survive_an_older_actual_ticket_landin
         let catalogue = TestCatalogue::default();
         catalogue.0.borrow_mut().extend([reply_a, reply_b]);
         let project_id = format!("mechanical-mixed-phase-{newer}");
-        let (runtime, root, _mounted) =
-            mounted_fields_with_catalogue(&project_id, catalogue).await;
+        let (runtime, root, _mounted) = mounted_fields_with_catalogue(&project_id, catalogue).await;
         let (entered, release_a) = support::gate_next_core_reply(&runtime);
         let input = input(&root, "dimension");
         type_value(&input, "3");

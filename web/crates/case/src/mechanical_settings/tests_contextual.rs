@@ -1,15 +1,15 @@
 #![allow(unused_imports)]
-use super::*;
 use super::tests_support::*;
+use super::*;
+use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::*;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
+use boardstudio_web_ui_shared::ui::button::Button;
 use boardstudio_web_ui_shared::{
     test_role::{all_by_role_name, by_role_name},
     test_wait::wait_until,
 };
-use boardstudio_web_ui_shared::ui::button::Button;
-use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -142,8 +142,7 @@ fn pending_action_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn pending_action_disables_only_its_control() {
-    let _mounted =
-        mount_battery_test_page("case-pending-action-root", pending_action_test_page);
+    let _mounted = mount_battery_test_page("case-pending-action-root", pending_action_test_page);
     rendered().await;
     let root = element("#case-pending-action-root");
     by_role_name(&root, "button", "Assembly settings")
@@ -250,34 +249,28 @@ fn custom_profile_test_page() -> Element {
     });
     let extracted_definition_ids = use_signal(Vec::<String>::new);
     let mut owner_key = use_signal(|| "test-owner-a".to_owned());
-    let extraction =
-        MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
-            let mut extracted_definition_ids = extracted_definition_ids;
-            extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
-            Box::pin(async move {
-                let request = boardstudio_model::model::ArtifactRequest::ExtractMechanical {
-                    id: "profile-extraction-test".to_owned(),
-                    source: CUSTOM_PROFILE_FOOTPRINT.to_owned(),
-                    mappings,
-                    max_deviation_mm: 0.005,
-                };
-                let reply = boardstudio_core_artifact::artifact::request(
-                    &serde_json::to_string(&request).unwrap(),
-                );
-                match serde_json::from_str::<boardstudio_model::model::ArtifactReply>(&reply)
-                    .unwrap()
-                {
-                    boardstudio_model::model::ArtifactReply::ExtractMechanical {
-                        result,
-                        ..
-                    } => Ok(result),
-                    boardstudio_model::model::ArtifactReply::Error { error, .. } => {
-                        Err(error.message)
-                    }
-                    reply => panic!("unexpected mechanical extraction reply: {reply:?}"),
+    let extraction = MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
+        let mut extracted_definition_ids = extracted_definition_ids;
+        extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
+        Box::pin(async move {
+            let request = boardstudio_model::model::ArtifactRequest::ExtractMechanical {
+                id: "profile-extraction-test".to_owned(),
+                source: CUSTOM_PROFILE_FOOTPRINT.to_owned(),
+                mappings,
+                max_deviation_mm: 0.005,
+            };
+            let reply = boardstudio_core_artifact::artifact::request(
+                &serde_json::to_string(&request).unwrap(),
+            );
+            match serde_json::from_str::<boardstudio_model::model::ArtifactReply>(&reply).unwrap() {
+                boardstudio_model::model::ArtifactReply::ExtractMechanical { result, .. } => {
+                    Ok(result)
                 }
-            })
-        }));
+                boardstudio_model::model::ArtifactReply::Error { error, .. } => Err(error.message),
+                reply => panic!("unexpected mechanical extraction reply: {reply:?}"),
+            }
+        })
+    }));
     let extracted_ids_label = extracted_definition_ids().join(",");
     let owner_key_value = owner_key();
     rsx! {
@@ -346,9 +339,7 @@ async fn custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_pr
     let input_event = web_sys::EventInit::new();
     input_event.set_bubbles(true);
     saved_contour
-        .dispatch_event(
-            &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
-        )
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap())
         .unwrap();
     rendered().await;
     assert!(
@@ -460,9 +451,7 @@ async fn custom_profile_geometry_controls_read_apply_edit_and_remove_assigned_pr
     );
     cutout_x.set_value("-9.4");
     cutout_x
-        .dispatch_event(
-            &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
-        )
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap())
         .unwrap();
     rendered().await;
     assert!(
@@ -497,8 +486,7 @@ async fn profile_volume_height_escape_discards_and_enter_blur_commits_once() {
     document.body().unwrap().append_child(&root).unwrap();
     let _mounted = MountedFixture::new(root.clone(), test_page_dom(custom_profile_test_page));
     rendered().await;
-    let custom_profile =
-        by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
+    let custom_profile = by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
     let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
     by_role_name(&custom_profile, "button", "Add volume to Clearance volumes")
         .unwrap()
@@ -613,8 +601,7 @@ async fn assigned_profile_adds_component_clearance_polygon_without_extraction() 
     document.body().unwrap().append_child(&root).unwrap();
     let _mounted = MountedFixture::new(root.clone(), test_page_dom(custom_profile_test_page));
     rendered().await;
-    let custom_profile =
-        by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
+    let custom_profile = by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
     let element = |selector: &str| {
         root.query_selector(selector)
             .unwrap()
@@ -696,8 +683,7 @@ fn text_multiline_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn multiline_text_draft_is_named_and_describes_its_error() {
-    let _mounted =
-        mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
+    let _mounted = mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
     rendered().await;
     let root = element("#case-text-multiline-root");
     let area = by_role_name(&root, "textbox", "Screw lengths")
@@ -715,10 +701,8 @@ async fn multiline_text_draft_is_named_and_describes_its_error() {
         area.set_value(value);
         let event = web_sys::EventInit::new();
         event.set_bubbles(true);
-        area.dispatch_event(
-            &web_sys::Event::new_with_event_init_dict("input", &event).unwrap(),
-        )
-        .unwrap();
+        area.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
     };
     area_value("abc");
     area.blur().unwrap();
@@ -786,8 +770,7 @@ async fn text_escape_discards_and_new_drafts_queue_before_acknowledgment() {
     escape.set_bubbles(true);
     input
         .dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape)
-                .unwrap(),
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
         )
         .unwrap();
     input.blur().unwrap();
@@ -1075,8 +1058,7 @@ async fn unassigned_profile_guidance_shows_saved_plate_to_pcb_gap() {
 
 #[wasm_bindgen_test]
 async fn previous_generated_layer_context_stays_visible_and_is_labeled() {
-    let _mounted =
-        mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
+    let _mounted = mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
     rendered().await;
     let scope = element("#case-previous-settings-test-root");
     let text = scope.text_content().unwrap_or_default();
@@ -1173,4 +1155,3 @@ async fn battery_controls_match_wired_and_wireless_modes_and_dispatch_toggle() {
             .unwrap();
     assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
 }
-

@@ -845,4 +845,3 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
         }
     }
 }
-

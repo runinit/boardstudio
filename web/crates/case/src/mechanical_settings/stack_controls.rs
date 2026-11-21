@@ -780,7 +780,10 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
     }
 }
 
-pub(crate) fn process_material_options(part_id: &str, method: &PlateMethod) -> &'static [&'static str] {
+pub(crate) fn process_material_options(
+    part_id: &str,
+    method: &PlateMethod,
+) -> &'static [&'static str] {
     if part_id.ends_with("foam") {
         &["EVA"]
     } else {

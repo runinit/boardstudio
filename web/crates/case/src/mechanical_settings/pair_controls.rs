@@ -58,7 +58,9 @@ pub(crate) struct MechanicalLegacyConstructionControlProps {
 /// halves keep the baseline they had, and one Undo restores the ownership and the overlay.
 /// Exactly one instance is named, and Core validates it.
 #[component]
-pub(crate) fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionControlProps) -> Element {
+pub(crate) fn MechanicalLegacyConstructionControl(
+    props: MechanicalLegacyConstructionControlProps,
+) -> Element {
     let confirming = use_signal(|| false);
     let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
     let patch = MechanicalSettingsPatch::MaterializeLegacyConstruction {
@@ -707,4 +709,3 @@ pub(crate) fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Elem
         }
     }
 }
-

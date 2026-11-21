@@ -1036,4 +1036,3 @@ pub(crate) fn purpose_id(purpose: MechanicalPurpose) -> &'static str {
         MechanicalPurpose::DrawingGuide => "drawing-guide",
     }
 }
-

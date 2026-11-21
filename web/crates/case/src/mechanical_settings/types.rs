@@ -810,4 +810,3 @@ pub(crate) fn severity_badge(value: &Severity) -> BadgeVariant {
         Severity::Info => BadgeVariant::Info,
     }
 }
-

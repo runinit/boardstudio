@@ -1,15 +1,15 @@
 #![allow(unused_imports)]
-use super::*;
 use super::tests_support::*;
+use super::*;
+use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::*;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
+use boardstudio_web_ui_shared::ui::button::Button;
 use boardstudio_web_ui_shared::{
     test_role::{all_by_role_name, by_role_name},
     test_wait::wait_until,
 };
-use boardstudio_web_ui_shared::ui::button::Button;
-use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -637,8 +637,7 @@ fn opening_controls_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn opening_controls_name_their_disclosure_and_submit_typed_opening_changes() {
-    let _mounted =
-        mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
+    let _mounted = mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
     rendered().await;
     let root = element("#case-opening-test-root");
     by_role_name(&root, "button", "Case openings · 2")
@@ -741,8 +740,7 @@ fn closure_controls_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn closure_controls_name_their_disclosures_and_submit_typed_closure_changes() {
-    let _mounted =
-        mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
+    let _mounted = mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
     rendered().await;
     let root = element("#case-closure-test-root");
     assert!(
@@ -851,8 +849,7 @@ fn critical_fit_controls_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn critical_fit_controls_name_their_disclosure_and_submit_typed_fit_changes() {
-    let _mounted =
-        mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
+    let _mounted = mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
     rendered().await;
     let root = element("#case-fits-test-root");
     assert!(
@@ -1229,8 +1226,7 @@ fn setup_basics_test_page() -> Element {
 
 #[wasm_bindgen_test]
 async fn setup_basics_submit_typed_mount_battery_and_process_changes() {
-    let _mounted =
-        mount_battery_test_page("case-setup-basics-test-root", setup_basics_test_page);
+    let _mounted = mount_battery_test_page("case-setup-basics-test-root", setup_basics_test_page);
     rendered().await;
     let root = element("#case-setup-basics-test-root");
     by_role_name(&root, "button", "Case mounting style")

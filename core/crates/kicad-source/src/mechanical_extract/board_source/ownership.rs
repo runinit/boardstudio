@@ -564,16 +564,7 @@ fn segments_min_dist(a: &Seg, b: &Seg) -> f64 {
 fn exact_intersection_candidates(a: &Seg, b: &Seg) -> Vec<Vec2> {
     let mut out = Vec::new();
     match (*a, *b) {
-        (
-            Seg::Line {
-                start: a0,
-                end: a1,
-            },
-            Seg::Line {
-                start: b0,
-                end: b1,
-            },
-        ) => {
+        (Seg::Line { start: a0, end: a1 }, Seg::Line { start: b0, end: b1 }) => {
             let ux = a1.x - a0.x;
             let uy = a1.y - a0.y;
             let vx = b1.x - b0.x;
