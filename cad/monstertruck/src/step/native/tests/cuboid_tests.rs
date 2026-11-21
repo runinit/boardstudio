@@ -1,6 +1,6 @@
 //! Cuboids import natively. Only the source-decimal certificate over the
-//! emitted native asset claims zero repair; the legacy route is the oracle
-//! for every other delivered field.
+//! delivered asset claims zero repair, and it reaches the same verdict on the
+//! legacy route, which is the oracle for every delivered field.
 use super::*;
 
 const BOX: &str = include_str!("../../../../tests/fixtures/zero-repair-cuboid-mm.step");
@@ -55,8 +55,8 @@ fn face_coverage(model: &ImportedStep) -> Vec<(f64, [[f64; 3]; 2])> {
     faces
 }
 
-/// Native delivery equals legacy delivery in every field except the zero claim,
-/// which only the native certificate can make.
+/// Native delivery equals legacy delivery in every field, including the one
+/// certificate's zero claim over each route's own triangles.
 fn assert_matches_legacy(bytes: &[u8], options: StepImportOptions) -> ImportedStep {
     let native = import_step_with_options(bytes.to_vec(), options).unwrap();
     assert!(native.solids.is_empty(), "cuboid used vendor conversion");
@@ -69,10 +69,7 @@ fn assert_matches_legacy(bytes: &[u8], options: StepImportOptions) -> ImportedSt
     assert_eq!(native.source_faces(), legacy.source_faces());
     assert_eq!(native.face_occurrences(), legacy.face_occurrences());
     assert_eq!(native.precision(), legacy.precision());
-    assert_eq!(legacy.accuracy().max_repair_displacement_mm, None);
-    let mut expected = legacy.accuracy().clone();
-    expected.max_repair_displacement_mm = native.accuracy().max_repair_displacement_mm;
-    assert_eq!(native.accuracy(), &expected);
+    assert_eq!(native.accuracy(), legacy.accuracy());
     for ((native_area, native_extent), (legacy_area, legacy_extent)) in face_coverage(&native)
         .into_iter()
         .zip(face_coverage(&legacy))
@@ -321,4 +318,36 @@ fn near_cuboids_never_borrow_the_certificate() {
             assert_eq!(legacy.accuracy().max_repair_displacement_mm, None, "{name}");
         }
     }
+}
+
+#[test]
+fn gate_refused_cuboids_are_certified_on_legacy_delivery_without_native_admission() {
+    let ap242 = replace_once(
+        BOX,
+        "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));",
+        "FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }'));",
+    );
+    let exchange = parser::parse(&ap242).unwrap();
+    let refusal = build(
+        &exchange,
+        &units::representation_items(&exchange).unwrap(),
+        &units::length_factors(&exchange).unwrap(),
+        &units::precision::resolve(&exchange).unwrap(),
+        StepImportOptions::default(),
+        TOLERANCE_MM,
+    )
+    .err()
+    .unwrap();
+    assert_eq!(refusal, "outside native analytic exchange class");
+    let delivered = import_step(ap242.clone().into_bytes()).unwrap();
+    assert!(!delivered.solids.is_empty(), "AP242 must not be admitted natively");
+    let native = import_step(BOX.as_bytes().to_vec()).unwrap();
+    assert!(native.solids.is_empty());
+    assert_eq!(delivered.original_bytes(), ap242.as_bytes());
+    assert_eq!(delivered.bounds(), native.bounds());
+    assert_eq!(delivered.source_faces(), native.source_faces());
+    assert_eq!(delivered.face_occurrences(), native.face_occurrences());
+    assert_eq!(delivered.precision(), native.precision());
+    assert_eq!(delivered.accuracy(), native.accuracy());
+    assert_eq!(delivered.accuracy().max_repair_displacement_mm, Some(0.0));
 }

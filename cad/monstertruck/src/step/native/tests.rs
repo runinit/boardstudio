@@ -44,7 +44,6 @@ fn native_candidate(bytes: &[u8], options: StepImportOptions) -> Result<Asset, S
     let factors = units::length_factors(&exchange).unwrap();
     let precision = units::precision::resolve(&exchange).unwrap();
     build(
-        bytes,
         &exchange,
         &items,
         &factors,
@@ -574,7 +573,6 @@ fn native_does_not_admit_open_or_off_support_geometry() {
         let exchange = parser::parse(&changed).unwrap();
         assert!(
             build(
-                changed.as_bytes(),
                 &exchange,
                 &units::representation_items(&exchange).unwrap(),
                 &units::length_factors(&exchange).unwrap(),

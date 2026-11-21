@@ -289,7 +289,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let representation_units = units::length_factors(&exchange)?;
     let shape_items = units::representation_items(&exchange)?;
     if let Ok(asset) = native::build(
-        &bytes,
         &exchange,
         &shape_items,
         &representation_units,
@@ -725,7 +724,7 @@ fn import_legacy(
     drop(scene);
     drop(exchange);
     let (bytes, original_source) = input.into_parts();
-    let imported = ImportedStep {
+    let mut imported = ImportedStep {
         original_bytes: bytes,
         analysis_options: options,
         _original_source: original_source,
@@ -760,6 +759,7 @@ fn import_legacy(
         },
         wireframe,
     };
+    native::certify_cuboid(&mut imported);
     // Post-import invariant suite: cheap deterministic checks that catch
     // incomplete or corrupt imports without per-route accounting.
     if let Err(failures) = imported.validate_invariants() {

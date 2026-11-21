@@ -149,7 +149,7 @@ Completed 94 corpus evidence is reused at 95 for unchanged geometry/provenance o
 | --- | --- | --- |
 | S1 IO witness layouts and inverse workspace | IO `repair_storage.rs`, `seam_capture.rs` | **Delivered** at parent: requested-layout preflight and reconciliation (`475cc14fb`); temporary inverse carrier and knot scratch returned after comparison (this checkpoint). |
 | S2 native authority and ledger | `OriginalGeometry::capture`/`bind_edges`, `Ledger` in [repair.rs](../../../../cad/monstertruck/src/step/repair.rs) | LINE holders borrowed (2026-10-19); authority/ledger counters remain. |
-| S3 numeric spelling and cuboid scans | [finite_line.rs](../../../../cad/monstertruck/src/step/repair/finite_line.rs), [cuboid.rs](../../../../cad/monstertruck/src/step/repair/cuboid.rs) | Borrowed spellings/cuboid arrays delivered (2026-10-19); numeric-ID precharge remains. |
+| S3 numeric spelling and cuboid scans | [finite_line.rs](../../../../cad/monstertruck/src/step/repair/finite_line.rs), [cuboid.rs](../../../../cad/monstertruck/src/step/native/cuboid.rs) | Borrowed spellings/cuboid arrays delivered (2026-10-19); numeric-ID precharge remains. |
 | S4 non-bigint exact-proof preflight and native inverse | [finite_curve.rs](../../../../cad/monstertruck/src/step/repair/finite_curve.rs), `planar_seam.rs` | Remaining, private. |
 | S5 observed-peak measurement | all | One run after S2–S4 over the 34-asset corpus. |
 | D2 consuming mesher output | `ShellRepairMesh` | Optional; the public member needs approval. |

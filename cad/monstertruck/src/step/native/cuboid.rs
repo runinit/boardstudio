@@ -1,8 +1,8 @@
 //! Complete zero-repair proof for one integer-authored native LINE/plane cuboid.
 //! Dimensions and entity numbers are data; no fixture or file identity is recognized.
-//! The original decimal spellings establish the box; the native asset's actual
-//! emitted triangles must then tile exactly that box. Mesh agreement alone
-//! never establishes the proof.
+//! The original decimal spellings establish the box; the delivered asset's
+//! actual triangles must then tile exactly that box. Mesh agreement alone never
+//! establishes the proof, and neither does either route's repair accounting.
 mod lexemes;
 
 use super::*;
@@ -224,8 +224,26 @@ pub(super) struct Cuboid {
     bounds: [Point; 2],
 }
 
+/// The census admits no curve presentation, and an exact tiling of every face
+/// is a closed outward mesh. Fallback meshing stays outside the class even when
+/// its triangles happen to agree with the box.
+pub(super) fn certify(model: &ImportedStep) -> bool {
+    let [(solid, _, representation)] = model.occurrences.as_slice() else {
+        return false;
+    };
+    model.source_faces.len() == 6
+        && model.accuracy.fallback_meshed_faces == 0
+        && Cuboid::from_original(
+            &model.original_bytes,
+            &model._original_source,
+            *solid,
+            *representation,
+        )
+        .is_some_and(|cuboid| cuboid.proves(model))
+}
+
 impl Cuboid {
-    pub(super) fn from_original(
+    fn from_original(
         bytes: &[u8],
         exchange: &Exchange,
         solid: u64,
@@ -462,14 +480,14 @@ impl Cuboid {
         Some(())
     }
 
-    /// Binds the source proof to the native asset that was actually emitted:
-    /// this one identity occurrence, the authored faces in shell order, the f32
+    /// Binds the source proof to the asset that was actually delivered: this
+    /// one identity occurrence, the authored faces in shell order, the f32
     /// render image, and per face an exact outward tiling of its rectangle.
-    pub(super) fn proves(&self, asset: &Asset) -> bool {
+    fn proves(&self, asset: &ImportedStep) -> bool {
         self.check_asset(asset).is_some()
     }
 
-    fn check_asset(&self, asset: &Asset) -> Option<()> {
+    fn check_asset(&self, asset: &ImportedStep) -> Option<()> {
         let [(solid, placement, representation)] = asset.occurrences.as_slice() else {
             return None;
         };
@@ -480,8 +498,8 @@ impl Cuboid {
             || asset.bounds != self.bounds
             || asset.source_faces.len() != 6
             || asset.face_occurrences.len() != 6
-            || Some(asset.positions.len()) != asset.triangle_faces.len().checked_mul(3)
-            || Some(asset.mesh.positions.len()) != asset.positions.len().checked_mul(3)
+            || Some(asset.preview_positions_f64.len()) != asset.triangle_faces.len().checked_mul(3)
+            || Some(asset.mesh.positions.len()) != asset.preview_positions_f64.len().checked_mul(3)
             || asset.mesh.normals.len() != asset.mesh.positions.len()
         {
             return None;
@@ -509,7 +527,7 @@ impl Cuboid {
         for (index, (&tag, points)) in asset
             .triangle_faces
             .iter()
-            .zip(asset.positions.as_chunks::<3>().0)
+            .zip(asset.preview_positions_f64.as_chunks::<3>().0)
             .enumerate()
         {
             let face = &self.faces.get(tag)?.1;
@@ -639,46 +657,60 @@ mod tests {
 
     const BOX: &[u8] = include_bytes!("../../../tests/fixtures/zero-repair-cuboid-mm.step");
 
-    fn native(bytes: &[u8], options: StepImportOptions) -> (Exchange, Asset) {
-        let exchange = parser::parse(&units::decode_step_bytes(bytes)).unwrap();
-        let asset = build(
-            bytes,
-            &exchange,
-            &units::representation_items(&exchange).unwrap(),
-            &units::length_factors(&exchange).unwrap(),
-            &units::precision::resolve(&exchange).unwrap(),
-            options,
-            options.target_deflection_mm.unwrap_or(TOLERANCE_MM),
-        )
-        .unwrap();
-        (exchange, asset)
+    /// The same box outside the native exchange gate is delivered by legacy.
+    fn ap242() -> Vec<u8> {
+        std::str::from_utf8(BOX)
+            .unwrap()
+            .replace(
+                "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));",
+                "FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }'));",
+            )
+            .into_bytes()
     }
 
-    fn set_point(asset: &mut Asset, vertex: usize, p: Point) {
-        asset.positions[vertex] = p;
+    fn delivered(bytes: &[u8], options: StepImportOptions, native: bool) -> ImportedStep {
+        let model = import_step_with_options(bytes.to_vec(), options).unwrap();
+        assert_eq!(model.solids.is_empty(), native, "unexpected import route");
+        model
+    }
+
+    fn set_point(asset: &mut ImportedStep, vertex: usize, p: Point) {
+        asset.preview_positions_f64[vertex] = p;
         for (i, value) in p.into_iter().enumerate() {
             asset.mesh.positions[vertex * 3 + i] = value as f32;
         }
     }
 
     #[test]
-    fn emitted_native_triangles_must_tile_each_proven_face_outward() {
-        let (exchange, asset) = native(BOX, StepImportOptions::default());
-        assert!(asset.zero_repair);
-        let cuboid = Cuboid::from_original(BOX, &exchange, 301, 304).unwrap();
+    fn delivered_triangles_must_tile_each_proven_face_outward_on_either_route() {
+        for (bytes, native) in [(BOX.to_vec(), true), (ap242(), false)] {
+            delivered_tampering_is_refused(&bytes, native);
+        }
+    }
+
+    fn delivered_tampering_is_refused(bytes: &[u8], native: bool) {
+        let fresh = || delivered(bytes, StepImportOptions::default(), native);
+        let asset = fresh();
+        assert_eq!(asset.accuracy.max_repair_displacement_mm, Some(0.0));
+        assert!(certify(&asset));
+        let cuboid =
+            Cuboid::from_original(&asset.original_bytes, &asset._original_source, 301, 304)
+                .unwrap();
         assert!(cuboid.proves(&asset));
         assert_eq!(
-            asset.triangle_faces.len(),
-            12,
+            asset.triangle_faces,
+            [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5],
             "two corner triangles per face"
         );
-        let fresh = || native(BOX, StepImportOptions::default()).1;
-        let refuses = |asset: &Asset, why: &str| assert!(!cuboid.proves(asset), "{why}");
+        let refuses = |asset: &ImportedStep, why: &str| {
+            assert!(!cuboid.proves(asset), "{why}");
+            assert!(!certify(asset), "{why}");
+        };
 
         // The other diagonal is an equally exact tiling: no triangulation is recognized.
         let mut flipped = fresh();
-        let [a, b, c] = [0, 1, 2].map(|i| asset.positions[i]);
-        let [d, e, f] = [3, 4, 5].map(|i| asset.positions[i]);
+        let [a, b, c] = [0, 1, 2].map(|i| asset.preview_positions_f64[i]);
+        let [d, e, f] = [3, 4, 5].map(|i| asset.preview_positions_f64[i]);
         let quad: Vec<_> = [a, b, c, d, e, f]
             .into_iter()
             .fold(Vec::new(), |mut unique, p| {
@@ -718,13 +750,16 @@ mod tests {
         );
 
         let mut reversed = fresh();
-        let (one, two) = (reversed.positions[1], reversed.positions[2]);
+        let (one, two) = (
+            reversed.preview_positions_f64[1],
+            reversed.preview_positions_f64[2],
+        );
         set_point(&mut reversed, 1, two);
         set_point(&mut reversed, 2, one);
         refuses(&reversed, "an inward triangle is not the outward face");
 
         let mut interior = fresh();
-        let mut moved = interior.positions[0];
+        let mut moved = interior.preview_positions_f64[0];
         let tag = interior.triangle_faces[0];
         let face = &cuboid.faces[tag].1;
         let axis = (face.axis + 1) % 3;
@@ -736,15 +771,15 @@ mod tests {
         );
 
         let mut missing = fresh();
-        missing.positions.drain(0..3);
+        missing.preview_positions_f64.drain(0..3);
         missing.mesh.positions.drain(0..9);
         missing.mesh.normals.drain(0..9);
         missing.triangle_faces.remove(0);
         refuses(&missing, "half a face is not the face");
 
         let mut doubled = fresh();
-        let copy: Vec<_> = doubled.positions[0..3].to_vec();
-        doubled.positions.extend(copy);
+        let copy: Vec<_> = doubled.preview_positions_f64[0..3].to_vec();
+        doubled.preview_positions_f64.extend(copy);
         let render: Vec<_> = doubled.mesh.positions[0..9].to_vec();
         doubled.mesh.positions.extend(render);
         let normals: Vec<_> = doubled.mesh.normals[0..9].to_vec();
@@ -757,8 +792,8 @@ mod tests {
         let mut inward = fresh();
         for triangle in 0..2 {
             let (one, two) = (
-                inward.positions[triangle * 3 + 1],
-                inward.positions[triangle * 3 + 2],
+                inward.preview_positions_f64[triangle * 3 + 1],
+                inward.preview_positions_f64[triangle * 3 + 2],
             );
             set_point(&mut inward, triangle * 3 + 1, two);
             set_point(&mut inward, triangle * 3 + 2, one);
@@ -766,7 +801,7 @@ mod tests {
         refuses(&inward, "an inward face is not the outward face");
 
         let mut empty = fresh();
-        empty.positions.drain(0..6);
+        empty.preview_positions_f64.drain(0..6);
         empty.mesh.positions.drain(0..18);
         empty.mesh.normals.drain(0..18);
         empty.triangle_faces.drain(0..2);
@@ -812,29 +847,38 @@ mod tests {
         refuses(&support, "source faces keep their authored supports");
 
         let mut placed = fresh();
-        placed.occurrences[0].1 = Matrix4::from_translation(Vector3::new(0.0, 0.0, 0.0))
-            * Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0 + f64::EPSILON);
+        placed.occurrences[0].1 = Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0 + f64::EPSILON);
         refuses(&placed, "only the identity occurrence is proven");
+
+        let mut fallback = fresh();
+        fallback.accuracy.fallback_meshed_faces = 1;
+        assert!(cuboid.proves(&fallback));
+        assert!(
+            !certify(&fallback),
+            "a fallback-meshed face is outside the class"
+        );
     }
 
     #[test]
-    fn refinement_and_budgets_keep_the_same_exact_native_asset() {
-        let (_, coarse) = native(BOX, StepImportOptions::default());
-        for options in [
-            StepImportOptions {
-                target_deflection_mm: Some(1e-6),
-                ..Default::default()
-            },
-            StepImportOptions {
-                preview_repair_budget_mm: Some(0.5),
-                target_deflection_mm: Some(0.01),
-            },
-        ] {
-            let (_, fine) = native(BOX, options);
-            assert!(fine.zero_repair);
-            assert_eq!(fine.positions, coarse.positions);
-            assert_eq!(fine.triangle_faces, coarse.triangle_faces);
-            assert_eq!(fine.bounds, coarse.bounds);
+    fn refinement_and_budgets_keep_the_same_exact_asset_on_either_route() {
+        for (bytes, native) in [(BOX.to_vec(), true), (ap242(), false)] {
+            let coarse = delivered(&bytes, StepImportOptions::default(), native);
+            for options in [
+                StepImportOptions {
+                    target_deflection_mm: Some(1e-6),
+                    ..Default::default()
+                },
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(0.5),
+                    target_deflection_mm: Some(0.01),
+                },
+            ] {
+                let fine = delivered(&bytes, options, native);
+                assert_eq!(fine.accuracy.max_repair_displacement_mm, Some(0.0));
+                assert_eq!(fine.preview_positions_f64, coarse.preview_positions_f64);
+                assert_eq!(fine.triangle_faces, coarse.triangle_faces);
+                assert_eq!(fine.bounds, coarse.bounds);
+            }
         }
     }
 }

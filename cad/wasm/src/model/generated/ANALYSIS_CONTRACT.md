@@ -621,11 +621,14 @@ keeps qualification unknown and never yields a bounded partial asset. Under the
 current vendor-preview policy it must not by itself refuse the preview: ticket 016
 requires safely usable surviving geometry with an explicit incomplete-model error.
 No whole-source qualification or whole-model clearance follows from it. Provisional
-`14cde` is not positive evidence. Corrected cuboid ledger
-`05b00ce75d3ef9f688c219c92d9c1e227004c8cd` is accepted for its bounded exact-zero
-movement class: its existing `maxRepairDisplacementMm:0` diagnostic is allowed,
-while `analysisErrorBoundMm` remains null. A zero repair ledger is not a source/
-mesh certificate. The fixture separates complete unsupported geometry with null
+`14cde` is not positive evidence. The integer-cuboid certificate (first accepted
+as corrected cuboid ledger `05b00ce75d3ef9f688c219c92d9c1e227004c8cd`) is accepted
+for its bounded exact-zero movement class. It re-derives the box from the original
+decimal spellings and requires the delivered triangles to tile exactly that box,
+on whichever import route delivered them; no route's repair accounting supplies
+the zero. Its `maxRepairDisplacementMm:0` diagnostic is allowed, while
+`analysisErrorBoundMm` remains null. A zero repair movement is not a source
+qualification or analysis certificate. The fixture separates complete unsupported geometry with null
 repair from incomplete presentation errors. These are repair-only ImportedStep
 metadata checks separate from bounded v2 producer expectations;
 this does not broaden 007 or v2.
