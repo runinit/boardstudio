@@ -61,7 +61,7 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
             scene.board_outline_scenes,
             geometry::board_outline_scenes(document, &cache)
         );
-        let fresh = engine.scene(
+        let fresh = cold.scene(
             id.clone(),
             SceneInput {
                 transaction: &scene.transaction_id,
@@ -79,6 +79,216 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
         );
     }
     actual
+}
+
+fn open_preview_fixture(document: ProjectDoc) -> (CoreEngine, CoreEngine) {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    assert!(matches!(
+        compare(
+            &mut engine,
+            &mut cold,
+            CoreRequest::Open {
+                id: "open".into(),
+                document,
+            },
+        ),
+        CoreReply::Scene { .. }
+    ));
+    assert!(engine.reusable_scene.is_some());
+    (engine, cold)
+}
+
+fn preview_move(positions: Vec<Position>) -> CoreRequest {
+    CoreRequest::Edit {
+        id: "preview move".into(),
+        command: EditCommand {
+            base_revision: 0,
+            transaction_id: "move".into(),
+            phase: EditPhase::Preview,
+            target_ids: vec![],
+            operation: EditOperation::MoveParts { positions },
+        },
+    }
+}
+
+fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
+    assert_eq!(engine.document, cold.document);
+    assert_eq!(
+        serde_json::to_vec(&engine.document).unwrap(),
+        serde_json::to_vec(&cold.document).unwrap(),
+    );
+    assert!(engine.undo.is_empty() && engine.redo.is_empty());
+    assert!(matches!(
+        compare(
+            engine,
+            cold,
+            CoreRequest::Snapshot { id: "snapshot".into() },
+        ),
+        CoreReply::Scene { scene, .. }
+            if scene.revision == 0 && scene.transaction_id == "snapshot"
+                && scene.changed_ids.is_empty()
+    ));
+}
+
+#[test]
+fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
+    let mut document = fixture();
+    document.layouts[0].part_ids.push("main/U1".into());
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "main/U1")
+        .unwrap()
+        .anchor = Some(PartAnchor {
+        matrix_id: "matrix".into(),
+        spread: 18.0,
+        stagger: 32.0,
+        ..Default::default()
+    });
+    document.constraints.push(Constraint::Offset {
+        id: "controller-dependent".into(),
+        source_part_id: "main/U1".into(),
+        target_part_id: "main/SW2".into(),
+        offset: Vec2 { x: 18.0, y: 0.0 },
+        rotation: 0.0,
+    });
+    document.outline.push(OutlineFeature::Rect {
+        id: "controller-cutout".into(),
+        anchor_part_id: Some("main/U1".into()),
+        center: Vec2::default(),
+        size: Vec2 { x: 2.0, y: 2.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Subtract,
+    });
+    document.boards[0]
+        .outline_ids
+        .push("controller-cutout".into());
+    let (mut engine, mut cold) = open_preview_fixture(document);
+    let position = Position {
+        id: "main/U1".into(),
+        at: Vec2 { x: 23.0, y: 34.0 },
+    };
+    let CoreReply::Preview { scene, .. } = engine.handle(preview_move(vec![position.clone()]))
+    else {
+        panic!("anchored drag should preview");
+    };
+    assert!(
+        scene
+            .transforms
+            .iter()
+            .any(|transform| { transform.id == "main/U1" && transform.pose.at == position.at })
+    );
+    assert!(scene.transforms.iter().any(|transform| {
+        transform.id == "main/SW2" && transform.pose.at == Vec2 { x: 41.0, y: 34.0 }
+    }));
+    assert_eq!(
+        engine
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "main/U1")
+            .and_then(|part| part.anchor.as_ref())
+            .map(|anchor| anchor.spread),
+        Some(18.0),
+    );
+    assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
+    // The first position already writes the draft when the second one fails.
+    assert!(matches!(
+        engine.handle(preview_move(vec![
+            position,
+            Position { id: "missing".into(), at: Vec2::default() },
+        ])),
+        CoreReply::Error { message, revision: 0, .. } if message == "Unknown part missing"
+    ));
+    assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
+    // Drag the anchor key: the cutout must follow U1's evaluated pose.
+    let positions = vec![Position {
+        id: "matrix/matrix/r0c0".into(),
+        at: Vec2 { x: 0.0, y: 5.0 },
+    }];
+    let CoreReply::Preview { scene: preview, .. } = engine.handle(preview_move(positions.clone()))
+    else {
+        panic!("anchor key drag should preview");
+    };
+    assert!(preview.transforms.iter().any(|transform| {
+        transform.id == "main/U1" && transform.pose.at == Vec2 { x: 18.0, y: 37.0 }
+    }));
+    assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
+    let CoreReply::Scene {
+        scene: committed,
+        document,
+        ..
+    } = cold.handle(edit(0, EditOperation::MoveParts { positions }))
+    else {
+        panic!("anchor key drag should commit");
+    };
+    let (cache, _, _) = outlines(&document, None, &[]);
+    let fresh = geometry::board_scene_geometry(&document, &cache);
+    assert_eq!(preview.board_contours, fresh.contours);
+    assert_eq!(committed.board_contours, fresh.contours);
+}
+
+#[test]
+fn legacy_mirror_adoption_preview_does_not_publish_copy_or_membership() {
+    let mut document = fixture();
+    let mut mirror = document.matrices[0].clone();
+    mirror.id = "mirror".into();
+    mirror.origin.x = 60.0;
+    mirror.mirror = Some(Mirror::X);
+    mirror.part_ids.clear();
+    document.matrices.push(mirror);
+    document.layouts.push(Layout {
+        id: "mirror-layout".into(),
+        name: "Mirror".into(),
+        board_id: "main".into(),
+        matrix_ids: vec!["mirror".into()],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: document.layouts[0].id.clone(),
+            axis_x: 30.0,
+            split_gap: None,
+            spacing: None,
+            correspondences: vec![MirroredCorrespondence {
+                kind: MirroredItemKind::Matrix,
+                source_id: "matrix".into(),
+                mirror_id: "mirror".into(),
+                companion_mode: None,
+                companion_tweak: None,
+            }],
+            exceptions: vec![],
+        }),
+    });
+    let (mut engine, mut cold) = open_preview_fixture(document);
+    let part_id = "main/SW2";
+    let copy_id = "mirror-layout::mirror::main/SW2";
+    assert!(
+        !engine
+            .document
+            .layouts
+            .iter()
+            .any(|layout| { layout.part_ids.iter().any(|id| id == part_id) })
+    );
+    assert!(engine.document.parts.iter().all(|part| part.id != copy_id));
+
+    let CoreReply::Preview { scene, .. } = engine.handle(preview_move(vec![Position {
+        id: part_id.into(),
+        at: Vec2 { x: 20.0, y: 10.0 },
+    }])) else {
+        panic!("move across the legacy split should preview");
+    };
+    assert!(scene.changed_ids.iter().any(|id| id == copy_id));
+    assert!(scene.transforms.iter().any(|transform| {
+        transform.id == copy_id && transform.pose.at == Vec2 { x: 40.0, y: 10.0 }
+    }));
+    assert_eq!(engine.document.parts.len(), cold.document.parts.len());
+    assert_eq!(engine.document.layouts, cold.document.layouts);
+    assert_eq!(engine.document.boards, cold.document.boards);
+    assert_preview_preserves_snapshot(&mut engine, &mut cold);
 }
 
 #[test]
@@ -174,6 +384,13 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         ),
     );
     assert!(engine.reusable_scene.is_none());
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot after move".into(),
+        },
+    );
     compare(&mut engine, &mut cold, stagger(4, EditPhase::Preview, 1.5));
     compare(&mut engine, &mut cold, stagger(4, EditPhase::Commit, 1.5));
     let CoreReply::Scene { document, .. } = compare(
@@ -214,6 +431,13 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     assert_eq!(
         serde_json::to_vec(&engine.document).unwrap(),
         serde_json::to_vec(&saved).unwrap(),
+    );
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot with fixed outline".into(),
+        },
     );
 }
 
@@ -270,7 +494,7 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
         panic!("stagger should publish a scene");
     };
     assert_eq!(
-        stagger_outline_changes(&before, &document, &stagger(1)),
+        settled_outline_changes(&before, &document, &stagger(1)),
         Some(vec!["matrix/matrix/r0c1".into()]),
     );
     assert!(
@@ -330,6 +554,152 @@ fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
 
 fn rename(name: &str) -> EditOperation {
     EditOperation::RenameProject { name: name.into() }
+}
+
+#[test]
+fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let snapshot = |id: &str| CoreRequest::Snapshot { id: id.into() };
+    compare(&mut engine, &mut cold, snapshot("before open"));
+    assert!(engine.reusable_scene.is_none());
+
+    let open = |document| CoreRequest::Open {
+        id: "open".into(),
+        document,
+    };
+    compare(&mut engine, &mut cold, open(fixture()));
+    compare(&mut engine, &mut cold, edit(0, rename("Renamed")));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, edit(1, rename("Renamed"))),
+        CoreReply::Scene { scene, .. } if scene.changed_ids.is_empty() && scene.revision == 1
+    ));
+    assert_eq!(engine.undo.len(), 1);
+
+    let mut invalid = fixture();
+    invalid.format.clear();
+    assert!(matches!(
+        compare(&mut engine, &mut cold, open(invalid)),
+        CoreReply::Error { revision: 1, .. }
+    ));
+    let projections = engine.full_scene_projections.get();
+    for id in ["first snapshot", "second snapshot"] {
+        assert!(matches!(
+            compare(&mut engine, &mut cold, snapshot(id)),
+            CoreReply::Scene { id: reply_id, scene, document }
+                if reply_id == id && scene.transaction_id == "snapshot"
+                    && scene.changed_ids.is_empty() && scene.revision == 1
+                    && document.name == "Renamed"
+        ));
+    }
+    assert_eq!(engine.full_scene_projections.get(), projections);
+
+    for request in [
+        CoreRequest::Undo { id: "undo".into() },
+        snapshot("after undo"),
+        CoreRequest::Redo { id: "redo".into() },
+        snapshot("after redo"),
+    ] {
+        compare(&mut engine, &mut cold, request);
+    }
+
+    // An explicit Open can reuse the former session's revision number.
+    let mut reopened = fixture();
+    reopened.revision = engine.document.revision;
+    reopened.outline.clear();
+    reopened.boards[0].outline_ids.clear();
+    compare(&mut engine, &mut cold, open(reopened));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, snapshot("after reopen")),
+        CoreReply::Scene { scene, document, .. }
+            if scene.contours.is_empty() && document.name == "Synthetic outline contract"
+    ));
+    assert!(engine.undo.is_empty() && engine.redo.is_empty());
+}
+
+#[test]
+fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = fixture();
+    document.definitions[0].courtyard.swap(1, 2);
+    // Give fabrication validation material independently of the invalid courtyard.
+    document.outline = vec![OutlineFeature::Rect {
+        id: "fixed perimeter".into(),
+        anchor_part_id: None,
+        center: Vec2::default(),
+        size: Vec2 { x: 160.0, y: 160.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    }];
+    document.boards[0].outline_ids = vec!["fixed perimeter".into()];
+    let targets = document
+        .parts
+        .iter()
+        .filter(|part| part.definition_id == document.definitions[0].id)
+        .map(|part| part.id.clone())
+        .collect::<Vec<_>>();
+    let check = |scene: &SceneDelta| {
+        let reported = scene
+            .findings
+            .iter()
+            .filter(|finding| finding.id.starts_with("board:main:outline:body-source:"))
+            .map(|finding| finding.target_ids[1].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(reported, targets);
+        let id = "board:main:outline:body-source:matrix/matrix/r0c0";
+        let marker = scene
+            .finding_markers
+            .iter()
+            .find(|marker| marker.finding_id == id)
+            .unwrap();
+        marker.contours[0].points[0]
+    };
+    let CoreReply::Scene { scene: open, .. } = compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    ) else {
+        panic!("open should publish its fabrication findings");
+    };
+    let stagger = |phase| {
+        let mut request = edit(
+            0,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "matrix".into(),
+                change: MatrixPlacementChange::ColumnStagger {
+                    column: 0,
+                    value: 4.0,
+                },
+            },
+        );
+        let CoreRequest::Edit { command, .. } = &mut request else {
+            unreachable!()
+        };
+        command.phase = phase;
+        request
+    };
+    let CoreReply::Preview { scene: preview, .. } =
+        compare(&mut engine, &mut cold, stagger(EditPhase::Preview))
+    else {
+        panic!("stagger should preview its fabrication findings");
+    };
+    let CoreReply::Scene { scene: commit, .. } =
+        compare(&mut engine, &mut cold, stagger(EditPhase::Commit))
+    else {
+        panic!("stagger should publish its fabrication findings");
+    };
+    let before = check(&open);
+    let after = Vec2 {
+        x: before.x,
+        y: before.y + 4.0,
+    };
+    assert_eq!(check(&preview), after);
+    assert_eq!(check(&commit), after);
 }
 
 #[test]

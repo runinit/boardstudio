@@ -55,7 +55,10 @@ pub struct CoreEngine {
     contours: Vec<Contour>,
     findings: Vec<Finding>,
     outline_cache: OutlineCache,
+    /// Accepted projection when safe to reuse. Reply metadata is set per request.
     reusable_scene: Option<SceneDelta>,
+    #[cfg(test)]
+    full_scene_projections: std::cell::Cell<usize>,
     /// Session high-water marks; not part of any Undo snapshot or saved document.
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
@@ -124,6 +127,8 @@ impl CoreEngine {
             findings: vec![],
             outline_cache: OutlineCache::default(),
             reusable_scene: None,
+            #[cfg(test)]
+            full_scene_projections: std::cell::Cell::default(),
             identity_ledger: mechanical::edit::MechanicalIdentityLedger::default(),
         }
     }

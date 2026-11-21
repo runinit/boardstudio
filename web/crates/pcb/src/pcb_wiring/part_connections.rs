@@ -128,7 +128,6 @@ mod tests {
     use super::*;
     use boardstudio_model::model::ProjectDoc;
     use serde_json::json;
-    use wasm_bindgen_test::wasm_bindgen_test;
 
     fn fixture() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project-a", "Project A");
@@ -213,7 +212,7 @@ mod tests {
             .collect()
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn terminal_mapping_moves_only_target_pins_and_preserves_other_boards() {
         let before = fixture();
         let proposal = propose(
@@ -254,7 +253,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn creating_named_net_adds_it_only_to_selected_board() {
         let before = fixture();
         let proposal = propose(
@@ -274,7 +273,7 @@ mod tests {
         assert_eq!(pin_pairs(&proposal, "net-rx"), pin_pairs(&before, "net-rx"));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn mapping_rejects_hidden_or_inherited_targets() {
         let before = fixture();
         for pad_id in ["npth", "blank", "not-a-pad"] {
@@ -307,7 +306,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn standalone_pad_eligibility_uses_generator_source_not_definition_id() {
         let mut document = fixture();
         document.definitions[0].id = "project-owned-connector".into();
@@ -353,7 +352,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn mapping_rejects_net_from_another_board() {
         let before = fixture();
         assert!(
@@ -371,7 +370,7 @@ mod tests {
         );
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn legacy_net_with_selected_board_part_pin_is_selectable() {
         let mut before = fixture();
         before.boards[0].net_ids.retain(|id| id != "net-power");

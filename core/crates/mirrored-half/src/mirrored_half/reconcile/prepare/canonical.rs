@@ -1,6 +1,6 @@
 //! Canonical edit application and lifecycle-pair preparation.
 
-use super::projection::matrix_by_id;
+use super::projection::{matrix_by_id, project_matrixless_placement};
 use super::*;
 
 pub(super) fn prepare_lifecycle_pairs(
@@ -8,6 +8,7 @@ pub(super) fn prepare_lifecycle_pairs(
     document: &mut ProjectDoc,
     canonical: &Canonical,
     dispatch: crate::mirrored_half::EditDispatch,
+    directed: bool,
 ) -> Result<Vec<String>, String> {
     if matches!(
         canonical.operation,
@@ -35,27 +36,30 @@ pub(super) fn prepare_lifecycle_pairs(
             return Err("The exact lifecycle pair is unavailable or ambiguous".into());
         }
     }
-    let pair_ids: Vec<_> = accepted
+    let pairs = accepted
         .hardware
         .as_ref()
         .into_iter()
         .flat_map(|hardware| &hardware.pairs)
-        .filter(|pair| pair.halves.is_some())
-        .map(|pair| pair.id.clone())
-        .collect();
+        .filter(|pair| pair.halves.is_some());
     let mut changed = Vec::new();
-    for pair_id in pair_ids {
+    for pair in pairs {
         if !document
             .hardware
             .as_ref()
-            .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
+            .is_some_and(|hardware| hardware.pairs.iter().any(|row| row.id == pair.id))
+        {
+            continue;
+        }
+        // Even a pair the edit did not touch may need its linked drift repaired.
+        if directed && project_matrixless_placement(accepted, document, pair, &canonical.operation)?
         {
             continue;
         }
         if let Some(prepared) = super::super::lifecycle::prepare_edit_transition(
             accepted,
             document,
-            &pair_id,
+            &pair.id,
             &canonical.operation,
             dispatch,
         )? {

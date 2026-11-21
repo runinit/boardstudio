@@ -31,33 +31,27 @@ pub(super) fn replacement_keeps_scene(accepted: &ProjectDoc, next: &mut ProjectD
 /// In an unlinked layout with no part anchors, outline features consume stored
 /// part poses and attributes. Compare the settled parts, including any
 /// changes from layout and constraints, independently of the edit receipt.
-pub(super) fn stagger_outline_changes(
+pub(super) fn settled_outline_changes(
     accepted: &ProjectDoc,
     next: &ProjectDoc,
     operation: &EditOperation,
 ) -> Option<Vec<String>> {
-    if !is_column_stagger(operation) || accepted.definitions != next.definitions {
-        return None;
-    }
-    stagger_dependencies(&accepted.layouts, &accepted.boards, &accepted.parts, next)
-}
-
-pub(super) fn stagger_dependencies(
-    layouts: &[Layout],
-    boards: &[Board],
-    parts: &[Part],
-    next: &ProjectDoc,
-) -> Option<Vec<String>> {
-    if layouts != next.layouts
-        || layouts.iter().any(|layout| layout.mirror_link.is_some())
-        || boards != next.boards
+    if !(is_column_stagger(operation) || matches!(operation, EditOperation::MoveParts { .. }))
+        || accepted.definitions != next.definitions
+        || accepted.layouts != next.layouts
+        || accepted
+            .layouts
+            .iter()
+            .any(|layout| layout.mirror_link.is_some())
+        || accepted.boards != next.boards
+        || accepted.outline != next.outline
         || !next.board_outlines.is_empty()
-        || parts.len() != next.parts.len()
+        || accepted.parts.len() != next.parts.len()
     {
         return None;
     }
     let mut changed = Vec::new();
-    for (before, after) in parts.iter().zip(&next.parts) {
+    for (before, after) in accepted.parts.iter().zip(&next.parts) {
         if before.id != after.id || before.anchor.is_some() || after.anchor.is_some() {
             return None;
         }
