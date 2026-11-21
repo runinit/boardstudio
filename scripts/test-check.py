@@ -604,7 +604,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(worker_build, [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-worker-host",
                                         "--features", "boardstudio-web-worker-host/cad"])
         self.assertEqual(worker_launch, check.crate_launch("worker-host"))
-        self.assertEqual(len(launches), 14)
+        self.assertEqual(len(launches), 13)
         self.assertTrue(all(check.is_crate_launch(cmd) for cmd in launches))
         self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
         self.assertFalse(any("--list" in cmd for cmd in packaged + wasm))
@@ -1672,7 +1672,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(
             check.browser_crates(),
             ("host", "worker-host", "runtime", "ui-model", "ui-shared", "keycaps", "library",
-             "keymap", "catalogue", "case", "parts", "pcb", "layout", "layout-objects"),
+             "keymap", "case", "parts", "pcb", "layout", "layout-objects"),
         )
         custom = [check.crate_launch("custom-crate")]
         with mock.patch.dict(check.STEPS, {"browser": (True, custom)}):

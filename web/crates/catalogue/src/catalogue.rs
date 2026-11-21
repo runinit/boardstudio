@@ -375,7 +375,7 @@ pub fn prepare_physical_setup_proposal_with_pair(
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(test)]
 mod generator_tests {
     use super::*;
     use crate::physical_setup::SetupIntent;
@@ -395,13 +395,13 @@ mod generator_tests {
             .unwrap_or_else(|| panic!("catalogue contains {source}"))
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn generator_recognition_uses_source_membership() {
         assert!(generators::is_generator("ceoloide/trrs_pj320a"));
         assert!(!generators::is_generator("generator:not-a-generator"));
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn reversible_proposal_uses_gateron_normalizer() {
         let gateron = bundled_definition("ceoloide/switch_gateron_ks27_ks33");
         let original = gateron.clone();
@@ -452,7 +452,7 @@ mod generator_tests {
         );
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn matrix_definition_clone_normalizes_through_the_generator() {
         let mut matrix_switch = bundled_definition("ceoloide/switch_mx");
         matrix_switch.id = "assembly-preset-mx-solder-south-matrix-test-0/definition/switch".into();
@@ -480,7 +480,7 @@ mod generator_tests {
         assert!(!normalized.courtyard.is_empty());
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn binding_schema_uses_generator_parameters() {
         let schema = generators::parameter_schema("infused-kim/smd_0805")
             .expect("read generic-part parameter schema");

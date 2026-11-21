@@ -167,7 +167,6 @@ def browser() -> list[Command]:
             crate_launch("keycaps"),
             crate_launch("library"),
             crate_launch("keymap"),
-            crate_launch("catalogue"),
             crate_launch("case"),
             crate_launch("parts"),
             crate_launch("pcb"),
