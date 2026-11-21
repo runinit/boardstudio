@@ -358,7 +358,6 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
     assert_eq!(repeated.draft, round_tripped);
     assert_eq!(repeated.context, output.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 }
 
 #[test]
@@ -736,7 +735,6 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
     assert_eq!(repeated.draft, output.draft);
     assert_eq!(repeated.context, output.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 }
 
 #[test]

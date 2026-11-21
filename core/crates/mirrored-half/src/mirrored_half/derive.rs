@@ -3,7 +3,8 @@
 
 use crate::mechanical::pair;
 use crate::model::{
-    MirroredCompanionMode, MirroredCompanionTweak, Part, PartDefinition, PartKind, Pose2, Vec2,
+    Matrix, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence, Part,
+    PartDefinition, PartKind, Pose2, Vec2,
 };
 
 /// Whether a part definition makes its parts controllers, which keep the reflected heading.
@@ -108,6 +109,49 @@ pub(super) fn companion_assembly(
     Ok((offset, rotation))
 }
 
+/// Project one source matrix into its already assigned mirror identity.
+#[doc(hidden)]
+pub fn project_matrix(
+    source: &Matrix,
+    mirror: &Matrix,
+    correspondence: &MirroredCorrespondence,
+    mapping: Pose2,
+) -> Result<Matrix, String> {
+    if correspondence.kind != crate::model::MirroredItemKind::Matrix
+        || correspondence.source_id != source.id
+        || correspondence.mirror_id != mirror.id
+    {
+        return Err("The matrix correspondence does not match its source and mirror".into());
+    }
+
+    crate::matrix::layout::reflected(source, mirror, mapping, false, false)
+}
+
+/// Project one source part through its established correspondence, retaining target identifiers.
+#[doc(hidden)]
+pub fn project_part(
+    source: &Part,
+    mirror: &Part,
+    correspondence: &MirroredCorrespondence,
+    mapping: Pose2,
+    is_controller: bool,
+) -> Result<Part, String> {
+    if correspondence.kind != crate::model::MirroredItemKind::Part
+        || correspondence.source_id != source.id
+        || correspondence.mirror_id != mirror.id
+    {
+        return Err("The part correspondence does not match its source and mirror".into());
+    }
+
+    Ok(part(
+        source,
+        &mirror.id,
+        &mirror.definition_id,
+        &mirror.reference,
+        mapping,
+        is_controller,
+    ))
+}
 #[cfg(test)]
 mod tests {
     use super::*;

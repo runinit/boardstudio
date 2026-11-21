@@ -24,14 +24,11 @@ pub(super) fn transition_matrix_by_id<'a>(
     document: &'a ProjectDoc,
     id: &str,
 ) -> Result<&'a Matrix, String> {
-    let mut matrices = document.matrices.iter().filter(|matrix| matrix.id == id);
-    let matrix = matrices
-        .next()
-        .ok_or_else(|| format!("The transition matrix {id:?} is unavailable"))?;
-    if matrices.next().is_some() {
-        return Err(format!("The transition matrix {id:?} is ambiguous"));
-    }
-    Ok(matrix)
+    super::unique_row(
+        document.matrices.iter().filter(|matrix| matrix.id == id),
+        "transition matrix",
+        id,
+    )
 }
 
 pub(super) fn registration_count(document: &ProjectDoc, id: &str) -> usize {
@@ -62,38 +59,6 @@ pub(super) fn board_owner(document: &ProjectDoc, id: &str) -> Result<FinalOwner,
     Ok(FinalOwner::Board(board.id.clone()))
 }
 
-pub(super) fn validate_owner_realization(
-    document: &ProjectDoc,
-    owners: &BTreeMap<String, FinalOwner>,
-) -> Result<(), String> {
-    for (id, owner) in owners {
-        match owner {
-            FinalOwner::Board(_) => {
-                if document.parts.iter().filter(|part| part.id == *id).count() != 1
-                    || board_owner(document, id)? != *owner
-                {
-                    return Err(format!(
-                        "Board-owned identity {id:?} does not have exactly one matching Part registration"
-                    ));
-                }
-            }
-            FinalOwner::Absent => {
-                if document.parts.iter().any(|part| part.id == *id)
-                    || document
-                        .boards
-                        .iter()
-                        .any(|board| board.part_ids.iter().any(|part_id| part_id == id))
-                {
-                    return Err(format!(
-                        "Absent identity {id:?} still has a Part or board registration"
-                    ));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn validate_context_owners(
     document: &ProjectDoc,
     context: &MembershipContext,
@@ -106,60 +71,44 @@ pub(super) fn validate_context_owners(
                 part.id
             ));
         }
-        let actual = board_owner(document, &part.id)?;
-        if context.owners.get(&part.id) != Some(&actual)
-            && !(actual == FinalOwner::Board(context.mirror_board_id.clone())
-                && context.owners.get(&part.id) == Some(&FinalOwner::Absent)
-                && lifecycle::pending_visible_omission(context, &part.id))
-        {
+        if !context.owners.contains_key(&part.id) {
             return Err(format!(
-                "The historical owner context for {:?} does not match its registered board",
+                "The historical Part identity {:?} has no owner context",
                 part.id
             ));
         }
     }
     for (id, owner) in &context.owners {
-        match owner {
-            FinalOwner::Board(_) => {
-                let pending_omitted_rejoin = context.associations.iter().any(|association| {
-                    association.kind == MirroredItemKind::Part
-                        && association.mirror_id == *id
-                        && association.state == TransitionState::Linked
-                        && context.pending_rejoins.get(&association.source_id)
-                            == Some(&TransitionState::Omitted)
-                });
-                if pending_omitted_rejoin
-                    && document.parts.iter().all(|part| part.id != *id)
-                    && registration_count(document, id) == 0
-                {
-                    continue;
-                }
-                if board_owner(document, id)? != *owner
-                    || document.parts.iter().filter(|part| part.id == *id).count() != 1
-                {
-                    return Err(format!(
-                        "The historical owner context for {id:?} is not realized exactly once"
-                    ));
-                }
-            }
-            FinalOwner::Absent => {
-                if (document.parts.iter().any(|part| part.id == *id)
-                    || document
-                        .boards
-                        .iter()
-                        .any(|board| board.part_ids.iter().any(|part_id| part_id == id)))
-                    && !lifecycle::pending_visible_omission(context, id)
-                {
-                    return Err(format!(
-                        "The historically absent identity {id:?} still has a Part registration"
-                    ));
-                }
-            }
+        let present = part_ids.contains(id.as_str());
+        let actual = match (present, registration_count(document, id)) {
+            (false, 0) => Some(FinalOwner::Absent),
+            (true, _) => Some(board_owner(document, id)?),
+            _ => None,
+        };
+        if actual.as_ref() == Some(owner) {
+            continue;
         }
+        let has_pending_omitted_rejoin = actual == Some(FinalOwner::Absent)
+            && matches!(owner, FinalOwner::Board(_))
+            && context.associations.iter().any(|a| {
+                a.kind == MirroredItemKind::Part
+                    && a.mirror_id == *id
+                    && a.state == TransitionState::Linked
+                    && context.pending_rejoins.get(&a.source_id) == Some(&TransitionState::Omitted)
+            });
+        if has_pending_omitted_rejoin
+            || (owner == &FinalOwner::Absent
+                && actual == Some(FinalOwner::Board(context.mirror_board_id.clone()))
+                && lifecycle::pending_visible_omission(context, id))
+        {
+            continue;
+        }
+        return Err(format!(
+            "The historical owner context for {id:?} does not match actual registration"
+        ));
     }
     Ok(())
 }
-
 pub(super) fn validate_constraints(document: &ProjectDoc) -> Result<(), String> {
     for constraint in &document.constraints {
         for endpoint in [constraint.source(), constraint.target()] {
@@ -402,26 +351,11 @@ pub(super) fn validate_matrix_association(
         }
         return Ok(());
     }
-    let association =
-        association.ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
-    let correspondence =
-        correspondence.ok_or_else(|| "The pair matrix correspondence is unavailable".to_owned())?;
-    // A matrix-level Local or Omitted exception is an explicit overlay on
-    // the retained correspondence (spec §5): the mirror owns its
-    // descriptor while the pair record stays intact. Local keeps its
-    // geometry; Omitted stays live-yet-absent.
-    let linked = association.state == TransitionState::Linked && !association.explicit_state;
-    let matrix_exception = matches!(
-        association.state,
-        TransitionState::Local | TransitionState::Omitted
-    ) && association.explicit_state;
-    if association.source_id != matrix_pair.source_id.as_str()
-        || association.mirror_id != matrix_pair.mirror_id.as_str()
-        || !(linked || matrix_exception)
+    let association = association.ok_or("The transition matrix association is unavailable")?;
+    let correspondence = correspondence.ok_or("The pair matrix correspondence is unavailable")?;
+    if association.explicit_state == (association.state == TransitionState::Linked)
         || association.parent_source_id.is_some()
         || association.parent_mirror_id.is_some()
-        || correspondence.source_id != association.source_id
-        || correspondence.mirror_id != association.mirror_id
         || correspondence.companion_mode != association.raw_mode_override
         || correspondence.companion_tweak != association.raw_tweak
     {
@@ -585,7 +519,6 @@ pub(super) fn emit_validated_transition(
     Ok(MembershipTransitionOutput {
         draft,
         changed_document_ids: Vec::new(),
-        changed_field_paths: Vec::new(),
         context: next_context,
         context_delta,
         final_owners: validated.input.final_owners.clone(),
@@ -605,13 +538,7 @@ pub(super) fn validate_transition_output(
     // A retained Local mirror keeps its record across its source removal,
     // so only the complete-removal arm is skipped below; the gate still
     // validates the retired pair side as absent.
-    let matrix_retained_local = input.context.associations.iter().any(|association| {
-        association.kind == MirroredItemKind::Matrix
-            && association.source_id == matrix_pair.source_id.as_str()
-            && association.mirror_id == matrix_pair.mirror_id.as_str()
-            && association.state == TransitionState::Local
-            && association.explicit_state
-    });
+    let matrix_retained_local = input.context.matrix_state() == TransitionState::Local;
     // The in-place identity branch has exact member maps, unchanged owners and no pending
     // transitions or rejoins. Its input checks already proved matrix and owner realization on
     // this same document and context.
@@ -642,16 +569,11 @@ pub(super) fn validate_transition_output(
         }
         // A matrix-level Omitted mirror is record-absent by design: an
         // absent record must pair with an empty member plan.
-        let mirror_absent = next_context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && association.state == TransitionState::Omitted
-                && association.explicit_state
-        }) && draft
-            .matrices
-            .iter()
-            .all(|matrix| matrix.id != matrix_pair.mirror_id.as_str());
+        let mirror_absent = next_context.matrix_state() == TransitionState::Omitted
+            && draft
+                .matrices
+                .iter()
+                .all(|matrix| matrix.id != matrix_pair.mirror_id);
         if mirror_absent {
             if !expected_mirror_members.is_empty() {
                 return Err(
@@ -677,8 +599,25 @@ pub(super) fn validate_transition_output(
         );
     }
     if !reuses_validated_input {
-        validate_context_owners(draft, next_context)?;
-        validate_owner_realization(draft, input.final_owners)?;
+        if draft
+            .parts
+            .iter()
+            .any(|part| !next_context.owners.contains_key(&part.id))
+        {
+            return Err("The emitted transition contains a Part without a final owner".into());
+        }
+        for (id, owner) in &next_context.owners {
+            let part_count = draft.parts.iter().filter(|part| part.id == *id).count();
+            let realized = match owner {
+                FinalOwner::Board(_) => part_count == 1 && board_owner(draft, id)? == *owner,
+                FinalOwner::Absent => part_count == 0 && registration_count(draft, id) == 0,
+            };
+            if !realized {
+                return Err(format!(
+                    "The final owner for {id:?} is not realized by the draft"
+                ));
+            }
+        }
     }
     validate_emitted_slots(
         draft,
@@ -692,6 +631,18 @@ pub(super) fn validate_transition_output(
     )
 }
 
+pub(super) fn validate_distinct_associations(context: &MembershipContext) -> Result<(), String> {
+    let mut sources = BTreeSet::new();
+    let mut mirrors = BTreeSet::new();
+    if !context.associations.iter().all(|association| {
+        sources.insert((association.kind as u8, association.source_id.as_str()))
+            && mirrors.insert((association.kind as u8, association.mirror_id.as_str()))
+    }) {
+        return Err("The transition association context contains aliased identities".into());
+    }
+    Ok(())
+}
+
 pub(super) fn validate_emitted_slots<'a>(
     draft: &ProjectDoc,
     next_context: &MembershipContext,
@@ -700,21 +651,7 @@ pub(super) fn validate_emitted_slots<'a>(
     associations: impl Iterator<Item = &'a super::TransitionAssociation>,
 ) -> Result<(), String> {
     let matrix_pair = require_matrix_pair(next_context)?;
-    let association_keys: BTreeSet<_> = next_context
-        .associations
-        .iter()
-        .map(|association| format!("{:?}\0{}", association.kind, association.source_id))
-        .collect();
-    let association_mirrors: BTreeSet<_> = next_context
-        .associations
-        .iter()
-        .map(|association| format!("{:?}\0{}", association.kind, association.mirror_id))
-        .collect();
-    if association_keys.len() != next_context.associations.len()
-        || association_mirrors.len() != next_context.associations.len()
-    {
-        return Err("The emitted transition associations contain aliased identities".into());
-    }
+    validate_distinct_associations(next_context)?;
     for association in associations {
         let (row, column, child) =
             matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())

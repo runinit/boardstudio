@@ -72,10 +72,10 @@ fn repair_fresh_final_diff_reports_real_module_and_circuit_ids() {
         .embedded_circuits
         .by_id_mut("closure-circuit")
         .part_ids = vec!["matrix/mirror-matrix/r0c1/diode".into()];
-    let (ids, paths) = changed_document_fields(&before, &after).unwrap();
+    let ids = changed_document_ids(&before, &after, &[]).unwrap();
     assert!(
         ids.contains(&"shifted-module".into()) && ids.contains(&"closure-circuit".into()),
-        "changed dependency objects with actual IDs need real IDs, while idless maps use paths: IDs={ids:?}, paths={paths:?}"
+        "changed dependency objects report their actual IDs: {ids:?}"
     );
 }
 

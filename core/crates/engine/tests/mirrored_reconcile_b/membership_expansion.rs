@@ -702,7 +702,6 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     assert_eq!(repeated.draft, expanded.draft);
     assert_eq!(repeated.context, expanded.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 
     let mut shrink_before = expanded.draft.clone();
     shrink_before
@@ -952,5 +951,4 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     assert_eq!(repeated.draft, trimmed.draft);
     assert_eq!(repeated.context, trimmed.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 }

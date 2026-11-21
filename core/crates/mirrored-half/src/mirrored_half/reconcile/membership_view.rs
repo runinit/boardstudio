@@ -1,8 +1,216 @@
 //! Fixed matrix membership views: canonical slots, implicit cells and omitted companions.
 
-use super::{Projection, RetainedCell, unique_board_owner};
-use crate::model::{Matrix, MirroredExceptionState, MirroredItemKind, Part, ProjectDoc, Vec2};
+use super::{
+    Projection, omitted_mirror_matrix, project_matrix, transition_matrix_by_id as matrix_by_id,
+    unique_board_owner,
+};
+use crate::model::{
+    Matrix, MatrixCell, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
+    MirroredItemKind, Part, ProjectDoc, Vec2,
+};
 use std::collections::{BTreeMap, BTreeSet};
+
+pub(super) struct RetainedCell {
+    pub(super) member_ids: Vec<String>,
+    pub(super) cell: crate::model::MatrixCell,
+}
+
+/// Materialize only the selected matrix in a caller-owned reconciliation draft.
+pub(super) fn materialize_fixed_matrix(
+    document: &ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+    projection: &Projection,
+    staged: &mut ProjectDoc,
+    explicit: bool,
+) -> Result<(BTreeSet<String>, bool), String> {
+    let Some(matrix_link) = projection.matrix.as_ref() else {
+        return inactive_projection(projection, "matrixless");
+    };
+    let source_matrix_id = matrix_link.source_matrix_id.as_str();
+    let mirror_matrix_id = matrix_link.mirror_matrix_id.as_str();
+    if projection.preserve_matrix_geometry
+        && document
+            .matrices
+            .iter()
+            .all(|matrix| matrix.id != source_matrix_id)
+        && !halves.correspondences.iter().any(|link| {
+            link.kind == MirroredItemKind::Matrix
+                && (link.source_id == source_matrix_id || link.mirror_id == mirror_matrix_id)
+        })
+        && !halves.exceptions.iter().any(|exception| {
+            exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_matrix_id
+        })
+    {
+        return inactive_projection(projection, "retired Matrix");
+    }
+    let mut matrix_correspondences = halves.correspondences.iter().filter(|correspondence| {
+        correspondence.kind == MirroredItemKind::Matrix
+            && (correspondence.source_id == source_matrix_id
+                || correspondence.mirror_id == mirror_matrix_id
+                || correspondence.source_id == mirror_matrix_id
+                || correspondence.mirror_id == source_matrix_id)
+    });
+    // A Local or Omitted matrix keeps its correspondence; the overlay is only its state.
+    let exact_matrix_exception = halves.exceptions.iter().find(|exception| {
+        exception.kind == MirroredItemKind::Matrix
+            && exception.mirror_id == mirror_matrix_id
+            && halves.overlay_source(exception) == Some(source_matrix_id)
+    });
+    let matrix_correspondence = matrix_correspondences
+        .next()
+        .ok_or_else(|| "The matrix correspondence is unavailable".to_owned())?;
+    if matrix_correspondences.next().is_some()
+        || matrix_correspondence.source_id != source_matrix_id
+        || matrix_correspondence.mirror_id != mirror_matrix_id
+    {
+        return Err("The matrix correspondence is ambiguous or does not match the input".into());
+    }
+
+    let source_matrix = matrix_by_id(document, source_matrix_id)?;
+    let absent_matrix;
+    let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
+        Ok(matrix) => matrix,
+        Err(_)
+            if exact_matrix_exception.is_some_and(|exception| {
+                exception.state == crate::model::MirroredExceptionState::Omitted
+            }) =>
+        {
+            absent_matrix = omitted_mirror_matrix(
+                source_matrix,
+                mirror_matrix_id,
+                &projection.mirror_board_id,
+                halves,
+            );
+            &absent_matrix
+        }
+        Err(error) => return Err(error),
+    };
+    if source_matrix.board_id.as_deref() != Some(halves.source_board_id.as_str())
+        || mirror_matrix.board_id.as_deref() != Some(halves.mirror_board_id.as_str())
+    {
+        return Err(
+            "The matrix correspondence does not belong to its source and mirror boards".into(),
+        );
+    }
+
+    crate::matrix::valid_matrix(source_matrix, document)?;
+    crate::matrix::valid_matrix(mirror_matrix, document)?;
+    if !projection.mapping.at.x.is_finite()
+        || !projection.mapping.at.y.is_finite()
+        || !projection.mapping.rotation.is_finite()
+    {
+        return Err("The reconciliation mapping contains non-finite geometry".into());
+    }
+
+    let view = if exact_matrix_exception.is_none() && !projection.preserve_matrix_geometry {
+        let projected_matrix = project_matrix(
+            source_matrix,
+            mirror_matrix,
+            matrix_correspondence,
+            projection.mapping,
+        )?;
+        crate::matrix::valid_matrix(&projected_matrix, document)?;
+        Some(fixed_membership_view(
+            document,
+            halves,
+            source_matrix,
+            mirror_matrix,
+            &projected_matrix,
+            projection.mapping,
+            explicit.then_some(projection),
+        )?)
+    } else {
+        None
+    };
+
+    let mut omitted_parts = BTreeSet::new();
+    if let Some(view) = view {
+        // Keep retained parts out of the incoming pass and the previous ownership
+        // view, so the destructive setter cannot remove their parts or references.
+        let staged_old_matrix = staged
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == mirror_matrix.id)
+            .ok_or_else(|| "The mirrored matrix disappeared from the staged document".to_owned())?;
+        let retained_ids: std::collections::BTreeSet<_> = view
+            .retained_cells
+            .iter()
+            .flat_map(|retained| retained.member_ids.iter().cloned())
+            .collect();
+        staged_old_matrix
+            .part_ids
+            .retain(|id| !retained_ids.contains(id));
+        if view.normalized_source_matrix.cells.len() != source_matrix.cells.len() {
+            crate::matrix::set_matrix(staged, &view.normalized_source_matrix)?;
+        }
+        crate::matrix::set_matrix(staged, &view.incoming_matrix)?;
+        for retained in &view.retained_companion_parts {
+            let target = staged
+                .parts
+                .iter_mut()
+                .find(|part| part.id == retained.id)
+                .ok_or_else(|| {
+                    format!(
+                        "The unassociated matrix companion {:?} disappeared",
+                        retained.id
+                    )
+                })?;
+            *target = retained.clone();
+        }
+
+        {
+            let normalized_mirror_matrix = staged
+                .matrices
+                .iter_mut()
+                .find(|matrix| matrix.id == mirror_matrix.id)
+                .ok_or_else(|| "The normalized mirrored matrix is unavailable".to_owned())?;
+            for retained in &view.retained_cells {
+                let normalized_cell = normalized_mirror_matrix
+                    .cells
+                    .iter_mut()
+                    .find(|cell| {
+                        cell.row == retained.cell.row && cell.column == retained.cell.column
+                    })
+                    .ok_or_else(|| {
+                        "The normalized retained matrix cell is unavailable".to_owned()
+                    })?;
+                *normalized_cell = retained.cell.clone();
+            }
+            let mut ordered_cells: Vec<_> = normalized_mirror_matrix.cells.iter().collect();
+            ordered_cells.sort_by_key(|cell| (cell.row, cell.column));
+            normalized_mirror_matrix.part_ids =
+                ordered_cells
+                    .into_iter()
+                    .filter(|cell| cell.enabled && !cell.deleted)
+                    .flat_map(|cell| {
+                        let key_id =
+                            format!("matrix/{}/r{}c{}", mirror_matrix.id, cell.row, cell.column);
+                        std::iter::once(key_id.clone()).chain(cell.assemblies.iter().map(
+                            move |assembly| crate::matrix::companion_id(&key_id, &assembly.id),
+                        ))
+                    })
+                    .collect();
+        }
+        remove_omitted_matrix_parts(staged, &mirror_matrix.id, &view.omitted_matrix_companions);
+        omitted_parts = view.omitted_parts;
+    }
+
+    Ok((
+        omitted_parts,
+        exact_matrix_exception
+            .is_some_and(|exception| exception.state == MirroredExceptionState::Omitted),
+    ))
+}
+
+fn inactive_projection(
+    projection: &Projection,
+    role: &str,
+) -> Result<(BTreeSet<String>, bool), String> {
+    if !projection.parts.is_empty() || !projection.locally_protected_mirror_parts.is_empty() {
+        return Err(format!("The {role} projection retains Matrix ownership"));
+    }
+    Ok((BTreeSet::new(), true))
+}
 
 #[doc(hidden)]
 pub struct FixedMembershipView {
@@ -186,16 +394,17 @@ pub(super) fn fixed_membership_view(
     if inactive != mirror_inactive || inactive != inactive_slots(&projected) {
         return Err("The source and mirror matrices have inconsistent inactive slots".into());
     }
-    let mut tombstoned_member_ids = BTreeSet::new();
-    for (matrix, slots) in [(&source, &inactive), (&mirror, &inactive)] {
-        for (row, column) in slots {
-            tombstoned_member_ids.insert(format!("matrix/{}/r{}c{}", matrix.id, row, column));
-        }
-    }
-    let is_tombstoned_member = |member_id: &str| {
-        tombstoned_member_ids
-            .iter()
-            .any(|id| member_id == id || member_id.starts_with(&format!("{id}/")))
+    let is_tombstoned_member = |id: &str| {
+        [&source.id, &mirror.id].iter().any(|matrix| {
+            super::matrix_identity_slot(id, matrix).is_some_and(|(row, column, _)| {
+                let key = crate::matrix::member_id(matrix, row, column);
+                inactive.contains(&(row, column))
+                    && (id == key
+                        || id
+                            .strip_prefix(&key)
+                            .is_some_and(|suffix| suffix.starts_with('/')))
+            })
+        })
     };
     if source
         .part_ids
@@ -257,9 +466,9 @@ pub(super) fn fixed_membership_view(
     {
         return Err("The source and mirror matrices do not have matching fixed dimensions".into());
     }
-    let source_slots = canonical_slots(&source)?;
-    let mirror_slots = canonical_slots(&mirror)?;
-    let projected_slots = canonical_slots(&projected)?;
+    let source_slots = active_slots(&source);
+    let mirror_slots = active_slots(&mirror);
+    let projected_slots = active_slots(&projected);
     let live_source_slots: BTreeSet<Slot> = source_slots
         .keys()
         .copied()
@@ -348,19 +557,23 @@ pub(super) fn fixed_membership_view(
     for (slot, source_id) in &source_slots {
         // Omitted slots leave the active mirror partition: their mirror id
         // is the canonical slot identity the provenance check below proves.
-        let derived_mirror_id;
-        let mirror_id: &String = match mirror_slots.get(slot) {
-            Some(id) => id,
-            None if omitted_slot_ids.contains(slot) => {
-                derived_mirror_id = format!("matrix/{}/r{}c{}", mirror.id, slot.0, slot.1);
-                &derived_mirror_id
-            }
-            None => {
-                return Err(
-                    "The source and mirror matrices do not have matching active slots".into(),
-                );
-            }
-        };
+        let mirror_id = &crate::matrix::member_id(&mirror.id, slot.0, slot.1);
+        let source_cell = source
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == *slot)
+            .ok_or_else(|| "A source matrix cell is unavailable".to_owned())?;
+        let mirror_cell = mirror
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == *slot)
+            .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
+        let projected_cell = projected
+            .cells
+            .iter_mut()
+            .find(|cell| (cell.row, cell.column) == *slot)
+            .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
+        copy_cell_defaults(source_cell, mirror_cell, projected_cell);
         let source_owner = unique_board_owner(document, source_id, "mirrored")?;
         let omitted = halves
             .exceptions
@@ -393,20 +606,8 @@ pub(super) fn fixed_membership_view(
             {
                 return Err("An Omitted matrix owner lacks exact source provenance".into());
             }
-            let cell = mirror
-                .cells
-                .iter()
-                .find(|cell| (cell.row, cell.column) == *slot)
-                .ok_or_else(|| "The Omitted matrix cell is unavailable".to_owned())?
-                .clone();
-            // Companions follow the intact source cell's assemblies: the staged mirror cell may
-            // already be tombstoned (assemblies cleared) while the companion correspondences
-            // still need their absent-by-rule identities.
-            let source_cell = source
-                .cells
-                .iter()
-                .find(|cell| (cell.row, cell.column) == *slot)
-                .ok_or_else(|| "The Omitted matrix source cell is unavailable".to_owned())?;
+            // The source cell still names companions after the mirror cell was tombstoned.
+            let cell = mirror_cell.clone();
             let member_ids: Vec<_> = std::iter::once(mirror_id.clone())
                 .chain(
                     source_cell
@@ -490,42 +691,17 @@ pub(super) fn fixed_membership_view(
         {
             return Err("A matrix part has an incomplete or stale owner input".into());
         }
-        for id in [source_id, mirror_id] {
-            let mut matches = document.parts.iter().filter(|part| part.id == *id);
-            let part = matches
-                .next()
-                .ok_or_else(|| format!("The mirrored part {id:?} is unavailable"))?;
-            if matches.next().is_some() {
-                return Err(format!("The mirrored part {id:?} is ambiguous"));
-            }
-            if !point_is_finite(part.pose.at) || !part.pose.rotation.is_finite() {
-                return Err(format!("The mirrored part {id:?} has non-finite geometry"));
-            }
-            if linked
-                && crate::matrix::layout::companion_mode(document, id)
-                    != crate::model::MatrixCompanionMode::Follows
-            {
-                return Err(
-                    "Linked matrix keys cannot have authored or constrained placement".into(),
-                );
-            }
-        }
-        let mut associations = halves.correspondences.iter().filter(|association| {
-            association.kind == MirroredItemKind::Part
-                && (association.source_id == *source_id
-                    || association.mirror_id == *mirror_id
-                    || association.source_id == *mirror_id
-                    || association.mirror_id == *source_id)
-        });
-        let association = associations
-            .next()
-            .ok_or_else(|| "A canonical matrix part association is missing".to_owned())?;
-        if associations.next().is_some()
-            || association.source_id != *source_id
-            || association.mirror_id != *mirror_id
+        let source_key = exact_part(document, source_id)?;
+        let mirror_key = exact_part(document, mirror_id)?;
+        if linked
+            && [source_key, mirror_key]
+                .iter()
+                .any(|part| !follows_matrix(document, &part.id))
         {
-            return Err("A canonical matrix part association is aliased or inconsistent".into());
+            return Err("Linked matrix keys cannot have authored or constrained placement".into());
         }
+        canonical_part_link(halves, source_id, mirror_id, "part")?
+            .ok_or("A canonical matrix part association is missing")?;
         // The correspondence is the identity in every state. A state overlay on a slot that is
         // linked would make the slot Local or Omitted, so it must not be projected over.
         if linked && overlay.is_some() {
@@ -535,21 +711,6 @@ pub(super) fn fixed_membership_view(
             return Err("A canonical matrix slot must be linked or retained exactly once".into());
         }
 
-        let source_cell = source
-            .cells
-            .iter()
-            .find(|cell| (cell.row, cell.column) == *slot)
-            .ok_or_else(|| "A source matrix cell is unavailable".to_owned())?;
-        let mirror_cell = mirror
-            .cells
-            .iter()
-            .find(|cell| (cell.row, cell.column) == *slot)
-            .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
-        let projected_cell = projected
-            .cells
-            .iter_mut()
-            .find(|cell| (cell.row, cell.column) == *slot)
-            .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
         if source_cell.assemblies_local == Some(true) || mirror_cell.assemblies_local == Some(true)
         {
             // Local assembly lists have no cross-half identity. The key stays linked, while
@@ -581,11 +742,6 @@ pub(super) fn fixed_membership_view(
                 "The linked matrix assemblies do not have matching fixed membership".into(),
             );
         }
-        let source_key = document
-            .parts
-            .iter()
-            .find(|part| part.id == *source_id)
-            .ok_or_else(|| format!("The mirrored part {source_id:?} is unavailable"))?;
         for assembly_id in source_assemblies.keys() {
             let source_assembly = source_assemblies[assembly_id];
             let mirror_assembly = mirror_assemblies[assembly_id];
@@ -622,65 +778,25 @@ pub(super) fn fixed_membership_view(
                 omitted_parts.insert(mirror_companion_id);
                 continue;
             }
-            let mut matches = document
-                .parts
-                .iter()
-                .filter(|part| part.id == source_companion_id);
-            let source_companion = matches.next().ok_or_else(|| {
-                format!("The mirrored part {source_companion_id:?} is unavailable")
-            })?;
-            if matches.next().is_some() {
-                return Err(format!(
-                    "The mirrored part {source_companion_id:?} is ambiguous"
-                ));
-            }
-            let mut matches = document
-                .parts
-                .iter()
-                .filter(|part| part.id == mirror_companion_id);
-            let mirror_companion = matches.next().ok_or_else(|| {
-                format!("The mirrored part {mirror_companion_id:?} is unavailable")
-            })?;
-            if matches.next().is_some() {
-                return Err(format!(
-                    "The mirrored part {mirror_companion_id:?} is ambiguous"
-                ));
-            }
-            let source_owner = unique_board_owner(document, &source_companion_id, "mirrored")?;
-            let mirror_owner = unique_board_owner(document, &mirror_companion_id, "mirrored")?;
-            if source_owner != halves.source_board_id
-                || mirror_owner != halves.mirror_board_id
-                || owner_for(&source_companion_id) != Some(source_owner)
-                || owner_for(&mirror_companion_id) != Some(mirror_owner)
-            {
-                return Err("A matrix companion has an incomplete or stale owner input".into());
-            }
-            for part in [source_companion, mirror_companion] {
-                if !point_is_finite(part.pose.at) || !part.pose.rotation.is_finite() {
-                    return Err(format!(
-                        "The mirrored part {:?} has non-finite geometry",
-                        part.id
-                    ));
+            let source_companion = exact_part(document, &source_companion_id)?;
+            let mirror_companion = exact_part(document, &mirror_companion_id)?;
+            for (part, board) in [
+                (source_companion, &halves.source_board_id),
+                (mirror_companion, &halves.mirror_board_id),
+            ] {
+                if unique_board_owner(document, &part.id, "mirrored")? != board
+                    || owner_for(&part.id) != Some(board.as_str())
+                {
+                    return Err("A matrix companion has an incomplete or stale owner input".into());
                 }
             }
-            let mut companion_associations = halves.correspondences.iter().filter(|association| {
-                association.kind == MirroredItemKind::Part
-                    && (association.source_id == source_companion_id
-                        || association.mirror_id == mirror_companion_id
-                        || association.source_id == mirror_companion_id
-                        || association.mirror_id == source_companion_id)
-            });
             let (companion_mode, companion_tweak, retained_exception_state) =
-                if let Some(association) = companion_associations.next() {
-                    if companion_associations.next().is_some()
-                        || association.source_id != source_companion_id
-                        || association.mirror_id != mirror_companion_id
-                    {
-                        return Err(
-                            "A canonical matrix companion association is aliased or inconsistent"
-                                .into(),
-                        );
-                    }
+                if let Some(association) = canonical_part_link(
+                    halves,
+                    &source_companion_id,
+                    &mirror_companion_id,
+                    "companion",
+                )? {
                     let local_exception = halves
                         .overlay_of(association)
                         .filter(|exception| exception.state == MirroredExceptionState::Local)
@@ -725,26 +841,11 @@ pub(super) fn fixed_membership_view(
             }
             if linked
                 && retained_exception_state.is_none()
-                && (crate::matrix::layout::companion_mode(document, &source_companion_id)
-                    != crate::model::MatrixCompanionMode::Follows
-                    || crate::matrix::layout::companion_mode(document, &mirror_companion_id)
-                        != crate::model::MatrixCompanionMode::Follows)
+                && (!follows_matrix(document, &source_companion_id)
+                    || !follows_matrix(document, &mirror_companion_id))
             {
                 return Err(
                     "Linked matrix companions cannot have authored or constrained placement".into(),
-                );
-            }
-            if !point_is_finite(source_assembly.offset)
-                || !point_is_finite(mirror_assembly.offset)
-                || source_assembly
-                    .rotation
-                    .is_some_and(|rotation| !rotation.is_finite())
-                || mirror_assembly
-                    .rotation
-                    .is_some_and(|rotation| !rotation.is_finite())
-            {
-                return Err(
-                    "The linked matrix assembly placement contains non-finite values".into(),
                 );
             }
             if retained_exception_state.is_some() {
@@ -787,31 +888,6 @@ pub(super) fn fixed_membership_view(
         }
     }
 
-    for (row, column) in source_slots.keys() {
-        let source_cell = source
-            .cells
-            .iter()
-            .find(|cell| (cell.row, cell.column) == (*row, *column))
-            .ok_or_else(|| "A source matrix cell is unavailable".to_owned())?;
-        let mirror_cell = mirror
-            .cells
-            .iter()
-            .find(|cell| (cell.row, cell.column) == (*row, *column))
-            .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
-        let projected_cell = projected
-            .cells
-            .iter_mut()
-            .find(|cell| (cell.row, cell.column) == (*row, *column))
-            .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
-        if mirror_cell.assemblies_local != Some(true) {
-            projected_cell.definition_id = source_cell.definition_id.clone();
-            projected_cell.variant = source_cell.variant.clone();
-            if source_cell.assemblies_local != Some(true) {
-                // Reflection normalizes false to None; retain the authored distinction.
-                projected_cell.assemblies_local = source_cell.assemblies_local;
-            }
-        }
-    }
     for matrix in [&source, &mirror, &projected] {
         crate::matrix::valid_projection_matrix(matrix)?;
     }
@@ -911,31 +987,26 @@ pub(super) fn fixed_membership_view(
             .clone();
         cell.offset = Some(cell_offset);
         cell.rotation = Some(cell_rotation);
-        let source_cell = source
-            .cells
-            .iter()
-            .find(|source_cell| (source_cell.row, source_cell.column) == (row, column))
-            .ok_or_else(|| "The source matrix cell is unavailable".to_owned())?;
         let mirror_cell = mirror
             .cells
             .iter()
             .find(|mirror_cell| (mirror_cell.row, mirror_cell.column) == (row, column))
             .ok_or_else(|| "The mirror matrix cell is unavailable".to_owned())?;
+        let source_cell = source
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (row, column))
+            .ok_or("The source matrix cell is unavailable")?;
         if source_cell.assemblies_local == Some(true) || mirror_cell.assemblies_local == Some(true)
         {
-            cell.assemblies = mirror_cell.assemblies.clone();
+            cell.assemblies.clone_from(&mirror_cell.assemblies);
         } else {
             for assembly in &mut cell.assemblies {
-                let source_assembly = source_cell
-                    .assemblies
-                    .iter()
-                    .find(|source_assembly| source_assembly.id == assembly.id)
-                    .ok_or_else(|| "The retained source assembly is unavailable".to_owned())?;
                 *assembly = mirror_cell
                     .assemblies
                     .iter()
-                    .find(|mirror_assembly| mirror_assembly.id == source_assembly.id)
-                    .ok_or_else(|| "The retained mirror assembly is unavailable".to_owned())?
+                    .find(|item| item.id == assembly.id)
+                    .ok_or("The retained mirror assembly is unavailable")?
                     .clone();
             }
         }
@@ -970,6 +1041,58 @@ pub(super) fn fixed_membership_view(
         omitted_parts,
         omitted_matrix_companions: omitted_mirror_companions,
     })
+}
+
+fn exact_part<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a Part, String> {
+    let part = super::unique_row(
+        document.parts.iter().filter(|part| part.id == id),
+        "mirrored part",
+        id,
+    )?;
+    if !point_is_finite(part.pose.at) || !part.pose.rotation.is_finite() {
+        return Err(format!("The mirrored part {id:?} has non-finite geometry"));
+    }
+    Ok(part)
+}
+
+fn canonical_part_link<'a>(
+    halves: &'a MirroredHalves,
+    source: &str,
+    mirror: &str,
+    role: &str,
+) -> Result<Option<&'a MirroredCorrespondence>, String> {
+    let mut links = halves.correspondences.iter().filter(|link| {
+        link.kind == MirroredItemKind::Part
+            && (link.source_id == source
+                || link.mirror_id == mirror
+                || link.source_id == mirror
+                || link.mirror_id == source)
+    });
+    let link = links.next();
+    if link.is_some_and(|link| link.source_id != source || link.mirror_id != mirror)
+        || links.next().is_some()
+    {
+        return Err(format!(
+            "A canonical matrix {role} association is aliased or inconsistent"
+        ));
+    }
+    Ok(link)
+}
+
+fn follows_matrix(document: &ProjectDoc, id: &str) -> bool {
+    crate::matrix::layout::companion_mode(document, id)
+        == crate::model::MatrixCompanionMode::Follows
+}
+
+fn copy_cell_defaults(source: &MatrixCell, mirror: &MatrixCell, projected: &mut MatrixCell) {
+    if mirror.assemblies_local != Some(true) {
+        projected.definition_id.clone_from(&source.definition_id);
+        projected.variant.clone_from(&source.variant);
+        if source.assemblies_local != Some(true) {
+            // Reflection normalizes false to None. Retain the authored distinction.
+            projected.assemblies_local = source.assemblies_local;
+        }
+    }
 }
 
 fn validate_explicit_membership(
@@ -1123,42 +1246,18 @@ pub(super) fn point_is_finite(point: Vec2) -> bool {
     point.x.is_finite() && point.y.is_finite()
 }
 
-pub(super) fn canonical_slots(matrix: &Matrix) -> Result<SlotIds, String> {
-    if matrix.rows == 0 || matrix.columns == 0 {
-        return Err("The reconciliation matrix has empty dimensions".into());
-    }
-    let count = matrix
-        .rows
-        .checked_mul(matrix.columns)
-        .ok_or_else(|| "The reconciliation matrix dimensions overflow".to_owned())?;
-    if matrix.cells.len() != count as usize {
-        return Err("The reconciliation matrix does not have fixed active membership".into());
-    }
-    let mut coordinates = BTreeSet::new();
-    let mut slots = SlotIds::new();
-    for cell in &matrix.cells {
-        if cell.row >= matrix.rows
-            || cell.column >= matrix.columns
-            || cell.enabled == cell.deleted
-            || (cell.deleted && !cell.assemblies.is_empty())
-        {
-            return Err("The reconciliation matrix does not have fixed active membership".into());
-        }
-        if !coordinates.insert((cell.row, cell.column)) {
-            return Err("The reconciliation matrix contains aliased cells".into());
-        }
-        if cell.deleted {
-            continue;
-        }
-        let id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
-        slots.insert((cell.row, cell.column), id);
-    }
-    if coordinates.len() != count as usize
-        || slots.len() + inactive_slots(matrix).len() != count as usize
-    {
-        return Err("The reconciliation matrix has incomplete active membership".into());
-    }
-    Ok(slots)
+fn active_slots(matrix: &Matrix) -> SlotIds {
+    matrix
+        .cells
+        .iter()
+        .filter(|cell| cell.enabled)
+        .map(|cell| {
+            (
+                (cell.row, cell.column),
+                crate::matrix::member_id(&matrix.id, cell.row, cell.column),
+            )
+        })
+        .collect()
 }
 
 fn canonical_members<'a>(

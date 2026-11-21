@@ -1,5 +1,6 @@
 //! Pair projection and membership-transition construction for prepared drafts.
 
+pub(super) use super::super::transition_matrix_by_id as matrix_by_id;
 use super::*;
 use crate::model::{MechanicalMirrorPair, MirroredCorrespondence, MirroredHalves};
 use std::cell::OnceCell;
@@ -395,17 +396,6 @@ pub(super) fn projection_for(
         applied_independent_additions: std::cell::RefCell::new(applied_independent_additions),
         ..super::super::projection_for_pair(halves, pair.mapping)
     })
-}
-
-pub(super) fn matrix_by_id<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a Matrix, String> {
-    let mut matrices = document.matrices.iter().filter(|matrix| matrix.id == id);
-    let matrix = matrices
-        .next()
-        .ok_or_else(|| format!("Mirrored matrix {id:?} is unavailable"))?;
-    if matrices.next().is_some() {
-        return Err(format!("Mirrored matrix {id:?} is ambiguous"));
-    }
-    Ok(matrix)
 }
 
 pub(super) fn transitions_for(

@@ -17,8 +17,8 @@ pub fn prepare_lifecycle_transition(
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     crate::mechanical::halves::validate_document(before)?;
     let mut output = prepare_lifecycle_projection(before, post_source, context, dispatch)?;
-    (output.changed_document_ids, output.changed_field_paths) =
-        super::super::changed_document_fields(post_source, &output.draft)?;
+    output.changed_document_ids =
+        crate::mirrored_half::reconcile::changed_document_ids(post_source, &output.draft, &[])?;
     Ok(output)
 }
 
@@ -33,30 +33,12 @@ pub(super) fn prepare_lifecycle_projection(
     use crate::model::MirroredItemKind;
     use std::collections::BTreeMap;
 
-    fn selected_pair<'a>(
-        document: &'a crate::model::ProjectDoc,
-        context: &MembershipContext,
-    ) -> Result<&'a crate::model::MechanicalMirrorPair, String> {
-        let mut pairs = document
-            .hardware
-            .as_ref()
-            .ok_or("Lifecycle hardware is unavailable")?
-            .pairs
-            .iter()
-            .filter(|pair| pair.id == context.pair_id);
-        let pair = pairs
-            .next()
-            .ok_or("The exact lifecycle pair is unavailable")?;
-        if pairs.next().is_some()
-            || pair.halves.as_ref() != Some(&context.pair_right)
-            || pair.mapping != context.mapping
-        {
-            return Err("The lifecycle pair baseline is stale or ambiguous".into());
-        }
-        Ok(pair)
+    let baseline = super::super::selected_pair(before, &context.pair_id, "lifecycle")?;
+    if baseline.halves.as_ref() != Some(&context.pair_right) || baseline.mapping != context.mapping
+    {
+        return Err("The lifecycle pair baseline is stale or ambiguous".into());
     }
-
-    if selected_pair(before, context)? != selected_pair(post_source, context)? {
+    if baseline != super::super::selected_pair(post_source, &context.pair_id, "lifecycle")? {
         return Err("The source operation changed the selected lifecycle pair".into());
     }
     match (
@@ -370,7 +352,6 @@ pub(super) fn prepare_lifecycle_projection(
         context_delta: MembershipContextDelta::default(),
         final_owners: context.owners.clone(),
         changed_document_ids: Vec::new(),
-        changed_field_paths: Vec::new(),
         notices: Vec::new(),
     };
     output.context_delta.removed_copper = removed_copper;
@@ -632,12 +613,6 @@ pub fn transition_exception_context(
                     || record.mirror_id == source_id)
         })
         .collect();
-    let exact_exceptions: Vec<_> = next
-        .pair_right
-        .exceptions
-        .iter()
-        .filter(|record| record.kind == kind && record.mirror_id == mirror_id)
-        .collect();
     let (durable_state, _) = durable_state(&next, &selected_association)?;
     if next
         .pending_pair_transitions
@@ -646,22 +621,9 @@ pub fn transition_exception_context(
     {
         return Err("The lifecycle transition disagrees with its pending baseline".into());
     }
-    // The correspondence is exact in every state; Local and Omitted add one overlay on it.
-    let exact_correspondence = exact_correspondences.len() == 1
-        && exact_correspondences[0].source_id == source_id
-        && exact_correspondences[0].mirror_id == mirror_id;
-    match durable_state {
-        TransitionState::Linked if exact_correspondence && exact_exceptions.is_empty() => {}
-        TransitionState::Local | TransitionState::Omitted
-            if exact_correspondence
-                && exact_exceptions.len() == 1
-                && exact_exceptions[0].state
-                    == match durable_state {
-                        TransitionState::Local => crate::model::MirroredExceptionState::Local,
-                        TransitionState::Omitted => crate::model::MirroredExceptionState::Omitted,
-                        TransitionState::Linked => unreachable!(),
-                    } => {}
-        _ => return Err("The lifecycle transition disagrees with exact pair provenance".into()),
+    // Also exclude reversed endpoints on the selected correspondence.
+    if exact_correspondences.len() != 1 {
+        return Err("The lifecycle transition disagrees with exact pair provenance".into());
     }
     let original_state = durable_state;
     let returns_to_baseline = state == original_state;
@@ -766,17 +728,9 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     if pairs.next().is_some() {
         return Err("The lifecycle candidate pair is ambiguous".into());
     }
-    let mut baseline_pairs = before
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The lifecycle baseline has no hardware configuration".to_owned())?
-        .pairs
-        .iter()
-        .filter(|baseline| baseline.id == context.pair_id);
-    let baseline_pair = baseline_pairs
-        .next()
-        .ok_or_else(|| "The lifecycle baseline has no selected pair".to_owned())?;
-    if baseline_pairs.next().is_some() || pair != baseline_pair {
+    let baseline_pair =
+        super::super::selected_pair(before, &context.pair_id, "lifecycle baseline")?;
+    if pair != baseline_pair {
         return Err("The reconciliation kernel changed persisted pair bytes".into());
     }
     let halves = pair
@@ -784,46 +738,23 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         .as_mut()
         .ok_or_else(|| "The lifecycle candidate pair has no halves record".to_owned())?;
 
-    let mut next_halves = halves.clone();
-    // Locate each change in the original pair. Writing a survivor into another
-    // survivor's old slot must not change which row (or overlay) moves next.
-    let mut row_changes = std::collections::BTreeMap::new();
-    let mut overlay_changes = std::collections::BTreeMap::new();
-    let mut plan_change =
-        |old: &super::super::TransitionAssociation,
-         new: Option<&super::super::TransitionAssociation>|
-         -> Result<(), String> {
-            let mut rows = halves
-                .correspondences
-                .iter()
-                .enumerate()
-                .filter(|(_, row)| {
-                    row.kind == old.kind
-                        && row.source_id == old.source_id
-                        && row.mirror_id == old.mirror_id
-                });
-            let (index, _) = rows
-                .next()
-                .ok_or_else(|| format!("Missing durable association {:?}", old.source_id))?;
-            let replacement = new.map(|a| MirroredCorrespondence {
-                kind: a.kind,
-                source_id: a.source_id.clone(),
-                mirror_id: a.mirror_id.clone(),
-                companion_mode: a.raw_mode_override,
-                companion_tweak: a.raw_tweak,
-            });
-            if rows.next().is_some() || row_changes.insert(index, replacement).is_some() {
-                return Err(format!("Ambiguous durable association {:?}", old.source_id));
-            }
-            for (index, _) in halves.exceptions.iter().enumerate().filter(|(_, overlay)| {
-                overlay.kind == old.kind && overlay.mirror_id == old.mirror_id
-            }) {
-                overlay_changes.insert(index, new.map(|a| a.mirror_id.clone()));
-            }
-            Ok(())
-        };
-    for retired in &output.context_delta.retired {
-        plan_change(retired, None)?;
+    // Read the relocation from each original row so a compacted slot cannot consume
+    // another survivor's identity. Unselected rows retain their order.
+    let mut changes = std::collections::BTreeMap::new();
+    for old in &output.context_delta.retired {
+        if changes
+            .insert(
+                (
+                    old.kind as u8,
+                    old.source_id.as_str(),
+                    old.mirror_id.as_str(),
+                ),
+                None,
+            )
+            .is_some()
+        {
+            return Err(format!("Ambiguous durable association {:?}", old.source_id));
+        }
     }
     for (old_id, new_id) in &output.context_delta.relocated {
         let old = context
@@ -837,22 +768,59 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
             .iter()
             .find(|a| a.kind == MirroredItemKind::Part && a.source_id == *new_id)
             .ok_or_else(|| format!("Missing relocation target {new_id:?}"))?;
-        plan_change(old, Some(new))?;
-    }
-    for (index, replacement) in row_changes.into_iter().rev() {
-        if let Some(row) = replacement {
-            next_halves.correspondences[index] = row;
-        } else {
-            next_halves.correspondences.remove(index);
+        if changes
+            .insert(
+                (
+                    old.kind as u8,
+                    old.source_id.as_str(),
+                    old.mirror_id.as_str(),
+                ),
+                Some(new),
+            )
+            .is_some()
+        {
+            return Err(format!("Ambiguous durable association {:?}", old.source_id));
         }
     }
-    for (index, target) in overlay_changes.into_iter().rev() {
-        if let Some(target) = target {
-            next_halves.exceptions[index].mirror_id = target;
-        } else {
-            next_halves.exceptions.remove(index);
+    let record_from = |a: &super::super::TransitionAssociation| MirroredCorrespondence {
+        kind: a.kind,
+        source_id: a.source_id.clone(),
+        mirror_id: a.mirror_id.clone(),
+        companion_mode: a.raw_mode_override,
+        companion_tweak: a.raw_tweak,
+    };
+    let mut overlays = std::collections::BTreeMap::new();
+    let mut applied = BTreeSet::new();
+    let mut next_halves = halves.clone();
+    next_halves.correspondences.clear();
+    for row in &halves.correspondences {
+        let key = (
+            row.kind as u8,
+            row.source_id.as_str(),
+            row.mirror_id.as_str(),
+        );
+        match changes.get(&key).copied() {
+            Some(new) => {
+                if !applied.insert(key) {
+                    return Err(format!("Ambiguous durable association {:?}", row.source_id));
+                }
+                overlays.insert((row.kind as u8, row.mirror_id.as_str()), new);
+                next_halves.correspondences.extend(new.map(record_from));
+            }
+            None => next_halves.correspondences.push(row.clone()),
         }
     }
+    if let Some((_, source, _)) = changes.keys().find(|key| !applied.contains(*key)) {
+        return Err(format!("Missing durable association {source:?}"));
+    }
+    next_halves.exceptions.retain_mut(|overlay| {
+        match overlays.get(&(overlay.kind as u8, overlay.mirror_id.as_str())) {
+            Some(Some(new)) => overlay.mirror_id.clone_from(&new.mirror_id),
+            Some(None) => return false,
+            None => {}
+        }
+        true
+    });
     for added in &output.context_delta.added {
         if added.kind != MirroredItemKind::Part
             || added.state != super::super::TransitionState::Linked
@@ -874,13 +842,7 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
                 added.source_id
             ));
         }
-        next_halves.correspondences.push(MirroredCorrespondence {
-            kind: added.kind,
-            source_id: added.source_id.clone(),
-            mirror_id: added.mirror_id.clone(),
-            companion_mode: added.raw_mode_override,
-            companion_tweak: added.raw_tweak,
-        });
+        next_halves.correspondences.push(record_from(added));
     }
 
     if output.context.pair_right != context.pair_right

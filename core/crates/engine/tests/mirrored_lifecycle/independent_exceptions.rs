@@ -496,7 +496,6 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     assert_eq!(repeated.draft, rejoined.draft);
     assert_eq!(repeated.context, rejoined.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 }
 
 pub(crate) fn commit_matrix_step(
@@ -628,7 +627,6 @@ pub(crate) fn assert_committed_repeat(
     assert_eq!(repeated.draft, decoded);
     assert_eq!(repeated.context, output.context);
     assert!(repeated.changed_document_ids.is_empty());
-    assert!(repeated.changed_field_paths.is_empty());
 }
 
 #[test]

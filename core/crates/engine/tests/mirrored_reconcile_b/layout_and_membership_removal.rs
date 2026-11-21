@@ -489,7 +489,6 @@ fn membership_transition_accepts_a_valid_identity_operation_as_a_no_op() {
     let output = result.unwrap();
     assert_eq!(output.draft, document);
     assert!(output.changed_document_ids.is_empty());
-    assert!(output.changed_field_paths.is_empty());
     assert_eq!(output.context, context);
     assert_eq!(output.final_owners, final_owners);
 }
@@ -1269,9 +1268,9 @@ fn document_diff_reports_idless_nested_binding_paths() {
         },
     );
     after.keymap = Some(keymap);
-    let (ids, paths) = changed_document_fields(&before, &after).unwrap();
-    assert!(ids.is_empty());
-    assert_eq!(paths.len(), 1);
-    assert!(paths[0].contains("keymap"));
-    assert!(paths[0].contains("matrix/mirror-matrix/r0c0"));
+    assert!(
+        changed_document_ids(&before, &after, &[])
+            .unwrap()
+            .is_empty()
+    );
 }

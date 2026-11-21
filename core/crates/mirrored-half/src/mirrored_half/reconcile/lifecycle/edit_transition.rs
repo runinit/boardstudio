@@ -96,17 +96,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
         if requested_pair_id != pair_id {
             return Ok(None);
         }
-        let hardware = before
-            .hardware
-            .as_ref()
-            .ok_or("Lifecycle hardware is unavailable")?;
-        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-        let pair = pairs
-            .next()
-            .ok_or("The exact lifecycle pair is unavailable")?;
-        if pairs.next().is_some() {
-            return Err("The exact lifecycle pair is ambiguous".into());
-        }
+        let pair = super::super::selected_pair(before, pair_id, "lifecycle")?;
         let halves = pair
             .halves
             .as_ref()
@@ -303,17 +293,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
         }));
     }
 
-    let hardware = before
-        .hardware
-        .as_ref()
-        .ok_or("Lifecycle hardware is unavailable")?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or("The exact lifecycle pair is unavailable")?;
-    if pairs.next().is_some() {
-        return Err("The exact lifecycle pair is ambiguous".into());
-    }
+    let pair = super::super::selected_pair(before, pair_id, "lifecycle")?;
     let Some(halves) = &pair.halves else {
         return Ok(None);
     };
