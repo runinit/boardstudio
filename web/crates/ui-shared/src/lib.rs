@@ -20,6 +20,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 
 pub mod draft_edits;
 pub mod footprint_forms;
+mod generator_preview_defaults;
 pub mod inspector_fields;
 pub mod layout_camera;
 pub mod owned_edits;

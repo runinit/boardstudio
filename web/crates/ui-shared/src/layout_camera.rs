@@ -153,22 +153,19 @@ pub fn bridge_camera_offset(viewport_bounds: (f64, f64, f64, f64), target: Vec2)
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(test)]
 mod tests {
     use super::{MAX_ZOOM, MIN_ZOOM, bridge_camera_offset, step_zoom, wheel_zoom};
     use boardstudio_model::model::Vec2;
-    use wasm_bindgen_test::wasm_bindgen_test;
 
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
+    #[test]
     fn two_d_zoom_limits_match_the_pinned_typescript_workbench() {
         // Keep wheel zoom within the supported scale range,
         // Zoom out `Math.max(.25, zoom / 1.2)`, Zoom in `Math.min(4, zoom * 1.2)`.
         assert_eq!((MIN_ZOOM, MAX_ZOOM), (0.25, 4.0));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn wheel_zoom_is_clamped_and_does_not_move_past_a_limit() {
         // In range: exp(-deltaY / 1000) scaling.
         let zoomed = wheel_zoom(1.0, 1.0, -400.0);
@@ -188,7 +185,7 @@ mod tests {
         assert_eq!(wheel_zoom(0.1, ratio, 100_000.0) * ratio, MIN_ZOOM);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn zoom_buttons_stop_at_the_same_limits() {
         assert_eq!(step_zoom(MAX_ZOOM, 1.0), MAX_ZOOM);
         assert_eq!(step_zoom(MIN_ZOOM, -1.0), MIN_ZOOM);
@@ -198,7 +195,7 @@ mod tests {
         assert!((step_zoom(1.0, -1.0) - 1.0 / 1.2).abs() < 1e-12);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn selected_bridge_camera_uses_a_viewport_relative_pan_delta() {
         let viewport_bounds = (0.0, 280.0, -80.0, 0.0);
         let bridge_center = Vec2 { x: 270.0, y: -30.0 };
