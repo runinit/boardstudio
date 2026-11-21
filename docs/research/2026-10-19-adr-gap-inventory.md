@@ -219,13 +219,13 @@ not merely a UI future. Matching document ID/revision alone is insufficient.
 
 - **What:** [Session identities](../../application/src/session.rs), `Scope`,
   `AcceptedSnapshot`, `ExecutorEpoch`, `SnapshotToken` and identified completions
-  distinguish lifetimes. [EditTicket](../../web/crates/runtime/src/edit_ticket.rs)
+  distinguish lifetimes. [Runtime edit outcomes](../../web/crates/runtime/src/operation_outcomes.rs)
   captures a scope source and latches retirement. [Runtime collision tests](../../web/crates/runtime/src/runtime_collision_browser_tests.rs)
   exercise accepted scene/preview/row identity and stale-result rejection.
 - **Named tests:** `a_scope_departure_retires_every_ticket_clone_permanently`,
   `returning_to_the_captured_board_scope_does_not_revive_observation`, and
   `same_scope_revision_changes_and_owner_departure_have_separate_lifetimes` in
-  [edit_ticket.rs](../../web/crates/runtime/src/edit_ticket.rs);
+  [edit_outcome_tests.rs](../../web/crates/runtime/src/edit_outcome_tests.rs);
   `obsolete_false_view_entry_cannot_retire_an_active_complete_check` in
   [runtime_collision_browser_tests.rs](../../web/crates/runtime/src/runtime_collision_browser_tests.rs).
 - **Why recovered:** H1 §§3–4 explains why revision-only checks miss reopening the
@@ -465,7 +465,7 @@ mounted WASM tests remain necessary for presentation/browser behavior.
   [Browser Runtime](../../web/crates/runtime/src/runtime.rs) has in-process test
   adapters; [check.py](../../scripts/check.py), `browser`, separately schedules
   mounted workspace/provider/page checks.
-- **Named tests:** [edit_ticket.rs](../../web/crates/runtime/src/edit_ticket.rs),
+- **Named tests:** [edit_outcome_tests.rs](../../web/crates/runtime/src/edit_outcome_tests.rs),
   `native_runtime_settles_a_ticket_through_the_real_session_and_core`,
   `held_core_and_save_keep_a_ticket_pending_until_released` and
   `core_and_save_failures_settle_the_ticket_without_a_resolver`;
