@@ -12,9 +12,9 @@ pub mod canvas_keys;
 pub mod companion_placement;
 pub mod component_inspector;
 pub mod component_offset;
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_fixture;
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_projection_tests;
 pub mod inspector_types;
 pub mod matrix_relations;
