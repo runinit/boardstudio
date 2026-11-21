@@ -120,76 +120,45 @@ pub fn LayoutTransformToolOverlay(
     let quick_glyph = use_signal(|| false);
     // True from a Ctrl pointer-down on a Splay or Origin handle until release.
     let swing_glyph = use_signal(|| false);
-    let runtime_inner = runtime.0.clone();
-    let arbiter_for_drop = arbiter.clone();
-    let drag_for_drop = drag.clone();
-    let mut guide_for_drop = snap_guide;
-    let svg_for_drop_cancel = svg_handle.clone();
-    use_drop(move || {
-        cancel_transform_drag(
-            &runtime_inner,
-            &drag_for_drop,
-            &arbiter_for_drop,
-            &mut guide_for_drop,
-            quick_glyph,
-            swing_glyph,
-            &svg_for_drop_cancel,
-        );
-    });
-    let svg_for_escape = svg_handle.clone();
-    use_canvas_escape(&svg_handle, {
+    let cancel = {
         let runtime = runtime.0.clone();
-        let drag = drag.clone();
         let arbiter = arbiter.clone();
-        let mut feedback = feedback;
-        let mut popup_at = popup_at;
-        let mut guide = snap_guide;
-        let svg_for_escape = svg_for_escape.clone();
-        move |event| {
-            if !rail_escape_claims(event, drag.borrow().is_some(), &arbiter) {
-                return false;
-            }
-            // Ticket 06: Escape clears the chosen tool and its popup.
-            feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
-            popup_at.set(None);
+        let drag = drag.clone();
+        let svg = svg_handle.clone();
+        move || {
             cancel_transform_drag(
                 &runtime,
                 &drag,
                 &arbiter,
-                &mut guide,
+                snap_guide,
                 quick_glyph,
                 swing_glyph,
-                &svg_for_escape,
+                &svg,
             );
-            on_finish.call(());
-            true
         }
-    });
-    use_stale_drag_cancel(
+    };
+    let escape_drag = use_rail_drag_cancel(
         &drag,
         &owner,
         &context,
         tool,
         selected_context,
         scope_generation,
-        {
-            let runtime = runtime.0.clone();
-            let drag = drag.clone();
-            let arbiter = arbiter.clone();
-            let mut guide = snap_guide;
-            let svg_for_stale = svg_handle.clone();
-            move || {
-                cancel_transform_drag(
-                    &runtime,
-                    &drag,
-                    &arbiter,
-                    &mut guide,
-                    quick_glyph,
-                    swing_glyph,
-                    &svg_for_stale,
-                )
-            }
-        },
+        &svg_handle,
+        &arbiter,
+        feedback,
+        popup_at,
+        on_finish,
+        cancel.clone(),
+    );
+    let drag_event = rail_drag_events(
+        &drag,
+        &runtime.0,
+        workspace,
+        scope_generation,
+        selected_context,
+        tool,
+        cancel.clone(),
     );
 
     let mut selected_points = {
@@ -455,29 +424,13 @@ pub fn LayoutTransformToolOverlay(
         {
             return;
         }
-        let Some(capture) = pointer
-            .target()
-            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-            .and_then(|target| {
-                target
-                    .closest("[role='button'][tabindex='0']")
-                    .ok()
-                    .flatten()
-            })
-            .and_then(|target| target.dyn_into::<SvgElement>().ok())
-        else {
-            arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
+        let Some(capture) = capture_rail_pointer(
+            &pointer,
+            "[role='button'][tabindex='0']",
+            &arbiter_for_start,
+        ) else {
             return;
         };
-        if capture.set_pointer_capture(pointer.pointer_id()).is_err() {
-            arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
-            return;
-        }
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        let focus_options = web_sys::FocusOptions::new();
-        focus_options.set_prevent_scroll(true);
-        let _ = capture.focus_with_options(&focus_options);
         let angle_origin = match gesture {
             TransformGesture::Splay { origin, .. } => origin,
             _ => Vec2::default(),
@@ -539,21 +492,22 @@ pub fn LayoutTransformToolOverlay(
         let origin_base = swing_basis.map(|basis| basis.base);
         let start_origin = swing_basis.map(|basis| basis.splay_origin);
         *drag_for_start.borrow_mut() = Some(TransformDrag {
-            pointer_id: pointer.pointer_id(),
-            capture,
+            rail: RailDrag {
+                pointer_id: pointer.pointer_id(),
+                capture,
+                transaction_id: format!("layout-transform-{}", operation.0),
+                owner: current_owner.clone(),
+                context: current_context.clone(),
+                tool,
+                preview: DragPreview::default(),
+            },
             matrix: matrix_for_start.clone(),
             gesture,
-            transaction_id: format!("layout-transform-{}", operation.0),
-            owner: current_owner.clone(),
-            context: current_context.clone(),
-            tool,
             basis,
             origin_base,
             start_origin,
             start_client_x: f64::from(pointer.client_x()),
             start_client_y: f64::from(pointer.client_y()),
-            pending: None,
-            preview_submitted: false,
         });
         guide_for_start.set(None);
         // Ticket 06: the popup follows the pointer from pointer-down, 18 px
@@ -580,9 +534,8 @@ pub fn LayoutTransformToolOverlay(
 
     let runtime_for_move = runtime.0.clone();
     let svg_for_move = svg.surface().clone();
-    let svg_for_move_cancel = svg_handle.clone();
     let drag_for_move = drag.clone();
-    let arbiter_for_move = arbiter.clone();
+    let move_event = drag_event.clone();
     let guide_for_move = snap_guide;
     let feedback_for_move = feedback;
     let popup_at_for_move = popup_at;
@@ -592,38 +545,9 @@ pub fn LayoutTransformToolOverlay(
         let mut guide_for_move = guide_for_move;
         let mut feedback_for_move = feedback_for_move;
         let mut popup_at_for_move = popup_at_for_move;
-        let Some(pointer) = event.data().try_as_web_event() else {
+        let Some((pointer, mut active)) = move_event(event, false) else {
             return;
         };
-        let Some(mut active) = drag_for_move
-            .borrow()
-            .clone()
-            .filter(|drag| drag.pointer_id == pointer.pointer_id())
-        else {
-            return;
-        };
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if !transform_owner_is_current(
-            &runtime_for_move,
-            workspace,
-            scope_generation,
-            selected_context,
-            &active.owner,
-            &active.context,
-        ) || active.tool != tool
-        {
-            cancel_transform_drag(
-                &runtime_for_move,
-                &drag_for_move,
-                &arbiter_for_move,
-                &mut guide_for_move,
-                quick_glyph,
-                swing_glyph,
-                &svg_for_move_cancel,
-            );
-            return;
-        }
         let Some(point) = crate::presentation::coordinates(
             &svg_for_move,
             &pointer,
@@ -649,10 +573,11 @@ pub fn LayoutTransformToolOverlay(
             },
         );
         if let Some(operation) = operation
-            && active.pending.as_ref() != Some(&operation)
+            && active.rail.preview.sample(&operation)
         {
-            submit_transform_edit(&runtime_for_move, &active, operation.clone());
-            active.preview_submitted = true;
+            active
+                .rail
+                .submit_preview(&runtime_for_move, &active.matrix.id, operation.clone());
             // Ticket 06: the popup follows the pointer with the live value
             // and delta; a non-placement gesture keeps its docked content.
             if let Some(TransformDragResult::Placement { delta, .. }) =
@@ -674,7 +599,6 @@ pub fn LayoutTransformToolOverlay(
                 point.x + 18.0 * world_per_screen,
                 point.y - 18.0 * world_per_screen,
             )));
-            active.pending = Some(operation);
             *drag_for_move.borrow_mut() = Some(active);
         }
     });
@@ -694,132 +618,74 @@ pub fn LayoutTransformToolOverlay(
         let mut popup_at_for_end = popup_at_for_end;
         let mut pending_for_end = pending_for_end;
         let svg_handle_for_end = svg_handle_for_end_outer.clone();
-        let Some(pointer) = event.data().try_as_web_event() else {
+        let Some((pointer, active)) = drag_event(event, true) else {
             return;
         };
-        let Some(mut active) = drag_for_end
-            .borrow()
-            .clone()
-            .filter(|drag| drag.pointer_id == pointer.pointer_id())
-        else {
-            return;
-        };
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if !transform_owner_is_current(
-            &runtime_for_end,
-            workspace,
-            scope_generation,
-            selected_context,
-            &active.owner,
-            &active.context,
-        ) || active.tool != tool
-        {
-            cancel_transform_drag(
-                &runtime_for_end,
-                &drag_for_end,
-                &arbiter_for_end,
-                &mut guide_for_end,
-                quick_glyph,
-                swing_glyph,
-                &svg_handle_for_end,
-            );
-            return;
-        }
-        if pointer.type_() != "pointerup" {
-            cancel_transform_drag(
-                &runtime_for_end,
-                &drag_for_end,
-                &arbiter_for_end,
-                &mut guide_for_end,
-                quick_glyph,
-                swing_glyph,
-                &svg_handle_for_end,
-            );
-            return;
-        }
         let point =
             crate::presentation::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
-        let operation = point
-            .and_then(|point| {
-                sample_transform(
-                    &active,
-                    &pointer,
-                    point,
-                    TransformSampleContext {
-                        view_width: width,
-                        view_height: height,
-                        settings: &snap_settings,
-                        origins: &snap_origins,
-                        affect: splay_affect(),
-                        svg: &svg_for_end,
-                        guide: &mut guide_for_end,
-                    },
-                )
-            })
-            .or_else(|| active.pending.clone());
-        // The live value behind the toast and the re-docked popup.
-        let live_value = operation
-            .as_ref()
-            .and_then(|operation| placement_target(operation, &active.matrix))
-            .map(|(_, end)| format_placement_value(end))
-            .unwrap_or_default();
-        if let Some(operation) = operation {
-            if active.pending.as_ref() != Some(&operation) {
-                submit_transform_edit(&runtime_for_end, &active, operation.clone());
-                active.preview_submitted = true;
+        let operation = point.and_then(|point| {
+            sample_transform(
+                &active,
+                &pointer,
+                point,
+                TransformSampleContext {
+                    view_width: width,
+                    view_height: height,
+                    settings: &snap_settings,
+                    origins: &snap_origins,
+                    affect: splay_affect(),
+                    svg: &svg_for_end,
+                    guide: &mut guide_for_end,
+                },
+            )
+        });
+        if let Some(sample) = active.rail.preview.finish(operation) {
+            let operation = sample.operation;
+            if sample.submit_preview {
+                active
+                    .rail
+                    .submit_preview(&runtime_for_end, &active.matrix.id, operation.clone());
             }
-            if !same_transform_as_start(&active, &operation) {
-                // Queue one composed commit as intent; the `version` effect
-                // raises the durable toast on landing and reports failures.
-                // Queued drags compose through the resolver (ADR-0005).
-                if let Some(ticket) = transform_drag_result(&active, &operation).map(|result| {
-                    begin_transform_ticket(
-                        &runtime_for_end,
-                        "layout-transform-drag",
-                        transform_drag_resolver(
-                            active.matrix.id.clone(),
-                            active.transaction_id.clone(),
-                            result,
-                        ),
-                    )
-                }) {
-                    let toast = match transform_drag_result(&active, &operation) {
-                        Some(TransformDragResult::Placement { delta, .. }) => {
-                            Some(PendingTransformToast {
-                                tool_name: feedback_tool_name(tool),
-                                value: live_value.clone(),
-                                delta: placement_feedback_delta(delta),
-                            })
-                        }
-                        _ => None,
-                    };
-                    pending_for_end.write().push(PendingTransformCommit {
-                        ticket,
-                        owner: active.owner.clone(),
-                        context: active.context.clone(),
-                        toast,
-                    });
-                }
-            } else if active.preview_submitted {
-                clear_transform_preview(&runtime_for_end, &active);
+            let live_value = || {
+                placement_target(&operation, &active.matrix)
+                    .map(|(_, end)| format_placement_value(end))
+                    .unwrap_or_default()
+            };
+            if same_transform_as_start(&active, &operation) {
+                active.rail.clear_preview(&runtime_for_end);
                 feedback_for_end.set(advance_feedback(
                     &feedback_for_end(),
                     FeedbackEvent::Choose {
                         name: feedback_tool_name(tool).to_owned(),
-                        value: live_value.clone(),
+                        value: live_value(),
                     },
                 ));
+            } else if let Some(result) = transform_drag_result(&active, &operation) {
+                // Queued drags compose through the resolver (ADR-0005).
+                let toast = match &result {
+                    TransformDragResult::Placement { delta, .. } => Some(PendingTransformToast {
+                        tool_name: feedback_tool_name(tool),
+                        value: live_value(),
+                        delta: placement_feedback_delta(*delta),
+                    }),
+                    _ => None,
+                };
+                let ticket = begin_transform_ticket(
+                    &runtime_for_end,
+                    "layout-transform-drag",
+                    transform_drag_resolver(
+                        active.matrix.id.clone(),
+                        active.rail.transaction_id.clone(),
+                        result,
+                    ),
+                );
+                pending_for_end.write().push(PendingTransformCommit {
+                    ticket,
+                    owner: active.rail.owner.clone(),
+                    context: active.rail.context.clone(),
+                    toast,
+                });
             }
-        } else if active.preview_submitted {
-            clear_transform_preview(&runtime_for_end, &active);
-            feedback_for_end.set(advance_feedback(
-                &feedback_for_end(),
-                FeedbackEvent::Choose {
-                    name: feedback_tool_name(tool).to_owned(),
-                    value: live_value,
-                },
-            ));
         }
         popup_at_for_end.set(None);
         guide_for_end.set(None);
@@ -830,86 +696,26 @@ pub fn LayoutTransformToolOverlay(
         swing_for_end.set(false);
         // Releasing capture fires `lostpointercapture`; retire the drag before it can cancel the drop.
         drag_for_end.borrow_mut().take();
-        if active.capture.has_pointer_capture(active.pointer_id) {
-            let _ = active.capture.release_pointer_capture(active.pointer_id);
-        }
-        arbiter_for_end.release(CanvasInteractionOwner::MatrixTransform);
+        active.rail.release(&arbiter_for_end);
     });
 
-    let runtime_for_cancel = runtime.0.clone();
-    let drag_for_cancel = drag.clone();
-    let arbiter_for_cancel = arbiter.clone();
-    let guide_for_cancel = snap_guide;
-    let feedback_for_cancel = feedback;
-    let popup_at_for_cancel = popup_at;
-    let svg_for_cancel = svg_handle.clone();
-    let cancel_drag = Rc::new(move |event: PointerEvent| {
-        let mut guide_for_cancel = guide_for_cancel;
-        let mut feedback_for_cancel = feedback_for_cancel;
-        let mut popup_at_for_cancel = popup_at_for_cancel;
-        let Some(pointer) = event.data().try_as_web_event() else {
-            return;
-        };
-        if drag_for_cancel
-            .borrow()
-            .as_ref()
-            .is_some_and(|drag| drag.pointer_id == pointer.pointer_id())
-        {
-            pointer.prevent_default();
-            pointer.stop_propagation();
-            // Ticket 06: a cancelled drag takes its popup with it.
-            feedback_for_cancel.set(advance_feedback(
-                &feedback_for_cancel(),
-                FeedbackEvent::Dismiss,
-            ));
-            popup_at_for_cancel.set(None);
-            cancel_transform_drag(
-                &runtime_for_cancel,
-                &drag_for_cancel,
-                &arbiter_for_cancel,
-                &mut guide_for_cancel,
-                quick_glyph,
-                swing_glyph,
-                &svg_for_cancel,
-            );
-        }
-    });
+    let cancel_drag = {
+        let drag = drag.clone();
+        Rc::new(move |event: PointerEvent| {
+            cancel_rail_pointer(event, &drag, feedback, popup_at, &cancel);
+        })
+    };
 
     let runtime_for_key = runtime.0.clone();
-    let drag_for_key = drag.clone();
-    let arbiter_for_key = arbiter.clone();
-    let guide_for_key = snap_guide;
-    let feedback_for_key = feedback;
-    let popup_at_for_key = popup_at;
-    let pending_for_key = pending;
-    let svg_for_key_cancel = svg_handle.clone();
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
-        let mut guide_for_key = guide_for_key;
-        let mut feedback_for_key = feedback_for_key;
-        let mut popup_at_for_key = popup_at_for_key;
-        let mut pending_for_key = pending_for_key;
+        let mut pending = pending;
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
         if key.key() == "Escape" {
             key.prevent_default();
             key.stop_propagation();
-            // Ticket 06: Escape clears the chosen tool and its popup.
-            feedback_for_key.set(advance_feedback(
-                &feedback_for_key(),
-                FeedbackEvent::Dismiss,
-            ));
-            popup_at_for_key.set(None);
-            cancel_transform_drag(
-                &runtime_for_key,
-                &drag_for_key,
-                &arbiter_for_key,
-                &mut guide_for_key,
-                quick_glyph,
-                swing_glyph,
-                &svg_for_key_cancel,
-            );
-            on_finish.call(());
+            escape_drag();
             return;
         }
         if !matches!(
@@ -1087,7 +893,7 @@ pub fn LayoutTransformToolOverlay(
         // failures report, retirement is silent, focus stays on the token.
         let resolver = transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta);
         let ticket = begin_transform_ticket(&runtime_for_key, "layout-transform-nudge", resolver);
-        pending_for_key.write().push(PendingTransformCommit {
+        pending.write().push(PendingTransformCommit {
             ticket,
             owner: owner_for_key.clone(),
             context: context_for_key.clone(),

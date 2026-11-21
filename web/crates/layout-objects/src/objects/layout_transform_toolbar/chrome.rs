@@ -58,40 +58,6 @@ pub(super) fn rail_peers(rail: Rail, svg: &LayoutTransformSvg) -> Vec<LayoutTran
     }
 }
 
-/// The drag state both rail overlays keep: who started it, on which selection, with which tool.
-pub(super) trait RailDrag: 'static {
-    fn owner(&self) -> &LayoutOwnerIdentity;
-    fn context(&self) -> &TreeContext;
-    fn tool(&self) -> LayoutTransformTool;
-}
-
-/// A stale drag (owner, selection or tool moved on) cancels before it can land: the effect
-/// re-runs whenever the overlay's owner, context or tool props change and whenever the
-/// selection or scope generation does.
-pub(super) fn use_stale_drag_cancel<D: RailDrag>(
-    drag: &Rc<RefCell<Option<D>>>,
-    owner: &LayoutOwnerIdentity,
-    context: &TreeContext,
-    tool: LayoutTransformTool,
-    selected_context: Signal<Option<ScopedTreeContext>>,
-    scope_generation: Signal<u64>,
-    mut cancel: impl FnMut() + 'static,
-) {
-    let drag = drag.clone();
-    use_effect(use_reactive(
-        (owner, context, &tool),
-        move |(owner, context, tool)| {
-            let _ = selected_context();
-            let _ = scope_generation();
-            if drag.borrow().as_ref().is_some_and(|active| {
-                *active.owner() != owner || *active.context() != context || active.tool() != tool
-            }) {
-                cancel();
-            }
-        },
-    ));
-}
-
 /// World units per screen px times three: the overlays draw screen-size chrome from px art
 /// scaled by this factor, so tokens stay 18 px at every zoom.
 pub(super) fn handle_scale(svg: &LayoutTransformSvg, width: f64, height: f64) -> f64 {

@@ -19,6 +19,7 @@ pub mod outline;
 pub mod outline_settings;
 pub mod outline_snapping;
 pub mod part_rail;
+pub mod rail_drag;
 pub mod rail_state;
 pub mod screen_scale;
 pub mod setup_guide_state;
