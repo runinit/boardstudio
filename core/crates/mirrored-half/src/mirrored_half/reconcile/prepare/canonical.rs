@@ -333,8 +333,9 @@ pub(super) fn part_pose(document: &ProjectDoc, id: &str) -> Result<Pose2, String
 pub(super) fn restore_local_matrix_companion_parts(
     accepted: &ProjectDoc,
     document: &mut ProjectDoc,
-    positions: &[Position],
+    operation: Option<&EditOperation>,
 ) -> Result<Vec<String>, String> {
+    let positions = operation.map(operation_positions).unwrap_or_default();
     let mut changed = BTreeSet::new();
     let Some(hardware) = &accepted.hardware else {
         return Ok(Vec::new());
@@ -354,11 +355,21 @@ pub(super) fn restore_local_matrix_companion_parts(
             else {
                 continue;
             };
+            let removed_axis = operation.and_then(|op| {
+                super::super::transition::RemovedAxis::for_operation(op, &source.id)
+            });
             for cell in source
                 .cells
                 .iter()
                 .filter(|cell| cell.enabled && !cell.deleted)
             {
+                // Compaction has already carried Local payloads to their new slots.
+                // The old ID can now belong to a different, linked companion.
+                if removed_axis.is_some_and(|axis| {
+                    axis.remap(cell.row, cell.column) != Some((cell.row, cell.column))
+                }) {
+                    continue;
+                }
                 let source_key = crate::matrix::member_id(&source.id, cell.row, cell.column);
                 let mirror_key = crate::matrix::member_id(&mirror.id, cell.row, cell.column);
                 if halves.correspondences.iter().any(|association| {

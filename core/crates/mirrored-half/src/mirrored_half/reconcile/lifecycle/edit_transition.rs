@@ -324,7 +324,12 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
     let changed_matrices: Vec<_> = matrix_pairs
         .clone()
         .filter(|record| {
-            super::super::matrix_membership_changed(before, post_source, &record.source_id)
+            super::super::prepares_matrix_membership(
+                operation,
+                before,
+                post_source,
+                &record.source_id,
+            )
         })
         .collect();
     let matrix_context =

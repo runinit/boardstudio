@@ -176,6 +176,18 @@ pub struct MatrixLink {
     pub mirror_matrix_id: String,
 }
 
+// A structural command owns its axis even when every cell on that axis was
+// already deleted. Other edits can also change membership as a side effect.
+fn prepares_matrix_membership(
+    operation: &crate::model::EditOperation,
+    before: &ProjectDoc,
+    after: &ProjectDoc,
+    matrix_id: &str,
+) -> bool {
+    transition::RemovedAxis::for_operation(operation, matrix_id).is_some()
+        || matrix_membership_changed(before, after, matrix_id)
+}
+
 #[doc(hidden)]
 pub fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix_id: &str) -> bool {
     fn members<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a [String]> {

@@ -62,7 +62,7 @@ pub fn prepare_open(
     crate::matrix::layout::sync_components(&mut draft)?;
     crate::generators::document_error(&draft)?;
 
-    restore_local_matrix_companion_parts(accepted, &mut draft, &[])?;
+    restore_local_matrix_companion_parts(accepted, &mut draft, None)?;
     for pair in &pair_views {
         let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
         let mut matrices = pair_projection.matrix_links().peekable();
@@ -692,7 +692,7 @@ fn prepare_transaction(
     changed.extend(restore_local_matrix_companion_parts(
         local_parts_baseline,
         &mut draft,
-        operation_positions(&canonical.operation),
+        Some(&canonical.operation),
     )?);
     // Caller-owned draft: reconcile each pair in place without per-pair full reports. The
     // outer transaction guarantees rollback and the single final scoped report below owns

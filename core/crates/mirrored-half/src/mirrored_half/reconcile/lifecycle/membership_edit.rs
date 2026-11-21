@@ -317,9 +317,10 @@ pub(super) fn prepare_matrix_membership_edit(
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     use super::super::{
         BaselineKind, FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
-        changes::changed_document_ids, transition::prepare_membership_projection,
+        changes::changed_document_ids,
+        transition::{RemovedAxis, prepare_membership_projection},
     };
-    use crate::model::{EditOperation as Op, MirroredItemKind, ProjectDoc};
+    use crate::model::{MirroredItemKind, ProjectDoc};
     use std::borrow::Cow;
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -493,33 +494,15 @@ pub(super) fn prepare_matrix_membership_edit(
     fn mapped_source_id(
         id: &str,
         matrix_pair: &super::super::MatrixPairContext,
-        operation: &crate::model::EditOperation,
+        axis: Option<RemovedAxis>,
         post_source_ids: &BTreeSet<String>,
     ) -> Option<String> {
-        let (mut row, mut column, child) =
+        let (row, column, child) =
             super::super::matrix_identity_slot(id, matrix_pair.source_id.as_str())?;
-        match operation {
-            Op::RemoveMatrix { id } if id == matrix_pair.source_id.as_str() => return None,
-            Op::RemoveMatrixRow { row: removed, .. } => {
-                if row == *removed {
-                    return None;
-                }
-                if row > *removed {
-                    row -= 1;
-                }
-            }
-            Op::RemoveMatrixColumn {
-                column: removed, ..
-            } => {
-                if column == *removed {
-                    return None;
-                }
-                if column > *removed {
-                    column -= 1;
-                }
-            }
-            _ => {}
-        }
+        let (row, column) = match axis {
+            Some(axis) => axis.remap(row, column)?,
+            None => (row, column),
+        };
         let suffix = if child.is_empty() {
             String::new()
         } else {
@@ -532,13 +515,14 @@ pub(super) fn prepare_matrix_membership_edit(
         post_source_ids.contains(&mapped).then_some(mapped)
     }
 
+    let axis = RemovedAxis::for_operation(operation, &matrix_pair.source_id);
     let source_identity_map: BTreeMap<_, _> = source_before
         .part_ids
         .iter()
         .map(|id| {
             (
                 id.clone(),
-                mapped_source_id(id, matrix_pair, operation, &source_after_ids),
+                mapped_source_id(id, matrix_pair, axis, &source_after_ids),
             )
         })
         .collect();
@@ -662,7 +646,7 @@ pub(super) fn prepare_matrix_membership_edit(
     explicit_removal_closure.extend(
         mirror_identity_map
             .iter()
-            .filter_map(|(id, mapped)| mapped.is_none().then_some(id.clone())),
+            .filter_map(|(id, mapped)| (mapped.as_ref() != Some(id)).then_some(id.clone())),
     );
     // A matrix-level Omitted mirror never materializes members, so its mirror
     // map carries no entries for them. Retiring a source-removed Omitted child
@@ -696,14 +680,6 @@ pub(super) fn prepare_matrix_membership_edit(
                 .map(|addition| addition.mirror_id.clone()),
         )
         .collect();
-    let removed_source_ids: BTreeSet<_> = source_identity_map
-        .iter()
-        .filter_map(|(id, mapped)| mapped.is_none().then_some(id.clone()))
-        .collect();
-    let removed_mirror_ids: BTreeSet<_> = mirror_identity_map
-        .iter()
-        .filter_map(|(id, mapped)| mapped.is_none().then_some(id.clone()))
-        .collect();
     let mut required_owners: BTreeSet<_> = before
         .parts
         .iter()
@@ -711,24 +687,17 @@ pub(super) fn prepare_matrix_membership_edit(
         .map(|part| part.id.clone())
         .collect();
     required_owners.extend(context.owners.keys().cloned());
+    required_owners.extend(retained_mirror_ids.iter().cloned());
     for addition in &planned_additions {
         required_owners.insert(addition.source_id.clone());
         required_owners.insert(addition.mirror_id.clone());
     }
     let mut final_owners = BTreeMap::new();
     for id in required_owners {
-        let reused_target = retained_mirror_ids.contains(&id);
-        let reused_source = source_identity_map
-            .values()
-            .flatten()
-            .any(|mapped| mapped == &id)
-            || planned_additions
-                .iter()
-                .any(|addition| addition.source_id == id);
         let owner = if retained_mirror_ids.contains(&id) {
             FinalOwner::Board(context.mirror_board_id.clone())
-        } else if (removed_source_ids.contains(&id) && !reused_source)
-            || (removed_mirror_ids.contains(&id) && !reused_target)
+        } else if mirror_identity_map.contains_key(&id)
+            || (source_identity_map.contains_key(&id) && !source_after_ids.contains(&id))
         {
             FinalOwner::Absent
         } else if let Some(board) = post_source
@@ -743,18 +712,21 @@ pub(super) fn prepare_matrix_membership_edit(
         final_owners.insert(id, owner);
     }
 
-    let mut output = prepare_membership_projection(MembershipTransitionInput {
-        dispatch,
-        valid_before: before,
-        post_source,
-        context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_identity_map,
-        mirror_identity_map: &mirror_identity_map,
-        planned_additions: &planned_additions,
-        final_owners: &final_owners,
-        explicit_removal_closure: &explicit_removal_closure,
-    })?;
+    let mut output = prepare_membership_projection(
+        MembershipTransitionInput {
+            dispatch,
+            valid_before: before,
+            post_source,
+            context,
+            baseline_kind: BaselineKind::MaterializedCurrentSchema,
+            source_identity_map: &source_identity_map,
+            mirror_identity_map: &mirror_identity_map,
+            planned_additions: &planned_additions,
+            final_owners: &final_owners,
+            explicit_removal_closure: &explicit_removal_closure,
+        },
+        axis,
+    )?;
     // Report against the selected matrix projection before restoring the other associations.
     output.changed_document_ids = changed_document_ids(post_source, &output.draft, &[])?;
 

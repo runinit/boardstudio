@@ -190,7 +190,12 @@ pub(super) fn reconcile_pairs(
             continue;
         }
         for (index, matrix_link) in matrices.enumerate() {
-            if super::super::matrix_membership_changed(accepted, document, &matrix_link.source_id) {
+            if super::super::prepares_matrix_membership(
+                &canonical.operation,
+                accepted,
+                document,
+                &matrix_link.source_id,
+            ) {
                 // Lifecycle preparation has already projected this matrix's changed membership.
                 // The fixed-membership reconciler owns only matrices whose membership stayed put.
                 continue;
