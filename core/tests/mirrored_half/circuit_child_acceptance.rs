@@ -1,49 +1,8 @@
 //! Public Core acceptance for lifecycle exceptions on an embedded circuit's member.
+use super::parent_acceptance::{assert_history_document, commit_operation, save_archive_and_open};
 use super::*;
 
 const PAIR_ID: &str = "parent19-circuit-child-pair";
-
-fn circuit_child_commit(
-    engine: &mut CoreEngine,
-    document: &Value,
-    id: &str,
-    targets: &[&str],
-    operation: Value,
-) -> Value {
-    request(
-        engine,
-        json!({"id":id,"kind":"edit","command":{
-            "baseRevision":document["revision"],"transactionId":id,"phase":"commit",
-            "targetIds":targets,"operation":operation
-        }}),
-    )
-}
-
-fn assert_child_history(actual: &Value, expected: &Value, label: &str) {
-    let mut expected = expected.clone();
-    expected["revision"] = actual["revision"].clone();
-    assert_eq!(actual, &expected, "{label} restores the complete document");
-}
-
-fn circuit_child_save_open(document: &Value) -> (CoreEngine, Value) {
-    let (packed_reply, packed_buffers) = boardstudio_core::archive::request(
-        &json!({"kind":"pack-project","projectJson":document.to_string(),"assets":[]}).to_string(),
-        &[],
-    );
-    let packed: Value = serde_json::from_str(&packed_reply).unwrap();
-    assert_eq!(packed["kind"], "packed", "{packed}");
-    let (unpacked_reply, buffers) =
-        boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed_buffers);
-    let unpacked: Value = serde_json::from_str(&unpacked_reply).unwrap();
-    assert_eq!(unpacked["kind"], "unpacked", "{unpacked}");
-    assert!(buffers.is_empty());
-    let saved: Value = serde_json::from_str(unpacked["projectJson"].as_str().unwrap()).unwrap();
-    assert_eq!(
-        saved, *document,
-        "archive preserves the pair and member overlay"
-    );
-    open(&saved)
-}
 
 /// A member's Local/Omitted overlay survives edits to its source circuit, archive Save/Open,
 /// and Rejoin. The neighboring member remains linked and the owning circuits retain their nets.
@@ -63,7 +22,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
         .unwrap();
         let pair_document = created["document"].clone();
         let embedded_id = "right/parent19-runtime-circuit";
-        let embedded = circuit_child_commit(
+        let embedded = commit_operation(
             &mut engine,
             &pair_document,
             "parent19-circuit-child-embed",
@@ -113,7 +72,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
         .map(|c| json!({"id":c["id"],"ports":c["ports"],"netIds":c["netIds"]}))
         .collect();
 
-        let exceptional = circuit_child_commit(
+        let exceptional = commit_operation(
             &mut engine,
             &linked,
             "parent19-circuit-child-exception",
@@ -126,7 +85,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
         let source_pose = find_part(&exception_doc, &source_id).unwrap()["pose"]["at"].clone();
         let moved_to = json!({"x":source_pose["x"].as_f64().unwrap()+7.0,
             "y":source_pose["y"].as_f64().unwrap()-4.0});
-        let moved = circuit_child_commit(
+        let moved = commit_operation(
             &mut engine,
             &exception_doc,
             "parent19-circuit-child-source-edit",
@@ -169,7 +128,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
             );
         }
 
-        let (mut reopened_engine, reopened) = circuit_child_save_open(&edited);
+        let (mut reopened_engine, reopened) = save_archive_and_open(&edited);
         assert_eq!(
             pair(&reopened, PAIR_ID)["halves"]["exceptions"]
                 .as_array()
@@ -188,7 +147,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
             source_id
         );
         let before_rejoin = snapshot(&mut reopened_engine);
-        let rejoined = circuit_child_commit(
+        let rejoined = commit_operation(
             &mut reopened_engine,
             &before_rejoin,
             "parent19-circuit-child-rejoin",
@@ -220,7 +179,7 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
             json!({"id":"parent19-circuit-child-undo","kind":"undo"}),
         );
         assert_eq!(undo["kind"], "scene", "{undo}");
-        assert_child_history(&undo["document"], &before_rejoin, "Rejoin Undo");
+        assert_history_document(&undo["document"], &before_rejoin, "Rejoin Undo");
         if state == "omitted" {
             assert!(find_part(&undo["document"], &mirror_id).is_none());
         }
@@ -229,6 +188,6 @@ fn parent19_embedded_circuit_member_local_and_omitted_are_selective_and_rejoin_l
             json!({"id":"parent19-circuit-child-redo","kind":"redo"}),
         );
         assert_eq!(redo["kind"], "scene", "{redo}");
-        assert_child_history(&redo["document"], &rejoined_doc, "Rejoin Redo");
+        assert_history_document(&redo["document"], &rejoined_doc, "Rejoin Redo");
     }
 }

@@ -612,135 +612,222 @@ fn each_handed_mirror_has_one_warning_and_symmetric_footprints_have_none() {
 }
 
 #[test]
-fn each_companion_placement_selector_expands_to_its_exact_cells() {
-    for (target, expected) in [
+fn companion_placement_selectors_match_the_authored_cells() {
+    let item =
+        json!({"kind":"item","itemKind":"part","mirrorId":"matrix/left-synthetic-keys/r0c1/diode"});
+    let row = json!({"kind":"row","matrixId":"left-synthetic-keys","row":0});
+    let column = json!({"kind":"column","matrixId":"left-synthetic-keys","column":1});
+    let matrix = json!({"kind":"matrix","matrixId":"left-synthetic-keys"});
+    let all_cells = &["r0c0", "r0c1", "r1c0", "r1c1"][..];
+    for (label, targets, cells) in [
+        ("item", vec![item.clone()], &["r0c1"][..]),
+        ("row", vec![row.clone()], &["r0c0", "r0c1"][..]),
+        ("column", vec![column], &["r0c1", "r1c1"][..]),
+        ("matrix", vec![matrix.clone()], all_cells),
         (
-            json!({"kind":"item","itemKind":"part","mirrorId":"matrix/left-synthetic-keys/r0c1/diode"}),
-            vec!["matrix/left-synthetic-keys/r0c1/diode"],
-        ),
-        (
-            json!({"kind":"row","matrixId":"left-synthetic-keys","row":0}),
+            "overlapping",
             vec![
-                "matrix/left-synthetic-keys/r0c0/diode",
-                "matrix/left-synthetic-keys/r0c0/led",
-                "matrix/left-synthetic-keys/r0c1/diode",
-                "matrix/left-synthetic-keys/r0c1/led",
+                item.clone(),
+                row,
+                json!({"kind":"column","matrixId":"right-synthetic-keys","column":1}),
+                matrix,
             ],
-        ),
-        (
-            json!({"kind":"column","matrixId":"left-synthetic-keys","column":1}),
-            vec![
-                "matrix/left-synthetic-keys/r0c1/diode",
-                "matrix/left-synthetic-keys/r0c1/led",
-                "matrix/left-synthetic-keys/r1c1/diode",
-                "matrix/left-synthetic-keys/r1c1/led",
-            ],
-        ),
-        (
-            json!({"kind":"matrix","matrixId":"left-synthetic-keys"}),
-            vec![
-                "matrix/left-synthetic-keys/r0c0/diode",
-                "matrix/left-synthetic-keys/r0c0/led",
-                "matrix/left-synthetic-keys/r0c1/diode",
-                "matrix/left-synthetic-keys/r0c1/led",
-                "matrix/left-synthetic-keys/r1c0/diode",
-                "matrix/left-synthetic-keys/r1c0/led",
-                "matrix/left-synthetic-keys/r1c1/diode",
-                "matrix/left-synthetic-keys/r1c1/led",
-            ],
+            all_cells,
         ),
     ] {
+        let overlapping = label == "overlapping";
+        let (map, mode, tweak) = if overlapping {
+            (
+                mapping(300.0),
+                "literal-mirror-with-tweak",
+                json!({"x":1.25,"y":-0.5,"rotation":4.0}),
+            )
+        } else {
+            (
+                json!({"at":{"x":300.0,"y":12.0},"rotation":27.0}),
+                "duplicate-position",
+                Value::Null,
+            )
+        };
         let (mut engine, source) = seed(&runtime_supported_document(), "left");
-        let made = create_with(
+        let made = create(
             &mut engine,
             &source,
-            "commit",
-            operation(
-                "placement-selector-kind",
-                "left",
-                new_board("right", "right"),
-                json!({"at":{"x":300.0,"y":12.0},"rotation":27.0}),
-            ),
+            "placement",
+            "left",
+            new_board("right", "right"),
+            map,
         )
         .unwrap()["document"]
             .clone();
-        let reply = create_with(
-            &mut engine,
-            &made,
-            "commit",
-            json!({"kind":"set-companion-placement", "pairId":"placement-selector-kind",
-                "targets":[target], "mode":"duplicate-position", "tweak":null}),
-        )
-        .unwrap();
-        let updated: BTreeSet<_> =
-            pair(&reply["document"], "placement-selector-kind")["halves"]["correspondences"]
-                .as_array()
-                .unwrap()
+        let edit = json!({"kind":"set-companion-placement","pairId":"placement",
+            "targets":targets,"mode":mode,"tweak":tweak});
+        let preview = create_with(&mut engine, &made, "preview", edit.clone()).unwrap();
+        assert_eq!(preview["kind"], "preview", "{label}");
+        assert_eq!(snapshot(&mut engine), made, "{label} Preview isolation");
+        let reply = create_with(&mut engine, &made, "commit", edit).unwrap();
+        let links = pair(&reply["document"], "placement")["halves"]["correspondences"]
+            .as_array()
+            .unwrap();
+
+        // Build the expected identities from the fixture's cell coordinates and assembly IDs.
+        let selected: BTreeSet<_> = cells
+            .iter()
+            .flat_map(|cell| {
+                let children = if label == "item" {
+                    &["diode"][..]
+                } else {
+                    &["diode", "led"][..]
+                };
+                children.iter().map(move |child| format!("{cell}/{child}"))
+            })
+            .collect();
+        let updated: BTreeSet<_> = links
+            .iter()
+            .filter(|link| link["companionMode"] == mode)
+            .map(|link| {
+                let suffix = link["sourceId"]
+                    .as_str()
+                    .unwrap()
+                    .strip_prefix("matrix/left-synthetic-keys/")
+                    .unwrap();
+                assert_eq!(
+                    link["mirrorId"],
+                    format!("matrix/right-synthetic-keys/{suffix}"),
+                    "{label}"
+                );
+                assert_eq!(link["companionTweak"], tweak, "{label}: {suffix}");
+                suffix.to_owned()
+            })
+            .collect();
+        assert_eq!(updated, selected, "{label}");
+        for suffix in &selected {
+            let (cell, _) = suffix.split_once('/').unwrap();
+            let source_key = part(&made, &format!("matrix/left-synthetic-keys/{cell}"));
+            let source_child = part(&made, &format!("matrix/left-synthetic-keys/{suffix}"));
+            let mirror_key = part(
+                &reply["document"],
+                &format!("matrix/right-synthetic-keys/{cell}"),
+            );
+            let mirror_child = part(
+                &reply["document"],
+                &format!("matrix/right-synthetic-keys/{suffix}"),
+            );
+            let (x, y) = in_switch_frame(source_child, source_key);
+            let expected = if overlapping {
+                (1.25 - x, y - 0.5)
+            } else {
+                (x, y)
+            };
+            assert_close_pair(in_switch_frame(mirror_child, mirror_key), expected, suffix);
+        }
+        assert!(
+            links
                 .iter()
-                .filter(|link| link["companionMode"] == "duplicate-position")
-                .map(|link| link["sourceId"].as_str().unwrap().to_owned())
+                .any(|link| link["sourceId"] == "left/U1" && link.get("companionMode").is_none()),
+            "{label}"
+        );
+
+        if overlapping {
+            let mut changed: Vec<_> = selected
+                .iter()
+                .map(|suffix| format!("matrix/right-synthetic-keys/{suffix}"))
+                .chain(["placement".into(), "right-synthetic-keys".into()])
                 .collect();
-        assert_eq!(updated, expected.into_iter().map(str::to_owned).collect());
+            changed.sort();
+            for phase in [&preview, &reply] {
+                assert_eq!(phase["scene"]["changedIds"], json!(changed), "{label}");
+            }
+            let refused = create_with(
+                &mut engine,
+                &reply["document"],
+                "commit",
+                json!({"kind":"set-companion-placement","pairId":"placement",
+                    "targets":[{"kind":"pair"},item],
+                    "mode":"literal-mirror","tweak":{"x":1.0,"y":0.0,"rotation":0.0}}),
+            );
+            assert_eq!(
+                refused.unwrap_err(),
+                "A pair default cannot carry a companion tweak"
+            );
+            assert_eq!(snapshot(&mut engine), reply["document"]);
+        }
     }
 }
 
 #[test]
-fn changing_pair_default_preserves_an_inherited_tweak_override() {
-    let (mut engine, source) = seed(&runtime_supported_document(), "left");
-    let made = create_with(
-        &mut engine,
+fn changing_pair_default_preserves_explicit_and_inherited_tweaks() {
+    const SELECTED: &str = "matrix/right-synthetic-keys/r0c0/diode";
+    const NEIGHBOR: &str = "matrix/left-synthetic-keys/r0c1/diode";
+    let (mut creator, source) = seed(&runtime_supported_document(), "left");
+    let made = create(
+        &mut creator,
         &source,
-        "commit",
-        operation(
-            "placement-inherited-tweak",
-            "left",
-            new_board("right", "right"),
-            mapping(300.0),
-        ),
+        "placement-default",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
     )
     .unwrap()["document"]
         .clone();
-    let mut with_tweak = made;
-    let halves = with_tweak["hardware"]["pairs"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|pair| pair["id"] == "placement-inherited-tweak")
-        .unwrap()["halves"]
-        .as_object_mut()
-        .unwrap();
-    halves.insert("companionMode".into(), json!("literal-mirror-with-tweak"));
-    let inherited = halves["correspondences"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|link| {
-            link["kind"] == "part" && link["sourceId"].as_str().unwrap().ends_with("/diode")
-        })
-        .unwrap();
-    inherited.as_object_mut().unwrap().remove("companionMode");
-    inherited["companionTweak"] = json!({"x":0.75,"y":-0.25,"rotation":3.0});
-    let (mut engine, accepted) = open(&with_tweak);
-    let reply = create_with(
-        &mut engine,
-        &accepted,
-        "commit",
-        json!({"kind":"set-companion-placement", "pairId":"placement-inherited-tweak",
-            "targets":[{"kind":"pair"}], "mode":"duplicate-position", "tweak":null}),
-    )
-    .unwrap();
-    let changed_link =
-        pair(&reply["document"], "placement-inherited-tweak")["halves"]["correspondences"]
-            .as_array()
+    for inherited in [false, true] {
+        let mut configured = made.clone();
+        let halves = &mut configured["hardware"]["pairs"][0]["halves"];
+        let mut targets = vec![json!({"kind":"pair"})];
+        if inherited {
+            halves["companionMode"] = json!("literal-mirror-with-tweak");
+        } else {
+            targets.push(json!({"kind":"item","itemKind":"part","mirrorId":NEIGHBOR}));
+        }
+        let selected = halves["correspondences"]
+            .as_array_mut()
             .unwrap()
-            .iter()
-            .find(|link| link["companionTweak"]["x"] == 0.75)
+            .iter_mut()
+            .find(|link| link["mirrorId"] == SELECTED)
             .unwrap();
-    assert_eq!(changed_link["companionMode"], "literal-mirror-with-tweak");
-    assert_eq!(
-        changed_link["companionTweak"],
-        json!({"x":0.75,"y":-0.25,"rotation":3.0})
-    );
+        if inherited {
+            selected.as_object_mut().unwrap().remove("companionMode");
+        } else {
+            selected["companionMode"] = json!("literal-mirror-with-tweak");
+        }
+        let tweak = if inherited {
+            json!({"x":0.75,"y":-0.25,"rotation":3.0})
+        } else {
+            json!({"x":1.25,"y":-0.5,"rotation":4.0})
+        };
+        selected["companionTweak"] = tweak.clone();
+        let (mut engine, mut before) = open(&configured);
+        let reply = create_with(
+            &mut engine,
+            &before,
+            "commit",
+            json!({"kind":"set-companion-placement","pairId":"placement-default",
+                "targets":targets,"mode":"duplicate-position","tweak":null}),
+        )
+        .unwrap();
+        let halves = &pair(&reply["document"], "placement-default")["halves"];
+        assert_eq!(halves["companionMode"], "duplicate-position");
+        let links = halves["correspondences"].as_array().unwrap();
+        let selected = links
+            .iter()
+            .find(|link| link["mirrorId"] == SELECTED)
+            .unwrap();
+        assert_eq!(
+            selected["companionMode"], "literal-mirror-with-tweak",
+            "inherited={inherited}"
+        );
+        assert_eq!(selected["companionTweak"], tweak);
+        if !inherited {
+            let neighbor = links
+                .iter()
+                .find(|link| link["sourceId"] == NEIGHBOR)
+                .unwrap();
+            assert_eq!(neighbor["companionMode"], "duplicate-position");
+        }
+        let undone = request(&mut engine, json!({"id":"undo-placement","kind":"undo"}));
+        before["revision"] = undone["document"]["revision"].clone();
+        assert_eq!(undone["document"], before);
+    }
 }
 
 #[test]

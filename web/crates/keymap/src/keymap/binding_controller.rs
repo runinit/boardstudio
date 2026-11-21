@@ -5,6 +5,8 @@ use super::binding_editor::{
 };
 use super::layer_controller::LayerSource;
 use super::view::KeymapView;
+use crate::binding::apply_requested_field;
+use crate::encoder::same_input_lineage;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
@@ -30,39 +32,7 @@ struct BindingReferenceChoices {
     macros: Rc<[BindingMacroChoice]>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncoderInputChoice {
-    pub id: Rc<str>,
-    pub label: Rc<str>,
-    pub push_key_id: Option<Rc<str>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncoderInputProjection {
-    pub identity: EncoderInputIdentity,
-    pub encoders: Rc<[EncoderInputChoice]>,
-    /// True once the F5 board plan for this accepted snapshot has settled.
-    pub electrical_plan_settled: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncoderBindingRow {
-    pub id: Rc<str>,
-    pub label: Rc<str>,
-    pub clockwise: KeyBinding,
-    pub counterclockwise: KeyBinding,
-    pub push_key_id: Option<Rc<str>>,
-    pub push_binding: Option<KeyBinding>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncoderEditorProjection {
-    pub input_identity: EncoderInputIdentity,
-    pub effective_layer_id: String,
-    pub rows: Rc<[EncoderBindingRow]>,
-    pub layers: Rc<[BindingLayerChoice]>,
-    pub macros: Rc<[BindingMacroChoice]>,
-}
+pub use crate::encoder::{EncoderBindingRow, EncoderEditorProjection, EncoderInputProjection};
 
 /// The accepted canvas and encoder projections that define one Keymap read
 /// surface. Encoder display data is memoized; the live getter is reserved for
@@ -165,159 +135,6 @@ pub struct BindingActions {
     pub encoder_projection: Option<Rc<EncoderEditorProjection>>,
     pub feedback: Option<BindingEditFeedback>,
     pub on_change: EventHandler<BindingEditRequest>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum AcceptedFieldValue {
-    Behavior(&'static str),
-    Keycode(&'static str, String),
-    Tap(String),
-    HoldModifier(String),
-    Layer(String),
-    Macro(String),
-}
-
-fn field_value(binding: &KeyBinding, field: BindingField) -> Option<AcceptedFieldValue> {
-    Some(match (field, binding) {
-        (BindingField::Behavior, KeyBinding::KeyPress { .. }) => {
-            AcceptedFieldValue::Behavior("key-press")
-        }
-        (BindingField::Behavior, KeyBinding::ModTap { .. }) => {
-            AcceptedFieldValue::Behavior("mod-tap")
-        }
-        (BindingField::Behavior, KeyBinding::LayerTap { .. }) => {
-            AcceptedFieldValue::Behavior("layer-tap")
-        }
-        (BindingField::Behavior, KeyBinding::MomentaryLayer { .. }) => {
-            AcceptedFieldValue::Behavior("momentary-layer")
-        }
-        (BindingField::Behavior, KeyBinding::ToggleLayer { .. }) => {
-            AcceptedFieldValue::Behavior("toggle-layer")
-        }
-        (BindingField::Behavior, KeyBinding::ToLayer { .. }) => {
-            AcceptedFieldValue::Behavior("to-layer")
-        }
-        (BindingField::Behavior, KeyBinding::StickyLayer { .. }) => {
-            AcceptedFieldValue::Behavior("sticky-layer")
-        }
-        (BindingField::Behavior, KeyBinding::StickyKey { .. }) => {
-            AcceptedFieldValue::Behavior("sticky-key")
-        }
-        (BindingField::Behavior, KeyBinding::Macro { .. }) => AcceptedFieldValue::Behavior("macro"),
-        (BindingField::Behavior, KeyBinding::Transparent) => {
-            AcceptedFieldValue::Behavior("transparent")
-        }
-        (BindingField::Behavior, KeyBinding::None) => AcceptedFieldValue::Behavior("none"),
-        (BindingField::Keycode, KeyBinding::KeyPress { keycode }) => {
-            AcceptedFieldValue::Keycode("key-press", keycode.clone())
-        }
-        (BindingField::Keycode, KeyBinding::StickyKey { keycode }) => {
-            AcceptedFieldValue::Keycode("sticky-key", keycode.clone())
-        }
-        (BindingField::Tap, KeyBinding::ModTap { tap, .. })
-        | (BindingField::Tap, KeyBinding::LayerTap { tap, .. }) => {
-            AcceptedFieldValue::Tap(tap.clone())
-        }
-        (BindingField::HoldModifier, KeyBinding::ModTap { hold, .. }) => {
-            AcceptedFieldValue::HoldModifier(hold.clone())
-        }
-        (BindingField::Layer, KeyBinding::LayerTap { layer_id, .. })
-        | (BindingField::Layer, KeyBinding::MomentaryLayer { layer_id })
-        | (BindingField::Layer, KeyBinding::ToggleLayer { layer_id })
-        | (BindingField::Layer, KeyBinding::ToLayer { layer_id })
-        | (BindingField::Layer, KeyBinding::StickyLayer { layer_id }) => {
-            AcceptedFieldValue::Layer(layer_id.clone())
-        }
-        (BindingField::Macro, KeyBinding::Macro { macro_id }) => {
-            AcceptedFieldValue::Macro(macro_id.clone())
-        }
-        _ => return None,
-    })
-}
-
-/// Apply only the requested semantic field to the freshly admitted binding.
-fn apply_requested_field(
-    current: &KeyBinding,
-    requested: &KeyBinding,
-    field: BindingField,
-) -> Option<KeyBinding> {
-    Some(match (field, current, requested) {
-        (BindingField::Behavior, _, next) if field_value(next, field).is_some() => next.clone(),
-        (BindingField::Keycode, KeyBinding::KeyPress { .. }, KeyBinding::KeyPress { keycode }) => {
-            KeyBinding::KeyPress {
-                keycode: keycode.clone(),
-            }
-        }
-        (
-            BindingField::Keycode,
-            KeyBinding::StickyKey { .. },
-            KeyBinding::StickyKey { keycode },
-        ) => KeyBinding::StickyKey {
-            keycode: keycode.clone(),
-        },
-        (BindingField::Tap, KeyBinding::ModTap { hold, .. }, KeyBinding::ModTap { tap, .. }) => {
-            KeyBinding::ModTap {
-                hold: hold.clone(),
-                tap: tap.clone(),
-            }
-        }
-        (
-            BindingField::Tap,
-            KeyBinding::LayerTap { layer_id, .. },
-            KeyBinding::LayerTap { tap, .. },
-        ) => KeyBinding::LayerTap {
-            layer_id: layer_id.clone(),
-            tap: tap.clone(),
-        },
-        (
-            BindingField::HoldModifier,
-            KeyBinding::ModTap { tap, .. },
-            KeyBinding::ModTap { hold, .. },
-        ) => KeyBinding::ModTap {
-            hold: hold.clone(),
-            tap: tap.clone(),
-        },
-        (
-            BindingField::Layer,
-            KeyBinding::LayerTap { tap, .. },
-            KeyBinding::LayerTap { layer_id, .. },
-        ) => KeyBinding::LayerTap {
-            layer_id: layer_id.clone(),
-            tap: tap.clone(),
-        },
-        (
-            BindingField::Layer,
-            KeyBinding::MomentaryLayer { .. },
-            KeyBinding::MomentaryLayer { layer_id },
-        ) => KeyBinding::MomentaryLayer {
-            layer_id: layer_id.clone(),
-        },
-        (
-            BindingField::Layer,
-            KeyBinding::ToggleLayer { .. },
-            KeyBinding::ToggleLayer { layer_id },
-        ) => KeyBinding::ToggleLayer {
-            layer_id: layer_id.clone(),
-        },
-        (BindingField::Layer, KeyBinding::ToLayer { .. }, KeyBinding::ToLayer { layer_id }) => {
-            KeyBinding::ToLayer {
-                layer_id: layer_id.clone(),
-            }
-        }
-        (
-            BindingField::Layer,
-            KeyBinding::StickyLayer { .. },
-            KeyBinding::StickyLayer { layer_id },
-        ) => KeyBinding::StickyLayer {
-            layer_id: layer_id.clone(),
-        },
-        (BindingField::Macro, KeyBinding::Macro { .. }, KeyBinding::Macro { macro_id }) => {
-            KeyBinding::Macro {
-                macro_id: macro_id.clone(),
-            }
-        }
-        _ => return None,
-    })
 }
 
 /// Projects one binding and only its reference-choice labels from an already
@@ -473,12 +290,6 @@ fn input_identity_matches_source(
         && identity.scope.session_epoch == snapshot.session_epoch
         && identity.scope.document_id == snapshot.document.id
         && identity.scope.board_id == source.scope.board_id
-}
-
-fn same_input_lineage(captured: &EncoderInputIdentity, current: &EncoderInputIdentity) -> bool {
-    captured.scope == current.scope
-        && captured.projection_generation == current.projection_generation
-        && captured.electrical_fingerprint == current.electrical_fingerprint
 }
 
 fn binding_for_key_id(
@@ -1129,127 +940,4 @@ fn binding_resolver(request: BindingEditRequest) -> EditResolver {
             EditOperation::EditKeymap { change },
         )
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_application::SnapshotToken;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    fn encoder_lineage_survives_own_snapshot_advance_but_not_input_replacement() {
-        let scope = Scope {
-            session_epoch: boardstudio_application::SessionEpoch(4),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: Some("instance".into()),
-        };
-        let captured = EncoderInputIdentity {
-            scope: scope.clone(),
-            token: SnapshotToken(8),
-            revision: 12,
-            projection_generation: 21,
-            electrical_fingerprint: Some("f5-layout".into()),
-        };
-        let after_own_edit = EncoderInputIdentity {
-            token: SnapshotToken(9),
-            revision: 13,
-            ..captured.clone()
-        };
-        let replaced_inputs = EncoderInputIdentity {
-            projection_generation: 22,
-            ..after_own_edit.clone()
-        };
-
-        assert!(same_input_lineage(&captured, &after_own_edit));
-        assert!(!same_input_lineage(&captured, &replaced_inputs));
-    }
-
-    #[wasm_bindgen_test]
-    fn field_keys_cover_all_typed_variants_without_collapsing_empty_kinds() {
-        let layer_id = "nav-stable-id".to_owned();
-        let values = [
-            KeyBinding::KeyPress {
-                keycode: "A".into(),
-            },
-            KeyBinding::ModTap {
-                hold: "LSHIFT".into(),
-                tap: "A".into(),
-            },
-            KeyBinding::LayerTap {
-                layer_id: layer_id.clone(),
-                tap: "SPACE".into(),
-            },
-            KeyBinding::MomentaryLayer {
-                layer_id: layer_id.clone(),
-            },
-            KeyBinding::ToggleLayer {
-                layer_id: layer_id.clone(),
-            },
-            KeyBinding::ToLayer {
-                layer_id: layer_id.clone(),
-            },
-            KeyBinding::StickyLayer { layer_id },
-            KeyBinding::StickyKey {
-                keycode: "LC(A)".into(),
-            },
-            KeyBinding::Macro {
-                macro_id: "macro-stable-id".into(),
-            },
-            KeyBinding::Transparent,
-            KeyBinding::None,
-        ];
-
-        assert!(
-            values
-                .iter()
-                .all(|binding| field_value(binding, BindingField::Behavior).is_some())
-        );
-        assert!(field_value(&values[0], BindingField::Keycode).is_some());
-        assert!(field_value(&values[7], BindingField::Keycode).is_some());
-        assert!(field_value(&values[1], BindingField::Tap).is_some());
-        assert!(field_value(&values[2], BindingField::Tap).is_some());
-        assert!(field_value(&values[1], BindingField::HoldModifier).is_some());
-        for binding in &values[2..7] {
-            assert!(field_value(binding, BindingField::Layer).is_some());
-        }
-        assert!(field_value(&values[8], BindingField::Macro).is_some());
-        assert_ne!(
-            field_value(&KeyBinding::Transparent, BindingField::Behavior),
-            field_value(&KeyBinding::None, BindingField::Behavior)
-        );
-    }
-
-    #[wasm_bindgen_test]
-    fn field_updates_preserve_sibling_values_from_fresh_binding() {
-        let current = KeyBinding::ModTap {
-            hold: "LCTRL".into(),
-            tap: "A".into(),
-        };
-        let stale_payload = KeyBinding::ModTap {
-            hold: "LSHIFT".into(),
-            tap: "B".into(),
-        };
-        assert_eq!(
-            apply_requested_field(&current, &stale_payload, BindingField::Tap),
-            Some(KeyBinding::ModTap {
-                hold: "LCTRL".into(),
-                tap: "B".into(),
-            })
-        );
-        assert_eq!(
-            apply_requested_field(&current, &stale_payload, BindingField::HoldModifier),
-            Some(KeyBinding::ModTap {
-                hold: "LSHIFT".into(),
-                tap: "A".into(),
-            })
-        );
-        assert_eq!(
-            apply_requested_field(&current, &KeyBinding::None, BindingField::Tap),
-            None
-        );
-    }
 }
