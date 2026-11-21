@@ -6,7 +6,8 @@ use super::{ScopedTreeContext, TreeContext, keycap_resize::ResizeAxis};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Lifecycle, Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -160,22 +161,23 @@ pub fn use_key_size(
     };
     let request_sequence = use_signal(|| 0u64);
     let last_request = use_signal(|| 0u64);
-    // Field edits are observed through ticket observations keyed by field; the submitted
-    // Vec2 travels as the payload so settlement can restore the durable draft only while
-    // it still is the submitted value. No separate Signal mirrors the pending state.
-    let mut edits = use_signal(PendingEdits::<KeySizeEditKey, Vec2>::default);
-    // The inspector-owned durable draft binding. Settlement writes it only while the
-    // same owner is still bound, so an older outcome never reaches a remounted view.
-    let bound = use_signal(|| None::<(KeySizeOwner, Signal<Vec2>, Signal<Option<String>>)>);
+    // Field edits are observed through shared draft tickets keyed by field. The
+    // submitted view travels on the ticket so settlement restores the durable draft
+    // only while it still is the submitted value. No separate Signal mirrors the
+    // pending state.
+    let edits = use_signal(DraftEdits::<KeySizeEditKey, Vec2>::default);
+    // The inspector-owned durable draft view, attached to each submission. A rebind
+    // detaches the previous view so an older outcome never reaches a remounted view.
+    let bound = use_signal(|| None::<(KeySizeOwner, FieldView<Vec2>)>);
     let feedback = use_signal(|| None::<KeySizeFeedback>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        let mut edits = edits;
+        let edits = edits;
         move || {
             alive.set(false);
-            let _ = edits.write().settle_with(false);
+            let _ = edits.read().settle(false, |_| Vec2::default());
         }
     });
     let model = runtime.model();
@@ -247,44 +249,18 @@ pub fn use_key_size(
         ),
         {
             let mut feedback = feedback;
-            let mut edits = edits;
-            let bound = bound;
+            let edits = edits;
             let alive = alive.clone();
             move |(_, current_workspace, _, owner_is_current, inspector_mounted, accepted_units)| {
                 let owner_is_live = alive.get()
                     && owner_is_current
                     && inspector_mounted
                     && current_workspace == "Layout";
-                for (result, submitted) in edits.write().settle_with(owner_is_live) {
-                    let (PendingEditResult::Landed { key, .. }
-                    | PendingEditResult::Failed { key, .. }
-                    | PendingEditResult::Retired { key }) = &result;
-                    // Restore the durable draft only while it still is the submitted value,
-                    // so a newer draft is never overwritten by an older outcome.
-                    if let Some((bound_owner, mut draft, mut bound_failure)) = bound.read().clone()
-                        && bound_owner == key.owner
-                        && draft.peek().clone() == submitted
-                        && draft.peek().clone() != accepted_units
-                    {
-                        draft.set(accepted_units);
-                    }
+                for result in edits.read().settle(owner_is_live, |_| accepted_units) {
                     match result {
                         PendingEditResult::Landed { key, .. }
-                        | PendingEditResult::Retired { key } => {
-                            if let Some((bound_owner, _, mut bound_failure)) = bound.read().clone()
-                                && bound_owner == key.owner
-                                && bound_failure.peek().is_some()
-                            {
-                                bound_failure.set(None);
-                            }
-                            clear_feedback(&mut feedback, &key)
-                        }
+                        | PendingEditResult::Retired { key } => clear_feedback(&mut feedback, &key),
                         PendingEditResult::Failed { key, message } => {
-                            if let Some((bound_owner, _, mut bound_failure)) = bound.read().clone()
-                                && bound_owner == key.owner
-                            {
-                                bound_failure.set(Some(message.clone()));
-                            }
                             feedback.set(Some(KeySizeFeedback {
                                 owner: key.owner,
                                 request_id: key.request_id,
@@ -318,12 +294,43 @@ pub fn use_key_size(
                 field_pending |= edits.read().is_pending(&key);
             }
             if let Some((draft, failure, _)) = view {
-                bound.set(Some((owner.clone(), draft, failure)));
+                let next = FieldView::new(draft, failure);
+                let changed = bound
+                    .read()
+                    .as_ref()
+                    .is_none_or(|(bound_owner, bound_view)| {
+                        *bound_owner != owner || *bound_view != next
+                    });
+                if changed {
+                    for field in [
+                        KeySizeField::Width,
+                        KeySizeField::Height,
+                        KeySizeField::Orientation,
+                    ] {
+                        edits.read().detach_field(&KeySizeEditKey {
+                            field,
+                            owner: owner.clone(),
+                            request_id: 0,
+                        });
+                    }
+                    bound.set(Some((owner.clone(), next)));
+                }
             } else if bound
                 .read()
                 .as_ref()
-                .is_some_and(|(bound_owner, _, _)| *bound_owner == owner)
+                .is_some_and(|(bound_owner, _)| *bound_owner == owner)
             {
+                for field in [
+                    KeySizeField::Width,
+                    KeySizeField::Height,
+                    KeySizeField::Orientation,
+                ] {
+                    edits.read().detach_field(&KeySizeEditKey {
+                        field,
+                        owner: owner.clone(),
+                        request_id: 0,
+                    });
+                }
                 bound.set(None);
             }
             if let Some((draft, _, mut dirty)) = view
@@ -351,7 +358,8 @@ pub fn use_key_size(
     let on_resize = use_callback({
         let runtime = runtime.clone();
         let tracker = tracker.clone();
-        let mut edits = edits;
+        let edits = edits;
+        let bound = bound;
         let mut feedback = feedback;
         let mut last_request = last_request;
         move |request: KeySizeRequest| {
@@ -401,7 +409,13 @@ pub fn use_key_size(
             let Some(accepted) = model.accepted.as_ref() else {
                 return;
             };
-            edits.write().begin_with(
+            let display = bound
+                .read()
+                .clone()
+                .filter(|(bound_owner, _)| *bound_owner == request.owner)
+                .map(|(_, view)| view.submitted(request.units))
+                .unwrap_or_default();
+            edits.read().submit(
                 &runtime,
                 key,
                 "layout-key-size",
@@ -413,7 +427,7 @@ pub fn use_key_size(
                     request.units,
                     request.axis,
                 ),
-                request.units,
+                display,
             );
         }
     });
