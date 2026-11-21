@@ -1,4 +1,5 @@
 use super::{List, Ref, StepResult, Writer};
+use crate::profile::CircleEdge;
 use monstertruck_io::step::load::step_geometry::TryIntoHomogeneousBsplineSurface;
 use monstertruck_modeling::{
     Curve, Decomposition, Homogeneous, InnerSpace, Line, Matrix4, NurbsSurface, Origin, Point3,
@@ -23,6 +24,20 @@ impl Writer {
         let reference = self.direction(reference);
         self.entity(format_args!(
             "AXIS2_PLACEMENT_3D('', {origin}, {normal}, {reference})"
+        ))
+    }
+
+    pub(super) fn circle(&mut self, circle: &CircleEdge, start: Point3) -> Ref {
+        // STEP trims the circle by the EDGE_CURVE vertices in its positive
+        // parameter direction. The signed axis preserves which arc they bound.
+        let placement = self.placement(
+            circle.center,
+            circle.axis_z * Vector3::unit_z(),
+            (start - circle.center).normalize(),
+        );
+        self.entity(format_args!(
+            "CIRCLE('', {placement}, {})",
+            Real(circle.radius)
         ))
     }
 

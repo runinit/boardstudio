@@ -421,6 +421,7 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
         input.body.z = Some(7.);
         let model = crate::build_case(&input).unwrap();
         let translated = ExactModel {
+            circles: Default::default(),
             solids: model
                 .solids
                 .iter()
@@ -437,6 +438,7 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
             }
         }
         let reflected = ExactModel {
+            circles: Default::default(),
             solids: translated
                 .solids
                 .iter()
@@ -650,6 +652,7 @@ fn cylinder_proof_source_translation_and_large_coordinate_controls() {
     let (mesh, trace) = checked_trace(&model, None);
     let e = bound(&model, &mesh, &trace);
     let translated = ExactModel {
+        circles: Default::default(),
         solids: model
             .solids
             .iter()

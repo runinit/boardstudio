@@ -1,4 +1,4 @@
-//! Full periodic Z cylinder with two rational circular boundary loops, no PCUV masters.
+//! Full periodic Z cylinder with two circular boundary loops, no PCUV masters.
 use super::*;
 
 pub(super) fn certify(doc: &Document, shape: CircularExtrusion) -> Result<CircularCertificate> {
@@ -7,6 +7,7 @@ pub(super) fn certify(doc: &Document, shape: CircularExtrusion) -> Result<Circul
             && !matches!(
                 record.name.as_str(),
                 "CYLINDRICAL_SURFACE"
+                    | "CIRCLE"
                     | "BOUNDED_CURVE"
                     | "B_SPLINE_CURVE"
                     | "B_SPLINE_CURVE_WITH_KNOTS"
@@ -70,34 +71,31 @@ pub(super) fn certify(doc: &Document, shape: CircularExtrusion) -> Result<Circul
             let ends = [reference(&record[1])?, reference(&record[2])?];
             vertices.extend(ends);
             let curve_id = reference(&record[3])?;
-            curves.insert(curve_id);
-            let curve = doc.record(curve_id, "SURFACE_CURVE")?;
-            if curve[3] != Parameter::Enumeration("CURVE_3D".into()) {
-                return Err(Error::Unsupported);
+            let (carrier, associated) = edge_carrier(doc, curve_id)?;
+            if associated.is_some() {
+                curves.insert(curve_id);
             }
-            let associated: BTreeSet<_> = refs(&curve[2])?.into_iter().collect();
-            if associated.len() != 2 {
-                return Err(Error::Topology);
-            }
-            let carrier = reference(&curve[1])?;
             carriers.insert(carrier);
-            let arc = Arc::from_curve(doc, carrier)?;
-            // Both vertices, including the second endpoint of either cap, must
-            // attach to the actual authored3D carrier under the unchanged JOIN.
-            if !near(doc.vertex(ends[0])?, arc.points[0])
-                || !near(
-                    doc.vertex(ends[1])?,
-                    *arc.points.last().ok_or(Error::Geometry)?,
-                )
-            {
-                return Err(Error::Geometry);
-            }
+            let points = [doc.vertex(ends[0])?, doc.vertex(ends[1])?];
+            let (z, turn) = if doc.record(carrier, "CIRCLE").is_ok() {
+                let z = points[0][2];
+                (z, circle_turn(doc, carrier, points, shape, z)?)
+            } else {
+                let arc = Arc::from_curve(doc, carrier)?;
+                if !near(points[0], arc.points[0])
+                    || !near(points[1], *arc.points.last().ok_or(Error::Geometry)?)
+                {
+                    return Err(Error::Geometry);
+                }
+                let z = arc.points[0][2];
+                (z, signed_turn(&arc, shape, z)?)
+            };
             let level = shape
                 .z
                 .iter()
-                .position(|z| *z == arc.points[0][2])
+                .position(|&at| at == z)
                 .ok_or(Error::Geometry)?;
-            turns.insert(id, (level, signed_turn(&arc, shape, shape.z[level])?));
+            turns.insert(id, (level, turn));
             edges.insert(
                 id,
                 Edge {
@@ -124,15 +122,17 @@ pub(super) fn certify(doc: &Document, shape: CircularExtrusion) -> Result<Circul
             }
         }
     }
-    if uses.iter().any(|(id, u)| {
-        u.len() != 2
-            || u[0].1 == u[1].1
-            || u.iter().map(|v| v.0).collect::<BTreeSet<_>>() != edges[id].associated
-    }) || edges.keys().copied().collect::<BTreeSet<_>>()
-        != doc.ids("EDGE_CURVE").into_iter().collect()
+    if uses.iter().any(|(id, u)| !edges[id].has_opposite_uses(u))
+        || edges.keys().copied().collect::<BTreeSet<_>>()
+            != doc.ids("EDGE_CURVE").into_iter().collect()
         || vertices != doc.ids("VERTEX_POINT").into_iter().collect()
         || curves != doc.ids("SURFACE_CURVE").into_iter().collect()
-        || carriers != doc.ids("B_SPLINE_CURVE").into_iter().collect()
+        || carriers
+            != doc
+                .ids("B_SPLINE_CURVE")
+                .into_iter()
+                .chain(doc.ids("CIRCLE"))
+                .collect()
     {
         return Err(Error::Topology);
     }

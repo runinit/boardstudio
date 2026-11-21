@@ -298,9 +298,84 @@ fn signed_turn(arc: &Arc, shape: CircularExtrusion, z: f64) -> Result<f64> {
     reversed.turn(shape, z).map(|turn| -turn)
 }
 
+// The fixtures here have horizontal trims. Read the signed sweep from the STEP
+// placement axis and the ordered topological vertices, including reflex arcs.
+fn circle_turn(
+    doc: &Document,
+    id: u64,
+    ends: [Point; 2],
+    shape: CircularExtrusion,
+    z: f64,
+) -> Result<f64> {
+    let circle = doc.record(id, "CIRCLE")?;
+    let placement = doc.record(reference(&circle[1])?, "AXIS2_PLACEMENT_3D")?;
+    let center = doc.point(reference(&placement[1])?)?;
+    let axis = unit(vector(
+        &doc.record(reference(&placement[2])?, "DIRECTION")?[1],
+    )?)?;
+    let reference_axis = unit(vector(
+        &doc.record(reference(&placement[3])?, "DIRECTION")?[1],
+    )?)?;
+    let radius = number(&circle[2])?;
+    if !near(center, [shape.center[0], shape.center[1], z])
+        || radius <= 0.0
+        || (radius - shape.radius).abs() > JOIN
+        || axis[0] != 0.0
+        || axis[1] != 0.0
+        || reference_axis[2] != 0.0
+        || ends[0] == ends[1]
+    {
+        return Err(Error::Geometry);
+    }
+    let [a, b] = ends.map(|point| sub(point, center));
+    if [a, b].iter().any(|p| {
+        p[2].abs() > JOIN || (dot(*p, *p) - radius * radius).abs() > radial_squared_band(radius)
+    }) {
+        return Err(Error::Geometry);
+    }
+    let angle = dot(axis, cross(a, b))
+        .atan2(dot(a, b))
+        .rem_euclid(std::f64::consts::TAU);
+    if !(0.0 < angle && angle < std::f64::consts::TAU) {
+        return Err(Error::Geometry);
+    }
+    Ok(axis[2].signum() * angle)
+}
+
 struct Edge {
     vertices: [u64; 2],
-    associated: BTreeSet<u64>,
+    associated: Option<BTreeSet<u64>>,
+}
+
+impl Edge {
+    fn has_opposite_uses(&self, uses: &[(u64, bool)]) -> bool {
+        let [(a, forward_a), (b, forward_b)] = uses else {
+            return false;
+        };
+        a != b
+            && forward_a != forward_b
+            && self.associated.as_ref().is_none_or(|surfaces| {
+                surfaces.len() == 2 && surfaces.contains(a) && surfaces.contains(b)
+            })
+    }
+}
+
+fn edge_carrier(doc: &Document, id: u64) -> Result<(u64, Option<BTreeSet<u64>>)> {
+    if doc.record(id, "CIRCLE").is_ok() {
+        return Ok((id, None));
+    }
+    let curve = doc.record(id, "SURFACE_CURVE")?;
+    if curve[3] != Parameter::Enumeration("CURVE_3D".into()) {
+        return Err(Error::Unsupported);
+    }
+    let associated = refs(&curve[2])?;
+    if associated.len() != 2 {
+        return Err(Error::Topology);
+    }
+    Ok((
+        reference(&curve[1])?,
+        Some(associated.into_iter().collect()),
+    ))
 }
 struct Face {
     surface: u64,
@@ -609,7 +684,7 @@ fn certify_rings(
                 id,
                 Edge {
                     vertices: ends,
-                    associated,
+                    associated: Some(associated),
                 },
             );
         }
@@ -627,16 +702,11 @@ fn certify_rings(
             }
         }
     }
-    if uses.iter().any(|(id, used)| {
-        used.len() != 2
-            || used[0].1 == used[1].1
-            || used
-                .iter()
-                .map(|(surface, _)| *surface)
-                .collect::<BTreeSet<_>>()
-                != edges[id].associated
-    }) || edges.keys().copied().collect::<BTreeSet<_>>()
-        != doc.ids("EDGE_CURVE").into_iter().collect()
+    if uses
+        .iter()
+        .any(|(id, used)| !edges[id].has_opposite_uses(used))
+        || edges.keys().copied().collect::<BTreeSet<_>>()
+            != doc.ids("EDGE_CURVE").into_iter().collect()
         || vertices != doc.ids("VERTEX_POINT").into_iter().collect()
         || used_carriers
             != doc

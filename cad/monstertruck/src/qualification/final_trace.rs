@@ -420,6 +420,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     let (mesh, _) = checked_trace(&elevated, None);
     assert_eq!(mesh.bounds, [[0., 0., 7.], [20., 16., 8.6]]);
     let translated = ExactModel {
+        circles: Default::default(),
         solids: elevated
             .solids
             .iter()
@@ -429,6 +430,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     let (mesh, _) = checked_trace(&translated, None);
     assert_eq!(mesh.bounds, [[32., -16., 7.], [52., 0., 8.6]]);
     let rotated = ExactModel {
+        circles: Default::default(),
         solids: plate()
             .solids
             .iter()
@@ -438,6 +440,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     checked_trace(&rotated, None);
     // Reflection reverses winding to preserve the solid; no physical row is applied.
     let reflected = ExactModel {
+        circles: Default::default(),
         solids: plate()
             .solids
             .iter()
@@ -572,6 +575,7 @@ fn final_trace_preserves_fan_and_inverted_uv_corner_order() {
 fn final_trace_does_not_retain_triangles_rejected_by_real_emission() {
     use monstertruck_modeling::Matrix4;
     let model = ExactModel {
+        circles: Default::default(),
         solids: plate()
             .solids
             .iter()

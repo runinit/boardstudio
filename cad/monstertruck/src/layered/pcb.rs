@@ -184,14 +184,13 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
         lower: profile.clone(),
         upper: profile,
     }];
-    let solids = topology::assemble(&bands, &[], &frame).map_err(|error| {
+    topology::assemble(&bands, &[], &frame).map_err(|error| {
         format!(
             "PCB '{}' cuts [{}]: {error}",
             body.id,
             cut_ids.into_iter().collect::<Vec<_>>().join(", ")
         )
-    })?;
-    Ok(ExactModel { solids })
+    })
 }
 
 fn fail(primitive: &CasePcbSourcePrimitive, message: &str) -> String {

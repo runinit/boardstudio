@@ -152,7 +152,10 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
             }
         }
     }
-    let mut solids = Vec::new();
+    let mut model = ExactModel {
+        solids: Vec::new(),
+        circles: Default::default(),
+    };
     for (region_index, region) in input.regions.iter().enumerate() {
         let exterior: Vec<_> = region.outer.iter().map(|p| [p.x, p.y]).collect();
         let holes: Vec<Vec<_>> = region
@@ -412,7 +415,7 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                 });
             }
         }
-        if !before.is_empty() && topology::assemble(&before, &features, &frame)?.len() != 1 {
+        if !before.is_empty() && topology::assemble(&before, &features, &frame)?.solids.len() != 1 {
             return Err(format!(
                 "Region {region_index}: features leave disconnected material before openings"
             ));
@@ -425,17 +428,18 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                 .join(", ");
             format!("Region {region_index}, features [{ids}]: {error}")
         })?;
-        if before_openings == features.len() && !features.is_empty() && built.len() != 1 {
+        if before_openings == features.len() && !features.is_empty() && built.solids.len() != 1 {
             return Err(format!(
                 "Region {region_index}: features leave disconnected material"
             ));
         }
-        solids.extend(built);
+        model.solids.extend(built.solids);
+        model.circles.extend(built.circles);
     }
-    if solids.is_empty() {
+    if model.solids.is_empty() {
         return Err("Layered case has no material".into());
     }
-    Ok(ExactModel { solids })
+    Ok(model)
 }
 #[cfg(test)]
 mod tests;

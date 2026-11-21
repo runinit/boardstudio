@@ -74,6 +74,39 @@ pub(crate) fn step_text(model: &crate::ExactModel) -> String {
     String::from_utf8(export_step(model).expect("exact STEP export")).unwrap()
 }
 
+pub(crate) fn assert_step_round_trip(
+    text: &str,
+    bounds: [[f64; 3]; 2],
+    faces: usize,
+) -> crate::ImportedStep {
+    let imported = crate::import_step(text.as_bytes().to_vec()).expect("generated STEP round-trip");
+    assert_eq!(imported.solid_count(), 1);
+    assert_eq!(imported.occurrence_count(), 1);
+    assert_eq!(imported.source_faces().len(), faces);
+    assert_eq!(imported.face_occurrences().len(), faces);
+    assert_eq!(
+        imported
+            .triangle_faces()
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        faces,
+    );
+    assert!(imported.accuracy().bounds_from_source_geometry);
+    for (actual, expected) in imported
+        .bounds()
+        .into_iter()
+        .flatten()
+        .zip(bounds.into_iter().flatten())
+    {
+        assert!(
+            (actual - expected).abs() < 1.0e-6,
+            "bound {actual} != {expected}"
+        );
+    }
+    imported
+}
+
 fn rectangle(x: f64, y: f64, width: f64, height: f64) -> ProfileRegion {
     ProfileRegion {
         outer: [
@@ -413,7 +446,10 @@ fn valid_wrong_geometry_fails_existing_reference_measurements() {
 #[test]
 fn empty_body_geometry_is_refused_without_silently_dropping_identity() {
     use crate::{ExactModel, StepBody, export_step_bodies};
-    let empty = ExactModel { solids: vec![] };
+    let empty = ExactModel {
+        solids: vec![],
+        circles: Default::default(),
+    };
     assert!(export_step(&empty).is_err());
     assert!(export_step_bodies(&[]).is_err());
     assert!(
@@ -553,6 +589,7 @@ fn curved_exact_solids_are_written_and_never_measured_as_vertex_chords() {
     let solid: Solid = builder::extrude(&disk, Vector3::new(0.0, 0.0, 3.0));
     let bytes = export_step(&crate::ExactModel {
         solids: vec![solid],
+        circles: Default::default(),
     })
     .unwrap();
     let text = std::str::from_utf8(&bytes).unwrap();

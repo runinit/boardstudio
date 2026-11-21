@@ -3,7 +3,9 @@ use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-use monstertruck_modeling::{Face, Invertible, Point3, Solid, Surface};
+use monstertruck_modeling::{Curve, Face, Invertible, Point3, Solid, Surface};
+use monstertruck_topology::EdgeId;
+use std::collections::HashMap;
 
 const PROFILE_MESH_TOLERANCE_MM: f64 = 0.1;
 const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;
@@ -11,6 +13,15 @@ const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;
 /// Opaque exact solids created from a prepared case profile.
 pub struct ExactModel {
     pub(crate) solids: Vec<Solid>,
+    pub(crate) circles: HashMap<EdgeId<Curve>, CircleEdge>,
+}
+
+/// Circular support in model coordinates, directed along the absolute edge.
+#[derive(Clone, Copy)]
+pub(crate) struct CircleEdge {
+    pub center: Point3,
+    pub radius: f64,
+    pub axis_z: f64,
 }
 
 impl ExactModel {
