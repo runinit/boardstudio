@@ -1,6 +1,5 @@
 use crate::ExactModel;
-use monstertruck_modeling::{Curve, Point3, Solid, Surface};
-use monstertruck_topology::compress::CompressedShell;
+use monstertruck_modeling::{Shell, Solid};
 use std::fmt::{self, Display, Write};
 
 mod geometry;
@@ -93,7 +92,7 @@ impl Writer {
         ));
         let mut items = vec![Ref(9)];
         for solid in &body.model.solids {
-            items.push(self.solid(solid)?);
+            items.push(self.solid(solid, body.model)?);
         }
         let representation = self.entity(format_args!(
             "SHAPE_REPRESENTATION('', {}, #2)",
@@ -105,17 +104,19 @@ impl Writer {
         Ok(())
     }
 
-    fn solid(&mut self, solid: &Solid) -> StepResult<Ref> {
-        let solid = solid.compress();
-        let (outer, inner) = solid.boundaries.split_first().ok_or("solid has no shell")?;
-        let outer = self.shell(outer)?;
+    fn solid(&mut self, solid: &Solid, model: &ExactModel) -> StepResult<Ref> {
+        let (outer, inner) = solid
+            .boundaries()
+            .split_first()
+            .ok_or("solid has no shell")?;
+        let outer = self.shell(outer, model)?;
         if inner.is_empty() {
             return Ok(self.entity(format_args!("MANIFOLD_SOLID_BREP('', {outer})")));
         }
         let voids = inner
             .iter()
             .map(|shell| {
-                let shell = self.shell(shell)?;
+                let shell = self.shell(shell, model)?;
                 Ok(self.entity(format_args!("ORIENTED_CLOSED_SHELL('', *, {shell}, .T.)")))
             })
             .collect::<StepResult<Vec<_>>>()?;
@@ -125,7 +126,8 @@ impl Writer {
         )))
     }
 
-    fn shell(&mut self, shell: &CompressedShell<Point3, Curve, Surface>) -> StepResult<Ref> {
+    fn shell(&mut self, source: &Shell, model: &ExactModel) -> StepResult<Ref> {
+        let shell = source.compress();
         let vertices = shell
             .vertices
             .iter()
@@ -140,24 +142,39 @@ impl Writer {
             .map(|face| self.surface(&face.surface))
             .collect::<StepResult<Vec<_>>>()?;
         let mut supports = vec![Vec::new(); shell.edges.len()];
-        for (face, &(surface, _)) in shell.faces.iter().zip(&surfaces) {
-            for edge in face.boundaries.iter().flatten() {
+        let mut circles = vec![None; shell.edges.len()];
+        for ((face, source), &(surface, _)) in shell.faces.iter().zip(source.iter()).zip(&surfaces)
+        {
+            // Shell compression preserves absolute face, wire and edge-use order.
+            for (edge, source) in face
+                .boundaries
+                .iter()
+                .flatten()
+                .zip(source.absolute_boundaries().iter().flatten())
+            {
                 supports[edge.index].push(surface);
+                circles[edge.index] = model.circles.get(&source.id());
             }
         }
         let edges = shell
             .edges
             .iter()
             .zip(supports)
-            .map(|(edge, supports)| {
-                let mut curve = self.curve(&edge.curve)?;
-                if !supports.is_empty() {
+            .zip(circles)
+            .map(|((edge, supports), circle)| {
+                let (a, b) = edge.vertices;
+                let mut curve = match circle {
+                    Some(circle) => self.circle(circle, shell.vertices[a]),
+                    None => self.curve(&edge.curve)?,
+                };
+                // A direct CIRCLE lets the reader trim and certify the conic
+                // from its topological endpoints. No pcurves are emitted here.
+                if circle.is_none() && !supports.is_empty() {
                     curve = self.entity(format_args!(
                         "SURFACE_CURVE('', {curve}, {}, .CURVE_3D.)",
                         List(&supports)
                     ));
                 }
-                let (a, b) = edge.vertices;
                 Ok(self.entity(format_args!(
                     "EDGE_CURVE('', {}, {}, {curve}, .T.)",
                     vertices[a], vertices[b]

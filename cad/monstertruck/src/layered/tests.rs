@@ -1,5 +1,5 @@
 use super::*;
-use crate::export_tests::{StepRecords, id, list, num, step_text};
+use crate::export_tests::{StepRecords, assert_step_round_trip, id, list, num, step_text};
 use boardstudio_contracts::*;
 use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
 use monstertruck_modeling::*;
@@ -119,6 +119,9 @@ fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
     let step = step_text(&model);
     assert_eq!(step.matches("CYLINDRICAL_SURFACE(").count(), 1, "{step}");
     assert!(!step.contains("B_SPLINE_SURFACE"));
+    assert_eq!(StepRecords::parse(&step).named("CIRCLE").count(), 4);
+    let imported = assert_step_round_trip(&step, [[0., 0., 0.], [20., 16., 4.]], 7);
+    assert!(imported.accuracy().mesh_closed_oriented);
 }
 
 #[test]
@@ -395,7 +398,7 @@ fn countersink_uses_exact_cone_and_independent_frustum_integral() {
         diameter: 4.,
         end_diameter: 2.,
     }]);
-    verify(
+    let (mut model, step) = verify(
         &input,
         1280. - 14. * std::f64::consts::PI / 3.,
         [[0., 0., 0.], [20., 16., 4.]],
@@ -407,6 +410,27 @@ fn countersink_uses_exact_cone_and_independent_frustum_integral() {
         ],
         0,
         1,
+    );
+    use crate::step_accuracy::{Countersink, certify_countersink};
+    let bounds = [[0., 0., 0.], [20., 16., 4.]];
+    let shape = Countersink {
+        bounds,
+        center: [10., 8.],
+        z: [2., 4.],
+        radii: [2., 1.],
+    };
+    let certificate = certify_countersink(&step, shape).expect("native circular trim certificate");
+    assert_eq!(certificate.topology, [16, 20, 8]);
+    let volume = 1280. - 14. * std::f64::consts::PI / 3.;
+    assert!(certificate.volume[0] <= volume && certificate.volume[1] >= volume);
+    let imported = assert_step_round_trip(&step, bounds, 8);
+    // The cone's rational surface already has a preview seam. Compare reader
+    // closure against the same B-rep emitted using the original spline edges.
+    model.circles.clear();
+    let spline = assert_step_round_trip(&step_text(&model), bounds, 8);
+    assert_eq!(
+        imported.accuracy().mesh_closed_oriented,
+        spline.accuracy().mesh_closed_oriented
     );
 }
 #[test]
@@ -766,13 +790,11 @@ fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64,
                 id(&records.args(id(oriented), "ORIENTED_EDGE")[3]),
                 "EDGE_CURVE",
             );
-            let curve = records.args(id(&edge[3]), "SURFACE_CURVE");
-            assert!(
-                records
-                    .named("RATIONAL_B_SPLINE_CURVE")
-                    .any(|(curve_id, _)| curve_id == id(&curve[1])),
-                "cone circular trims remain exact rational arcs"
-            );
+            let circle = records.args(id(&edge[3]), "CIRCLE");
+            let placement = records.args(id(&circle[1]), "AXIS2_PLACEMENT_3D");
+            let origin = records.xyz(id(&placement[1]), "CARTESIAN_POINT");
+            assert_eq!(origin[..2], center);
+            assert_eq!(num(&circle[2]), radius(origin[2]));
             for vertex in [&edge[1], &edge[2]] {
                 let point = records.xyz(
                     id(&records.args(id(vertex), "VERTEX_POINT")[1]),

@@ -286,20 +286,32 @@ fn circle_and_half_disc_emitted_faces_match_analytic_trims() {
         "../../tests/fixtures/pcb-source/line-arc-tracer.json"
     ));
     let semicircle = arc([0., 0.], 2., -PI / 2., PI);
-    compare_fixture(
-        &step(&half),
-        &[(
-            "body",
-            extrusion(
-                vec![vec![
-                    semicircle.clone(),
-                    line(ends(&semicircle)[1], ends(&semicircle)[0]),
-                ]],
-                [0., 2.],
-            ),
-        )],
-    )
-    .unwrap();
+    let reference = [(
+        "body",
+        extrusion(
+            vec![vec![
+                semicircle.clone(),
+                line(ends(&semicircle)[1], ends(&semicircle)[0]),
+            ]],
+            [0., 2.],
+        ),
+    )];
+    let text = step(&half);
+    compare_fixture(&text, &reference).unwrap();
+    let records = super::StepRecords::parse(&text);
+    assert_eq!(records.named("CIRCLE").count(), 2);
+    let (_, circle) = records.named("CIRCLE").next().unwrap();
+    let placement = records.args(super::id(&circle[1]), "AXIS2_PLACEMENT_3D");
+    let axis = super::id(&placement[2]);
+    let z = records.xyz(axis, "DIRECTION")[2];
+    let opposite =
+        super::replace_record(&text, axis, &format!("DIRECTION('', (0., 0., {:?}));", -z));
+    assert!(
+        compare_fixture(&opposite, &reference).is_err(),
+        "opposite half of the circle"
+    );
+    let imported = super::assert_step_round_trip(&text, [[0., -2., 0.], [2., 2., 2.]], 4);
+    assert!(imported.accuracy().mesh_closed_oriented);
 }
 #[test]
 fn curved_products_keep_identity_without_widening_planar_reader() {

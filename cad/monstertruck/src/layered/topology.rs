@@ -2,9 +2,11 @@ use super::{
     Feature,
     contours::{self, Profile, Ring},
 };
+use crate::{ExactModel, profile::CircleEdge};
 use cavalier_contours::polyline::*;
 use monstertruck_modeling::*;
-use std::collections::BTreeMap;
+use monstertruck_topology::EdgeId;
+use std::collections::{BTreeMap, HashMap};
 type Result<T> = std::result::Result<T, String>;
 pub(super) struct Band {
     pub low: f64,
@@ -30,6 +32,7 @@ struct Patch {
 struct Cache {
     vertices: BTreeMap<[u64; 3], Vertex>,
     edges: BTreeMap<([u64; 3], [u64; 3], u64), Edge>,
+    circles: HashMap<EdgeId<Curve>, CircleEdge>,
 }
 fn bits(x: f64) -> u64 {
     if x == 0. { 0 } else { x.to_bits() }
@@ -62,11 +65,22 @@ impl Cache {
         } else {
             let p = PlineVertex::new(first.x, first.y, bulge);
             let q = PlineVertex::new(last.x, last.y, 0.);
-            let (_, center) = seg_arc_radius_and_center(p, q);
+            let (radius, center) = seg_arc_radius_and_center(p, q);
             let radial = Vector3::new(first.x - center.x, first.y - center.y, 0.);
             let tangent = Vector3::new(-radial.y, radial.x, 0.) * bulge.signum();
-            builder::try_circle_arc(&va, &vb, tangent)
-                .map_err(|e| format!("exact circle edge: {e:?}"))?
+            let edge = builder::try_circle_arc(&va, &vb, tangent)
+                .map_err(|e| format!("exact circle edge: {e:?}"))?;
+            // Bulge defines the actual circular segment before conversion to a
+            // rational spline. Store its support in the cache edge's direction.
+            self.circles.insert(
+                edge.id(),
+                CircleEdge {
+                    center: Point3::new(center.x, center.y, first.z),
+                    radius,
+                    axis_z: bulge.signum(),
+                },
+            );
+            edge
         };
         self.edges.insert(k, edge.clone());
         Ok(if forward { edge } else { edge.inverse() })
@@ -489,7 +503,7 @@ fn merge(mut patches: Vec<Patch>) -> Result<Vec<Face>> {
     }
     Ok(faces)
 }
-pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<Vec<Solid>> {
+pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<ExactModel> {
     let caps = caps(bands, features, frame)?;
     let points = partition_points(&caps, bands);
     let mut cache = Cache::default();
@@ -511,7 +525,7 @@ pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Re
     }
     let shell: Shell = faces.into();
 
-    shell
+    let solids = shell
         .connected_components()
         .into_iter()
         .map(|shell| {
@@ -532,5 +546,19 @@ pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Re
             }
             Solid::try_new(vec![shell]).map_err(|e| format!("layered exact solid: {e:?}"))
         })
-        .collect()
+        .collect::<Result<Vec<_>>>()?;
+    // Merging walls removes internal edges. Keep provenance only for IDs owned
+    // by the returned solids, so a later allocation cannot reuse a stale ID.
+    let circles = solids
+        .iter()
+        .flat_map(Solid::face_iter)
+        .flat_map(Face::edge_iter)
+        .filter_map(|edge| {
+            cache
+                .circles
+                .get(&edge.id())
+                .map(|&circle| (edge.id(), circle))
+        })
+        .collect();
+    Ok(ExactModel { solids, circles })
 }

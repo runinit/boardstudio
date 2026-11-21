@@ -109,8 +109,8 @@ fn owning_solid(doc: &Document) -> Result<u64> {
 }
 
 pub(super) fn certify(doc: &Document, shape: CircularExtrusion) -> Result<CircularCertificate> {
-    // source-circle-006.step pins the rational two-loop periodic boundary route.
-    if !doc.ids("B_SPLINE_CURVE").is_empty() {
+    // Generated cylinders have two trim loops and no longitudinal seam.
+    if doc.ids("LINE").is_empty() || !doc.ids("B_SPLINE_CURVE").is_empty() {
         return periodic::certify(doc, shape);
     }
     for record in doc.0.values().flatten() {

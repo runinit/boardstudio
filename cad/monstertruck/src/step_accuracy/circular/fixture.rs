@@ -55,11 +55,7 @@ fn edge(doc: &Document, id: u64, forward: bool, expected: &FixtureEdge) -> Resul
     if !close(directed[0], from) || !close(directed[1], to) {
         return Err(Error::Geometry);
     }
-    let curve = doc.record(reference(&data[3])?, "SURFACE_CURVE")?;
-    if curve[3] != Parameter::Enumeration("CURVE_3D".into()) {
-        return Err(Error::Unsupported);
-    }
-    let curve = reference(&curve[1])?;
+    let (curve, _) = edge_carrier(doc, reference(&data[3])?)?;
     match *expected {
         FixtureEdge::Line { .. } => {
             let line = doc.record(curve, "LINE")?;
@@ -78,28 +74,29 @@ fn edge(doc: &Document, id: u64, forward: bool, expected: &FixtureEdge) -> Resul
             radius,
             turn,
         } => {
-            let mut arc = Arc::from_curve(doc, curve)?;
-            if !close(arc.points[0], ends[0])
-                || !close(*arc.points.last().ok_or(Error::Geometry)?, ends[1])
-                || arc.points.iter().any(|p| (p[2] - from[2]).abs() > JOIN)
-            {
-                return Err(Error::Geometry);
-            }
-            // Only remove a few ulps in a nominally horizontal reference trim. This matcher
-            // compares coordinates; it does not turn that adjustment into an accuracy bound.
-            for point in &mut arc.points {
-                point[2] = from[2];
-            }
-            let actual = signed_turn(
-                &arc,
-                CircularExtrusion {
-                    center,
-                    radius,
-                    z: [from[2]; 2],
-                },
-                from[2],
-            )? * if forward { 1. } else { -1. };
-            if (actual - turn).abs() > MATCH {
+            let shape = CircularExtrusion {
+                center,
+                radius,
+                z: [from[2]; 2],
+            };
+            let actual = if doc.record(curve, "CIRCLE").is_ok() {
+                circle_turn(doc, curve, ends, shape, from[2])?
+            } else {
+                let mut arc = Arc::from_curve(doc, curve)?;
+                if !close(arc.points[0], ends[0])
+                    || !close(*arc.points.last().ok_or(Error::Geometry)?, ends[1])
+                    || arc.points.iter().any(|p| (p[2] - from[2]).abs() > JOIN)
+                {
+                    return Err(Error::Geometry);
+                }
+                // Allow a few ulps in a nominally horizontal trim. This matcher compares
+                // coordinates without turning that adjustment into an accuracy bound.
+                for point in &mut arc.points {
+                    point[2] = from[2];
+                }
+                signed_turn(&arc, shape, from[2])?
+            };
+            if (actual * if forward { 1. } else { -1. } - turn).abs() > MATCH {
                 return Err(Error::Geometry);
             }
         }
@@ -244,11 +241,8 @@ pub(super) fn compare(text: &str, expected: &[(&str, Vec<FixtureFace>)]) -> Resu
                 return Err(Error::Topology);
             }
             let data = doc.record(id, "EDGE_CURVE")?;
-            let curve = doc.record(reference(&data[3])?, "SURFACE_CURVE")?;
-            let associated = refs(&curve[2])?;
-            if associated.len() != 2
-                || associated.into_iter().collect::<BTreeSet<_>>()
-                    != uses.iter().map(|u| u.0).collect()
+            let (_, associated) = edge_carrier(&doc, reference(&data[3])?)?;
+            if associated.is_some_and(|associated| associated != uses.iter().map(|u| u.0).collect())
             {
                 return Err(Error::Topology);
             }

@@ -28,11 +28,33 @@ fn circular_profile_step(shape: crate::step_accuracy::CircularExtrusion, radii: 
     .unwrap();
     step_text(&crate::ExactModel {
         solids: vec![solid],
+        circles: Default::default(),
     })
 }
 
 fn is_true(value: &Parameter) -> bool {
     matches!(value, Parameter::Enumeration(sense) if sense == "T")
+}
+
+#[test]
+fn noncircular_rational_edges_round_trip_as_splines() {
+    use monstertruck_modeling::{Curve, Point3, Surface, Vector3, builder, primitive, profile};
+    let center = Point3::new(11.25, -7.5, 1.5);
+    let circle =
+        primitive::circle::<Curve>(center + Vector3::unit_x(), center, Vector3::unit_z(), 2);
+    let ellipse = builder::scaled(&circle, center, Vector3::new(2., 1.25, 1.));
+    let solid =
+        profile::solid_from_planar_profile::<Curve, Surface>(vec![ellipse], 2. * Vector3::unit_z())
+            .unwrap();
+    let text = step_text(&crate::ExactModel {
+        solids: vec![solid],
+        circles: Default::default(),
+    });
+    let records = StepRecords::parse(&text);
+    assert_eq!(records.named("CIRCLE").count(), 0);
+    assert_eq!(records.named("RATIONAL_B_SPLINE_CURVE").count(), 4);
+    let imported = assert_step_round_trip(&text, [[9.25, -8.75, 1.5], [13.25, -6.25, 3.5]], 4);
+    assert!(imported.accuracy().mesh_closed_oriented);
 }
 
 #[test]
