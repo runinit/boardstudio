@@ -194,7 +194,12 @@ fn support_paths(
     }
     paths
 }
-fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
+fn missing(
+    path: &Path,
+    material: &Material,
+    clearance: f64,
+    clipper: &mut geometry::OutlineClipper,
+) -> bool {
     if path.len() < 3
         || path
             .iter()
@@ -231,23 +236,19 @@ fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
     if !intersects {
         return !material.contains(path[0]);
     }
-    let required = if clearance > 0.0 {
-        match geometry::miter_offset_path(path, clearance) {
-            Some(shapes) => shapes,
-            None => return true,
-        }
+    let difference = if clearance > 0.0 {
+        let Some(required) = geometry::miter_offset_path(path, clearance) else {
+            return true;
+        };
+        clipper.difference(&required, &material.paths)
     } else {
-        vec![vec![path.clone()]]
+        clipper.difference(path, &material.paths)
     };
-    geometry::overlay_shapes_with_contours(
-        &required,
-        &material.paths,
-        BooleanOverlayRule::Difference,
-    )
-    .iter()
-    .flatten()
-    .map(|ring| path_signed_area(ring).abs())
-    .sum::<f64>()
+    difference
+        .iter()
+        .flatten()
+        .map(|ring| path_signed_area(ring).abs())
+        .sum::<f64>()
         > 0.000_001
 }
 
@@ -258,6 +259,7 @@ pub(crate) fn validate(
 ) -> (Vec<Finding>, Vec<FindingMarker>) {
     let mut findings = vec![];
     let mut markers = vec![];
+    let mut clipper = geometry::OutlineClipper::default();
     let native = doc
         .definitions
         .iter()
@@ -413,10 +415,7 @@ pub(crate) fn validate(
             if definition.kind == PartKind::Utility || closure_clearance(part, definition) {
                 continue;
             }
-            let required: Vec<_> = support[definition.id.as_str()]
-                .iter()
-                .map(|path| world(doc, part, path))
-                .collect();
+            let required = &support[definition.id.as_str()];
             if let Some(Some(Err(error))) = native.get(definition.id.as_str()) {
                 report(
                     format!("support-source:{}", part.id),
@@ -431,7 +430,9 @@ pub(crate) fn validate(
             }
             let outside: Vec<_> = required
                 .iter()
-                .filter(|path| missing(path, &material, repair.edge_clearance))
+                .map(|path| world(doc, part, path))
+                .filter(|path| missing(path, &material, repair.edge_clearance, &mut clipper))
+                .map(contour)
                 .collect();
             if !outside.is_empty() {
                 report(
@@ -441,10 +442,7 @@ pub(crate) fn validate(
                         part.reference, repair.edge_clearance
                     ),
                     Some(&part.id),
-                    outside
-                        .iter()
-                        .map(|path| contour((*path).clone()))
-                        .collect(),
+                    outside,
                     Severity::Error,
                 );
             }
@@ -462,7 +460,7 @@ pub(crate) fn validate(
                     Severity::Error,
                 );
             }
-            if missing(&body, &material, 0.0) {
+            if missing(&body, &material, 0.0, &mut clipper) {
                 let permitted = part
                     .outline
                     .as_ref()
@@ -504,7 +502,7 @@ pub(crate) fn validate(
                     part,
                     &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0),
                 );
-                if missing(&keycap, &material, 0.0) {
+                if missing(&keycap, &material, 0.0, &mut clipper) {
                     report(
                         format!("keycap:{}", part.id),
                         format!("{}: keycap overhangs the outline", part.reference),

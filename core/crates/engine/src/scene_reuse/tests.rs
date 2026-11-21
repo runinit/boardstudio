@@ -1189,6 +1189,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
             (column, 1.25, false),
             (column, 2.75, true),
             (0, 2.0, true),
+            (column / 2, -3.375, true),
             (column, 4.0, true),
         ] {
             let CoreReply::Preview { scene, .. } =
