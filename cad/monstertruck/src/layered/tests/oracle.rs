@@ -77,7 +77,9 @@ impl<'a> Solid<'a> {
             crate::profile::PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
         )?;
         let mesh = PolygonMesh::from_triangles(
-            faces.iter().flat_map(tessellation::FaceMesh::triangle_points),
+            faces
+                .iter()
+                .flat_map(tessellation::FaceMesh::triangle_points),
         );
         let triangles: Vec<_> = mesh.triangle_points().collect();
         if !crate::profile::closed_oriented_shell_triangles(&triangles) || mesh.volume() <= 0. {
@@ -112,21 +114,26 @@ impl<'a> Shell<'a> {
             .flat_map(|face| face.rings.iter().flatten())
             .flat_map(|edge| topology.edges[edge.index].vertices)
             .collect();
-        used.into_iter().map(move |index| Vertex(topology.vertices[index]))
+        used.into_iter()
+            .map(move |index| Vertex(topology.vertices[index]))
     }
 }
 
 impl<'a> IntoIterator for Shell<'a> {
     type Item = Face<'a>;
-    type IntoIter = std::iter::Map<std::slice::Iter<'a, brep::Face>, fn(&'a brep::Face) -> Face<'a>>;
+    type IntoIter =
+        std::iter::Map<std::slice::Iter<'a, brep::Face>, fn(&'a brep::Face) -> Face<'a>>;
     fn into_iter(self) -> Self::IntoIter {
-        self.faces.iter().map(Face as fn(&'a brep::Face) -> Face<'a>)
+        self.faces
+            .iter()
+            .map(Face as fn(&'a brep::Face) -> Face<'a>)
     }
 }
 
 impl<'a> IntoIterator for &Shell<'a> {
     type Item = Face<'a>;
-    type IntoIter = std::iter::Map<std::slice::Iter<'a, brep::Face>, fn(&'a brep::Face) -> Face<'a>>;
+    type IntoIter =
+        std::iter::Map<std::slice::Iter<'a, brep::Face>, fn(&'a brep::Face) -> Face<'a>>;
     fn into_iter(self) -> Self::IntoIter {
         (*self).into_iter()
     }
@@ -206,6 +213,8 @@ pub(in crate::layered) fn shell_to_polygon_strict<'a>(
         crate::profile::PROFILE_EDGE_ANGULAR_TOLERANCE_RAD.min(0.05),
     )?;
     Ok(PolygonMesh::from_triangles(
-        faces.iter().flat_map(tessellation::FaceMesh::triangle_points),
+        faces
+            .iter()
+            .flat_map(tessellation::FaceMesh::triangle_points),
     ))
 }

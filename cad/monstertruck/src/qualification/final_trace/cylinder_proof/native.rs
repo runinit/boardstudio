@@ -350,8 +350,10 @@ mod tests {
     use boardstudio_contracts::{CaseFeature, MountKind, PreparedCaseIR, Vec2};
 
     fn prepared_plate() -> PreparedCaseIR {
-        serde_json::from_str(include_str!("../../../../tests/fixtures/layered/pcb-simple.json"))
-            .unwrap()
+        serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/layered/pcb-simple.json"
+        ))
+        .unwrap()
     }
 
     fn circular_drilled_input(thickness: f64, elevation: f64) -> PreparedCaseIR {

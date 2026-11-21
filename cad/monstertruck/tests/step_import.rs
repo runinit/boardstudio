@@ -1328,9 +1328,8 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
 
 #[test]
 fn round_plane_trim_leaves_the_bundled_plated_hole_open() {
-    let bytes = include_bytes!(
-        "../../../ergogen/library/vendor/infused-kim/3d_models/Nice_View.step"
-    );
+    let bytes =
+        include_bytes!("../../../ergogen/library/vendor/infused-kim/3d_models/Nice_View.step");
     let model = import_step(bytes.to_vec()).unwrap();
     let tag = model
         .face_occurrences()
@@ -1353,7 +1352,5 @@ fn round_plane_trim_leaves_the_bundled_plated_hole_open() {
         assert!(sides.iter().any(|value| *value > 0.0) && sides.iter().any(|value| *value < 0.0));
         area += ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])).abs() / 2.0;
     }
-    assert!(
-        (area - std::f64::consts::PI * (0.6985_f64.powi(2) - 0.4064_f64.powi(2))).abs() < 0.05
-    );
+    assert!((area - std::f64::consts::PI * (0.6985_f64.powi(2) - 0.4064_f64.powi(2))).abs() < 0.05);
 }

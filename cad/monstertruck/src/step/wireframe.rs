@@ -184,8 +184,7 @@ impl Wireframe {
                 result._segment_occurrences.push(index);
             }
         }
-        if curve_sets.iter().any(|id| !result._sets.contains_key(id))
-        {
+        if curve_sets.iter().any(|id| !result._sets.contains_key(id)) {
             return Err("unreferenced source curve set was not traversed".into());
         }
         Ok(result)
@@ -236,16 +235,24 @@ fn source_line(records: &SourceRecords<'_>, id: u64) -> Result<SourceLine, Strin
         Ok(Vector3::new(value(x)?, value(y)?, value(z)?))
     };
     let origin = point(reference(&line[1])?, "CARTESIAN_POINT")?;
-    let vector_record = super::parameters(named_record(records, reference(&line[2])?, "VECTOR")?, 3)?;
+    let vector_record =
+        super::parameters(named_record(records, reference(&line[2])?, "VECTOR")?, 3)?;
     let direction = point(reference(&vector_record[1])?, "DIRECTION")?;
     let magnitude = match &vector_record[2] {
         Parameter::Real(v) => *v,
         Parameter::Integer(v) => *v as f64,
         _ => return Err("invalid finite three-dimensional source LINE frame".into()),
     };
-    if ![origin.x, origin.y, origin.z, direction.x, direction.y, direction.z]
-        .iter()
-        .all(|x| x.is_finite())
+    if ![
+        origin.x,
+        origin.y,
+        origin.z,
+        direction.x,
+        direction.y,
+        direction.z,
+    ]
+    .iter()
+    .all(|x| x.is_finite())
         || !magnitude.is_finite()
         || magnitude <= 0.
     {

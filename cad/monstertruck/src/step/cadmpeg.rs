@@ -347,5 +347,8 @@ fn render_displacement(points: [Point3; 3]) -> f64 {
             );
             (q - p).magnitude()
         })
-        .fold(0.0, |a: f64, b| if b.is_nan() { f64::INFINITY } else { a.max(b) })
+        .fold(
+            0.0,
+            |a: f64, b| if b.is_nan() { f64::INFINITY } else { a.max(b) },
+        )
 }

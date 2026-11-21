@@ -1,7 +1,7 @@
+pub(super) use super::brep::{Point3, Vector3};
 use super::*;
 use crate::export_tests::{StepRecords, assert_step_round_trip, id, list, num, step_text};
 use boardstudio_contracts::*;
-pub(super) use super::brep::{Point3, Vector3};
 pub(super) use cgmath::prelude::*;
 pub(super) use oracle::*;
 
@@ -9,11 +9,7 @@ mod oracle;
 
 pub(super) type Vector2 = cgmath::Vector2<f64>;
 
-pub(super) fn material(
-    mesh: &PolygonMesh,
-    point: [f64; 3],
-    inside: bool,
-) {
+pub(super) fn material(mesh: &PolygonMesh, point: [f64; 3], inside: bool) {
     let target = if inside { 1. } else { 0. };
     let winding = mesh_winding([mesh], Point3::from(point));
     assert!(
@@ -716,8 +712,7 @@ fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
     assert_eq!(model.test_solids().len(), 1);
     let solid = &model.test_solids()[0];
     assert_eq!(solid.boundaries().len(), 1);
-    Solid::try_new(solid.boundaries())
-        .expect("closed consistently oriented native topology");
+    Solid::try_new(solid.boundaries()).expect("closed consistently oriented native topology");
     assert!(solid.is_geometric_consistent());
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.065);

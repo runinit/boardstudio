@@ -160,26 +160,24 @@ fn emit_analysis(
                 support_kind: support_kind.into(),
             });
             let count_before = triangle_face_occurrence_indices.len();
-            let mut emit_triangle =
-                |points: [Point3; 3]| -> Result<(), String> {
-                    push_triangle(&mut mesh, points)?;
-                    shell_triangles.push(points);
-                    for point in points {
-                        for (axis, coord) in [point.x, point.y, point.z].into_iter().enumerate() {
-                            if !coord.is_finite() {
-                                return Err(
-                                    "Generated case produced a non-finite analysis coordinate"
-                                        .into(),
-                                );
-                            }
-                            bounds[0][axis] = bounds[0][axis].min(coord);
-                            bounds[1][axis] = bounds[1][axis].max(coord);
-                            positions_mm_f64.push(coord);
+            let mut emit_triangle = |points: [Point3; 3]| -> Result<(), String> {
+                push_triangle(&mut mesh, points)?;
+                shell_triangles.push(points);
+                for point in points {
+                    for (axis, coord) in [point.x, point.y, point.z].into_iter().enumerate() {
+                        if !coord.is_finite() {
+                            return Err(
+                                "Generated case produced a non-finite analysis coordinate".into()
+                            );
                         }
+                        bounds[0][axis] = bounds[0][axis].min(coord);
+                        bounds[1][axis] = bounds[1][axis].max(coord);
+                        positions_mm_f64.push(coord);
                     }
-                    triangle_face_occurrence_indices.push(occurrence_index);
-                    Ok(())
-                };
+                }
+                triangle_face_occurrence_indices.push(occurrence_index);
+                Ok(())
+            };
             for points in triangles.triangle_points() {
                 emit_triangle(points)?;
             }

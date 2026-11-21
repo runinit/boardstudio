@@ -2,7 +2,7 @@
 //! Only surface assets with an Unknown source proof can be baked by this format.
 use super::*;
 use boardstudio_cad::{
-    mesh::{Point3, degraded_triangle_normal, triangle_normal},
+    mesh::{degraded_triangle_normal, triangle_normal, Point3},
     qualification::{self, SourceQualification},
 };
 use std::collections::HashMap;
@@ -180,11 +180,7 @@ fn decode(bytes: &[u8], expected_sha: &str) -> Result<ReadStepAsset, String> {
     let vertex_count = u32::from_le_bytes(header[0..4].try_into().unwrap()) as usize;
     let triangle_count = u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize;
     let run_count = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
-    if vertex_count == 0
-        || triangle_count == 0
-        || run_count == 0
-        || run_count > triangle_count
-    {
+    if vertex_count == 0 || triangle_count == 0 || run_count == 0 || run_count > triangle_count {
         return Err(invalid());
     }
     let vertex_bytes = vertex_count.checked_mul(24).ok_or_else(invalid)?;
@@ -217,11 +213,7 @@ fn decode(bytes: &[u8], expected_sha: &str) -> Result<ReadStepAsset, String> {
             ]
         })
         .collect();
-    if vertices
-        .iter()
-        .flatten()
-        .any(|coord| !coord.is_finite())
-    {
+    if vertices.iter().flatten().any(|coord| !coord.is_finite()) {
         return Err(invalid());
     }
     let mut positions_mm_f64 = Vec::with_capacity(index_count * 3);

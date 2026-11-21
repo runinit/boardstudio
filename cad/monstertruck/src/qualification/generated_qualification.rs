@@ -13,4 +13,3 @@ pub enum GeneratedQualification {
         reasons: Vec<String>,
     },
 }
-

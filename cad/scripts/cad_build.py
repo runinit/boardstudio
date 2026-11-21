@@ -1,4 +1,4 @@
-"""Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
+"""Pure-Rust CAD WASM build and native test orchestration."""
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -193,8 +193,6 @@ def _test_cad_unified(output):
     production_tests = sorted({name for _, kind, name, _ in production_targets if kind == "test"})
     example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
     production_expected = {(pkg, kind, name) for pkg, kind, name, _ in production_targets}
-    # Production suites need monstertruck-io/-meshing optimized at runtime
-    # (cad-test; see cad/Cargo.toml).
     command = [
         "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
         *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),

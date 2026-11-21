@@ -1,8 +1,8 @@
+#[allow(unused_imports)]
+use super::tests::{Point3, PolygonMesh, Surface, TestSolids, Vector3, shell_to_polygon_strict};
 use super::tests::{check_solid, material, point_bounds};
 use crate::export_tests::{StepRecords, id, list, num, step_text};
 use boardstudio_contracts::PreparedCaseIR;
-#[allow(unused_imports)]
-use super::tests::{Point3, PolygonMesh, Surface, TestSolids, Vector3, shell_to_polygon_strict};
 #[allow(unused_imports)]
 use cgmath::prelude::*;
 

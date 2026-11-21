@@ -1,7 +1,7 @@
 //! Complete representation-item traversal, including exact mapped occurrences.
 mod presentation;
-use super::{SourceRecords, named_record, parameters, reference, simple_record, source_records};
 use super::{Matrix4, Vector3};
+use super::{SourceRecords, named_record, parameters, reference, simple_record, source_records};
 use cgmath::{InnerSpace, SquareMatrix};
 use std::collections::{HashMap, HashSet};
 use step_p21::ast::{Exchange, Parameter, Record};

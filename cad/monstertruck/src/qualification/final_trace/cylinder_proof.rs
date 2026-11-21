@@ -596,4 +596,3 @@ fn qualification(result: Proof<Q>) -> GeneratedQualification {
     }
 }
 pub(super) mod native;
-

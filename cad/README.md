@@ -13,8 +13,8 @@ in `web/crates/worker-host/src/cad_worker.rs` calls them through the generated `
 `query_collision_mesh_pair` answers vendor mesh collision and clearance queries
 with `parry3d-f64`.
 
-The kernel is `boardstudio-cad` (`cad/monstertruck`), a pure-Rust crate over the
-vendored Monstertruck 0.4.1 crates in `cad/vendor`.
+The kernel is `boardstudio-cad` (`cad/monstertruck`). It decodes vendor STEP
+with cadmpeg and meshes imported faces with the patched tessellator in `cad/vendor`.
 It builds layered 2.5D cases and source-backed PCBs, writes exact STEP, meshes
 profiles into non-indexed `Float32Array` buffers and imports vendor STEP with
 surface and retained wireframe lines. STEP imports are limited to 32 MiB and
