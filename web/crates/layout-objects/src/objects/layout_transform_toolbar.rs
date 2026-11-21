@@ -25,16 +25,17 @@ use crate::presentation::{
     canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Event, Resolution};
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_core_kernel::matrix::layout::layout_half_offset;
 use boardstudio_model::model::{
     EditOperation, Matrix, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror, PartAnchor,
     PartAnchorValueChange, Pose2, Position, ProjectDoc, Vec2,
 };
-use boardstudio_web_layout_core::rail_state::RailState;
+use boardstudio_web_layout_core::{
+    rail_drag::{DragPreview, drag_session_is_ready, nudge_session_is_ready},
+    rail_state::RailState,
+};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_model::transform_feedback::{
@@ -65,6 +66,7 @@ mod menu;
 mod part_drag;
 mod part_tools;
 mod placement;
+mod pointer_drag;
 mod rail;
 mod tool;
 
@@ -82,6 +84,7 @@ pub use menu::{LayoutContextActionToolbar, LayoutTransformToolbar};
 use part_drag::*;
 pub use part_tools::LayoutPartToolOverlay;
 use placement::*;
+use pointer_drag::*;
 use rail::*;
 use tool::*;
 pub use tool::{LayoutTransformTool, ToolActivation, activate_transform_tool};

@@ -54,45 +54,6 @@ pub fn LayoutPartToolOverlay(
         feedback,
         toast_gen,
     );
-    let runtime_inner = runtime.0.clone();
-    let drag_for_drop = drag.clone();
-    let arbiter_for_drop = arbiter.clone();
-    let svg_for_drop_cancel = svg_handle.clone();
-    use_drop(move || {
-        cancel_part_drag(
-            &runtime_inner,
-            &drag_for_drop,
-            &arbiter_for_drop,
-            &svg_for_drop_cancel,
-        );
-    });
-    // Escape, on the document or on the focused token, clears the drag and its popup.
-    let svg_for_escape_drag = svg_handle.clone();
-    let escape_drag = {
-        let runtime = runtime.0.clone();
-        let drag = drag.clone();
-        let arbiter = arbiter.clone();
-        let svg_for_escape_drag = svg_for_escape_drag.clone();
-        Rc::new(move || {
-            let (mut feedback, mut popup_at) = (feedback, popup_at);
-            feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
-            popup_at.set(None);
-            cancel_part_drag(&runtime, &drag, &arbiter, &svg_for_escape_drag);
-            on_finish.call(());
-        })
-    };
-    use_canvas_escape(&svg_handle, {
-        let drag = drag.clone();
-        let arbiter = arbiter.clone();
-        let escape_drag = escape_drag.clone();
-        move |event| {
-            let claims = rail_escape_claims(event, drag.borrow().is_some(), &arbiter);
-            if claims {
-                escape_drag();
-            }
-            claims
-        }
-    });
     let part_context = TreeContext::Component {
         part_id: Some(part_id.clone()),
         matrix_id: None,
@@ -100,22 +61,37 @@ pub fn LayoutPartToolOverlay(
         column: None,
         assembly_id: None,
     };
-    use_stale_drag_cancel(
+    let cancel = {
+        let runtime = runtime.0.clone();
+        let drag = drag.clone();
+        let arbiter = arbiter.clone();
+        let svg = svg_handle.clone();
+        move || {
+            cancel_part_drag(&runtime, &drag, &arbiter, &svg);
+        }
+    };
+    let escape_drag = use_rail_drag_cancel(
         &drag,
         &owner,
         &part_context,
         tool,
         selected_context,
         scope_generation,
-        {
-            let runtime = runtime.0.clone();
-            let drag = drag.clone();
-            let arbiter = arbiter.clone();
-            let svg_for_stale = svg_handle.clone();
-            move || {
-                cancel_part_drag(&runtime, &drag, &arbiter, &svg_for_stale);
-            }
-        },
+        &svg_handle,
+        &arbiter,
+        feedback,
+        popup_at,
+        on_finish,
+        cancel.clone(),
+    );
+    let drag_event = rail_drag_events(
+        &drag,
+        &runtime.0,
+        workspace,
+        scope_generation,
+        selected_context,
+        tool,
+        cancel.clone(),
     );
 
     // The live part behind this token: a missing, locked, member or
@@ -313,24 +289,11 @@ pub fn LayoutPartToolOverlay(
             arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
             return;
         }
-        let Some(capture) = pointer
-            .target()
-            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-            .and_then(|target| target.closest("[data-transform-handle]").ok().flatten())
-            .and_then(|target| target.dyn_into::<SvgElement>().ok())
+        let Some(capture) =
+            capture_rail_pointer(&pointer, "[data-transform-handle]", &arbiter_for_start)
         else {
-            arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
             return;
         };
-        if capture.set_pointer_capture(pointer.pointer_id()).is_err() {
-            arbiter_for_start.release(CanvasInteractionOwner::MatrixTransform);
-            return;
-        }
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        let focus_options = web_sys::FocusOptions::new();
-        focus_options.set_prevent_scroll(true);
-        let _ = capture.focus_with_options(&focus_options);
         let Some(start_point) = crate::presentation::coordinates(
             &svg_for_start,
             &pointer,
@@ -362,14 +325,17 @@ pub fn LayoutPartToolOverlay(
             .unwrap_or((0.0, 0.0, Vec2::default(), evaluated.rotation));
         let operation = runtime_for_start.operation();
         *drag_for_start.borrow_mut() = Some(PartDrag {
-            pointer_id: i64::from(pointer.pointer_id()),
-            capture,
+            rail: RailDrag {
+                pointer_id: pointer.pointer_id(),
+                capture,
+                transaction_id: format!("layout-part-rail-{}", operation.0),
+                owner: owner_for_start.clone(),
+                context: context_for_start.clone(),
+                tool,
+                preview: DragPreview::default(),
+            },
             part_id: part_for_start.clone(),
             kind,
-            tool,
-            transaction_id: format!("layout-part-rail-{}", operation.0),
-            owner: owner_for_start.clone(),
-            context: context_for_start.clone(),
             anchor,
             start_spread,
             start_stagger,
@@ -383,8 +349,6 @@ pub fn LayoutPartToolOverlay(
             start_client_x: f64::from(pointer.client_x()),
             start_client_y: f64::from(pointer.client_y()),
             gesture_begun: false,
-            preview_submitted: false,
-            pending: None,
         });
         let mut popup_at_for_start = popup_at;
         popup_at_for_start.set(Some((
@@ -394,598 +358,223 @@ pub fn LayoutPartToolOverlay(
         set_rail_active(Rail::Part, &svg_handle_for_start, Some(tool));
     });
 
-    let runtime_for_move = runtime.0.clone();
-    let svg_for_move = svg.surface().clone();
-    let svg_for_move_cancel = svg_handle.clone();
-    let drag_for_move = drag.clone();
-    let arbiter_for_move = arbiter.clone();
-    let feedback_for_move = feedback;
-    let popup_at_for_move = popup_at;
-    let move_drag = Rc::new(move |event: PointerEvent| {
-        let mut feedback_for_move = feedback_for_move;
-        let mut popup_at_for_move = popup_at_for_move;
-        let Some(pointer) = event.data().try_as_web_event() else {
-            return;
-        };
-        let pointer_id = i64::from(pointer.pointer_id());
-        let Some(mut active) = drag_for_move
-            .borrow()
-            .clone()
-            .filter(|drag| drag.pointer_id == pointer_id)
-        else {
-            return;
-        };
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if !transform_owner_is_current(
-            &runtime_for_move,
-            workspace,
-            scope_generation,
-            selected_context,
-            &active.owner,
-            &active.context,
-        ) || active.tool != tool
-        {
-            cancel_part_drag(
-                &runtime_for_move,
-                &drag_for_move,
-                &arbiter_for_move,
-                &svg_for_move_cancel,
-            );
-            return;
-        }
-        let Some(rect) = svg_for_move
-            .borrow()
-            .as_ref()
-            .map(|surface| surface.get_bounding_client_rect())
-        else {
-            return;
-        };
+    let surface = svg.surface().clone();
+    let pointer_sample = move |active: &PartDrag, pointer: &web_sys::PointerEvent| {
+        let (point, scale) = crate::presentation::coordinates_with_scale(
+            &surface, pointer, view_x, view_y, width, height,
+        )?;
+        let rect = surface.borrow().as_ref()?.get_bounding_client_rect();
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
-            return;
+            return None;
         }
-        let Some((_, scale)) = crate::presentation::coordinates_with_scale(
-            &svg_for_move,
-            &pointer,
-            view_x,
-            view_y,
-            width,
-            height,
-        ) else {
-            return;
-        };
+        // Local anchor edits use the viewport axes. The Session body gesture uses its
+        // uniform pixel scale instead, as it does when started from the part itself.
         let world_delta = Vec2 {
             x: (f64::from(pointer.client_x()) - active.start_client_x) * width / rect.width(),
             y: -(f64::from(pointer.client_y()) - active.start_client_y) * height / rect.height(),
         };
+        Some((point, scale, world_delta))
+    };
+    let runtime_for_move = runtime.0.clone();
+    let drag_for_move = drag.clone();
+    let move_event = drag_event.clone();
+    let sample_for_move = pointer_sample.clone();
+    let cancel_for_move = cancel.clone();
+    let move_drag = Rc::new(move |event: PointerEvent| {
+        let Some((pointer, mut active)) = move_event(event, false) else {
+            return;
+        };
+        let Some((point, scale, world_delta)) = sample_for_move(&active, &pointer) else {
+            return;
+        };
         let alt = pointer.alt_key();
-        let tool_name = feedback_tool_name(tool).to_owned();
-        match active.kind {
-            PartRailDragKind::AnchorValue(axis) => {
-                let Some(point) = crate::presentation::coordinates(
-                    &svg_for_move,
-                    &pointer,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                ) else {
-                    return;
-                };
-                let Some((operation, delta_feedback, _, value_text)) = sample_anchor_value(
-                    &active,
-                    axis,
-                    world_delta,
-                    point,
-                    alt,
-                    snap.pitch,
-                    snap.snap_fraction,
-                ) else {
-                    return;
-                };
-                if active.pending.as_ref() != Some(&operation) {
-                    submit_part_preview(&runtime_for_move, &active, operation.clone());
-                    active.preview_submitted = true;
-                    // The popup follows the pointer with the live value and
-                    // delta, like the matrix rail.
-                    feedback_for_move.set(advance_feedback(
-                        &feedback_for_move(),
-                        FeedbackEvent::Drag {
-                            name: tool_name,
-                            value: value_text,
-                            delta: delta_feedback,
-                        },
-                    ));
-                    popup_at_for_move.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
-                    active.pending = Some(operation);
-                    *drag_for_move.borrow_mut() = Some(active);
-                }
+        let (value, delta) = if active.kind == PartRailDragKind::DetachedMove {
+            // A click stays out of the Session gesture, including a release without a move.
+            if !crate::presentation::canvas_interaction::pending_part_drag_threshold_reached(
+                (active.start_client_x, active.start_client_y),
+                (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+            ) {
+                return;
             }
-            PartRailDragKind::DetachedMove => {
-                // The shipped body threshold keeps clicks out of the session
-                // gesture; only real motion begins it.
-                if !crate::presentation::canvas_interaction::pending_part_drag_threshold_reached(
-                    (active.start_client_x, active.start_client_y),
-                    (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
-                ) {
-                    return;
-                }
-                let at = Vec2 {
-                    x: active.start_at.x
-                        + (f64::from(pointer.client_x()) - active.start_client_x) / scale,
-                    y: active.start_at.y
-                        - (f64::from(pointer.client_y()) - active.start_client_y) / scale,
-                };
-                let positions = vec![Position {
-                    id: active.part_id.clone(),
-                    at,
-                }];
-                if !active.gesture_begun {
-                    let operation = runtime_for_move.operation();
-                    runtime_for_move.submit(Event::GestureBegin {
-                        operation_id: operation,
-                        pointer_id: active.pointer_id,
-                        target_ids: vec![active.part_id.clone()],
-                        transaction_id: active.transaction_id.clone(),
-                        start: vec![Position {
-                            id: active.part_id.clone(),
-                            at: active.start_at,
-                        }],
-                        pitch: snap.pitch,
-                        snap_fraction: snap.snap_fraction,
-                        geometry_snap: snap.geometry_snap,
-                        gap: snap.gap,
-                        pixels_per_world: Some(scale),
-                        alt,
-                    });
-                    let fresh = runtime_for_move.model();
-                    let admitted = fresh.gesture.as_ref().is_some_and(|gesture| {
-                        gesture.pointer_id == active.pointer_id
-                            && gesture.target_ids == vec![active.part_id.clone()]
-                    });
-                    if !admitted {
-                        cancel_part_drag(
-                            &runtime_for_move,
-                            &drag_for_move,
-                            &arbiter_for_move,
-                            &svg_for_move_cancel,
-                        );
-                        return;
-                    }
-                    active.gesture_begun = true;
-                }
-                runtime_for_move.submit(Event::GestureSample {
-                    pointer_id: active.pointer_id,
-                    positions: positions.clone(),
+            let pointer_id = i64::from(active.rail.pointer_id);
+            let at = detached_part_position(&active, &pointer, scale);
+            if !active.gesture_begun {
+                runtime_for_move.submit(Event::GestureBegin {
+                    operation_id: runtime_for_move.operation(),
+                    pointer_id,
+                    target_ids: vec![active.part_id.clone()],
+                    transaction_id: active.rail.transaction_id.clone(),
+                    start: vec![Position {
+                        id: active.part_id.clone(),
+                        at: active.start_at,
+                    }],
+                    pitch: snap.pitch,
+                    snap_fraction: snap.snap_fraction,
+                    geometry_snap: snap.geometry_snap,
+                    gap: snap.gap,
                     pixels_per_world: Some(scale),
                     alt,
                 });
-                feedback_for_move.set(advance_feedback(
-                    &feedback_for_move(),
-                    FeedbackEvent::Drag {
-                        name: tool_name,
-                        value: format!("X {:.2}, Y {:.2} mm", at.x, at.y),
-                        delta: FeedbackDelta::Mm2(
-                            at.x - active.start_at.x,
-                            at.y - active.start_at.y,
-                        ),
-                    },
-                ));
-                if let Some(point) = crate::presentation::coordinates(
-                    &svg_for_move,
-                    &pointer,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                ) {
-                    popup_at_for_move.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
-                }
-                *drag_for_move.borrow_mut() = Some(active);
-            }
-            PartRailDragKind::DetachedRotate => {
-                let Some(point) = crate::presentation::coordinates(
-                    &svg_for_move,
-                    &pointer,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                ) else {
+                let fresh = runtime_for_move.model();
+                let admitted = fresh.gesture.as_ref().is_some_and(|gesture| {
+                    gesture.pointer_id == pointer_id
+                        && gesture.target_ids == vec![active.part_id.clone()]
+                });
+                if !admitted {
+                    cancel_for_move();
                     return;
-                };
-                let angle = (point.y - active.center.y).atan2(point.x - active.center.x)
-                    - active.start_angle;
-                let swept = angle.sin().atan2(angle.cos()).to_degrees();
-                let value = part_rotate_value(active.start_rotation, swept, alt);
-                let delta = value - active.start_rotation;
-                let operation = EditOperation::SetPartRotation {
-                    part_id: active.part_id.clone(),
-                    rotation: value,
-                };
-                if active.pending.as_ref() != Some(&operation) {
-                    submit_part_preview(&runtime_for_move, &active, operation.clone());
-                    active.preview_submitted = true;
-                    feedback_for_move.set(advance_feedback(
-                        &feedback_for_move(),
-                        FeedbackEvent::Drag {
-                            name: tool_name,
-                            value: format!("{value:.1}°"),
-                            delta: FeedbackDelta::Deg(delta),
-                        },
-                    ));
-                    popup_at_for_move.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
-                    active.pending = Some(operation);
-                    *drag_for_move.borrow_mut() = Some(active);
                 }
+                active.gesture_begun = true;
             }
-        }
+            runtime_for_move.submit(Event::GestureSample {
+                pointer_id,
+                positions: vec![Position {
+                    id: active.part_id.clone(),
+                    at,
+                }],
+                pixels_per_world: Some(scale),
+                alt,
+            });
+            detached_part_feedback(active.start_at, at)
+        } else {
+            let Some(operation) = sample_part_preview(
+                &active,
+                world_delta,
+                point,
+                alt,
+                snap.pitch,
+                snap.snap_fraction,
+            ) else {
+                return;
+            };
+            let Some((delta, _, value)) = part_preview_result(&active, &operation) else {
+                return;
+            };
+            if !active.rail.preview.sample(&operation) {
+                return;
+            }
+            active
+                .rail
+                .submit_preview(&runtime_for_move, &active.part_id, operation);
+            (value, delta)
+        };
+        let (mut feedback, mut popup_at) = (feedback, popup_at);
+        feedback.set(advance_feedback(
+            &feedback(),
+            FeedbackEvent::Drag {
+                name: feedback_tool_name(tool).to_owned(),
+                value,
+                delta,
+            },
+        ));
+        popup_at.set(Some((point.x + 18.0 * px, point.y - 18.0 * px)));
+        *drag_for_move.borrow_mut() = Some(active);
     });
 
     let runtime_for_end = runtime.0.clone();
-    let svg_for_end = svg.surface().clone();
-    let svg_handle_for_end = svg_handle.clone();
+    let svg_for_end = svg_handle.clone();
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
-    let feedback_for_end = feedback;
-    let popup_at_for_end = popup_at;
-    let pending_for_end = pending;
-    let toast_gen_for_end = toast_gen;
-    let handle_value_for_end = handle_value.clone();
+    let cancel_for_end = cancel.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
-        let mut feedback_for_end = feedback_for_end;
-        let mut popup_at_for_end = popup_at_for_end;
-        let mut pending_for_end = pending_for_end;
-        let toast_gen_for_end = toast_gen_for_end;
-        let Some(pointer) = event.data().try_as_web_event() else {
+        let Some((pointer, active)) = drag_event(event, true) else {
             return;
         };
-        let pointer_id = i64::from(pointer.pointer_id());
-        let Some(active) = drag_for_end
-            .borrow()
-            .clone()
-            .filter(|drag| drag.pointer_id == pointer_id)
-        else {
-            return;
-        };
-        pointer.prevent_default();
-        pointer.stop_propagation();
-        if !transform_owner_is_current(
-            &runtime_for_end,
-            workspace,
-            scope_generation,
-            selected_context,
-            &active.owner,
-            &active.context,
-        ) || active.tool != tool
-        {
-            cancel_part_drag(
-                &runtime_for_end,
-                &drag_for_end,
-                &arbiter_for_end,
-                &svg_handle_for_end,
-            );
-            return;
-        }
-        if pointer.type_() != "pointerup" {
-            cancel_part_drag(
-                &runtime_for_end,
-                &drag_for_end,
-                &arbiter_for_end,
-                &svg_handle_for_end,
-            );
-            return;
-        }
+        let (mut feedback, mut popup_at, mut pending) = (feedback, popup_at, pending);
+        let tool_name = feedback_tool_name(tool);
         let alt = pointer.alt_key();
-        let tool_name = feedback_tool_name(tool).to_owned();
-        // Landing one revision, with a toast unless the drag netted nothing.
-        let landed = |delta: FeedbackDelta, value_text: String| {
-            if delta.is_zero() {
-                return false;
+        let follow_up = if active.kind == PartRailDragKind::DetachedMove {
+            if active.gesture_begun {
+                let Some((_, scale, _)) = pointer_sample(&active, &pointer) else {
+                    cancel_for_end();
+                    return;
+                };
+                let at = detached_part_position(&active, &pointer, scale);
+                runtime_for_end.submit(Event::GestureEnd {
+                    pointer_id: i64::from(active.rail.pointer_id),
+                    final_positions: vec![Position {
+                        id: active.part_id.clone(),
+                        at,
+                    }],
+                    pixels_per_world: Some(scale),
+                    alt,
+                });
+                let (value, delta) = detached_part_feedback(active.start_at, at);
+                if delta.is_zero() {
+                    Some(FeedbackEvent::Choose {
+                        name: tool_name.to_owned(),
+                        value,
+                    })
+                } else {
+                    raise_commit_toast(feedback, toast_gen, format!("{tool_name} {value}"), delta);
+                    None
+                }
+            } else {
+                Some(FeedbackEvent::Dismiss)
             }
-            raise_commit_toast(
-                feedback_for_end,
-                toast_gen_for_end,
-                format!("{tool_name} {value_text}"),
-                delta,
-            );
-            true
-        };
-        match active.kind {
-            PartRailDragKind::AnchorValue(axis) => {
-                let sample = crate::presentation::coordinates(
-                    &svg_for_end,
-                    &pointer,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                )
-                .and_then(|point| {
-                    let rect = svg_for_end
-                        .borrow()
-                        .as_ref()
-                        .map(|surface| surface.get_bounding_client_rect())?;
-                    if rect.width() <= 0.0 || rect.height() <= 0.0 {
-                        return None;
-                    }
-                    let world_delta = Vec2 {
-                        x: (f64::from(pointer.client_x()) - active.start_client_x) * width
-                            / rect.width(),
-                        y: -(f64::from(pointer.client_y()) - active.start_client_y) * height
-                            / rect.height(),
-                    };
-                    sample_anchor_value(
+        } else {
+            let operation =
+                pointer_sample(&active, &pointer).and_then(|(point, _, world_delta)| {
+                    sample_part_preview(
                         &active,
-                        axis,
                         world_delta,
                         point,
                         alt,
                         snap.pitch,
                         snap.snap_fraction,
                     )
-                })
-                .or_else(|| {
-                    active.pending.as_ref().and_then(|operation| {
-                        let EditOperation::SetPartAnchorValues { change, .. } = operation else {
-                            return None;
-                        };
-                        let (feedback, delta, value_text) = match (axis, change) {
-                            (PartAnchorAxis::Spread, PartAnchorValueChange::Spread(value)) => (
-                                FeedbackDelta::Mm(value - active.start_spread),
-                                PartAxisDelta::Spread(value - active.start_spread),
-                                format_placement_value(PlacementValue::Spread(*value)),
-                            ),
-                            (PartAnchorAxis::Stagger, PartAnchorValueChange::Stagger(value)) => (
-                                FeedbackDelta::Mm(value - active.start_stagger),
-                                PartAxisDelta::Stagger(value - active.start_stagger),
-                                format_placement_value(PlacementValue::Stagger(*value)),
-                            ),
-                            (PartAnchorAxis::Offset, PartAnchorValueChange::Offset(value)) => (
-                                FeedbackDelta::Mm2(
-                                    value.x - active.start_offset.x,
-                                    value.y - active.start_offset.y,
-                                ),
-                                PartAxisDelta::Offset(Vec2 {
-                                    x: value.x - active.start_offset.x,
-                                    y: value.y - active.start_offset.y,
-                                }),
-                                format_placement_value(PlacementValue::Offset(*value)),
-                            ),
-                            (PartAnchorAxis::Rotation, PartAnchorValueChange::Rotation(value)) => (
-                                FeedbackDelta::Deg(value - active.start_rotation),
-                                PartAxisDelta::Rotation(value - active.start_rotation),
-                                format!("{value:.1}°"),
-                            ),
-                            _ => return None,
-                        };
-                        Some((operation.clone(), feedback, delta, value_text))
-                    })
                 });
-                if let Some((operation, feedback, delta, value_text)) = sample {
-                    if active.pending.as_ref() != Some(&operation) {
-                        submit_part_preview(&runtime_for_end, &active, operation);
-                    }
-                    if feedback.is_zero() {
-                        clear_part_preview(&runtime_for_end, &active);
-                        feedback_for_end.set(advance_feedback(
-                            &feedback_for_end(),
-                            FeedbackEvent::Choose {
-                                name: tool_name,
-                                value: value_text,
-                            },
-                        ));
-                    } else {
-                        let ticket = begin_transform_ticket(
-                            &runtime_for_end,
-                            "layout-part-rail-drag",
-                            part_anchor_drag_resolver(
-                                active.part_id.clone(),
-                                active.transaction_id.clone(),
-                                delta,
-                            ),
-                        );
-                        pending_for_end.write().push(PendingTransformCommit {
-                            ticket,
-                            owner: active.owner.clone(),
-                            context: active.context.clone(),
-                            toast: Some(PendingTransformToast {
-                                tool_name: feedback_tool_name(tool),
-                                value: value_text,
-                                delta: feedback,
-                            }),
-                        });
-                    }
-                } else if active.preview_submitted {
-                    clear_part_preview(&runtime_for_end, &active);
-                    feedback_for_end.set(advance_feedback(
-                        &feedback_for_end(),
-                        FeedbackEvent::Choose {
-                            name: tool_name,
-                            value: handle_value_for_end.clone(),
-                        },
-                    ));
+            active.rail.preview.finish(operation).and_then(|sample| {
+                let (feedback_delta, delta, value) =
+                    part_preview_result(&active, &sample.operation)?;
+                if sample.submit_preview {
+                    active
+                        .rail
+                        .submit_preview(&runtime_for_end, &active.part_id, sample.operation);
                 }
-            }
-            PartRailDragKind::DetachedMove => {
-                if active.gesture_begun {
-                    let Some((_, scale)) = crate::presentation::coordinates_with_scale(
-                        &svg_for_end,
-                        &pointer,
-                        view_x,
-                        view_y,
-                        width,
-                        height,
-                    ) else {
-                        cancel_part_drag(
-                            &runtime_for_end,
-                            &drag_for_end,
-                            &arbiter_for_end,
-                            &svg_handle_for_end,
-                        );
-                        return;
-                    };
-                    let positions = vec![Position {
-                        id: active.part_id.clone(),
-                        at: Vec2 {
-                            x: active.start_at.x
-                                + (f64::from(pointer.client_x()) - active.start_client_x) / scale,
-                            y: active.start_at.y
-                                - (f64::from(pointer.client_y()) - active.start_client_y) / scale,
-                        },
-                    }];
-                    runtime_for_end.submit(Event::GestureEnd {
-                        pointer_id: active.pointer_id,
-                        final_positions: positions.clone(),
-                        pixels_per_world: Some(scale),
-                        alt,
+                if feedback_delta.is_zero() {
+                    if active.rail.preview.has_preview() {
+                        active.rail.clear_preview(&runtime_for_end);
+                    }
+                    return Some(FeedbackEvent::Choose {
+                        name: tool_name.to_owned(),
+                        value,
                     });
-                    let at = &positions[0].at;
-                    let delta =
-                        FeedbackDelta::Mm2(at.x - active.start_at.x, at.y - active.start_at.y);
-                    let value_text = format!("X {:.2}, Y {:.2} mm", at.x, at.y);
-                    if !landed(delta, value_text.clone()) {
-                        feedback_for_end.set(advance_feedback(
-                            &feedback_for_end(),
-                            FeedbackEvent::Choose {
-                                name: tool_name,
-                                value: value_text,
-                            },
-                        ));
-                    }
-                } else {
-                    feedback_for_end.set(advance_feedback(
-                        &feedback_for_end(),
-                        FeedbackEvent::Dismiss,
-                    ));
                 }
-            }
-            PartRailDragKind::DetachedRotate => {
-                let sample = crate::presentation::coordinates(
-                    &svg_for_end,
-                    &pointer,
-                    view_x,
-                    view_y,
-                    width,
-                    height,
-                )
-                .map(|point| {
-                    let angle = (point.y - active.center.y).atan2(point.x - active.center.x)
-                        - active.start_angle;
-                    let swept = angle.sin().atan2(angle.cos()).to_degrees();
-                    let value = part_rotate_value(active.start_rotation, swept, alt);
-                    let delta = value - active.start_rotation;
-                    (
-                        EditOperation::SetPartRotation {
-                            part_id: active.part_id.clone(),
-                            rotation: value,
-                        },
-                        FeedbackDelta::Deg(delta),
-                        delta,
-                        format!("{value:.1}°"),
-                    )
-                })
-                .or_else(|| {
-                    active.pending.as_ref().and_then(|operation| {
-                        let EditOperation::SetPartRotation { rotation, .. } = operation else {
-                            return None;
-                        };
-                        let delta = rotation - active.start_rotation;
-                        Some((
-                            operation.clone(),
-                            FeedbackDelta::Deg(delta),
-                            delta,
-                            format!("{rotation:.1}°"),
-                        ))
-                    })
+                let part_id = active.part_id.clone();
+                let transaction_id = active.rail.transaction_id.clone();
+                let resolver = match (active.kind, delta) {
+                    (PartRailDragKind::DetachedRotate, PartAxisDelta::Rotation(delta)) => {
+                        part_detached_rotate_resolver(part_id, transaction_id, delta)
+                    }
+                    (_, delta) => part_anchor_drag_resolver(part_id, transaction_id, delta),
+                };
+                let ticket =
+                    begin_transform_ticket(&runtime_for_end, "layout-part-rail-drag", resolver);
+                pending.write().push(PendingTransformCommit {
+                    ticket,
+                    owner: active.rail.owner.clone(),
+                    context: active.rail.context.clone(),
+                    toast: Some(PendingTransformToast {
+                        tool_name,
+                        value,
+                        delta: feedback_delta,
+                    }),
                 });
-                if let Some((operation, feedback, delta, value_text)) = sample {
-                    if active.pending.as_ref() != Some(&operation) {
-                        submit_part_preview(&runtime_for_end, &active, operation);
-                    }
-                    if feedback.is_zero() {
-                        clear_part_preview(&runtime_for_end, &active);
-                        feedback_for_end.set(advance_feedback(
-                            &feedback_for_end(),
-                            FeedbackEvent::Choose {
-                                name: tool_name,
-                                value: value_text,
-                            },
-                        ));
-                    } else {
-                        let ticket = begin_transform_ticket(
-                            &runtime_for_end,
-                            "layout-part-rail-drag",
-                            part_detached_rotate_resolver(
-                                active.part_id.clone(),
-                                active.transaction_id.clone(),
-                                delta,
-                            ),
-                        );
-                        pending_for_end.write().push(PendingTransformCommit {
-                            ticket,
-                            owner: active.owner.clone(),
-                            context: active.context.clone(),
-                            toast: Some(PendingTransformToast {
-                                tool_name: feedback_tool_name(tool),
-                                value: value_text,
-                                delta: feedback,
-                            }),
-                        });
-                    }
-                } else if active.preview_submitted {
-                    clear_part_preview(&runtime_for_end, &active);
-                    feedback_for_end.set(advance_feedback(
-                        &feedback_for_end(),
-                        FeedbackEvent::Choose {
-                            name: tool_name,
-                            value: handle_value_for_end.clone(),
-                        },
-                    ));
-                }
-            }
+                None
+            })
+        };
+        if let Some(event) = follow_up {
+            feedback.set(advance_feedback(&feedback(), event));
         }
-        popup_at_for_end.set(None);
-        set_rail_active(Rail::Part, &svg_handle_for_end, None);
+        popup_at.set(None);
+        set_rail_active(Rail::Part, &svg_for_end, None);
         drag_for_end.borrow_mut().take();
-        if active.capture.has_pointer_capture(pointer.pointer_id()) {
-            let _ = active.capture.release_pointer_capture(pointer.pointer_id());
-        }
-        arbiter_for_end.release(CanvasInteractionOwner::MatrixTransform);
+        active.rail.release(&arbiter_for_end);
     });
 
-    let runtime_for_cancel = runtime.0.clone();
-    let drag_for_cancel = drag.clone();
-    let arbiter_for_cancel = arbiter.clone();
-    let feedback_for_cancel = feedback;
-    let popup_at_for_cancel = popup_at;
-    let svg_for_cancel = svg_handle.clone();
     let cancel_drag = Rc::new(move |event: PointerEvent| {
-        let mut feedback_for_cancel = feedback_for_cancel;
-        let mut popup_at_for_cancel = popup_at_for_cancel;
-        let Some(pointer) = event.data().try_as_web_event() else {
-            return;
-        };
-        if drag_for_cancel
-            .borrow()
-            .as_ref()
-            .is_some_and(|drag| drag.pointer_id == i64::from(pointer.pointer_id()))
-        {
-            pointer.prevent_default();
-            pointer.stop_propagation();
-            // A cancelled drag takes its popup with it.
-            feedback_for_cancel.set(advance_feedback(
-                &feedback_for_cancel(),
-                FeedbackEvent::Dismiss,
-            ));
-            popup_at_for_cancel.set(None);
-            cancel_part_drag(
-                &runtime_for_cancel,
-                &drag_for_cancel,
-                &arbiter_for_cancel,
-                &svg_for_cancel,
-            );
-        }
+        cancel_rail_pointer(event, &drag, feedback, popup_at, &cancel);
     });
 
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
@@ -1058,4 +647,18 @@ pub fn LayoutPartToolOverlay(
         // commit toast at the top centre of the canvas.
         {feedback_chrome(&feedback_state, true, popup_at(), Some(&rail_layout), px, (view_x, view_y, width))}
     }
+}
+
+fn detached_part_position(drag: &PartDrag, pointer: &web_sys::PointerEvent, scale: f64) -> Vec2 {
+    Vec2 {
+        x: drag.start_at.x + (f64::from(pointer.client_x()) - drag.start_client_x) / scale,
+        y: drag.start_at.y - (f64::from(pointer.client_y()) - drag.start_client_y) / scale,
+    }
+}
+
+fn detached_part_feedback(start: Vec2, at: Vec2) -> (String, FeedbackDelta) {
+    (
+        format!("X {:.2}, Y {:.2} mm", at.x, at.y),
+        FeedbackDelta::Mm2(at.x - start.x, at.y - start.y),
+    )
 }

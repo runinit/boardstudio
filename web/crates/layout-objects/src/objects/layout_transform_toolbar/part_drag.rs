@@ -118,14 +118,9 @@ pub(super) fn anchor_key_base_rotation(document: &ProjectDoc, anchor: &PartAncho
 /// re-solves the net delta against whatever is accepted when it runs.
 #[derive(Clone)]
 pub(super) struct PartDrag {
-    pub(super) pointer_id: i64,
-    pub(super) capture: SvgElement,
+    pub(super) rail: RailDrag,
     pub(super) part_id: String,
     pub(super) kind: PartRailDragKind,
-    pub(super) tool: LayoutTransformTool,
-    pub(super) transaction_id: String,
-    pub(super) owner: LayoutOwnerIdentity,
-    pub(super) context: TreeContext,
     pub(super) anchor: Option<PartAnchor>,
     pub(super) start_spread: f64,
     pub(super) start_stagger: f64,
@@ -141,19 +136,11 @@ pub(super) struct PartDrag {
     /// A detached Move only begins the session gesture past the shipped body
     /// threshold, so a click never churns Core.
     pub(super) gesture_begun: bool,
-    pub(super) preview_submitted: bool,
-    pub(super) pending: Option<EditOperation>,
 }
 
-impl RailDrag for PartDrag {
-    fn owner(&self) -> &LayoutOwnerIdentity {
-        &self.owner
-    }
-    fn context(&self) -> &TreeContext {
-        &self.context
-    }
-    fn tool(&self) -> LayoutTransformTool {
-        self.tool
+impl AsRef<RailDrag> for PartDrag {
+    fn as_ref(&self) -> &RailDrag {
+        &self.rail
     }
 }
 
@@ -240,70 +227,27 @@ pub(super) fn part_anchor_drag_resolver(
     )
 }
 
-pub(super) fn submit_part_preview(
-    runtime: &Rc<Runtime>,
-    drag: &PartDrag,
-    operation: EditOperation,
-) {
-    runtime.submit(Event::PreviewEdit {
-        operation_id: runtime.operation(),
-        transaction_id: drag.transaction_id.clone(),
-        target_ids: vec![drag.part_id.clone()],
-        operation,
-    });
-}
-
-pub(super) fn clear_part_preview(runtime: &Rc<Runtime>, drag: &PartDrag) {
-    if !drag.preview_submitted {
-        return;
-    }
-    if let (Some(token), Some(revision), Some(scope)) = (
-        drag.owner.token,
-        drag.owner.revision,
-        drag.owner.scope.as_ref(),
-    ) {
-        runtime.submit(Event::ClearPreview {
-            operation_id: runtime.operation(),
-            token,
-            revision,
-            board_id: scope.board_id.clone(),
-            transaction_id: drag.transaction_id.clone(),
-        });
-    }
-}
-
 /// Ticket 07: cancel a part drag (Escape, lost capture, owner change): clear
 /// the anchored preview or the detached session gesture, release the pointer
-/// and the canvas, and land nothing. Returns whether a drag was active.
+/// and the canvas, and land nothing.
 pub(super) fn cancel_part_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<PartDrag>>>,
     arbiter: &CanvasInteractionArbiter,
     svg: &LayoutTransformSvg,
-) -> bool {
+) {
     let Some(active) = drag.borrow_mut().take() else {
-        return false;
+        return;
     };
-    match active.kind {
-        PartRailDragKind::AnchorValue(_) | PartRailDragKind::DetachedRotate => {
-            clear_part_preview(runtime, &active)
-        }
-        PartRailDragKind::DetachedMove => {
-            if active.gesture_begun {
-                runtime.submit(Event::GestureCancel {
-                    pointer_id: active.pointer_id,
-                });
-            }
-        }
+    if active.gesture_begun {
+        runtime.submit(Event::GestureCancel {
+            pointer_id: i64::from(active.rail.pointer_id),
+        });
+    } else if active.rail.preview.has_preview() {
+        active.rail.clear_preview(runtime);
     }
-    if active.capture.has_pointer_capture(active.pointer_id as i32) {
-        let _ = active
-            .capture
-            .release_pointer_capture(active.pointer_id as i32);
-    }
-    arbiter.release(CanvasInteractionOwner::MatrixTransform);
+    active.rail.release(arbiter);
     set_rail_active(Rail::Part, svg, None);
-    true
 }
 
 /// Ticket 07: why a detached Rotate edit has to retire: the part is gone,
@@ -367,34 +311,32 @@ pub(super) fn part_detached_rotate_resolver(
     )
 }
 
-/// Ticket 07: one live sample of an anchored part drag: the absolute
-/// `SetPartAnchorValues` change for the preview, the net change for the popup,
-/// and the composed delta for the commit.
-pub(super) fn sample_anchor_value(
+/// The absolute operation for a preview-backed part drag.
+pub(super) fn sample_part_preview(
     drag: &PartDrag,
-    axis: PartAnchorAxis,
     world_delta: Vec2,
     point: Vec2,
     alt: bool,
     pitch: Vec2,
     snap_fraction: f64,
-) -> Option<(EditOperation, FeedbackDelta, PartAxisDelta, String)> {
+) -> Option<EditOperation> {
+    let axis = match drag.kind {
+        PartRailDragKind::AnchorValue(axis) => axis,
+        PartRailDragKind::DetachedRotate => {
+            return Some(EditOperation::SetPartRotation {
+                part_id: drag.part_id.clone(),
+                rotation: swept_part_rotation(drag, point, alt),
+            });
+        }
+        PartRailDragKind::DetachedMove => return None,
+    };
     let anchor = drag.anchor.as_ref()?;
     let basis = part_placement_basis(drag.base_rotation, drag.frame_rotation - drag.base_rotation);
-    if let PartAnchorAxis::Rotation = axis {
-        let angle = (point.y - drag.center.y).atan2(point.x - drag.center.x) - drag.start_angle;
-        let swept = angle.sin().atan2(angle.cos()).to_degrees();
-        let value = part_rotate_value(drag.start_rotation, swept, alt);
-        let delta = value - drag.start_rotation;
-        return Some((
-            EditOperation::SetPartAnchorValues {
-                part_id: drag.part_id.clone(),
-                change: PartAnchorValueChange::Rotation(value),
-            },
-            FeedbackDelta::Deg(delta),
-            PartAxisDelta::Rotation(delta),
-            format!("{value:.1}°"),
-        ));
+    if axis == PartAnchorAxis::Rotation {
+        return Some(EditOperation::SetPartAnchorValues {
+            part_id: drag.part_id.clone(),
+            change: PartAnchorValueChange::Rotation(swept_part_rotation(drag, point, alt)),
+        });
     }
     let snap = if alt {
         None
@@ -433,39 +375,81 @@ pub(super) fn sample_anchor_value(
         PartAnchorAxis::Rotation => return None,
     };
     let value = gesture_value(&basis, parameter, start, world_delta, snap);
-    let (change, feedback, delta, value_text) = match (axis, value) {
-        (PartAnchorAxis::Spread, PlacementValue::Spread(value)) => (
-            PartAnchorValueChange::Spread(value),
-            FeedbackDelta::Mm(value - drag.start_spread),
-            PartAxisDelta::Spread(value - drag.start_spread),
-            format_placement_value(PlacementValue::Spread(value)),
-        ),
-        (PartAnchorAxis::Stagger, PlacementValue::Stagger(value)) => (
-            PartAnchorValueChange::Stagger(value),
-            FeedbackDelta::Mm(value - drag.start_stagger),
-            PartAxisDelta::Stagger(value - drag.start_stagger),
-            format_placement_value(PlacementValue::Stagger(value)),
-        ),
-        (PartAnchorAxis::Offset, PlacementValue::Offset(value)) => (
-            PartAnchorValueChange::Offset(value),
-            FeedbackDelta::Mm2(value.x - drag.start_offset.x, value.y - drag.start_offset.y),
-            PartAxisDelta::Offset(Vec2 {
-                x: value.x - drag.start_offset.x,
-                y: value.y - drag.start_offset.y,
-            }),
-            format_placement_value(PlacementValue::Offset(value)),
-        ),
+    let change = match (axis, value) {
+        (PartAnchorAxis::Spread, PlacementValue::Spread(value)) => {
+            PartAnchorValueChange::Spread(value)
+        }
+        (PartAnchorAxis::Stagger, PlacementValue::Stagger(value)) => {
+            PartAnchorValueChange::Stagger(value)
+        }
+        (PartAnchorAxis::Offset, PlacementValue::Offset(value)) => {
+            PartAnchorValueChange::Offset(value)
+        }
         _ => return None,
     };
-    Some((
+    Some(EditOperation::SetPartAnchorValues {
+        part_id: drag.part_id.clone(),
+        change,
+    })
+}
+
+fn swept_part_rotation(drag: &PartDrag, point: Vec2, alt: bool) -> f64 {
+    let angle = (point.y - drag.center.y).atan2(point.x - drag.center.x) - drag.start_angle;
+    let swept = angle.sin().atan2(angle.cos()).to_degrees();
+    part_rotate_value(drag.start_rotation, swept, alt)
+}
+
+/// Read popup and commit values from either a fresh sample or the release fallback.
+pub(super) fn part_preview_result(
+    drag: &PartDrag,
+    operation: &EditOperation,
+) -> Option<(FeedbackDelta, PartAxisDelta, String)> {
+    let change = match operation {
         EditOperation::SetPartAnchorValues {
-            part_id: drag.part_id.clone(),
-            change,
-        },
-        feedback,
-        delta,
-        value_text,
-    ))
+            change: PartAnchorValueChange::Rotation(rotation),
+            ..
+        }
+        | EditOperation::SetPartRotation { rotation, .. } => {
+            let delta = rotation - drag.start_rotation;
+            return Some((
+                FeedbackDelta::Deg(delta),
+                PartAxisDelta::Rotation(delta),
+                format!("{rotation:.1}°"),
+            ));
+        }
+        EditOperation::SetPartAnchorValues { change, .. } => change,
+        _ => return None,
+    };
+    Some(match change {
+        PartAnchorValueChange::Spread(value) => {
+            let delta = value - drag.start_spread;
+            (
+                FeedbackDelta::Mm(delta),
+                PartAxisDelta::Spread(delta),
+                format_placement_value(PlacementValue::Spread(*value)),
+            )
+        }
+        PartAnchorValueChange::Stagger(value) => {
+            let delta = value - drag.start_stagger;
+            (
+                FeedbackDelta::Mm(delta),
+                PartAxisDelta::Stagger(delta),
+                format_placement_value(PlacementValue::Stagger(*value)),
+            )
+        }
+        PartAnchorValueChange::Offset(value) => {
+            let delta = Vec2 {
+                x: value.x - drag.start_offset.x,
+                y: value.y - drag.start_offset.y,
+            };
+            (
+                FeedbackDelta::Mm2(delta.x, delta.y),
+                PartAxisDelta::Offset(delta),
+                format_placement_value(PlacementValue::Offset(*value)),
+            )
+        }
+        _ => return None,
+    })
 }
 
 /// Ticket 07: whether a part rail drag may start: the session is Ready and
@@ -477,12 +461,7 @@ pub(super) fn part_start_is_editable(
     part_id: &str,
 ) -> bool {
     let model = runtime.model();
-    model.lifecycle == Lifecycle::Ready
-        && owner
-            .revision
-            .is_some_and(|revision| model.durability == (Durability::Saved { revision }))
-        && model.display_preview.is_none()
-        && model.gesture.is_none()
+    drag_session_is_ready(&model, owner.revision)
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot
                 .document

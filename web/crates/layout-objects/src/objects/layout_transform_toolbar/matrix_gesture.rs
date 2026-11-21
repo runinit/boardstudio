@@ -63,14 +63,9 @@ impl TransformGesture {
 
 #[derive(Clone)]
 pub(super) struct TransformDrag {
-    pub(super) pointer_id: i32,
-    pub(super) capture: SvgElement,
+    pub(super) rail: RailDrag,
     pub(super) matrix: Rc<Matrix>,
     pub(super) gesture: TransformGesture,
-    pub(super) transaction_id: String,
-    pub(super) owner: LayoutOwnerIdentity,
-    pub(super) context: TreeContext,
-    pub(super) tool: LayoutTransformTool,
     /// The scene frame at pointer-down; the world delta is projected onto it.
     pub(super) basis: Option<SceneBasis>,
     /// The dragged column's world base and world origin at pointer-down: the
@@ -79,19 +74,11 @@ pub(super) struct TransformDrag {
     pub(super) start_origin: Option<Vec2>,
     pub(super) start_client_x: f64,
     pub(super) start_client_y: f64,
-    pub(super) pending: Option<EditOperation>,
-    pub(super) preview_submitted: bool,
 }
 
-impl RailDrag for TransformDrag {
-    fn owner(&self) -> &LayoutOwnerIdentity {
-        &self.owner
-    }
-    fn context(&self) -> &TreeContext {
-        &self.context
-    }
-    fn tool(&self) -> LayoutTransformTool {
-        self.tool
+impl AsRef<RailDrag> for TransformDrag {
+    fn as_ref(&self) -> &RailDrag {
+        &self.rail
     }
 }
 
@@ -658,11 +645,7 @@ pub(super) fn transform_nudge_admitted(
         selected_context,
         owner,
         context,
-    ) && matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && model.display_preview.is_none()
-        && model.gesture.is_none()
+    ) && nudge_session_is_ready(&model)
         && owner.scope.as_ref().is_some_and(|scope| {
             model.active_board_id == scope.board_id && model.active_instance_id == scope.instance_id
         })
@@ -769,12 +752,7 @@ pub(super) fn transform_start_is_editable(
     matrix: &Matrix,
 ) -> bool {
     let model = runtime.model();
-    model.lifecycle == Lifecycle::Ready
-        && owner
-            .revision
-            .is_some_and(|revision| model.durability == (Durability::Saved { revision }))
-        && model.display_preview.is_none()
-        && model.gesture.is_none()
+    drag_session_is_ready(&model, owner.revision)
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot
                 .document
@@ -1169,43 +1147,11 @@ pub(super) fn same_transform_as_start(drag: &TransformDrag, operation: &EditOper
     }
 }
 
-pub(super) fn submit_transform_edit(
-    runtime: &Rc<Runtime>,
-    drag: &TransformDrag,
-    operation: EditOperation,
-) {
-    runtime.submit(Event::PreviewEdit {
-        operation_id: runtime.operation(),
-        transaction_id: drag.transaction_id.clone(),
-        target_ids: vec![drag.matrix.id.clone()],
-        operation,
-    });
-}
-
-pub(super) fn clear_transform_preview(runtime: &Rc<Runtime>, drag: &TransformDrag) {
-    if !drag.preview_submitted {
-        return;
-    }
-    if let (Some(token), Some(revision), Some(scope)) = (
-        drag.owner.token,
-        drag.owner.revision,
-        drag.owner.scope.as_ref(),
-    ) {
-        runtime.submit(Event::ClearPreview {
-            operation_id: runtime.operation(),
-            token,
-            revision,
-            board_id: scope.board_id.clone(),
-            transaction_id: drag.transaction_id.clone(),
-        });
-    }
-}
-
 pub(super) fn cancel_transform_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<TransformDrag>>>,
     arbiter: &CanvasInteractionArbiter,
-    guide: &mut Signal<Option<Vec2>>,
+    mut guide: Signal<Option<Vec2>>,
     mut quick_glyph: Signal<bool>,
     mut swing_glyph: Signal<bool>,
     svg: &LayoutTransformSvg,
@@ -1228,10 +1174,9 @@ pub(super) fn abandon_transform_drag(
     let Some(active) = drag.borrow_mut().take() else {
         return false;
     };
-    clear_transform_preview(runtime, &active);
-    if active.capture.has_pointer_capture(active.pointer_id) {
-        let _ = active.capture.release_pointer_capture(active.pointer_id);
+    if active.rail.preview.has_preview() {
+        active.rail.clear_preview(runtime);
     }
-    arbiter.release(CanvasInteractionOwner::MatrixTransform);
+    active.rail.release(arbiter);
     true
 }

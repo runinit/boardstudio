@@ -110,17 +110,20 @@ fn begin_gesture(
         .unwrap()
         .unchecked_into::<SvgElement>();
     TransformDrag {
-        pointer_id: 1,
-        capture,
+        rail: RailDrag {
+            pointer_id: 1,
+            capture,
+            transaction_id: TRANSACTION.into(),
+            owner: owner_of(runtime),
+            context: TreeContext::Column {
+                matrix_id: matrix_id.into(),
+                column,
+            },
+            tool: LayoutTransformTool::Stagger,
+            preview: DragPreview::default(),
+        },
         matrix: Rc::new(matrix),
         gesture,
-        transaction_id: TRANSACTION.into(),
-        owner: owner_of(runtime),
-        context: TreeContext::Column {
-            matrix_id: matrix_id.into(),
-            column,
-        },
-        tool: LayoutTransformTool::Stagger,
         basis: gesture
             .parameter()
             .and_then(|parameter| SceneBasis::for_parameter(&scene, parameter)),
@@ -128,8 +131,6 @@ fn begin_gesture(
         start_origin: None,
         start_client_x: 0.0,
         start_client_y: 0.0,
-        pending: None,
-        preview_submitted: false,
     }
 }
 
@@ -151,8 +152,9 @@ fn offset_drag(
 
 async fn preview(runtime: &Rc<Runtime>, drag: &mut TransformDrag, world: Vec2) -> EditOperation {
     let operation = placement_preview(drag, world, None).expect("a preview");
-    submit_transform_edit(runtime, drag, operation.clone());
-    drag.preview_submitted = true;
+    assert!(drag.rail.preview.sample(&operation));
+    drag.rail
+        .submit_preview(runtime, &drag.matrix.id, operation.clone());
     support::run_pending(runtime).await;
     operation
 }
