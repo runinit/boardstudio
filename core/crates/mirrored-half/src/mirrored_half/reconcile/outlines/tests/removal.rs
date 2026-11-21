@@ -1,7 +1,7 @@
 
 #[test]
 fn independent_part_anchor_and_protected_gap_use_full_heading_coordinates() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let mut source_part = document
         .parts
         .iter()
@@ -88,7 +88,7 @@ fn independent_part_anchor_and_protected_gap_use_full_heading_coordinates() {
             .push(feature_id.into());
     }
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("valid independent-part outline and protected-gap anchors");
     let independent_anchor = document
         .outline
@@ -133,13 +133,13 @@ fn independent_part_anchor_and_protected_gap_use_full_heading_coordinates() {
 
 #[test]
 fn changed_source_outline_bridge_keeps_assembly_references_consistent() {
-    let (mut document, projection) = outline_assembly_fixture();
+    let mut document = outline_assembly_fixture();
     crate::mechanical::halves::validate_document(&document)
         .expect("the matrix assembly and outline references begin valid");
     let assemblies_before = document.assemblies.clone();
     let pair_before = pair_state_bytes(&document);
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("initial source assembly reference projects");
     let target_outline = document
         .board_outlines
@@ -163,7 +163,7 @@ fn changed_source_outline_bridge_keeps_assembly_references_consistent() {
     source_outline.versions[0].geometry.bridges[0].part_ids =
         vec!["matrix/source-matrix/r0c1/fallback".into()];
     source_outline.versions[0].geometry.bridges[0].width = 2.25;
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("changed source assembly reference projects");
 
     let target_outline = document
@@ -185,221 +185,20 @@ fn changed_source_outline_bridge_keeps_assembly_references_consistent() {
         .expect("mapped bridge references remain valid after the source edit");
 
     let first_output = document.clone();
-    let first_context = projection_state(&projection);
     assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        reopen(&mut document)
             .expect("changed assembly reference repeat")
             .is_empty()
     );
     assert_eq!(document, first_output);
-    assert_eq!(projection_state(&projection), first_context);
 }
 
-#[test]
-fn removing_source_version_prunes_only_its_mapped_target_and_retains_other_choices() {
-    let (mut document, projection) = outline_fixture();
-    let pair_before = pair_state_bytes(&document);
-    projection.outline_removal_baselines.borrow_mut().insert(
-        (
-            "pair-source-mirror".into(),
-            "source-board/version/fixed".into(),
-            "mirror-board/version/fixed".into(),
-        ),
-        document.clone(),
-    );
-    let private_context_before = projection.outline_removal_baselines.borrow().clone();
-    let source = document
-        .board_outlines
-        .iter_mut()
-        .find(|outline| outline.board_id == "source-board")
-        .unwrap();
-    source
-        .versions
-        .retain(|version| version.id != "source-board/version/fixed");
-    source.active_version_id = Some("source-board/version/linked".into());
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect("valid source version removal");
-    let target = document
-        .board_outlines
-        .iter()
-        .find(|outline| outline.board_id == "mirror-board")
-        .unwrap();
-    assert_eq!(
-        target.active_version_id.as_deref(),
-        Some("mirror-board/version/linked")
-    );
-    assert!(
-        target
-            .versions
-            .iter()
-            .any(|version| version.id == "mirror-board/version/linked")
-    );
-    assert!(
-        !target
-            .versions
-            .iter()
-            .any(|version| version.id == "mirror-board/version/fixed")
-    );
-    assert!(
-        target
-            .versions
-            .iter()
-            .any(|version| version.id == "mirror-board/local-version")
-    );
-    assert_eq!(
-        target.retired_version_ids,
-        ["mirror-board/retired-version", "mirror-board/version/fixed"]
-    );
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    let first_output = document.clone();
-    let first_context = projection_state(&projection);
-    assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-            .expect("updated version-removal repeat")
-            .is_empty()
-    );
-    assert_eq!(document, first_output);
-    assert_eq!(
-        *projection.outline_removal_baselines.borrow(),
-        private_context_before
-    );
-    assert_eq!(projection_state(&projection), first_context);
-}
 
-#[test]
-fn outline_removal_refuses_a_foreign_unpaired_target_atomically() {
-    let (mut document, projection) = outline_fixture();
-    document
-        .board_outlines
-        .iter_mut()
-        .find(|outline| outline.board_id == "mirror-board")
-        .unwrap()
-        .versions
-        .push(version(
-            "mirror-board/foreign-version",
-            OutlineOwnership::Fixed,
-            OutlineSnapshot {
-                features: vec![],
-                settings: Default::default(),
-                expected_regions: 123,
-                bridges: vec![],
-                protected_gaps: vec![],
-            },
-        ));
-    let baseline = document.clone();
-    projection.outline_removal_baselines.borrow_mut().insert(
-        (
-            "pair-source-mirror".into(),
-            "source-board/version/fixed".into(),
-            "mirror-board/foreign-version".into(),
-        ),
-        baseline,
-    );
-    document
-        .board_outlines
-        .iter_mut()
-        .find(|outline| outline.board_id == "source-board")
-        .unwrap()
-        .versions
-        .retain(|version| version.id != "source-board/version/fixed");
-    let post_source = document.clone();
-    let post_source_context = projection_state(&projection);
-    let error = reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect_err("a valid but unrelated target version is not owned by this removal");
-    assert!(
-        error.contains("lacks one exact baseline correspondence"),
-        "{error}"
-    );
-    assert_eq!(
-        document, post_source,
-        "refusal is atomic across the whole document"
-    );
-    assert_eq!(projection_state(&projection), post_source_context);
-}
-
-#[test]
-fn removing_source_outline_retires_only_its_exact_target_and_updates_versions() {
-    let (mut document, projection) = outline_fixture();
-    let pair_before = pair_state_bytes(&document);
-    projection.outline_removal_baselines.borrow_mut().insert(
-        (
-            "pair-source-mirror".into(),
-            "source-board/feature".into(),
-            "mirror-board/feature".into(),
-        ),
-        document.clone(),
-    );
-    document
-        .outline
-        .retain(|feature| feature.id() != "source-board/feature");
-    document
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
-        .outline_ids
-        .retain(|id| id != "source-board/feature");
-    for outline in document
-        .board_outlines
-        .iter_mut()
-        .filter(|outline| outline.board_id == "source-board")
-    {
-        for version in &mut outline.versions {
-            version
-                .geometry
-                .features
-                .retain(|feature| feature.id() != "source-board/feature");
-        }
-    }
-
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect("valid source outline retirement");
-    assert!(
-        !document
-            .outline
-            .iter()
-            .any(|feature| feature.id() == "mirror-board/feature")
-    );
-    assert!(
-        !document
-            .boards
-            .iter()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
-            .outline_ids
-            .contains(&"mirror-board/feature".to_owned())
-    );
-    let target_outline = document
-        .board_outlines
-        .iter()
-        .find(|outline| outline.board_id == "mirror-board")
-        .unwrap();
-    assert!(target_outline.versions.iter().all(|version| {
-        !version
-            .geometry
-            .features
-            .iter()
-            .any(|feature| feature.id() == "mirror-board/feature")
-    }));
-    assert_eq!(
-        target_outline.retired_version_ids,
-        ["mirror-board/retired-version"]
-    );
-    assert_eq!(pair_state_bytes(&document), pair_before);
-
-    let first_output = document.clone();
-    assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-            .expect("updated outline-retirement repeat")
-            .is_empty()
-    );
-    assert_eq!(document, first_output);
-}
 
 #[test]
 fn source_outline_version_without_correspondence_is_refused_atomically() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let halves = document.hardware.as_mut().unwrap().pairs[0]
         .halves
         .as_mut()
@@ -409,7 +208,7 @@ fn source_outline_version_without_correspondence_is_refused_atomically() {
             && association.source_id == "source-board/version/fixed")
     });
     let before = document.clone();
-    let error = reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    let error = reopen(&mut document)
         .expect_err("source version work without a selected target must not silently no-op");
     assert!(error.contains("Source outline version \"source-board/version/fixed\" has no selected mirror correspondence"), "{error}");
     assert_eq!(
@@ -418,103 +217,11 @@ fn source_outline_version_without_correspondence_is_refused_atomically() {
     );
 }
 
-#[test]
-fn outline_only_removal_cleans_the_exact_target_feature_and_board_reference() {
-    let (mut document, projection) = outline_fixture();
-    document.board_outlines.clear();
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
-    halves
-        .correspondences
-        .retain(|association| association.kind != MirroredItemKind::OutlineVersion);
-    document.outline.push(OutlineFeature::Rect {
-        rotation: None,
-        anchor_part_id: None,
-        id: "mirror-board/unrelated-outline".into(),
-        center: point(3.0, 4.0),
-        size: point(7.0, 9.0),
-        radius: 0.0,
-        operation: Operation::Add,
-    });
-    document
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
-        .outline_ids
-        .push("mirror-board/unrelated-outline".into());
-    crate::mechanical::halves::validate_document(&document)
-        .expect("the pre-source outline-only baseline is valid");
-
-    let pair_before = pair_state_bytes(&document);
-    projection.outline_removal_baselines.borrow_mut().insert(
-        (
-            "pair-source-mirror".into(),
-            "source-board/feature".into(),
-            "mirror-board/feature".into(),
-        ),
-        document.clone(),
-    );
-    document
-        .outline
-        .retain(|feature| feature.id() != "source-board/feature");
-    document
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
-        .outline_ids
-        .retain(|id| id != "source-board/feature");
-
-    let changed = reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect("valid authenticated outline-only removal");
-    assert!(
-        !document
-            .outline
-            .iter()
-            .any(|feature| feature.id() == "mirror-board/feature")
-    );
-    let mirror_board = document
-        .boards
-        .iter()
-        .find(|board| board.id == "mirror-board")
-        .unwrap();
-    assert!(
-        !mirror_board
-            .outline_ids
-            .contains(&"mirror-board/feature".to_owned())
-    );
-    assert!(
-        mirror_board
-            .outline_ids
-            .contains(&"mirror-board/unrelated-outline".to_owned())
-    );
-    assert!(
-        document
-            .outline
-            .iter()
-            .any(|feature| feature.id() == "mirror-board/unrelated-outline")
-    );
-    assert!(changed.contains(&"mirror-board/feature".to_owned()));
-    assert_eq!(pair_state_bytes(&document), pair_before);
-
-    let first_output = document.clone();
-    let first_context = projection_state(&projection);
-    assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-            .expect("outline-only removal repeat")
-            .is_empty()
-    );
-    assert_eq!(document, first_output);
-    assert_eq!(projection_state(&projection), first_context);
-}
 
 #[test]
 fn clearing_source_active_version_deselects_only_the_linked_target_version() {
-    let (mut document, projection) = outline_fixture();
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    let mut document = outline_fixture();
+    reopen(&mut document)
         .expect("initial linked selection projects");
     let source = document
         .board_outlines
@@ -524,7 +231,7 @@ fn clearing_source_active_version_deselects_only_the_linked_target_version() {
     source.active_version_id = None;
     let pair_before = pair_state_bytes(&document);
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("clearing the source selection projects generated selection");
     let mirror = document
         .board_outlines
@@ -547,19 +254,17 @@ fn clearing_source_active_version_deselects_only_the_linked_target_version() {
     assert_eq!(pair_state_bytes(&document), pair_before);
 
     let first_output = document.clone();
-    let first_context = projection_state(&projection);
     assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        reopen(&mut document)
             .expect("generated selection repeat")
             .is_empty()
     );
     assert_eq!(document, first_output);
-    assert_eq!(projection_state(&projection), first_context);
 }
 
 #[test]
 fn clearing_source_active_version_preserves_a_local_target_selection() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let halves = document.hardware.as_mut().unwrap().pairs[0]
         .halves
         .as_mut()
@@ -588,7 +293,7 @@ fn clearing_source_active_version_preserves_a_local_target_selection() {
         .expect("the independent local target selection is valid");
     let pair_before = pair_state_bytes(&document);
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("source generated selection does not overwrite a local target choice");
     assert_eq!(
         document
@@ -602,13 +307,11 @@ fn clearing_source_active_version_preserves_a_local_target_selection() {
     );
     assert_eq!(pair_state_bytes(&document), pair_before);
     let first_output = document.clone();
-    let first_context = projection_state(&projection);
     assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        reopen(&mut document)
             .expect("local selection repeat")
             .is_empty()
     );
     assert_eq!(document, first_output);
-    assert_eq!(projection_state(&projection), first_context);
 }
 

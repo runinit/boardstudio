@@ -10,22 +10,41 @@ pub mod support;
 use fixture_rows::{FixturePair, FixtureRows};
 
 use crate::base_fixtures::fixture_document;
-use crate::support::linked_endpoint;
-use boardstudio_core_kernel::constraints::{
-    ConstraintEndpoint, ConstraintRelation, FramedConstraint,
-};
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::{
-    ConstraintLifecycleEffect, lifecycle_context, matrix_pair_for_association,
-    prepare_constraint_lifecycle_delta, prepare_lifecycle_transition, retire_replacement_records,
-    transition_exception_context,
-};
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
-    BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, PlannedAddition,
-    TransitionAssociation, TransitionState, prepare_membership_transition,
-};
 use boardstudio_model::model::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+
+fn add_link(document: &mut ProjectDoc, kind: MirroredItemKind, source_id: &str, mirror_id: &str) {
+    document
+        .first_halves_mut()
+        .correspondences
+        .push(MirroredCorrespondence {
+            kind,
+            source_id: source_id.into(),
+            mirror_id: mirror_id.into(),
+            companion_mode: None,
+            companion_tweak: None,
+        });
+}
+
+fn exception(
+    document: &ProjectDoc,
+    kind: MirroredItemKind,
+    mirror_id: &str,
+    state: HalfExceptionState,
+) -> Result<ProjectDoc, String> {
+    support::prepare_transaction(
+        document,
+        &[],
+        &EditOperation::SetHalfException {
+            pair_id: document.hardware.as_ref().unwrap().pairs[0].id.clone(),
+            kind,
+            mirror_id: mirror_id.into(),
+            state,
+        },
+    )
+    .map(|(doc, _)| doc)
+}
 
 #[path = "mirrored_lifecycle/constraint_lifecycle.rs"]
 mod constraint_lifecycle;

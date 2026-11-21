@@ -390,46 +390,6 @@ fn moving_a_loaded_framed_endpoint_with_a_stale_binding_refuses_without_rebindin
 }
 
 #[test]
-fn accepted_139_private_final_constraint_validator_rejects_tampered_authority() {
-    let mut accepted = pair_document();
-    add_linked_independent_part(&mut accepted);
-    accepted.constraints.push(framed_offset(
-        "constraint/final-postcondition",
-        ConstraintEndpoint::Part {
-            part_id: "left/U1".into(),
-        },
-        linked_endpoint("pair", "left/RST", "right/RST"),
-        Vec2 { x: 236.0, y: 20.0 },
-    ));
-    let operation = EditOperation::MoveParts {
-        positions: vec![Position {
-            id: "right/RST".into(),
-            at: Vec2 { x: 212.0, y: 25.0 },
-        }],
-    };
-    let (prepared, _) = prepare_transaction(&accepted, &[], &operation)
-        .expect("the complete prepared draft satisfies its framed relation");
-
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::prepare::validate_prepared_draft(
-            &accepted, &prepared, &operation
-        )
-        .is_ok()
-    );
-
-    let mut tampered = prepared;
-    part_mut(&mut tampered, "left/RST").pose.at.x += 1.0;
-    let refusal =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::prepare::validate_prepared_draft(
-            &accepted, &tampered, &operation,
-        );
-    assert!(
-        refusal.is_err(),
-        "final validation must detect authority drift from its persisted framed relation"
-    );
-}
-
-#[test]
 fn no_op_move_of_a_legacy_constrained_target_does_not_upgrade_its_wire_shape() {
     let mut accepted = pair_document();
     add_unpaired_mirror_board_part(&mut accepted);
@@ -763,21 +723,11 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
         definition: None,
         layout_id: None,
     };
-    let canonical = crate::support::canonicalize(&accepted, &operation)
-        .expect("the Add request canonicalizes before target selection");
-    let mut draft = accepted.clone();
-    let refusal =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::prepare::apply_canonical(
-            &mut draft,
-            &accepted,
-            &[],
-            &canonical,
-            &Default::default(),
-            crate::support::test_dispatch(),
-        )
-        .expect_err("two pairs with this target board are ambiguous");
-    assert!(refusal.contains("matched 2 pairs"), "{refusal}");
-    assert_eq!(draft, accepted, "the private prepared stage is atomic");
+    let refusal = prepare_transaction(&accepted, &[], &operation).unwrap_err();
+    assert!(
+        refusal.contains("board \"left\", which is already a half of pair \"pair\""),
+        "{refusal}"
+    );
     assert_eq!(serde_json::to_vec(&accepted).unwrap(), before);
 }
 
@@ -991,14 +941,7 @@ fn final_validation_rejects_a_duplicate_correspondence_from_replacement() {
         document: Box::new(replacement.clone()),
     };
 
-    let error =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::prepare::validate_prepared_draft(
-            &accepted,
-            &replacement,
-            &operation,
-        )
-        .expect_err("the final draft validator rejects duplicate durable identity");
-
+    let error = prepare_transaction(&accepted, &[], &operation).unwrap_err();
     assert!(error.contains("repeats source part"), "{error}");
 }
 

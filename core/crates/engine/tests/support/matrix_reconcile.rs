@@ -1,76 +1,22 @@
 //! A matrix the forward addition (ticket 145) mirrored is an ordinary corresponded matrix: a
 //! later edit of its source half reaches the mirror through the existing reconciliation.
 //!
-//! This module is a child of `reconcile` so it can build a `Projection`; the fixtures are the
-//! forward transition's own.
-
 use crate::matrix_fixtures::{add_matrix, halves, matrix, new_matrix, op, pair_document};
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
-    MatrixLink, PartProjection, Projection, reconcile,
-};
 use boardstudio_model::model::{MirroredItemKind, ProjectDoc};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// The new source matrix, after its half's edit, with its mirror reconciled from it.
 fn reconciled(
     document: &ProjectDoc,
     edit: impl Fn(&mut boardstudio_model::model::Matrix),
 ) -> ProjectDoc {
-    let mut document = document.clone();
-    let mut source = matrix(&document, "left-thumbs").clone();
+    let mut source = matrix(document, "left-thumbs").clone();
     edit(&mut source);
-    boardstudio_core_kernel::matrix::set_matrix(&mut document, &source)
-        .expect("the source edit applies");
-
-    let pair = document.hardware.as_ref().unwrap().pairs[0].clone();
-    let mirror = matrix(&document, "right-thumbs").clone();
-    let source = matrix(&document, "left-thumbs").clone();
-    let keys: BTreeSet<String> = source
-        .cells
-        .iter()
-        .filter(|cell| cell.enabled && !cell.deleted)
-        .map(|cell| format!("matrix/left-thumbs/r{}c{}", cell.row, cell.column))
-        .collect();
-    let parts = halves(&document)
-        .correspondences
-        .iter()
-        .filter(|item| item.kind == MirroredItemKind::Part && keys.contains(&item.source_id))
-        .map(|item| PartProjection {
-            source_id: item.source_id.clone(),
-            mirror_id: item.mirror_id.clone(),
-        })
-        .collect();
-    let mut final_owners = BTreeMap::new();
-    for id in &source.part_ids {
-        final_owners.insert(id.clone(), "left".to_owned());
-    }
-    for id in &mirror.part_ids {
-        final_owners.insert(id.clone(), "right".to_owned());
-    }
-    let projection = Projection {
-        matrix: Some(MatrixLink {
-            source_matrix_id: "left-thumbs".into(),
-            mirror_matrix_id: "right-thumbs".into(),
-        }),
-        preserve_matrix_geometry: false,
-        source_board_id: "left".into(),
-        mirror_board_id: "right".into(),
-        mapping: pair.mapping,
-        parts,
-        independent_part_transitions: vec![],
-        hosted_transitions: vec![],
-        applied_independent_additions: Default::default(),
-        applied_hosted_operations: Default::default(),
-        applied_hosted_circuit_additions: Default::default(),
-        hosted_removal_baselines: Default::default(),
-        hosted_omission_baselines: Default::default(),
-        outline_removal_baselines: Default::default(),
-        locally_protected_mirror_parts: BTreeSet::new(),
-        final_owners,
-    };
-    reconcile(&mut document, &pair.id, &projection).expect("the mirror reconciles from its source");
-    document
+    let op = op(json!({"kind":"set-matrix","matrix":source}));
+    crate::support::prepare_transaction(document, &[], &op)
+        .unwrap()
+        .0
 }
 
 /// The edit as the creation path would see it: the same source matrix, mirrored at creation.

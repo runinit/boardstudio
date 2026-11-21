@@ -6,8 +6,7 @@
 use super::changes::changed_document_ids;
 use super::document::reconcile_canonical;
 use super::{
-    HostedTransition, IndependentPartTransition, Projection, is_omitted_matrix_link,
-    unique_board_owner,
+    HostedTransition, PartAddition, Projection, is_omitted_matrix_link, unique_board_owner,
 };
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
@@ -23,7 +22,7 @@ mod projection;
 mod settings_edit;
 #[cfg(test)]
 mod tests;
-pub use canonical::apply_canonical;
+use canonical::apply_canonical;
 use canonical::{
     bind_deferred_constraints, initial_framed_constraints, operation_positions,
     prepare_lifecycle_pairs, record_id, restore_local_matrix_companion_parts,
@@ -71,8 +70,7 @@ pub fn prepare_open(
             reconcile_canonical(&mut draft, &pair.pair_id, &projection)?;
         }
         for matrix_link in matrices {
-            let projection =
-                projection_for(&draft, &draft, None, &pair_projection, matrix_link, false)?;
+            let projection = projection_for(&draft, None, &pair_projection, matrix_link, false)?;
             reconcile_canonical(&mut draft, &pair.pair_id, &projection)?;
         }
     }
@@ -948,8 +946,7 @@ fn add_target_layout_memberships(
     Ok(changed)
 }
 
-#[doc(hidden)]
-pub fn validate_prepared_draft(
+fn validate_prepared_draft(
     accepted: &ProjectDoc,
     draft: &ProjectDoc,
     operation: &EditOperation,

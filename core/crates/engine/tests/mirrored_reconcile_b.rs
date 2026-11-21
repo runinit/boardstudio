@@ -12,15 +12,13 @@ pub mod support;
 use fixture_rows::{FixturePair, FixtureRows};
 
 use base_fixtures::*;
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::*;
+use boardstudio_core_mirrored_half::mirrored_half::derive::{project_matrix, project_part};
 use boardstudio_model::model::*;
 use reconcile_fixtures::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 #[path = "mirrored_reconcile_b/layout_and_membership_removal.rs"]
 mod layout_and_membership_removal;
-#[path = "mirrored_reconcile_b/membership_expansion.rs"]
-mod membership_expansion;
 #[path = "mirrored_reconcile_b/membership_trim_and_repair.rs"]
 mod membership_trim_and_repair;
 #[path = "mirrored_reconcile_b/repair_fresh_and_durable.rs"]

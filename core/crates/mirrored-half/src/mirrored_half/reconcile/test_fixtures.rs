@@ -1,10 +1,9 @@
-use super::{MatrixLink, PartProjection, Projection};
 use boardstudio_core_mechanical::mechanical::{
     MechanicalTarget,
     change::{MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence},
 };
 use boardstudio_model::model::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 pub fn fixture_mapping() -> Pose2 {
     Pose2 {
         at: Vec2 { x: 80.0, y: -25.0 },
@@ -347,7 +346,7 @@ pub fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) ->
     matrix
 }
 
-pub fn fixed_geometry_fixture() -> Result<(ProjectDoc, Projection), String> {
+pub fn fixed_geometry_fixture() -> Result<ProjectDoc, String> {
     let mut document = fixture_document()?;
     let mapping = Pose2 {
         at: Vec2 { x: 100.0, y: -30.0 },
@@ -493,60 +492,26 @@ pub fn fixed_geometry_fixture() -> Result<(ProjectDoc, Projection), String> {
         .outline_ids
         .push("retained-keys-envelope".into());
 
-    let linked_slots = [(0, 1), (0, 2), (1, 0), (1, 2)];
-    let parts = linked_slots
-        .into_iter()
-        .map(|(row, column)| PartProjection {
-            source_id: format!("matrix/source-matrix/r{row}c{column}"),
-            mirror_id: format!("matrix/mirror-matrix/r{row}c{column}"),
-        })
-        .collect();
-    let protected = BTreeSet::from([
-        "matrix/mirror-matrix/r0c0".to_owned(),
-        "matrix/mirror-matrix/r1c1".to_owned(),
-    ]);
-    let mut final_owners = BTreeMap::new();
-    for id in document
-        .matrices
-        .iter()
-        .filter(|matrix| matrix.id == "source-matrix" || matrix.id == "mirror-matrix")
-        .flat_map(|matrix| matrix.part_ids.iter())
-    {
-        let owner = document
-            .boards
-            .iter()
-            .find(|board| board.part_ids.contains(id))
-            .unwrap();
-        final_owners.insert(id.clone(), owner.id.clone());
+    for slot in ["r0c0", "r1c1"] {
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(MirroredException {
+                kind: MirroredItemKind::Part,
+                mirror_id: format!("matrix/mirror-matrix/{slot}"),
+                state: MirroredExceptionState::Local,
+                companion_mode: None,
+                companion_tweak: None,
+                removed_copper: None,
+            });
     }
-    let projection = Projection {
-        matrix: Some(MatrixLink {
-            source_matrix_id: "source-matrix".into(),
-            mirror_matrix_id: "mirror-matrix".into(),
-        }),
-        preserve_matrix_geometry: false,
-        source_board_id: "source-board".into(),
-        mirror_board_id: "mirror-board".into(),
-        mapping,
-        parts,
-        independent_part_transitions: vec![],
-        hosted_transitions: vec![],
-        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        locally_protected_mirror_parts: protected,
-        final_owners,
-    };
-    Ok((document, projection))
+    Ok(document)
 }
 
-pub fn fixed_membership_assembly_fixture(
-    mapping_rotation: f64,
-) -> Result<(ProjectDoc, Projection), String> {
-    let (mut document, mut projection) = fixed_geometry_fixture()?;
+pub fn fixed_membership_assembly_fixture(mapping_rotation: f64) -> Result<ProjectDoc, String> {
+    let mut document = fixed_geometry_fixture()?;
     let mut diode = document.definitions[0].clone();
     diode.id = "diode".into();
     diode.name = "Diode".into();
@@ -766,33 +731,6 @@ pub fn fixed_membership_assembly_fixture(
             }
         }
     }
-    if mapping_rotation == 0.0 {
-        projection.mapping.rotation = 0.0;
-    } else {
-        projection.mapping.rotation = mapping_rotation;
-    }
-    projection.parts = [(0, 1), (0, 2), (1, 0), (1, 2)]
-        .into_iter()
-        .map(|(row, column)| PartProjection {
-            source_id: format!("matrix/source-matrix/r{row}c{column}"),
-            mirror_id: format!("matrix/mirror-matrix/r{row}c{column}"),
-        })
-        .collect();
-    projection.final_owners.clear();
-    for id in document
-        .matrices
-        .iter()
-        .filter(|matrix| matrix.id == "source-matrix" || matrix.id == "mirror-matrix")
-        .flat_map(|matrix| matrix.part_ids.iter())
-    {
-        let owner = document
-            .boards
-            .iter()
-            .find(|board| board.part_ids.contains(id))
-            .unwrap();
-        projection.final_owners.insert(id.clone(), owner.id.clone());
-    }
-
     let mut probe = document
         .parts
         .iter()
@@ -838,12 +776,42 @@ pub fn fixed_membership_assembly_fixture(
             .unwrap()
             .net_ids
             .push(net_id);
+        // The companion owns its constrained pose on the mirror. Bind its literal endpoint
+        // and choose the offset that retains the authored geometry when Open solves it.
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(MirroredException {
+                kind: MirroredItemKind::Part,
+                mirror_id: retained_id.into(),
+                state: MirroredExceptionState::Local,
+                companion_mode: None,
+                companion_tweak: None,
+                removed_copper: None,
+            });
+        let probe_pose = document
+            .parts
+            .iter()
+            .find(|part| part.id == "assembly-probe")
+            .unwrap()
+            .pose;
+        let target_pose = document
+            .parts
+            .iter()
+            .find(|part| part.id == retained_id)
+            .unwrap()
+            .pose;
         document.constraints.push(Constraint::Offset {
             id: format!("retained-diode-constraint-{index}"),
             source_part_id: "assembly-probe".into(),
             target_part_id: retained_id.into(),
-            offset: Vec2 { x: 2.0, y: -1.0 },
-            rotation: 0.0,
+            offset: Vec2 {
+                x: target_pose.at.x - probe_pose.at.x,
+                y: target_pose.at.y - probe_pose.at.y,
+            },
+            rotation: target_pose.rotation - probe_pose.rotation,
         });
     }
     document.outline.push(OutlineFeature::PartEnvelope {
@@ -877,11 +845,12 @@ pub fn fixed_membership_assembly_fixture(
         .unwrap()
         .outline_ids
         .push("retained-diodes-envelope".into());
-    for part in document
-        .parts
-        .iter_mut()
-        .filter(|part| projection.final_owners.contains_key(&part.id))
-    {
+    for part in document.parts.iter_mut().filter(|part| {
+        document
+            .matrices
+            .iter()
+            .any(|m| m.part_ids.contains(&part.id))
+    }) {
         part.locked = Some(true);
         part.properties = Some(BTreeMap::from([(
             "custom".into(),
@@ -892,5 +861,5 @@ pub fn fixed_membership_assembly_fixture(
             serde_json::json!({"part": part.id}),
         )]));
     }
-    Ok((document, projection))
+    Ok(document)
 }

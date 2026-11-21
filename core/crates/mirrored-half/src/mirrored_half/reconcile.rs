@@ -9,18 +9,16 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[doc(hidden)]
-pub mod lifecycle;
-#[doc(hidden)]
-pub mod prepare;
+mod lifecycle;
+mod prepare;
 pub use prepare::{prepare_open, prepare_transaction_with_ledger};
 mod outlines;
-#[doc(hidden)]
-pub mod settings;
+mod settings;
 
 mod changes;
 mod document;
-pub use changes::changed_document_ids;
+#[cfg(test)]
+use changes::changed_document_ids;
 mod hosted;
 mod matrix_membership;
 mod membership_view;
@@ -28,57 +26,23 @@ mod transition;
 mod transition_checks;
 mod transition_input;
 
-pub use super::derive::{project_matrix, project_part};
-pub use document::reconcile;
-pub use hosted::{HostedCircuitAddProvenance, stage_hosted_correspondence};
-use hosted::{
-    stage_hosted_circuit_additions, validate_hosted_omission_baselines,
-    validate_hosted_removal_baselines,
-};
-pub use membership_view::{FixedMembershipView, build_fixed_membership_view};
+use super::derive::{project_matrix, project_part};
+use hosted::stage_hosted_circuit_additions;
+use hosted::stage_hosted_correspondence;
 use membership_view::{exact_omitted_matrix_companions, remove_omitted_matrix_parts};
-pub use transition::{prepare_membership_transition, prepare_membership_transition_kernel};
 use transition_checks::{
     board_owner, cell_offset_delta, emit_validated_transition, pair_right, source_members,
     transition_matrix_by_id, validate_association_settings, validate_constraints,
     validate_context_owners, validate_distinct_associations, validate_matrix_association,
-    validate_net_pad_ids, validate_no_native_legacy_overlap, validate_transition_output,
-    validate_transition_part_geometry,
+    validate_net_pad_ids, validate_no_native_legacy_overlap, validate_transition_part_geometry,
 };
 use transition_input::validate_transition_input;
 
-#[derive(Clone)]
-#[doc(hidden)]
-pub struct PartProjection {
-    #[doc(hidden)]
-    pub source_id: String,
-    #[doc(hidden)]
-    pub mirror_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum IndependentPartTransition {
-    Add {
-        source_id: String,
-        mirror_id: String,
-        mirror_definition_id: String,
-        mirror_reference: String,
-    },
-    Remove {
-        source_id: String,
-        mirror_id: String,
-    },
-}
+use super::inverse::PartAddition;
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub enum HostedTransition {
+enum HostedTransition {
     AddModule {
-        source_id: String,
-        mirror_id: String,
-    },
-    RemoveModule {
         source_id: String,
         mirror_id: String,
     },
@@ -89,11 +53,6 @@ pub enum HostedTransition {
         member_references: BTreeMap<String, String>,
         definition_ids: BTreeMap<String, String>,
         net_ids: BTreeMap<String, String>,
-        member_poses: BTreeMap<String, Pose2>,
-    },
-    RemoveCircuit {
-        source_id: String,
-        mirror_id: String,
     },
 }
 
@@ -104,60 +63,22 @@ pub(super) struct PreparedLifecycleDraft {
 }
 
 #[derive(Clone)]
-#[doc(hidden)]
-pub struct Projection {
-    #[doc(hidden)]
-    pub matrix: Option<MatrixLink>,
+struct Projection {
+    matrix: Option<MatrixLink>,
     /// Preserve geometry already prepared by the native membership lifecycle.
-    #[doc(hidden)]
-    pub preserve_matrix_geometry: bool,
-    #[doc(hidden)]
-    pub source_board_id: String,
-    #[doc(hidden)]
-    pub mirror_board_id: String,
-    #[doc(hidden)]
-    pub mapping: Pose2,
-    #[doc(hidden)]
-    pub parts: Vec<PartProjection>,
-    #[doc(hidden)]
-    pub independent_part_transitions: Vec<IndependentPartTransition>,
-    #[doc(hidden)]
-    pub hosted_transitions: Vec<HostedTransition>,
-    #[doc(hidden)]
-    pub applied_independent_additions:
-        std::cell::RefCell<BTreeSet<(String, String, String, String)>>,
-    // Ticket 107 records hosted Add provenance privately during reconciliation.
-    #[doc(hidden)]
-    pub applied_hosted_operations: std::cell::RefCell<BTreeSet<(String, String, String)>>,
-    // Ticket 107 binds circuit Add replay to the exact selected maps and first output.
-    #[doc(hidden)]
-    pub applied_hosted_circuit_additions:
-        std::cell::RefCell<BTreeMap<(String, String, String), HostedCircuitAddProvenance>>,
-    // Ticket 107 keeps source-operation baselines private to the reconciliation kernel.
-    #[doc(hidden)]
-    pub hosted_removal_baselines:
-        std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
-    // Ticket 107 retains validated owner context for physically absent Omitted children.
-    #[doc(hidden)]
-    pub hosted_omission_baselines:
-        std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
-    // Ticket 108 authenticates outline removals against their valid pre-source pair.
-    #[doc(hidden)]
-    pub outline_removal_baselines:
-        std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
-    #[doc(hidden)]
-    pub locally_protected_mirror_parts: std::collections::BTreeSet<String>,
-    #[doc(hidden)]
-    pub final_owners: std::collections::BTreeMap<String, String>,
+    preserve_matrix_geometry: bool,
+    source_board_id: String,
+    mirror_board_id: String,
+    mapping: Pose2,
+    independent_additions: Vec<PartAddition>,
+    hosted_transitions: Vec<HostedTransition>,
+    additions_applied: bool,
 }
 
 #[derive(Clone)]
-#[doc(hidden)]
-pub struct MatrixLink {
-    #[doc(hidden)]
-    pub source_matrix_id: String,
-    #[doc(hidden)]
-    pub mirror_matrix_id: String,
+struct MatrixLink {
+    source_matrix_id: String,
+    mirror_matrix_id: String,
 }
 
 // A structural command owns its axis even when every cell on that axis was
@@ -172,8 +93,7 @@ fn prepares_matrix_membership(
         || matrix_membership_changed(before, after, matrix_id)
 }
 
-#[doc(hidden)]
-pub fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix_id: &str) -> bool {
+fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix_id: &str) -> bool {
     fn members<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a [String]> {
         document
             .matrices
@@ -205,17 +125,9 @@ fn projection_for_pair(halves: &crate::model::MirroredHalves, mapping: Pose2) ->
         source_board_id: halves.source_board_id.clone(),
         mirror_board_id: halves.mirror_board_id.clone(),
         mapping,
-        parts: Vec::new(),
-        independent_part_transitions: Vec::new(),
+        independent_additions: Vec::new(),
         hosted_transitions: Vec::new(),
-        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        locally_protected_mirror_parts: BTreeSet::new(),
-        final_owners: BTreeMap::new(),
+        additions_applied: false,
     }
 }
 
@@ -256,18 +168,6 @@ fn unique_row<T>(mut rows: impl Iterator<Item = T>, role: &str, id: &str) -> Res
         return Err(format!("The {role} {id:?} is ambiguous"));
     }
     Ok(row)
-}
-
-fn same_pair_bytes(
-    before: &ProjectDoc,
-    after: &ProjectDoc,
-    id: &str,
-    context: &str,
-) -> Result<bool, String> {
-    let bytes = |document: &ProjectDoc| {
-        serde_json::to_vec(selected_pair(document, id, context)?).map_err(|error| error.to_string())
-    };
-    Ok(bytes(before)? == bytes(after)?)
 }
 
 fn unique_board_owner<'a>(
@@ -570,81 +470,51 @@ fn matrix_members_for_pair(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum TransitionState {
+enum TransitionState {
     Linked,
     Local,
     Omitted,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub struct TransitionAssociation {
-    #[doc(hidden)]
-    pub kind: MirroredItemKind,
-    #[doc(hidden)]
-    pub source_id: String,
-    #[doc(hidden)]
-    pub mirror_id: String,
-    #[doc(hidden)]
-    pub parent_source_id: Option<String>,
-    #[doc(hidden)]
-    pub parent_mirror_id: Option<String>,
-    #[doc(hidden)]
-    pub state: TransitionState,
-    #[doc(hidden)]
-    pub explicit_state: bool,
-    #[doc(hidden)]
-    pub raw_mode_override: Option<crate::model::MirroredCompanionMode>,
-    #[doc(hidden)]
-    pub raw_tweak: Option<crate::model::MirroredCompanionTweak>,
-    #[doc(hidden)]
-    pub effective_mode: crate::model::MirroredCompanionMode,
-    #[doc(hidden)]
-    pub effective_tweak: Option<crate::model::MirroredCompanionTweak>,
+struct TransitionAssociation {
+    kind: MirroredItemKind,
+    source_id: String,
+    mirror_id: String,
+    parent_source_id: Option<String>,
+    parent_mirror_id: Option<String>,
+    state: TransitionState,
+    explicit_state: bool,
+    raw_mode_override: Option<crate::model::MirroredCompanionMode>,
+    raw_tweak: Option<crate::model::MirroredCompanionTweak>,
+    effective_mode: crate::model::MirroredCompanionMode,
+    effective_tweak: Option<crate::model::MirroredCompanionTweak>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum FinalOwner {
+enum FinalOwner {
     Board(String),
     Absent,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub struct MatrixPairContext {
-    #[doc(hidden)]
-    pub source_id: String,
-    #[doc(hidden)]
-    pub mirror_id: String,
+struct MatrixPairContext {
+    source_id: String,
+    mirror_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub struct MembershipContext {
-    #[doc(hidden)]
-    pub pair_id: String,
-    #[doc(hidden)]
-    pub source_board_id: String,
-    #[doc(hidden)]
-    pub mirror_board_id: String,
-    #[doc(hidden)]
-    pub matrix_pair: Option<MatrixPairContext>,
-    #[doc(hidden)]
-    pub mapping: Pose2,
-    #[doc(hidden)]
-    pub pair_right: crate::model::MirroredHalves,
-    #[doc(hidden)]
-    pub associations: Vec<TransitionAssociation>,
-    #[doc(hidden)]
-    pub owners: std::collections::BTreeMap<String, FinalOwner>,
-    #[doc(hidden)]
-    pub pending_rejoins: BTreeMap<String, TransitionState>,
-    #[doc(hidden)]
-    pub pending_pair_transitions: BTreeMap<String, TransitionState>,
-    #[doc(hidden)]
-    pub pending_pair_baseline: Option<crate::model::MirroredHalves>,
+struct MembershipContext {
+    pair_id: String,
+    source_board_id: String,
+    mirror_board_id: String,
+    matrix_pair: Option<MatrixPairContext>,
+    mapping: Pose2,
+    pair_right: crate::model::MirroredHalves,
+    associations: Vec<TransitionAssociation>,
+    owners: std::collections::BTreeMap<String, FinalOwner>,
+    pending_rejoins: BTreeMap<String, TransitionState>,
+    pending_pair_transitions: BTreeMap<String, TransitionState>,
 }
 
 impl MembershipContext {
@@ -671,100 +541,58 @@ fn require_matrix_pair(context: &MembershipContext) -> Result<&MatrixPairContext
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub struct PlannedAddition {
-    #[doc(hidden)]
-    pub source_id: String,
-    #[doc(hidden)]
-    pub mirror_id: String,
-    #[doc(hidden)]
-    pub source_reference: String,
-    #[doc(hidden)]
-    pub mirror_reference: String,
-    #[doc(hidden)]
-    pub parent_source_id: Option<String>,
-    #[doc(hidden)]
-    pub parent_mirror_id: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum BaselineKind {
-    MaterializedCurrentSchema,
-    ChainedPrivateDraft,
+struct PlannedAddition {
+    source_id: String,
+    mirror_id: String,
+    source_reference: String,
+    mirror_reference: String,
+    parent_source_id: Option<String>,
+    parent_mirror_id: Option<String>,
 }
 
 #[derive(Clone, Copy)]
-#[doc(hidden)]
-pub struct MembershipTransitionInput<'a> {
-    #[doc(hidden)]
-    pub dispatch: super::EditDispatch,
-    #[doc(hidden)]
-    pub valid_before: &'a ProjectDoc,
-    #[doc(hidden)]
-    pub post_source: &'a ProjectDoc,
-    #[doc(hidden)]
-    pub context: &'a MembershipContext,
-    #[doc(hidden)]
-    pub baseline_kind: BaselineKind,
-    #[doc(hidden)]
-    pub source_identity_map: &'a std::collections::BTreeMap<String, Option<String>>,
-    #[doc(hidden)]
-    pub mirror_identity_map: &'a std::collections::BTreeMap<String, Option<String>>,
-    #[doc(hidden)]
-    pub planned_additions: &'a [PlannedAddition],
-    #[doc(hidden)]
-    pub final_owners: &'a std::collections::BTreeMap<String, FinalOwner>,
-    #[doc(hidden)]
-    pub explicit_removal_closure: &'a std::collections::BTreeSet<String>,
+struct MembershipTransitionInput<'a> {
+    dispatch: super::EditDispatch,
+    valid_before: &'a ProjectDoc,
+    post_source: &'a ProjectDoc,
+    context: &'a MembershipContext,
+    source_identity_map: &'a std::collections::BTreeMap<String, Option<String>>,
+    mirror_identity_map: &'a std::collections::BTreeMap<String, Option<String>>,
+    planned_additions: &'a [PlannedAddition],
+    final_owners: &'a std::collections::BTreeMap<String, FinalOwner>,
+    explicit_removal_closure: &'a std::collections::BTreeSet<String>,
 }
 
 struct ValidatedTransitionContext<'a> {
     input: MembershipTransitionInput<'a>,
     removes_paired_matrices: bool,
-    already_removed: bool,
     before_source_members: BTreeSet<String>,
     before_mirror_members: BTreeSet<String>,
     post_source_members: BTreeSet<String>,
-    mapped_source_ids: BTreeSet<String>,
     mapped_mirror_ids: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-#[doc(hidden)]
-pub struct MembershipContextDelta {
-    #[doc(hidden)]
-    pub added: Vec<TransitionAssociation>,
-    #[doc(hidden)]
-    pub retired: Vec<TransitionAssociation>,
-    #[doc(hidden)]
-    pub relocated: Vec<(String, String)>,
-    #[doc(hidden)]
-    pub owners: std::collections::BTreeMap<String, FinalOwner>,
+struct MembershipContextDelta {
+    added: Vec<TransitionAssociation>,
+    retired: Vec<TransitionAssociation>,
+    relocated: Vec<(String, String)>,
     /// Mirror copper saved with an Omit, by the omitted item's mirror id.
     removed_copper: std::collections::BTreeMap<String, crate::model::OmittedCopper>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[doc(hidden)]
-pub struct MembershipTransitionOutput {
-    #[doc(hidden)]
-    pub draft: ProjectDoc,
-    #[doc(hidden)]
-    pub changed_document_ids: Vec<String>,
-    #[doc(hidden)]
-    pub context: MembershipContext,
-    #[doc(hidden)]
-    pub context_delta: MembershipContextDelta,
-    #[doc(hidden)]
-    pub final_owners: std::collections::BTreeMap<String, FinalOwner>,
-    /// What a transition could not do for the user, such as saved copper it could not restore.
-    #[doc(hidden)]
-    pub notices: Vec<String>,
+struct MembershipTransitionOutput {
+    draft: ProjectDoc,
+    changed_document_ids: Vec<String>,
+    context: MembershipContext,
+    context_delta: MembershipContextDelta,
 }
 
-#[doc(hidden)]
-pub fn matrix_identity_slot<'a>(id: &'a str, matrix_id: &str) -> Option<(u32, u32, &'a str)> {
+pub(super) fn matrix_identity_slot<'a>(
+    id: &'a str,
+    matrix_id: &str,
+) -> Option<(u32, u32, &'a str)> {
     let prefix = format!("matrix/{matrix_id}/r");
     let suffix = id.strip_prefix(&prefix)?;
     let (slot, companion) = suffix

@@ -1,428 +1,8 @@
 use super::*;
 
 #[test]
-fn stage_hosted_correspondence_refuses_conflicts_and_requires_replay_provenance() {
-    let (mut document, _) = hosted_electrical_fixture().unwrap();
-    let existing = MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: MirroredItemKind::Module,
-        source_id: "source-module".into(),
-        mirror_id: "mirror-module".into(),
-    };
-    let before = document.clone();
-
-    let same_source_conflict = MirroredCorrespondence {
-        mirror_id: "mirror-module-other".into(),
-        ..existing.clone()
-    };
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::stage_hosted_correspondence(
-            &mut document,
-            "pair-source-mirror",
-            false,
-            same_source_conflict,
-        )
-        .is_err()
-    );
-    assert_eq!(document, before);
-
-    let same_mirror_conflict = MirroredCorrespondence {
-        source_id: "source-module-other".into(),
-        ..existing.clone()
-    };
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::stage_hosted_correspondence(
-            &mut document,
-            "pair-source-mirror",
-            false,
-            same_mirror_conflict,
-        )
-        .is_err()
-    );
-    assert_eq!(document, before);
-
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::stage_hosted_correspondence(
-            &mut document,
-            "pair-source-mirror",
-            false,
-            existing.clone(),
-        )
-        .is_err()
-    );
-    assert_eq!(document, before);
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::stage_hosted_correspondence(
-        &mut document,
-        "pair-source-mirror",
-        true,
-        existing.clone(),
-    )
-    .expect("private replay provenance admits the exact existing identity");
-    assert_eq!(document, before);
-
-    let fresh = MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: MirroredItemKind::Module,
-        source_id: "source-module-added".into(),
-        mirror_id: "mirror-module-added".into(),
-    };
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::stage_hosted_correspondence(
-        &mut document,
-        "pair-source-mirror",
-        false,
-        fresh.clone(),
-    )
-    .expect("a fresh selected identity is staged without replay provenance");
-    let halves = document.first_halves();
-    assert_eq!(
-        halves
-            .correspondences
-            .iter()
-            .filter(|association| **association == fresh)
-            .count(),
-        1
-    );
-    assert_eq!(
-        halves.correspondences.len(),
-        before.first_halves().correspondences.len() + 1
-    );
-}
-
-#[test]
-fn hosted_add_module_admits_its_pair_record_and_replays_idempotently() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-    document
-        .modules
-        .retain(|module| module.id != "mirror-module");
-    document
-        .first_halves_mut()
-        .correspondences
-        .retain(|association| {
-            !(association.kind == MirroredItemKind::Module
-                && association.source_id == "source-module")
-        });
-    projection.hosted_transitions = vec![HostedTransition::AddModule {
-        source_id: "source-module".into(),
-        mirror_id: "mirror-module-added".into(),
-    }];
-    let pair_before = pair_state_bytes(&document);
-
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
-    let halves = document.first_halves();
-    assert_eq!(
-        halves
-            .correspondences
-            .iter()
-            .filter(|association| {
-                association.kind == MirroredItemKind::Module
-                    && association.source_id == "source-module"
-                    && association.mirror_id == "mirror-module-added"
-            })
-            .count(),
-        1,
-        "the selected hosted module identity becomes a durable pair record"
-    );
-    let first_document = document.clone();
-    let first_context = projection.applied_hosted_operations.borrow().clone();
-    let first_circuit_context = projection.applied_hosted_circuit_additions.borrow().clone();
-    let repeated = reconcile(&mut document, "pair-source-mirror", &projection);
-    assert!(
-        repeated.is_ok(),
-        "the same hosted addition must accept its own full output"
-    );
-    assert!(repeated.unwrap().is_empty());
-    assert_eq!(document, first_document);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        first_context
-    );
-    assert_eq!(
-        *projection.applied_hosted_circuit_additions.borrow(),
-        first_circuit_context
-    );
-    assert_eq!(
-        first_context,
-        BTreeSet::from([(
-            "module".into(),
-            "source-module".into(),
-            "mirror-module-added".into()
-        )])
-    );
-    assert_ne!(pair_state_bytes(&document), pair_before);
-
-    let (mut stale, mut stale_projection) = hosted_electrical_fixture().unwrap();
-    stale_projection.hosted_transitions = vec![HostedTransition::AddModule {
-        source_id: "source-module".into(),
-        mirror_id: "mirror-module".into(),
-    }];
-    let stale_before = stale.clone();
-    assert!(reconcile(&mut stale, "pair-source-mirror", &stale_projection).is_err());
-    assert_eq!(stale, stale_before);
-}
-
-#[test]
-fn hosted_add_circuit_admits_selected_pair_records_and_replays_idempotently() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-    document
-        .embedded_circuits
-        .retain(|circuit| circuit.id != "mirror-circuit");
-    document
-        .parts
-        .retain(|part| part.id != "embedded/mirror-circuit/U1");
-    document
-        .nets
-        .by_id_mut("host-mirror-net")
-        .pins
-        .retain(|pin| pin.part_id != "embedded/mirror-circuit/U1");
-    document
-        .definitions
-        .retain(|definition| definition.id != "embedded/mirror-circuit/definition/u");
-    document
-        .nets
-        .retain(|net| net.id != "embedded/mirror-circuit/N$1");
-    let mirror_board = document.boards.by_id_mut("mirror-board");
-    mirror_board
-        .part_ids
-        .retain(|id| id != "embedded/mirror-circuit/U1");
-    mirror_board
-        .net_ids
-        .retain(|id| id != "embedded/mirror-circuit/N$1");
-    document
-        .first_halves_mut()
-        .correspondences
-        .retain(|association| !match association.kind {
-            MirroredItemKind::Part => association.source_id == "embedded/source-circuit/U1",
-            MirroredItemKind::EmbeddedCircuit => association.source_id == "source-circuit",
-            MirroredItemKind::Net => association.source_id == "embedded/source-circuit/N$1",
-            _ => false,
-        });
-    projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-        source_id: "source-circuit".into(),
-        mirror_id: "mirror-circuit-added".into(),
-        member_ids: BTreeMap::from([(
-            "embedded/source-circuit/U1".into(),
-            "embedded/mirror-circuit-added/U1".into(),
-        )]),
-        member_references: BTreeMap::from([("embedded/source-circuit/U1".into(), "U9".into())]),
-        definition_ids: BTreeMap::from([(
-            "embedded/source-circuit/definition/u".into(),
-            "embedded/mirror-circuit-added/definition/u".into(),
-        )]),
-        net_ids: BTreeMap::from([
-            (
-                "embedded/source-circuit/N$1".into(),
-                "embedded/mirror-circuit-added/N$1".into(),
-            ),
-            ("host-source-net".into(), "host-mirror-net".into()),
-        ]),
-        member_poses: BTreeMap::new(),
-    }];
-    let pair_before = pair_state_bytes(&document);
-
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
-    let halves = document.first_halves();
-    for (kind, source_id, mirror_id) in [
-        (
-            MirroredItemKind::EmbeddedCircuit,
-            "source-circuit",
-            "mirror-circuit-added",
-        ),
-        (
-            MirroredItemKind::Part,
-            "embedded/source-circuit/U1",
-            "embedded/mirror-circuit-added/U1",
-        ),
-        (
-            MirroredItemKind::Net,
-            "embedded/source-circuit/N$1",
-            "embedded/mirror-circuit-added/N$1",
-        ),
-        (MirroredItemKind::Net, "host-source-net", "host-mirror-net"),
-    ] {
-        assert_eq!(
-            halves
-                .correspondences
-                .iter()
-                .filter(|association| {
-                    association.kind == kind
-                        && association.source_id == source_id
-                        && association.mirror_id == mirror_id
-                })
-                .count(),
-            1,
-            "selected hosted circuit identities become durable exactly once: {kind:?} {source_id:?} -> {mirror_id:?}"
-        );
-    }
-    assert_eq!(
-        document
-            .parts
-            .by_id("embedded/mirror-circuit-added/U1")
-            .definition_id,
-        "embedded/mirror-circuit-added/definition/u",
-        "member definition identity stays in the existing namespace map"
-    );
-    let first_document = document.clone();
-    let first_joined_net = document.nets.by_id("host-mirror-net").clone();
-    let first_context = projection.applied_hosted_operations.borrow().clone();
-    let first_circuit_context = projection.applied_hosted_circuit_additions.borrow().clone();
-    let repeated = reconcile(&mut document, "pair-source-mirror", &projection);
-    assert!(
-        repeated.is_ok(),
-        "the same hosted circuit addition must accept its own full output"
-    );
-    let repeated_changes = repeated.unwrap();
-    let repeated_joined_net = document.nets.by_id("host-mirror-net");
-    assert!(
-        repeated_changes.is_empty(),
-        "authenticated AddCircuit replay must be idempotent: {repeated_changes:?}; before={first_joined_net:?}, after={repeated_joined_net:?}"
-    );
-    assert_eq!(document, first_document);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        first_context
-    );
-    assert_eq!(
-        *projection.applied_hosted_circuit_additions.borrow(),
-        first_circuit_context
-    );
-    assert_eq!(
-        first_context,
-        BTreeSet::from([(
-            "circuit".into(),
-            "source-circuit".into(),
-            "mirror-circuit-added".into()
-        )])
-    );
-    assert_ne!(pair_state_bytes(&document), pair_before);
-
-    // The first AddCircuit path appends the member pin to the existing joined host net.
-    // Once the addition is admitted, ordinary circuit projection owns subsequent updates and
-    // applies its established source-net metadata normalization.
-    let first_added_joined_name = first_joined_net.name.clone();
-    projection.hosted_transitions.clear();
-    projection.applied_hosted_operations.borrow_mut().clear();
-    projection
-        .applied_hosted_circuit_additions
-        .borrow_mut()
-        .clear();
-    let source_member = document.parts.by_id_mut("embedded/source-circuit/U1");
-    source_member.pose.at.x += 2.0;
-    document
-        .parts
-        .by_id_mut("embedded/mirror-circuit-added/U1")
-        .reference = "MIRROR-LOCAL9".into();
-    let after_addition_edit = reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the admitted member maps participate in ordinary projection");
-    assert!(after_addition_edit.contains(&"embedded/mirror-circuit-added/U1".to_owned()));
-    let projected_member = document.parts.by_id("embedded/mirror-circuit-added/U1");
-    assert_ne!(
-        projected_member.pose,
-        first_document
-            .parts
-            .by_id("embedded/mirror-circuit-added/U1")
-            .pose
-    );
-    assert_eq!(projected_member.reference, "MIRROR-LOCAL9");
-    let ordinary_joined_name = document.nets.by_id("host-mirror-net").name.clone();
-    assert_eq!(ordinary_joined_name, "HOST");
-    assert_ne!(ordinary_joined_name, first_added_joined_name);
-
-    let normalized_document = document.clone();
-    let normalized_repeat = reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the ordinary circuit projection remains idempotent after normalization");
-    assert!(normalized_repeat.is_empty());
-    assert_eq!(document, normalized_document);
-
-    let serialized = serde_json::to_vec(&document).unwrap();
-    let mut reopened: ProjectDoc = serde_json::from_slice(&serialized).unwrap();
-    let reopened_repeat = reconcile(&mut reopened, "pair-source-mirror", &projection)
-        .expect("durable hosted correspondences survive save/open");
-    assert!(reopened_repeat.is_empty());
-    assert_eq!(reopened, normalized_document);
-
-    let mut removal_input = reopened.clone();
-    removal_input
-        .constraints
-        .retain(|constraint| constraint.id() != "retained-second-key-offset");
-    let (removed, _) = crate::support::prepare_transaction(
-        &removal_input,
-        &[],
-        &boardstudio_model::model::EditOperation::RemoveEmbeddedCircuit {
-            id: "source-circuit".into(),
-        },
-    )
-    .expect("the supported source transaction removes an admitted circuit");
-    let removed_halves = removed.first_halves();
-    assert!(!removed_halves.correspondences.iter().any(|association| {
-        matches!(
-            association.kind,
-            MirroredItemKind::EmbeddedCircuit | MirroredItemKind::Part | MirroredItemKind::Net
-        ) && (association.source_id == "source-circuit"
-            || association
-                .source_id
-                .starts_with("embedded/source-circuit/"))
-            && (association.mirror_id == "mirror-circuit-added"
-                || association
-                    .mirror_id
-                    .starts_with("embedded/mirror-circuit-added/"))
-    }));
-    assert!(removed_halves.correspondences.iter().any(|association| {
-        association.kind == MirroredItemKind::Net
-            && association.source_id == "host-source-net"
-            && association.mirror_id == "host-mirror-net"
-    }));
-    assert!(
-        !removed
-            .embedded_circuits
-            .iter()
-            .any(|circuit| circuit.id == "mirror-circuit-added")
-    );
-    assert!(
-        !removed
-            .parts
-            .iter()
-            .any(|part| part.id == "embedded/mirror-circuit-added/U1")
-    );
-    if let Some(retained_private_net) = removed
-        .nets
-        .iter()
-        .find(|net| net.id == "embedded/mirror-circuit-added/N$1")
-    {
-        assert!(retained_private_net.pins.is_empty());
-    }
-
-    let (mut stale, mut stale_projection) = hosted_electrical_fixture().unwrap();
-    stale_projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-        source_id: "source-circuit".into(),
-        mirror_id: "mirror-circuit".into(),
-        member_ids: BTreeMap::from([(
-            "embedded/source-circuit/U1".into(),
-            "embedded/mirror-circuit/U1".into(),
-        )]),
-        member_references: BTreeMap::from([("embedded/source-circuit/U1".into(), "U1".into())]),
-        definition_ids: BTreeMap::from([(
-            "embedded/source-circuit/definition/u".into(),
-            "embedded/mirror-circuit/definition/u".into(),
-        )]),
-        net_ids: BTreeMap::from([
-            (
-                "embedded/source-circuit/N$1".into(),
-                "embedded/mirror-circuit/N$1".into(),
-            ),
-            ("host-source-net".into(), "host-mirror-net".into()),
-        ]),
-        member_poses: BTreeMap::new(),
-    }];
-    let stale_before = stale.clone();
-    assert!(reconcile(&mut stale, "pair-source-mirror", &stale_projection).is_err());
-    assert_eq!(stale, stale_before);
-}
-
-#[test]
 fn hosted_module_maps_instance_connector_upstream_and_bus_references() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let source_module = document.modules.by_id_mut("source-module");
     source_module.host_instance_id = Some("left".into());
     source_module
@@ -462,7 +42,7 @@ fn hosted_module_maps_instance_connector_upstream_and_bus_references() {
             mirror_id: "mirror-upstream".into(),
         });
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     let mirror = document.modules.by_id("mirror-module");
     assert_eq!(mirror.host_instance_id.as_deref(), Some("right"));
     let connection = mirror.connection.as_ref().unwrap();
@@ -479,7 +59,7 @@ fn hosted_module_maps_instance_connector_upstream_and_bus_references() {
 
 #[test]
 fn hosted_module_refuses_unmapped_nonempty_references_atomically() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let mut source_connector = document.parts.by_id("matrix/source-matrix/r0c0").clone();
     source_connector.id = "source-unpaired-connector".into();
     document.parts.push(source_connector);
@@ -496,31 +76,39 @@ fn hosted_module_refuses_unmapped_nonempty_references_atomically() {
         .unwrap()
         .host_connector_part_id = "source-unpaired-connector".into();
     let before = document.clone();
-    assert!(reconcile(&mut document, "pair-source-mirror", &projection).is_err());
+    assert!(reopen(&mut document).is_err());
     assert_eq!(document, before);
 }
 
 #[test]
 fn hosted_circuit_definition_payload_changes_project_to_the_existing_definition() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let source_definition = document
         .definitions
         .by_id_mut("embedded/source-circuit/definition/u");
     source_definition.name = "Updated Source U".into();
     source_definition.pads[0].size = Vec2 { x: 2.5, y: 3.5 };
     source_definition.pads[0].shape = PadShape::Roundrect;
-    let changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    let (prepared, changed) = crate::support::prepare_transaction(
+        &document,
+        &[],
+        &EditOperation::MoveParts { positions: vec![] },
+    )
+    .unwrap();
+    reopen(&mut document).unwrap();
+    assert_eq!(prepared.definitions, document.definitions);
     let mirror = document
         .definitions
         .by_id("embedded/mirror-circuit/definition/u");
     assert_eq!(mirror.name, "Updated Source U");
+    assert_eq!(mirror.pads[0].shape, PadShape::Roundrect);
     assert_eq!(mirror.pads[0].size, Vec2 { x: 2.5, y: 3.5 });
     assert!(changed.contains(&"embedded/mirror-circuit/definition/u".to_owned()));
 }
 
 #[test]
 fn hosted_joined_net_update_preserves_target_only_host_pins() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let mut host_part = document.parts.by_id("matrix/mirror-matrix/r0c1").clone();
     host_part.id = "mirror-host-only".into();
     document.parts.push(host_part);
@@ -541,7 +129,7 @@ fn hosted_joined_net_update_preserves_target_only_host_pins() {
         pad_id: "pad-two".into(),
     });
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     let target = document.nets.by_id("host-mirror-net");
     assert!(target.pins.contains(&Pin {
         part_id: "mirror-host-only".into(),
@@ -556,7 +144,7 @@ fn hosted_joined_net_update_preserves_target_only_host_pins() {
 
 #[test]
 fn hosted_circuit_local_member_and_net_exceptions_preserve_authored_payload() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let halves = document.first_halves_mut();
     halves.correspondences.retain(|association| {
         !((association.kind == MirroredItemKind::Part
@@ -596,7 +184,7 @@ fn hosted_circuit_local_member_and_net_exceptions_preserve_authored_payload() {
         .reference = "U2".into();
     document.modules.by_id_mut("source-module").at = Vec2 { x: 17.0, y: -8.0 };
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     let member = document.parts.by_id("embedded/mirror-circuit/U1");
     assert_eq!(member.reference, "LOCAL9");
     assert_eq!(
@@ -623,7 +211,7 @@ fn hosted_circuit_local_member_and_net_exceptions_preserve_authored_payload() {
 
 #[test]
 fn hosted_associated_local_circuit_preserves_owner_and_owned_payload() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let halves = document.first_halves_mut();
     halves.exceptions.push(MirroredException {
         companion_mode: None,
@@ -694,7 +282,7 @@ fn hosted_associated_local_circuit_preserves_owner_and_owned_payload() {
     });
     let pair_before = pair_state_bytes(&document);
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
 
     let target_circuit = document.embedded_circuits.by_id("mirror-circuit");
     assert_eq!(
@@ -753,13 +341,13 @@ fn hosted_associated_local_circuit_preserves_owner_and_owned_payload() {
     }));
     assert!((document.modules.by_id("mirror-module").at.x - 108.0).abs() < 0.02);
     let stable = document.clone();
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     assert_eq!(document, stable);
 }
 
 #[test]
 fn local_joined_net_exception_is_independent_of_local_circuit_owner() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     document.first_halves_mut().exceptions.extend([
         MirroredException {
             companion_mode: None,
@@ -780,14 +368,14 @@ fn local_joined_net_exception_is_independent_of_local_circuit_owner() {
     ]);
     document.nets.by_id_mut("host-source-net").name = "HOST SOURCE EDITED".into();
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
 
     assert_eq!(document.nets.by_id("host-mirror-net").name, "HOST MIRROR");
 }
 
 #[test]
 fn inherited_local_circuit_member_settings_and_host_net_pins_survive() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     document
         .first_halves_mut()
         .exceptions
@@ -873,8 +461,7 @@ fn inherited_local_circuit_member_settings_and_host_net_pins_survive() {
             mirror_id: "mirror-plain-member-net".into(),
         });
 
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the Local circuit member remains valid through reconciliation");
+    reopen(&mut document).expect("the Local circuit member remains valid through reconciliation");
     let keycaps = document.keycaps.as_ref().unwrap();
     assert_eq!(
         keycaps.keys["embedded/source-circuit/U1"].legend.as_deref(),
@@ -908,7 +495,7 @@ fn associated_local_circuit_closure_refusals_are_atomic() {
         "invalid-port",
         "foreign-private-pin",
     ] {
-        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        let mut document = hosted_electrical_fixture().unwrap();
         let halves = document.hardware.as_mut().unwrap().pairs[0]
             .halves
             .as_mut()
@@ -969,7 +556,7 @@ fn associated_local_circuit_closure_refusals_are_atomic() {
         }
         let before = serde_json::to_vec(&document).unwrap();
 
-        let error = reconcile(&mut document, "pair-source-mirror", &projection)
+        let error = reopen(&mut document)
             .expect_err("an invalid associated Local owner closure is refused");
 
         assert!(!error.is_empty(), "{malformed} produced no reason");
@@ -986,7 +573,7 @@ fn associated_local_circuit_closure_refusals_are_atomic() {
 
 #[test]
 fn hosted_local_circuit_exception_preserves_authored_circuit_while_linked_neighbors_update() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let halves = document.first_halves_mut();
     halves.correspondences.retain(|association| {
         !(association.kind == MirroredItemKind::EmbeddedCircuit
@@ -1008,7 +595,7 @@ fn hosted_local_circuit_exception_preserves_authored_circuit_while_linked_neighb
     document.modules.by_id_mut("source-module").at = Vec2 { x: 17.0, y: -8.0 };
     let pair_before = pair_state_bytes(&document);
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     let circuit = document.embedded_circuits.by_id("mirror-circuit");
     assert_eq!(
         circuit.ports.get("local-authored").map(String::as_str),

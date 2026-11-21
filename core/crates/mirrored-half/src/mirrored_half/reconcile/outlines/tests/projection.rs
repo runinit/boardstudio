@@ -1,7 +1,7 @@
 
 #[test]
 fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     document.assemblies.push(
         serde_json::from_value(serde_json::json!({
             "id": "shared-assembly",
@@ -12,7 +12,7 @@ fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload
     );
     let assemblies_before = document.assemblies.clone();
     let pair_before = pair_state_bytes(&document);
-    let changed = reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    let changed = reopen(&mut document)
         .expect("valid outline projection");
 
     let target = document
@@ -102,7 +102,7 @@ fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload
     );
 
     let first_output = document.clone();
-    let repeat = reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    let repeat = reopen(&mut document)
         .expect("updated repeat");
     assert!(repeat.is_empty());
     assert_eq!(document, first_output);
@@ -110,25 +110,23 @@ fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload
 
 #[test]
 fn missing_target_outline_version_state_refuses_after_feature_projection() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     // The fixture's mirror feature differs from its source, so the projector writes
     // it to the draft before discovering that the target version state is absent.
     document
         .board_outlines
         .retain(|outline| outline.board_id != "mirror-board");
     let before = document.clone();
-    let before_context = projection_state(&projection);
 
-    let error = reconcile_candidate(&mut document, "pair-source-mirror", &projection).unwrap_err();
+    let error = reopen(&mut document).unwrap_err();
 
-    assert_eq!(error, "The selected target board outline is unavailable");
+    assert!(error.contains("names outline-version") && error.contains("mirror-board/version/linked"), "{error}");
     assert_eq!(document, before);
-    assert_eq!(projection_state(&projection), before_context);
 }
 
 #[test]
 fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let source_matrix = document
         .matrices
         .iter()
@@ -155,7 +153,7 @@ fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
     let mut mirror_thumb = mirror_matrix.clone();
     mirror_thumb.id = mirror_thumb_id.into();
     mirror_thumb.name = Some("Mirror thumb".into());
-    mirror_thumb.origin = crate::mechanical::pair::forward(projection.mapping, source_thumb.origin);
+    mirror_thumb.origin = crate::mechanical::pair::forward(document.hardware.as_ref().unwrap().pairs[0].mapping, source_thumb.origin);
     mirror_thumb.part_ids = mirror_matrix
         .part_ids
         .iter()
@@ -255,7 +253,7 @@ fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
     *anchor_part_id = Some("matrix/source-thumb/r0c0".into());
     *points = vec![point(2.0, 3.0), point(4.0, 5.0), point(6.0, 7.0)];
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("the active base matrix and linked thumb matrix both remain valid");
     let mapped = document
         .outline
@@ -301,7 +299,7 @@ fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
 
 #[test]
 fn outline_projection_never_copies_generated_case_closure_members() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let source = document
         .board_outlines
         .iter_mut()
@@ -369,7 +367,7 @@ fn outline_projection_never_copies_generated_case_closure_members() {
         mirror_id: "mirror-board/envelope".into(),
     });
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("valid source outline");
     let mirrored = &document
         .board_outlines
@@ -394,7 +392,7 @@ fn outline_projection_never_copies_generated_case_closure_members() {
 
 #[test]
 fn outline_projection_retains_independent_target_envelope_members_stably() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let make_part = |id: &str, reference: &str| {
         let mut part = document.parts[0].clone();
         part.id = id.into();
@@ -516,7 +514,7 @@ fn outline_projection_retains_independent_target_envelope_members_stably() {
         removed_copper: None,
     });
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("the independent target Part is a valid target envelope member");
     let target_envelope = || {
         document
@@ -544,7 +542,7 @@ fn outline_projection_retains_independent_target_envelope_members_stably() {
     );
     let first = document.clone();
     assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        reopen(&mut document)
             .expect("repeat projection retains target membership")
             .is_empty()
     );
@@ -553,7 +551,7 @@ fn outline_projection_retains_independent_target_envelope_members_stably() {
 
 #[test]
 fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection() {
-    let (mut document, projection) = outline_fixture();
+    let mut document = outline_fixture();
     let before_local = document
         .board_outlines
         .iter()
@@ -602,7 +600,7 @@ fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection
         .find(|version| version.id == "mirror-board/local-version")
         .unwrap()
         .clone();
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("valid outline exceptions");
     let target = document
         .board_outlines
@@ -658,7 +656,7 @@ fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection
     );
     let first_output = document.clone();
     assert!(
-        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        reopen(&mut document)
             .expect("updated exception repeat")
             .is_empty()
     );
@@ -667,13 +665,12 @@ fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection
 
 #[test]
 fn axis_map_projects_world_geometry_without_changing_established_identities() {
-    let (mut document, mut projection) = outline_fixture();
+    let mut document = outline_fixture();
     let mapping = crate::model::Pose2 {
         at: point(100.0, -30.0),
         rotation: 0.0,
     };
     document.hardware.as_mut().unwrap().pairs[0].mapping = mapping;
-    projection.mapping = mapping;
     document.outline.push(OutlineFeature::Rect {
         rotation: Some(25.0),
         anchor_part_id: None,
@@ -719,7 +716,7 @@ fn axis_map_projects_world_geometry_without_changing_established_identities() {
             mirror_id: "mirror-board/axis-rect".into(),
         });
 
-    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+    reopen(&mut document)
         .expect("valid axis-mapped outline");
     let OutlineFeature::Rect {
         rotation,

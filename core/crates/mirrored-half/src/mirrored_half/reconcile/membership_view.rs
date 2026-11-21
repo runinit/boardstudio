@@ -21,10 +21,9 @@ pub(super) fn materialize_fixed_matrix(
     halves: &crate::model::MirroredHalves,
     projection: &Projection,
     staged: &mut ProjectDoc,
-    explicit: bool,
 ) -> Result<(BTreeSet<String>, bool), String> {
     let Some(matrix_link) = projection.matrix.as_ref() else {
-        return inactive_projection(projection, "matrixless");
+        return Ok((BTreeSet::new(), true));
     };
     let source_matrix_id = matrix_link.source_matrix_id.as_str();
     let mirror_matrix_id = matrix_link.mirror_matrix_id.as_str();
@@ -41,7 +40,7 @@ pub(super) fn materialize_fixed_matrix(
             exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_matrix_id
         })
     {
-        return inactive_projection(projection, "retired Matrix");
+        return Ok((BTreeSet::new(), true));
     }
     let mut matrix_correspondences = halves.correspondences.iter().filter(|correspondence| {
         correspondence.kind == MirroredItemKind::Matrix
@@ -117,7 +116,6 @@ pub(super) fn materialize_fixed_matrix(
             mirror_matrix,
             &projected_matrix,
             projection.mapping,
-            explicit.then_some(projection),
         )?)
     } else {
         None
@@ -202,26 +200,13 @@ pub(super) fn materialize_fixed_matrix(
     ))
 }
 
-fn inactive_projection(
-    projection: &Projection,
-    role: &str,
-) -> Result<(BTreeSet<String>, bool), String> {
-    if !projection.parts.is_empty() || !projection.locally_protected_mirror_parts.is_empty() {
-        return Err(format!("The {role} projection retains Matrix ownership"));
-    }
-    Ok((BTreeSet::new(), true))
-}
-
-#[doc(hidden)]
-pub struct FixedMembershipView {
-    #[doc(hidden)]
-    pub normalized_source_matrix: Matrix,
-    #[doc(hidden)]
-    pub incoming_matrix: Matrix,
-    pub(super) retained_cells: Vec<RetainedCell>,
-    pub(super) retained_companion_parts: Vec<Part>,
-    pub(super) omitted_parts: BTreeSet<String>,
-    pub(super) omitted_matrix_companions: BTreeSet<String>,
+struct FixedMembershipView {
+    normalized_source_matrix: Matrix,
+    incoming_matrix: Matrix,
+    retained_cells: Vec<RetainedCell>,
+    retained_companion_parts: Vec<Part>,
+    omitted_parts: BTreeSet<String>,
+    omitted_matrix_companions: BTreeSet<String>,
 }
 
 pub(super) struct OmittedMatrixCompanion {
@@ -328,34 +313,13 @@ pub(super) fn remove_omitted_matrix_parts(
     }
 }
 
-#[doc(hidden)]
-pub fn build_fixed_membership_view(
-    document: &ProjectDoc,
-    halves: &crate::model::MirroredHalves,
-    source: &Matrix,
-    mirror: &Matrix,
-    projected: &Matrix,
-    projection: &Projection,
-) -> Result<FixedMembershipView, String> {
-    fixed_membership_view(
-        document,
-        halves,
-        source,
-        mirror,
-        projected,
-        projection.mapping,
-        Some(projection),
-    )
-}
-
-pub(super) fn fixed_membership_view(
+fn fixed_membership_view(
     document: &ProjectDoc,
     halves: &crate::model::MirroredHalves,
     source: &Matrix,
     mirror: &Matrix,
     projected: &Matrix,
     mapping: crate::model::Pose2,
-    explicit: Option<&Projection>,
 ) -> Result<FixedMembershipView, String> {
     // Missing coordinates use the same empty active-cell defaults as matrix materialization.
     // Explicit lifecycle tombstones remain inactive.
@@ -419,9 +383,6 @@ pub(super) fn fixed_membership_view(
             .boards
             .iter()
             .any(|board| board.part_ids.iter().any(|id| is_tombstoned_member(id)))
-        || explicit.is_some_and(|projection| {
-            projection.final_owners.keys().any(|id| is_tombstoned_member(id))
-        })
         // Omitted slots keep their correspondence and overlay by design
         // (live-yet-absent at key level): only other records on tombstoned
         // slots refuse here.
@@ -516,39 +477,28 @@ pub(super) fn fixed_membership_view(
             .filter(|id| !omitted_mirror_companions.contains(*id)),
     )?;
 
-    let (explicit_links, mut retained_slots) = if let Some(projection) = explicit {
-        let (linked, retained) = validate_explicit_membership(
-            projection,
-            &source_slots,
-            &mirror_slots,
-            &omitted_slot_ids,
-            &live_source_slots,
-            &source_members,
-            &mirror_members,
-        )?;
-        (Some(linked), retained)
-    } else {
-        // Prepared projection has always required explicit source cells for live slots.
-        // Filling sparse cells here must not create new bilateral membership.
-        if explicit_source_cells.len() != source.cells.len()
-            && live_source_slots.iter().any(|&(row, column)| {
-                !explicit_source_cells
-                    .iter()
-                    .any(|cell| (cell.row, cell.column) == (row, column))
-            })
-        {
-            return Err(
-                "Linked and retained matrix memberships must form a disjoint complete partition"
-                    .into(),
-            );
+    let mut retained_slots = BTreeMap::new();
+    // Prepared projection has always required explicit source cells for live slots.
+    // Filling sparse cells here must not create new bilateral membership.
+    if explicit_source_cells.len() != source.cells.len()
+        && live_source_slots.iter().any(|&(row, column)| {
+            !explicit_source_cells
+                .iter()
+                .any(|cell| (cell.row, cell.column) == (row, column))
+        })
+    {
+        return Err(
+            "Linked and retained matrix memberships must form a disjoint complete partition".into(),
+        );
+    }
+    let owner_for = |id: &str| {
+        if mirror_members.contains(id) {
+            mirror.board_id.as_deref()
+        } else if source_members.contains(id) {
+            source.board_id.as_deref()
+        } else {
+            None
         }
-        (None, BTreeMap::new())
-    };
-    let owner_for = |id: &str| match explicit {
-        Some(projection) => projection.final_owners.get(id).map(String::as_str),
-        None if mirror_members.contains(id) => mirror.board_id.as_deref(),
-        None if source_members.contains(id) => source.board_id.as_deref(),
-        None => None,
     };
     let mut retained_companion_slots = BTreeSet::<(Slot, String)>::new();
     let mut retained_companion_parts = Vec::new();
@@ -637,7 +587,7 @@ pub(super) fn fixed_membership_view(
                     || (!materialized && owner.is_none())
                     // The canonical pass has no matrix-owner entry for a detached Local
                     // child. Its live board registration is checked directly below.
-                    || (explicit.is_none() && explicit_local_child && owner.is_none()
+                    || (explicit_local_child && owner.is_none()
                         && document.parts.iter().filter(|part| part.id == *id).count() == 1
                         && !document.matrices.iter().any(|matrix| matrix.part_ids.contains(id)));
                 if !owner_ok {
@@ -672,17 +622,11 @@ pub(super) fn fixed_membership_view(
         let overlay = halves.exceptions.iter().find(|exception| {
             exception.kind == MirroredItemKind::Part && exception.mirror_id == *mirror_id
         });
-        let linked = match &explicit_links {
-            Some(slots) => slots.contains(slot),
-            None => {
-                let local = overlay
-                    .is_some_and(|exception| exception.state == MirroredExceptionState::Local);
-                if local {
-                    retained_slots.insert(*slot, mirror_id.clone());
-                }
-                !local
-            }
-        };
+        let linked =
+            !overlay.is_some_and(|exception| exception.state == MirroredExceptionState::Local);
+        if !linked {
+            retained_slots.insert(*slot, mirror_id.clone());
+        }
         let mirror_owner = unique_board_owner(document, mirror_id, "mirrored")?;
         if source_owner != halves.source_board_id
             || mirror_owner != halves.mirror_board_id
@@ -1093,70 +1037,6 @@ fn copy_cell_defaults(source: &MatrixCell, mirror: &MatrixCell, projected: &mut 
             projected.assemblies_local = source.assemblies_local;
         }
     }
-}
-
-fn validate_explicit_membership(
-    projection: &Projection,
-    source_slots: &SlotIds,
-    mirror_slots: &SlotIds,
-    omitted_slot_ids: &BTreeSet<Slot>,
-    live_source_slots: &BTreeSet<Slot>,
-    source_members: &BTreeSet<String>,
-    mirror_members: &BTreeSet<String>,
-) -> Result<(BTreeSet<Slot>, SlotIds), String> {
-    let mut linked_slots = BTreeSet::new();
-    // Omitted slots leave pose reconciliation to the provenance check below.
-    for part in &projection.parts {
-        let source_slot = source_slots
-            .iter()
-            .find_map(|(slot, id)| (id == &part.source_id).then_some(*slot));
-        if source_slot.is_some_and(|slot| omitted_slot_ids.contains(&slot)) {
-            continue;
-        }
-        let mirror_slot = mirror_slots
-            .iter()
-            .find_map(|(slot, id)| (id == &part.mirror_id).then_some(*slot));
-        let Some(slot) = source_slot.filter(|slot| Some(*slot) == mirror_slot) else {
-            return Err("The linked matrix associations are missing or inconsistent".into());
-        };
-        // Canonical member IDs identify one slot on each matrix.
-        if !linked_slots.insert(slot) {
-            return Err("The linked matrix associations contain aliases".into());
-        }
-    }
-
-    let mut retained_slots = SlotIds::new();
-    for id in &projection.locally_protected_mirror_parts {
-        let Some((slot, _)) = mirror_slots.iter().find(|(_, member)| *member == id) else {
-            return Err(format!(
-                "Locally protected mirror part {id:?} is not a matrix member"
-            ));
-        };
-        retained_slots.insert(*slot, id.clone());
-    }
-    let partition_slots: std::collections::BTreeSet<_> = linked_slots
-        .iter()
-        .chain(retained_slots.keys())
-        .copied()
-        .collect();
-    if linked_slots
-        .iter()
-        .any(|slot| retained_slots.contains_key(slot))
-        || partition_slots != *live_source_slots
-    {
-        return Err(
-            "Linked and retained matrix memberships must form a disjoint complete partition".into(),
-        );
-    }
-
-    if !projection
-        .final_owners
-        .keys()
-        .eq(source_members.union(mirror_members))
-    {
-        return Err("The final owner input is incomplete for matrix membership".into());
-    }
-    Ok((linked_slots, retained_slots))
 }
 
 pub(super) type Slot = (u32, u32);

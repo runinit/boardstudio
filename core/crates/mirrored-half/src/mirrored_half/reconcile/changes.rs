@@ -25,7 +25,7 @@ fn json(value: impl Serialize) -> Result<Value, String> {
 }
 
 #[doc(hidden)]
-pub fn changed_document_ids(
+pub(super) fn changed_document_ids(
     before: &ProjectDoc,
     after: &ProjectDoc,
     candidates: &[String],

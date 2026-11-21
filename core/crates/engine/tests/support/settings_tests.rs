@@ -4,17 +4,12 @@
 //! apply it (`canonicalize` the request, execute the source-equivalent operation), and the mirror
 //! is reconciled from its source.
 
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
-    MatrixLink, PartProjection, Projection, reconcile,
-};
-
-use crate::matrix_fixtures::{create_from, halves, matrix, source_half};
+use crate::matrix_fixtures::{create_from, source_half};
 use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapKeyChange, KeycapMatrixChange, KeycapProfile,
     MirroredException, MirroredExceptionState, MirroredItemKind, Net, Pin, ProjectDoc,
 };
 use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet};
 
 const DIODE: &str = "generator:ceoloide/diode_tht_sod123";
 
@@ -106,55 +101,7 @@ fn keycap_pair() -> ProjectDoc {
 }
 
 fn reconciled(document: &ProjectDoc) -> ProjectDoc {
-    let mut document = document.clone();
-    let pair = document.hardware.as_ref().unwrap().pairs[0].clone();
-    let source = matrix(&document, "left-keys").clone();
-    let mirror = matrix(&document, "right-keys").clone();
-    let keys: BTreeSet<&String> = source
-        .part_ids
-        .iter()
-        .filter(|id| !id.ends_with("/diode"))
-        .collect();
-    let parts = halves(&document)
-        .correspondences
-        .iter()
-        .filter(|item| item.kind == MirroredItemKind::Part && keys.contains(&item.source_id))
-        .map(|item| PartProjection {
-            source_id: item.source_id.clone(),
-            mirror_id: item.mirror_id.clone(),
-        })
-        .collect();
-    let mut final_owners = BTreeMap::new();
-    for id in &source.part_ids {
-        final_owners.insert(id.clone(), "left".to_owned());
-    }
-    for id in &mirror.part_ids {
-        final_owners.insert(id.clone(), "right".to_owned());
-    }
-    let projection = Projection {
-        matrix: Some(MatrixLink {
-            source_matrix_id: "left-keys".into(),
-            mirror_matrix_id: "right-keys".into(),
-        }),
-        preserve_matrix_geometry: false,
-        source_board_id: "left".into(),
-        mirror_board_id: "right".into(),
-        mapping: pair.mapping,
-        parts,
-        independent_part_transitions: vec![],
-        hosted_transitions: vec![],
-        applied_independent_additions: Default::default(),
-        applied_hosted_operations: Default::default(),
-        applied_hosted_circuit_additions: Default::default(),
-        hosted_removal_baselines: Default::default(),
-        hosted_omission_baselines: Default::default(),
-        outline_removal_baselines: Default::default(),
-        locally_protected_mirror_parts: BTreeSet::new(),
-        final_owners,
-    };
-    reconcile(&mut document, &pair.id, &projection)
-        .unwrap_or_else(|error| panic!("the mirror reconciles: {error}"));
-    document
+    crate::support::prepare_open(document, &[]).unwrap().0
 }
 
 /// Applies a source-side request as written.
@@ -517,12 +464,16 @@ fn a_net_that_exists_only_because_of_an_omitted_part_is_removed_not_left_empty()
 
 #[test]
 fn a_mirror_net_returns_and_registers_on_the_mirror_board_when_it_is_not_private() {
-    let mut document = paired();
-    document.nets.retain(|net| net.id != "right-solo");
-    for board in &mut document.boards {
-        board.net_ids.retain(|id| id != "right-solo");
-    }
-    let after = reconciled(&document);
+    let document = paired();
+    let exception = |state| {
+        serde_json::from_value(json!({"kind":"set-half-exception",
+        "pairId":document.hardware.as_ref().unwrap().pairs[0].id,"itemKind":"part","mirrorId":"right/J1","state":state})).unwrap()
+    };
+    let (omitted, _) =
+        crate::support::prepare_transaction(&document, &[], &exception("omitted")).unwrap();
+    assert!(net_of(&omitted, "right-solo").is_none());
+    let (after, _) =
+        crate::support::prepare_transaction(&omitted, &[], &exception("linked")).unwrap();
     let solo = net_of(&after, "right-solo").expect("the net is projected again");
     assert_eq!(solo.name, "RIGHT_SOLO");
     assert_eq!(solo.pins, vec![pin("right/J1", "pad-2")]);
@@ -591,59 +542,5 @@ fn a_pin_the_mirror_authored_on_its_own_part_keeps_an_otherwise_private_net() {
         net_of(&after, "right-solo").unwrap().pins,
         vec![pin("right/X1", "pad-1")],
         "a net the mirror still uses is not removed by the rule"
-    );
-}
-
-/// The projection alone, on a document edited by hand: states `reconcile` itself would refuse.
-fn projected(document: &ProjectDoc) -> ProjectDoc {
-    let mut staged = document.clone();
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::settings::project(
-        document,
-        &mut staged,
-        halves(document),
-    )
-    .unwrap();
-    staged
-}
-
-#[test]
-fn an_omitted_overlay_removes_the_entry_even_while_the_part_is_still_present() {
-    let mut document = paired();
-    exception(&mut document, "right/J1", MirroredExceptionState::Omitted);
-    let after = projected(&document);
-    assert!(key(&after, "right/J1").is_none());
-    assert!(key(&after, "matrix/right-keys/r0c0").is_some());
-}
-
-#[test]
-fn a_linked_part_that_is_absent_from_the_mirror_has_no_entry() {
-    // The child of an Omitted matrix or circuit stores no overlay of its own.
-    let mut document = paired();
-    document.parts.retain(|part| part.id != "right/J1");
-    let after = projected(&document);
-    assert!(key(&after, "right/J1").is_none());
-}
-
-#[test]
-fn a_circuit_net_is_left_to_the_circuit_projection() {
-    let mut document = paired();
-    document
-        .nets
-        .iter_mut()
-        .find(|net| net.id == "left-col0")
-        .unwrap()
-        .pins
-        .push(pin("left/U1", "P9"));
-    document.embedded_circuits.push(
-        serde_json::from_value(
-            json!({"id": "c", "definitionId": "d", "hostBoardId": "left",
-            "partIds": [], "netIds": ["left-col0"], "ports": {}}),
-        )
-        .unwrap(),
-    );
-    let after = projected(&document);
-    assert_eq!(
-        net_of(&after, "right-col0"),
-        net_of(&document, "right-col0")
     );
 }

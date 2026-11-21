@@ -362,7 +362,7 @@ pub(super) fn restore_rejoined_nets(
 }
 
 /// Puts back the copper an Omit saved, but only if every saved pad stands exactly where it did.
-/// Otherwise nothing is restored and a notice says so; either way the saved copper is gone from
+/// Moved pads require fresh routing. In either case, the saved copper is gone from
 /// the pair, because Rejoin clears the overlay that held it.
 pub(super) fn restore_saved_copper(
     output: &mut super::super::MembershipTransitionOutput,
@@ -393,10 +393,6 @@ pub(super) fn restore_saved_copper(
                 .any(|now| now.pad_id == pad.pad_id && near(now.at, pad.at))
         });
         if !unmoved {
-            output.notices.push(format!(
-                "Copper for {:?} was not restored: its part moved; re-route",
-                overlay.mirror_id
-            ));
             continue;
         }
         let board = output

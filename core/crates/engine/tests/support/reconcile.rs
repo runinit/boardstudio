@@ -1,9 +1,27 @@
 use crate::base_fixtures::*;
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::*;
+use boardstudio_core_mirrored_half::mirrored_half::derive::project_matrix;
 use boardstudio_model::model::*;
-use std::collections::{BTreeMap, BTreeSet};
-pub fn hosted_electrical_fixture() -> Result<(ProjectDoc, Projection), String> {
-    let (mut document, projection) = fixed_geometry_fixture()?;
+use std::collections::BTreeMap;
+pub fn reopen(document: &mut ProjectDoc) -> Result<Vec<String>, String> {
+    let (draft, findings) = crate::support::prepare_open(document, &[])?;
+    let changed = findings
+        .into_iter()
+        .flat_map(|finding| finding.target_ids)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    *document = draft;
+    Ok(changed)
+}
+
+pub fn hosted_electrical_fixture() -> Result<ProjectDoc, String> {
+    let mut document = fixed_geometry_fixture()?;
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .retain(|overlay| overlay.mirror_id != "matrix/mirror-matrix/r0c0");
     let source_connector = "matrix/source-matrix/r0c0";
     let mirror_connector = "matrix/mirror-matrix/r0c0";
     let source_member = "embedded/source-circuit/U1";
@@ -295,20 +313,17 @@ pub fn hosted_electrical_fixture() -> Result<(ProjectDoc, Projection), String> {
             mirror_id: mirror_joined_net.into(),
         },
     ]);
-    Ok((document, projection))
+    Ok(document)
 }
 
-pub type CompactionFixture = (
-    ProjectDoc,
-    ProjectDoc,
-    MembershipContext,
-    BTreeMap<String, Option<String>>,
-    BTreeMap<String, FinalOwner>,
-    BTreeSet<String>,
-);
-
-pub fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
-    let (mut before, _) = fixed_geometry_fixture()?;
+pub fn compaction_document() -> Result<ProjectDoc, String> {
+    let mut before = fixed_geometry_fixture()?;
+    before.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .clear();
     let mut diode = before.definitions[0].clone();
     diode.id = "diode".into();
     diode.name = "Diode".into();
@@ -477,161 +492,19 @@ pub fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
     }
     boardstudio_core_mechanical::mechanical::halves::validate_document(&before)?;
 
-    let pair = &before.hardware.as_ref().unwrap().pairs[0];
-    let halves = pair.halves.as_ref().unwrap();
-    let mut associations = Vec::new();
-    for association in &halves.correspondences {
-        let is_child = association.source_id.ends_with("/diode");
-        associations.push(TransitionAssociation {
-            kind: association.kind,
-            source_id: association.source_id.clone(),
-            mirror_id: association.mirror_id.clone(),
-            parent_source_id: is_child
-                .then(|| association.source_id.trim_end_matches("/diode").to_owned()),
-            parent_mirror_id: is_child
-                .then(|| association.mirror_id.trim_end_matches("/diode").to_owned()),
-            state: TransitionState::Linked,
-            explicit_state: false,
-            raw_mode_override: association.companion_mode,
-            raw_tweak: association.companion_tweak,
-            effective_mode: association.companion_mode.unwrap_or(halves.companion_mode),
-            effective_tweak: association.companion_tweak,
-        });
-    }
-    let mut context = MembershipContext {
-        pair_id: pair.id.clone(),
-        source_board_id: halves.source_board_id.clone(),
-        mirror_board_id: halves.mirror_board_id.clone(),
-        matrix_pair: Some(
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
-                source_id: "source-matrix".into(),
-                mirror_id: "mirror-matrix".into(),
-            },
-        ),
-        mapping: pair.mapping,
-        pair_right: halves.clone(),
-        associations,
-        owners: BTreeMap::new(),
-        pending_rejoins: BTreeMap::new(),
-        pending_pair_transitions: BTreeMap::new(),
-        pending_pair_baseline: None,
+    let Constraint::Offset {
+        offset, rotation, ..
+    } = before
+        .constraints
+        .iter_mut()
+        .find(|c| c.id() == "retained-second-key-offset")
+        .unwrap()
+    else {
+        unreachable!()
     };
-    let mut context_owners = BTreeMap::new();
-    for part in &before.parts {
-        let owner = before
-            .boards
-            .iter()
-            .find(|board| board.part_ids.contains(&part.id))
-            .unwrap();
-        context_owners.insert(part.id.clone(), FinalOwner::Board(owner.id.clone()));
-    }
-    context.owners = context_owners;
-
-    let source = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mut identity_map = BTreeMap::new();
-    for id in &source.part_ids {
-        let (row, column, companion) =
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_identity_slot(
-                id,
-                "source-matrix",
-            )
-            .unwrap();
-        let next = if column == 1 {
-            None
-        } else {
-            let next_column = if column > 1 { column - 1 } else { column };
-            let suffix = if companion.is_empty() {
-                String::new()
-            } else {
-                format!("/{companion}")
-            };
-            Some(format!("matrix/source-matrix/r{row}c{next_column}{suffix}"))
-        };
-        identity_map.insert(id.clone(), next);
-    }
-    let mut post_source = before.clone();
-    boardstudio_core_kernel::matrix::deletion::remove_axis(
-        &mut post_source,
-        "source-matrix",
-        1,
-        false,
-        crate::support::test_dispatch().apply_unscripted,
-    )?;
-    let mut final_owners = BTreeMap::new();
-    let mut identity_universe: BTreeSet<_> =
-        before.parts.iter().map(|part| part.id.clone()).collect();
-    identity_universe.extend(post_source.parts.iter().map(|part| part.id.clone()));
-    let mut final_matrix_ids = BTreeSet::new();
-    for id in identity_map.values().flatten() {
-        final_matrix_ids.insert(id.clone());
-        let (row, column, child) =
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_identity_slot(
-                id,
-                "source-matrix",
-            )
-            .unwrap();
-        let suffix = if child.is_empty() {
-            String::new()
-        } else {
-            format!("/{child}")
-        };
-        final_matrix_ids.insert(format!("matrix/mirror-matrix/r{row}c{column}{suffix}"));
-    }
-    let prior_matrix_ids: BTreeSet<_> = before
-        .matrices
-        .iter()
-        .filter(|matrix| matrix.id == "source-matrix" || matrix.id == "mirror-matrix")
-        .flat_map(|matrix| matrix.part_ids.iter().cloned())
-        .collect();
-    for id in identity_universe {
-        let owner = if final_matrix_ids.contains(&id) {
-            FinalOwner::Board(if id.starts_with("matrix/source-matrix/") {
-                "source-board".into()
-            } else {
-                "mirror-board".into()
-            })
-        } else if prior_matrix_ids.contains(&id) {
-            FinalOwner::Absent
-        } else {
-            post_source
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&id))
-                .map(|board| FinalOwner::Board(board.id.clone()))
-                .unwrap_or(FinalOwner::Absent)
-        };
-        final_owners.insert(id, owner);
-    }
-    let mut explicit_closure = BTreeSet::new();
-    for association in &context.associations {
-        if identity_map.get(&association.source_id) == Some(&None) {
-            explicit_closure.insert(association.source_id.clone());
-            explicit_closure.insert(association.mirror_id.clone());
-        } else if let Some(mapped_source) = identity_map
-            .get(&association.source_id)
-            .and_then(Option::as_ref)
-        {
-            let mapped_mirror = mapped_source
-                .strip_prefix("matrix/source-matrix/")
-                .map(|suffix| format!("matrix/mirror-matrix/{suffix}"))
-                .unwrap();
-            if mapped_mirror != association.mirror_id {
-                explicit_closure.insert(association.mirror_id.clone());
-            }
-        }
-    }
-    Ok((
-        before,
-        post_source,
-        context,
-        identity_map,
-        final_owners,
-        explicit_closure,
-    ))
+    *offset = Vec2 { x: 75.0, y: -47.0 };
+    *rotation = 90.0;
+    Ok(before)
 }
 
 pub fn add_membership_cleanup_sentinels(document: &mut ProjectDoc) {
@@ -811,189 +684,6 @@ pub fn add_membership_cleanup_sentinels(document: &mut ProjectDoc) {
     }
 }
 
-pub fn repair_fresh_coherent_compaction_fixture() -> Result<CompactionFixture, String> {
-    let (mut before, _, context, source_map, owners, closure) = membership_compaction_fixture()?;
-    let Constraint::Offset {
-        offset, rotation, ..
-    } = before
-        .constraints
-        .iter_mut()
-        .find(|c| c.id() == "retained-second-key-offset")
-        .unwrap()
-    else {
-        unreachable!()
-    };
-    *offset = Vec2 { x: 75.0, y: -47.0 };
-    *rotation = 90.0;
-    let mut post = before.clone();
-    boardstudio_core_kernel::matrix::deletion::remove_axis(
-        &mut post,
-        "source-matrix",
-        1,
-        false,
-        crate::support::test_dispatch().apply_unscripted,
-    )?;
-    Ok((before, post, context, source_map, owners, closure))
-}
-
-pub type MembershipExpansionFixture = (
-    ProjectDoc,
-    ProjectDoc,
-    MembershipContext,
-    BTreeMap<String, Option<String>>,
-    BTreeMap<String, Option<String>>,
-    Vec<PlannedAddition>,
-    BTreeMap<String, FinalOwner>,
-);
-
-pub fn membership_expansion_fixture() -> MembershipExpansionFixture {
-    let (mut before, _, context, _, _, _) =
-        membership_compaction_fixture().expect("the linked matrix fixture is valid");
-    before
-        .constraints
-        .retain(|c| c.id() != "retained-second-key-offset");
-    let mut post_source = before.clone();
-    let source_matrix = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mut expanded = source_matrix.clone();
-    expanded.columns = 5;
-    for row in 0..2 {
-        expanded.cells.push(MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row,
-            column: 4,
-            enabled: true,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![MatrixAssembly {
-                id: "diode".into(),
-                definition_id: "diode".into(),
-                offset: Vec2 { x: 2.0, y: 3.0 },
-                rotation: Some(30.0),
-                side: Some(Side::Back),
-            }],
-            assemblies_local: None,
-        });
-    }
-    boardstudio_core_kernel::matrix::set_matrix(&mut post_source, &expanded)
-        .expect("the planned source additions materialize");
-
-    let source_identity_map: BTreeMap<_, _> = source_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mirror_identity_map: BTreeMap<_, _> = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mut additions = Vec::new();
-    for row in 0..2 {
-        let source_key = format!("matrix/source-matrix/r{row}c4");
-        let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-        for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-            (
-                source_key.clone(),
-                mirror_key.clone(),
-                None,
-                None,
-                format!("EXP_M_R{row}C4"),
-            ),
-            (
-                format!("{source_key}/diode"),
-                format!("{mirror_key}/diode"),
-                Some(source_key.clone()),
-                Some(mirror_key.clone()),
-                format!("EXP_M_D_R{row}C4"),
-            ),
-        ] {
-            let source_part = post_source
-                .parts
-                .iter()
-                .find(|part| part.id == source_id)
-                .unwrap();
-            additions.push(PlannedAddition {
-                source_id,
-                mirror_id,
-                source_reference: source_part.reference.clone(),
-                mirror_reference,
-                parent_source_id,
-                parent_mirror_id,
-            });
-        }
-    }
-    let mut final_owners: BTreeMap<_, _> = post_source
-        .parts
-        .iter()
-        .map(|part| {
-            let board = post_source
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&part.id))
-                .unwrap();
-            (part.id.clone(), FinalOwner::Board(board.id.clone()))
-        })
-        .collect();
-    for addition in &additions {
-        final_owners.insert(
-            addition.mirror_id.clone(),
-            FinalOwner::Board("mirror-board".into()),
-        );
-    }
-    (
-        before,
-        post_source,
-        context,
-        source_identity_map,
-        mirror_identity_map,
-        additions,
-        final_owners,
-    )
-}
-
-pub fn consolidated_fresh_identity_fixture() -> Result<CompactionFixture, String> {
-    let (before, _, mut context, _, _, _) = repair_fresh_coherent_compaction_fixture()?;
-    for association in &mut context.associations {
-        if association.source_id == "matrix/source-matrix/r1c1" {
-            association.state = TransitionState::Local;
-            association.explicit_state = true;
-        } else if association.source_id == "matrix/source-matrix/r1c1/diode" {
-            association.state = TransitionState::Local;
-            association.explicit_state = false;
-        }
-    }
-    let source_map = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let owners = context.owners.clone();
-    Ok((
-        before.clone(),
-        before,
-        context,
-        source_map,
-        owners,
-        BTreeSet::new(),
-    ))
-}
-
 pub fn matrix(id: &str, board_id: &str, rows: u32, columns: u32, origin: Vec2) -> Matrix {
     Matrix {
         id: id.into(),
@@ -1014,129 +704,6 @@ pub fn matrix(id: &str, board_id: &str, rows: u32, columns: u32, origin: Vec2) -
         anchor: None,
         cells: vec![],
     }
-}
-
-/// Identity mirror map derived from the source document's actual matrix members.
-///
-/// Fresh-identity transitions keep every historical member, so the expected map
-/// is exactly the document's own part list; deriving it proves the test checks
-/// exact row/column identities instead of a hand-typed subset.
-pub fn fresh_identity_mirror_map(before: &ProjectDoc) -> BTreeMap<String, Option<String>> {
-    before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .expect("the mirror matrix exists")
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect()
-}
-
-/// Exact row/column identity invariant for one matrix, derived from its dimensions.
-///
-/// Every member id must parse to an in-bounds `(row, column, child)` slot, every
-/// slot present in the matrix must resolve to a live part registered on exactly
-/// one board, and the member set must equal the full source-derived slot
-/// universe (one key plus one diode child per cell). A single mistyped row or
-/// column fails either the parse, the bound, or the exact-set comparison.
-pub fn assert_exact_matrix_identities(document: &ProjectDoc, matrix_id: &str) {
-    let matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .unwrap_or_else(|| panic!("{matrix_id} exists"));
-    let mut expected = BTreeSet::new();
-    for row in 0..matrix.rows {
-        for column in 0..matrix.columns {
-            expected.insert(format!("matrix/{matrix_id}/r{row}c{column}"));
-            expected.insert(format!("matrix/{matrix_id}/r{row}c{column}/diode"));
-        }
-    }
-    let actual: BTreeSet<_> = matrix.part_ids.iter().cloned().collect();
-    assert_eq!(
-        actual, expected,
-        "{matrix_id}: member set is exactly the source-derived row/column universe"
-    );
-    assert_eq!(
-        matrix.part_ids.len(),
-        actual.len(),
-        "duplicate matrix member"
-    );
-    for id in &actual {
-        let (row, column, _) = matrix_identity_slot(id, matrix_id)
-            .unwrap_or_else(|| panic!("{id} parses as a {matrix_id} slot"));
-        assert!(
-            row < matrix.rows && column < matrix.columns,
-            "{id} is in bounds for {matrix_rows}x{matrix_columns}",
-            matrix_rows = matrix.rows,
-            matrix_columns = matrix.columns,
-        );
-        assert!(
-            document.parts.iter().any(|part| part.id == *id),
-            "{id} resolves to a live part"
-        );
-        assert_eq!(
-            document
-                .boards
-                .iter()
-                .flat_map(|board| &board.part_ids)
-                .filter(|registered| *registered == id)
-                .count(),
-            1,
-            "{id} is registered on exactly one board"
-        );
-    }
-}
-
-/// History invariant: a refused transition must leave caller inputs untouched.
-pub fn assert_membership_inputs_unchanged(
-    before: &ProjectDoc,
-    snapshot: &ProjectDoc,
-    context: &MembershipContext,
-    context_snapshot: &MembershipContext,
-) {
-    assert_eq!(before, snapshot, "caller document remains unchanged");
-    assert_eq!(
-        context, context_snapshot,
-        "caller context remains unchanged"
-    );
-}
-
-/// Run one fresh-identity refusal case: apply `mutate`, derive the mirror map
-/// from the mutated source, snapshot history, run the transition, assert the
-/// refusal and that history is preserved, and check the refusal message.
-///
-/// Centralizing the sequence keeps every row sourced from the same operation
-/// instead of duplicating fixture/mirror-map/snapshot assertions per refusal.
-pub fn run_fresh_identity_refusal(
-    mutate: impl FnOnce(&mut ProjectDoc, &mut MembershipContext),
-    expect: &str,
-) {
-    let (mut before, _, mut context, source_map, owners, _) =
-        consolidated_fresh_identity_fixture().expect("the fresh identity fixture is valid");
-    mutate(&mut before, &mut context);
-    let mirror_map = fresh_identity_mirror_map(&before);
-    let snapshot = before.clone();
-    let context_snapshot = context.clone();
-    let result = prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::support::test_dispatch(),
-        valid_before: &before,
-        post_source: &before,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    });
-    assert_membership_inputs_unchanged(&before, &snapshot, &context, &context_snapshot);
-    let message = result.unwrap_err();
-    assert!(
-        message.contains(expect),
-        "expected refusal containing {expect:?}, got {message:?}"
-    );
 }
 
 pub fn part(

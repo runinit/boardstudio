@@ -1,12 +1,9 @@
 //! Forward reconciliation of the mirror half from a validated projection.
 
-use super::changes::changed_document_ids;
-use super::hosted::HostedOmissionClosure;
 use super::{
-    HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, Projection,
-    circuit_links, outlines, project_part, settings, stage_hosted_circuit_additions,
-    stage_hosted_correspondence, unique_board_owner, validate_hosted_omission_baselines,
-    validate_hosted_removal_baselines, validate_local_circuit_targets,
+    HostedTransition, PartAddition, Projection, circuit_links, outlines, project_part, settings,
+    stage_hosted_circuit_additions, stage_hosted_correspondence, unique_board_owner,
+    validate_local_circuit_targets,
 };
 use crate::model::{
     MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Pose2, ProjectDoc,
@@ -15,33 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod independent;
 use super::hosted::HostedTargets;
-use independent::{IndependentStage, stage_independent_transitions};
-
-#[doc(hidden)]
-pub fn reconcile(
-    document: &mut ProjectDoc,
-    pair_id: &str,
-    projection: &Projection,
-) -> Result<Vec<String>, String> {
-    reconcile_projection(document, pair_id, projection, true)
-}
+use independent::{IndependentStage, stage_independent_additions};
 
 pub(super) fn reconcile_canonical(
     document: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
 ) -> Result<(), String> {
-    reconcile_projection(document, pair_id, projection, false).map(|_| ())
-}
-
-// The explicit entry point checks caller-supplied membership evidence and returns a report.
-// Prepared drafts derive the evidence from their authenticated pair and report at transaction end.
-fn reconcile_projection(
-    document: &mut ProjectDoc,
-    pair_id: &str,
-    projection: &Projection,
-    explicit: bool,
-) -> Result<Vec<String>, String> {
     let pair = super::selected_pair(document, pair_id, "mirrored")?;
     let halves = pair
         .halves
@@ -54,76 +31,15 @@ fn reconcile_projection(
         return Err("The reconciliation input does not match its canonical pair".into());
     }
     validate_local_circuit_targets(document, halves)?;
-    if explicit {
-        validate_hosted_removal_baselines(document, pair_id, projection, None)?;
-    }
-    let hosted_omission_closure =
-        validate_hosted_omission_baselines(document, pair_id, projection)?;
-
     let mut staged = document.clone();
     let (omitted_parts, allow_absent_matrix) = super::membership_view::materialize_fixed_matrix(
         document,
         halves,
         projection,
         &mut staged,
-        explicit,
     )?;
     let (source_matrix_members, mirror_matrix_members) =
         super::matrix_members_for_pair(document, halves);
-    let planned_independent_additions: BTreeMap<_, _> = projection
-        .independent_part_transitions
-        .iter()
-        .filter_map(|transition| match transition {
-            IndependentPartTransition::Add {
-                source_id,
-                mirror_id,
-                mirror_definition_id,
-                mirror_reference,
-            } => Some((
-                source_id.as_str(),
-                (
-                    mirror_id.as_str(),
-                    mirror_definition_id.as_str(),
-                    mirror_reference.as_str(),
-                ),
-            )),
-            IndependentPartTransition::Remove { .. } => None,
-        })
-        .collect();
-    let mut planned_hosted_operations = BTreeSet::new();
-    let planned_independent_removals: BTreeMap<_, _> = projection
-        .independent_part_transitions
-        .iter()
-        .filter_map(|transition| match transition {
-            IndependentPartTransition::Remove {
-                source_id,
-                mirror_id,
-            } => Some((source_id.as_str(), mirror_id.as_str())),
-            IndependentPartTransition::Add { .. } => None,
-        })
-        .collect();
-    if planned_independent_additions.len()
-        != projection
-            .independent_part_transitions
-            .iter()
-            .filter(|transition| matches!(transition, IndependentPartTransition::Add { .. }))
-            .count()
-    {
-        return Err(
-            "Independent Part addition evidence contains duplicate source identities".into(),
-        );
-    }
-    if planned_independent_removals.len()
-        != projection
-            .independent_part_transitions
-            .iter()
-            .filter(|transition| matches!(transition, IndependentPartTransition::Remove { .. }))
-            .count()
-    {
-        return Err(
-            "Independent Part removal evidence contains duplicate source identities".into(),
-        );
-    }
     let mut independent_part_targets = BTreeMap::new();
     let circuit_links: Vec<_> = circuit_links(halves).collect();
     let hosted_circuit_members: BTreeSet<String> = circuit_links
@@ -183,43 +99,6 @@ fn reconcile_projection(
             continue;
         }
 
-        if planned_independent_additions.contains_key(correspondence.source_id.as_str()) {
-            return Err(format!(
-                "The independent Part addition {:?} already has pair correspondence",
-                correspondence.source_id
-            ));
-        }
-        let pending_circuit_removal = projection.hosted_transitions.iter().any(|transition| {
-            let HostedTransition::RemoveCircuit {
-                source_id,
-                mirror_id,
-            } = transition
-            else {
-                return false;
-            };
-            correspondence
-                .source_id
-                .strip_prefix(&format!("embedded/{source_id}/"))
-                .is_some()
-                && correspondence
-                    .mirror_id
-                    .strip_prefix(&format!("embedded/{mirror_id}/"))
-                    .is_some()
-        });
-        if pending_circuit_removal {
-            continue;
-        }
-        if let Some(mirror_id) = planned_independent_removals.get(correspondence.source_id.as_str())
-        {
-            if *mirror_id != correspondence.mirror_id {
-                return Err(format!(
-                    "The independent Part removal for {:?} names a conflicting mirror identity",
-                    correspondence.source_id
-                ));
-            }
-            continue;
-        }
-
         if unique_board_owner(document, &correspondence.source_id, "mirrored")?
             != halves.source_board_id
             || unique_board_owner(document, &correspondence.mirror_id, "mirrored")?
@@ -264,7 +143,7 @@ fn reconcile_projection(
         );
     }
 
-    let removed_independent_targets = stage_independent_transitions(
+    stage_independent_additions(
         IndependentStage {
             document,
             halves,
@@ -288,30 +167,8 @@ fn reconcile_projection(
         references: reference_net_targets,
         ..
     } = nets;
-    let replayed_circuit_additions: BTreeSet<_> = projection
-        .hosted_transitions
-        .iter()
-        .filter_map(|transition| match transition {
-            HostedTransition::AddCircuit {
-                source_id,
-                mirror_id,
-                ..
-            } if projection
-                .applied_hosted_circuit_additions
-                .borrow()
-                .contains_key(&("circuit".to_owned(), source_id.clone(), mirror_id.clone())) =>
-            {
-                Some((source_id.clone(), mirror_id.clone()))
-            }
-            _ => None,
-        })
-        .collect();
     let circuit_pairs: Vec<_> = circuit_links
         .into_iter()
-        .filter(|association| {
-            !replayed_circuit_additions
-                .contains(&(association.source_id.clone(), association.mirror_id.clone()))
-        })
         .map(|association| {
             (
                 association.source_id.clone(),
@@ -332,20 +189,6 @@ fn reconcile_projection(
             .embedded_circuits
             .iter()
             .find(|circuit| circuit.id == source_id);
-        // Remove the operation's owned circuit before projecting board wiring. Joined host
-        // nets survive through the ordinary circuit removal kernel.
-        if !omitted
-            && projection.hosted_transitions.iter().any(|transition| {
-                matches!(transition, HostedTransition::RemoveCircuit { source_id: s, mirror_id: m }
-                if s == &source_id && m == &mirror_id)
-            })
-            && staged
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == mirror_id)
-        {
-            crate::modules::remove_circuit(&mut staged, &mirror_id)?;
-        }
         let Some(source) = source.filter(|_| !omitted) else {
             continue;
         };
@@ -376,20 +219,6 @@ fn reconcile_projection(
                 let target_suffix = exception
                     .mirror_id
                     .strip_prefix(&format!("embedded/{mirror_id}/"));
-                let privately_absent = exception.state
-                    == crate::model::MirroredExceptionState::Omitted
-                    && match kind {
-                        MirroredItemKind::Part => {
-                            hosted_omission_closure.parts.contains(&exception.mirror_id)
-                        }
-                        MirroredItemKind::Net => {
-                            hosted_omission_closure.nets.contains(&exception.mirror_id)
-                        }
-                        _ => false,
-                    };
-                if privately_absent {
-                    return None;
-                }
                 (suffix.is_some() && suffix == target_suffix).then(|| exception.mirror_id.clone())
             })
         };
@@ -514,14 +343,7 @@ fn reconcile_projection(
         }
     }
 
-    stage_hosted_circuit_additions(
-        document,
-        pair,
-        halves,
-        projection,
-        &mut staged,
-        &mut planned_hosted_operations,
-    )?;
+    stage_hosted_circuit_additions(document, pair, halves, projection, &mut staged)?;
 
     for correspondence in halves
         .correspondences
@@ -769,7 +591,6 @@ fn reconcile_projection(
                 .iter()
                 .filter(|id| {
                     !projected_member_ids.contains(*id)
-                        && !removed_independent_targets.contains(*id)
                         && halves
                             .correspondences
                             .iter()
@@ -810,13 +631,6 @@ fn reconcile_projection(
         } = transition
         {
             match module_targets.get(source_id) {
-                Some(existing)
-                    if existing == mirror_id
-                        && projection.applied_hosted_operations.borrow().contains(&(
-                            "module".to_owned(),
-                            source_id.clone(),
-                            mirror_id.clone(),
-                        )) => {}
                 Some(_) => {
                     return Err(format!(
                         "The module addition {source_id:?} already has a correspondence"
@@ -900,100 +714,14 @@ fn reconcile_projection(
                 .iter()
                 .find(|module| module.id == *source_id)
                 .ok_or_else(|| format!("The source module {source_id:?} is unavailable"))?;
-            let has_provenance = projection.applied_hosted_operations.borrow().contains(&(
-                "module".to_owned(),
-                source_id.clone(),
-                mirror_id.clone(),
-            ));
-            let target = staged
-                .modules
-                .iter_mut()
-                .find(|module| module.id == *mirror_id);
-            match (target, has_provenance) {
-                (None, false) => staged
-                    .modules
-                    .push(super::super::mirror_module(source, &module_context)?),
-                (Some(target), true) => {
-                    *target = super::super::mirror_module(source, &module_context)?
-                }
-                (Some(_), false) => {
-                    return Err(format!(
-                        "The selected target module {mirror_id:?} already exists without private Add provenance"
-                    ));
-                }
-                (None, true) => {
-                    return Err(format!(
-                        "The previously added target module {mirror_id:?} is unavailable"
-                    ));
-                }
-            }
-            planned_hosted_operations.insert((
-                "module".to_owned(),
-                source_id.clone(),
-                mirror_id.clone(),
-            ));
-        } else if let HostedTransition::RemoveModule {
-            source_id,
-            mirror_id,
-        } = transition
-        {
-            let operation = (
-                "remove-module".to_owned(),
-                source_id.clone(),
-                mirror_id.clone(),
-            );
-            if document
-                .modules
-                .iter()
-                .any(|module| module.id == *mirror_id)
-            {
-                staged.modules.retain(|module| module.id != *mirror_id);
-                planned_hosted_operations.insert(operation);
-            } else if projection
-                .applied_hosted_operations
-                .borrow()
-                .contains(&operation)
-            {
-                planned_hosted_operations.insert(operation);
-            } else {
+            if staged.modules.iter().any(|module| module.id == *mirror_id) {
                 return Err(format!(
-                    "The target module {mirror_id:?} is already absent without private removal provenance"
+                    "The selected target module {mirror_id:?} already exists"
                 ));
             }
-        } else if let HostedTransition::RemoveCircuit {
-            source_id,
-            mirror_id,
-        } = transition
-        {
-            let operation = (
-                "remove-circuit".to_owned(),
-                source_id.clone(),
-                mirror_id.clone(),
-            );
-            if document
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == *mirror_id)
-            {
-                if staged
-                    .embedded_circuits
-                    .iter()
-                    .any(|circuit| circuit.id == *mirror_id)
-                {
-                    crate::modules::remove_circuit(&mut staged, mirror_id)?;
-                }
-                planned_hosted_operations.insert(operation);
-            } else if projection
-                .applied_hosted_operations
-                .borrow()
-                .contains(&operation)
-            {
-                planned_hosted_operations.insert(operation);
-            } else {
-                return Err(format!(
-                    "The target circuit {mirror_id:?} is already absent without private removal provenance"
-                ));
-            }
+            staged
+                .modules
+                .push(super::super::mirror_module(source, &module_context)?);
         }
     }
 
@@ -1021,7 +749,7 @@ fn reconcile_projection(
     } else if !allow_absent_matrix {
         return Err("The final mirror matrix is unavailable".into());
     }
-    settings::project(document, &mut staged, halves)?;
+    settings::project(document, &mut staged, halves);
     outlines::reconcile_draft(&mut staged, pair_id, projection)?;
     let target_outline_ids = staged
         .boards
@@ -1030,15 +758,12 @@ fn reconcile_projection(
         .ok_or_else(|| "The selected mirror board is unavailable".to_owned())?
         .outline_ids
         .clone();
-    for transition in &projection.independent_part_transitions {
-        let IndependentPartTransition::Add {
-            source_id,
-            mirror_id,
-            ..
-        } = transition
-        else {
-            continue;
-        };
+    for PartAddition {
+        source_id,
+        mirror_id,
+        ..
+    } in &projection.independent_additions
+    {
         for feature in &mut staged.outline {
             if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
                 && target_outline_ids.contains(id)
@@ -1062,11 +787,6 @@ fn reconcile_projection(
             } => stage_hosted_correspondence(
                 &mut staged,
                 pair_id,
-                projection.applied_hosted_operations.borrow().contains(&(
-                    "module".to_owned(),
-                    source_id.clone(),
-                    mirror_id.clone(),
-                )),
                 MirroredCorrespondence {
                     companion_mode: None,
                     companion_tweak: None,
@@ -1082,15 +802,9 @@ fn reconcile_projection(
                 net_ids,
                 ..
             } => {
-                let replay_key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
-                let has_replay_provenance = projection
-                    .applied_hosted_circuit_additions
-                    .borrow()
-                    .contains_key(&replay_key);
                 stage_hosted_correspondence(
                     &mut staged,
                     pair_id,
-                    has_replay_provenance,
                     MirroredCorrespondence {
                         companion_mode: None,
                         companion_tweak: None,
@@ -1103,7 +817,6 @@ fn reconcile_projection(
                     stage_hosted_correspondence(
                         &mut staged,
                         pair_id,
-                        has_replay_provenance,
                         MirroredCorrespondence {
                             companion_mode: None,
                             companion_tweak: None,
@@ -1123,7 +836,6 @@ fn reconcile_projection(
                         stage_hosted_correspondence(
                             &mut staged,
                             pair_id,
-                            has_replay_provenance,
                             MirroredCorrespondence {
                                 companion_mode: None,
                                 companion_tweak: None,
@@ -1135,176 +847,12 @@ fn reconcile_projection(
                     }
                 }
             }
-            _ => {}
         }
     }
+    crate::mechanical::features::validate(&staged)?;
+    crate::mechanical::halves::validate_document(&staged)
+        .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
 
-    validate_projection_draft(
-        &mut staged,
-        pair_id,
-        projection,
-        &planned_hosted_operations,
-        &hosted_omission_closure,
-    )?;
-
-    // Prepared projections are single-use. Only the standalone entry point can replay
-    // an operation and needs to bind its evidence to the complete first output.
-    if !explicit {
-        *document = staged;
-        return Ok(Vec::new());
-    }
-    let changed_ids = changed_document_ids(document, &staged, &[])?;
     *document = staged;
-    {
-        let mut applied_additions = projection.applied_independent_additions.borrow_mut();
-        applied_additions.extend(planned_independent_additions.iter().map(
-            |(source_id, (mirror_id, definition_id, reference))| {
-                (
-                    (*source_id).to_owned(),
-                    (*mirror_id).to_owned(),
-                    (*definition_id).to_owned(),
-                    (*reference).to_owned(),
-                )
-            },
-        ));
-    }
-    projection
-        .applied_hosted_operations
-        .borrow_mut()
-        .extend(planned_hosted_operations);
-    let mut circuit_additions = projection.applied_hosted_circuit_additions.borrow_mut();
-    for transition in &projection.hosted_transitions {
-        let HostedTransition::AddCircuit {
-            source_id,
-            mirror_id,
-            member_ids,
-            member_references,
-            definition_ids,
-            net_ids,
-            member_poses,
-        } = transition
-        else {
-            continue;
-        };
-        let key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
-        circuit_additions
-            .entry(key)
-            .or_insert_with(|| HostedCircuitAddProvenance {
-                member_ids: member_ids.clone(),
-                member_references: member_references.clone(),
-                definition_ids: definition_ids.clone(),
-                net_ids: net_ids.clone(),
-                member_poses: member_poses.clone(),
-                first_output: document.clone(),
-            });
-    }
-    Ok(changed_ids)
-}
-
-fn validate_projection_draft(
-    staged: &mut ProjectDoc,
-    pair_id: &str,
-    projection: &Projection,
-    planned_hosted_operations: &BTreeSet<(String, String, String)>,
-    hosted_omission_closure: &HostedOmissionClosure,
-) -> Result<(), String> {
-    fn validate(document: &ProjectDoc) -> Result<(), String> {
-        crate::mechanical::features::validate(document)?;
-        crate::mechanical::halves::validate_document(document)
-            .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))
-    }
-
-    // Removal evidence can prune pair records for validation before the lifecycle
-    // layer retires them. Ordinary projection validates the staged draft directly.
-    if planned_hosted_operations.is_empty()
-        && hosted_omission_closure.parts.is_empty()
-        && hosted_omission_closure.nets.is_empty()
-        && projection.outline_removal_baselines.borrow().is_empty()
-    {
-        return validate(staged);
-    }
-
-    let pair = staged
-        .hardware
-        .as_mut()
-        .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
-        .ok_or_else(|| format!("The validated pair {pair_id:?} is unavailable"))?;
-    let validated_halves = pair
-        .halves
-        .as_mut()
-        .ok_or_else(|| format!("The validated pair {pair_id:?} has no halves context"))?;
-    let original_halves = validated_halves.clone();
-    for (operation, source_id, mirror_id) in planned_hosted_operations {
-        match operation.as_str() {
-            "remove-module" => {
-                validated_halves.correspondences.retain(|association| {
-                    !(association.kind == MirroredItemKind::Module
-                        && association.source_id == *source_id
-                        && association.mirror_id == *mirror_id)
-                });
-                validated_halves.exceptions.retain(|exception| {
-                    !(exception.kind == MirroredItemKind::Module
-                        && exception.mirror_id == *mirror_id
-                        && !staged
-                            .modules
-                            .iter()
-                            .any(|module| module.id == exception.mirror_id))
-                });
-            }
-            "remove-circuit" => {
-                let source_prefix = format!("embedded/{source_id}/");
-                let mirror_prefix = format!("embedded/{mirror_id}/");
-                validated_halves.correspondences.retain(|association| {
-                    let circuit = association.kind == MirroredItemKind::EmbeddedCircuit
-                        && association.source_id == *source_id
-                        && association.mirror_id == *mirror_id;
-                    let owned_part = association.kind == MirroredItemKind::Part
-                        && association.source_id.starts_with(&source_prefix)
-                        && association.mirror_id.starts_with(&mirror_prefix);
-                    let owned_net = association.kind == MirroredItemKind::Net
-                        && association.source_id.starts_with(&source_prefix)
-                        && association.mirror_id.starts_with(&mirror_prefix);
-                    !(circuit || owned_part || owned_net)
-                });
-                validated_halves.exceptions.retain(|exception| {
-                    if !exception.mirror_id.starts_with(&mirror_prefix) {
-                        return true;
-                    }
-                    match exception.kind {
-                        MirroredItemKind::EmbeddedCircuit => staged
-                            .embedded_circuits
-                            .iter()
-                            .any(|item| item.id == exception.mirror_id),
-                        MirroredItemKind::Part => staged
-                            .parts
-                            .iter()
-                            .any(|item| item.id == exception.mirror_id),
-                        MirroredItemKind::Net => staged
-                            .nets
-                            .iter()
-                            .any(|item| item.id == exception.mirror_id),
-                        _ => true,
-                    }
-                });
-            }
-            _ => {}
-        }
-    }
-    validated_halves.exceptions.retain(|exception| {
-        !((exception.kind == MirroredItemKind::Part
-            && hosted_omission_closure.parts.contains(&exception.mirror_id))
-            || (exception.kind == MirroredItemKind::Net
-                && hosted_omission_closure.nets.contains(&exception.mirror_id)))
-    });
-    let result =
-        outlines::prepare_validation(staged, pair_id, projection).and_then(|()| validate(staged));
-    // Validation only prunes this pair's halves. Restore the durable rows before
-    // reporting changes or publishing the draft, including when validation refuses.
-    staged
-        .hardware
-        .as_mut()
-        .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
-        .expect("projection validation only modifies the pair's halves")
-        .halves = Some(original_halves);
-    result
+    Ok(())
 }
