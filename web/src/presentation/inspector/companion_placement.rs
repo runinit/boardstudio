@@ -24,28 +24,9 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CompanionPlacementOwner {
-    pub scope: boardstudio_application::Scope,
-    pub context: crate::presentation::objects::ScopedTreeContext,
-    pub selected_part_ids: Vec<String>,
-    pub snapshot_token: boardstudio_application::SnapshotToken,
-    pub revision: u64,
-    pub context_generation: u64,
-    pub scope_generation: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompanionPlacementProjection {
-    pub owner: CompanionPlacementOwner,
-    pub pair_id: String,
-    pub targets: Vec<CompanionPlacementTarget>,
-    pub mode: Option<MirroredCompanionMode>,
-    pub mixed_mode: bool,
-    pub tweak: Option<MirroredCompanionTweak>,
-    pub mixed_tweak: bool,
-    pub disabled_reason: Option<&'static str>,
-}
+pub use boardstudio_web_layout::inspector_types::{
+    CompanionPlacementOwner, CompanionPlacementProjection,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompanionPlacementAction {

@@ -20,12 +20,12 @@ pub(super) use companion_placement::{
     CompanionPlacementAction, CompanionPlacementInspector, CompanionPlacementOwner,
     CompanionPlacementProjection,
 };
+#[cfg(test)]
+pub(super) use layout_component_inspector::MirroredHalfProjection;
 pub(super) use layout_component_inspector::{
-    AnchorKeyChoice, BoardPartChoice, ComponentPositionAxis, LayoutChoice,
-    LayoutComponentInspector, LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
-    LayoutComponentInspectorOwner, LayoutComponentInspectorOwnerKey,
-    LayoutComponentInspectorProjection, LayoutConstraintValues, MirroredHalfProjection,
-    PartAnchorProjection,
+    ComponentPositionAxis, LayoutComponentInspector, LayoutComponentInspectorAction,
+    LayoutComponentInspectorLifetime, LayoutComponentInspectorOwner,
+    LayoutComponentInspectorOwnerKey, LayoutComponentInspectorProjection, LayoutConstraintValues,
 };
 
 #[derive(Clone)]

@@ -13,7 +13,7 @@ mod case_workspace;
 mod command_palette;
 mod companion_placement;
 mod component_dispatch;
-mod component_inspector;
+pub(crate) use boardstudio_web_layout::component_inspector;
 mod context_summary;
 mod editor;
 mod empty_board_canvas;
@@ -131,8 +131,7 @@ pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 pub(crate) use companion_placement::{
-    companion_placement_projection, layout_relationship_summary, matrix_context_relations,
-    part_anchor_summary, relation_target_request,
+    companion_placement_projection, matrix_context_relations, relation_target_request,
 };
 pub(crate) use component_dispatch::{
     companion_placement_owner_is_current, layout_component_inspector_owner_key,
@@ -193,15 +192,15 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    CompanionPlacementTarget, Contour, EditOperation, Finding as LayoutFinding, HalfExceptionState,
-    MirroredExceptionState, MirroredItemKind, Part, PartKind, PartOutline, Position, Vec2,
+    CompanionPlacementTarget, Contour, EditOperation, Finding as LayoutFinding, Part, Position,
+    Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeSet, HashSet},
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};

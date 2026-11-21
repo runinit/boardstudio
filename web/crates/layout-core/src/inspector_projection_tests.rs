@@ -1,6 +1,12 @@
-use super::*;
+use crate::companion_placement::*;
+use crate::component_inspector::*;
+use crate::inspector_fixture::fixture;
+use boardstudio_application::SnapshotToken;
+use boardstudio_core::model::*;
+use boardstudio_web_ui_model::tree as objects;
+use std::sync::Arc;
 
-#[wasm_bindgen_test]
+#[test]
 fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
     let (mut model, selected) = fixture();
     let key = "matrix/component-matrix/r0c0";
@@ -133,9 +139,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             ],
         });
 
-    let projection =
-        super::super::layout_component_inspector_projection(&model, Some(&selected), 1, 1)
-            .expect("selected component projects");
+    let projection = layout_component_inspector_projection(&model, Some(&selected), 1, 1)
+        .expect("selected component projects");
     let choices: Vec<_> = projection
         .board_parts
         .iter()
@@ -153,7 +158,7 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn companion_placement_projection_normalizes_layout_selections() {
     use serde_json::json;
 
@@ -413,7 +418,7 @@ fn companion_placement_projection_normalizes_layout_selections() {
     )));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn standalone_component_projection_preserves_accepted_owner_and_metadata() {
     let (model, selected) = fixture();
     let projection = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
@@ -437,7 +442,7 @@ fn standalone_component_projection_preserves_accepted_owner_and_metadata() {
     assert!(projection.relationship_summary.contains("Right half"));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn component_projection_supports_group_position_selection_and_rejects_invalid_context() {
     let (mut model, selected) = fixture();
     model.selected_part_ids.push("source-part".into());
@@ -468,7 +473,7 @@ fn component_projection_supports_group_position_selection_and_rejects_invalid_co
     assert!(layout_component_inspector_projection(&model, Some(&selected), 7, 3).is_none());
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn relations_summary_uses_layout_membership_before_constraint_source() {
     let (mut model, selected) = fixture();
     let framed = Constraint::Framed {
@@ -504,7 +509,7 @@ fn relations_summary_uses_layout_membership_before_constraint_source() {
     assert_eq!(unassigned.active_constraint, Some(framed));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_stale_binding() {
     use serde_json::json;
 
@@ -593,7 +598,7 @@ fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linked_mirror() {
     use serde_json::json;
 
@@ -680,7 +685,7 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
         Some(expected_constraint.clone()),
         "inspector projection follows authority through the linked-mirror target"
     );
-    let local_edit = layout_component_edits::mirrored_half_state_resolver(
+    let local_edit = mirrored_half_state_resolver(
         "pair/A".into(),
         "source-part".into(),
         boardstudio_core::model::HalfExceptionState::Local,
