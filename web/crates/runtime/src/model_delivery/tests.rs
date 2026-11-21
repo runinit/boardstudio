@@ -80,6 +80,126 @@ fn batch(generation: u64) -> ModelBatchIdentity {
     }
 }
 
+fn document_asset(id: &str, sha256: &str, filename: &str) -> ResolvedModelAsset {
+    ResolvedModelAsset {
+        id: id.into(),
+        sha256: sha256.into(),
+        filename: filename.into(),
+        source: ModelAssetSource::Document,
+    }
+}
+
+fn archived(id: &str, sha256: &str, filename: &str) -> AssetSelection {
+    AssetSelection::Archived(document_asset(id, sha256, filename))
+}
+
+fn valid_mesh() -> Rc<ValidatedMesh> {
+    Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap())
+}
+
+/// Ports serving `bytes` for any requested digest; every decoder yields `valid_arrays`.
+fn ports(bytes: Vec<u8>) -> ModelDeliveryPorts {
+    ModelDeliveryPorts {
+        load_verified_bytes: Rc::new(move |asset| {
+            let bytes = bytes.clone();
+            Box::pin(async move { Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?)) })
+        }),
+        decode_stl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
+        decode_wrl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
+        read_step: Rc::new(|_, _| Box::pin(async { Ok(valid_arrays()) })),
+    }
+}
+
+fn live() -> Rc<dyn Fn() -> bool> {
+    Rc::new(|| true)
+}
+
+fn poll<F: Future>(future: &mut Pin<Box<F>>) -> Poll<F::Output> {
+    future
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+}
+
+/// A refresh with default import options for `batch`.
+fn refresh<'a>(
+    adapter: &'a ModelDeliveryAdapter,
+    sha: &'a str,
+    batch: &'a str,
+    is_current: Rc<dyn Fn() -> bool>,
+    load: impl Future<Output = Result<MeshArrays, String>> + 'a,
+) -> Pin<Box<impl Future<Output = Result<Rc<ValidatedMesh>, String>> + 'a>> {
+    Box::pin(adapter.refresh_step_evidence(sha, Default::default(), batch, is_current, load))
+}
+
+/// A provider that must never be called: a joined or refused refresh cannot load.
+fn never(reason: &'static str) -> impl Future<Output = Result<MeshArrays, String>> {
+    async move { panic!("{reason}") }
+}
+
+/// A provider that settles only when its sender is used.
+fn gated() -> (
+    futures_channel::oneshot::Sender<Result<MeshArrays, String>>,
+    impl Future<Output = Result<MeshArrays, String>>,
+) {
+    let (release, wait) = futures_channel::oneshot::channel();
+    (release, async { wait.await.unwrap() })
+}
+
+const TRIANGLE_MM: [f64; 9] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+
+/// A one-face vendor STEP asset whose single triangle has `surface` coordinates.
+fn vendor_step(sha: &str, surface: [f64; 9]) -> boardstudio_web_host::cad_jobs::CadVendorStep {
+    use boardstudio_web_host::cad_jobs::*;
+    CadVendorStep {
+        source_sha256: sha.into(),
+        surface_positions_mm_f64: surface.to_vec(),
+        source_faces: vec![CadStepSourceFace {
+            solid_id: "10".into(),
+            shell_index: 0,
+            face_id: "20".into(),
+            support_id: "30".into(),
+            support_kind: "PLANE".into(),
+        }],
+        face_occurrences: vec![CadStepFaceOccurrence {
+            source_face_index: 0,
+            solid_occurrence_index: 0,
+            representation_id: "40".into(),
+            source_uncertainty_mm: None,
+            repair_displacement_mm: None,
+        }],
+        triangle_face_occurrence_indices: vec![0],
+        accuracy: CadStepAccuracy {
+            preview_deflection_mm: 0.1,
+            preview_angular_rad: 0.5,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+fn separated(
+    distance: f64,
+    point1_mm: [f64; 3],
+    point2_mm: [f64; 3],
+) -> boardstudio_web_host::cad_jobs::CadCollisionObservation {
+    use boardstudio_web_host::cad_jobs::*;
+    let triangle = CadTriangleProvenance {
+        triangle_index: 0,
+        face_occurrence_index: 0,
+    };
+    CadCollisionObservation::SurfaceSeparated {
+        surface_distance_mm: distance,
+        closest_points: CadClosestPointsWitness {
+            triangles: CadTrianglePairProvenance {
+                left: triangle.clone(),
+                right: triangle,
+            },
+            point1_mm,
+            point2_mm,
+        },
+    }
+}
+
 #[test]
 fn asset_selection_obeys_attached_then_native_then_ergogen_precedence() {
     let assets = vec![
@@ -94,15 +214,7 @@ fn asset_selection_obeys_attached_then_native_then_ergogen_precedence() {
     let selection = select_model_asset("body.stl", None, &native, &assets, |_| {
         Some("ergogen".into())
     });
-    assert_eq!(
-        selection,
-        AssetSelection::Archived(ResolvedModelAsset {
-            id: "native".into(),
-            sha256: "b".into(),
-            filename: "native.wrl".into(),
-            source: ModelAssetSource::Document,
-        })
-    );
+    assert_eq!(selection, archived("native", "b", "native.wrl"));
     let reference = BoardReference {
         id: "ref".into(),
         board_id: "board".into(),
@@ -119,12 +231,7 @@ fn asset_selection_obeys_attached_then_native_then_ergogen_precedence() {
         select_model_asset("body.stl", Some(&reference), &native, &assets, |_| {
             Some("ergogen".into())
         }),
-        AssetSelection::Archived(ResolvedModelAsset {
-            id: "attached".into(),
-            sha256: "a".into(),
-            filename: "attached.stl".into(),
-            source: ModelAssetSource::Document,
-        })
+        archived("attached", "a", "attached.stl")
     );
     assert_eq!(
         select_model_asset("missing.stl", None, &BTreeMap::new(), &[], |_| {
@@ -141,36 +248,25 @@ fn accepted_kiswitch_preview_path_resolves_to_the_known_packaged_descriptor() {
     let path = "${KIPRJMOD}/models/boardstudio/kiswitch/SW_Cherry_MX_PCB.stp";
     let id = "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp";
     let document = ProjectDoc::empty("case-models", "Case model path test");
+    let expected = ResolvedModelAsset {
+        id: id.to_owned(),
+        sha256: "a".repeat(64),
+        filename: "SW_Cherry_MX_PCB.stp".to_owned(),
+        source: ModelAssetSource::Packaged {
+            url_path: "assets/ergogen-models/model-test.stp".to_owned(),
+        },
+    };
     let resolved = resolve_preview_assets(
         &[model("mesh-row", "SW1", path)],
         None,
         &BTreeMap::new(),
         &document,
         |preview_path| (preview_path == path).then(|| id.to_owned()),
-        |asset_id| {
-            (asset_id == id).then(|| ResolvedModelAsset {
-                id: id.to_owned(),
-                sha256: "a".repeat(64),
-                filename: "SW_Cherry_MX_PCB.stp".to_owned(),
-                source: ModelAssetSource::Packaged {
-                    url_path: "assets/ergogen-models/model-test.stp".to_owned(),
-                },
-            })
-        },
+        |asset_id| (asset_id == id).then(|| expected.clone()),
     );
     assert_eq!(
         resolved,
-        vec![(
-            "mesh-row".to_owned(),
-            AssetSelection::Packaged(ResolvedModelAsset {
-                id: id.to_owned(),
-                sha256: "a".repeat(64),
-                filename: "SW_Cherry_MX_PCB.stp".to_owned(),
-                source: ModelAssetSource::Packaged {
-                    url_path: "assets/ergogen-models/model-test.stp".to_owned(),
-                },
-            })
-        )]
+        vec![("mesh-row".to_owned(), AssetSelection::Packaged(expected))]
     );
 }
 
@@ -211,63 +307,41 @@ fn core_packaged_preview_path_joins_the_native_table_to_its_exact_descriptor() {
 }
 
 #[test]
-fn core_archived_preview_path_preserves_document_asset_precedence() {
-    let source = BTreeMap::from([("asset-1".to_owned(), "models/hash.stl".to_owned())]);
-    let native = native_model_path_assets(&source);
-    assert_eq!(
-        select_model_asset(
-            "${KIPRJMOD}/models/hash.stl",
-            None,
-            &native,
-            &[asset("asset-1", "ab", "part.stl")],
-            |_| Some("bundled-model:other.stl".into()),
-        ),
-        AssetSelection::Archived(ResolvedModelAsset {
-            id: "asset-1".into(),
-            sha256: "ab".into(),
-            filename: "part.stl".into(),
-            source: ModelAssetSource::Document,
-        })
-    );
-}
-
-#[test]
-fn native_export_path_table_is_inverted_for_preview_model_rows() {
+fn native_export_path_table_is_inverted_and_preserves_document_asset_precedence() {
     let source = BTreeMap::from([("asset-1".to_owned(), "models/hash.stl".to_owned())]);
     let native = native_model_path_assets(&source);
     assert_eq!(native["models/hash.stl"], "asset-1");
-    assert_eq!(
-        select_model_asset(
-            "models/hash.stl",
-            None,
-            &native,
-            &[asset("asset-1", "ab", "part.stl")],
-            |_| None
+    // Core archived preview paths carry the KiCad project prefix; native export rows do not.
+    for (path, bundled) in [
+        (
+            "${KIPRJMOD}/models/hash.stl",
+            Some("bundled-model:other.stl"),
         ),
-        AssetSelection::Archived(ResolvedModelAsset {
-            id: "asset-1".into(),
-            sha256: "ab".into(),
-            filename: "part.stl".into(),
-            source: ModelAssetSource::Document,
-        })
-    );
+        ("models/hash.stl", None),
+    ] {
+        assert_eq!(
+            select_model_asset(
+                path,
+                None,
+                &native,
+                &[asset("asset-1", "ab", "part.stl")],
+                |_| bundled.map(str::to_owned),
+            ),
+            archived("asset-1", "ab", "part.stl"),
+            "{path}"
+        );
+    }
 }
 
 #[test]
-fn verified_bytes_reject_wrong_digest_and_bounds() {
+fn verified_bytes_reject_wrong_digest_bounds_and_uppercase_expected_digest() {
     let bytes = b"model".to_vec();
     let digest = sha256_hex(&bytes);
     let verified = VerifiedModelBytes::verify(bytes.clone(), &digest).unwrap();
     assert_eq!(verified.bytes(), bytes);
     assert_eq!(verified.sha256(), digest);
-    assert!(VerifiedModelBytes::verify(bytes, "00").is_err());
+    assert!(VerifiedModelBytes::verify(bytes.clone(), "00").is_err());
     assert!(VerifiedModelBytes::verify(Vec::new(), &digest).is_err());
-}
-
-#[test]
-fn verified_bytes_reject_an_uppercase_expected_digest() {
-    let bytes = b"model".to_vec();
-    let digest = sha256_hex(&bytes);
     assert!(
         VerifiedModelBytes::verify(bytes, &digest.to_ascii_uppercase()).is_err(),
         "an uppercase expected hash is not the stored lowercase identity"
@@ -276,39 +350,35 @@ fn verified_bytes_reject_an_uppercase_expected_digest() {
 
 #[test]
 fn format_selection_is_case_insensitive_and_rejects_other_extensions() {
-    assert_eq!(
-        ModelFormat::from_filename("BODY.STL").unwrap(),
-        ModelFormat::Stl
-    );
-    assert_eq!(
-        ModelFormat::from_filename("body.WrL").unwrap(),
-        ModelFormat::Wrl
-    );
-    assert_eq!(
-        ModelFormat::from_filename("model.STP").unwrap(),
-        ModelFormat::Step
-    );
+    for (filename, format) in [
+        ("BODY.STL", ModelFormat::Stl),
+        ("body.WrL", ModelFormat::Wrl),
+        ("model.STP", ModelFormat::Step),
+    ] {
+        assert_eq!(ModelFormat::from_filename(filename).unwrap(), format);
+    }
     assert!(ModelFormat::from_filename("body.obj").is_err());
 }
 
 #[test]
 fn mesh_validation_requires_complete_finite_matching_buffers() {
     assert!(ValidatedMesh::try_from(valid_arrays()).is_ok());
-    let mut arrays = valid_arrays();
-    arrays.positions.pop();
-    assert!(ValidatedMesh::try_from(arrays).is_err());
-    let mut arrays = valid_arrays();
-    arrays.normals.pop();
-    assert!(ValidatedMesh::try_from(arrays).is_err());
-    let mut arrays = valid_arrays();
-    arrays.positions[0] = f32::NAN;
-    assert!(ValidatedMesh::try_from(arrays).is_err());
-    let mut arrays = valid_arrays();
-    arrays.colors = Some(vec![0.0; 8]);
-    assert!(ValidatedMesh::try_from(arrays).is_err());
-    let mut arrays = valid_arrays();
-    arrays.colors = Some(vec![f32::INFINITY; 9]);
-    assert!(ValidatedMesh::try_from(arrays).is_err());
+    let invalid: [fn(&mut MeshArrays); 5] = [
+        |arrays| {
+            arrays.positions.pop();
+        },
+        |arrays| {
+            arrays.normals.pop();
+        },
+        |arrays| arrays.positions[0] = f32::NAN,
+        |arrays| arrays.colors = Some(vec![0.0; 8]),
+        |arrays| arrays.colors = Some(vec![f32::INFINITY; 9]),
+    ];
+    for (index, mutate) in invalid.into_iter().enumerate() {
+        let mut arrays = valid_arrays();
+        mutate(&mut arrays);
+        assert!(ValidatedMesh::try_from(arrays).is_err(), "case {index}");
+    }
 }
 
 #[test]
@@ -343,7 +413,7 @@ fn new_batch_replaces_pending_task_and_old_token_cannot_settle_it() {
             task_token: first_token,
         })
     );
-    let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
+    let mesh = valid_mesh();
     assert!(!cache.complete("sha", first_token, mesh.clone()));
     assert!(!cache.fail("sha", first_token));
     assert!(cache.complete("sha", replacement_token, mesh.clone()));
@@ -398,7 +468,7 @@ fn cache_is_bounded_and_reports_evicted_pending_task_token() {
 #[test]
 fn row_merge_preserves_exact_preview_model_ids_and_references() {
     let models = vec![model("renderer-id", "SW8", "body.stl")];
-    let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
+    let mesh = valid_mesh();
     let outcomes = BTreeMap::from([("renderer-id".into(), Ok(mesh.clone()))]);
     let rows = merge_model_rows(&models, &outcomes);
     assert_eq!(rows.delivered[0].id, "renderer-id");
@@ -422,47 +492,22 @@ fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
     let decode_count = model_decode_count.clone();
     let bytes = b"same-model".to_vec();
     let digest = sha256_hex(&bytes);
-    let expected_digest = digest.clone();
-    let ports = ModelDeliveryPorts {
-        load_verified_bytes: Rc::new(move |asset| {
-            let bytes = bytes.clone();
-            let expected_digest = expected_digest.clone();
-            Box::pin(async move {
-                let sha = asset.sha256;
-                if sha != expected_digest {
-                    return Err("unexpected SHA".into());
-                }
-                Ok(Some(VerifiedModelBytes::verify(bytes, &sha)?))
-            })
-        }),
-        decode_stl: Rc::new(move |_| {
-            decode_count.set(decode_count.get() + 1);
-            Box::pin(async { Ok(valid_arrays()) })
-        }),
-        decode_wrl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
-        read_step: Rc::new(|_, _| Box::pin(async { Ok(valid_arrays()) })),
-    };
-    let mut assets = BTreeMap::new();
-    for id in ["model-1", "model-2"] {
-        assets.insert(
-            id.into(),
-            AssetSelection::Archived(ResolvedModelAsset {
-                id: "asset-1".into(),
-                sha256: digest.clone(),
-                filename: "switch.stl".into(),
-                source: ModelAssetSource::Document,
-            }),
-        );
-    }
+    let mut ports = ports(bytes);
+    ports.decode_stl = Rc::new(move |_| {
+        decode_count.set(decode_count.get() + 1);
+        Box::pin(async { Ok(valid_arrays()) })
+    });
+    let assets = ["model-1", "model-2"]
+        .map(|id| (id.to_owned(), archived("asset-1", &digest, "switch.stl")))
+        .into();
     let models = [
         model("model-1", "SW1", "switch.stl"),
         model("model-2", "SW2", "switch.stl"),
     ];
     let adapter = ModelDeliveryAdapter::default();
 
-    let rows =
-        block_on(adapter.deliver_models(1, &models, &assets, &ports, &batch(1), Rc::new(|| true)))
-            .expect("current model batch completes");
+    let rows = block_on(adapter.deliver_models(1, &models, &assets, &ports, &batch(1), live()))
+        .expect("current model batch completes");
 
     assert_eq!(model_decode_count.get(), 1);
     assert_eq!(
@@ -480,21 +525,12 @@ fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
 fn mounted_module_placement_uses_direct_asset_id_and_preserves_core_matrix() {
     let bytes = b"mounted-module-model".to_vec();
     let digest = sha256_hex(&bytes);
-    let expected_digest = digest.clone();
-    let ports = ModelDeliveryPorts {
-        load_verified_bytes: Rc::new(move |asset| {
-            let bytes = bytes.clone();
-            let expected_digest = expected_digest.clone();
-            Box::pin(async move {
-                assert_eq!(asset.id, "module-mesh");
-                assert_eq!(asset.sha256, expected_digest);
-                Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?))
-            })
-        }),
-        decode_stl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
-        decode_wrl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
-        read_step: Rc::new(|_, _| Box::pin(async { Ok(valid_arrays()) })),
-    };
+    let mut ports = ports(bytes);
+    let load = ports.load_verified_bytes.clone();
+    ports.load_verified_bytes = Rc::new(move |asset| {
+        assert_eq!(asset.id, "module-mesh");
+        load(asset)
+    });
     let placement = ModuleModelPlacement {
         id: "module-model/placement-a/0".into(),
         asset_id: "module-mesh".into(),
@@ -514,7 +550,7 @@ fn mounted_module_placement_uses_direct_asset_id_and_preserves_core_matrix() {
         &BTreeMap::from([(placement.id.clone(), selected)]),
         &ports,
         &batch(1),
-        Rc::new(|| true),
+        live(),
     ))
     .expect("current module delivery should complete");
 
@@ -527,11 +563,7 @@ fn mounted_module_placement_uses_direct_asset_id_and_preserves_core_matrix() {
 
 #[test]
 fn step_cache_keys_isolate_repair_budgets_and_retain_full_vendor_asset() {
-    use boardstudio_web_host::cad_jobs::{
-        CadBounds, CadStepAccuracy, CadStepFaceOccurrence, CadStepImportOptions,
-        CadStepLineOccurrence, CadStepPrecision, CadStepSourceFace, CadStepUncertainty,
-        CadVendorStep,
-    };
+    use boardstudio_web_host::cad_jobs::{CadBounds, CadStepImportOptions};
 
     let sha = "a".repeat(64);
     let default_opts = CadStepImportOptions::default();
@@ -564,69 +596,7 @@ fn step_cache_keys_isolate_repair_budgets_and_retain_full_vendor_asset() {
         );
     }
 
-    let vendor_step = Rc::new(CadVendorStep {
-        analysis_ref: None,
-        analysis_mesh: None,
-        source_qualification: None,
-        source_sha256: sha.clone(),
-        import_options: default_opts,
-        surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-        source_faces: vec![CadStepSourceFace {
-            solid_id: "101".into(),
-            shell_index: 0,
-            face_id: "59".into(),
-            support_id: "58".into(),
-            support_kind: "PLANE".into(),
-        }],
-        face_occurrences: vec![CadStepFaceOccurrence {
-            source_face_index: 0,
-            solid_occurrence_index: 0,
-            representation_id: "104".into(),
-            source_uncertainty_mm: Some(0.01),
-            repair_displacement_mm: None,
-        }],
-        triangle_face_occurrence_indices: vec![0],
-        line_segments_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
-        line_render_positions: vec![0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
-        line_occurrences: vec![CadStepLineOccurrence {
-            line_occurrence_index: 0,
-            trimmed_curve_id: "414".into(),
-            source_line_id: "413".into(),
-            curve_set_id: "420".into(),
-            representation_id: "430".into(),
-            source_unit_to_mm: 1.0,
-            placement_f64: [
-                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-            ],
-            declared_uncertainty_mm: None,
-        }],
-        segment_line_occurrence_indices: vec![0],
-        precision: vec![CadStepPrecision {
-            representation_id: "104".into(),
-            context_id: "103".into(),
-            geometric_dimension: Some(3),
-            declarations: vec![CadStepUncertainty {
-                entity_id: "110".into(),
-                length_unit_id: "102".into(),
-                millimetres: 0.01,
-            }],
-        }],
-        accuracy: CadStepAccuracy {
-            preview_deflection_mm: 0.1,
-            preview_angular_rad: 0.5,
-            analysis_error_bound_mm: None,
-            bounds_from_source_geometry: true,
-            mesh_closed_oriented: true,
-            preview_floor_mm: 0.02,
-            preview_declared_multiplier: 2.0,
-            relaxed_beyond_declared_precision: false,
-            sampled_support_checks: 0,
-            max_sampled_support_residual_mm: None,
-            fallback_meshed_faces: 0,
-            selected_repair_budget_mm: None,
-            max_repair_displacement_mm: None,
-        },
-    });
+    let vendor_step = Rc::new(vendor_step(&sha, TRIANGLE_MM));
     let validated = Rc::new(
         ValidatedMesh::try_from(MeshArrays {
             positions: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -667,73 +637,20 @@ fn step_cache_keys_isolate_repair_budgets_and_retain_full_vendor_asset() {
 
 #[test]
 fn collision_assessment_distinguishes_unknown_supported_bands_and_tight_0_01mm_requests() {
-    use boardstudio_web_host::cad_jobs::{
-        CadClosestPointsWitness, CadCollisionObservation, CadStepAccuracy, CadStepFaceOccurrence,
-        CadStepImportOptions, CadStepSourceFace, CadTrianglePairProvenance, CadTriangleProvenance,
-        CadVendorStep,
-    };
-
-    let make_asset = |sha: &str, analysis_bound: Option<f64>| CadVendorStep {
-        analysis_ref: None,
-        analysis_mesh: None,
-        source_qualification: None,
-        source_sha256: sha.into(),
-        import_options: CadStepImportOptions::default(),
-        surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-        source_faces: vec![CadStepSourceFace {
-            solid_id: "10".into(),
-            shell_index: 0,
-            face_id: "20".into(),
-            support_id: "30".into(),
-            support_kind: "PLANE".into(),
-        }],
-        face_occurrences: vec![CadStepFaceOccurrence {
-            source_face_index: 0,
-            solid_occurrence_index: 0,
-            representation_id: "40".into(),
-            source_uncertainty_mm: Some(0.001),
-            repair_displacement_mm: None,
-        }],
-        triangle_face_occurrence_indices: vec![0],
-        line_segments_mm_f64: vec![],
-        line_render_positions: vec![],
-        line_occurrences: vec![],
-        segment_line_occurrence_indices: vec![],
-        precision: vec![],
-        accuracy: CadStepAccuracy {
-            preview_deflection_mm: 0.1,
-            preview_angular_rad: 0.5,
+    let make_asset = |sha: &str, analysis_bound: Option<f64>| {
+        let mut asset = vendor_step(sha, TRIANGLE_MM);
+        asset.face_occurrences[0].source_uncertainty_mm = Some(0.001);
+        asset.accuracy = boardstudio_web_host::cad_jobs::CadStepAccuracy {
             analysis_error_bound_mm: analysis_bound,
             bounds_from_source_geometry: true,
             mesh_closed_oriented: true,
             preview_floor_mm: 0.02,
             preview_declared_multiplier: 2.0,
-            relaxed_beyond_declared_precision: false,
-            sampled_support_checks: 0,
-            max_sampled_support_residual_mm: None,
-            fallback_meshed_faces: 0,
-            selected_repair_budget_mm: None,
-            max_repair_displacement_mm: None,
-        },
+            ..asset.accuracy
+        };
+        asset
     };
-
-    let obs = CadCollisionObservation::SurfaceSeparated {
-        surface_distance_mm: 0.5,
-        closest_points: CadClosestPointsWitness {
-            triangles: CadTrianglePairProvenance {
-                left: CadTriangleProvenance {
-                    triangle_index: 0,
-                    face_occurrence_index: 0,
-                },
-                right: CadTriangleProvenance {
-                    triangle_index: 0,
-                    face_occurrence_index: 0,
-                },
-            },
-            point1_mm: [0.0, 0.0, 0.0],
-            point2_mm: [0.5, 0.0, 0.0],
-        },
-    };
+    let obs = separated(0.5, [0.0, 0.0, 0.0], [0.5, 0.0, 0.0]);
 
     let uncertified_left = make_asset(&"a".repeat(64), None);
     let uncertified_right = make_asset(&"b".repeat(64), None);
@@ -794,7 +711,7 @@ fn collision_assessment_distinguishes_unknown_supported_bands_and_tight_0_01mm_r
 
     let row = DeliveredModel {
         id: "pcb-part-1".into(),
-        mesh: Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap()),
+        mesh: valid_mesh(),
         matrix: None,
     };
     assert!(
@@ -805,7 +722,7 @@ fn collision_assessment_distinguishes_unknown_supported_bands_and_tight_0_01mm_r
 
 #[test]
 fn generated_collision_preserves_numeric_face_provenance_and_unknown_accuracy() {
-    use boardstudio_web_host::cad_jobs::*;
+    use boardstudio_web_host::cad_jobs::{CadGeneratedAnalysis, generated_geometry_identity};
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
     ))
@@ -840,23 +757,7 @@ fn generated_collision_preserves_numeric_face_provenance_and_unknown_accuracy() 
         0.1,
         Some(0.01),
         None,
-        CadCollisionObservation::SurfaceSeparated {
-            surface_distance_mm: 1.0,
-            closest_points: CadClosestPointsWitness {
-                triangles: CadTrianglePairProvenance {
-                    left: CadTriangleProvenance {
-                        triangle_index: 0,
-                        face_occurrence_index: 0,
-                    },
-                    right: CadTriangleProvenance {
-                        triangle_index: 0,
-                        face_occurrence_index: 0,
-                    },
-                },
-                point1_mm: [20., 0., 0.],
-                point2_mm: [21., 0., 0.],
-            },
-        },
+        separated(1.0, [20., 0., 0.], [21., 0., 0.]),
     );
     assert!(
         matches!(result.left_provenance, Some(CadSubjectFaceProvenance::Generated { ref source, .. }) if source.face_index == 0)
@@ -1027,7 +928,7 @@ fn evidence_refresh_joins_pending_and_never_reprepares_a_failed_or_evicted_asset
         _ => panic!("initial task"),
     };
     let refreshed = match cache
-        .claim_evidence_refresh("asset", "check-1", Rc::new(|| true))
+        .claim_evidence_refresh("asset", "check-1", live())
         .unwrap()
     {
         MeshCacheClaim::Start {
@@ -1045,12 +946,12 @@ fn evidence_refresh_joins_pending_and_never_reprepares_a_failed_or_evicted_asset
     assert!(cache.complete("asset", refreshed, mesh.clone()));
     assert!(matches!(
         cache
-            .claim_evidence_refresh("asset", "check-1", Rc::new(|| true))
+            .claim_evidence_refresh("asset", "check-1", live())
             .unwrap(),
         MeshCacheClaim::Reuse(_)
     ));
     let newer = match cache
-        .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+        .claim_evidence_refresh("asset", "check-2", live())
         .unwrap()
     {
         MeshCacheClaim::Start { task_token, .. } => task_token,
@@ -1060,98 +961,64 @@ fn evidence_refresh_joins_pending_and_never_reprepares_a_failed_or_evicted_asset
     assert!(cache.fail("asset", newer));
     assert!(
         cache
-            .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+            .claim_evidence_refresh("asset", "check-2", live())
             .is_err()
     );
     for index in 0..81 {
         cache
-            .claim_evidence_refresh(&format!("other-{index}"), "check-2", Rc::new(|| true))
+            .claim_evidence_refresh(&format!("other-{index}"), "check-2", live())
             .unwrap();
     }
     assert!(
         cache
-            .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+            .claim_evidence_refresh("asset", "check-2", live())
             .is_err(),
         "LRU pressure cannot erase the attempt marker"
     );
     assert!(matches!(
         cache
-            .claim_evidence_refresh("asset", "check-3", Rc::new(|| true))
+            .claim_evidence_refresh("asset", "check-3", live())
             .unwrap(),
         MeshCacheClaim::Start { .. }
     ));
 
     let adapter = ModelDeliveryAdapter::default();
     let sha = "a".repeat(64);
-    let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut first = Box::pin(adapter.refresh_step_evidence(
+    let (release, wait) = gated();
+    let mut first = refresh(&adapter, &sha, "batch", live(), wait);
+    let mut second = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "batch",
-        Rc::new(|| true),
-        async { wait.await.unwrap() },
-    ));
-    let mut second = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "batch",
-        Rc::new(|| true),
-        async { panic!("joined task must not run another provider call") },
-    ));
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(first.as_mut().poll(&mut context).is_pending());
-    assert!(second.as_mut().poll(&mut context).is_pending());
+        live(),
+        never("joined task must not run another provider call"),
+    );
+    assert!(poll(&mut first).is_pending());
+    assert!(poll(&mut second).is_pending());
     release
         .send(Err("controlled provider refusal".into()))
         .unwrap();
     assert_eq!(block_on(first).unwrap_err(), "controlled provider refusal");
     assert_eq!(block_on(second).unwrap_err(), "controlled provider refusal");
     assert!(
-        block_on(adapter.refresh_step_evidence(
+        block_on(refresh(
+            &adapter,
             &sha,
-            Default::default(),
             "batch",
-            Rc::new(|| true),
-            async { panic!("same-batch retry loop") }
+            live(),
+            never("same-batch retry loop")
         ))
         .is_err()
     );
 }
 
 fn refresh_arrays(sha: &str) -> MeshArrays {
-    use boardstudio_web_host::cad_jobs::{
-        CadBounds, CadStepAccuracy, CadStepFaceOccurrence, CadStepSourceFace, CadVendorStep,
-    };
     let mut arrays = valid_arrays();
-    arrays.step_bounds = Some(CadBounds {
+    arrays.step_bounds = Some(boardstudio_web_host::cad_jobs::CadBounds {
         min: [0.; 3],
         max: [0.; 3],
     });
-    arrays.vendor_step = Some(Rc::new(CadVendorStep {
-        source_sha256: sha.into(),
-        surface_positions_mm_f64: vec![0.; 9],
-        source_faces: vec![CadStepSourceFace {
-            solid_id: "10".into(),
-            shell_index: 0,
-            face_id: "20".into(),
-            support_id: "30".into(),
-            support_kind: "PLANE".into(),
-        }],
-        face_occurrences: vec![CadStepFaceOccurrence {
-            source_face_index: 0,
-            solid_occurrence_index: 0,
-            representation_id: "40".into(),
-            source_uncertainty_mm: None,
-            repair_displacement_mm: None,
-        }],
-        triangle_face_occurrence_indices: vec![0],
-        accuracy: CadStepAccuracy {
-            preview_deflection_mm: 0.1,
-            preview_angular_rad: 0.5,
-            ..Default::default()
-        },
-        ..Default::default()
-    }));
+    arrays.vendor_step = Some(Rc::new(vendor_step(sha, [0.; 9])));
     arrays
 }
 
@@ -1160,49 +1027,38 @@ fn refresh_arrays(sha: &str) -> MeshArrays {
 fn dropped_refresh_producer_settles_owned_waiters_and_new_batch_recovers() {
     let adapter = ModelDeliveryAdapter::default();
     let sha = "a".repeat(64);
-    let (_release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut producer = Box::pin(adapter.refresh_step_evidence(
+    let (_release, wait) = gated();
+    let mut producer = refresh(&adapter, &sha, "batch-1", live(), wait);
+    let mut join = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "batch-1",
-        Rc::new(|| true),
-        async { wait.await.unwrap() },
-    ));
-    let mut join = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "batch-1",
-        Rc::new(|| true),
-        async { panic!("a live same-batch join cannot prepare") },
-    ));
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(producer.as_mut().poll(&mut context).is_pending());
-    assert!(join.as_mut().poll(&mut context).is_pending());
+        live(),
+        never("a live same-batch join cannot prepare"),
+    );
+    assert!(poll(&mut producer).is_pending());
+    assert!(poll(&mut join).is_pending());
     drop(producer);
     assert!(
-        matches!(join.as_mut().poll(&mut context), Poll::Ready(Err(reason)) if reason.contains("cancelled")),
+        matches!(poll(&mut join), Poll::Ready(Err(reason)) if reason.contains("cancelled")),
         "dropping the refresh producer must settle its joined waiters"
     );
     assert!(adapter.pending.borrow().is_empty());
     assert!(
-        block_on(adapter.refresh_step_evidence(
+        block_on(refresh(
+            &adapter,
             &sha,
-            Default::default(),
             "batch-1",
-            Rc::new(|| true),
-            async { panic!("drop cannot authorize a same-batch retry") },
+            live(),
+            never("drop cannot authorize a same-batch retry"),
         ))
         .is_err()
     );
-    let mut recovered = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "batch-2",
-        Rc::new(|| true),
-        async { Ok(refresh_arrays(&sha)) },
-    ));
+    let mut recovered = refresh(&adapter, &sha, "batch-2", live(), async {
+        Ok(refresh_arrays(&sha))
+    });
     assert!(
-        matches!(recovered.as_mut().poll(&mut context), Poll::Ready(Ok(_))),
+        matches!(poll(&mut recovered), Poll::Ready(Ok(_))),
         "a new batch must complete rather than joining an abandoned token"
     );
 }
@@ -1212,63 +1068,49 @@ fn dropped_refresh_producer_settles_owned_waiters_and_new_batch_recovers() {
 fn retired_refresh_is_superseded_before_old_producer_settles() {
     let adapter = ModelDeliveryAdapter::default();
     let sha = "a".repeat(64);
-    let live = Rc::new(std::cell::Cell::new(true));
-    let current = live.clone();
-    let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut old = Box::pin(adapter.refresh_step_evidence(
+    let live_old = Rc::new(std::cell::Cell::new(true));
+    let current = live_old.clone();
+    let (release, wait) = gated();
+    let mut old = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "old-scope",
         Rc::new(move || current.get()),
-        async { wait.await.unwrap() },
-    ));
-    let mut old_join = Box::pin(adapter.refresh_step_evidence(
+        wait,
+    );
+    let mut old_join = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "old-scope",
-        Rc::new(|| true),
-        async { panic!("live matching refresh must join") },
-    ));
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(old.as_mut().poll(&mut context).is_pending());
-    assert!(old_join.as_mut().poll(&mut context).is_pending());
-    live.set(false);
-    let mut same_batch = Box::pin(adapter.refresh_step_evidence(
+        live(),
+        never("live matching refresh must join"),
+    );
+    assert!(poll(&mut old).is_pending());
+    assert!(poll(&mut old_join).is_pending());
+    live_old.set(false);
+    let mut same_batch = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "old-scope",
-        Rc::new(|| true),
-        async { panic!("retirement does not authorize a second same-batch preparation") },
-    ));
-    assert!(matches!(
-        same_batch.as_mut().poll(&mut context),
-        Poll::Ready(Err(_))
-    ));
-    let mut replacement = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "new-scope",
-        Rc::new(|| true),
-        async { Ok(refresh_arrays(&sha)) },
-    ));
-    let Poll::Ready(Ok(current)) = replacement.as_mut().poll(&mut context) else {
+        live(),
+        never("retirement does not authorize a second same-batch preparation"),
+    );
+    assert!(matches!(poll(&mut same_batch), Poll::Ready(Err(_))));
+    let mut replacement = refresh(&adapter, &sha, "new-scope", live(), async {
+        Ok(refresh_arrays(&sha))
+    });
+    let Poll::Ready(Ok(current)) = poll(&mut replacement) else {
         panic!("a new batch must start before the retired producer settles");
     };
-    assert!(matches!(
-        old_join.as_mut().poll(&mut context),
-        Poll::Ready(Err(_))
-    ));
+    assert!(matches!(poll(&mut old_join), Poll::Ready(Err(_))));
     release.send(Ok(refresh_arrays(&sha))).unwrap();
-    assert!(matches!(
-        old.as_mut().poll(&mut context),
-        Poll::Ready(Err(_))
-    ));
-    let reused = block_on(adapter.refresh_step_evidence(
+    assert!(matches!(poll(&mut old), Poll::Ready(Err(_))));
+    let reused = block_on(refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "new-scope",
-        Rc::new(|| true),
-        async { panic!("old settlement cannot remove the new ready slot") },
+        live(),
+        never("old settlement cannot remove the new ready slot"),
     ))
     .unwrap();
     assert!(Rc::ptr_eq(&current, &reused));
@@ -1279,60 +1121,44 @@ fn retired_refresh_is_superseded_before_old_producer_settles() {
 fn dropped_refresh_join_and_old_owner_cannot_cancel_the_current_producer() {
     let adapter = ModelDeliveryAdapter::default();
     let sha = "a".repeat(64);
-    let (_old_release, old_wait) =
-        futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut old = Box::pin(adapter.refresh_step_evidence(
+    let (_old_release, old_wait) = gated();
+    let mut old = refresh(&adapter, &sha, "old", live(), old_wait);
+    assert!(poll(&mut old).is_pending());
+    let (release, wait) = gated();
+    let mut producer = refresh(&adapter, &sha, "new", live(), wait);
+    assert!(poll(&mut producer).is_pending());
+    let mut dropped_join = refresh(
+        &adapter,
         &sha,
-        Default::default(),
-        "old",
-        Rc::new(|| true),
-        async { old_wait.await.unwrap() },
-    ));
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(old.as_mut().poll(&mut context).is_pending());
-    let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut producer = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
         "new",
-        Rc::new(|| true),
-        async { wait.await.unwrap() },
-    ));
-    assert!(producer.as_mut().poll(&mut context).is_pending());
-    let mut dropped_join = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "new",
-        Rc::new(|| true),
-        async { panic!("matching live producer must be shared") },
-    ));
-    assert!(dropped_join.as_mut().poll(&mut context).is_pending());
+        live(),
+        never("matching live producer must be shared"),
+    );
+    assert!(poll(&mut dropped_join).is_pending());
     drop(dropped_join);
     drop(old);
-    assert!(producer.as_mut().poll(&mut context).is_pending());
-    let mut surviving_join = Box::pin(adapter.refresh_step_evidence(
+    assert!(poll(&mut producer).is_pending());
+    let mut surviving_join = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "new",
-        Rc::new(|| true),
-        async { panic!("old cleanup must leave the replacement's waiters and slot intact") },
-    ));
-    assert!(surviving_join.as_mut().poll(&mut context).is_pending());
+        live(),
+        never("old cleanup must leave the replacement's waiters and slot intact"),
+    );
+    assert!(poll(&mut surviving_join).is_pending());
     release.send(Ok(refresh_arrays(&sha))).unwrap();
     let current = block_on(producer).unwrap();
     assert!(Rc::ptr_eq(&current, &block_on(surviving_join).unwrap()));
     assert!(adapter.pending.borrow().is_empty());
-    assert!(Rc::ptr_eq(
-        &current,
-        &block_on(adapter.refresh_step_evidence(
-            &sha,
-            Default::default(),
-            "new",
-            Rc::new(|| true),
-            async { panic!("successful settlement must disarm cleanup") },
-        ))
-        .unwrap()
-    ));
+    let reused = block_on(refresh(
+        &adapter,
+        &sha,
+        "new",
+        live(),
+        never("successful settlement must disarm cleanup"),
+    ))
+    .unwrap();
+    assert!(Rc::ptr_eq(&current, &reused));
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -1340,65 +1166,42 @@ fn dropped_refresh_join_and_old_owner_cannot_cancel_the_current_producer() {
 fn ordinary_delivery_and_refresh_supersede_incompatible_producers_without_cross_settlement() {
     let bytes = b"controlled model delivery lifecycle".to_vec();
     let sha = sha256_hex(&bytes);
-    let ports = ModelDeliveryPorts {
-        load_verified_bytes: Rc::new(move |asset| {
-            let bytes = bytes.clone();
-            Box::pin(async move { Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?)) })
-        }),
-        decode_stl: Rc::new(|_| panic!("STEP lifecycle control")),
-        decode_wrl: Rc::new(|_| panic!("STEP lifecycle control")),
-        read_step: Rc::new(|bytes, _| Box::pin(async move { Ok(refresh_arrays(bytes.sha256())) })),
-    };
+    let mut ports = ports(bytes);
+    ports.decode_stl = Rc::new(|_| panic!("STEP lifecycle control"));
+    ports.decode_wrl = Rc::new(|_| panic!("STEP lifecycle control"));
+    ports.read_step =
+        Rc::new(|bytes, _| Box::pin(async move { Ok(refresh_arrays(bytes.sha256())) }));
     let models = [model("model", "U1", "body.step")];
-    let selections = BTreeMap::from([(
-        "model".into(),
-        AssetSelection::Archived(ResolvedModelAsset {
-            id: "asset".into(),
-            sha256: sha.clone(),
-            filename: "body.step".into(),
-            source: ModelAssetSource::Document,
-        }),
-    )]);
+    let selections = BTreeMap::from([("model".into(), archived("asset", &sha, "body.step"))]);
     let old_batch = batch(1);
     let new_batch = batch(2);
     let adapter = ModelDeliveryAdapter::default();
-    let live = Rc::new(std::cell::Cell::new(true));
-    let current = live.clone();
-    let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
-    let mut refresh = Box::pin(adapter.refresh_step_evidence(
+    let live_old = Rc::new(std::cell::Cell::new(true));
+    let current = live_old.clone();
+    let (release, wait) = gated();
+    let mut refreshing = refresh(
+        &adapter,
         &sha,
-        Default::default(),
         "old-scope",
         Rc::new(move || current.get()),
-        async { wait.await.unwrap() },
-    ));
-    let mut context = Context::from_waker(Waker::noop());
-    assert!(refresh.as_mut().poll(&mut context).is_pending());
-    live.set(false);
-    let mut delivery = Box::pin(adapter.deliver_models(
-        1,
-        &models,
-        &selections,
-        &ports,
-        &new_batch,
-        Rc::new(|| true),
-    ));
-    let Poll::Ready(Some(rows)) = delivery.as_mut().poll(&mut context) else {
+        wait,
+    );
+    assert!(poll(&mut refreshing).is_pending());
+    live_old.set(false);
+    let mut delivery = deliver_models(&adapter, &models, &selections, &ports, &new_batch, live());
+    let Poll::Ready(Some(rows)) = poll(&mut delivery) else {
         panic!("ordinary delivery cannot join an evidence producer with unknown preview ownership");
     };
     assert_eq!(rows.delivered.len(), 1);
     release.send(Ok(refresh_arrays(&sha))).unwrap();
-    assert!(matches!(
-        refresh.as_mut().poll(&mut context),
-        Poll::Ready(Err(_))
-    ));
-    let cached = block_on(adapter.deliver_models(
-        1,
+    assert!(matches!(poll(&mut refreshing), Poll::Ready(Err(_))));
+    let cached = block_on(deliver_models(
+        &adapter,
         &models,
         &selections,
         &ports,
         &new_batch,
-        Rc::new(|| true),
+        live(),
     ))
     .unwrap();
     assert!(Rc::ptr_eq(
@@ -1409,7 +1212,7 @@ fn ordinary_delivery_and_refresh_supersede_incompatible_producers_without_cross_
     // Reverse transition: an evidence batch has no comparable preview owner
     // and must not join a still-running ordinary Pending task either.
     let adapter = ModelDeliveryAdapter::default();
-    let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+    let (release, wait) = gated();
     let gate = Rc::new(std::cell::RefCell::new(Some(wait)));
     let mut gated_ports = ports.clone();
     gated_ports.read_step = Rc::new(move |_, _| {
@@ -1417,57 +1220,59 @@ fn ordinary_delivery_and_refresh_supersede_incompatible_producers_without_cross_
             .borrow_mut()
             .take()
             .expect("only the ordinary producer loads");
-        Box::pin(async { wait.await.unwrap() })
+        Box::pin(wait)
     });
-    let live = Rc::new(std::cell::Cell::new(true));
-    let current = live.clone();
-    let mut delivery = Box::pin(adapter.deliver_models(
-        1,
+    let live_old = Rc::new(std::cell::Cell::new(true));
+    let current = live_old.clone();
+    let mut delivery = deliver_models(
+        &adapter,
         &models,
         &selections,
         &gated_ports,
         &old_batch,
         Rc::new(move || current.get()),
-    ));
-    assert!(delivery.as_mut().poll(&mut context).is_pending());
-    let mut old_join = Box::pin(adapter.deliver_models(
-        1,
+    );
+    assert!(poll(&mut delivery).is_pending());
+    let mut old_join = deliver_models(
+        &adapter,
         &models,
         &selections,
         &gated_ports,
         &old_batch,
-        Rc::new(|| true),
-    ));
-    assert!(old_join.as_mut().poll(&mut context).is_pending());
-    live.set(false);
-    let mut replacement = Box::pin(adapter.refresh_step_evidence(
-        &sha,
-        Default::default(),
-        "new-scope",
-        Rc::new(|| true),
-        async { Ok(refresh_arrays(&sha)) },
-    ));
-    let Poll::Ready(Ok(current)) = replacement.as_mut().poll(&mut context) else {
+        live(),
+    );
+    assert!(poll(&mut old_join).is_pending());
+    live_old.set(false);
+    let mut replacement = refresh(&adapter, &sha, "new-scope", live(), async {
+        Ok(refresh_arrays(&sha))
+    });
+    let Poll::Ready(Ok(current)) = poll(&mut replacement) else {
         panic!("evidence recovery must start before the unrelated preview settles");
     };
-    assert!(
-        matches!(old_join.as_mut().poll(&mut context), Poll::Ready(Some(rows)) if rows.failures.len() == 1)
-    );
+    assert!(matches!(poll(&mut old_join), Poll::Ready(Some(rows)) if rows.failures.len() == 1));
     release.send(Ok(refresh_arrays(&sha))).unwrap();
-    assert!(matches!(
-        delivery.as_mut().poll(&mut context),
-        Poll::Ready(None)
-    ));
-    let cached = block_on(adapter.deliver_models(
-        1,
+    assert!(matches!(poll(&mut delivery), Poll::Ready(None)));
+    let cached = block_on(deliver_models(
+        &adapter,
         &models,
         &selections,
         &ports,
         &new_batch,
-        Rc::new(|| true),
+        live(),
     ))
     .unwrap();
     assert!(Rc::ptr_eq(&current, &cached.delivered[0].mesh));
+}
+
+fn deliver_models<'a>(
+    adapter: &'a ModelDeliveryAdapter,
+    models: &'a [PcbModel],
+    selections: &'a BTreeMap<String, AssetSelection>,
+    ports: &'a ModelDeliveryPorts,
+    batch: &'a ModelBatchIdentity,
+    is_current: Rc<dyn Fn() -> bool>,
+) -> Pin<Box<impl Future<Output = Option<ModelDeliveryRows>> + 'a>> {
+    Box::pin(adapter.deliver_models(1, models, selections, ports, batch, is_current))
 }
 
 fn block_on<F: Future>(future: F) -> F::Output {

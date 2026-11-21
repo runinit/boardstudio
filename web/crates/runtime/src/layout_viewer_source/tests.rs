@@ -103,15 +103,49 @@ fn accepted(imported: bool) -> (AcceptedSnapshot, Scope) {
     (snapshot, scope)
 }
 
-fn source_capture(snapshot: &AcceptedSnapshot, scope: &Scope) -> LayoutSourceCapture {
+fn capture_source(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+    generation: u64,
+    request_id: &str,
+) -> Result<LayoutSourceCapture, String> {
     LayoutSourceCapture::capture(
         snapshot,
         scope,
-        3,
-        "layout-preview-11".into(),
+        generation,
+        request_id.into(),
         BTreeMap::new(),
     )
-    .unwrap()
+}
+
+fn source_capture(snapshot: &AcceptedSnapshot, scope: &Scope) -> LayoutSourceCapture {
+    capture_source(snapshot, scope, 3, "layout-preview-11").unwrap()
+}
+
+fn with_document(snapshot: &AcceptedSnapshot, document: ProjectDoc) -> AcceptedSnapshot {
+    AcceptedSnapshot {
+        document: Arc::new(document),
+        ..snapshot.clone()
+    }
+}
+
+/// The same accepted content behind a new scene allocation: picks are bound to the exact scene.
+fn with_stale_scene(snapshot: &AcceptedSnapshot) -> AcceptedSnapshot {
+    AcceptedSnapshot {
+        scene: Arc::new(snapshot.scene.as_ref().clone()),
+        ..snapshot.clone()
+    }
+}
+
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    let mut future = Box::pin(future);
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+    loop {
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(output) => return output,
+            std::task::Poll::Pending => std::thread::yield_now(),
+        }
+    }
 }
 
 fn preview() -> PcbPreview {
@@ -286,27 +320,15 @@ fn imported_capture_selects_matching_accepted_asset_and_existing_preview_operati
 
 #[test]
 fn imported_layout_component_model_flows_through_existing_asset_and_mesh_delivery_route() {
-    #[cfg(not(target_arch = "wasm32"))]
     use crate::model_delivery::{
         AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
         ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
         native_model_path_assets, resolve_preview_assets,
     };
-    #[cfg(target_arch = "wasm32")]
-    use crate::model_delivery::{
-        AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
-        ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
-        native_model_path_assets, resolve_preview_assets,
-    };
-    use sha2::{Digest, Sha256};
-    use std::{future::Future, task::Waker};
 
     let (snapshot, scope) = accepted(true);
     let model_bytes = b"accepted-layout-component-model".to_vec();
-    let model_sha = Sha256::digest(&model_bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let model_sha = boardstudio_core_kernel::hash::sha256_hex(&model_bytes);
     let mut document = snapshot.document.as_ref().clone();
     document.assets.push(Asset {
         id: "component-model".into(),
@@ -319,10 +341,7 @@ fn imported_layout_component_model_flows_through_existing_asset_and_mesh_deliver
     document.board_references[0]
         .model_assets
         .insert("models/mcu.step".into(), "component-model".into());
-    let snapshot = AcceptedSnapshot {
-        document: Arc::new(document),
-        ..snapshot
-    };
+    let snapshot = with_document(&snapshot, document);
     let capture = source_capture(&snapshot, &scope);
     let preview = capture.accept_preview(preview()).unwrap();
 
@@ -393,18 +412,6 @@ fn imported_layout_component_model_flows_through_existing_asset_and_mesh_deliver
     assert_eq!(rows.delivered.len(), 1);
     assert_eq!(rows.delivered[0].id, "U1:0");
     assert!(rows.failures.is_empty());
-
-    fn block_on<F: Future>(future: F) -> F::Output {
-        let mut future = Box::pin(future);
-        let waker = Waker::noop();
-        let mut context = std::task::Context::from_waker(waker);
-        loop {
-            match future.as_mut().poll(&mut context) {
-                std::task::Poll::Ready(output) => return output,
-                std::task::Poll::Pending => std::thread::yield_now(),
-            }
-        }
-    }
 }
 
 #[test]
@@ -432,32 +439,22 @@ fn picks_require_full_current_scope_source_generation_and_unique_board_reference
         accepted_preview.part_for_current_pick(&snapshot, &scope, 3, "U1", None),
         Some("part-1".into())
     );
-    assert!(
-        accepted_preview
-            .part_for_current_pick(&snapshot, &scope, 4, "U1", None)
-            .is_none()
-    );
-    let stale_scene = AcceptedSnapshot {
-        scene: Arc::new(snapshot.scene.as_ref().clone()),
-        ..snapshot.clone()
-    };
-    assert!(
-        accepted_preview
-            .part_for_current_pick(&stale_scene, &scope, 3, "U1", None)
-            .is_none()
-    );
+    let stale_scene = with_stale_scene(&snapshot);
     let mut other_instance = scope.clone();
     other_instance.instance_id = Some("right-half".into());
-    assert!(
-        accepted_preview
-            .part_for_current_pick(&snapshot, &other_instance, 3, "U1", None)
-            .is_none()
-    );
-    assert!(
-        accepted_preview
-            .part_for_current_pick(&snapshot, &scope, 3, "U1:0", None)
-            .is_none()
-    );
+    for (case, snapshot, scope, generation, reference) in [
+        ("old source generation", &snapshot, &scope, 4, "U1"),
+        ("replaced scene", &stale_scene, &scope, 3, "U1"),
+        ("other instance", &snapshot, &other_instance, 3, "U1"),
+        ("renderer row id", &snapshot, &scope, 3, "U1:0"),
+    ] {
+        assert!(
+            accepted_preview
+                .part_for_current_pick(snapshot, scope, generation, reference, None)
+                .is_none(),
+            "{case}"
+        );
+    }
 
     let mut duplicate = snapshot.document.as_ref().clone();
     duplicate.parts.push(Part {
@@ -466,10 +463,7 @@ fn picks_require_full_current_scope_source_generation_and_unique_board_reference
         ..duplicate.parts[0].clone()
     });
     duplicate.boards[0].part_ids.push("part-2".into());
-    let duplicate_snapshot = AcceptedSnapshot {
-        document: Arc::new(duplicate),
-        ..snapshot.clone()
-    };
+    let duplicate_snapshot = with_document(&snapshot, duplicate);
     assert!(
         accepted_preview
             .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1", None)
@@ -687,38 +681,30 @@ fn accepted_generic_module_scene_is_board_scoped_and_pick_resolves_current_place
         ["placement-generic"]
     );
     let preview = capture.accept_preview(preview()).unwrap();
-    assert_eq!(
-        preview.module_for_current_pick(&snapshot, &scope, 3, "module:placement-generic:pcb:0"),
-        Some("placement-generic".into())
-    );
-    assert_eq!(
-        preview.module_for_current_pick(&snapshot, &scope, 3, "module-model/placement-generic/0"),
-        Some("placement-generic".into())
-    );
-    assert!(
-        preview
-            .module_for_current_pick(&snapshot, &scope, 3, "module-model/placement-generic/1")
-            .is_none()
-    );
-    assert!(
-        preview
-            .module_for_current_pick(&snapshot, &scope, 3, "module:placement-other:pcb:0")
-            .is_none()
-    );
-    assert!(
-        preview
-            .module_for_current_pick(&snapshot, &scope, 4, "module:placement-generic:pcb:0")
-            .is_none()
-    );
-    let stale_scene = AcceptedSnapshot {
-        scene: Arc::new(snapshot.scene.as_ref().clone()),
-        ..snapshot
-    };
-    assert!(
-        preview
-            .module_for_current_pick(&stale_scene, &scope, 3, "module:placement-generic:pcb:0")
-            .is_none()
-    );
+    for reference in [
+        "module:placement-generic:pcb:0",
+        "module-model/placement-generic/0",
+    ] {
+        assert_eq!(
+            preview.module_for_current_pick(&snapshot, &scope, 3, reference),
+            Some("placement-generic".into()),
+            "{reference}"
+        );
+    }
+    let stale_scene = with_stale_scene(&snapshot);
+    for (snapshot, generation, reference) in [
+        (&snapshot, 3, "module-model/placement-generic/1"),
+        (&snapshot, 3, "module:placement-other:pcb:0"),
+        (&snapshot, 4, "module:placement-generic:pcb:0"),
+        (&stale_scene, 3, "module:placement-generic:pcb:0"),
+    ] {
+        assert!(
+            preview
+                .module_for_current_pick(snapshot, &scope, generation, reference)
+                .is_none(),
+            "{reference} at generation {generation}"
+        );
+    }
 }
 
 #[test]
@@ -726,24 +712,17 @@ fn source_state_rejects_late_worker_completion_after_owner_replacement() {
     let (snapshot, scope) = accepted(false);
     let mut state = LayoutPreviewState::default();
     let first_generation = state.next_generation().unwrap();
-    let first = LayoutSourceCapture::capture(
-        &snapshot,
-        &scope,
-        first_generation,
-        "layout-preview-first".into(),
-        BTreeMap::new(),
-    )
-    .unwrap();
+    let first =
+        capture_source(&snapshot, &scope, first_generation, "layout-preview-first").unwrap();
     state.begin(&first);
     assert!(state.owns(&first.owner));
 
     let second_generation = state.next_generation().unwrap();
-    let second = LayoutSourceCapture::capture(
+    let second = capture_source(
         &snapshot,
         &scope,
         second_generation,
-        "layout-preview-second".into(),
-        BTreeMap::new(),
+        "layout-preview-second",
     )
     .unwrap();
     state.begin(&second);
@@ -767,25 +746,18 @@ fn source_state_rejects_late_worker_completion_after_owner_replacement() {
 
 #[test]
 fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() {
-    #[cfg(not(target_arch = "wasm32"))]
     use crate::model_delivery::settle_layout_model_delivery;
-    #[cfg(target_arch = "wasm32")]
-    use crate::model_delivery::settle_layout_model_delivery;
-    use std::{
-        future::{Future, poll_fn},
-        task::Waker,
-    };
+    use std::future::{Future, poll_fn};
 
     let (snapshot, scope) = accepted(false);
     let state = Rc::new(std::cell::RefCell::new(LayoutPreviewState::default()));
 
     let first_generation = state.borrow_mut().next_generation().unwrap();
-    let first = LayoutSourceCapture::capture(
+    let first = capture_source(
         &snapshot,
         &scope,
         first_generation,
-        "layout-preview-suspended-model-error-a".into(),
-        BTreeMap::new(),
+        "layout-preview-suspended-model-error-a",
     )
     .unwrap();
     state.borrow_mut().begin(&first);
@@ -820,8 +792,7 @@ fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() 
         move |error| reported_from_callback.borrow_mut().push(error),
     );
     let mut settlement = Box::pin(settlement);
-    let waker = Waker::noop();
-    let mut context = std::task::Context::from_waker(waker);
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
     assert!(matches!(
         settlement.as_mut().poll(&mut context),
         std::task::Poll::Pending
@@ -830,12 +801,11 @@ fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() 
     // While A is suspended, publish a same-scope, same-revision B. The exact
     // settlement helper used by Runtime must suppress A's later failure.
     let second_generation = state.borrow_mut().next_generation().unwrap();
-    let second = LayoutSourceCapture::capture(
+    let second = capture_source(
         &snapshot,
         &scope,
         second_generation,
-        "layout-preview-suspended-model-error-b".into(),
-        BTreeMap::new(),
+        "layout-preview-suspended-model-error-b",
     )
     .unwrap();
     state.borrow_mut().begin(&second);
@@ -864,18 +834,6 @@ fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() 
         move |error| reported_current.borrow_mut().push(error),
     ));
     assert_eq!(&*reported.borrow(), &["B model decode failed"]);
-
-    fn block_on<F: std::future::Future>(future: F) -> F::Output {
-        let mut future = Box::pin(future);
-        let waker = Waker::noop();
-        let mut context = std::task::Context::from_waker(waker);
-        loop {
-            match future.as_mut().poll(&mut context) {
-                std::task::Poll::Ready(output) => return output,
-                std::task::Poll::Pending => std::thread::yield_now(),
-            }
-        }
-    }
 }
 
 #[test]
@@ -883,12 +841,11 @@ fn source_request_reconciliation_retires_pending_owner_when_scope_disappears_or_
     let (snapshot, scope) = accepted(false);
     let mut state = LayoutPreviewState::default();
     let generation = state.next_generation().unwrap();
-    let capture = LayoutSourceCapture::capture(
+    let capture = capture_source(
         &snapshot,
         &scope,
         generation,
-        "layout-preview-request-reconcile".into(),
-        BTreeMap::new(),
+        "layout-preview-request-reconcile",
     )
     .unwrap();
     state.begin(&capture);
@@ -905,12 +862,11 @@ fn source_request_reconciliation_retires_pending_owner_when_scope_disappears_or_
     assert!(state.pending.is_none());
 
     let next_generation = state.next_generation().unwrap();
-    let next = LayoutSourceCapture::capture(
+    let next = capture_source(
         &snapshot,
         &scope,
         next_generation,
-        "layout-preview-request-reconcile-next".into(),
-        BTreeMap::new(),
+        "layout-preview-request-reconcile-next",
     )
     .unwrap();
     state.begin(&next);
@@ -927,46 +883,12 @@ fn capture_rejects_stale_scope_scene_board_and_ambiguous_import_source() {
     let (snapshot, scope) = accepted(false);
     let mut wrong_scope = scope.clone();
     wrong_scope.document_id = "another-document".into();
-    assert!(
-        LayoutSourceCapture::capture(
-            &snapshot,
-            &wrong_scope,
-            3,
-            "request".into(),
-            BTreeMap::new()
-        )
-        .is_err()
-    );
     let mut wrong_board = scope.clone();
     wrong_board.board_id = "missing".into();
-    assert!(
-        LayoutSourceCapture::capture(
-            &snapshot,
-            &wrong_board,
-            3,
-            "request".into(),
-            BTreeMap::new()
-        )
-        .is_err()
-    );
     let mut duplicate_board = snapshot.document.as_ref().clone();
     duplicate_board
         .boards
         .push(duplicate_board.boards[0].clone());
-    let duplicate_board_snapshot = AcceptedSnapshot {
-        document: Arc::new(duplicate_board),
-        ..snapshot.clone()
-    };
-    assert!(
-        LayoutSourceCapture::capture(
-            &duplicate_board_snapshot,
-            &scope,
-            3,
-            "request".into(),
-            BTreeMap::new()
-        )
-        .is_err()
-    );
     let mut duplicate_import = snapshot.document.as_ref().clone();
     duplicate_import.board_references.push(BoardReference {
         id: "another-reference".into(),
@@ -980,18 +902,23 @@ fn capture_rejects_stale_scope_scene_board_and_ambiguous_import_source() {
         elevation: 0.0,
         model_assets: BTreeMap::new(),
     });
-    let imported_snapshot = AcceptedSnapshot {
-        document: Arc::new(duplicate_import),
-        ..snapshot.clone()
-    };
-    assert!(
-        LayoutSourceCapture::capture(
-            &imported_snapshot,
+    for (case, snapshot, scope) in [
+        ("wrong document scope", snapshot.clone(), &wrong_scope),
+        ("missing board", snapshot.clone(), &wrong_board),
+        (
+            "duplicate board",
+            with_document(&snapshot, duplicate_board),
             &scope,
-            3,
-            "request".into(),
-            BTreeMap::new()
-        )
-        .is_err()
-    );
+        ),
+        (
+            "ambiguous import",
+            with_document(&snapshot, duplicate_import),
+            &scope,
+        ),
+    ] {
+        assert!(
+            capture_source(&snapshot, scope, 3, "request").is_err(),
+            "{case}"
+        );
+    }
 }
