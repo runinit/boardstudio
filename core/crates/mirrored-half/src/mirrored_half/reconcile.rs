@@ -8,7 +8,7 @@
 //! - `document`: the `reconcile` body, in order: baseline validators and `stage_matrix`;
 //!   pair/halves lookup; independent part Add/Remove; `correspondence_targets` and circuit pairs;
 //!   hosted `AddCircuit` (`hosted::stage_hosted_circuit_additions`); board/layout
-//!   correspondences; module targets; final validation, `outlines::reconcile`.
+//!   correspondences; module targets; final validation, `outlines::reconcile_draft`.
 //! - `hosted`: hosted circuit staging and hosted removal/omission baseline validators.
 //! - `matrix_stage`: `MatrixStage`, `stage_matrix`, `project_matrix`, `project_part`.
 //! - `transition`: `prepare_membership_transition_kernel`, `prepare_membership_transition`;

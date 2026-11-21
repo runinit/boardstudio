@@ -494,6 +494,14 @@ fn placement_repairs_stale_link_in_another_pair() {
     let expected = accepted.parts[mirror_index].clone();
     accepted.parts[mirror_index].pose.at.x += 37.0;
 
+    let opened = prepare_open(&accepted, &[]).unwrap();
+    assert_eq!(opened.0.parts[mirror_index], expected);
+    assert_eq!(opened.1.len(), 1);
+    assert_eq!(
+        opened.1[0].id,
+        "mirrored-half:open-repaired:other-pair-source-mirror"
+    );
+
     let (placed, changed) = compare(
         &accepted,
         json!({"kind":"set-matrix-placement","matrixId":"mirror-matrix",
@@ -627,6 +635,20 @@ fn linked_placement_sequence_matches_full_preparation() {
     let (rejoined, _) = compare(&moved, local("linked"));
     let (omitted, _) = compare(&rejoined, local("omitted"));
     assert!(omitted.parts.iter().all(|row| row.id != key));
+    let denied: EditOperation = serde_json::from_value(json!({
+        "kind": "move-parts", "positions": [{"id":key,"at":{"x":5.0,"y":-18.0}}]
+    }))
+    .unwrap();
+    let identities = crate::mechanical::edit::MechanicalIdentityLedger::seeded(&omitted);
+    let before_refusal = serde_json::to_vec(&omitted).unwrap();
+    let refusal =
+        prepare_transaction_with_ledger(&omitted, &[], &denied, &identities, DISPATCH).unwrap_err();
+    assert!(
+        refusal.contains("is omitted on its mirror half"),
+        "{refusal}"
+    );
+    assert_eq!(serde_json::to_vec(&omitted).unwrap(), before_refusal);
+
     let (restored, _) = compare(&omitted, local("linked"));
     assert!(restored.parts.iter().any(|row| row.id == key));
     assert_eq!(

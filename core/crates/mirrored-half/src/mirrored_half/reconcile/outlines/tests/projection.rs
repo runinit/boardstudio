@@ -109,6 +109,24 @@ fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload
 }
 
 #[test]
+fn missing_target_outline_version_state_refuses_after_feature_projection() {
+    let (mut document, projection) = outline_fixture();
+    // The fixture's mirror feature differs from its source, so the projector writes
+    // it to the draft before discovering that the target version state is absent.
+    document
+        .board_outlines
+        .retain(|outline| outline.board_id != "mirror-board");
+    let before = document.clone();
+    let before_context = projection_state(&projection);
+
+    let error = reconcile_candidate(&mut document, "pair-source-mirror", &projection).unwrap_err();
+
+    assert_eq!(error, "The selected target board outline is unavailable");
+    assert_eq!(document, before);
+    assert_eq!(projection_state(&projection), before_context);
+}
+
+#[test]
 fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
     let (mut document, projection) = outline_fixture();
     let source_matrix = document

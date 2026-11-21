@@ -479,6 +479,12 @@ pub fn mark_override(part: &mut Part) {
         .insert(OVERRIDE.into(), json!(1));
 }
 
+fn overridden(part: &Part) -> bool {
+    part.properties
+        .as_ref()
+        .is_some_and(|props| props.get(OVERRIDE) == Some(&json!(1)))
+}
+
 // A matrix definition replacement keeps electrical identities by logical terminal,
 // rather than carrying old physical pad IDs into the new footprint.
 fn remap_member_pins(
@@ -731,11 +737,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                     if new_definition && part.keycap.is_none() {
                         part.keycap = authored_keycap;
                     }
-                    let overridden = part
-                        .properties
-                        .as_ref()
-                        .is_some_and(|props| props.get(OVERRIDE) == Some(&json!(1)));
-                    if !overridden {
+                    if !overridden(part) {
                         part.pose = pose;
                     }
                     part.definition_id = definition_id;

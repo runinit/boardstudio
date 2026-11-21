@@ -425,32 +425,29 @@ impl CoreEngine {
                 } else {
                     &[]
                 };
-            let raw_changed = match apply_with_ledger(
-                &mut raw_next,
-                board_contours,
-                &command.operation,
-                &self.identity_ledger,
-            ) {
-                Ok(changed) => changed,
-                Err(message) => return self.error(id, &message),
-            };
+            let (mut raw_changed, layout_settled) =
+                match self.apply_layout_edit(&mut raw_next, board_contours, &command.operation) {
+                    Ok(applied) => applied,
+                    Err(message) => return self.error(id, &message),
+                };
             if let Some(map) = &raw_next.keymap
                 && let Err(message) = keymap::validate(map)
             {
                 return self.error(id, &message);
             }
-            let mut raw_changed = raw_changed;
             electrical::preserve_handoff(&self.document, &mut raw_next);
-            if let Err(message) = layout::resolve(&mut raw_next) {
-                return self.error(id, &message);
-            }
-            if let Err(message) = settle_layout_dependents(
-                &mut raw_next,
-                &command.operation,
-                &mut raw_changed,
-                self.reusable_scene.is_some(),
-            ) {
-                return self.error(id, &message);
+            if !layout_settled {
+                if let Err(message) = layout::resolve(&mut raw_next) {
+                    return self.error(id, &message);
+                }
+                if let Err(message) = settle_layout_dependents(
+                    &mut raw_next,
+                    &command.operation,
+                    &mut raw_changed,
+                    self.reusable_scene.is_some(),
+                ) {
+                    return self.error(id, &message);
+                }
             }
             outline_controls::detach_removed(&self.document.parts, &mut raw_next);
             raw_changed.extend(outline_versions::prune_removed_components(
@@ -746,24 +743,58 @@ impl CoreEngine {
         )
     }
 
+    fn apply_layout_edit(
+        &self,
+        draft: &mut ProjectDoc,
+        board_contours: &[BoardContours],
+        operation: &EditOperation,
+    ) -> Result<(Vec<String>, bool), String> {
+        if let EditOperation::SetMatrixPlacement {
+            matrix_id,
+            change: MatrixPlacementChange::ColumnStagger { column, value },
+        } = operation
+            && self.reusable_scene.as_ref().is_some_and(|scene| {
+                scene.matrix_scenes.len() == draft.matrices.len()
+                    && scene
+                        .matrix_scenes
+                        .iter()
+                        .any(|matrix| matrix.matrix_id == *matrix_id)
+            })
+            && let Some(changed) = matrix::placement::try_settled_column_stagger(
+                draft,
+                &self.document.parts,
+                matrix_id,
+                *column,
+                *value,
+            )
+        {
+            return Ok((changed, true));
+        }
+        apply_with_ledger(draft, board_contours, operation, &self.identity_ledger)
+            .map(|changed| (changed, false))
+    }
+
     fn preview_edit(&self, id: String, command: EditCommand) -> CoreReply {
         let accepted = generators::parameter_problems(&self.document);
         // Layout and constraint settlement may rewrite anchors, change
         // membership, and prune outline versions, even for a single drag.
         let mut draft = self.document.clone();
-        let result = apply_with_ledger(&mut draft, &[], &command.operation, &self.identity_ledger)
-            .and_then(|mut changed| {
+        let result = self
+            .apply_layout_edit(&mut draft, &[], &command.operation)
+            .and_then(|(mut changed, layout_settled)| {
                 // Preview must materialize the same dependant poses the commit
                 // path publishes: anchored matrices follow from the anchor key's
                 // edited pose, and `resolve` (which starts with `validate`)
                 // refreshes every dependant exactly as commit does.
-                layout::resolve(&mut draft)?;
-                settle_layout_dependents(
-                    &mut draft,
-                    &command.operation,
-                    &mut changed,
-                    self.reusable_scene.is_some(),
-                )?;
+                if !layout_settled {
+                    layout::resolve(&mut draft)?;
+                    settle_layout_dependents(
+                        &mut draft,
+                        &command.operation,
+                        &mut changed,
+                        self.reusable_scene.is_some(),
+                    )?;
+                }
                 outline_controls::detach_removed(&self.document.parts, &mut draft);
                 changed.extend(outline_versions::prune_removed_components(
                     &self.document.parts,

@@ -321,23 +321,23 @@ pub fn validate_lifecycle_context(
 /// The outer transaction authenticates the real baseline; this private view narrows ownership
 /// to the matrix and temporarily normalizes an explicitly Rejoined owner for that kernel.
 pub(super) fn project_lifecycle_matrix(
-    draft: &mut crate::model::ProjectDoc,
+    mut draft: crate::model::ProjectDoc,
     context: &MembershipContext,
     additions: &[super::super::TransitionAssociation],
     dispatch: crate::mirrored_half::EditDispatch,
-) -> Result<(), String> {
+) -> Result<crate::model::ProjectDoc, String> {
     use super::super::{FinalOwner, MembershipTransitionInput};
     use crate::model::MirroredItemKind;
     use std::collections::BTreeMap;
     let Some(matrix_pair) = context.matrix_pair.as_ref() else {
-        return Ok(());
+        return Ok(draft);
     };
     if !draft
         .matrices
         .iter()
         .any(|m| m.id == matrix_pair.source_id.as_str())
     {
-        return Ok(());
+        return Ok(draft);
     }
     let owner = context
         .associations
@@ -353,7 +353,7 @@ pub(super) fn project_lifecycle_matrix(
         // halves record requires it): nothing projects onto it. A stale
         // record would only survive outside this lifecycle; leave it for the
         // kernel's member accounting to refuse rather than rewriting it here.
-        return Ok(());
+        return Ok(draft);
     }
     if owner.state == TransitionState::Local {
         let current = draft
@@ -422,7 +422,7 @@ pub(super) fn project_lifecycle_matrix(
                 .unwrap()
                 .part_ids
                 .retain(|id| !detached.iter().any(|p| p.id == *id));
-            crate::matrix::set_matrix(draft, &next)?;
+            crate::matrix::set_matrix(&mut draft, &next)?;
             for local in retained {
                 let target = draft
                     .parts
@@ -432,7 +432,7 @@ pub(super) fn project_lifecycle_matrix(
                 *target = local;
             }
         }
-        return Ok(());
+        return Ok(draft);
     }
     let source = draft
         .matrices
@@ -578,8 +578,9 @@ pub(super) fn project_lifecycle_matrix(
         .filter(|(_, mapped)| mapped.is_none())
         .map(|(id, _)| id.clone())
         .collect();
-    let mut frame = draft.clone();
-    frame
+    // Use the transaction's draft as the kernel baseline. The kernel stages against
+    // this normalized pair and the caller discards the transaction on refusal.
+    draft
         .hardware
         .as_mut()
         .unwrap()
@@ -590,8 +591,8 @@ pub(super) fn project_lifecycle_matrix(
         .halves = Some(matrix_context.pair_right.clone());
     let output = super::super::transition::project_membership(MembershipTransitionInput {
         dispatch,
-        valid_before: &frame,
-        post_source: &frame,
+        valid_before: &draft,
+        post_source: &draft,
         context: &matrix_context,
         baseline_kind: super::super::BaselineKind::ChainedPrivateDraft,
         source_identity_map: &source_map,
@@ -610,6 +611,5 @@ pub(super) fn project_lifecycle_matrix(
         .find(|p| p.id == context.pair_id)
         .unwrap()
         .halves = Some(context.pair_right.clone());
-    *draft = projected;
-    Ok(())
+    Ok(projected)
 }

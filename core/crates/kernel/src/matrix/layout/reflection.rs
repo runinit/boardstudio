@@ -533,9 +533,7 @@ pub fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
             }
             for part in &mut doc.parts {
                 if let Some(pose) = poses.get(&part.id)
-                    && !part.properties.as_ref().is_some_and(|properties| {
-                        properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
-                    })
+                    && !matrix::overridden(part)
                 {
                     part.pose = *pose;
                 }
