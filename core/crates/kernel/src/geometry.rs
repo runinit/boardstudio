@@ -640,11 +640,10 @@ fn project_outlines(
             .filter(|(old_feature, _)| old_feature == &feature && !depends_on(&feature, moved))
             .map(|(_, paths)| paths.clone())
             .unwrap_or_else(|| {
-                let reuse = reuse.as_mut().map(|reuse| {
+                if let Some(reuse) = &mut reuse {
                     reuse.feature_index = feature_index;
-                    reuse
-                });
-                feature_geometry_with_reuse(doc, &feature, reuse)
+                }
+                feature_geometry_with_reuse(doc, &feature, reuse.as_mut())
             });
         cache.paths.insert(feature.id().into(), (feature, paths));
     }
