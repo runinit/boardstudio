@@ -962,48 +962,11 @@ fn vik_signals() -> [(VikSignal, &'static str); 12] {
     ]
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ConnectorAdmission {
-    Reuse,
-    CreateAutomatic,
-    Reject,
-}
-
-fn connector_admission(
-    connector_id: &str,
-    automatic_id: &str,
-    is_host_connector_on_board: bool,
-    exists_in_document: bool,
-) -> ConnectorAdmission {
-    if is_host_connector_on_board {
-        ConnectorAdmission::Reuse
-    } else if connector_id == automatic_id && !exists_in_document {
-        ConnectorAdmission::CreateAutomatic
-    } else {
-        ConnectorAdmission::Reject
-    }
-}
-
-fn host_connector_is_on_board(
-    document: &boardstudio_model::model::ProjectDoc,
-    board_id: &str,
-    connector_id: &str,
-) -> bool {
-    document.boards.iter().any(|board| {
-        board.id == board_id && board.part_ids.iter().any(|part_id| part_id == connector_id)
-    }) && document
-        .parts
-        .iter()
-        .find(|part| part.id == connector_id)
-        .and_then(|part| {
-            document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id)
-        })
-        .and_then(|definition| definition.hardware_profile.as_ref())
-        .is_some_and(|profile| profile.vik_role == Some(VikRole::Host))
-}
+// VIK connector admission lives in the host-compatible `connector_admission`
+// module so the same predicate runs under `cargo test` without a browser.
+use crate::connector_admission::{
+    ConnectorAdmission, connector_admission, host_connector_is_on_board,
+};
 
 fn mounted_owner_current(
     runtime: &Rc<Runtime>,
@@ -1137,10 +1100,7 @@ fn module_resolver(
     })
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_module_inspector/wasm_tests.rs"]
-mod wasm_tests;
+// Connector admission runs natively via `crate::connector_admission` tests.
 
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "pcb_module_inspector/mounted_save_replacement_tests.rs"]

@@ -60,6 +60,7 @@ pub(crate) mod parts {
     pub use boardstudio_web_parts::parts::load_horizontal_host_connector_definition;
 }
 
+pub mod connector_admission;
 pub mod firmware_position_choices;
 pub mod pcb_wiring_remap_operation;
 
@@ -116,6 +117,12 @@ pub(crate) mod pcb_wiring {
 
     #[path = "connections.rs"]
     mod connections;
+
+    #[path = "part_connections.rs"]
+    mod part_connections;
+
+    #[path = "part_input_projection.rs"]
+    mod part_input_projection;
 
     #[path = "apply.rs"]
     mod apply;

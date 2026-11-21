@@ -64,5 +64,15 @@ pub mod parts_view_generation;
 #[cfg(target_arch = "wasm32")]
 pub mod parts;
 
+// Native catalogue/detail projection tests exercise host-compatible logic modules.
+#[cfg(all(not(target_arch = "wasm32"), test))]
+mod parts {
+    #[path = "details_logic.rs"]
+    mod details_logic;
+
+    #[path = "modules_catalogue_logic.rs"]
+    mod modules_catalogue_logic;
+}
+
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

@@ -23,6 +23,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 mod component_model_editor;
 mod details;
+mod details_logic;
 pub(crate) mod editor_fields;
 mod generator_settings;
 #[cfg(any(target_arch = "wasm32", test))]
@@ -32,6 +33,7 @@ mod mechanical_profile_ui;
 mod model_axis;
 mod module_profile_editor;
 mod modules_catalogue;
+mod modules_catalogue_logic;
 pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
 mod preview;
 mod standard_profile_lifetime;

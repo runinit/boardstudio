@@ -1,5 +1,5 @@
-use super::catalogue::{CatalogEntry, CatalogueSource, preferred_label};
-use boardstudio_model::model::PartDefinition;
+use super::catalogue::{CatalogEntry, preferred_label};
+use super::details_logic::{category_label, envelope_size, source_detail, source_name};
 use dioxus::prelude::*;
 
 #[component]
@@ -42,67 +42,13 @@ pub fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
     }
 }
 
-fn category_label(definition: &PartDefinition) -> &'static str {
-    match &definition.kind {
-        boardstudio_model::model::PartKind::Switch => "Switch",
-        boardstudio_model::model::PartKind::Controller => "Controller",
-        boardstudio_model::model::PartKind::Connector => "Connector",
-        boardstudio_model::model::PartKind::Encoder => "Encoder",
-        boardstudio_model::model::PartKind::Passive => "Passive",
-        boardstudio_model::model::PartKind::Utility => "Utility",
-        boardstudio_model::model::PartKind::Custom => "Custom",
-    }
-}
-
-fn source_name(source: CatalogueSource, definition: &PartDefinition) -> &'static str {
-    match source {
-        CatalogueSource::Generator => "Bundled footprint library",
-        CatalogueSource::Imported if definition.kicad_source.is_some() => "Imported KiCad library",
-        CatalogueSource::Imported => "Imported library",
-        CatalogueSource::Project => "Current project",
-    }
-}
-
-fn source_detail(definition: &PartDefinition) -> Option<String> {
-    if let Some(generator) = &definition.generator {
-        Some(format!("{} · {}", generator.source, generator.version))
-    } else if definition.kicad_source.is_some() {
-        Some(format!(
-            "KiCad format v{}",
-            definition.kicad_source.as_ref()?.format_version
-        ))
-    } else {
-        None
-    }
-}
-
-fn envelope_size(definition: &PartDefinition) -> Option<(f64, f64)> {
-    let min_x = definition
-        .courtyard
-        .iter()
-        .map(|point| point.x)
-        .reduce(f64::min)?;
-    let max_x = definition
-        .courtyard
-        .iter()
-        .map(|point| point.x)
-        .reduce(f64::max)?;
-    let min_y = definition
-        .courtyard
-        .iter()
-        .map(|point| point.y)
-        .reduce(f64::min)?;
-    let max_y = definition
-        .courtyard
-        .iter()
-        .map(|point| point.y)
-        .reduce(f64::max)?;
-    Some((max_x - min_x, max_y - min_y))
-}
+// Category, source and envelope predicates live in the host-compatible
+// `details_logic` module so the same projection runs under `cargo test`.
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_style_tests {
     use super::*;
+    use boardstudio_web_catalogue::catalogue::CatalogueSource;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::rc::Rc;

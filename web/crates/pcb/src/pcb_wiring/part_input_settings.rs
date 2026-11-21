@@ -1,6 +1,7 @@
 use super::PcbWiringSource;
+use super::part_input_projection::{PartInputProjection, binding_schema, project};
 use crate::pcb_controls::{PcbChoice, PcbInput, PcbSection};
-use boardstudio_model::model::{Part, PartDefinition, PartKind, PressScanMode, ProjectDoc};
+use boardstudio_model::model::PressScanMode;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
@@ -13,114 +14,6 @@ pub use owner::{
     PartInputActions, PartInputEditRequest, PartInputIdentity, PartInputIntent,
     use_part_input_edits,
 };
-
-const ROTARY_ENCODER_SOURCE: &str = "ceoloide/rotary_encoder_ec11_ec12";
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PartInputProjection {
-    pub part: Part,
-    pub definition: PartDefinition,
-    pub board_name: String,
-    pub press_mode: Option<PressScanMode>,
-    pub matrix_mode_enabled: bool,
-    pub nets: Vec<NetChoice>,
-    pub generator_parameters: BTreeMap<String, Value>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NetChoice {
-    pub id: String,
-    pub name: String,
-}
-
-pub fn project(
-    document: &ProjectDoc,
-    board_id: &str,
-    part_id: &str,
-) -> Option<PartInputProjection> {
-    let board = document.boards.iter().find(|board| board.id == board_id)?;
-    let part = document.parts.iter().find(|part| part.id == part_id)?;
-    if !board.part_ids.iter().any(|id| id == part_id) {
-        return None;
-    }
-    let definition = document
-        .definitions
-        .iter()
-        .find(|definition| definition.id == part.definition_id)?;
-    if matches!(definition.kind, PartKind::Switch | PartKind::Controller) {
-        return None;
-    }
-    let source = definition
-        .generator
-        .as_ref()
-        .map(|generator| generator.source.as_str());
-    let press = definition
-        .input_profile
-        .as_ref()
-        .and_then(|profile| profile.press.as_ref());
-    let has_press = press.is_some() || source == Some(ROTARY_ENCODER_SOURCE);
-    let in_matrix = document
-        .matrices
-        .iter()
-        .any(|matrix| matrix.part_ids.iter().any(|id| id == part_id));
-    let matrix_mode_enabled =
-        has_press && in_matrix && press.is_none_or(|profile| profile.independent);
-    let press_mode = has_press.then(|| {
-        part.properties
-            .as_ref()
-            .and_then(|properties| properties.get("pressScanMode"))
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or(if in_matrix {
-                PressScanMode::Matrix
-            } else {
-                PressScanMode::Direct
-            })
-    });
-    let board_net_ids = board.net_ids.iter().collect::<BTreeSet<_>>();
-    let nets = document
-        .nets
-        .iter()
-        .filter(|net| {
-            board_net_ids.contains(&net.id)
-                || net
-                    .pins
-                    .iter()
-                    .any(|pin| board.part_ids.iter().any(|part_id| part_id == &pin.part_id))
-        })
-        .map(|net| NetChoice {
-            id: net.id.clone(),
-            name: net.name.clone(),
-        })
-        .collect();
-    let generator_parameters = part.generator_parameters.clone().unwrap_or_default();
-
-    Some(PartInputProjection {
-        part: part.clone(),
-        definition: definition.clone(),
-        board_name: board.name.clone(),
-        press_mode,
-        matrix_mode_enabled,
-        nets,
-        generator_parameters,
-    })
-}
-
-pub fn binding_schema(
-    schema: &BTreeMap<String, Value>,
-    terminal_names: &BTreeSet<String>,
-) -> Vec<(String, String)> {
-    schema
-        .iter()
-        .filter_map(|(name, parameter)| {
-            let kind = parameter.get("type")?.as_str()?;
-            match kind {
-                "net" if !terminal_names.contains(name) => Some((name.clone(), kind.to_owned())),
-                "anchor" => Some((name.clone(), kind.to_owned())),
-                _ => None,
-            }
-        })
-        .collect()
-}
 
 #[derive(Props, Clone, PartialEq)]
 pub struct PartInputInspectorProps {
@@ -317,10 +210,9 @@ fn edit_identity(
 
 #[cfg(test)]
 mod tests {
+    use super::super::part_input_projection::project_fixture;
     use super::*;
-    use boardstudio_model::{model::Board, model::Matrix};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
-    use serde_json::json;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[derive(Clone)]
@@ -434,144 +326,5 @@ mod tests {
         })
         .await;
         root.remove();
-    }
-
-    fn project_fixture() -> ProjectDoc {
-        let mut document = ProjectDoc::empty("project", "Input fixture");
-        document.boards.push(Board {
-            id: "left".into(),
-            name: "Left PCB".into(),
-            outline_ids: vec![],
-            part_ids: vec!["matrix/main/r0c0".into(), "switch".into(), "mcu".into()],
-            net_ids: vec!["vcc".into()],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.nets = serde_json::from_value(json!([
-            {"id":"vcc","name":"VCC","pins":[]},
-            {"id":"legacy","name":"Legacy","pins":[{"partId":"mcu","padId":"P1"}]},
-            {"id":"other","name":"Other board only","pins":[]}
-        ]))
-        .unwrap();
-        document.boards.push(Board {
-            id: "right".into(),
-            name: "Right PCB".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec!["other".into()],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.definitions = serde_json::from_value(json!([
-            {"id":"encoder","name":"EC11/EC12","kind":"encoder","inputProfile":{"press":{"row":"S1","column":"S2","independent":true}},"courtyard":[],"pads":[],"terminals":{},"generator":{"source":"ceoloide/rotary_encoder_ec11_ec12","version":"bundled-1","parameters":{}}},
-            {"id":"switch-def","name":"MX switch","kind":"switch","courtyard":[],"pads":[],"terminals":{}},
-            {"id":"mcu-def","name":"MCU","kind":"controller","courtyard":[],"pads":[],"terminals":{}},
-            {"id":"rotation-only","name":"Rotation only","kind":"encoder","inputProfile":{"rotary":{"a":"A","b":"B","common":"C"}},"courtyard":[],"pads":[],"terminals":{}}
-        ])).unwrap();
-        document.parts = serde_json::from_value(json!([
-            {"id":"matrix/main/r0c0","definitionId":"encoder","reference":"ENC1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
-            {"id":"switch","definitionId":"switch-def","reference":"SW1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
-            {"id":"mcu","definitionId":"mcu-def","reference":"MCU","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}
-        ])).unwrap();
-        document.matrices.push(Matrix {
-            id: "main".into(),
-            name: None,
-            rows: 1,
-            columns: 1,
-            pitch: boardstudio_model::model::Vec2 { x: 19.0, y: 19.0 },
-            origin: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
-            definition_id: "encoder".into(),
-            part_ids: vec!["matrix/main/r0c0".into()],
-            board_id: Some("left".into()),
-            mirror: None,
-            rotation: None,
-            edge_gap: None,
-            diode_direction: None,
-            row_layout: vec![],
-            column_layout: vec![],
-            anchor: None,
-            cells: vec![],
-        });
-        document
-    }
-
-    pub fn projection_for_validation() -> PartInputProjection {
-        project(&project_fixture(), "left", "matrix/main/r0c0").unwrap()
-    }
-
-    #[wasm_bindgen_test]
-    fn pcb_part_input_projection_preserves_ts_routing_and_matrix_predicate() {
-        let document = project_fixture();
-        let encoder = project(&document, "left", "matrix/main/r0c0").unwrap();
-        assert_eq!(encoder.press_mode, Some(PressScanMode::Matrix));
-        assert!(encoder.matrix_mode_enabled);
-        assert_eq!(
-            encoder
-                .nets
-                .iter()
-                .map(|net| net.id.as_str())
-                .collect::<Vec<_>>(),
-            ["vcc", "legacy"]
-        );
-        assert!(project(&document, "left", "switch").is_none());
-        assert!(project(&document, "left", "mcu").is_none());
-        assert!(project(&document, "right", "matrix/main/r0c0").is_none());
-    }
-
-    #[wasm_bindgen_test]
-    fn pcb_part_input_matrix_choice_requires_membership_and_independent_press() {
-        let mut document = project_fixture();
-        document.matrices.clear();
-        assert!(
-            !project(&document, "left", "matrix/main/r0c0")
-                .unwrap()
-                .matrix_mode_enabled
-        );
-        document.matrices = project_fixture().matrices;
-        document.definitions[0]
-            .input_profile
-            .as_mut()
-            .unwrap()
-            .press
-            .as_mut()
-            .unwrap()
-            .independent = false;
-        assert!(
-            !project(&document, "left", "matrix/main/r0c0")
-                .unwrap()
-                .matrix_mode_enabled
-        );
-    }
-
-    #[wasm_bindgen_test]
-    fn pcb_part_input_matrix_choice_uses_membership_without_assuming_a_part_id_format() {
-        let mut document = project_fixture();
-        document.parts[0].id = "user-owned-encoder".into();
-        document.boards[0].part_ids[0] = "user-owned-encoder".into();
-        document.matrices[0].part_ids[0] = "user-owned-encoder".into();
-        let projection = project(&document, "left", "user-owned-encoder").unwrap();
-        assert!(projection.matrix_mode_enabled);
-        assert_eq!(projection.press_mode, Some(PressScanMode::Matrix));
-    }
-
-    #[wasm_bindgen_test]
-    fn pcb_part_input_schema_keeps_only_supported_nonterminal_net_and_anchor_fields() {
-        let schema = BTreeMap::from([
-            ("VCC".into(), json!({"type":"net"})),
-            ("battery".into(), json!({"type":"net"})),
-            ("anchor".into(), json!({"type":"anchor"})),
-            ("width".into(), json!({"type":"number"})),
-            ("options".into(), json!({"type":"object"})),
-        ]);
-        let fields = binding_schema(&schema, &BTreeSet::from(["VCC".into()]));
-        assert_eq!(
-            fields,
-            [
-                ("anchor".into(), "anchor".into()),
-                ("battery".into(), "net".into())
-            ]
-        );
     }
 }

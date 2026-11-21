@@ -1,9 +1,16 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
 use super::module_profile_editor::ModuleProfileEditor;
-use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_model::model::{
-    HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
+use super::modules_catalogue_logic::{
+    ModuleCatalogueRequest, ModuleCatalogueResult, catalogue_view, merge_project_overrides,
+    normalize_host_connector_definition,
 };
+// Host-compatible catalogue projection lives in `modules_catalogue_logic` so the same
+// merge/selection predicates run under `cargo test` without a browser.
+pub use super::modules_catalogue_logic::{
+    EntrySource, ModuleCatalogueView, ModuleEntry, selected_id, variants,
+};
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
+use boardstudio_model::model::{HardwareOutput, ModuleDefinition, PartDefinition, Side, VikRole};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
@@ -12,26 +19,13 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub mod module_attachment;
 
 const MODULES_ASSET: &str = "assets/imported-modules.json";
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ModuleEntry {
-    pub row: String,
-    pub definition: Rc<ModuleDefinition>,
-    source: EntrySource,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum EntrySource {
-    Bundled,
-    Project,
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,27 +42,6 @@ struct ModuleRecord {
 
 thread_local! {
     static BUNDLED_MODULES: RefCell<Option<Rc<Vec<ModuleEntry>>>> = const { RefCell::new(None) };
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct ModuleCatalogueRequest {
-    active: bool,
-    token: SnapshotToken,
-    project: Vec<ModuleDefinition>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct ModuleCatalogueResult {
-    request: ModuleCatalogueRequest,
-    entries: Option<Rc<Vec<ModuleEntry>>>,
-    error: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ModuleCatalogueView {
-    pub entries: Option<Rc<Vec<ModuleEntry>>>,
-    pub error: Option<String>,
-    pub pending: bool,
 }
 
 pub fn use_catalogue(
@@ -105,37 +78,6 @@ pub fn use_catalogue(
     let result = resource.read().clone();
     let bundled = BUNDLED_MODULES.with(|cache| cache.borrow().clone());
     catalogue_view(&request, result, bundled)
-}
-
-fn catalogue_view(
-    request: &ModuleCatalogueRequest,
-    result: Option<ModuleCatalogueResult>,
-    bundled: Option<Rc<Vec<ModuleEntry>>>,
-) -> ModuleCatalogueView {
-    if !request.active {
-        return ModuleCatalogueView::default();
-    }
-    match result.filter(|result| result.request == *request) {
-        Some(result) => ModuleCatalogueView {
-            entries: result.entries,
-            error: result.error,
-            pending: false,
-        },
-        None => match bundled {
-            // The package catalogue is immutable. Re-project only the current accepted
-            // document's overrides while the request-owned resource catches up, so an
-            // accepted edit cannot unmount the editor that is settling that edit.
-            Some(bundled) => ModuleCatalogueView {
-                entries: Some(Rc::new(merge_project_overrides(&bundled, &request.project))),
-                error: None,
-                pending: false,
-            },
-            None => ModuleCatalogueView {
-                pending: true,
-                ..ModuleCatalogueView::default()
-            },
-        },
-    }
 }
 
 async fn load_bundled() -> Result<Rc<Vec<ModuleEntry>>, String> {
@@ -206,119 +148,6 @@ pub async fn load_horizontal_host_connector_definition() -> Result<PartDefinitio
         })?;
 
     normalize_host_connector_definition(source)
-}
-
-fn normalize_host_connector_definition(
-    mut definition: PartDefinition,
-) -> Result<PartDefinition, String> {
-    const MODEL_ASSET: &str =
-        "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
-    definition.id = "vik:source:horizontal-host-connector".into();
-    definition.name = "VIK horizontal host connector".into();
-    definition.models = Some(vec![PartModel {
-        asset_id: MODEL_ASSET.into(),
-        offset: Vec3 {
-            x: -2.75,
-            y: 2.3,
-            z: 0.0,
-        },
-        rotation: Vec3::default(),
-        scale: Vec3 {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-    }]);
-    if let Some(source) = &mut definition.kicad_source {
-        source.source = without_embedded_connector_model(&source.source)?;
-    }
-    Ok(definition)
-}
-
-fn without_embedded_connector_model(source: &str) -> Result<String, String> {
-    const MARKER: &str = "(model \"../../kicad/3dmodels/vik-connector-horizontal.stp\"";
-    let Some(start) = source.find(MARKER) else {
-        return Ok(source.to_owned());
-    };
-    let mut depth = 0usize;
-    let mut quoted = false;
-    let mut escaped = false;
-    for (offset, character) in source[start..].char_indices() {
-        if quoted {
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == '"' {
-                quoted = false;
-            }
-            continue;
-        }
-        match character {
-            '"' => quoted = true,
-            '(' => depth += 1,
-            ')' => {
-                depth = depth.checked_sub(1).ok_or_else(|| {
-                    "The source VIK host connector has a malformed embedded model form.".to_string()
-                })?;
-                if depth == 0 {
-                    let end = start + offset + character.len_utf8();
-                    return Ok(format!("{}{}", &source[..start], &source[end..]));
-                }
-            }
-            _ => {}
-        }
-    }
-    Err("The source VIK host connector has a malformed embedded model form.".into())
-}
-
-fn merge_project_overrides(
-    bundled: &[ModuleEntry],
-    project: &[ModuleDefinition],
-) -> Vec<ModuleEntry> {
-    let mut entries = bundled.to_vec();
-    let mut positions = entries
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| (entry.definition.id.clone(), index))
-        .collect::<HashMap<_, _>>();
-    for definition in project {
-        if let Some(index) = positions.get(&definition.id).copied() {
-            entries[index].definition = Rc::new(definition.clone());
-            entries[index].source = EntrySource::Project;
-        } else {
-            let row = definition
-                .catalogue_row
-                .clone()
-                .unwrap_or_else(|| definition.id.clone());
-            positions.insert(definition.id.clone(), entries.len());
-            entries.push(ModuleEntry {
-                row,
-                definition: Rc::new(definition.clone()),
-                source: EntrySource::Project,
-            });
-        }
-    }
-    entries
-}
-
-pub fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {
-    entries
-        .iter()
-        .filter(|entry| entry.row == row)
-        .cloned()
-        .collect()
-}
-
-pub fn selected_id(
-    selection: Option<(Option<Scope>, String)>,
-    scope: &Option<Scope>,
-) -> Option<String> {
-    selection.and_then(|(selected_scope, id)| {
-        (selected_scope == *scope)
-            .then(|| id.strip_prefix("module:").map(str::to_owned))
-            .flatten()
-    })
 }
 
 struct CircuitPartPreview {
@@ -590,75 +419,4 @@ fn js_error(error: JsValue) -> String {
     error.as_string().unwrap_or_else(|| format!("{error:?}"))
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod catalogue_refresh_tests {
-    use super::*;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn definition(name: &str) -> ModuleDefinition {
-        serde_json::from_value(serde_json::json!({
-            "id": "module/test", "name": name, "family": "test", "variant": "test",
-            "source": {"repository": "test", "revision": "test", "path": "test", "license": "test"},
-            "board": {"contours": []}, "electrical": {"protocol": "i2c"}
-        }))
-        .unwrap()
-    }
-
-    #[wasm_bindgen_test]
-    fn module_catalogue_refresh_keeps_current_projection_without_stale_project_entries() {
-        let bundled = Rc::new(vec![ModuleEntry {
-            row: "test".into(),
-            definition: Rc::new(definition("bundled")),
-            source: EntrySource::Bundled,
-        }]);
-        let request = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(2),
-            project: vec![definition("accepted")],
-        };
-        let stale_request = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(1),
-            project: vec![definition("previous")],
-        };
-        let stale_result = ModuleCatalogueResult {
-            entries: Some(Rc::new(merge_project_overrides(
-                &bundled,
-                &stale_request.project,
-            ))),
-            request: stale_request,
-            error: None,
-        };
-        let view = catalogue_view(&request, Some(stale_result), Some(bundled.clone()));
-        assert!(
-            !view.pending,
-            "accepted token refresh must not unmount the selected module owner"
-        );
-        let entries = view.entries.unwrap();
-        assert_eq!(entries[0].definition.name, "accepted");
-        assert_eq!(entries[0].source, EntrySource::Project);
-
-        let switched = ModuleCatalogueRequest {
-            active: true,
-            token: SnapshotToken(3),
-            project: Vec::new(),
-        };
-        let previous = ModuleCatalogueResult {
-            request: request.clone(),
-            entries: Some(entries),
-            error: None,
-        };
-        let view = catalogue_view(&switched, Some(previous), Some(bundled.clone()));
-        assert_eq!(view.entries.unwrap()[0].definition.name, "bundled");
-        assert!(catalogue_view(&switched, None, None).pending);
-        let inactive = ModuleCatalogueRequest {
-            active: false,
-            ..switched
-        };
-        assert!(
-            catalogue_view(&inactive, None, Some(bundled))
-                .entries
-                .is_none()
-        );
-    }
-}
+// Catalogue merge/selection projection runs natively via `modules_catalogue_logic` tests.
