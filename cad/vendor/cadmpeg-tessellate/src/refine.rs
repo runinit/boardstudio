@@ -82,6 +82,7 @@ pub(crate) fn scales(carrier: &Carrier<'_, '_>, uv: Uv) -> Result<[f64; 2], Refu
 /// The limits of one refinement.
 pub(crate) struct Limits {
     pub(crate) chord: f64,
+    pub(crate) angle: f64,
     pub(crate) max_vertices: usize,
 }
 
@@ -135,10 +136,19 @@ impl Mesh {
                 continue;
             }
             let mut worst_edge: Option<f64> = None;
+            let mut largest_turn = limits.angle;
+            let mut turned_edge = None;
             let mut candidates: Vec<(usize, usize)> = Vec::new();
             for (from, to) in [(a, b), (b, c), (c, a)] {
                 if self.fixed.contains(&key(from, to)) {
                     continue;
+                }
+                if let (Some(first), Some(second)) = (self.normals[from], self.normals[to]) {
+                    let turn = angle(first, second);
+                    if exceeds_limit(turn, limits.angle) && turn > largest_turn {
+                        largest_turn = turn;
+                        turned_edge = Some((from, to));
+                    }
                 }
                 let uv = midpoint(self.uv[from], self.uv[to]);
                 let Some(on) = carrier.point(uv)? else {
@@ -166,17 +176,20 @@ impl Mesh {
                 )
             });
             let edge_error = worst_edge.unwrap_or(0.0);
-            if !exceeds_limit(edge_error, limits.chord) && !exceeds_limit(centre_error, limits.chord)
+            if turned_edge.is_none()
+                && !exceeds_limit(edge_error, limits.chord)
+                && !exceeds_limit(centre_error, limits.chord)
             {
                 continue;
             }
-            // The longest interior edge splits, which keeps triangles from
+            // Split the actual over-angle edge on narrow fillets. Otherwise
+            // the longest interior edge splits, which keeps triangles from
             // thinning; a triangle bounded only by fixed edges gains a
             // vertex at its centroid.
             let longest = candidates
                 .into_iter()
                 .max_by(|first, second| longer_edge(&self.points, *first, *second));
-            match longest {
+            match turned_edge.or(longest) {
                 Some(edge) => {
                     let uv = midpoint(self.uv[edge.0], self.uv[edge.1]);
                     self.split_edge(carrier, &mut edges, &mut queue, edge, uv)?;
@@ -424,10 +437,7 @@ impl Mesh {
                 ) else {
                     continue;
                 };
-                let uv = [
-                    low[0] + step[0] * column,
-                    low[1] + step[1] * row,
-                ];
+                let uv = [low[0] + step[0] * column, low[1] + step[1] * row];
                 let Some(at) = self.triangles.iter().position(|triangle| {
                     triangle.is_some_and(|[a, b, c]| {
                         cross2(self.uv[a], self.uv[b], uv) > 0.0

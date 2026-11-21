@@ -246,6 +246,7 @@ pub(crate) fn tessellate(
     mesh.flip();
     let limits = Limits {
         chord: options.chord,
+        angle: options.angle,
         max_vertices: options.max_vertices,
     };
     if !carrier.planar() {

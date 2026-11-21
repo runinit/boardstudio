@@ -1,6 +1,6 @@
 //! Integer authority for the narrow cuboid proof, borrowed from original spellings.
-use super::{EntityInstance, parts};
 use super::spelling;
+use super::{EntityInstance, parts};
 
 pub(super) struct Scalars {
     values: [f64; 3],
