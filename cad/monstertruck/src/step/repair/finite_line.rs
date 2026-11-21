@@ -381,16 +381,24 @@ impl Source {
 mod tests {
     use super::*;
 
+    /// Numeric authority comes only from the DATA section of a whole exchange.
+    fn exchange(header: &str, data: &str) -> String {
+        format!("ISO-10303-21;HEADER;{header}ENDSEC;DATA;{data}ENDSEC;END-ISO-10303-21;")
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn numeric_authority_does_not_copy_ignored_labels_or_source_text() {
         let label = "x".repeat(131_072);
-        let source = format!(
-            "#1=CARTESIAN_POINT('{label}',(0.,1.,2.));\n\
-             /* {label} #1=CARTESIAN_POINT('',(9.,9.,9.)); */\n\
-             #99=IGNORED('{label}'';#1=CARTESIAN_POINT('''',(9.,9.,9.));');\n\
-             #2=DIRECTION('',(0.,1.,0.));\n\
-             #2=(DIRECTION('',(0.,1.,0.))VECTOR('',#1,1.));"
+        let source = exchange(
+            "",
+            &format!(
+                "#1=CARTESIAN_POINT('{label}',(0.,1.,2.));\n\
+                 /* {label} #1=CARTESIAN_POINT('',(9.,9.,9.)); */\n\
+                 #99=IGNORED('{label}'';#1=CARTESIAN_POINT('''',(9.,9.,9.));');\n\
+                 #2=DIRECTION('',(0.,1.,0.));\n\
+                 #2=(DIRECTION('',(0.,1.,0.))VECTOR('',#1,1.));"
+            ),
         );
         let needed = HashSet::from([1, 2]);
         let (authority, largest) =
@@ -423,12 +431,21 @@ mod tests {
         }
         assert!(decimal(&"1".repeat(81)).is_none());
 
-        let mut bytes = b"HEADER(('ignore #1=VECTOR('',#2,4.);'));/* #1= */\n\
-            #001 /* label */ = CARTESIAN_POINT('a'';#1=\xff',(-0.025,+12.50E-1,1.E+2));\n\
+        let data: &[u8] =
+            b"#001 /* label */ = CARTESIAN_POINT('a'';#1=\xff',(-0.025,+12.50E-1,1.E+2));\n\
             #2=(DIRECTION('',(0.,1.,0.))VECTOR('',#1,1.));\n\
             #3=VECTOR('',#1,2.);\n\
-            #3=IGNORED('duplicate');"
-            .to_vec();
+            #3=IGNORED('duplicate');";
+        let exchange = |data: &[u8]| {
+            [
+                &b"ISO-10303-21;HEADER;FILE_DESCRIPTION(('ignore #1=VECTOR('',#2,4.);'),'2;1');\
+                   /* #1= */ENDSEC;DATA;"[..],
+                data,
+                b"ENDSEC;END-ISO-10303-21;",
+            ]
+            .concat()
+        };
+        let bytes = exchange(data);
         let needed = HashSet::from([1, 2, 3]);
         let authority = numbers(&bytes, &needed).unwrap();
         assert_eq!(authority.len(), 1);
@@ -440,8 +457,8 @@ mod tests {
                 "100".parse().unwrap()
             ]
         );
-        bytes.extend_from_slice(b"/* unterminated");
-        assert!(numbers(&bytes, &needed).is_none());
+        let unterminated = exchange(&[data, b"/* unterminated"].concat());
+        assert!(numbers(&unterminated, &needed).is_none());
     }
 
     #[test]
@@ -453,7 +470,7 @@ mod tests {
             "#2=DIRECTION('',(.F.,1.,0.));",
             "#2=DIRECTION('',(0.,1.,0.));#2=VECTOR('',#1,1.);",
         ] {
-            let source = format!("{clear}{other}");
+            let source = exchange("", &format!("{clear}{other}"));
             let authority = numbers(source.as_bytes(), &HashSet::from([1, 2])).unwrap();
             assert_eq!(
                 authority[&1].as_slice(),

@@ -38,7 +38,15 @@ impl<'a> Document<'a> {
         {
             return None;
         }
-        lexemes::validate(bytes)?;
+        // A REFERENCE entry naming a DATA ID makes that ID ambiguous.
+        if original.reference.iter().any(|entry| {
+            matches!(entry.name, Name::Entity(id) if records
+                .binary_search_by_key(&id, |instance| parts(instance).0)
+                .is_ok())
+        }) {
+            return None;
+        }
+        lexemes::validate(bytes, &records)?;
         Some(Self { records, bytes })
     }
 
