@@ -1,3 +1,4 @@
+use super::projection::matrix_by_id;
 use super::*;
 use crate::mirrored_half::{EditDispatch, reconcile::tests::fixtures::fixture_document};
 use crate::model::ElectricalBoardConfiguration;
@@ -53,6 +54,21 @@ fn apply(document: &mut ProjectDoc, operation: &EditOperation) -> Result<Vec<Str
             matrix,
             definitions: None,
         } => crate::matrix::set_matrix(document, matrix),
+        EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            use crate::matrix::{layout, placement, set_matrix};
+
+            layout::refuse_omitted_storage_edit(document, matrix_id, &[])?;
+            let current = matrix_by_id(document, matrix_id)?;
+            let matrix = placement::update(current, change, document)?;
+            if matrix == *current {
+                return Ok(Vec::new());
+            }
+            placement::carrying_authored_companions(document, placement::Reported::Moved, |doc| {
+                let mut changed = set_matrix(doc, &matrix)?;
+                changed.extend(layout::sync(doc, matrix_id)?);
+                Ok(changed)
+            })
+        }
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = crate::matrix::layout::move_keys(document, positions)?;
             for position in positions
@@ -246,7 +262,7 @@ fn with_second_pair(mut accepted: ProjectDoc) -> ProjectDoc {
 }
 
 #[test]
-fn independent_placement_repairs_stale_link_in_another_pair() {
+fn placement_repairs_stale_link_in_another_pair() {
     use crate::mirrored_half::reconcile::tests::fixtures::fixture_matrix;
     use crate::model::MirroredCorrespondence;
 
@@ -312,6 +328,31 @@ fn independent_placement_repairs_stale_link_in_another_pair() {
         .unwrap();
     let expected = accepted.parts[mirror_index].clone();
     accepted.parts[mirror_index].pose.at.x += 37.0;
+
+    let (placed, changed) = compare(
+        &accepted,
+        json!({"kind":"set-matrix-placement","matrixId":"mirror-matrix",
+            "change":{"kind":"column-stagger","column":1,"value":4.0}}),
+    );
+    assert_eq!(placed.parts[mirror_index], expected);
+    assert_eq!(
+        matrix_by_id(&placed, "source-matrix")
+            .unwrap()
+            .column_layout[1]
+            .stagger,
+        4.0
+    );
+    assert_eq!(
+        changed,
+        [
+            "matrix/mirror-matrix/r0c1",
+            "matrix/source-matrix/r0c1",
+            "mirror-matrix",
+            unrelated_mirror,
+            "source-matrix",
+        ]
+    );
+
     let (moved, changed) = compare(
         &accepted,
         json!({"kind":"move-parts","positions":[{"id":"source-board/free","at":{"x":15.0,"y":-8.0}}]}),
