@@ -45,11 +45,11 @@ pub fn LayoutTransformToolOverlay(
         )
     });
     let _ = surface_size.map(|size| size());
-    // Ticket 03: the rail peers share one svg handle per canvas. The key is
-    // the shared handle's identity, so every overlay of one selection reads
-    // the same mount set however the mounts interleave.
-    let svg_key: usize = Rc::as_ptr(&svg.0) as usize;
-    use_rail_mount(Rail::Matrix, svg_key, tool);
+    // W3-C: the rail peers share one canvas-owned svg handle. Every overlay of
+    // one selection clones the same handle, so all read the same mount set
+    // however the mounts interleave; a second canvas owns a second handle.
+    let svg_handle = svg.clone();
+    use_rail_mount(Rail::Matrix, svg_handle.clone(), tool);
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
     let snap_guide = use_signal(|| None::<Vec2>);
     // Ticket 03: hover (or keyboard focus) on a rail token previews, in
@@ -118,6 +118,7 @@ pub fn LayoutTransformToolOverlay(
     let arbiter_for_drop = arbiter.clone();
     let drag_for_drop = drag.clone();
     let mut guide_for_drop = snap_guide;
+    let svg_for_drop_cancel = svg_handle.clone();
     use_drop(move || {
         cancel_transform_drag(
             &runtime_inner,
@@ -126,9 +127,10 @@ pub fn LayoutTransformToolOverlay(
             &mut guide_for_drop,
             quick_glyph,
             swing_glyph,
-            svg_key,
+            &svg_for_drop_cancel,
         );
     });
+    let svg_for_escape = svg_handle.clone();
     use_document_escape({
         let runtime = runtime.0.clone();
         let drag = drag.clone();
@@ -136,6 +138,7 @@ pub fn LayoutTransformToolOverlay(
         let mut feedback = feedback;
         let mut popup_at = popup_at;
         let mut guide = snap_guide;
+        let svg_for_escape = svg_for_escape.clone();
         move |event| {
             // Another visible handle may own the live gesture. Its listener cancels it.
             if escape_targets_text_entry(event)
@@ -154,7 +157,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_for_escape,
             );
             on_finish.call(());
         }
@@ -171,6 +174,7 @@ pub fn LayoutTransformToolOverlay(
             let drag = drag.clone();
             let arbiter = arbiter.clone();
             let mut guide = snap_guide;
+            let svg_for_stale = svg_handle.clone();
             move || {
                 cancel_transform_drag(
                     &runtime,
@@ -179,7 +183,7 @@ pub fn LayoutTransformToolOverlay(
                     &mut guide,
                     quick_glyph,
                     swing_glyph,
-                    svg_key,
+                    &svg_for_stale,
                 )
             }
         },
@@ -240,7 +244,7 @@ pub fn LayoutTransformToolOverlay(
     let selected_column = context_column(&context).unwrap_or(0);
     let handle_scale = handle_scale(&svg, width, height);
     let world_per_screen = handle_scale / 3.0;
-    let rail_tools = matrix_rail_tools(svg_key, &context);
+    let rail_tools = matrix_rail_tools(&svg_handle, &context);
     let rail_index = rail_tools.iter().position(|peer| *peer == tool);
     // The Origin point stays on the canvas at the splay origin; it never
     // joins the rail.
@@ -365,16 +369,17 @@ pub fn LayoutTransformToolOverlay(
     let owner_for_key = owner.clone();
     let context_for_key = context.clone();
     let runtime_for_start = runtime.0.clone();
-    let svg_for_start = svg.0.clone();
+    let svg_for_start = svg.surface().clone();
     let drag_for_start = drag.clone();
     let arbiter_for_start = arbiter.clone();
     let guide_for_start = snap_guide;
     let popup_at_for_start = popup_at;
+    let svg_handle_for_start_outer = svg_handle.clone();
     let start_drag = Rc::new(move |event: PointerEvent, gesture: TransformGesture| {
         let mut guide_for_start = guide_for_start;
         let mut quick_for_start = quick_glyph;
         let mut swing_for_start = swing_glyph;
-        let svg_key_for_start = svg_key;
+        let svg_handle_for_start = svg_handle_for_start_outer.clone();
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -555,7 +560,7 @@ pub fn LayoutTransformToolOverlay(
             start_point.x + 18.0 * world_per_screen,
             start_point.y - 18.0 * world_per_screen,
         )));
-        Rail::Matrix.set_active(svg_key_for_start, Some(tool));
+        set_rail_active(Rail::Matrix, &svg_handle_for_start, Some(tool));
         quick_for_start.set(matches!(
             gesture,
             TransformGesture::Stagger {
@@ -571,7 +576,8 @@ pub fn LayoutTransformToolOverlay(
     });
 
     let runtime_for_move = runtime.0.clone();
-    let svg_for_move = svg.0.clone();
+    let svg_for_move = svg.surface().clone();
+    let svg_for_move_cancel = svg_handle.clone();
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
     let guide_for_move = snap_guide;
@@ -611,7 +617,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_move,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_for_move_cancel,
             );
             return;
         }
@@ -671,19 +677,20 @@ pub fn LayoutTransformToolOverlay(
     });
 
     let runtime_for_end = runtime.0.clone();
-    let svg_for_end = svg.0.clone();
+    let svg_for_end = svg.surface().clone();
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
     let guide_for_end = snap_guide;
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
     let toast_gen_for_end = toast_gen;
+    let svg_handle_for_end_outer = svg_handle.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_end = guide_for_end;
         let mut feedback_for_end = feedback_for_end;
         let mut popup_at_for_end = popup_at_for_end;
         let mut toast_gen_for_end = toast_gen_for_end;
-        let svg_key_for_end = svg_key;
+        let svg_handle_for_end = svg_handle_for_end_outer.clone();
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -712,7 +719,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_handle_for_end,
             );
             return;
         }
@@ -724,7 +731,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_end,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_handle_for_end,
             );
             return;
         }
@@ -802,7 +809,7 @@ pub fn LayoutTransformToolOverlay(
         }
         popup_at_for_end.set(None);
         guide_for_end.set(None);
-        Rail::Matrix.set_active(svg_key_for_end, None);
+        set_rail_active(Rail::Matrix, &svg_handle_for_end, None);
         let mut quick_for_end = quick_glyph;
         quick_for_end.set(false);
         let mut swing_for_end = swing_glyph;
@@ -821,6 +828,7 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_cancel = snap_guide;
     let feedback_for_cancel = feedback;
     let popup_at_for_cancel = popup_at;
+    let svg_for_cancel = svg_handle.clone();
     let cancel_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_cancel = guide_for_cancel;
         let mut feedback_for_cancel = feedback_for_cancel;
@@ -848,7 +856,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_cancel,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_for_cancel,
             );
         }
     });
@@ -859,6 +867,7 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_key = snap_guide;
     let feedback_for_key = feedback;
     let popup_at_for_key = popup_at;
+    let svg_for_key_cancel = svg_handle.clone();
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
         let mut guide_for_key = guide_for_key;
         let mut feedback_for_key = feedback_for_key;
@@ -882,7 +891,7 @@ pub fn LayoutTransformToolOverlay(
                 &mut guide_for_key,
                 quick_glyph,
                 swing_glyph,
-                svg_key,
+                &svg_for_key_cancel,
             );
             on_finish.call(());
             return;
@@ -1145,7 +1154,7 @@ pub fn LayoutTransformToolOverlay(
         popup_at,
         snap_guide,
         drag: drag.clone(),
-        svg_key,
+        svg: svg_handle.clone(),
         rail_index,
         rail_layout,
         rail_tools,

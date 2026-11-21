@@ -279,7 +279,7 @@ pub(super) fn cancel_part_drag(
     runtime: &Rc<Runtime>,
     drag: &Rc<RefCell<Option<PartDrag>>>,
     arbiter: &CanvasInteractionArbiter,
-    svg_key: usize,
+    svg: &LayoutTransformSvg,
 ) -> bool {
     let Some(active) = drag.borrow_mut().take() else {
         return false;
@@ -302,7 +302,7 @@ pub(super) fn cancel_part_drag(
             .release_pointer_capture(active.pointer_id as i32);
     }
     arbiter.release(CanvasInteractionOwner::MatrixTransform);
-    Rail::Part.set_active(svg_key, None);
+    set_rail_active(Rail::Part, svg, None);
     true
 }
 

@@ -649,7 +649,7 @@ pub(super) fn prepare_lifecycle_projection(
         &mut output.draft,
         &context.pair_id,
         &projection,
-        None,
+        false,
     )?;
     output
         .draft

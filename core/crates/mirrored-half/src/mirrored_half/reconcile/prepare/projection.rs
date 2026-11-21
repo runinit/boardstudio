@@ -153,7 +153,7 @@ pub(super) fn project_matrixless_placement(
     }
 
     let projection = super::super::projection_for_matrixless_pair(halves, pair.mapping);
-    reconcile_with_report(draft, &pair.id, &projection, None)?;
+    reconcile_with_report(draft, &pair.id, &projection, false)?;
     Ok(true)
 }
 
@@ -187,7 +187,7 @@ pub(super) fn reconcile_pairs(
                 // Caller-owned draft: no per-pair report. The outer transaction guarantees
                 // rollback and owns the single final scoped report, so refusals still leave
                 // the accepted document intact while ledger updates stay atomic on success.
-                reconcile_with_report(document, &pair.pair_id, &projection, None)?;
+                reconcile_with_report(document, &pair.pair_id, &projection, false)?;
             }
             continue;
         }
@@ -205,7 +205,7 @@ pub(super) fn reconcile_pairs(
                 matrix_link,
                 index == 0,
             )?;
-            reconcile_with_report(document, &pair.pair_id, &projection, None)?;
+            reconcile_with_report(document, &pair.pair_id, &projection, false)?;
         }
     }
     Ok(())

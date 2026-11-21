@@ -1,11 +1,12 @@
 //! Native detach proposals, edit transitions and replacement-record retirement.
 
 use super::super::TransitionState;
+use super::super::changes::changed_document_ids;
+use super::transition::prepare_lifecycle_projection;
 use super::{
     ConstraintLifecycleDelta, ConstraintLifecycleEffect, classify_source_retirements,
     lifecycle_context, matrix_pair_for_association, prepare_constraint_lifecycle_delta,
-    prepare_lifecycle_transition, prepare_matrix_membership_edit, transition_exception_context,
-    validate_lifecycle_context,
+    prepare_matrix_membership_edit, transition_exception_context, validate_lifecycle_context,
 };
 use crate::constraints::FramedConstraint;
 use crate::model::{Constraint, HalfExceptionState};
@@ -144,7 +145,8 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             mirror_id,
             requested_state,
         )?;
-        let output = prepare_lifecycle_transition(before, post_source, &pending, dispatch)?;
+        let mut output = prepare_lifecycle_projection(before, post_source, &pending, dispatch)?;
+        output.changed_document_ids = changed_document_ids(post_source, &output.draft, &[])?;
         let mut effects = Vec::new();
         if prior_state != requested_state {
             match requested_state {
@@ -230,7 +232,8 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             local_matrix_id,
             TransitionState::Local,
         )?;
-        let output = prepare_lifecycle_transition(before, post_source, &pending, dispatch)?;
+        let mut output = prepare_lifecycle_projection(before, post_source, &pending, dispatch)?;
+        output.changed_document_ids = changed_document_ids(post_source, &output.draft, &[])?;
         let mut prepared = prepare_lifecycle_output(
             before,
             output,
@@ -369,8 +372,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             mirror_id,
         });
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let output =
-        super::transition::prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
+    let output = prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
     // Caller-owned draft: no per-pair full report. The outer transaction guarantees rollback
     // and owns the single final scoped report; the final diff already covers these IDs.
     let removed = removed_part_ids(before, &output.draft);

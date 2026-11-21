@@ -1,33 +1,24 @@
-//! Ticket 03: the rail mount registry. Plain logic: compiled natively for tests.
+//! The rail mount state: pure logic, compiled natively for tests.
+//!
+//! Each canvas owns one [`RailState`] per rail (matrix vs part) inside its svg
+//! handle. Overlays mount their tool while they stay mounted and unmount on
+//! drop; the active peer tracks the live drag or pick. This module holds the
+//! rail identity and canonical orders plus the peer filtering; the Dioxus
+//! hook that registers against the component-owned handle lives in `chrome`.
 use super::tool::LayoutTransformTool;
-use std::{cell::RefCell, collections::HashMap};
+use boardstudio_web_layout_core::rail_state::RailState;
 
-/// Which rail a token joins. Ticket 03's matrix rail and Ticket 07's part rail keep separate
-/// mount sets per svg and list their peers in their own canonical order.
+/// Which rail a token joins. The matrix rail and the part rail keep separate
+/// mount sets per svg handle and list their peers in their own canonical order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Rail {
     Matrix,
     Part,
 }
 
-/// Ticket 03: the rail peers mounted in one SVG canvas. Each overlay registers
-/// its tool on mount and unregisters on unmount, keyed by the shared svg
-/// handle, so every overlay of one selection computes the same peer list
-/// without new props on the shared mount site. The list holds the mounted
-/// tools; `Rail::peers` filters it into canonical order minus Origin.
-#[derive(Default)]
-struct RailMount {
-    tools: Vec<LayoutTransformTool>,
-    active: Option<LayoutTransformTool>,
-}
-
-thread_local! {
-    static RAIL_MOUNTS: RefCell<HashMap<(Rail, usize), RailMount>> = RefCell::new(HashMap::new());
-}
-
 /// Canonical matrix rail order: peers list in this order however the mounts
 /// interleave, matching the `transform_tools` listing order.
-const MATRIX_RAIL_ORDER: [LayoutTransformTool; 9] = [
+pub(super) const MATRIX_RAIL_ORDER: [LayoutTransformTool; 9] = [
     LayoutTransformTool::Spread,
     LayoutTransformTool::Stagger,
     LayoutTransformTool::Offset,
@@ -41,7 +32,7 @@ const MATRIX_RAIL_ORDER: [LayoutTransformTool; 9] = [
 
 /// Canonical part rail order (Move, Rotate, Spread, Stagger), matching the `part_rail`
 /// listing order so the drawn tokens match its tool list.
-const PART_RAIL_ORDER: [LayoutTransformTool; 5] = [
+pub(super) const PART_RAIL_ORDER: [LayoutTransformTool; 5] = [
     LayoutTransformTool::Move,
     LayoutTransformTool::Rotate,
     LayoutTransformTool::Spread,
@@ -50,68 +41,22 @@ const PART_RAIL_ORDER: [LayoutTransformTool; 5] = [
 ];
 
 impl Rail {
-    fn order(self) -> &'static [LayoutTransformTool] {
+    pub(super) fn order(self) -> &'static [LayoutTransformTool] {
         match self {
             Self::Matrix => &MATRIX_RAIL_ORDER,
             Self::Part => &PART_RAIL_ORDER,
         }
     }
 
-    pub(super) fn mount(self, svg_key: usize, tool: LayoutTransformTool) {
-        RAIL_MOUNTS.with(|mounts| {
-            let mut mounts = mounts.borrow_mut();
-            let mount = mounts.entry((self, svg_key)).or_default();
-            if !mount.tools.contains(&tool) {
-                mount.tools.push(tool);
-            }
-        });
-    }
-
-    pub(super) fn unmount(self, svg_key: usize, tool: LayoutTransformTool) {
-        RAIL_MOUNTS.with(|mounts| {
-            if let Some(mount) = mounts.borrow_mut().get_mut(&(self, svg_key)) {
-                mount.tools.retain(|peer| *peer != tool);
-                if mount.active == Some(tool) {
-                    mount.active = None;
-                }
-            }
-        });
-    }
-
-    pub(super) fn set_active(self, svg_key: usize, tool: Option<LayoutTransformTool>) {
-        RAIL_MOUNTS.with(|mounts| {
-            if let Some(mount) = mounts.borrow_mut().get_mut(&(self, svg_key)) {
-                mount.active = tool;
-            }
-        });
-    }
-
     /// The rail peers for one overlay: the mounted tools in canonical order.
     /// Origin stays a point on the canvas, so it never joins the rail. Members,
     /// companions and locked parts never mount, so a part rail only ever holds one
     /// independent part's tools.
-    pub(super) fn peers(self, svg_key: usize) -> Vec<LayoutTransformTool> {
-        RAIL_MOUNTS.with(|mounts| {
-            mounts
-                .borrow()
-                .get(&(self, svg_key))
-                .map_or_else(Vec::new, |mount| {
-                    self.order()
-                        .iter()
-                        .filter(|peer| mount.tools.contains(peer))
-                        .copied()
-                        .collect()
-                })
-        })
-    }
-
-    pub(super) fn active(self, svg_key: usize) -> Option<LayoutTransformTool> {
-        RAIL_MOUNTS.with(|mounts| {
-            mounts
-                .borrow()
-                .get(&(self, svg_key))
-                .and_then(|mount| mount.active)
-        })
+    pub(super) fn peers_in(
+        self,
+        state: &RailState<LayoutTransformTool>,
+    ) -> Vec<LayoutTransformTool> {
+        state.peers_in_order(self.order())
     }
 }
 
@@ -120,56 +65,71 @@ mod tests {
     use super::*;
     use LayoutTransformTool::*;
 
+    fn mounted<const N: usize>(
+        order: &[LayoutTransformTool],
+        tools: [LayoutTransformTool; N],
+    ) -> Vec<LayoutTransformTool> {
+        let mut state = RailState::new();
+        for tool in tools {
+            state.mount(tool);
+        }
+        state.peers_in_order(order)
+    }
+
     #[test]
     fn peers_list_in_canonical_order_however_mounts_interleave() {
-        let svg = 0x5101;
-        for tool in [Anchor, Rotate, Origin, Spread, Splay, Move, Stagger] {
-            Rail::Matrix.mount(svg, tool);
-        }
-        Rail::Matrix.mount(svg, Spread);
         assert_eq!(
-            Rail::Matrix.peers(svg),
+            mounted(
+                &MATRIX_RAIL_ORDER,
+                [Anchor, Rotate, Origin, Spread, Splay, Move, Stagger]
+            ),
             [Spread, Stagger, Splay, Move, Rotate, Anchor],
             "Origin never joins the rail and a repeated mount lists once"
         );
-        for tool in [Anchor, Stagger, Spread, Rotate, Move] {
-            Rail::Part.mount(svg, tool);
-        }
+        // A repeated mount lists once.
+        let mut state = RailState::new();
+        state.mount(Spread);
+        state.mount(Spread);
+        assert_eq!(state.peers_in_order(&MATRIX_RAIL_ORDER), vec![Spread]);
         assert_eq!(
-            Rail::Part.peers(svg),
+            mounted(&PART_RAIL_ORDER, [Anchor, Stagger, Spread, Rotate, Move]),
             [Move, Rotate, Spread, Stagger, Anchor]
         );
-        assert_eq!(Rail::Matrix.peers(svg).len(), 6, "rails keep separate sets");
+        // Rails keep separate sets: one state per rail, so a matrix tool never
+        // leaks into the part peers.
+        let mut matrix = RailState::new();
+        let mut part = RailState::new();
+        for tool in [Anchor, Stagger, Spread, Rotate, Move] {
+            part.mount(tool);
+        }
+        matrix.mount(Move);
+        assert_eq!(matrix.peers_in_order(&MATRIX_RAIL_ORDER).len(), 1);
+        assert_eq!(part.peers_in_order(&PART_RAIL_ORDER).len(), 5);
         assert!(
-            Rail::Part.peers(svg + 1).is_empty(),
-            "each svg keeps its own set"
+            RailState::<LayoutTransformTool>::new()
+                .peers_in_order(&PART_RAIL_ORDER)
+                .is_empty(),
+            "an unmounted svg has no peers"
         );
     }
 
     #[test]
     fn unmounting_the_active_tool_clears_the_active_peer() {
-        for rail in [Rail::Matrix, Rail::Part] {
-            let svg = 0x5102;
-            rail.mount(svg, Move);
-            rail.mount(svg, Rotate);
-            assert_eq!(rail.active(svg), None);
-            rail.set_active(svg, Some(Move));
-            assert_eq!(rail.active(svg), Some(Move));
-            rail.unmount(svg, Rotate);
-            assert_eq!(
-                rail.active(svg),
-                Some(Move),
-                "{rail:?}: a peer leaving keeps it"
-            );
-            rail.unmount(svg, Move);
-            assert_eq!(rail.active(svg), None, "{rail:?}");
-            assert!(rail.peers(svg).is_empty(), "{rail:?}");
-            rail.set_active(svg + 1, Some(Move));
-            assert_eq!(
-                rail.active(svg + 1),
-                None,
-                "an unmounted svg has no active peer"
-            );
+        for order in [&MATRIX_RAIL_ORDER[..], &PART_RAIL_ORDER[..]] {
+            let mut state = RailState::new();
+            state.mount(Move);
+            state.mount(Rotate);
+            assert_eq!(state.active(), None);
+            state.set_active(Some(Move));
+            assert_eq!(state.active(), Some(Move));
+            state.unmount(&Rotate);
+            assert_eq!(state.active(), Some(Move), "a peer leaving keeps it");
+            state.unmount(&Move);
+            assert_eq!(state.active(), None);
+            assert!(state.peers_in_order(order).is_empty());
         }
+        let mut fresh = RailState::<LayoutTransformTool>::new();
+        fresh.set_active(Some(Move));
+        assert_eq!(fresh.active(), None);
     }
 }
