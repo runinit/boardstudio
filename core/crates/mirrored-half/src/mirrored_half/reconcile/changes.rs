@@ -24,9 +24,153 @@ pub fn changed_document_fields(
     before: &ProjectDoc,
     after: &ProjectDoc,
 ) -> Result<(Vec<String>, Vec<String>), String> {
-    Ok(diff(&json(before)?, &json(after)?))
+    let ids = changed_document_ids(before, after, &[])?;
+    let mut fields = BTreeSet::new();
+
+    // Keep this list exhaustive so a new document field gets an explicit report policy.
+    macro_rules! fields {
+        ($ty:ident, $before:ident, $after:ident, $root:literal; [$($entity:ident),* $(,)?];
+         $($field:ident => $wire:literal, $compare:ident $(($($arg:expr),+))?;)+) => {
+            let $ty { $($field: _,)+ $($entity: _,)* } = $before;
+            $($compare(
+                &$before.$field, &$after.$field, concat!($root, ".", $wire), &mut fields
+                $($(, $arg)+)?
+            )?;)+
+        };
+    }
+    // Entity rows contribute IDs. Their omitted arrays and the nested hardware
+    // object can also contribute paths when the wire property appears or disappears.
+    fields!(ProjectDoc, before, after, "$";
+        [definitions, parts, matrices, nets, outline, boards, constraints, hardware];
+        physical_instance_id => "physicalInstanceId", optional_fields;
+        module_definitions => "moduleDefinitions", row_fields(true, Some(|row| &row.id));
+        modules => "modules", entity_presence;
+        embedded_circuits => "embeddedCircuits", entity_presence;
+        keymap => "keymap", optional_fields;
+        keycaps => "keycaps", optional_fields;
+        mechanical => "mechanical", optional_fields;
+        board_references => "boardReferences", row_fields(true, Some(|row| &row.id));
+        assemblies => "assemblies", row_fields(true, Some(|row| &row.id));
+        format => "format", value_fields;
+        format_version => "formatVersion", value_fields;
+        id => "id", value_fields;
+        name => "name", value_fields;
+        revision => "revision", value_fields;
+        parameters => "parameters", value_fields;
+        layouts => "layouts", entity_presence;
+        board_outlines => "boardOutlines", row_fields(true, None);
+        case_bodies => "caseBodies", row_fields(false, Some(|row| &row.id));
+        materials => "materials", row_fields(false, Some(|row| &row.id));
+        assets => "assets", row_fields(false, Some(|row| &row.id));
+        scripts => "scripts", row_fields(false, Some(|row| &row.id));
+    );
+    match (&before.hardware, &after.hardware) {
+        (Some(before), Some(after)) => {
+            fields!(HardwareConfiguration, before, after, "$.hardware"; [];
+                topology => "topology", value_fields;
+                transport => "transport", value_fields;
+                instances => "instances", row_fields(false, Some(|row| &row.id));
+                boards => "boards", row_fields(false, None);
+                shared_construction => "sharedConstruction", value_fields;
+                pairs => "pairs", entity_presence;
+            );
+        }
+        (None, None) => {}
+        _ => {
+            fields.insert("$.hardware".into());
+        }
+    }
+    Ok((ids, fields.into_iter().collect()))
 }
 
+fn value_fields<T: PartialEq + Serialize>(
+    before: &T,
+    after: &T,
+    path: &str,
+    fields: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    if before != after {
+        walk(
+            &json(before)?,
+            &json(after)?,
+            path,
+            None,
+            false,
+            &mut BTreeSet::new(),
+            fields,
+        );
+    }
+    Ok(())
+}
+
+fn optional_fields<T: PartialEq + Serialize>(
+    before: &Option<T>,
+    after: &Option<T>,
+    path: &str,
+    fields: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    match (before, after) {
+        (Some(before), Some(after)) => value_fields(before, after, path, fields)?,
+        (None, None) => {}
+        _ => {
+            fields.insert(path.into());
+        }
+    }
+    Ok(())
+}
+
+fn entity_presence<T>(
+    before: &[T],
+    after: &[T],
+    path: &str,
+    fields: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    // When an entity array is omitted on one side, the old walk reports
+    // the property itself. The typed ID report handles arrays present on both sides.
+    if before.is_empty() != after.is_empty() {
+        fields.insert(path.into());
+    }
+    Ok(())
+}
+
+fn row_fields<T: PartialEq + Serialize>(
+    before: &[T],
+    after: &[T],
+    path: &str,
+    fields: &mut BTreeSet<String>,
+    omit_empty: bool,
+    id: Option<fn(&T) -> &str>,
+) -> Result<(), String> {
+    if omit_empty && before.is_empty() != after.is_empty() {
+        fields.insert(path.into());
+    } else if before != after {
+        // Match the wire walk: a string ID on each row selects the last row
+        // per ID. Arrays without IDs, such as hardware boards, stay positional.
+        if let Some(id) = id {
+            let mut rows = BTreeMap::<_, [Option<&T>; 2]>::new();
+            for (side, collection) in [before, after].into_iter().enumerate() {
+                for row in collection {
+                    rows.entry(id(row)).or_default()[side] = Some(row);
+                }
+            }
+            for (id, [before, after]) in rows {
+                if before != after {
+                    optional_fields(&before, &after, &format!("{path}[id={id:?}]"), fields)?;
+                }
+            }
+        } else {
+            for index in 0..before.len().max(after.len()) {
+                let (before, after) = (before.get(index), after.get(index));
+                if before != after {
+                    optional_fields(&before, &after, &format!("{path}[{index}]"), fields)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 fn diff(before: &Value, after: &Value) -> (Vec<String>, Vec<String>) {
     let mut ids = BTreeSet::new();
     let mut fields = BTreeSet::new();
@@ -439,6 +583,131 @@ mod tests {
             changed_document_ids(before, after, &candidates).unwrap(),
             expected
         );
+        assert_eq!(
+            changed_document_fields(before, after).unwrap(),
+            diff(&json(before).unwrap(), &json(after).unwrap()),
+        );
+    }
+
+    fn assert_fields(before: &ProjectDoc, after: &ProjectDoc, ids: &[&str], fields: &[&str]) {
+        for (before, after) in [(before, after), (after, before)] {
+            let actual = changed_document_fields(before, after).unwrap();
+            assert_eq!(actual, diff(&json(before).unwrap(), &json(after).unwrap()));
+            assert_eq!(actual.0, ids);
+            assert_eq!(actual.1, fields);
+        }
+    }
+
+    #[test]
+    fn field_paths_preserve_nested_wire_matching_and_dotted_names() {
+        let mut before = ProjectDoc::empty("test", "Test");
+        before.parameters = BTreeMap::from([
+            ("a.b".into(), json!(0)),
+            ("a".into(), json!({"b": 0})),
+            ("hardware.pairs".into(), json!([{"id":"x","value":0}])),
+            ("indexed".into(), json!([{"id":"x","values":[null]}])),
+            (
+                "keyed".into(),
+                json!([{"id":"x","value":10},{"id":"z"},{"id":"x","value":0}]),
+            ),
+        ]);
+        let mut after = before.clone();
+        after.parameters.insert("a.b".into(), json!(1));
+        after.parameters.insert("a".into(), json!({"b": 1}));
+        after
+            .parameters
+            .insert("hardware.pairs".into(), json!([{"id":"x","value":1}]));
+        after.parameters.insert(
+            "indexed".into(),
+            json!([{"id":"x","values":[null, 1]}, {"id":17}]),
+        );
+        after.parameters.insert(
+            "keyed".into(),
+            json!([{"id":"x","value":0},{"id":"y","nullable":null}]),
+        );
+        assert_fields(
+            &before,
+            &after,
+            &[],
+            &[
+                "$.parameters.a.b",
+                "$.parameters.hardware.pairs[id=\"x\"].value",
+                "$.parameters.indexed[0].values[1]",
+                "$.parameters.indexed[1]",
+                "$.parameters.keyed[id=\"y\"]",
+                "$.parameters.keyed[id=\"z\"]",
+            ],
+        );
+    }
+
+    #[test]
+    fn field_paths_distinguish_omitted_properties_and_present_rows() {
+        let mut before = fixture_document().unwrap();
+        before.hardware.as_mut().unwrap().boards = vec![ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            ..Default::default()
+        }];
+        let mut after = before.clone();
+        after.physical_instance_id = Some(String::new());
+        let hardware = after.hardware.as_mut().unwrap();
+        hardware.boards[0].controller_part_id = Some(String::new());
+        hardware.instances[0].name = "renamed".into();
+        hardware.pairs[0].mapping.at.x += 1.0;
+        assert_fields(
+            &before,
+            &after,
+            &["pair-source-mirror"],
+            &[
+                "$.hardware.boards[0].controllerPartId",
+                "$.hardware.instances[id=\"left\"].name",
+                "$.physicalInstanceId",
+            ],
+        );
+
+        after.hardware.as_mut().unwrap().pairs.clear();
+        assert_fields(
+            &before,
+            &after,
+            &[],
+            &[
+                "$.hardware.boards[0].controllerPartId",
+                "$.hardware.instances[id=\"left\"].name",
+                "$.hardware.pairs",
+                "$.physicalInstanceId",
+            ],
+        );
+
+        after.hardware = None;
+        assert_fields(
+            &before,
+            &after,
+            &[],
+            &["$.hardware", "$.physicalInstanceId"],
+        );
+    }
+
+    #[test]
+    fn field_only_collections_ignore_order_and_compare_last_duplicate() {
+        use crate::model::Material;
+
+        let material = |id: &str, thickness| Material {
+            id: id.into(),
+            name: String::new(),
+            thickness,
+        };
+        let mut before = ProjectDoc::empty("test", "Test");
+        before.materials = vec![
+            material("m", 0.0),
+            material("m", 1.0),
+            material("other", 2.0),
+        ];
+        let mut after = before.clone();
+        after.materials.rotate_right(1);
+        after.materials[1].thickness = 10.0;
+        assert_fields(&before, &after, &[], &[]);
+
+        after.materials[2].thickness = 20.0;
+        assert_fields(&before, &after, &[], &["$.materials[id=\"m\"].thickness"]);
     }
 
     #[test]

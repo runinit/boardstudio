@@ -318,7 +318,7 @@ pub(super) fn prepare_matrix_membership_edit(
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     use super::super::{
         BaselineKind, FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
-        prepare_membership_transition,
+        changes::changed_document_ids, transition::prepare_membership_projection,
     };
     use crate::model::{EditOperation as Op, MirroredItemKind};
     use std::collections::{BTreeMap, BTreeSet};
@@ -762,7 +762,7 @@ pub(super) fn prepare_matrix_membership_edit(
         final_owners.insert(id, owner);
     }
 
-    let mut output = prepare_membership_transition(MembershipTransitionInput {
+    let mut output = prepare_membership_projection(MembershipTransitionInput {
         dispatch,
         valid_before: before,
         post_source,
@@ -774,6 +774,8 @@ pub(super) fn prepare_matrix_membership_edit(
         final_owners: &final_owners,
         explicit_removal_closure: &explicit_removal_closure,
     })?;
+    // Report against the selected matrix projection before restoring the other associations.
+    output.changed_document_ids = changed_document_ids(post_source, &output.draft, &[])?;
 
     let original_halves = source_operation
         .hardware
