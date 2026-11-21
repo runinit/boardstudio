@@ -4,14 +4,12 @@ use crate::{
     model_delivery::*,
     runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},
     callout::Callout,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::{Field, FieldLabel},
-    input::InputType,
-    input_group::{InputGroup, InputGroupInput},
     item::{Item, ItemSize},
 };
 use dioxus::prelude::*;
@@ -147,19 +145,14 @@ pub(crate) fn CaseCollisionChecks(
         Collapsible { class: "flex-none max-h-[30%] overflow-auto", keep_mounted: true, default_open: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Collision check", "Collision check" }
             CollapsibleContent { class: "data-[open=false]:hidden",
-                Field { class: "gap-1.5",
-                    FieldLabel { html_for: clearance_id.clone(), "Required clearance (mm)" }
-                    InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                        InputGroupInput {
-                            id: clearance_id.clone(),
-                            r#type: InputType::Number,
-                            min: "0",
-                            step: "0.01",
-                            value: (clearance()).to_string(),
-                            aria_label: "Required clearance (mm)",
-                            oninput: clearance_change,
-                        }
-                    }
+                NumericField {
+                    id: clearance_id.clone(),
+                    label: "Required clearance (mm)",
+                    aria_label: Some("Required clearance (mm)".to_owned()),
+                    min: Some("0".to_owned()),
+                    step: "0.01",
+                    value: (clearance()).to_string(),
+                    oninput: clearance_change,
                 }
                 Button { variant: ButtonVariant::Secondary, button_type: "button",
                     class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",

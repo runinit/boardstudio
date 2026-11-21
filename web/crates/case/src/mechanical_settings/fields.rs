@@ -19,6 +19,7 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -101,20 +102,9 @@ pub(crate) fn SettingsNumberField(
     oninput: EventHandler<FormEvent>,
 ) -> Element {
     let id = format!("case-number-{}", dioxus::core::current_scope_id().0);
-    let name = aria_label.unwrap_or_else(|| label.clone());
+    let aria_label = Some(aria_label.unwrap_or_else(|| label.clone()));
     rsx! {
-        MechanicalBoundInputRow { label, html_for: id.clone(),
-            InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                InputGroupInput {
-                    id: id.clone(), class: "font-mono",
-                    r#type: InputType::Number,
-                    step,
-                    aria_label: name,
-                    value: value(),
-                    oninput: move |event: FormEvent| oninput.call(event),
-                }
-            }
-        }
+        NumericField { id, label, value: value(), aria_label, step: step.unwrap_or_else(|| "1".to_owned()), oninput }
     }
 }
 

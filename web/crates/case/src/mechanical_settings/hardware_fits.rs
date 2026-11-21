@@ -20,6 +20,7 @@ use boardstudio_model::model::{
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
+use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -970,25 +971,23 @@ pub(crate) fn BatteryControls(props: BatteryControlsProps) -> Element {
                 if props.values.transport == HardwareTransport::Wireless {
                     p { class: "text-muted-foreground text-sm leading-normal", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
-                    FieldLabel { class: "min-h-control-touch", html_for: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
-                        Checkbox {
-                            id: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
-                            aria_label: "Include a battery envelope",
-                            disabled: !props.editable,
-                            checked: Some(if battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                            on_checked_change: {
-                                let identity = props.identity.clone();
-                                let on_request = props.on_request;
-                                let mut sequence = request_sequence;
-                                move |state: CheckboxState| send_request(
-                                    &mut sequence,
-                                    &identity,
-                                    on_request,
-                                    MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)),
-                                )
-                            },
-                        }
-                        span { "Include a battery envelope" }
+                    CheckboxField {
+                        label: "Include a battery envelope".to_owned(),
+                        id: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
+                        aria_label: Some("Include a battery envelope".to_owned()),
+                        disabled: !props.editable,
+                        checked: if battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                        on_checked_change: {
+                            let identity = props.identity.clone();
+                            let on_request = props.on_request;
+                            let mut sequence = request_sequence;
+                            move |state: CheckboxState| send_request(
+                                &mut sequence,
+                                &identity,
+                                on_request,
+                                MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)),
+                            )
+                        },
                     }
                 }
                 if let Some(battery) = battery {

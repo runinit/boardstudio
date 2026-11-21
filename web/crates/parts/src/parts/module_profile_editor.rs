@@ -9,10 +9,11 @@ use boardstudio_model::model::{
     PartModel, RotaryProfile, Vec2, Vec3,
 };
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
+use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
-    checkbox::{Checkbox, CheckboxState},
+    checkbox::CheckboxState,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     combobox::{Combobox, ComboboxOption},
     field::FieldLabel,
@@ -712,14 +713,12 @@ pub fn ModuleProfileEditor(
                 EditorNumberField { label: "Height · mm", aria_label: "Module volume height", min: "0.1", step: "0.1", value: "{shape().height}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.height = event.value()) }
             }
             EditorTextField { label: "Dimension evidence", aria_label: "Module volume evidence", value: "{shape().source}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.source = event.value()) }
-            FieldLabel { html_for: format!("module-volume-qualified-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
-                Checkbox {
-                    id: format!("module-volume-qualified-{}", dioxus::core::current_scope_id().0),
-                    aria_label: "Dimensions and datum reviewed",
-                    checked: Some(if shape().qualified { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    on_checked_change: move |state: CheckboxState| shape.with_mut(|shape| shape.qualified = bool::from(state)),
-                }
-                span { "Dimensions and datum reviewed" }
+            CheckboxField {
+                label: "Dimensions and datum reviewed".to_owned(),
+                id: format!("module-volume-qualified-{}", dioxus::core::current_scope_id().0),
+                aria_label: Some("Dimensions and datum reviewed".to_owned()),
+                checked: if shape().qualified { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                on_checked_change: move |state: CheckboxState| shape.with_mut(|shape| shape.qualified = bool::from(state)),
             }
             Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: add_volume, "Add measured volume" }
             if !candidate_models.is_empty() {
@@ -782,14 +781,12 @@ pub fn ModuleProfileEditor(
                     }, "Remove model" }
                 }
             }
-            FieldLabel { html_for: format!("module-profile-reviewed-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
-                Checkbox {
-                    id: format!("module-profile-reviewed-{}", dioxus::core::current_scope_id().0),
-                    aria_label: "Complete assembly, mounts, functional openings and cable clearance reviewed",
-                    checked: Some(if reviewed() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    on_checked_change: move |state: CheckboxState| reviewed.set(bool::from(state)),
-                }
-                span { "Complete assembly, mounts, functional openings and cable clearance reviewed" }
+            CheckboxField {
+                label: "Complete assembly, mounts, functional openings and cable clearance reviewed".to_owned(),
+                id: format!("module-profile-reviewed-{}", dioxus::core::current_scope_id().0),
+                aria_label: Some("Complete assembly, mounts, functional openings and cable clearance reviewed".to_owned()),
+                checked: if reviewed() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                on_checked_change: move |state: CheckboxState| reviewed.set(bool::from(state)),
             }
             p { "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
             Button { variant: ButtonVariant::Default, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }

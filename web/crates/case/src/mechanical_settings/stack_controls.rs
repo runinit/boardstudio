@@ -20,6 +20,7 @@ use boardstudio_model::model::{
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
+use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -745,21 +746,19 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                     ("gasket".into(), "Gasket mount".into()),
                 ],
             }
-            FieldLabel { class: "min-h-control-touch", html_for: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
-                Checkbox {
-                    id: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
-                    checked: Some(if values.battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    disabled: !settings.editable || values.transport != HardwareTransport::Wireless,
-                    aria_label: "Include wireless battery",
-                    on_checked_change: {
-                        let identity = settings.identity.clone();
-                        let mut sequence = settings.request_sequence;
-                        let on_request = settings.on_request;
-                        move |state: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)))
-                    },
-                }
-                span { "Include a battery" }
-                small { class: "text-muted-foreground", if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }
+            CheckboxField {
+                label: "Include a battery".to_owned(),
+                description: Some({ if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }.to_owned()),
+                id: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
+                checked: if values.battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                disabled: !settings.editable || values.transport != HardwareTransport::Wireless,
+                aria_label: Some("Include wireless battery".to_owned()),
+                on_checked_change: {
+                    let identity = settings.identity.clone();
+                    let mut sequence = settings.request_sequence;
+                    let on_request = settings.on_request;
+                    move |state: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)))
+                },
             }
             ChoiceField {
                 label: "Case process",
@@ -897,35 +896,31 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
                 ],
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
-                FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
-                    Checkbox {
-                        id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
-                        aria_label: "Add middle frame", disabled: !props.editable,
-                        checked: Some(if values.middle_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                        on_checked_change: {
-                            let identity = props.identity.clone();
-                            let mut sequence = props.request_sequence;
-                            let on_request = props.on_request;
-                            move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(bool::from(event)))
-                        },
-                    }
-                    span { "Add middle frame" }
-                }
-            }
-            FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
-                Checkbox {
-                    id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
-                    aria_label: "Integrate plate frame into case",
-                    disabled: !props.editable || values.mount == MechanicalMount::Gasket,
-                    checked: Some(if values.integrated_plate_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                CheckboxField {
+                    label: "Add middle frame".to_owned(),
+                    id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                    aria_label: Some("Add middle frame".to_owned()), disabled: !props.editable,
+                    checked: if values.middle_frame { CheckboxState::Checked } else { CheckboxState::Unchecked },
                     on_checked_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(bool::from(event)))
+                        move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(bool::from(event)))
                     },
                 }
-                span { "Integrate plate frame into case" }
+            }
+            CheckboxField {
+                label: "Integrate plate frame into case".to_owned(),
+                id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+                aria_label: Some("Integrate plate frame into case".to_owned()),
+                disabled: !props.editable || values.mount == MechanicalMount::Gasket,
+                checked: if values.integrated_plate_frame { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                on_checked_change: {
+                    let identity = props.identity.clone();
+                    let mut sequence = props.request_sequence;
+                    let on_request = props.on_request;
+                    move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(bool::from(event)))
+                },
             }
         }
     }

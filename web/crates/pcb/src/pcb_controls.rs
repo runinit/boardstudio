@@ -1,13 +1,13 @@
 //! Private compositions of the shared controls for PCB inspectors.
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, TextField};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
+use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
@@ -68,6 +68,8 @@ pub(crate) fn PcbChoice(
     }
 }
 
+/// Number and text rows delegate to the shared inspector fields; a missing step keeps
+/// the browser default of 1.
 #[component]
 pub(crate) fn PcbInput(
     label: String,
@@ -78,16 +80,15 @@ pub(crate) fn PcbInput(
     #[props(default)] min: Option<String>,
     #[props(default)] placeholder: Option<String>,
     #[props(default)] disabled: bool,
-    #[props(default)] class: String,
     oninput: EventHandler<FormEvent>,
 ) -> Element {
     let id = format!("pcb-input-{}", dioxus::core::current_scope_id().0);
+    let aria_label = Some(aria_label);
     rsx! {
-        Field { class: "gap-1.5 {class}", FieldLabel { html_for: id.clone(), "{label}" }
-            InputGroup { InputGroupInput { id, aria_label, value, r#type, step, min, placeholder, disabled,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                oninput: move |event: FormEvent| oninput.call(event),
-            } }
+        if r#type == InputType::Number {
+            NumericField { id, label, value, aria_label, placeholder, disabled, min, step: step.unwrap_or_else(|| "1".to_owned()), oninput }
+        } else {
+            TextField { id, label, value, r#type, aria_label, placeholder, disabled, oninput }
         }
     }
 }
@@ -101,10 +102,13 @@ pub(crate) fn PcbCheck(
 ) -> Element {
     let id = format!("pcb-check-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        FieldLabel { html_for: id.clone(), class: "items-center gap-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-            Checkbox { id: id.clone(), aria_label: label.clone(), checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled,
-                on_checked_change: move |value| on_change.call(value == CheckboxState::Checked) }
-            span { "{label}" }
+        CheckboxField {
+            id,
+            aria_label: Some(label.clone()),
+            label,
+            checked: if checked { CheckboxState::Checked } else { CheckboxState::Unchecked },
+            disabled,
+            on_checked_change: move |value| on_change.call(value == CheckboxState::Checked),
         }
     }
 }

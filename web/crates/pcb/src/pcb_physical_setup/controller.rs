@@ -515,10 +515,10 @@ mod mounted_setup_tests {
         .await;
         wired.click();
         let checkbox = by_role_name(&root, "checkbox", "Reversible layout").unwrap();
-        let label = checkbox
-            .parent_element()
+        let label = root
+            .query_selector(&format!("label[for=\"{}\"]", checkbox.id()))
+            .unwrap()
             .expect("checkbox has its clickable label");
-        assert_eq!(label.tag_name(), "LABEL");
         use wasm_bindgen::JsCast;
         label.dyn_into::<web_sys::HtmlElement>().unwrap().click();
         wait_until("setup requests emitted", || {

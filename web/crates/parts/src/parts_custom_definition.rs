@@ -93,7 +93,7 @@ pub(crate) mod ui {
         Axis, DefinitionEdit, DefinitionPanelCapture, PadRowKeys, courtyard_bounds,
         definition_field_resolver, validate_definition_edit,
     };
-    use crate::parts::editor_fields::{EditorNumberField, EditorTextField};
+    use crate::parts::editor_fields::{EditorNumberField, EditorSelect, EditorTextField};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_model::model::{Pad, PadShape, PartDefinition, PartKind};
@@ -103,8 +103,6 @@ pub(crate) mod ui {
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
         callout::{Callout, CalloutVariant},
-        field::{Field, FieldLabel},
-        select::{Select, SelectOption},
     };
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
@@ -486,11 +484,6 @@ pub(crate) mod ui {
         row_drafts.borrow_mut().retain_rows(&row_keys, &pending);
 
         let kind = kind_name(&definition.kind);
-        let kind_id = format!(
-            "parts-definition-kind-{}",
-            dioxus::core::current_scope_id().0
-        );
-        let kind_value = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
         let on_kind = {
             let begin_kind = submit;
             move |next: Option<String>| {
@@ -543,18 +536,12 @@ pub(crate) mod ui {
 
         rsx! {
             div { class: "grid gap-3",
-                Field { class: "gap-1.5",
-                    FieldLabel { html_for: kind_id.clone(), "Kind" }
-                    Select::<String> {
-                        class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                        id: kind_id.clone(),
-                        aria_label: "Definition kind",
-                        value: Some(kind_value.into()),
-                        on_value_change: on_kind,
-                        for (index, (value, text)) in [("switch", "Switch"), ("controller", "Controller"), ("connector", "Connector"), ("encoder", "Encoder"), ("passive", "Passive"), ("custom", "Custom")].into_iter().enumerate() {
-                            SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: value.to_owned(), text_value: text.to_owned(), "{text}" }
-                        }
-                    }
+                EditorSelect {
+                    label: "Kind",
+                    aria_label: Some("Definition kind".to_owned()),
+                    value: kind.to_owned(),
+                    options: [("switch", "Switch"), ("controller", "Controller"), ("connector", "Connector"), ("encoder", "Encoder"), ("passive", "Passive"), ("custom", "Custom")].map(|(value, text)| (value.to_owned(), text.to_owned())).to_vec(),
+                    on_select: move |value: String| on_kind(Some(value)),
                 }
                 fieldset { class: "grid gap-2",
                     legend { "Rectangular courtyard (mm)" }
@@ -884,12 +871,7 @@ pub(crate) mod ui {
             move |event| draft_keydown(event, drill, drill_dirty, committed_drill.clone());
         let submit_shape = submit;
         let old_id = pad.id.clone();
-        let shape_id = format!(
-            "parts-pad-shape-{row}-{}",
-            dioxus::core::current_scope_id().0
-        );
         let shape_value = shape_name(&pad.shape).to_owned();
-        let shape_current = use_memo(use_reactive((&shape_value,), |(shape,)| Some(shape)));
         let on_shape = move |next: Option<String>| {
             if let Some(value) = next
                 && let Some(shape) = parse_shape(&value)
@@ -924,19 +906,13 @@ pub(crate) mod ui {
                     EditorNumberField { label: "Y", value: "{y()}", aria_label: "Pad {index + 1} Y", disabled: locked, step: "0.1", oninput: move |event: FormEvent| { y.set(event.value()); y_dirty.set(true); }, onblur: on_y_blur, onkeydown: y_keydown }
                     EditorNumberField { label: "Width", value: "{size_x()}", aria_label: "Pad {index + 1} width", disabled: locked, min: "0.01", step: "0.1", oninput: move |event: FormEvent| { size_x.set(event.value()); size_x_dirty.set(true); }, onblur: on_width_blur, onkeydown: width_keydown }
                     EditorNumberField { label: "Height", value: "{size_y()}", aria_label: "Pad {index + 1} height", disabled: locked, min: "0.01", step: "0.1", oninput: move |event: FormEvent| { size_y.set(event.value()); size_y_dirty.set(true); }, onblur: on_height_blur, onkeydown: height_keydown }
-                    Field { class: "gap-1.5", disabled: locked,
-                        FieldLabel { html_for: shape_id.clone(), "Shape" }
-                        Select::<String> {
-                            class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                            id: shape_id.clone(),
-                            aria_label: "Pad {index + 1} shape",
-                            value: Some(shape_current.into()),
-                            disabled: locked,
-                            on_value_change: on_shape,
-                            for (option_index, (option_value, option_text)) in [("circle", "Circle"), ("oval", "Oval"), ("rect", "Rectangle"), ("roundrect", "Rounded rectangle")].into_iter().enumerate() {
-                                SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index: option_index, value: option_value.to_owned(), text_value: option_text.to_owned(), "{option_text}" }
-                            }
-                        }
+                    EditorSelect {
+                        label: "Shape",
+                        aria_label: Some(format!("Pad {} shape", index + 1)),
+                        value: shape_value,
+                        disabled: locked,
+                        options: [("circle", "Circle"), ("oval", "Oval"), ("rect", "Rectangle"), ("roundrect", "Rounded rectangle")].map(|(value, text)| (value.to_owned(), text.to_owned())).to_vec(),
+                        on_select: move |value: String| on_shape(Some(value)),
                     }
                     EditorNumberField { label: "Drill", value: "{drill()}", aria_label: "Pad {index + 1} drill", disabled: locked, min: "0.01", step: "0.1", placeholder: "None", oninput: move |event: FormEvent| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown }
                 }

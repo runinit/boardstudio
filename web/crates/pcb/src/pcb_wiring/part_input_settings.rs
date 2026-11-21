@@ -142,7 +142,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                     edit.call(PartInputEditRequest { identity: field_identity.clone(), intent: PartInputIntent::GeneratorAnchor { name: field_name.clone(), axis: field_axis.clone(), value } });
                                                 };
                                                 rsx! {
-                                                    PcbInput { class: "grid gap-1 text-muted-foreground", key: "{axis}", label: format!("{name} {}", axis_upper(axis)),
+                                                    PcbInput { key: "{axis}", label: format!("{name} {}", axis_upper(axis)),
                                                         r#type: InputType::Number, step: Some("any".into()), aria_label: format!("Generator anchor {name} {}", axis_upper(axis)), value: number, disabled: read_only, oninput: on_change }
                                                 }
                                             };

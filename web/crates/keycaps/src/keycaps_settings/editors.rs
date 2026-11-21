@@ -390,36 +390,30 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let width_change = actions.on_change;
     let depth_change = actions.on_change;
     let legend_id = format!("keycaps-legend-{}", dioxus::core::current_scope_id().0);
-    let legend_error_id = format!("{legend_id}-error");
     let legend_error = legend_failure();
     rsx! {
         section { class: "grid min-w-0 gap-2 text-foreground", aria_label: "Keycap overrides for {key.reference}",
-            Field { class: "gap-1.5", invalid: legend_error.is_some(),
-                FieldLabel { html_for: legend_id.clone(), "Legend" }
-                InputGroup { InputGroupInput {
-                    id: legend_id,
-                    aria_label: "Legend for {key.reference}",
-                    value: "{legend_draft()}",
-                    placeholder: if key.binding_label.is_empty() { "From binding" } else { key.binding_label.as_ref() },
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    aria_invalid: legend_error.is_some(), aria_describedby: legend_error.as_ref().map(|_| legend_error_id.clone()),
-                    oninput: move |event: FormEvent| { legend_dirty.set(true); legend_failure.set(None); legend_draft.set(event.value()); },
-                    attributes: vec![Attribute::new("maxlength", "12", None, false), dioxus::events::onblur(move |_| {
-                        let value = legend_draft();
-                        if legend_dirty() || legend_blur_requires_reconciliation(&value, accepted_legend.as_deref(), legend_retry_pending) {
-                            legend_dirty.set(false);
-                            let change = if legend_change_required(&value, accepted_legend.as_deref()) {
-                                KeycapEditChange::Legend(Some(value))
-                            } else {
-                                KeycapEditChange::Legend(accepted_legend.clone())
-                            };
-                            request(change, &mut legend_sequence, legend_change, &legend_actions);
-                        }
-                    })],
-                } }
-                if let Some(message) = legend_error.as_deref() {
-                    div { id: legend_error_id, FieldError { "{message}" } }
-                }
+            TextField {
+                id: legend_id,
+                label: "Legend",
+                aria_label: Some(format!("Legend for {}", key.reference)),
+                value: legend_draft(),
+                placeholder: Some(if key.binding_label.is_empty() { "From binding".to_owned() } else { key.binding_label.to_string() }),
+                maxlength: Some("12".to_owned()),
+                error: legend_error.clone(),
+                oninput: move |event: FormEvent| { legend_dirty.set(true); legend_failure.set(None); legend_draft.set(event.value()); },
+                onblur: move |_| {
+                    let value = legend_draft();
+                    if legend_dirty() || legend_blur_requires_reconciliation(&value, accepted_legend.as_deref(), legend_retry_pending) {
+                        legend_dirty.set(false);
+                        let change = if legend_change_required(&value, accepted_legend.as_deref()) {
+                            KeycapEditChange::Legend(Some(value))
+                        } else {
+                            KeycapEditChange::Legend(accepted_legend.clone())
+                        };
+                        request(change, &mut legend_sequence, legend_change, &legend_actions);
+                    }
+                },
             }
             div { class: "flex flex-wrap gap-1.5",
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }

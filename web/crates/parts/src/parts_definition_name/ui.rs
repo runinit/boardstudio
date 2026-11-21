@@ -5,11 +5,9 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::PartDefinition;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
-use boardstudio_web_ui_shared::ui::{
-    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::{Field, FieldError, FieldLabel},
-    input::InputType,
-    input_group::{InputGroup, InputGroupInput},
+use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -194,28 +192,18 @@ pub fn DefinitionNameEditor(
             CollapsibleContent { class: "data-[open=false]:hidden",
                 div { class: "grid gap-2",
                     section { class: "grid gap-2", "aria-label": "Custom component definition editor",
-                        Field { invalid: name_error.is_some(), class: "gap-1.5",
-                            FieldLabel { html_for: name_id.clone(), "Name" }
-                            InputGroup {
-                                InputGroupInput {
-                                    id: name_id.clone(),
-                                    r#type: InputType::Text,
-                                    aria_label: "Definition name",
-                                    value: "{draft()}",
-                                    aria_invalid: name_error.is_some(),
-                                    oninput: move |event: FormEvent| {
-                                        draft.set(event.value());
-                                        draft_dirty.set(true);
-                                    },
-                                    attributes: vec![
-                                        dioxus::events::onblur(on_blur),
-                                        dioxus::events::onkeydown(on_keydown),
-                                    ],
-                                }
-                            }
-                            if let Some(message) = name_error.as_deref() {
-                                FieldError { "{message}" }
-                            }
+                        TextField {
+                            id: name_id.clone(),
+                            label: "Name",
+                            aria_label: Some("Definition name".to_owned()),
+                            value: draft(),
+                            error: name_error.clone(),
+                            oninput: move |event: FormEvent| {
+                                draft.set(event.value());
+                                draft_dirty.set(true);
+                            },
+                            onblur: on_blur,
+                            onkeydown: on_keydown,
                         }
                     }
                     {children}
