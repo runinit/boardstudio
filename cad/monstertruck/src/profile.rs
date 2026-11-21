@@ -4,17 +4,18 @@ use crate::layered::{
 };
 #[cfg(test)]
 use crate::mesh::mesh_buffers;
-use crate::{MeshBuffers, mesh::push_triangle, qualification::proof_geometry};
+#[cfg(test)]
+use crate::qualification::proof_geometry;
+use crate::{MeshBuffers, mesh::push_triangle};
 use cgmath::InnerSpace;
+#[cfg(test)]
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 #[cfg(test)]
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-use monstertruck_modeling::{Face, Shell, Solid};
 #[cfg(test)]
-use monstertruck_modeling::{Invertible, Surface};
-use std::borrow::Cow;
+use monstertruck_modeling::{Face, Invertible, Shell, Solid, Surface};
 #[cfg(test)]
 use std::sync::OnceLock;
 
@@ -43,10 +44,9 @@ impl ExactModel {
     }
 
     pub(crate) fn from_region(region: brep::Region) -> Self {
-        Self {
-            regions: vec![region],
-            ..Self::empty()
-        }
+        let mut model = Self::empty();
+        model.regions = vec![region];
+        model
     }
 
     pub(crate) fn shells(&self) -> impl Iterator<Item = (&brep::Topology, &[brep::Face])> {
@@ -66,24 +66,13 @@ impl ExactModel {
         self.shells().next().is_none()
     }
 
+    #[cfg(test)]
     fn build_proof_solids(&self) -> Result<Vec<Solid>, String> {
         let mut solids = Vec::new();
         for region in &self.regions {
             solids.extend(proof_geometry::solids(region)?);
         }
         Ok(solids)
-    }
-
-    pub(crate) fn proof_solids(&self) -> Result<Cow<'_, [Solid]>, String> {
-        // Proof mutation fixtures need stable edge identity across separate calls.
-        #[cfg(test)]
-        {
-            Ok(Cow::Borrowed(self.test_solids()))
-        }
-        #[cfg(not(test))]
-        {
-            self.build_proof_solids().map(Cow::Owned)
-        }
     }
 
     #[cfg(test)]
@@ -205,10 +194,18 @@ pub fn mesh_profile_for_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
 ) -> Result<GeneratedAnalysisMesh, String> {
-    emit_analysis(model, target_deflection_mm, None, &mut ())
+    emit_analysis(
+        model,
+        target_deflection_mm,
+        #[cfg(test)]
+        None,
+        #[cfg(test)]
+        &mut (),
+    )
 }
 
 /// Sees each accepted face and fan triangle of an analysis mesh as it is emitted.
+#[cfg(test)]
 pub(crate) trait EmissionObserver {
     fn face(
         &mut self,
@@ -228,6 +225,7 @@ pub(crate) trait EmissionObserver {
 }
 
 /// The no-observer path.
+#[cfg(test)]
 impl EmissionObserver for () {
     fn face(&mut self, _: &GeneratedSourceFace, _: &Face, _: bool, _: &PolygonMesh) {}
     fn triangle(
@@ -255,11 +253,12 @@ pub(crate) fn mesh_profile_observed(
     )
 }
 
-struct EmittedFace<'a> {
+struct EmittedFace<T> {
     support_kind: &'static str,
-    triangles: FaceTriangles<'a>,
+    triangles: T,
 }
 
+#[cfg(test)]
 enum FaceTriangles<'a> {
     Native(tessellation::FaceMesh),
     Observed {
@@ -269,11 +268,11 @@ enum FaceTriangles<'a> {
     },
 }
 
-pub(crate) fn emit_analysis(
+fn emit_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
-    proof_solids: Option<&[Solid]>,
-    observer: &mut impl EmissionObserver,
+    #[cfg(test)] proof_solids: Option<&[Solid]>,
+    #[cfg(test)] observer: &mut impl EmissionObserver,
 ) -> Result<GeneratedAnalysisMesh, String> {
     let deflection_mm = match target_deflection_mm {
         Some(target) => {
@@ -292,32 +291,40 @@ pub(crate) fn emit_analysis(
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
     let mut mesh_closed_oriented = true;
 
-    let mut emit_shell =
-        |solid_index, shell_index, faces: Vec<EmittedFace<'_>>| -> Result<(bool, f64), String> {
-            let mut shell_triangles = Vec::new();
-            for (face_index, face) in faces.into_iter().enumerate() {
-                let EmittedFace {
-                    triangles,
-                    support_kind,
-                } = face;
-                let occurrence_index = source_faces.len();
-                source_faces.push(GeneratedSourceFace {
-                    solid_index,
-                    shell_index,
-                    face_index,
-                    support_kind: support_kind.into(),
-                });
-                if let FaceTriangles::Observed {
-                    face,
-                    forward,
-                    polygon,
-                } = &triangles
-                {
-                    observer.face(&source_faces[occurrence_index], face, *forward, polygon);
-                }
-                let count_before = triangle_face_occurrence_indices.len();
-                let mut emit_triangle = |points: [Point3; 3],
-                                         proof: Option<(&PolygonMesh, [StandardVertex; 3])>|
+    #[cfg(test)]
+    type Triangles<'a> = FaceTriangles<'a>;
+    #[cfg(not(test))]
+    type Triangles = tessellation::FaceMesh;
+    let mut emit_shell = |solid_index,
+                          shell_index,
+                          faces: Vec<EmittedFace<Triangles>>|
+     -> Result<(bool, f64), String> {
+        let mut shell_triangles = Vec::new();
+        for (face_index, face) in faces.into_iter().enumerate() {
+            let EmittedFace {
+                triangles,
+                support_kind,
+            } = face;
+            let occurrence_index = source_faces.len();
+            source_faces.push(GeneratedSourceFace {
+                solid_index,
+                shell_index,
+                face_index,
+                support_kind: support_kind.into(),
+            });
+            #[cfg(test)]
+            if let FaceTriangles::Observed {
+                face,
+                forward,
+                polygon,
+            } = &triangles
+            {
+                observer.face(&source_faces[occurrence_index], face, *forward, polygon);
+            }
+            let count_before = triangle_face_occurrence_indices.len();
+            let mut emit_triangle =
+                |points: [Point3; 3],
+                 #[cfg(test)] proof: Option<(&PolygonMesh, [StandardVertex; 3])>|
                  -> Result<(), String> {
                     push_triangle(&mut mesh, points)?;
                     shell_triangles.push(points);
@@ -336,6 +343,7 @@ pub(crate) fn emit_analysis(
                     }
                     triangle_face_occurrence_indices.push(occurrence_index);
                     // Bind the observation to the accepted f64 and rendered f32 coordinates.
+                    #[cfg(test)]
                     if let Some((polygon, triangle)) = proof {
                         observer.triangle(
                             occurrence_index,
@@ -347,42 +355,43 @@ pub(crate) fn emit_analysis(
                     }
                     Ok(())
                 };
-                match triangles {
-                    FaceTriangles::Native(mesh) => {
-                        for points in mesh.triangle_points() {
-                            emit_triangle(points, None)?;
-                        }
-                    }
-                    FaceTriangles::Observed { polygon, .. } => {
-                        for triangle in polygon.faces().triangle_iter() {
-                            let points = triangle.map(|v| polygon.positions()[v.pos]);
-                            emit_triangle(points, Some((&polygon, triangle)))?;
-                        }
+            #[cfg(not(test))]
+            for points in triangles.triangle_points() {
+                emit_triangle(points)?;
+            }
+            #[cfg(test)]
+            match triangles {
+                FaceTriangles::Native(mesh) => {
+                    for points in mesh.triangle_points() {
+                        emit_triangle(points, None)?;
                     }
                 }
-                if triangle_face_occurrence_indices.len() == count_before {
-                    return Err(format!(
-                        "Generated case face {face_index} produced no triangles"
-                    ));
+                FaceTriangles::Observed { polygon, .. } => {
+                    for triangle in polygon.faces().triangle_iter() {
+                        let points = triangle.map(|v| polygon.positions()[v.pos]);
+                        emit_triangle(points, Some((&polygon, triangle)))?;
+                    }
                 }
             }
-            let closed = closed_oriented_shell_triangles(&shell_triangles);
-            let mut signed_volume = 0.;
-            if let Some(first) = shell_triangles.first() {
-                let reference = first[0];
-                for [a, b, c] in shell_triangles {
-                    signed_volume += (a - reference).dot((b - reference).cross(c - reference)) / 6.;
-                }
+            if triangle_face_occurrence_indices.len() == count_before {
+                return Err(format!(
+                    "Generated case face {face_index} produced no triangles"
+                ));
             }
-            Ok((closed, signed_volume))
-        };
+        }
+        let closed = closed_oriented_shell_triangles(&shell_triangles);
+        let mut signed_volume = 0.;
+        if let Some(first) = shell_triangles.first() {
+            let reference = first[0];
+            for [a, b, c] in shell_triangles {
+                signed_volume += (a - reference).dot((b - reference).cross(c - reference)) / 6.;
+            }
+        }
+        Ok((closed, signed_volume))
+    };
 
     #[cfg(test)]
-    let fixture = model.test_override();
-    #[cfg(not(test))]
-    let fixture: Option<&[Solid]> = None;
-    if let Some(solids) = fixture {
-        #[cfg(test)]
+    if let Some(solids) = model.test_override() {
         for (solid_index, solid) in solids.iter().enumerate() {
             let mut volume = 0.;
             for (shell_index, shell) in solid.boundaries().iter().enumerate() {
@@ -412,49 +421,47 @@ pub(crate) fn emit_analysis(
             }
             mesh_closed_oriented &= volume.is_finite() && volume > 0.;
         }
-        #[cfg(not(test))]
-        let _ = solids;
-    } else {
-        for (solid_index, (topology, shell)) in model.shells().enumerate() {
-            let generated = tessellation::tessellate(
-                topology,
-                shell,
-                deflection_mm,
-                PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
-            )?;
-            let proof_faces = proof_solids
-                .and_then(|solids| solids.get(solid_index))
-                .and_then(|solid| solid.boundaries().first())
-                .into_iter()
-                .flat_map(Shell::face_iter)
-                .map(Some)
-                .chain(std::iter::repeat(None));
-            let faces = shell
-                .iter()
-                .zip(generated)
-                .zip(proof_faces)
-                .map(|((face, mesh), proof_face)| EmittedFace {
-                    support_kind: match face.support {
-                        Support::Plane { .. } => "PLANE",
-                        Support::Round { .. } => "REVOLUTION_SURFACE",
+    }
+    for (solid_index, (topology, shell)) in model.shells().enumerate() {
+        let generated = tessellation::tessellate(
+            topology,
+            shell,
+            deflection_mm,
+            PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
+        )?;
+        #[cfg(test)]
+        let mut proof_faces = proof_solids
+            .and_then(|solids| solids.get(solid_index))
+            .and_then(|solid| solid.boundaries().first())
+            .into_iter()
+            .flat_map(Shell::face_iter);
+        let faces = shell
+            .iter()
+            .zip(generated)
+            .map(|(face, mesh)| EmittedFace {
+                support_kind: match face.support {
+                    Support::Plane { .. } => "PLANE",
+                    Support::Round { .. } => "REVOLUTION_SURFACE",
+                },
+                #[cfg(not(test))]
+                triangles: mesh,
+                #[cfg(test)]
+                triangles: match proof_faces.next() {
+                    Some(proof_face) => FaceTriangles::Observed {
+                        face: proof_face,
+                        forward: face.forward,
+                        polygon: proof_geometry::polygon(mesh),
                     },
-                    triangles: match proof_face {
-                        Some(proof_face) => FaceTriangles::Observed {
-                            face: proof_face,
-                            forward: face.forward,
-                            polygon: proof_geometry::polygon(mesh),
-                        },
-                        None => FaceTriangles::Native(mesh),
-                    },
-                })
-                .collect();
-            let (closed, volume) = emit_shell(solid_index, 0, faces)?;
-            mesh_closed_oriented &= closed;
-            // Native shells already have exact oriented incidence; still check
-            // positive volume on the emitted triangles.
-            if !volume.is_finite() || volume <= 0. {
-                return Err("Generated case has nonpositive mesh volume".into());
-            }
+                    None => FaceTriangles::Native(mesh),
+                },
+            })
+            .collect();
+        let (closed, volume) = emit_shell(solid_index, 0, faces)?;
+        mesh_closed_oriented &= closed;
+        // Native shells already have exact oriented incidence; still check
+        // positive volume on the emitted triangles.
+        if !volume.is_finite() || volume <= 0. {
+            return Err("Generated case has nonpositive mesh volume".into());
         }
     }
     if positions_mm_f64.is_empty()

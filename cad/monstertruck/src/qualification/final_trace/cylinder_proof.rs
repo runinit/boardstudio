@@ -3,11 +3,16 @@
 //! See PROOF.md beside this file. All predicates and error accounting use exact
 //! rationals of the retained f64 geometry. No mesher tolerance is a proof input.
 use super::super::generated_qualification::GeneratedQualification;
+#[cfg(test)]
 use super::*;
-use monstertruck_modeling::{Curve, Point3, Vector3};
+use crate::layered::brep::Point3;
+#[cfg(test)]
+use monstertruck_modeling::{Curve, Vector3};
 use num_rational::BigRational as Q;
 use num_traits::{Signed, ToPrimitive, Zero};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+#[cfg(test)]
+use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 type P = [Q; 3];
 type Edge = (P, P);
@@ -168,9 +173,11 @@ fn triangle_radial_error(tri: &[P; 3], center: &[Q; 2], radius: &Q) -> Proof<Q> 
     Ok((&lower - &r2).abs().max((&upper - &r2).abs()) / radius)
 }
 
+#[cfg(test)]
 fn choose(n: usize, k: usize) -> i64 {
     (0..k).fold(1, |v, i| v * (n - i) as i64 / (i + 1) as i64)
 }
+#[cfg(test)]
 fn product(a: &[Q], b: &[Q]) -> Vec<Q> {
     let (m, d) = (a.len() - 1, b.len() - 1);
     (0..=m + d)
@@ -186,6 +193,7 @@ fn product(a: &[Q], b: &[Q]) -> Vec<Q> {
 }
 // Exact homogeneous Cox-de Boor evaluation; only quadratic clamped native
 // curves are accepted. Three exact values extract each polynomial Bezier span.
+#[cfg(test)]
 fn spline_value(knots: &[Q], control: &[[Q; 4]], t: &Q) -> [Q; 4] {
     let last = &knots[knots.len() - 1];
     let mut basis = (0..knots.len() - 1)
@@ -219,29 +227,32 @@ fn spline_value(knots: &[Q], control: &[[Q; 4]], t: &Q) -> [Q; 4] {
 }
 
 #[derive(Clone)]
-struct Circle {
+struct Circle<Id> {
     center: [Q; 2],
     radius: Q,
     z: [Q; 2],
     source_error: Q,
-    source_edges: Vec<HashSet<monstertruck_modeling::EdgeId>>,
+    source_edges: Vec<Id>,
     source_levels: Vec<Q>,
     mesh_rings: Vec<Vec<P>>,
     mesh_levels: Vec<Q>,
     mesh_height: Q,
 }
 
+#[cfg(test)]
 struct TrimEnclosure {
     radial: Q,
     height: Q,
     sign: i32,
 }
+#[cfg(test)]
 impl TrimEnclosure {
     fn total(&self) -> Q {
         &self.radial + &self.height
     }
 }
 
+#[cfg(test)]
 fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<TrimEnclosure> {
     let mut endpoints = Vec::new();
     let mut error = n(0);
@@ -399,10 +410,15 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<TrimEncl
     })
 }
 
+#[cfg(test)]
 fn wire_ids(wire: &Wire) -> HashSet<monstertruck_modeling::EdgeId> {
     wire.edge_iter().map(|e| e.id()).collect()
 }
-fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
+#[cfg(test)]
+fn cylinder(
+    face: &RetainedFace,
+    tris: &[[P; 3]],
+) -> Proof<(Circle<HashSet<monstertruck_modeling::EdgeId>>, Q)> {
     let Surface::RevolutionSurface(s) = &face.surface else {
         return Err("not cylindrical");
     };
@@ -443,13 +459,10 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
         source_error: n(0),
         source_edges: vec![],
         source_levels: vec![],
-        mesh_rings: boundary(tris)?,
+        mesh_rings: vec![],
         mesh_levels: vec![],
         mesh_height: n(0),
     };
-    if circle.mesh_rings.len() != 2 {
-        return Err("cylinder seam or missing patch");
-    }
     let mut levels = BTreeSet::new();
     let mut source_height = n(0);
     let mut source_signs = BTreeSet::new();
@@ -475,7 +488,21 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
     if n(2) * source_height >= gap || source_signs.len() != 2 {
         return Err("source cylinder height graphs are not separated/oriented");
     }
-    levels.clear();
+    let error = cylinder_mesh(&mut circle, tris, None)?;
+    Ok((circle, error))
+}
+
+fn cylinder_mesh<Id>(
+    circle: &mut Circle<Id>,
+    tris: &[[P; 3]],
+    expected_orientation: Option<i32>,
+) -> Proof<Q> {
+    circle.mesh_rings = boundary(tris)?;
+    if circle.mesh_rings.len() != 2 {
+        return Err("cylinder seam or missing patch");
+    }
+    let gap = &circle.z[1] - &circle.z[0];
+    let mut levels = BTreeSet::new();
     for ring in &circle.mesh_rings {
         let midpoint = (&circle.z[0] + &circle.z[1]) / n(2);
         let level = if ring.iter().all(|p| p[2] < midpoint) {
@@ -494,7 +521,17 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
         }
         circle.mesh_height = circle.mesh_height.clone().max(height);
         circle.mesh_levels.push(level.clone());
-        turn(ring, &circle.center)?;
+        let sign = turn(ring, &circle.center)?;
+        if let Some(outward) = expected_orientation
+            && sign
+                != if level == &circle.z[0] {
+                    outward
+                } else {
+                    -outward
+                }
+        {
+            return Err("final cylinder end orientation");
+        }
     }
     let mut error = n(0);
     let mut orientation = 0;
@@ -524,9 +561,13 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
     {
         return Err("cylinder boundary orientation");
     }
-    Ok((circle, error))
+    if expected_orientation.is_some_and(|expected| expected != orientation) {
+        return Err("final cylinder orientation");
+    }
+    Ok(error)
 }
 
+#[cfg(test)]
 fn plane_frame(plane: &monstertruck_modeling::Plane) -> Proof<(usize, Q, P)> {
     let coefficients = super::retained::plane_coefficients(plane)?;
     let columns = coefficients[3..]
@@ -550,14 +591,19 @@ fn plane_frame(plane: &monstertruck_modeling::Plane) -> Proof<(usize, Q, P)> {
         &sub(&transformed[1], &transformed[0]),
         &sub(&transformed[2], &transformed[0]),
     );
+    axis_frame(&transformed[0], normal)
+}
+
+fn axis_frame(origin: &P, normal: P) -> Proof<(usize, Q, P)> {
     let nonzero = (0..3).filter(|&i| !normal[i].is_zero()).collect::<Vec<_>>();
     if nonzero.len() != 1 {
         return Err("unsupported or singular plane support");
     }
     let axis = nonzero[0];
-    Ok((axis, transformed[0][axis].clone(), normal))
+    Ok((axis, origin[axis].clone(), normal))
 }
 
+#[cfg(test)]
 fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<(Vec<P>, Q)> {
     if wire.len() < 4 || wire.len() > 128 {
         return Err("unsupported noncircular trim");
@@ -589,6 +635,13 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<(Vec<P>, Q)> {
         return Err("open rectangle");
     }
     points.pop();
+    rectangle(points, axis, level)
+}
+
+fn rectangle(points: Vec<P>, axis: usize, level: &Q) -> Proof<(Vec<P>, Q)> {
+    if !(4..=128).contains(&points.len()) {
+        return Err("unsupported noncircular trim");
+    }
     // A retained line's normal coordinate is affine. Its endpoint maximum
     // encloses the entire source-to-plane discrepancy, including placement.
     let height = points
@@ -689,10 +742,11 @@ fn project(p: &P, axis: usize, level: &Q) -> P {
     out[axis] = level.clone();
     out
 }
+#[cfg(test)]
 fn planar(
     face: &RetainedFace,
     tris: &[[P; 3]],
-    circles: &[Circle],
+    circles: &[Circle<HashSet<monstertruck_modeling::EdgeId>>],
     mesh_error: &Q,
     cylinder_source_error: &Q,
 ) -> Proof<Q> {
@@ -703,6 +757,69 @@ fn planar(
     if !face.mesh_orientation {
         normal = normal.map(|v| -v);
     }
+    let trims = face
+        .boundaries
+        .iter()
+        .map(|wire| {
+            let ids = wire_ids(wire);
+            if let Some((ci, end)) = circle_end(circles, &ids) {
+                if axis != 2 {
+                    return Err("nonhorizontal circular cap");
+                }
+                let c = &circles[ci];
+                let trim = curve_ring(wire, &c.center, &c.radius, &level)?;
+                Ok(PlanarTrim::Circular {
+                    circle: ci,
+                    end,
+                    sign: trim.sign,
+                    error: trim.total(),
+                })
+            } else {
+                let (points, error) = rectangle_wire(wire, axis, &level)?;
+                Ok(PlanarTrim::Rectangle { points, error })
+            }
+        })
+        .collect::<Proof<Vec<_>>>()?;
+    planar_domain(
+        (axis, level, normal),
+        trims,
+        tris,
+        circles,
+        mesh_error,
+        cylinder_source_error,
+    )
+}
+
+fn circle_end<Id: PartialEq>(circles: &[Circle<Id>], ids: &Id) -> Option<(usize, usize)> {
+    circles.iter().enumerate().find_map(|(circle, c)| {
+        c.source_edges
+            .iter()
+            .position(|edges| edges == ids)
+            .map(|end| (circle, end))
+    })
+}
+
+enum PlanarTrim {
+    Rectangle {
+        points: Vec<P>,
+        error: Q,
+    },
+    Circular {
+        circle: usize,
+        end: usize,
+        sign: i32,
+        error: Q,
+    },
+}
+
+fn planar_domain<Id>(
+    (axis, level, normal): (usize, Q, P),
+    trims: Vec<PlanarTrim>,
+    tris: &[[P; 3]],
+    circles: &[Circle<Id>],
+    mesh_error: &Q,
+    cylinder_source_error: &Q,
+) -> Proof<Q> {
     let mut tri_sign = 0;
     let mut mesh_height = n(0);
     for tri in tris {
@@ -719,7 +836,7 @@ fn planar(
         tri_sign = sign;
     }
     let mut rings = boundary(tris)?;
-    if rings.len() != face.boundaries.len() {
+    if rings.len() != trims.len() {
         return Err("incomplete cap holes/domain");
     }
     // The same delivered triangles project affinely; positivity above excludes
@@ -750,60 +867,57 @@ fn planar(
     }
     let mut specs = Vec::new();
     let mut source_error = cylinder_source_error.clone();
-    for (index, wire) in face.boundaries.iter().enumerate() {
-        let ids = wire_ids(wire);
-        let circle = circles.iter().position(|c| c.source_edges.contains(&ids));
-        let (position, spec) = if let Some(ci) = circle {
-            if axis != 2 {
-                return Err("nonhorizontal circular cap");
+    for (index, trim) in trims.into_iter().enumerate() {
+        let sense = if index == 0 { tri_sign } else { -tri_sign };
+        let (position, spec) = match trim {
+            PlanarTrim::Circular {
+                circle,
+                end,
+                sign,
+                error,
+            } => {
+                let c = &circles[circle];
+                source_error = source_error.max(error);
+                if sign != sense {
+                    return Err("source cap circular material orientation");
+                }
+                let expected = c
+                    .mesh_rings
+                    .iter()
+                    .zip(&c.mesh_levels)
+                    .find(|(_, z)| **z == c.source_levels[end])
+                    .map(|(ring, _)| ring)
+                    .ok_or("missing cap/cylinder join")?;
+                let pos = rings
+                    .iter()
+                    .position(|r| edge_set(r) == edge_set(expected))
+                    .ok_or("cap/cylinder boundary mismatch")?;
+                (pos, CapRing::Circular(circle))
             }
-            let c = &circles[ci];
-            let source_end = c
-                .source_edges
-                .iter()
-                .position(|edges| edges == &ids)
-                .unwrap();
-            let trim = curve_ring(wire, &c.center, &c.radius, &level)?;
-            source_error = source_error.max(trim.total());
-            if trim.sign != if index == 0 { tri_sign } else { -tri_sign } {
-                return Err("source cap circular material orientation");
+            PlanarTrim::Rectangle { points, error } => {
+                source_error = source_error.max(error);
+                let source_sign = if ring_area(&points, axis) > n(0) {
+                    1
+                } else {
+                    -1
+                };
+                if source_sign != sense {
+                    return Err("source cap rectangular material orientation");
+                }
+                let pos = rings
+                    .iter()
+                    .position(|r| {
+                        rectangle_matches(
+                            &points,
+                            &r.iter()
+                                .map(|p| project(p, axis, &level))
+                                .collect::<Vec<_>>(),
+                        )
+                        .is_ok()
+                    })
+                    .ok_or("uncovered rectangular cap")?;
+                (pos, CapRing::Rectangle(points))
             }
-            let expected = c
-                .mesh_rings
-                .iter()
-                .zip(&c.mesh_levels)
-                .find(|(_, z)| **z == c.source_levels[source_end])
-                .map(|(ring, _)| ring)
-                .ok_or("missing cap/cylinder join")?;
-            let pos = rings
-                .iter()
-                .position(|r| edge_set(r) == edge_set(expected))
-                .ok_or("cap/cylinder boundary mismatch")?;
-            (pos, CapRing::Circular(ci))
-        } else {
-            let (source, height) = rectangle_wire(wire, axis, &level)?;
-            source_error = source_error.max(height);
-            let source_sign = if ring_area(&source, axis) > n(0) {
-                1
-            } else {
-                -1
-            };
-            if source_sign != if index == 0 { tri_sign } else { -tri_sign } {
-                return Err("source cap rectangular material orientation");
-            }
-            let pos = rings
-                .iter()
-                .position(|r| {
-                    rectangle_matches(
-                        &source,
-                        &r.iter()
-                            .map(|p| project(p, axis, &level))
-                            .collect::<Vec<_>>(),
-                    )
-                    .is_ok()
-                })
-                .ok_or("uncovered rectangular cap")?;
-            (pos, CapRing::Rectangle(source))
         };
         let ring = rings.remove(position);
         let sign = if ring_area(&ring, axis) > n(0) { 1 } else { -1 };
@@ -881,6 +995,7 @@ fn planar(
     Ok(band)
 }
 
+#[cfg(test)]
 fn bind(
     model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
@@ -966,6 +1081,7 @@ fn bind(
     }
     Ok(groups)
 }
+#[cfg(test)]
 fn prove(model: &[Solid], mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -> Proof<Q> {
     let groups = bind(model, mesh, trace)?;
     let mut circles = Vec::new();
@@ -997,12 +1113,17 @@ fn prove(model: &[Solid], mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -
     }
     Ok(band)
 }
+#[cfg(test)]
 fn qualify(
     model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
     trace: &AnalysisTrace,
 ) -> GeneratedQualification {
-    let result = prove(model, mesh, trace).and_then(|bound| {
+    qualification(prove(model, mesh, trace))
+}
+
+fn qualification(result: Proof<Q>) -> GeneratedQualification {
+    let result = result.and_then(|bound| {
         let mut out = bound.to_f64().ok_or("bound conversion overflow")?;
         while q(out)? < bound {
             out = out.next_up();
@@ -1022,13 +1143,7 @@ fn qualify(
         },
     }
 }
-pub(super) fn qualified_bound(
-    model: &[Solid],
-    mesh: &GeneratedAnalysisMesh,
-    trace: &AnalysisTrace,
-) -> GeneratedQualification {
-    qualify(model, mesh, trace)
-}
+pub(super) mod native;
 
 #[cfg(test)]
 mod tests;

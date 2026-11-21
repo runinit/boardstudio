@@ -1,6 +1,7 @@
 //! Tessellate the validated layer boundaries in model coordinates.
 use super::brep::{EdgeUse, Face, Point3, Strip, Support, Topology};
 use crate::profile::closed_oriented_shell_triangles;
+#[cfg(test)]
 type Vector2 = cgmath::Vector2<f64>;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 use std::{
@@ -13,6 +14,7 @@ const MAX_ARC_STEPS: usize = 4096;
 
 pub(crate) struct FaceMesh {
     pub positions: Vec<Point3>,
+    #[cfg(test)]
     pub uv: Vec<Vector2>,
     pub triangles: Vec<[usize; 3]>,
 }
@@ -107,9 +109,10 @@ pub(crate) fn tessellate(
     Ok(faces)
 }
 
-// Adjacent strips on the same Z-invariant support can share a triangle
-// across an internal layer break. Omit breaks that would otherwise create
-// zero-height render triangles. Native rings and their exact Z stay intact.
+// Both f64 analysis and f32 rendering use these strips. An internal Z break
+// can be omitted only when three consecutive sections have identical XY
+// geometry, so the two strips and their union cover the same extruded surface.
+// Native boundary rings and their exact Z coordinates stay intact.
 fn render_strips<'a>(
     topology: &Topology,
     face: &'a Face,
@@ -132,8 +135,17 @@ fn render_strips<'a>(
             index += 1;
             continue;
         }
-        let above = strips.iter().position(|next| next.lower == current.upper);
-        let below = strips.iter().position(|next| next.upper == current.lower);
+        let same = |low, high| same_section(topology, low, high) && height(low) < height(high);
+        let above = strips.iter().position(|next| {
+            next.lower == current.upper
+                && same(current.lower, current.upper)
+                && same(current.upper, next.upper)
+        });
+        let below = strips.iter().position(|next| {
+            next.upper == current.lower
+                && same(next.lower, current.lower)
+                && same(current.lower, current.upper)
+        });
         // Keep the shared cap elevation when either neighboring strip is available.
         let prefer_below = cap_levels.contains(&coordinate_key(height(current.upper)));
         if let Some(above) = above.filter(|_| !prefer_below || below.is_none()) {
@@ -149,6 +161,32 @@ fn render_strips<'a>(
         }
     }
     Cow::Owned(strips)
+}
+
+fn same_section(topology: &Topology, a: EdgeUse, b: EdgeUse) -> bool {
+    let endpoints = |edge: EdgeUse| edge.vertices(topology).map(|i| topology.vertices[i]);
+    let [a0, a1] = endpoints(a);
+    let [b0, b1] = endpoints(b);
+    a0.z == a1.z
+        && b0.z == b1.z
+        && (a0.x, a0.y, a1.x, a1.y) == (b0.x, b0.y, b1.x, b1.y)
+        && match (
+            topology.edges[a.index].circle,
+            topology.edges[b.index].circle,
+        ) {
+            (None, None) => true,
+            (Some(ac), Some(bc)) => {
+                let oriented =
+                    |edge: EdgeUse, sweep: f64| if edge.forward { sweep } else { -sweep };
+                ac.center.x == bc.center.x
+                    && ac.center.y == bc.center.y
+                    && ac.center.z == a0.z
+                    && bc.center.z == b0.z
+                    && ac.radius == bc.radius
+                    && oriented(a, ac.sweep) == oriented(b, bc.sweep)
+            }
+            _ => false,
+        }
 }
 
 fn coordinate_key(value: f64) -> u64 {
@@ -215,6 +253,7 @@ impl EdgeSamples {
 
 fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
     let mut positions = Vec::new();
+    #[cfg(test)]
     let mut uv = Vec::new();
     let mut triangles = Vec::new();
     for strip in strips {
@@ -225,11 +264,15 @@ fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
             return Err("Layered wall has mismatched arc partitions".into());
         }
         let base = positions.len();
-        for (index, (low, high)) in lower.zip(upper).enumerate() {
+        for (low, high) in lower.zip(upper) {
+            #[cfg(test)]
+            {
+                // Fixture polygons retain the strip-local chart at a seam.
+                let index = (positions.len() - base) / 2;
+                let t = index as f64 / (count - 1) as f64;
+                uv.extend([Vector2::new(t, low.z), Vector2::new(t, high.z)]);
+            }
             positions.extend([low, high]);
-            // Each strip has its own chart, including at cylindrical seams.
-            let t = index as f64 / (count - 1) as f64;
-            uv.extend([Vector2::new(t, low.z), Vector2::new(t, high.z)]);
         }
         for i in (base..base + 2 * (count - 1)).step_by(2) {
             triangles.extend([[i, i + 2, i + 3], [i, i + 3, i + 1]]);
@@ -237,6 +280,7 @@ fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
     }
     Ok(FaceMesh {
         positions,
+        #[cfg(test)]
         uv,
         triangles,
     })
@@ -304,6 +348,7 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
         }
     }
 
+    #[cfg(test)]
     let uv = positions.iter().map(|p| Vector2::new(p.x, p.y)).collect();
     let triangles = cdt
         .inner_faces()
@@ -315,7 +360,66 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
         .collect();
     Ok(FaceMesh {
         positions,
+        #[cfg(test)]
         uv,
         triangles,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layered::brep::{Edge, Vector3};
+
+    #[test]
+    fn strip_merge_rejects_an_in_plane_sub_ulp_change_of_section() {
+        let low = 1.0_f64;
+        let middle = low.next_up();
+        let section = |z, end| [Point3::new(0., 0., z), Point3::new(end, 0., z)];
+        let mut topology = Topology {
+            vertices: [section(low, 1.), section(middle, 1.), section(2., 1.)]
+                .into_iter()
+                .flatten()
+                .collect(),
+            edges: [[0, 1], [2, 3], [4, 5]]
+                .map(|vertices| Edge {
+                    vertices,
+                    circle: None,
+                })
+                .into(),
+        };
+        let edge = |index| EdgeUse {
+            index,
+            forward: true,
+        };
+        let face = Face {
+            rings: vec![],
+            support: Support::Plane {
+                origin: topology.vertices[0],
+                u: Vector3::unit_x(),
+                v: Vector3::unit_z(),
+            },
+            forward: true,
+            strips: vec![
+                Strip {
+                    lower: edge(0),
+                    upper: edge(1),
+                },
+                Strip {
+                    lower: edge(1),
+                    upper: edge(2),
+                },
+            ],
+        };
+        let cap_levels = HashSet::new();
+        assert_eq!(middle as f32, low as f32);
+        let merged = render_strips(&topology, &face, &cap_levels);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].lower, edge(0));
+        assert_eq!(merged[0].upper, edge(2));
+
+        topology.vertices[3].x = 1.0_f64.next_up();
+        assert_eq!(topology.vertices[3].x as f32, 1.0);
+        assert_eq!(render_strips(&topology, &face, &cap_levels).len(), 2);
+    }
 }

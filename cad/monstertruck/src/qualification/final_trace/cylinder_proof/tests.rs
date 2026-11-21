@@ -88,7 +88,10 @@ fn cylinder_proof_authored_circle_pcb_with_real_drill_is_bounded() {
     assert!(bound(&model, &mesh, &trace) < 0.04);
 }
 
-fn circular_drilled_input(thickness: f64, elevation: f64) -> boardstudio_contracts::PreparedCaseIR {
+pub(super) fn circular_drilled_input(
+    thickness: f64,
+    elevation: f64,
+) -> boardstudio_contracts::PreparedCaseIR {
     use boardstudio_contracts::{Mount, MountKind};
     let mut input: boardstudio_contracts::PreparedCaseIR = serde_json::from_str(include_str!(
         "../../../../tests/fixtures/pcb-source/circle-tracer.json"

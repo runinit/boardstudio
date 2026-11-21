@@ -1,35 +1,32 @@
-//! Private observation of the actual analysis emission; no source certificate.
-//!
-//! Coordinates are body-local, including authored elevation/source placement.
-//! No physical row transform is accepted or applied here. The hook observes the
-//! oriented triangle emission after render rejection, without another tessellation.
-//! Direct wall strips have local charts. Vendor polygon UVs may be placeholders.
-//! The proof independently binds final points and topology to the native support
-//! and trims. UV attributes and requested settings alone prove no error bound.
+//! Generated qualification in body-local coordinates, including native elevation and placement.
+//! Test-only trace fixtures retain the vendor representation for legacy adversarial controls.
 
-use crate::profile::{EmissionObserver, GeneratedAnalysisMesh, GeneratedSourceFace};
 #[cfg(test)]
-use crate::profile::{ExactModel, mesh_profile_for_analysis, mesh_profile_observed};
+use crate::profile::{
+    EmissionObserver, GeneratedSourceFace, mesh_profile_for_analysis, mesh_profile_observed,
+};
+use crate::profile::{ExactModel, GeneratedAnalysisMesh};
 #[cfg(test)]
 use boardstudio_contracts::Vec2;
-use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
-use monstertruck_modeling::{EuclideanSpace, Face};
 #[cfg(test)]
-use monstertruck_modeling::{Invertible, Point3, Vector3, builder};
-use monstertruck_modeling::{Solid, Surface, Wire};
+use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
+#[cfg(test)]
+use monstertruck_modeling::{
+    EuclideanSpace, Face, Invertible, Point3, Solid, Surface, Vector3, Wire, builder,
+};
 
 mod cylinder_proof;
+#[cfg(test)]
 mod retained;
 
-// New owner-side wrapper; no trace or native geometry leaves this module.
 pub(super) fn qualified_bound(
-    model: &[Solid],
+    model: &ExactModel,
     mesh: &GeneratedAnalysisMesh,
-    trace: &AnalysisTrace,
 ) -> super::generated_qualification::GeneratedQualification {
-    cylinder_proof::qualified_bound(model, mesh, trace)
+    cylinder_proof::native::qualify(model, mesh)
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UvUnknown {
     Missing,
@@ -56,6 +53,7 @@ fn chart_observation(surface: &Surface) -> ChartObservation {
 }
 
 // Ok preserves raw attributes only; it proves neither surface evaluation nor coverage.
+#[cfg(test)]
 fn triangle_uv(
     poly: &PolygonMesh,
     vertices: [StandardVertex; 3],
@@ -79,6 +77,7 @@ fn triangle_uv(
     Ok(result)
 }
 
+#[cfg(test)]
 struct RetainedFace {
     source: GeneratedSourceFace,
     surface: Surface,
@@ -89,6 +88,7 @@ struct RetainedFace {
     polygon: PolygonMesh,
 }
 
+#[cfg(test)]
 struct FinalTriangle {
     occurrence_index: usize,
     vertices: [StandardVertex; 3],
@@ -97,12 +97,14 @@ struct FinalTriangle {
     rendered_positions_f32: [f32; 9],
 }
 
+#[cfg(test)]
 #[derive(Default)]
 pub(super) struct AnalysisTrace {
     faces: Vec<RetainedFace>,
     triangles: Vec<FinalTriangle>,
 }
 
+#[cfg(test)]
 impl EmissionObserver for AnalysisTrace {
     fn face(
         &mut self,

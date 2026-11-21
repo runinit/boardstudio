@@ -1,5 +1,5 @@
-//! Adapt generated topology for the retained analytic verifier.
-//! Preview and STEP export use the generated topology directly.
+//! Test-only vendor geometry oracle and input for synthetic source mutations.
+//! Generated production qualification uses native topology and final triangles.
 
 use crate::layered::{
     brep::{EdgeUse, Region, Support},

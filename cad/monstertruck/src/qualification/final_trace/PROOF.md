@@ -1,16 +1,69 @@
-# Private generated cylinder proof (014)
+# Generated source qualification
+
+## Native production proof
+
+The producer qualifies the delivered body-local f64 triangle buffer against
+the generated B-rep. It checks face occurrence and support census, render casts,
+triangle orientation, and exact oriented shell incidence. It groups triangles by
+source face and proves coverage independently of the tessellator's strip list,
+UV coordinates, requested deflection, and closed-shell status flag. The
+qualification facade binds the result to the emitted buffers for provider queries.
+A source bound describes symmetric surface distance in f64 millimeters.
+
+For each axis-aligned plane the verifier computes the exact normal of its stored
+tangent vectors and checks that the stored boundary lines and final triangles
+lie on that plane. It verifies exact rectangular sides, allowing collinear
+subdivisions, and uses oriented triangle boundary and winding to prove complete
+coverage. A qualifying plane-only shell has zero direct error. Planes joined to
+a cylinder can have full circular trims with matching native edge IDs and
+matching delivered cap/cylinder end cycles. The shared projected-domain proof
+below checks orientation, complete coverage, and separation between boundaries.
+
+For each constant-radius unit-Z carrier, the source domain is the strip
+between its two native end loops. The build stores an authored center and
+radius, endpoint vertices, and an arc traversal sign. The source arc follows
+the authored circle between the endpoint rays in that direction, as in the
+generated STEP writer. The stored f64 sweep magnitude controls sampling.
+The proof checks exact circle identity, constant Z, angular span, and one
+oriented turn for each source ring. It includes the maximum radial discrepancy
+of the retained endpoint coordinates. The final whole-triangle radial enclosure
+and projection degree below account for chord error and coordinate rounding.
+The proof charges final end-height displacement and checks separation and
+orientation. Caps independently check their source rings and account for their
+boundary bands. Exact rational bounds are rounded outward to f64. Cones,
+partial cylinders, nonrectangular line trims, and unproved joins or domains
+return Unknown.
+
+Analysis and preview share one tessellation. At a positive f64 layer interval
+whose levels cast to the same f32, the tessellator can remove an internal strip
+separator only when both adjacent strips have identical oriented XY cross
+sections, including exact circle identity and signed sweep for curved strips.
+The replacement spans the same endpoints and the same extruded f64 surface.
+Exact B-rep rings and all authored elevations remain available to qualification
+and export. The final f64 shell still has to close exactly. A collapsed interval
+that changes geometry or has no eligible continuation must still produce
+renderable triangles, so a sub-ULP shallow cut can fail mesh construction.
+
+PCB midpoint arcs and standalone circles require their structural circular
+support at contour intake. Round features and slots construct their carriers
+from authored dimensions and placement. Boolean stitching preserves source
+lineage. Contour validation and native edge assembly refuse a bulge whose
+structural source is missing or has the wrong kind.
+
+## Retained vendor fixture proof (014)
+
+The following coefficient and UV controls exercise the test-only vendor
+representation and the shared final-domain predicates.
 
 Frozen `5bc56d35` failed independent Spec review with a P1 soundness
 counterexample. Its prior green checks did not cover that defect. Corrected raw
 orientation and cap accounting in `b03cc095` were accepted and integrated by the
-parent at `95e8c4a53`. The continuous-height extension below is now part of the
-active producer path.
+parent at `95e8c4a53`. The continuous-height extension below describes that
+earlier producer and the retained fixture proof.
 
 This is the private `analytic-generated-v1` source proof under the active
-[contract](../../../../wasm/src/model/generated/ANALYSIS_CONTRACT.md). It is the
-production fallback when the analytic generated path is unknown, and its bounded
-total is the generated `analysisErrorBoundMm`. It does not publish a mesh
-identity, qualify a query or containment, or establish whole-model clearance.
+[contract](../../../../wasm/src/model/generated/ANALYSIS_CONTRACT.md). Its bounded total was previously used by generated analysis.
+The proof is exercised by synthetic source and final-buffer mutation tests.
 The physical row is absent: the proof is for body-local final f64 triangles,
 including native source elevation and placement. Certificate binding and
 physical-row accounting belong to the qualification facade.
@@ -115,8 +168,9 @@ the retained three-dimensional boundary curves. The former exactly planar
 degree argument is therefore not being applied to a variable-height domain.
 
 An actual open seam adds boundary cycles or invalid end edges and refuses. No
-nearby vertices are welded. In particular the current radius-2/height-4 default
-drilled fixture stays Unknown rather than receiving a fictitious seam proof.
+nearby vertices are welded. In particular the vendor-tessellated
+radius-2/height-4 drilled fixture stays Unknown because of its open seam.
+The native tessellation of the same source has complete end cycles.
 
 ## Complete cap and hole domains
 
