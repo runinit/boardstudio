@@ -20,6 +20,7 @@ pub(crate) use board_reference_owner::{
 };
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_catalogue::physical_setup;
+#[cfg(any(target_arch = "wasm32", test))]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
@@ -91,8 +92,8 @@ mod pcb_board_reference {
     mod matching;
 }
 
-// Wiring logic is plain Rust; compile it natively too so its unit tests run under `cargo test`.
-#[cfg(not(target_arch = "wasm32"))]
+// Native controller tests use the runtime stub supplied by the dev-dependency.
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub(crate) mod pcb_wiring {
     #[allow(unused_imports)]
     use crate::firmware_position_projection::FirmwarePlanIdentity;
