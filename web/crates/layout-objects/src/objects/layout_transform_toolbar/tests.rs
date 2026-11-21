@@ -190,6 +190,30 @@ fn provide_preview_contexts(runtime: &Rc<Runtime>) -> Signal<Option<FieldPreview
     preview_state
 }
 
+/// Named mounted control for parent integration: the parent `version`
+/// drives single-ticket settlement in the overlays. The host subscribes the
+/// runtime to bump it, mirroring production (`use_workbench_runtime` +
+/// `use_workbench_panels`). Shared by the matrix, part and pick hosts so the
+/// subscription, provider and read cannot drift.
+fn use_test_version(runtime: &Rc<Runtime>) {
+    let version = use_signal(|| 0_u64);
+    use_hook({
+        let runtime = runtime.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = runtime.clone();
+        move || runtime.unsubscribe()
+    });
+    use_context_provider(|| version);
+    let _ = version();
+}
+
 /// Ticket 03: the matrix rail host mounts one overlay per tool into one shared svg, like the
 /// production rail, so the registry lays out the real peer set. It provides the Editor's
 /// amber preview contexts and publishes its visibility, so a test can unmount the overlays
@@ -213,25 +237,7 @@ fn matrix_rail_host(props: MatrixRailHostProps) -> Element {
     props.show.0.borrow_mut().get_or_insert(show);
     let preview_state = provide_preview_contexts(&props.runtime.0);
     props.preview.0.borrow_mut().get_or_insert(preview_state);
-    // Named mounted control for parent integration: the parent `version`
-    // drives single-ticket settlement in the overlays. The host subscribes
-    // the runtime to bump it, mirroring production.
-    let version = use_signal(|| 0_u64);
-    use_hook({
-        let runtime = props.runtime.0.clone();
-        move || {
-            runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }));
-        }
-    });
-    use_drop({
-        let runtime = props.runtime.0.clone();
-        move || runtime.unsubscribe()
-    });
-    use_context_provider(|| version);
-    let _ = version();
+    use_test_version(&props.runtime.0);
     let selected_context = use_signal(|| scoped(&props.owner, props.context.clone()));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");
@@ -371,22 +377,7 @@ struct PartRailHostProps {
 
 #[component]
 fn part_rail_host(props: PartRailHostProps) -> Element {
-    let version = use_signal(|| 0_u64);
-    use_hook({
-        let runtime = props.runtime.0.clone();
-        move || {
-            runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }));
-        }
-    });
-    use_drop({
-        let runtime = props.runtime.0.clone();
-        move || runtime.unsubscribe()
-    });
-    use_context_provider(|| version);
-    let _ = version();
+    use_test_version(&props.runtime.0);
     let selected_context = use_signal(|| scoped(&props.owner, part_context(&props.part_id)));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");
@@ -502,22 +493,7 @@ struct PickHostProps {
 
 #[component]
 fn pick_host(props: PickHostProps) -> Element {
-    let version = use_signal(|| 0_u64);
-    use_hook({
-        let runtime = props.runtime.0.clone();
-        move || {
-            runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }));
-        }
-    });
-    use_drop({
-        let runtime = props.runtime.0.clone();
-        move || runtime.unsubscribe()
-    });
-    use_context_provider(|| version);
-    let _ = version();
+    use_test_version(&props.runtime.0);
     let selected_context = use_signal(|| scoped(&props.owner, props.pick_owner.context()));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");

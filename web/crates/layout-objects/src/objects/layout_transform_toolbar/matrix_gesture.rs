@@ -637,24 +637,6 @@ pub(super) fn transform_drag_resolver(
     )
 }
 
-/// Begin one composed drag commit as intent: the resolver re-solves the drag's
-/// net transform against whatever is accepted when the edit runs, so drags
-/// queued behind other edits compose. The caller queues the ticket in its
-/// `pending` signal; settlement happens on the parent `version` signal with
-/// durable toast on landing and `Runtime::report` on failure.
-pub(super) fn commit_transform_drag(
-    runtime: &Rc<Runtime>,
-    drag: &TransformDrag,
-    operation: &EditOperation,
-) -> Option<EditTicket> {
-    let result = transform_drag_result(drag, operation)?;
-    Some(begin_transform_ticket(
-        runtime,
-        "layout-transform-drag",
-        transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result),
-    ))
-}
-
 /// A handle key press is a delta intent, so it stays admitted while earlier presses are
 /// still applying: only the selection, scope and workspace must be the live owner.
 pub(super) fn transform_nudge_admitted(
@@ -666,22 +648,23 @@ pub(super) fn transform_nudge_admitted(
     context: &TreeContext,
 ) -> bool {
     let model = runtime.model();
-    owner.workspace == "Layout"
-        && workspace() == owner.workspace
-        && generation() == owner.generation
-        && runtime.scope() == owner.scope
-        && matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        )
-        && model.display_preview.is_none()
+    // Shares the settlement liveness (scope + workspace + generation +
+    // selection) so the two cannot drift; nudges additionally need a live
+    // Session phase, no preview/gesture and the active board/instance.
+    transform_commit_is_live(
+        runtime,
+        workspace,
+        generation,
+        selected_context,
+        owner,
+        context,
+    ) && matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && model.display_preview.is_none()
         && model.gesture.is_none()
         && owner.scope.as_ref().is_some_and(|scope| {
-            model.active_board_id == scope.board_id
-                && model.active_instance_id == scope.instance_id
-                && selected_context().is_some_and(|selected| {
-                    selected.scope == *scope && selected.context == *context
-                })
+            model.active_board_id == scope.board_id && model.active_instance_id == scope.instance_id
         })
 }
 

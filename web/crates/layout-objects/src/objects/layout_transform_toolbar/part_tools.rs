@@ -638,7 +638,7 @@ pub fn LayoutPartToolOverlay(
         let mut feedback_for_end = feedback_for_end;
         let mut popup_at_for_end = popup_at_for_end;
         let mut pending_for_end = pending_for_end;
-        let mut toast_gen_for_end = toast_gen_for_end;
+        let toast_gen_for_end = toast_gen_for_end;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -681,22 +681,16 @@ pub fn LayoutPartToolOverlay(
         let alt = pointer.alt_key();
         let tool_name = feedback_tool_name(tool).to_owned();
         // Landing one revision, with a toast unless the drag netted nothing.
-        let mut landed = |feedback: FeedbackDelta, value_text: String| {
-            if feedback.is_zero() {
+        let landed = |delta: FeedbackDelta, value_text: String| {
+            if delta.is_zero() {
                 return false;
             }
-            feedback_for_end.set(advance_feedback(
-                &feedback_for_end(),
-                FeedbackEvent::Commit {
-                    value: format!("{tool_name} {value_text}"),
-                    delta: feedback,
-                },
-            ));
-            let seen = {
-                toast_gen_for_end.set(toast_gen_for_end() + 1);
-                toast_gen_for_end()
-            };
-            arm_commit_toast_expiry(feedback_for_end, toast_gen_for_end, seen);
+            raise_commit_toast(
+                feedback_for_end,
+                toast_gen_for_end,
+                format!("{tool_name} {value_text}"),
+                delta,
+            );
             true
         };
         match active.kind {
@@ -784,7 +778,15 @@ pub fn LayoutPartToolOverlay(
                             },
                         ));
                     } else {
-                        let ticket = commit_part_anchor_drag(&runtime_for_end, &active, delta);
+                        let ticket = begin_transform_ticket(
+                            &runtime_for_end,
+                            "layout-part-rail-drag",
+                            part_anchor_drag_resolver(
+                                active.part_id.clone(),
+                                active.transaction_id.clone(),
+                                delta,
+                            ),
+                        );
                         pending_for_end.write().push(PendingTransformCommit {
                             ticket,
                             owner: active.owner.clone(),
@@ -913,7 +915,15 @@ pub fn LayoutPartToolOverlay(
                             },
                         ));
                     } else {
-                        let ticket = commit_part_detached_rotate(&runtime_for_end, &active, delta);
+                        let ticket = begin_transform_ticket(
+                            &runtime_for_end,
+                            "layout-part-rail-drag",
+                            part_detached_rotate_resolver(
+                                active.part_id.clone(),
+                                active.transaction_id.clone(),
+                                delta,
+                            ),
+                        );
                         pending_for_end.write().push(PendingTransformCommit {
                             ticket,
                             owner: active.owner.clone(),

@@ -81,6 +81,26 @@ pub(super) struct PendingTransformToast {
     pub(super) delta: FeedbackDelta,
 }
 
+/// Raise one durable commit toast and arm its 1.8 s expiry: the shared tail
+/// of `settle_transform_commits`, the Anchor follow-up and the detached part
+/// `landed` closure. The caller owns the `Commit` value/delta wording.
+pub(super) fn raise_commit_toast(
+    mut feedback: Signal<FeedbackState>,
+    mut toast_gen: Signal<u64>,
+    value: String,
+    delta: FeedbackDelta,
+) {
+    feedback.set(advance_feedback(
+        &feedback(),
+        FeedbackEvent::Commit { value, delta },
+    ));
+    let seen = {
+        toast_gen.set(toast_gen() + 1);
+        toast_gen()
+    };
+    arm_commit_toast_expiry(feedback, toast_gen, seen);
+}
+
 /// Settle fire-and-forget commits (drags, nudges): drop terminal tickets to
 /// release their observers, raise durable toasts on landing, report failures.
 /// `peek` (not `read`) keeps the settlement effect subscribed to `version`
@@ -93,8 +113,8 @@ pub(super) fn settle_transform_commits(
     scope_generation: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
     mut pending: Signal<Vec<PendingTransformCommit>>,
-    mut feedback: Signal<FeedbackState>,
-    mut toast_gen: Signal<u64>,
+    feedback: Signal<FeedbackState>,
+    toast_gen: Signal<u64>,
 ) {
     let queued = pending.peek().clone();
     if queued.is_empty() {
@@ -116,18 +136,12 @@ pub(super) fn settle_transform_commits(
             Settlement::Landed { .. } => {
                 settled_any = true;
                 if let Some(toast) = commit.toast {
-                    feedback.set(advance_feedback(
-                        &feedback(),
-                        FeedbackEvent::Commit {
-                            value: format!("{} {}", toast.tool_name, toast.value),
-                            delta: toast.delta,
-                        },
-                    ));
-                    let seen = {
-                        toast_gen.set(toast_gen() + 1);
-                        toast_gen()
-                    };
-                    arm_commit_toast_expiry(feedback, toast_gen, seen);
+                    raise_commit_toast(
+                        feedback,
+                        toast_gen,
+                        format!("{} {}", toast.tool_name, toast.value),
+                        toast.delta,
+                    );
                 }
             }
             Settlement::Failed { message } => {
