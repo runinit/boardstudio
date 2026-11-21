@@ -26,12 +26,10 @@ use boardstudio_web_ui_shared::ui::{
     callout::{Callout, CalloutVariant},
     checkbox::{Checkbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
     item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
@@ -93,90 +91,6 @@ impl MechanicalTextIntent {
     }
 }
 
-/// Presentation-only composition; the caller owns the accepted value and domain request.
-#[component]
-pub(crate) fn SettingsSelect(
-    label: String,
-    value: ReadSignal<String>,
-    #[props(default)] aria_label: Option<String>,
-    #[props(default)] disabled: bool,
-    on_change: EventHandler<Option<String>>,
-    children: Element,
-) -> Element {
-    let id = format!("case-choice-{}", dioxus::core::current_scope_id().0);
-    let selected = use_memo(move || Some(value()));
-    rsx! {
-        Field { class: "gap-1.5", disabled,
-            FieldLabel { html_for: id.clone(), "{label}" }
-            Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
-        }
-    }
-}
-
-#[component]
-pub(crate) fn ProfileTargetField(
-    label: String,
-    #[props(default)] aria_label: Option<String>,
-    placeholder: String,
-    options: Vec<MechanicalProfileTargetChoice>,
-    disabled: bool,
-    on_change: EventHandler<Option<String>>,
-) -> Element {
-    let selected = use_memo(|| None::<String>);
-    if options.len() <= 12 {
-        return rsx! { SettingsSelect { label, aria_label, value: "", disabled, on_change,
-            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), "{placeholder}" }
-            for (index, target) in options.iter().enumerate() {
-                SelectOption::<String> { key: "{target.definition_id}", index: index + 1, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
-            }
-        } };
-    }
-    let name = aria_label.unwrap_or_else(|| label.clone());
-    rsx! { Field { class: "gap-1.5", disabled,
-        FieldLabel { "{label}" }
-        Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
-            for (index, target) in options.iter().enumerate() {
-                ComboboxOption::<String> { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
-            }
-        }
-    } }
-}
-
-/// Presentation-only choice field for caller-owned dynamic lists, with the 12-option
-/// Select/Combobox boundary; the caller owns the accepted value and domain request.
-#[component]
-pub(crate) fn SettingsChoiceField(
-    label: String,
-    value: ReadSignal<String>,
-    options: Vec<(String, String)>,
-    #[props(into, optional)] placeholder: Option<String>,
-    #[props(into, optional)] aria_label: Option<String>,
-    #[props(default)] disabled: bool,
-    on_change: EventHandler<Option<String>>,
-) -> Element {
-    let selected = use_memo(move || Some(value()));
-    if options.len() > 12 {
-        let name = aria_label.unwrap_or_else(|| label.clone());
-        let placeholder = placeholder.unwrap_or_default();
-        return rsx! { Field { class: "gap-1.5", disabled,
-            FieldLabel { "{label}" }
-            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
-                for (index, (option_value, text)) in options.iter().enumerate() {
-                    ComboboxOption::<String> { key: "{index}", class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value.clone(), text_value: text.clone(), "{text}" }
-                }
-            }
-        } };
-    }
-    rsx! { SettingsSelect { label, aria_label, value, disabled, on_change,
-        if let Some(placeholder) = placeholder.clone() {
-            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{placeholder}" }
-        }
-        for (index, (option_value, text)) in options.iter().enumerate() {
-            SelectOption::<String> { key: "{index}", index: index + 1, value: option_value.clone(), text_value: text.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
-        }
-    } }
-}
-
 /// Presentation-only numeric field for caller-owned drafts; parsing stays with the caller.
 #[component]
 pub(crate) fn SettingsNumberField(
@@ -204,38 +118,25 @@ pub(crate) fn SettingsNumberField(
     }
 }
 
-/// Shared rust-ui molecule for every mechanical numeric/text row: a `Field`
-/// with its label, a caller-supplied `InputGroup` control, and the
-/// validation/status message slot. Built directly on
-/// `ui::{field::*, input_group::*, alert::*}` so the repeated 40-line
-/// `Field { FieldLabel InputGroup ... } if err { Alert }` blocks collapse here.
-#[derive(Props, Clone, PartialEq)]
-pub(crate) struct MechanicalBoundInputRowProps {
-    pub(crate) label: String,
-    pub(crate) html_for: String,
-    #[props(default)]
-    pub(crate) invalid: bool,
-    #[props(default)]
-    pub(crate) disabled: bool,
-    #[props(default)]
-    pub(crate) message_id: Option<String>,
-    #[props(default)]
-    pub(crate) error: Option<String>,
-    #[props(default)]
-    pub(crate) status: Option<String>,
-    pub(crate) children: Element,
-}
-
+/// Label a mechanical input and keep its ARIA message target mounted.
 #[component]
-pub(crate) fn MechanicalBoundInputRow(props: MechanicalBoundInputRowProps) -> Element {
+fn MechanicalBoundInputRow(
+    label: String,
+    html_for: String,
+    children: Element,
+    #[props(default)] disabled: bool,
+    #[props(default)] message_id: Option<String>,
+    #[props(default)] error: Option<String>,
+    #[props(default)] status: Option<&'static str>,
+) -> Element {
     rsx! {
-        Field { invalid: props.invalid, disabled: props.disabled, class: "gap-1.5",
-            FieldLabel { html_for: props.html_for.clone(), "{props.label}" }
-            {props.children}
-            if props.error.is_some() || props.status.is_some() {
-                div { id: props.message_id.clone().unwrap_or_default(),
-                    if let Some(error) = props.error.clone() { FieldError { "{error}" } }
-                    if let Some(status) = props.status.clone() { small { role: "status", "{status}" } }
+        Field { invalid: error.is_some(), disabled, class: "gap-1.5",
+            FieldLabel { html_for, "{label}" }
+            {children}
+            if let Some(message_id) = message_id {
+                div { id: message_id,
+                    if let Some(error) = error { FieldError { "{error}" } }
+                    if let Some(status) = status { small { role: "status", "{status}" } }
                 }
             }
         }
@@ -247,31 +148,6 @@ pub(crate) fn MechanicalBoundInputRow(props: MechanicalBoundInputRowProps) -> El
 #[component]
 pub(crate) fn MechanicalDimensionField(props: DimensionFieldProps) -> Element {
     DimensionField(props)
-}
-
-/// Canonical mechanical select row: all choice rows go through this rust-ui
-/// molecule built on `ui::{field::*, select::*}`.
-#[component]
-pub(crate) fn MechanicalSelectRow(
-    label: String,
-    value: ReadSignal<String>,
-    options: Vec<(String, String)>,
-    #[props(default)] aria_label: Option<String>,
-    #[props(default)] disabled: bool,
-    on_change: EventHandler<Option<String>>,
-) -> Element {
-    let selected = use_memo(move || Some(value()));
-    let id = format!("case-select-{}", dioxus::core::current_scope_id().0);
-    rsx! {
-        Field { class: "gap-1.5", disabled,
-            FieldLabel { html_for: id.clone(), "{label}" }
-            Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change,
-                for (index, (option_value, text)) in options.iter().enumerate() {
-                    SelectOption::<String> { key: "{index}", index: index + 1, value: option_value.clone(), text_value: text.clone(), "{text}" }
-                }
-            }
-        }
-    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -605,9 +481,12 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
     let status_text = pending.then_some("Saving…");
     let id = format!("case-dimension-{}", dioxus::core::current_scope_id().0);
     let message_id = format!("{id}-message");
+    let invalid = error_text.is_some();
+    let described_by = (invalid || pending).then(|| message_id.clone());
     rsx! {
-        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
-            FieldLabel { html_for: id.clone(), "{props.label}" }
+        MechanicalBoundInputRow {
+            label: props.label, html_for: id.clone(), disabled: !props.editable,
+            message_id: Some(message_id), error: error_text, status: status_text,
             InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                 InputGroupInput {
                     id: id.clone(), class: "font-mono",
@@ -620,8 +499,8 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
                     aria_label: props.accessible_label.as_deref().unwrap_or(props.label),
                     value: "{draft}",
                     disabled: !props.editable,
-                    aria_invalid: error_text.is_some(),
-                    aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                    aria_invalid: invalid,
+                    aria_describedby: described_by,
                     oninput: move |event: FormEvent| {
                         draft.set(event.value());
                         dirty.set(true);
@@ -656,10 +535,6 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
                     })],
                 }
                 InputGroupText { class: "pr-3", if props.field == MechanicalDimension::HardwareQuantity { "pcs" } else { "mm" } }
-            }
-            div { id: message_id,
-                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
-                if let Some(status) = status_text { small { role: "status", "{status}" } }
             }
         }
     }
@@ -758,9 +633,12 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let status_text = pending.then_some("Saving…");
     let id = format!("case-text-{}", dioxus::core::current_scope_id().0);
     let message_id = format!("{id}-message");
+    let invalid = error_text.is_some();
+    let described_by = (invalid || pending).then(|| message_id.clone());
     rsx! {
-        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
-            FieldLabel { html_for: id.clone(), "{props.label}" }
+        MechanicalBoundInputRow {
+            label: props.label, html_for: id.clone(), disabled: !props.editable,
+            message_id: Some(message_id), error: error_text, status: status_text,
             InputGroup { class: if !props.multiline { "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch" },
                 if props.multiline {
                     InputGroupTextarea {
@@ -769,8 +647,8 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                         rows: "2",
                         disabled: !props.editable,
                         aria_label: props.label,
-                        aria_invalid: error_text.is_some(),
-                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        aria_invalid: invalid,
+                        aria_describedby: described_by.clone(),
                         oninput: move |event: FormEvent| {
                             draft.set(event.value());
                             dirty.set(true);
@@ -801,8 +679,8 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                         value: "{draft}",
                         disabled: !props.editable,
                         aria_label: props.label,
-                        aria_invalid: error_text.is_some(),
-                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        aria_invalid: invalid,
+                        aria_describedby: described_by,
                         oninput: move |event: FormEvent| {
                             draft.set(event.value());
                             dirty.set(true);
@@ -837,10 +715,6 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                         })],
                     }
                 }
-            }
-            div { id: message_id,
-                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
-                if let Some(status) = status_text { small { role: "status", "{status}" } }
             }
         }
     }

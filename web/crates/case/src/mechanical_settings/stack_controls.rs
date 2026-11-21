@@ -19,6 +19,7 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
+use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -31,7 +32,6 @@ use boardstudio_web_ui_shared::ui::{
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
     item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
@@ -725,12 +725,12 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
     };
     rsx! {
         section { class: "grid gap-4 border-0 bg-transparent p-0", aria_label: "Basic case setup",
-            SettingsSelect {
+            ChoiceField {
                 label: "Mounting style",
                 aria_label: "Case mounting style",
                 value: mount_id(&values.mount).to_string(),
                 disabled: !settings.editable,
-                on_change: {
+                on_value_change: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
@@ -738,9 +738,12 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "tray".to_owned(), text_value: "Tray mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Tray mount" }
-                    SelectOption::<String> { index: 1usize, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Rigid mount" }
-                    SelectOption::<String> { index: 2usize, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Gasket mount" }
+                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                options: vec![
+                    ("tray".into(), "Tray mount".into()),
+                    ("rigid".into(), "Rigid mount".into()),
+                    ("gasket".into(), "Gasket mount".into()),
+                ],
             }
             FieldLabel { class: "min-h-control-touch", html_for: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
                 Checkbox {
@@ -758,12 +761,12 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                 span { "Include a battery" }
                 small { class: "text-muted-foreground", if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }
             }
-            SettingsSelect {
+            ChoiceField {
                 label: "Case process",
                 aria_label: "Case fabrication process",
                 value: method_id(&values.method).to_string(),
                 disabled: !settings.editable,
-                on_change: {
+                on_value_change: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
@@ -771,10 +774,13 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D printed" }
-                    SelectOption::<String> { index: 1usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "CNC machined" }
-                    SelectOption::<String> { index: 2usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cut sheet" }
-                    SelectOption::<String> { index: 3usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "PCB FR-4" }
+                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                options: vec![
+                    ("printed".into(), "3D printed".into()),
+                    ("cnc".into(), "CNC machined".into()),
+                    ("cut-sheet".into(), "Cut sheet".into()),
+                    ("pcb-fr4".into(), "PCB FR-4".into()),
+                ],
             }
         }
     }
@@ -835,10 +841,10 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
     rsx! {
         fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Construction" }
-            SettingsSelect {
+            ChoiceField {
                 label: "Plate method", disabled: !props.editable,
                 value: "{method_id(&values.method)}",
-                on_change: {
+                on_value_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -846,15 +852,18 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), "PCB FR-4" }
-                    SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), "3D printed" }
-                    SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), "CNC machined" }
-                    SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), "Cut sheet" }
+                layout: ChoiceFieldLayout::StackedNarrow,
+                options: vec![
+                    ("pcb-fr4".into(), "PCB FR-4".into()),
+                    ("printed".into(), "3D printed".into()),
+                    ("cnc".into(), "CNC machined".into()),
+                    ("cut-sheet".into(), "Cut sheet".into()),
+                ],
             }
-            SettingsSelect {
+            ChoiceField {
                 label: "Mount style", disabled: !props.editable,
                 value: "{mount_id(&values.mount)}",
-                on_change: {
+                on_value_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -862,15 +871,18 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
-                    SelectOption::<String> { index: 1usize, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), "Rigid mount" }
-                    SelectOption::<String> { index: 2usize, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), "Gasket mount" }
+                layout: ChoiceFieldLayout::StackedNarrow,
+                options: vec![
+                    ("tray".into(), "Tray".into()),
+                    ("rigid".into(), "Rigid mount".into()),
+                    ("gasket".into(), "Gasket mount".into()),
+                ],
             }
-            SettingsSelect {
+            ChoiceField {
                 label: "Bottom construction",
                 disabled: !props.editable || values.mount == MechanicalMount::Gasket,
                 value: "{bottom_style_id(&values.bottom_style)}",
-                on_change: {
+                on_value_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -878,8 +890,11 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
                     },
-                SelectOption::<String> { index: 0usize, value: "shell".to_owned(), text_value: "Tray shell".to_owned(), "Tray shell" }
-                    SelectOption::<String> { index: 1usize, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
+                layout: ChoiceFieldLayout::StackedNarrow,
+                options: vec![
+                    ("shell".into(), "Tray shell".into()),
+                    ("sheet".into(), "Flat sheet".into()),
+                ],
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
                 FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
