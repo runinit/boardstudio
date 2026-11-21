@@ -21,9 +21,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
         if authored {
             document
                 .parts
-                .iter_mut()
-                .find(|part| part.id == part_id)
-                .unwrap()
+                .by_id_mut(part_id)
                 .properties
                 .as_mut()
                 .unwrap()
@@ -51,19 +49,15 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     assert_rejected(document, &projection, "unavailable");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .retain(|association| association.source_id != "matrix/source-matrix/r0c0/diode");
     assert_rejected(document, &projection, "companion association is missing");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let association = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    let association = document
+        .first_halves_mut()
         .correspondences
         .iter_mut()
         .find(|association| association.source_id == "matrix/source-matrix/r0c0/diode")
@@ -77,19 +71,15 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     );
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let association = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    let association = document
+        .first_halves_mut()
         .correspondences
         .iter()
         .find(|association| association.source_id == "matrix/source-matrix/r0c0/diode")
         .unwrap()
         .clone();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .push(association);
     assert_rejected(
@@ -99,10 +89,8 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     );
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let association = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    let association = document
+        .first_halves_mut()
         .correspondences
         .iter_mut()
         .find(|association| association.source_id == "matrix/source-matrix/r0c0/diode")
@@ -123,9 +111,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != "matrix/mirror-matrix/r1c1/diode");
     assert_rejected(document, &projection, "no board owner");
@@ -133,9 +119,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push("matrix/mirror-matrix/r1c1/diode".into());
     assert_rejected(document, &projection, "ambiguous board ownership");
@@ -143,16 +127,12 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != "matrix/mirror-matrix/r0c1/diode");
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push("matrix/mirror-matrix/r0c1/diode".into());
     assert_rejected(
@@ -162,11 +142,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     );
 
     let (mut document, mut projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let matrix = document
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
+    let matrix = document.matrices.by_id_mut("source-matrix");
     matrix
         .cells
         .iter_mut()
@@ -182,15 +158,11 @@ fn fixed_membership_assembly_rejections_are_atomic() {
         .retain(|part| part.id != "matrix/source-matrix/r0c0/diode");
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .retain(|id| id != "matrix/source-matrix/r0c0/diode");
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .retain(|association| association.source_id != "matrix/source-matrix/r0c0/diode");
     projection
@@ -199,22 +171,14 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     assert_rejected(document, &projection, "membership is not canonical");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    document
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .cells[0]
-        .assemblies[0]
+    document.matrices.by_id_mut("source-matrix").cells[0].assemblies[0]
         .offset
         .x = f64::NAN;
     assert_rejected(document, &projection, "Matrix assembly is invalid");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let association = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    let association = document
+        .first_halves_mut()
         .correspondences
         .iter_mut()
         .find(|association| association.source_id == "matrix/source-matrix/r1c0/diode")
@@ -223,12 +187,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     assert_rejected(document, &projection, "finite");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let mut source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source = document.matrices.by_id("source-matrix").clone();
     source
         .cells
         .iter_mut()
@@ -238,10 +197,8 @@ fn fixed_membership_assembly_rejections_are_atomic() {
         .offset
         .x = f64::MAX * 0.9;
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &source).unwrap();
-    let association = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    let association = document
+        .first_halves_mut()
         .correspondences
         .iter_mut()
         .find(|association| association.source_id == "matrix/source-matrix/r1c0/diode")
@@ -260,11 +217,7 @@ fn fixed_membership_assembly_rejections_are_atomic() {
     assert_rejected(document, &projection, "authored or constrained placement");
 
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-    let companion = document
-        .parts
-        .iter_mut()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c1/diode")
-        .unwrap();
+    let companion = document.parts.by_id_mut("matrix/mirror-matrix/r0c1/diode");
     companion
         .properties
         .get_or_insert_with(BTreeMap::new)
@@ -278,10 +231,7 @@ fn fixed_membership_view_rejects_legacy_exception_aliases_and_foreign_owners() {
         let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
         let source_id = "matrix/source-matrix/r0c1/diode";
         let mirror_id = "matrix/mirror-matrix/r0c1/diode".to_owned();
-        let halves = document.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap();
+        let halves = document.first_halves_mut();
         halves.correspondences.retain(|association| {
             !(association.kind == MirroredItemKind::Part
                 && association.source_id == source_id
@@ -308,19 +258,11 @@ fn fixed_membership_view_rejects_legacy_exception_aliases_and_foreign_owners() {
     }
 
     let (mut document, projection, _) = legacy_child_fixture();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions[0]
-        .mirror_id = "matrix/mirror-matrix/r0c2/diode".into();
+    document.first_halves_mut().exceptions[0].mirror_id = "matrix/mirror-matrix/r0c2/diode".into();
     assert_rejected(document, &projection, "companion association is missing");
 
     let (mut document, projection, _) = legacy_child_fixture();
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.exceptions[0].kind = MirroredItemKind::Net;
     assert_rejected(
         document,
@@ -331,10 +273,7 @@ fn fixed_membership_view_rejects_legacy_exception_aliases_and_foreign_owners() {
     let (mut document, projection, _) = legacy_child_fixture();
     let source_id = "matrix/source-matrix/r0c1/diode";
     let mirror_id = "matrix/mirror-matrix/r0c1/diode";
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.push(MirroredCorrespondence {
         companion_mode: None,
         companion_tweak: None,
@@ -349,18 +288,8 @@ fn fixed_membership_view_rejects_legacy_exception_aliases_and_foreign_owners() {
     );
 
     let (mut document, projection, _mirror_id) = legacy_child_fixture();
-    let exception = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions[0]
-        .clone();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .push(exception);
+    let exception = document.first_halves_mut().exceptions[0].clone();
+    document.first_halves_mut().exceptions.push(exception);
     assert_rejected(
         document,
         &projection,
@@ -371,16 +300,12 @@ fn fixed_membership_view_rejects_legacy_exception_aliases_and_foreign_owners() {
     let (mut document, projection, mirror_id) = legacy_child_fixture();
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != &mirror_id);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(mirror_id);
     assert_rejected(document, &projection, "incomplete or stale owner input");
@@ -399,10 +324,8 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
     }
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .push(MirroredCorrespondence {
             companion_mode: None,
@@ -438,57 +361,34 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
     let part_id = "matrix/source-matrix/r0c1";
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .retain(|id| id != part_id);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push(part_id.into());
     assert_rejected(document, &projection, "owner input");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    document
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .cells[1]
-        .enabled = false;
+    document.matrices.by_id_mut("source-matrix").cells[1].enabled = false;
     assert_rejected(document, &projection, "fixed active membership");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
     document
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id_mut("source-matrix")
         .part_ids
         .push("matrix/source-matrix/r0c0".into());
     assert_rejected(document, &projection, "membership is not canonical");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    document
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .column_layout[1]
-        .splay = f64::NAN;
+    document.matrices.by_id_mut("source-matrix").column_layout[1].splay = f64::NAN;
     assert_rejected(document, &projection, "finite");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    document
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .column_layout = vec![
+    document.matrices.by_id_mut("source-matrix").column_layout = vec![
         boardstudio_model::model::ColumnLayout {
             splay: f64::MAX,
             ..Default::default()
@@ -506,10 +406,8 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
     );
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .retain(|association| association.source_id != "matrix/source-matrix/r1c1");
     assert_rejected(
@@ -522,21 +420,12 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
 #[test]
 fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     let mut document = fixture_document().unwrap();
-    let mut moved_source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut moved_source = document.matrices.by_id("source-matrix").clone();
     moved_source.origin = Vec2 { x: 27.0, y: -14.0 };
     moved_source.rotation = Some(43.0);
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &moved_source).unwrap();
 
-    let definition = document
-        .definitions
-        .iter_mut()
-        .find(|definition| definition.id == "switch")
-        .unwrap();
+    let definition = document.definitions.by_id_mut("switch");
     definition.pads = vec![
         boardstudio_model::model::Pad {
             id: "pad-one".into(),
@@ -565,12 +454,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     ];
 
     let probe_id = "projection-probe";
-    let mut probe = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut probe = document.parts.by_id("matrix/mirror-matrix/r0c1").clone();
     probe.id = probe_id.into();
     probe.reference = "PROBE".into();
     probe.pose.at = Vec2 { x: 4.0, y: 2.0 };
@@ -578,9 +462,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     document.parts.push(probe);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push(probe_id.into());
 
@@ -601,9 +483,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     });
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .net_ids
         .push(retained_net_id.into());
 
@@ -633,18 +513,12 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         });
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .outline_ids
         .push(retained_envelope_id.into());
 
     let assert_retained_net_is_valid = |document: &ProjectDoc| {
-        let net = document
-            .nets
-            .iter()
-            .find(|net| net.id == retained_net_id)
-            .unwrap();
+        let net = document.nets.by_id(retained_net_id);
         assert_eq!(
             net.pins,
             vec![
@@ -674,16 +548,8 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         );
         for pin in &net.pins {
             assert!(owner.part_ids.contains(&pin.part_id));
-            let part = document
-                .parts
-                .iter()
-                .find(|part| part.id == pin.part_id)
-                .unwrap();
-            let definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id)
-                .unwrap();
+            let part = document.parts.by_id(&pin.part_id);
+            let definition = document.definitions.by_id(&part.definition_id);
             assert!(
                 definition
                     .pads
@@ -692,11 +558,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
             );
         }
 
-        let retained_mirror = document
-            .parts
-            .iter()
-            .find(|part| part.id == "matrix/mirror-matrix/r0c0")
-            .unwrap();
+        let retained_mirror = document.parts.by_id("matrix/mirror-matrix/r0c0");
         assert_eq!(
             retained_mirror.pose,
             boardstudio_model::model::Pose2 {
@@ -704,11 +566,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
                 rotation: 0.0,
             }
         );
-        let probe = document
-            .parts
-            .iter()
-            .find(|part| part.id == probe_id)
-            .unwrap();
+        let probe = document.parts.by_id(probe_id);
         assert_eq!(
             probe.pose,
             boardstudio_model::model::Pose2 {
@@ -748,9 +606,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         assert!(
             document
                 .boards
-                .iter()
-                .find(|board| board.id == "source-board")
-                .unwrap()
+                .by_id("source-board")
                 .net_ids
                 .iter()
                 .all(|net_id| net_id != retained_net_id)
@@ -761,18 +617,8 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
 
     // The entry snapshot is deliberately taken after the source's ordinary edit/materialization.
     let entry = document.clone();
-    let entry_source_matrix = entry
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
-    let entry_mirror_matrix = entry
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let entry_source_matrix = entry.matrices.by_id("source-matrix").clone();
+    let entry_mirror_matrix = entry.matrices.by_id("mirror-matrix").clone();
     let matrix_correspondence = MirroredCorrespondence {
         companion_mode: None,
         companion_tweak: None,
@@ -794,12 +640,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     let protected_local_id = "matrix/mirror-matrix/r0c0";
     let linked_source_id = "matrix/source-matrix/r0c1";
     let linked_mirror_id = "matrix/mirror-matrix/r0c1";
-    let entry_probe = entry
-        .parts
-        .iter()
-        .find(|part| part.id == probe_id)
-        .unwrap()
-        .clone();
+    let entry_probe = entry.parts.by_id(probe_id).clone();
     let entry_probe_owner = entry
         .boards
         .iter()
@@ -807,11 +648,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         .unwrap()
         .id
         .clone();
-    let entry_local = entry
-        .parts
-        .iter()
-        .find(|part| part.id == protected_local_id)
-        .unwrap();
+    let entry_local = entry.parts.by_id(protected_local_id);
 
     let mut final_owners = BTreeMap::new();
     for id in [
@@ -856,9 +693,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     let entry_source_matrix_json = serde_json::to_value(&entry_source_matrix).unwrap();
     let entry_source_parts_json: Vec<_> = ["matrix/source-matrix/r0c0", linked_source_id]
         .into_iter()
-        .map(|id| {
-            serde_json::to_value(entry.parts.iter().find(|part| part.id == id).unwrap()).unwrap()
-        })
+        .map(|id| serde_json::to_value(entry.parts.by_id(id)).unwrap())
         .collect();
     let entry_mirror_ids = entry_mirror_matrix.part_ids.clone();
     let entry_local_json = serde_json::to_value(entry_local).unwrap();
@@ -880,11 +715,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         }),
         Some(&retained_offset)
     );
-    let actual_probe = document
-        .parts
-        .iter()
-        .find(|part| part.id == probe_id)
-        .unwrap();
+    let actual_probe = document.parts.by_id(probe_id);
     assert_eq!(actual_probe, &entry_probe);
     let actual_probe_owner = document
         .boards
@@ -897,18 +728,12 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     assert!(
         document
             .boards
-            .iter()
-            .find(|board| board.id == entry_probe_owner)
-            .unwrap()
+            .by_id(&entry_probe_owner)
             .part_ids
             .contains(&probe_id.to_owned())
     );
 
-    let actual_neighbor = document
-        .parts
-        .iter()
-        .find(|part| part.id == linked_mirror_id)
-        .unwrap();
+    let actual_neighbor = document.parts.by_id(linked_mirror_id);
     assert!(
         (actual_neighbor.pose.at.x - 45.48221151584141).abs() < 1e-9,
         "the linked neighbor must receive the independently calculated reflected x position"
@@ -923,52 +748,27 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     );
 
     assert_eq!(
-        serde_json::to_value(
-            document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "source-matrix")
-                .unwrap()
-        )
-        .unwrap(),
+        serde_json::to_value(document.matrices.by_id("source-matrix")).unwrap(),
         entry_source_matrix_json
     );
     let actual_source_parts_json: Vec<_> = ["matrix/source-matrix/r0c0", linked_source_id]
         .into_iter()
-        .map(|id| {
-            serde_json::to_value(document.parts.iter().find(|part| part.id == id).unwrap()).unwrap()
-        })
+        .map(|id| serde_json::to_value(document.parts.by_id(id)).unwrap())
         .collect();
     assert_eq!(actual_source_parts_json, entry_source_parts_json);
-    let actual_mirror_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let actual_mirror_matrix = document.matrices.by_id("mirror-matrix");
     assert_eq!(actual_mirror_matrix.id, entry_mirror_matrix.id);
     assert_eq!(actual_mirror_matrix.part_ids, entry_mirror_ids);
     let mut rematerialized = entry.clone();
     boardstudio_core_kernel::matrix::set_matrix(&mut rematerialized, actual_mirror_matrix).unwrap();
-    let rematerialized_matrix = rematerialized
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let rematerialized_matrix = rematerialized.matrices.by_id("mirror-matrix");
     assert_eq!(
         serde_json::to_value(actual_mirror_matrix).unwrap(),
         serde_json::to_value(rematerialized_matrix).unwrap(),
         "the final active matrix must already be a complete normalized materializer input"
     );
-    let actual_retained = document
-        .parts
-        .iter()
-        .find(|part| part.id == protected_local_id)
-        .unwrap();
-    let rematerialized_retained = rematerialized
-        .parts
-        .iter()
-        .find(|part| part.id == protected_local_id)
-        .unwrap();
+    let actual_retained = document.parts.by_id(protected_local_id);
+    let rematerialized_retained = rematerialized.parts.by_id(protected_local_id);
     for pose in [&actual_retained.pose, &rematerialized_retained.pose] {
         assert!((pose.at.x - 0.0).abs() < 1e-9);
         assert!((pose.at.y - 0.0).abs() < 1e-9);
@@ -986,14 +786,7 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
         "the retained member's identity and non-pose data must agree with rematerialization"
     );
     assert_eq!(
-        serde_json::to_value(
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == protected_local_id)
-                .unwrap()
-        )
-        .unwrap(),
+        serde_json::to_value(document.parts.by_id(protected_local_id)).unwrap(),
         entry_local_json
     );
     assert_eq!(
@@ -1028,16 +821,8 @@ fn changed_source_matrix_projects_linked_neighbor_after_entry_snapshot() {
     {
         expected_changed_ids.insert(entry_mirror_matrix.id.clone());
     }
-    let before = entry
-        .parts
-        .iter()
-        .find(|part| part.id == linked_mirror_id)
-        .unwrap();
-    let after = expected_document
-        .parts
-        .iter()
-        .find(|part| part.id == linked_mirror_id)
-        .unwrap();
+    let before = entry.parts.by_id(linked_mirror_id);
+    let after = expected_document.parts.by_id(linked_mirror_id);
     if serde_json::to_value(before).unwrap() != serde_json::to_value(after).unwrap() {
         expected_changed_ids.insert(linked_mirror_id.into());
     }

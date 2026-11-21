@@ -208,32 +208,20 @@ pub(crate) fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContex
             })
             .collect::<Vec<_>>()
     };
-    let mut source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source_matrix = document.matrices.by_id("source-matrix").clone();
     source_matrix.rows = 2;
     source_matrix.columns = 4;
     source_matrix.pitch = Vec2 { x: 10.0, y: 20.0 };
     source_matrix.cells = matrix_cells();
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &source_matrix)?;
 
-    let mut mirror_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let mut mirror_matrix = document.matrices.by_id("mirror-matrix").clone();
     mirror_matrix.rows = 2;
     mirror_matrix.columns = 4;
     mirror_matrix.pitch = source_matrix.pitch;
     mirror_matrix.cells = matrix_cells();
-    let matrix_correspondence = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
+    let matrix_correspondence = document
+        .first_halves()
         .correspondences
         .iter()
         .find(|record| record.kind == MirroredItemKind::Matrix)
@@ -247,10 +235,7 @@ pub(crate) fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContex
     )?;
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &mirror_matrix)?;
 
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.clear();
     halves.exceptions.clear();
     halves.correspondences.push(MirroredCorrespondence {
@@ -359,10 +344,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         .expect("the real kernel transaction publishes the Local exception");
     let before = local_output.draft;
     let context = local_output.context;
-    let persisted_halves = before.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let persisted_halves = before.first_halves();
     assert_eq!(
         persisted_halves
             .correspondences
@@ -397,11 +379,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         rotation: 29.0,
     };
     let mut post_source = before.clone();
-    let local_key = post_source
-        .parts
-        .iter_mut()
-        .find(|part| part.id == mirror_id)
-        .unwrap();
+    let local_key = post_source.parts.by_id_mut(mirror_id);
     local_key.pose = local_pose;
     local_key
         .properties
@@ -412,12 +390,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         local_key_snapshot.properties.as_ref().unwrap()["layoutOverride"],
         serde_json::json!(1)
     );
-    let mut expanded = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut expanded = before.matrices.by_id("source-matrix").clone();
     expanded.columns = 5;
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
@@ -453,21 +426,11 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     let output = commit_matrix_step(&before, &post_source, &context)
         .expect("a complete planned expansion is projected atomically");
     assert_eq!(
-        output
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == mirror_id)
-            .unwrap(),
+        output.draft.parts.by_id(mirror_id),
         &local_key_snapshot,
         "an ordinary source expansion preserves the explicitly Local target payload"
     );
-    let mirror = output
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror = output.draft.matrices.by_id("mirror-matrix");
     assert_eq!((mirror.rows, mirror.columns), (2, 5));
     assert_eq!(mirror.part_ids.len(), 20);
     assert_eq!(output.context_delta.added.len(), 4);
@@ -488,13 +451,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
                 })
         );
     }
-    assert_eq!(
-        output.draft.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap(),
-        &output.context.pair_right
-    );
+    assert_eq!(output.draft.first_halves(), &output.context.pair_right);
 
     let rejoined_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &output.context,
@@ -507,11 +464,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     let rejoin_before = output.draft.clone();
     let rejoined = commit_matrix_step(&rejoin_before, &rejoin_before, &rejoined_context)
         .expect("Rejoin projects the current source into the former Local target");
-    let current_source = rejoin_before
-        .parts
-        .iter()
-        .find(|part| part.id == source_id)
-        .unwrap();
+    let current_source = rejoin_before.parts.by_id(source_id);
     let expected_pose = Pose2 {
         at: boardstudio_core_mechanical::mechanical::pair::forward(
             rejoined_context.mapping,
@@ -522,12 +475,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
             current_source.pose.rotation,
         ),
     };
-    let rejoined_part = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == mirror_id)
-        .unwrap();
+    let rejoined_part = rejoined.draft.parts.by_id(mirror_id);
     assert!(
         (rejoined_part.pose.at.x - expected_pose.at.x).abs() < 1e-9
             && (rejoined_part.pose.at.y - expected_pose.at.y).abs() < 1e-9
@@ -624,7 +572,7 @@ pub(crate) fn commit_matrix_step(
         .filter(|id| !source.part_ids.contains(id))
     {
         let target_id = id.replace("matrix/source-matrix/", "matrix/mirror-matrix/");
-        let source_part = post_source.parts.iter().find(|p| p.id == *id).unwrap();
+        let source_part = post_source.parts.by_id(id);
         let child = id.ends_with("/diode");
         additions.push(PlannedAddition {
             source_id: id.clone(),
@@ -719,12 +667,7 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
         Some(source_id)
     );
     let mut post = omitted.draft.clone();
-    let mut source = post
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source = post.matrices.by_id("source-matrix").clone();
     source.columns = 5;
     for row in 0..2 {
         let mut cell = source
@@ -743,11 +686,7 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
         .unwrap()
         .offset = Some(Vec2 { x: 13.0, y: -6.0 });
     boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
-    post.parts
-        .iter_mut()
-        .find(|p| p.id == source_id)
-        .unwrap()
-        .properties = Some(BTreeMap::from([(
+    post.parts.by_id_mut(source_id).properties = Some(BTreeMap::from([(
         "current-source".into(),
         json!({"revision": 2}),
     )]));
@@ -772,18 +711,8 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
     let rejoined = commit_matrix_step(&expanded.draft, &expanded.draft, &rejoin_context)
         .expect("Rejoin restores the current source and inherited companion");
     assert_committed_repeat(&rejoined);
-    let source = expanded
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == source_id)
-        .unwrap();
-    let target = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == mirror_id)
-        .unwrap();
+    let source = expanded.draft.parts.by_id(source_id);
+    let target = rejoined.draft.parts.by_id(mirror_id);
     let expected_at =
         boardstudio_core_mechanical::mechanical::pair::forward(context.mapping, source.pose.at);
     assert!((target.pose.at.x - expected_at.x).abs() < 1e-10);
@@ -820,9 +749,7 @@ pub(crate) fn independent_lifecycle_fixture() -> (ProjectDoc, MembershipContext)
             document.parts.push(part);
             document
                 .boards
-                .iter_mut()
-                .find(|b| b.id == board_id)
-                .unwrap()
+                .by_id_mut(board_id)
                 .part_ids
                 .push(id.clone());
             context
@@ -896,16 +823,10 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         crate::support::test_dispatch(),
     )
     .expect("an independent screen can become Local without leaving the pair");
-    let local_part = local
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == "mirror-screen")
-        .unwrap()
-        .clone();
+    let local_part = local.draft.parts.by_id("mirror-screen").clone();
     let mut post = local.draft.clone();
     for source_id in ["source-screen", "source-encoder"] {
-        let source = post.parts.iter_mut().find(|p| p.id == source_id).unwrap();
+        let source = post.parts.by_id_mut(source_id);
         source.pose.at.x += 17.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
     }
@@ -921,18 +842,8 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         Some(&local_part)
     );
     assert_eq!(
-        edited
-            .draft
-            .parts
-            .iter()
-            .find(|p| p.id == "mirror-encoder")
-            .unwrap()
-            .properties,
-        post.parts
-            .iter()
-            .find(|p| p.id == "source-encoder")
-            .unwrap()
-            .properties
+        edited.draft.parts.by_id("mirror-encoder").properties,
+        post.parts.by_id("source-encoder").properties
     );
     let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &edited.context,
@@ -985,18 +896,8 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         crate::support::test_dispatch(),
     )
     .unwrap();
-    let source = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == "source-screen")
-        .unwrap();
-    let target = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == "mirror-screen")
-        .unwrap();
+    let source = rejoined.draft.parts.by_id("source-screen");
+    let target = rejoined.draft.parts.by_id("mirror-screen");
     assert_eq!(target.properties, source.properties);
     let expected = boardstudio_core_mirrored_half::mirrored_half::derive::part(
         source,

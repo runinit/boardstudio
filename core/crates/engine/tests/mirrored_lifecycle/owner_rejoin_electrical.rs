@@ -48,20 +48,9 @@ fn check_growth(growth: Growth) {
         crate::support::test_dispatch(),
     )
     .unwrap();
-    let target = local
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let target = local.draft.matrices.by_id("mirror-matrix").clone();
     let mut post = local.draft.clone();
-    let mut source = post
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source = post.matrices.by_id("source-matrix").clone();
     source.columns = 5;
     for row in 0..2 {
         let mut cell = source
@@ -74,11 +63,8 @@ fn check_growth(growth: Growth) {
         source.cells.push(cell);
     }
     boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
-    post.parts
-        .iter_mut()
-        .find(|p| p.id == "matrix/source-matrix/r0c4")
-        .unwrap()
-        .properties = Some(BTreeMap::from([("new-source".into(), json!(true))]));
+    post.parts.by_id_mut("matrix/source-matrix/r0c4").properties =
+        Some(BTreeMap::from([("new-source".into(), json!(true))]));
     let mut target = target;
     if matches!(growth, Growth::OwnedOverlap) {
         target.columns = 6;
@@ -95,26 +81,14 @@ fn check_growth(growth: Growth) {
             }
         }
         boardstudio_core_kernel::matrix::set_matrix(&mut post, &target).unwrap();
-        target = post
-            .matrices
-            .iter()
-            .find(|m| m.id == target.id)
-            .unwrap()
-            .clone();
+        target = post.matrices.by_id(&target.id).clone();
     }
     if matches!(growth, Growth::UnrelatedCollision) {
-        let mut foreign = post
-            .parts
-            .iter()
-            .find(|p| p.id == "matrix/mirror-matrix/r0c0")
-            .unwrap()
-            .clone();
+        let mut foreign = post.parts.by_id("matrix/mirror-matrix/r0c0").clone();
         foreign.id = "matrix/mirror-matrix/r0c4".into();
         foreign.reference = "FOREIGN".into();
         post.boards
-            .iter_mut()
-            .find(|b| b.id == "mirror-board")
-            .unwrap()
+            .by_id_mut("mirror-board")
             .part_ids
             .push(foreign.id.clone());
         post.parts.push(foreign);
@@ -178,20 +152,8 @@ fn check_growth(growth: Growth) {
                 1
             );
             assert_eq!(
-                output
-                    .draft
-                    .parts
-                    .iter()
-                    .find(|p| p.id == mirror_id)
-                    .unwrap()
-                    .properties,
-                output
-                    .draft
-                    .parts
-                    .iter()
-                    .find(|p| p.id == source_id)
-                    .unwrap()
-                    .properties
+                output.draft.parts.by_id(&mirror_id).properties,
+                output.draft.parts.by_id(&source_id).properties
             );
         }
     }
@@ -352,13 +314,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             crate::support::test_dispatch(),
         )
         .unwrap();
-        let visible = child
-            .draft
-            .parts
-            .iter()
-            .find(|p| p.id == mirror_id)
-            .unwrap()
-            .clone();
+        let visible = child.draft.parts.by_id(mirror_id).clone();
         let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &child.context,
             MirroredItemKind::Matrix,
@@ -420,11 +376,8 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
         assert_eq!(repeat.draft, inherited.draft);
         assert_eq!(repeat.context, inherited.context);
         let mut post = inherited.draft.clone();
-        post.parts
-            .iter_mut()
-            .find(|p| p.id == source_id)
-            .unwrap()
-            .properties = Some(BTreeMap::from([("current".into(), json!(true))]));
+        post.parts.by_id_mut(source_id).properties =
+            Some(BTreeMap::from([("current".into(), json!(true))]));
         let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &inherited.context,
             MirroredItemKind::Matrix,
@@ -442,18 +395,8 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
         .unwrap();
         assert!(rejoined.context.pair_right.exceptions.is_empty());
         assert_eq!(
-            rejoined
-                .draft
-                .parts
-                .iter()
-                .find(|p| p.id == mirror_id)
-                .unwrap()
-                .properties,
-            post.parts
-                .iter()
-                .find(|p| p.id == source_id)
-                .unwrap()
-                .properties
+            rejoined.draft.parts.by_id(mirror_id).properties,
+            post.parts.by_id(source_id).properties
         );
     }
 }
@@ -476,33 +419,11 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         crate::support::test_dispatch(),
     )
     .expect("a Local connector remains a valid reference for a linked module");
-    let connector = local
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == "mirror-screen")
-        .unwrap()
-        .clone();
-    let module = local
-        .draft
-        .modules
-        .iter()
-        .find(|m| m.id == "mirror-module")
-        .unwrap()
-        .clone();
+    let connector = local.draft.parts.by_id("mirror-screen").clone();
+    let module = local.draft.modules.by_id("mirror-module").clone();
     let mut post = local.draft.clone();
-    post.parts
-        .iter_mut()
-        .find(|p| p.id == "source-screen")
-        .unwrap()
-        .pose
-        .at
-        .x += 30.0;
-    post.modules
-        .iter_mut()
-        .find(|m| m.id == "source-module")
-        .unwrap()
-        .gap += 1.0;
+    post.parts.by_id_mut("source-screen").pose.at.x += 30.0;
+    post.modules.by_id_mut("source-module").gap += 1.0;
     let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
@@ -514,12 +435,7 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         edited.draft.parts.iter().find(|p| p.id == "mirror-screen"),
         Some(&connector)
     );
-    let edited_module = edited
-        .draft
-        .modules
-        .iter()
-        .find(|m| m.id == "mirror-module")
-        .unwrap();
+    let edited_module = edited.draft.modules.by_id("mirror-module");
     assert_eq!(edited_module.gap, module.gap + 1.0);
     assert_eq!(
         edited_module
@@ -600,12 +516,8 @@ pub(crate) fn electrical_definition(id: &str, pads: &[(&str, f64, f64)]) -> Part
 }
 
 pub(crate) fn pad_world(document: &ProjectDoc, part_id: &str, pad_id: &str) -> Vec2 {
-    let part = document.parts.iter().find(|p| p.id == part_id).unwrap();
-    let definition = document
-        .definitions
-        .iter()
-        .find(|d| d.id == part.definition_id)
-        .unwrap();
+    let part = document.parts.by_id(part_id);
+    let definition = document.definitions.by_id(&part.definition_id);
     let pad = definition.pads.iter().find(|p| p.id == pad_id).unwrap();
     // Ticket 12: pad world positions evaluate half-frame parts at board.
     let pose = boardstudio_core_kernel::matrix::layout::evaluated_part_pose(document, part);
@@ -674,9 +586,7 @@ pub(crate) fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
         document.parts.push(part);
         document
             .boards
-            .iter_mut()
-            .find(|b| b.id == board_id)
-            .unwrap()
+            .by_id_mut(board_id)
             .part_ids
             .push(format!("{half}-mcu"));
     }
@@ -735,13 +645,7 @@ pub(crate) fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
                     })
                     .collect(),
             });
-            document
-                .boards
-                .iter_mut()
-                .find(|b| b.id == board_id)
-                .unwrap()
-                .net_ids
-                .push(id);
+            document.boards.by_id_mut(board_id).net_ids.push(id);
         }
         add_lifecycle_association(
             &mut document,
@@ -827,11 +731,7 @@ pub(crate) fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
             },
         ],
     );
-    let board = document
-        .boards
-        .iter_mut()
-        .find(|b| b.id == "mirror-board")
-        .unwrap();
+    let board = document.boards.by_id_mut("mirror-board");
     (board.traces, board.vias) = copper;
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
     boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
@@ -928,12 +828,7 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
             pad_id: "gp2".into(),
         }]
     );
-    let mirror_board = omitted
-        .draft
-        .boards
-        .iter()
-        .find(|board| board.id == "mirror-board")
-        .unwrap();
+    let mirror_board = omitted.draft.boards.by_id("mirror-board");
     assert!(mirror_board.net_ids.contains(&"mirror-sda".into()));
     boardstudio_core_mechanical::mechanical::halves::validate_document(&omitted.draft).unwrap();
 
@@ -966,9 +861,7 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
         reopened
             .document_for_test()
             .boards
-            .iter()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
+            .by_id("mirror-board")
             .net_ids
             .contains(&"mirror-sda".into())
     );
@@ -1127,11 +1020,7 @@ fn omit_removes_the_footprint_private_nets_and_only_the_copper_it_owned() {
         "it loses only the omitted pin"
     );
     assert_eq!(ground.pins.len(), 2);
-    let board = draft
-        .boards
-        .iter()
-        .find(|b| b.id == "mirror-board")
-        .unwrap();
+    let board = draft.boards.by_id("mirror-board");
     assert_eq!(
         board
             .traces
@@ -1159,13 +1048,7 @@ fn omit_removes_the_footprint_private_nets_and_only_the_copper_it_owned() {
     assert_eq!(via_ids, BTreeSet::from(["v-sda", "v-gnd"]));
     assert_eq!(saved.pads.len(), 3);
     // The source half keeps every net, pin and trace it had.
-    let source_board = |d: &ProjectDoc| {
-        d.boards
-            .iter()
-            .find(|b| b.id == "source-board")
-            .unwrap()
-            .clone()
-    };
+    let source_board = |d: &ProjectDoc| d.boards.by_id("source-board").clone();
     assert_eq!(source_board(draft), source_board(&before));
     for net in ["source-sda", "source-scl", "source-gnd"] {
         assert_eq!(
@@ -1193,13 +1076,7 @@ fn rejoin_restores_saved_copper_only_when_the_pads_are_where_they_were() {
     let rejoined = rejoin_screen(&omitted.draft, &omitted.draft, &omitted.context);
     assert!(rejoined.notices.is_empty(), "{:?}", rejoined.notices);
     assert!(rejoined.context.pair_right.exceptions.is_empty());
-    let board = |d: &ProjectDoc| {
-        d.boards
-            .iter()
-            .find(|b| b.id == "mirror-board")
-            .unwrap()
-            .clone()
-    };
+    let board = |d: &ProjectDoc| d.boards.by_id("mirror-board").clone();
     let (original, restored) = (board(&before), board(&rejoined.draft));
     let by_id = |mut traces: Vec<CopperTrace>| {
         traces.sort_by(|a, b| a.id.cmp(&b.id));
@@ -1216,8 +1093,8 @@ fn rejoin_restores_saved_copper_only_when_the_pads_are_where_they_were() {
     expected.sort_by(|a, b| a.id.cmp(&b.id));
     assert_eq!(vias, expected);
     for net in ["mirror-sda", "mirror-scl"] {
-        let restored = rejoined.draft.nets.iter().find(|n| n.id == net).unwrap();
-        let original = before.nets.iter().find(|n| n.id == net).unwrap();
+        let restored = rejoined.draft.nets.by_id(net);
+        let original = before.nets.by_id(net);
         let pins = |n: &Net| {
             n.pins
                 .iter()
@@ -1232,20 +1109,9 @@ fn rejoin_restores_saved_copper_only_when_the_pads_are_where_they_were() {
 
     // The source screen moved while the mirror was omitted: its pads no longer match.
     let mut post = omitted.draft.clone();
-    post.parts
-        .iter_mut()
-        .find(|p| p.id == "source-screen")
-        .unwrap()
-        .pose
-        .at
-        .x += 4.0;
+    post.parts.by_id_mut("source-screen").pose.at.x += 4.0;
     let moved = rejoin_screen(&omitted.draft, &post, &omitted.context);
-    let board = moved
-        .draft
-        .boards
-        .iter()
-        .find(|b| b.id == "mirror-board")
-        .unwrap();
+    let board = moved.draft.boards.by_id("mirror-board");
     assert_eq!(
         board
             .traces

@@ -63,18 +63,14 @@ fn repair_fresh_final_diff_reports_real_module_and_circuit_ids() {
     let mut after = before.clone();
     after
         .modules
-        .iter_mut()
-        .find(|m| m.id == "shifted-module")
-        .unwrap()
+        .by_id_mut("shifted-module")
         .connection
         .as_mut()
         .unwrap()
         .host_connector_part_id = "matrix/mirror-matrix/r0c1/diode".into();
     after
         .embedded_circuits
-        .iter_mut()
-        .find(|c| c.id == "closure-circuit")
-        .unwrap()
+        .by_id_mut("closure-circuit")
         .part_ids = vec!["matrix/mirror-matrix/r0c1/diode".into()];
     let (ids, paths) = changed_document_fields(&before, &after).unwrap();
     assert!(
@@ -97,11 +93,7 @@ fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
 
     let source_id = additions[0].source_id.clone();
     let mirror_id = additions[0].mirror_id.clone();
-    let source = post_source
-        .parts
-        .iter_mut()
-        .find(|p| p.id == source_id)
-        .unwrap();
+    let source = post_source.parts.by_id_mut(&source_id);
     source.properties = Some(BTreeMap::from([(
         "new-source-label".into(),
         serde_json::json!("ADDED SOURCE LABEL"),
@@ -137,12 +129,7 @@ fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
         explicit_removal_closure: &BTreeSet::new(),
     })
     .unwrap();
-    let mirror = output
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == mirror_id)
-        .unwrap();
+    let mirror = output.draft.parts.by_id(&mirror_id);
     assert_eq!(
         (
             &mirror.properties,
@@ -212,18 +199,14 @@ fn consolidated_fresh_refusals_preserve_history_and_exact_identity() {
             let id = "matrix/mirror-matrix/r1c1/diode";
             before
                 .boards
-                .iter_mut()
-                .find(|b| b.id == "mirror-board")
-                .unwrap()
+                .by_id_mut("mirror-board")
                 .part_ids
                 .push(id.into());
         }),
         ("non-finite geometry", |before, _| {
             before
                 .parts
-                .iter_mut()
-                .find(|p| p.id == "matrix/mirror-matrix/r1c1/diode")
-                .unwrap()
+                .by_id_mut("matrix/mirror-matrix/r1c1/diode")
                 .pose
                 .at
                 .x = f64::INFINITY;
@@ -280,9 +263,7 @@ fn consolidated_fresh_names_a_nonfinite_constraint_of_every_kind() {
             };
             let mirror_map: BTreeMap<_, _> = before
                 .matrices
-                .iter()
-                .find(|m| m.id == "mirror-matrix")
-                .unwrap()
+                .by_id("mirror-matrix")
                 .part_ids
                 .iter()
                 .map(|id| (id.clone(), Some(id.clone())))
@@ -317,9 +298,7 @@ fn consolidated_fresh_refuses_local_mirror_deletion_on_identity() {
 
     let mut mirror_map: BTreeMap<_, _> = before
         .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -385,9 +364,7 @@ fn consolidated_fresh_refuses_materialized_omitted_child_on_chained_identity() {
     let owners = output.final_owners;
     let source_map = before
         .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -395,9 +372,7 @@ fn consolidated_fresh_refuses_materialized_omitted_child_on_chained_identity() {
 
     let mut mirror_map: BTreeMap<_, _> = before
         .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -458,11 +433,7 @@ fn durable_local_exception_is_atomic_and_repeats_through_parent_kernel() {
         .find(|id| **id != selected.mirror_id)
         .unwrap()
         .clone();
-    let target = document
-        .parts
-        .iter_mut()
-        .find(|part| part.id == selected.mirror_id)
-        .unwrap();
+    let target = document.parts.by_id_mut(&selected.mirror_id);
     target.reference = "LOCAL-OWNER".into();
     target.pose = Pose2 {
         at: Vec2 { x: -23.5, y: 41.25 },
@@ -474,10 +445,7 @@ fn durable_local_exception_is_atomic_and_repeats_through_parent_kernel() {
     );
     let expected_local = target.clone();
 
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     for mirror_id in [&selected.mirror_id, &other_retained] {
         halves.exceptions.push(MirroredException {
             companion_mode: None,
@@ -551,12 +519,7 @@ fn durable_local_exception_is_atomic_and_repeats_through_parent_kernel() {
         outline_removal_before
     );
 
-    let source_matrix_before = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let source_matrix_before = document.matrices.by_id("source-matrix").clone();
     let linked_before: BTreeMap<_, _> = document
         .parts
         .iter()
@@ -636,17 +599,12 @@ fn durable_omitted_independent_part_stays_absent_through_parent_kernel() {
     let mirror_id = "matrix/mirror-matrix/r0c1";
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != mirror_id);
 
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
     document.parts.retain(|part| part.id != mirror_id);
+    let halves = document.first_halves_mut();
     halves.exceptions.push(MirroredException {
         companion_mode: None,
         companion_tweak: None,
@@ -668,12 +626,7 @@ fn durable_omitted_independent_part_stays_absent_through_parent_kernel() {
         .filter(|part| part.id.starts_with("matrix/mirror-matrix/") && part.id != mirror_id)
         .map(|part| (part.id.clone(), part.pose))
         .collect();
-    let mut source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source_matrix = document.matrices.by_id("source-matrix").clone();
     source_matrix.origin.x += 5.0;
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &source_matrix)
         .expect("an ordinary Core matrix edit changes the omitted item's source");

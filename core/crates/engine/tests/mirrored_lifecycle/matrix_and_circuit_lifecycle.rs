@@ -66,13 +66,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         crate::support::test_dispatch(),
     )
     .unwrap();
-    let explicit_part = child
-        .draft
-        .parts
-        .iter()
-        .find(|p| p.id == child_mirror)
-        .unwrap()
-        .clone();
+    let explicit_part = child.draft.parts.by_id(child_mirror).clone();
     let owner_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &child.context,
         MirroredItemKind::Matrix,
@@ -88,13 +82,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         crate::support::test_dispatch(),
     )
     .expect("a Matrix owner can become Local through the complete transaction");
-    let local_matrix = local
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let local_matrix = local.draft.matrices.by_id("mirror-matrix").clone();
     let local_parts: Vec<_> = local
         .draft
         .parts
@@ -103,12 +91,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         .cloned()
         .collect();
     let mut post = local.draft.clone();
-    let mut source = post
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source = post.matrices.by_id("source-matrix").clone();
     source.origin.x += 12.0;
     boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
     let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
@@ -195,12 +178,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         Some(&explicit_part)
     );
     let mut generated = rejoined.draft.clone();
-    let mirror = rejoined
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap();
+    let mirror = rejoined.draft.matrices.by_id("mirror-matrix");
     for part in &mut generated.parts {
         if let Some(properties) = &mut part.properties {
             properties.remove("layoutOverride");
@@ -208,9 +186,9 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     }
     boardstudio_core_kernel::matrix::set_matrix(&mut generated, mirror).unwrap();
     for id in [child_mirror, "matrix/mirror-matrix/r0c0/diode"] {
-        let expected = child.draft.parts.iter().find(|p| p.id == id).unwrap().pose;
+        let expected = child.draft.parts.by_id(id).pose;
         for doc in [&rejoined.draft, &generated] {
-            let pose = doc.parts.iter().find(|p| p.id == id).unwrap().pose;
+            let pose = doc.parts.by_id(id).pose;
             assert!(
                 (pose.at.x - expected.at.x).abs() < 1e-9
                     && (pose.at.y - expected.at.y).abs() < 1e-9
@@ -302,13 +280,7 @@ pub(crate) fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
             part.definition_id = "circuit-part".into();
             part.properties = Some(BTreeMap::from([("revision".into(), json!(1))]));
             document.parts.push(part);
-            document
-                .boards
-                .iter_mut()
-                .find(|b| b.id == board_id)
-                .unwrap()
-                .part_ids
-                .push(id);
+            document.boards.by_id_mut(board_id).part_ids.push(id);
         }
     }
     for half in ["source", "mirror"] {
@@ -345,9 +317,7 @@ pub(crate) fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
         let board_id = format!("{half}-board");
         document
             .boards
-            .iter_mut()
-            .find(|b| b.id == board_id)
-            .unwrap()
+            .by_id_mut(&board_id)
             .net_ids
             .extend([private.clone(), joined.clone()]);
         document.embedded_circuits.push(EmbeddedCircuit {
@@ -429,10 +399,7 @@ pub(crate) fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
 }
 
 pub(crate) fn remove_matrix_correspondence(document: &mut ProjectDoc) {
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves
         .correspondences
         .retain(|record| record.kind != MirroredItemKind::Matrix);
@@ -493,9 +460,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
     let mut late_invalid = late_baseline.clone();
     late_invalid
         .modules
-        .iter_mut()
-        .find(|module| module.id == "source-module")
-        .unwrap()
+        .by_id_mut("source-module")
         .connection
         .as_mut()
         .unwrap()
@@ -548,34 +513,20 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     let retained = child
         .draft
         .parts
-        .iter()
-        .find(|p| p.id == "embedded/mirror-circuit/U2")
-        .unwrap()
+        .by_id("embedded/mirror-circuit/U2")
         .clone();
-    let module = child
-        .draft
-        .modules
-        .iter()
-        .find(|m| m.id == "mirror-module")
-        .unwrap()
-        .clone();
+    let module = child.draft.modules.by_id("mirror-module").clone();
     let layout = child.draft.layouts[0].clone();
     let inherited = child
         .draft
         .parts
-        .iter()
-        .find(|p| p.id == "embedded/mirror-circuit/U1")
-        .unwrap()
+        .by_id("embedded/mirror-circuit/U1")
         .clone();
     let pending = set_owner(&child.context, TransitionState::Local);
     let local =
         prepare_lifecycle_transition(&child.draft, &child.draft, &pending, dispatch).unwrap();
     let mut post = local.draft.clone();
-    let source = post
-        .parts
-        .iter_mut()
-        .find(|p| p.id == "embedded/source-circuit/U1")
-        .unwrap();
+    let source = post.parts.by_id_mut("embedded/source-circuit/U1");
     source.pose.at.x += 19.0;
     source.properties = Some(BTreeMap::from([("revision".into(), json!(3))]));
     let edited =
@@ -614,12 +565,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
             .iter()
             .all(|n| n.id != "embedded/mirror-circuit/N1")
     );
-    let joined = omitted
-        .draft
-        .nets
-        .iter()
-        .find(|n| n.id == "mirror-host-net")
-        .unwrap();
+    let joined = omitted.draft.nets.by_id("mirror-host-net");
     assert_eq!(
         joined
             .pins
@@ -644,19 +590,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         Some(&retained)
     );
     assert_eq!(
+        rejoined.draft.parts.by_id(&inherited.id).properties,
         rejoined
             .draft
             .parts
-            .iter()
-            .find(|p| p.id == inherited.id)
-            .unwrap()
-            .properties,
-        rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|p| p.id == "embedded/source-circuit/U1")
-            .unwrap()
+            .by_id("embedded/source-circuit/U1")
             .properties
     );
     assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
@@ -685,12 +623,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     boardstudio_core_mechanical::mechanical::halves::validate_document(&matrixless).unwrap();
     let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
     let child_id = "embedded/mirror-circuit/U2";
-    let child_geometry = matrixless
-        .parts
-        .iter()
-        .find(|p| p.id == child_id)
-        .unwrap()
-        .clone();
+    let child_geometry = matrixless.parts.by_id(child_id).clone();
     let mut rejoined: Option<MembershipTransitionOutput> = None;
     for (kind, source, mirror, state) in [
         (
@@ -737,11 +670,7 @@ pub(crate) fn named_companion_fixture(component: &str) -> (ProjectDoc, Membershi
         id.strip_suffix("/diode")
             .map_or_else(|| id.to_owned(), |parent| format!("{parent}/{component}"))
     };
-    let definition = document
-        .definitions
-        .iter_mut()
-        .find(|d| d.id == "diode")
-        .unwrap();
+    let definition = document.definitions.by_id_mut("diode");
     definition.id = component.into();
     definition.name = component.into();
     definition.kind = PartKind::Custom;
@@ -826,20 +755,9 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             crate::support::test_dispatch(),
         )
         .expect("a companion is selectively Local through the complete transaction");
-        let retained = local
-            .draft
-            .parts
-            .iter()
-            .find(|p| p.id == mirror_id)
-            .unwrap()
-            .clone();
+        let retained = local.draft.parts.by_id(mirror_id).clone();
         let mut post = local.draft.clone();
-        let mut source = post
-            .matrices
-            .iter()
-            .find(|m| m.id == "source-matrix")
-            .unwrap()
-            .clone();
+        let mut source = post.matrices.by_id("source-matrix").clone();
         source
             .cells
             .iter_mut()
@@ -978,9 +896,7 @@ fn lifecycle_refuses_target_membership_that_disagrees_with_actual_circuit_owners
     let (mut before, context) = circuit_lifecycle_fixture();
     before
         .embedded_circuits
-        .iter_mut()
-        .find(|c| c.id == "mirror-circuit")
-        .unwrap()
+        .by_id_mut("mirror-circuit")
         .part_ids
         .retain(|id| id != "embedded/mirror-circuit/U1");
     let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
@@ -1077,20 +993,13 @@ fn pending_baseline_and_selection_tampering_refuse_atomically() {
 fn legacy_v5_local_parts_are_preserved_without_inventing_source_associations() {
     let (mut document, mut context) = independent_lifecycle_fixture();
     document.format_version = 5;
-    let mut legacy = document
-        .parts
-        .iter()
-        .find(|p| p.id == "mirror-screen")
-        .unwrap()
-        .clone();
+    let mut legacy = document.parts.by_id("mirror-screen").clone();
     legacy.id = "legacy-local-part".into();
     legacy.reference = "LEGACY1".into();
     document.parts.push(legacy.clone());
     document
         .boards
-        .iter_mut()
-        .find(|b| b.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push(legacy.id.clone());
     context
@@ -1273,12 +1182,8 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
             assert_eq!(repeated.context, removed.context);
             assert!(repeated.changed_document_ids.is_empty());
             let mut edited_source = repeated.draft.clone();
-            edited_source
-                .parts
-                .iter_mut()
-                .find(|p| p.id == "source-encoder")
-                .unwrap()
-                .properties = Some(BTreeMap::from([("revision".into(), json!(92))]));
+            edited_source.parts.by_id_mut("source-encoder").properties =
+                Some(BTreeMap::from([("revision".into(), json!(92))]));
             let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &repeated.draft,
                 &edited_source,
@@ -1287,19 +1192,8 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
             )
             .unwrap();
             assert_eq!(
-                edited
-                    .draft
-                    .parts
-                    .iter()
-                    .find(|p| p.id == "mirror-encoder")
-                    .unwrap()
-                    .properties,
-                edited_source
-                    .parts
-                    .iter()
-                    .find(|p| p.id == "source-encoder")
-                    .unwrap()
-                    .properties
+                edited.draft.parts.by_id("mirror-encoder").properties,
+                edited_source.parts.by_id("source-encoder").properties
             );
         }
     }
@@ -1320,9 +1214,7 @@ fn cutover_lifecycle_rejects_linked_slot_outside_matrix_membership() {
         orphan.reference = format!("{side}_orphan");
         document
             .boards
-            .iter_mut()
-            .find(|b| b.id == board)
-            .unwrap()
+            .by_id_mut(&board)
             .part_ids
             .push(orphan.id.clone());
         document.parts.push(orphan);

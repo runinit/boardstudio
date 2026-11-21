@@ -74,12 +74,30 @@ fn net_correspondence<'a>(document: &'a Value, pair_id: &str, source_id: &str) -
 /// case adds the fixture's authored closure mount and checks its materialization.
 #[test]
 fn public_exception_lifecycle_sequences_preserve_state_through_unlink() {
+    // Repeated detach/Rejoin cycles must never accumulate exceptions or lose the part.
+    let mut seed_value = 19_u32;
+    let mut cycles = Vec::new();
+    for _ in 0..8 {
+        seed_value = seed_value.wrapping_mul(1664525).wrapping_add(1013904223);
+        cycles.push(if seed_value >> 31 == 0 {
+            "local"
+        } else {
+            "omitted"
+        });
+        cycles.push("linked");
+    }
     let source = runtime_supported_document();
     for (pair_id, source, states, authored_mount) in [
         (
             "runtime-lifecycle-pair",
             source.clone(),
             &["local"][..],
+            None,
+        ),
+        (
+            "seeded-lifecycle-pair",
+            source.clone(),
+            cycles.as_slice(),
             None,
         ),
         (
@@ -125,11 +143,11 @@ fn public_exception_lifecycle_sequences_preserve_state_through_unlink() {
         }
 
         let mut before_unlink = linked.clone();
-        for &state in states {
+        for (step, &state) in states.iter().enumerate() {
             let reply = commit_operation(
                 &mut engine,
                 &before_unlink,
-                &format!("{pair_id}-{state}"),
+                &format!("{pair_id}-{step}-{state}"),
                 &["right/RST"],
                 exception_operation(pair_id, state),
             );

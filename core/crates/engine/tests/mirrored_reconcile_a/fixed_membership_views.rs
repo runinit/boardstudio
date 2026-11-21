@@ -1,16 +1,28 @@
 use super::*;
 
+fn fixture_view(
+    document: &ProjectDoc,
+    projection: &Projection,
+) -> Result<FixedMembershipView, String> {
+    let halves = document.first_halves();
+    let source = document.matrices.by_id("source-matrix");
+    let mirror = document.matrices.by_id("mirror-matrix");
+    let link = halves
+        .correspondences
+        .iter()
+        .find(|link| link.kind == MirroredItemKind::Matrix)
+        .unwrap();
+    let projected = project_matrix(source, mirror, link, projection.mapping).unwrap();
+    build_fixed_membership_view(document, halves, source, mirror, &projected, projection)
+}
+
 #[test]
 fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
     let (mut document, mut projection) = fixed_geometry_fixture().unwrap();
     let source_key = "matrix/source-matrix/r0c1";
     let mirror_key = "matrix/mirror-matrix/r0c1";
     for (matrix_id, key_id) in [("source-matrix", source_key), ("mirror-matrix", mirror_key)] {
-        let matrix = document
-            .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = document.matrices.by_id_mut(matrix_id);
         let cell = matrix
             .cells
             .iter_mut()
@@ -25,10 +37,7 @@ fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
             board.part_ids.retain(|id| id != key_id);
         }
     }
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.retain(|association| {
         !(association.kind == MirroredItemKind::Part
             && association.source_id == source_key
@@ -38,41 +47,7 @@ fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
     projection.final_owners.remove(source_key);
     projection.final_owners.remove(mirror_key);
 
-    let halves = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    let source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let matrix_association = halves
-        .correspondences
-        .iter()
-        .find(|association| association.kind == MirroredItemKind::Matrix)
-        .unwrap();
-    let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-        source,
-        mirror,
-        matrix_association,
-        projection.mapping,
-    )
-    .unwrap();
-    let view =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-            &document,
-            halves,
-            source,
-            mirror,
-            &projected,
-            &projection,
-        )
+    let view = fixture_view(&document, &projection)
         .expect("matching explicit selected-cell tombstones are valid inactive coordinates");
 
     for matrix in [&view.normalized_source_matrix, &view.incoming_matrix] {
@@ -85,12 +60,7 @@ fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
         assert!(!tombstone.enabled);
     }
 
-    let source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let source = document.matrices.by_id("source-matrix").clone();
     let mut edited_source = source;
     edited_source
         .cells
@@ -100,23 +70,10 @@ fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
         .offset = Some(Vec2 { x: 4.0, y: -1.0 });
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &edited_source)
         .expect("the later source edit preserves its existing active membership");
-    let expected_source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-        &mut document,
-        "pair-source-mirror",
-        &projection,
-    )
-    .expect("ordinary reconciliation keeps the selected slot tombstoned");
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let expected_source = document.matrices.by_id("source-matrix").clone();
+    reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("ordinary reconciliation keeps the selected slot tombstoned");
+    let mirror = document.matrices.by_id("mirror-matrix");
     let tombstone = mirror
         .cells
         .iter()
@@ -126,23 +83,12 @@ fn fixed_membership_view_preserves_consistent_selected_cell_tombstones() {
     assert!(!tombstone.enabled);
     assert!(!mirror.part_ids.contains(&mirror_key.into()));
     assert!(!document.parts.iter().any(|part| part.id == mirror_key));
-    assert_eq!(
-        document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap(),
-        &expected_source
-    );
+    assert_eq!(document.matrices.by_id("source-matrix"), &expected_source);
     let after_first = document.clone();
     assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-            &mut document,
-            "pair-source-mirror",
-            &projection
-        )
-        .unwrap()
-        .is_empty()
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .unwrap()
+            .is_empty()
     );
     assert_eq!(document, after_first);
 }
@@ -152,9 +98,7 @@ fn selected_tombstone_survives_prepared_source_and_mirror_edits() {
     fn tombstone(document: &ProjectDoc, matrix_id: &str) -> boardstudio_model::model::MatrixCell {
         document
             .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
+            .by_id(matrix_id)
             .cells
             .iter()
             .find(|cell| (cell.row, cell.column) == (0, 0))
@@ -163,11 +107,7 @@ fn selected_tombstone_survives_prepared_source_and_mirror_edits() {
     }
 
     fn assert_tombstone(document: &ProjectDoc, matrix_id: &str) {
-        let matrix = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = document.matrices.by_id(matrix_id);
         let cell = tombstone(document, matrix_id);
         assert!(!cell.enabled && cell.deleted);
         let key_id = format!("matrix/{matrix_id}/r0c0");
@@ -184,10 +124,7 @@ fn selected_tombstone_survives_prepared_source_and_mirror_edits() {
                 .iter()
                 .any(|id| id == &key_id || id.starts_with(&format!("{key_id}/")))
         }));
-        let halves = document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap();
+        let halves = document.first_halves();
         assert!(!halves.correspondences.iter().any(|association| {
             association.source_id == key_id
                 || association.mirror_id == key_id
@@ -264,11 +201,7 @@ fn selected_tombstone_survives_prepared_source_and_mirror_edits() {
     )
     .expect("all-slots-inactive paired matrices remain valid");
     for matrix_id in ["source-matrix", "mirror-matrix"] {
-        let matrix = all_inactive
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = all_inactive.matrices.by_id(matrix_id);
         assert_eq!(matrix.part_ids, Vec::<String>::new());
         assert!(
             matrix
@@ -283,11 +216,7 @@ fn selected_tombstone_survives_prepared_source_and_mirror_edits() {
 fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
     fn tombstone_slot(document: &mut ProjectDoc, matrix_id: &str) {
         let key_id = format!("matrix/{matrix_id}/r0c1");
-        let matrix = document
-            .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = document.matrices.by_id_mut(matrix_id);
         let cell = matrix
             .cells
             .iter_mut()
@@ -300,35 +229,7 @@ fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
     }
 
     fn fixed_view_error(document: &ProjectDoc, projection: &Projection) -> String {
-        let halves = document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap();
-        let source = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
-        let mirror = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap();
-        let association = halves
-            .correspondences
-            .iter()
-            .find(|association| association.kind == MirroredItemKind::Matrix)
-            .unwrap();
-        let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-            source,
-            mirror,
-            association,
-            projection.mapping,
-        )
-        .unwrap();
-        match boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-            document, halves, source, mirror, &projected, projection,
-        ) {
+        match fixture_view(document, projection) {
             Err(error) => error,
             Ok(_) => panic!("expected malformed fixed membership to be refused"),
         }
@@ -356,10 +257,8 @@ fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
                 .part_ids
                 .retain(|id| id != source_id && id != mirror_id);
         }
-        document.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap()
+        document
+            .first_halves_mut()
             .correspondences
             .retain(|association| {
                 !(association.kind == MirroredItemKind::Part
@@ -378,20 +277,13 @@ fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
         let mirror_id = "matrix/mirror-matrix/r0c1";
         match stale_kind {
             "part" => {
-                let mut part = document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == "matrix/mirror-matrix/r0c2")
-                    .unwrap()
-                    .clone();
+                let mut part = document.parts.by_id("matrix/mirror-matrix/r0c2").clone();
                 part.id = mirror_id.into();
                 document.parts.push(part);
             }
             "board owner" => document
                 .boards
-                .iter_mut()
-                .find(|board| board.id == "mirror-board")
-                .unwrap()
+                .by_id_mut("mirror-board")
                 .part_ids
                 .push(mirror_id.into()),
             "owner input" => {
@@ -399,18 +291,18 @@ fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
                     .final_owners
                     .insert(mirror_id.into(), "mirror-board".into());
             }
-            "correspondence" => document.hardware.as_mut().unwrap().pairs[0]
-                .halves
-                .as_mut()
-                .unwrap()
-                .correspondences
-                .push(MirroredCorrespondence {
-                    companion_mode: None,
-                    companion_tweak: None,
-                    kind: MirroredItemKind::Part,
-                    source_id: source_id.into(),
-                    mirror_id: mirror_id.into(),
-                }),
+            "correspondence" => {
+                document
+                    .first_halves_mut()
+                    .correspondences
+                    .push(MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::Part,
+                        source_id: source_id.into(),
+                        mirror_id: mirror_id.into(),
+                    })
+            }
             _ => unreachable!(),
         }
         assert!(
@@ -422,9 +314,7 @@ fn fixed_membership_view_rejects_tombstone_mismatches_and_stale_members() {
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
     let source_cell = document
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id_mut("source-matrix")
         .cells
         .iter_mut()
         .find(|cell| (cell.row, cell.column) == (0, 1))
@@ -444,10 +334,7 @@ fn fixed_membership_view_accepts_unassociated_local_or_omitted_matrix_children()
         let source_id = "matrix/source-matrix/r0c1/diode";
         let mirror_id = "matrix/mirror-matrix/r0c1/diode";
         let mut document = document;
-        let halves = document.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap();
+        let halves = document.first_halves_mut();
         halves.correspondences.retain(|association| {
             !(association.kind == MirroredItemKind::Part
                 && association.source_id == source_id
@@ -468,41 +355,7 @@ fn fixed_membership_view_accepts_unassociated_local_or_omitted_matrix_children()
         boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
             .expect("the unassociated exception names an existing matrix child");
 
-        let halves = document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap();
-        let source = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
-        let mirror = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap();
-        let matrix_association = halves
-            .correspondences
-            .iter()
-            .find(|association| association.kind == MirroredItemKind::Matrix)
-            .unwrap();
-        let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-            source,
-            mirror,
-            matrix_association,
-            projection.mapping,
-        )
-        .unwrap();
-        let view =
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-                &document,
-                halves,
-                source,
-                mirror,
-                &projected,
-                &projection,
-            )
+        let view = fixture_view(&document, &projection)
             .expect("the exact matrix slot authenticates its unassociated child exception");
         let incoming_cell = view
             .incoming_matrix
@@ -516,28 +369,17 @@ fn fixed_membership_view_accepts_unassociated_local_or_omitted_matrix_children()
                 .iter()
                 .any(|assembly| assembly.id == "diode")
         );
-        let legacy_part = document
-            .parts
-            .iter()
-            .find(|part| part.id == mirror_id)
-            .unwrap()
-            .clone();
+        let legacy_part = document.parts.by_id(mirror_id).clone();
         let pair_before =
             serde_json::to_vec(&document.hardware.as_ref().unwrap().pairs[0]).unwrap();
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-            &mut document,
-            "pair-source-mirror",
-            &projection,
-        )
-        .unwrap_or_else(|error| panic!("{state:?} legacy exception: {error}"));
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .unwrap_or_else(|error| panic!("{state:?} legacy exception: {error}"));
         assert_eq!(
             document.parts.iter().find(|part| part.id == mirror_id),
             Some(&legacy_part)
         );
-        let exception = document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
+        let exception = document
+            .first_halves()
             .exceptions
             .iter()
             .find(|exception| exception.mirror_id == mirror_id)
@@ -559,13 +401,9 @@ fn fixed_membership_view_accepts_unassociated_local_or_omitted_matrix_children()
         assert_eq!(pair_after, pair_before);
         let first = document.clone();
         assert!(
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-                &mut document,
-                "pair-source-mirror",
-                &projection
-            )
-            .unwrap()
-            .is_empty()
+            reconcile(&mut document, "pair-source-mirror", &projection)
+                .unwrap()
+                .is_empty()
         );
         assert_eq!(document, first);
     }
@@ -589,16 +427,12 @@ fn fixed_membership_view_only_allows_exactly_omitted_matrix_companions_to_be_abs
     document.parts.retain(|part| part.id != mirror_id);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != mirror_id);
     document
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id_mut("mirror-matrix")
         .part_ids
         .retain(|id| id != mirror_id);
     let mut projection = projection;
@@ -606,18 +440,10 @@ fn fixed_membership_view_only_allows_exactly_omitted_matrix_companions_to_be_abs
     boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
         .expect("Omitted keeps the exact correspondence while its target is absent");
     let pair_before = serde_json::to_vec(&document.hardware.as_ref().unwrap().pairs[0]).unwrap();
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-        &mut document,
-        "pair-source-mirror",
-        &projection,
-    )
-    .expect("the exact Omitted overlay authenticates the absent child");
+    reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("the exact Omitted overlay authenticates the absent child");
     assert!(document.parts.iter().all(|part| part.id != mirror_id));
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror = document.matrices.by_id("mirror-matrix");
     assert!(!mirror.part_ids.iter().any(|id| id == mirror_id));
     assert!(mirror.cells.iter().any(|cell| {
         (cell.row, cell.column) == (0, 1)
@@ -636,60 +462,23 @@ fn fixed_membership_view_only_allows_exactly_omitted_matrix_companions_to_be_abs
     document.parts.retain(|part| part.id != mirror_id);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|id| id != mirror_id);
     document
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id_mut("mirror-matrix")
         .part_ids
         .retain(|id| id != mirror_id);
     projection.final_owners.remove(mirror_id);
-    let halves = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    let source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let association = halves
-        .correspondences
-        .iter()
-        .find(|item| item.kind == MirroredItemKind::Matrix)
-        .unwrap();
-    let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-        source,
-        mirror,
-        association,
-        projection.mapping,
-    )
-    .unwrap();
-    let error =
-        match boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-            &document,
-            halves,
-            source,
-            mirror,
-            &projected,
-            &projection,
-        ) {
-            Err(error) => error,
-            Ok(_) => panic!("an unrecorded missing assembly must remain a refusal"),
-        };
+    let error = match fixture_view(&document, &projection) {
+        Err(error) => error,
+        Ok(_) => panic!("an unrecorded missing assembly must remain a refusal"),
+    };
     assert!(error.contains("membership is not canonical"), "{error}");
     assert!(
-        halves
+        document
+            .first_halves()
             .correspondences
             .iter()
             .any(|item| item.source_id == source_id && item.mirror_id == mirror_id)
@@ -701,20 +490,14 @@ fn fixed_membership_view_preserves_authored_cell_defaults_and_variants() {
     let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
     let matrix_default = document
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .definition_id
         .clone();
     let mut alternate_definition = document.definitions[0].clone();
     alternate_definition.id = "alternate-switch".into();
     document.definitions.push(alternate_definition);
     {
-        let source_matrix = document
-            .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
+        let source_matrix = document.matrices.by_id_mut("source-matrix");
         let cell = source_matrix
             .cells
             .iter_mut()
@@ -732,50 +515,11 @@ fn fixed_membership_view_preserves_authored_cell_defaults_and_variants() {
             .unwrap()
             .definition_id = Some("alternate-switch".into());
     }
-    let source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let source_matrix = document.matrices.by_id("source-matrix").clone();
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &source_matrix)
         .expect("the source materializes its explicit and alternate definitions");
 
-    let halves = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    let source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let correspondence = halves
-        .correspondences
-        .iter()
-        .find(|association| association.kind == MirroredItemKind::Matrix)
-        .unwrap();
-    let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-        source,
-        mirror,
-        correspondence,
-        projection.mapping,
-    )
-    .unwrap();
-    let view =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-            &document,
-            halves,
-            source,
-            mirror,
-            &projected,
-            &projection,
-        )
+    let view = fixture_view(&document, &projection)
         .expect("authored cell fields are valid reconciliation input");
 
     let cell = view
@@ -795,24 +539,11 @@ fn fixed_membership_view_preserves_authored_cell_defaults_and_variants() {
         .unwrap();
     assert_eq!(alternate.definition_id.as_deref(), Some("alternate-switch"));
 
-    let source_before_reconcile = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-        &mut document,
-        "pair-source-mirror",
-        &projection,
-    )
-    .expect("authored cell definitions materialize through reconciliation");
+    let source_before_reconcile = document.matrices.by_id("source-matrix").clone();
+    reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("authored cell definitions materialize through reconciliation");
     assert_eq!(
-        document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap(),
+        document.matrices.by_id("source-matrix"),
         &source_before_reconcile,
         "reconciliation preserves the complete authored source matrix"
     );
@@ -839,48 +570,12 @@ fn fixed_membership_view_fills_only_missing_active_cells_with_defaults() {
     for matrix_id in ["source-matrix", "mirror-matrix"] {
         document
             .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
+            .by_id_mut(matrix_id)
             .cells
             .retain(|cell| (cell.row, cell.column) != (0, 1));
     }
 
-    let halves = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    let source = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let correspondence = halves
-        .correspondences
-        .iter()
-        .find(|association| association.kind == MirroredItemKind::Matrix)
-        .unwrap();
-    let projected = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
-        source,
-        mirror,
-        correspondence,
-        projection.mapping,
-    )
-    .unwrap();
-    let view =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::build_fixed_membership_view(
-            &document,
-            halves,
-            source,
-            mirror,
-            &projected,
-            &projection,
-        )
+    let view = fixture_view(&document, &projection)
         .expect("an absent active cell uses the matrix materializer defaults");
 
     let normalized_source_cell = view
@@ -910,19 +605,11 @@ fn fixed_membership_view_fills_only_missing_active_cells_with_defaults() {
     assert_eq!(cell.assemblies_local, None);
     assert_eq!(view.incoming_matrix.cells.len(), 6);
 
-    boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-        &mut document,
-        "pair-source-mirror",
-        &projection,
-    )
-    .expect("both halves materialize the missing active cell");
+    reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("both halves materialize the missing active cell");
     let first = document.clone();
     for matrix_id in ["source-matrix", "mirror-matrix"] {
-        let matrix = document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = document.matrices.by_id(matrix_id);
         assert_eq!(matrix.cells.len(), 6);
         let filled = matrix
             .cells
@@ -935,12 +622,8 @@ fn fixed_membership_view_fills_only_missing_active_cells_with_defaults() {
         assert_eq!(filled.variant, None);
         assert_eq!(filled.assemblies_local, None);
     }
-    let repeated = boardstudio_core_mirrored_half::mirrored_half::reconcile::reconcile(
-        &mut document,
-        "pair-source-mirror",
-        &projection,
-    )
-    .expect("repeated sparse reconciliation is stable");
+    let repeated = reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("repeated sparse reconciliation is stable");
     assert_eq!(document, first);
     assert!(
         repeated.is_empty(),
@@ -957,9 +640,7 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
     for matrix_id in ["source-matrix", "mirror-matrix"] {
         let cell = document
             .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
+            .by_id_mut(matrix_id)
             .cells
             .iter_mut()
             .find(|cell| (cell.row, cell.column) == (0, 0))
@@ -974,12 +655,7 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
             cell.definition_id = Some("target-local-switch".into());
         }
     }
-    let mut source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut source_matrix = document.matrices.by_id("source-matrix").clone();
     source_matrix.cells[0].assemblies.push(MatrixAssembly {
         id: "source-only".into(),
         definition_id: "diode".into(),
@@ -988,89 +664,54 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
         side: Some(Side::Back),
     });
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &source_matrix).unwrap();
-    let target_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let target_matrix = document.matrices.by_id("mirror-matrix").clone();
     boardstudio_core_kernel::matrix::set_matrix(&mut document, &target_matrix).unwrap();
     let mut projection = projection;
     projection.final_owners.insert(
         "matrix/source-matrix/r0c0/source-only".into(),
         "source-board".into(),
     );
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .retain(|association| {
             association.source_id != "matrix/source-matrix/r0c0/diode"
                 && association.mirror_id != "matrix/mirror-matrix/r0c0/diode"
         });
-    let mirror_assembly = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .cells[0]
-        .assemblies[0]
-        .clone();
+    let mirror_assembly = document.matrices.by_id("mirror-matrix").cells[0].assemblies[0].clone();
     let target_cell = document
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .cells
         .iter()
         .find(|cell| (cell.row, cell.column) == (0, 0))
         .unwrap()
         .clone();
-    let source_assemblies = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
-        .cells[0]
+    let source_assemblies = document.matrices.by_id("source-matrix").cells[0]
         .assemblies
         .clone();
     let mirror_part = document
         .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c0/diode")
-        .unwrap()
+        .by_id("matrix/mirror-matrix/r0c0/diode")
         .clone();
 
     reconcile(&mut document, "pair-source-mirror", &projection)
         .expect("independent local companion lists do not need pair associations");
 
     assert_eq!(
-        document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap()
-            .cells[0]
-            .assemblies,
+        document.matrices.by_id("source-matrix").cells[0].assemblies,
         source_assemblies
     );
     let source_cell = document
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .cells
         .iter()
         .find(|cell| (cell.row, cell.column) == (0, 0))
         .unwrap();
     assert_eq!(source_cell.definition_id, None);
     assert_eq!(source_cell.variant.as_deref(), Some("source-local-variant"));
-    let source_key = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c0")
-        .unwrap();
+    let source_key = document.parts.by_id("matrix/source-matrix/r0c0");
     assert_eq!(source_key.definition_id, "switch");
     assert_eq!(
         source_key
@@ -1080,20 +721,12 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
         Some(&serde_json::json!("source-local-variant"))
     );
     assert_eq!(
-        document
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .cells[0]
-            .assemblies[0],
+        document.matrices.by_id("mirror-matrix").cells[0].assemblies[0],
         mirror_assembly
     );
     let mirrored_cell = document
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .cells
         .iter()
         .find(|cell| (cell.row, cell.column) == (0, 0))
@@ -1110,11 +743,7 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
         mirrored_cell.variant.as_deref(),
         Some("target-local-variant")
     );
-    let target_key = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c0")
-        .unwrap();
+    let target_key = document.parts.by_id("matrix/mirror-matrix/r0c0");
     assert_eq!(target_key.definition_id, "target-local-switch");
     assert_eq!(
         target_key
@@ -1123,14 +752,7 @@ fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconci
             .and_then(|properties| properties.get("variant")),
         Some(&serde_json::json!("target-local-variant"))
     );
-    assert_eq!(
-        document
-            .parts
-            .iter()
-            .find(|part| part.id == mirror_part.id)
-            .unwrap(),
-        &mirror_part
-    );
+    assert_eq!(document.parts.by_id(&mirror_part.id), &mirror_part);
     let after_first = document.clone();
     assert!(
         reconcile(&mut document, "pair-source-mirror", &projection)

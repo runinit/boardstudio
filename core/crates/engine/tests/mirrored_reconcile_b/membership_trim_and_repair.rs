@@ -48,28 +48,15 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
             removed_copper: None,
         });
     }
-    before.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .clone_from(&context.pair_right);
-    let mut sentinel_matrix = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    before.first_halves_mut().clone_from(&context.pair_right);
+    let mut sentinel_matrix = before.matrices.by_id("mirror-matrix").clone();
     for (row, column, x, y, rotation) in [(0, 0, 7.25, -9.5, 121.0), (1, 1, -3.5, 11.25, -37.0)] {
         let cell = sentinel_matrix
             .cells
             .iter_mut()
             .find(|cell| cell.row == row && cell.column == column)
             .unwrap();
-        let assembly = cell
-            .assemblies
-            .iter_mut()
-            .find(|item| item.id == "diode")
-            .unwrap();
+        let assembly = cell.assemblies.by_id_mut("diode");
         assembly.offset = Vec2 { x, y };
         assembly.rotation = Some(rotation);
         assembly.side = Some(Side::Front);
@@ -85,9 +72,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
         .retain(|part| !omitted_mirror_ids.contains(&part.id.as_str()));
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .retain(|part_id| !omitted_mirror_ids.contains(&part_id.as_str()));
     for omitted_mirror_id in omitted_mirror_ids {
@@ -135,23 +120,13 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
     });
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .net_ids
         .push("retained-local-net".into());
     boardstudio_core_mechanical::mechanical::halves::validate_document(&before)
         .expect("the exact parent Omitted association owns its absent child closure");
-    let source_before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror_before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let source_before = before.matrices.by_id("source-matrix");
+    let mirror_before = before.matrices.by_id("mirror-matrix");
     let mut post_source = before.clone();
     let mut trimmed = source_before.clone();
     trimmed.columns = 2;
@@ -236,12 +211,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
         explicit_removal_closure: &explicit_removal_closure,
     })
     .expect("the explicit trim removes the corresponding target closures");
-    let mirror = output
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror = output.draft.matrices.by_id("mirror-matrix");
     assert_eq!((mirror.rows, mirror.columns), (2, 2));
     assert_eq!(mirror.part_ids.len(), 8);
     assert_eq!(output.context_delta.retired.len(), 8);
@@ -292,9 +262,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
             output
                 .draft
                 .boards
-                .iter()
-                .find(|board| board.id == "mirror-board")
-                .unwrap()
+                .by_id("mirror-board")
                 .part_ids
                 .contains(&id.to_owned())
         );
@@ -308,13 +276,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
         );
     }
     assert_eq!(
-        output
-            .draft
-            .nets
-            .iter()
-            .find(|net| net.id == "retained-local-net")
-            .unwrap()
-            .pins,
+        output.draft.nets.by_id("retained-local-net").pins,
         vec![Pin {
             part_id: "matrix/mirror-matrix/r0c3/diode".into(),
             pad_id: "pad-two".into(),
@@ -323,13 +285,8 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
     for row in 0..2 {
         for column in 0..2 {
             let id = format!("matrix/mirror-matrix/r{row}c{column}");
-            let before_part = before.parts.iter().find(|part| part.id == id).unwrap();
-            let after_part = output
-                .draft
-                .parts
-                .iter()
-                .find(|part| part.id == id)
-                .unwrap();
+            let before_part = before.parts.by_id(&id);
+            let after_part = output.draft.parts.by_id(&id);
             assert_eq!(after_part.properties, before_part.properties);
             assert_eq!(
                 after_part.generator_parameters,
@@ -355,22 +312,13 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
             .iter()
             .find(|cell| cell.row == row && cell.column == column)
             .unwrap();
-        let assembly = cell
-            .assemblies
-            .iter()
-            .find(|item| item.id == "diode")
-            .unwrap();
+        let assembly = cell.assemblies.by_id("diode");
         assert_eq!(assembly.offset, Vec2 { x, y });
         assert_eq!(assembly.rotation, Some(rotation));
         assert_eq!(assembly.side, Some(Side::Front));
         let id = format!("matrix/mirror-matrix/r{row}c{column}/diode");
-        let before_part = before.parts.iter().find(|part| part.id == id).unwrap();
-        let after_part = output
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == id)
-            .unwrap();
+        let before_part = before.parts.by_id(&id);
+        let after_part = output.draft.parts.by_id(&id);
         assert_eq!(
             after_part, before_part,
             "Local child payload {id} is preserved"
@@ -379,27 +327,17 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
     let round_tripped: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&output.draft).unwrap()).unwrap();
     assert_eq!(round_tripped, output.draft);
-    assert_eq!(
-        round_tripped.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap(),
-        &output.context.pair_right
-    );
+    assert_eq!(round_tripped.first_halves(), &output.context.pair_right);
     let repeated_source_map: BTreeMap<_, _> = round_tripped
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let repeated_mirror_map: BTreeMap<_, _> = round_tripped
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -547,9 +485,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         output
             .draft
             .modules
-            .iter()
-            .find(|module| module.id == "closure-module")
-            .unwrap()
+            .by_id("closure-module")
             .connection
             .is_none()
     );
@@ -557,9 +493,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         output
             .draft
             .modules
-            .iter()
-            .find(|module| module.id == "shifted-module")
-            .unwrap()
+            .by_id("shifted-module")
             .connection
             .as_ref()
             .unwrap()
@@ -583,9 +517,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
     let current_members: BTreeSet<_> = output
         .draft
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .cloned()
@@ -629,20 +561,10 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         vec![removed]
     );
 
-    let mirror = output
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
+    let mirror = output.draft.matrices.by_id("mirror-matrix");
     assert_eq!((mirror.rows, mirror.columns), (2, 3));
     assert_eq!(mirror.part_ids.len(), 12);
-    let d_diode = output
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c2/diode")
-        .unwrap();
+    let d_diode = output.draft.parts.by_id("matrix/mirror-matrix/r0c2/diode");
     assert_eq!(
         d_diode.pose,
         Pose2 {
@@ -752,12 +674,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
             .iter()
             .find(|part| part.id == "geometry-probe")
     );
-    let retained_net = output
-        .draft
-        .nets
-        .iter()
-        .find(|net| net.id == "retained-second-key-net")
-        .unwrap();
+    let retained_net = output.draft.nets.by_id("retained-second-key-net");
     assert_eq!(retained_net.name, "RETAINED SECOND KEY");
     assert_eq!(
         retained_net.pins,
@@ -790,9 +707,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
     let next_map: BTreeMap<_, _> = output
         .draft
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -800,9 +715,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
     let next_mirror_map: BTreeMap<_, _> = output
         .draft
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -952,11 +865,7 @@ fn membership_transition_rejects_missing_second_retained_child_owner_atomically(
 #[test]
 fn repair_fresh_refuses_invalid_before_pad_identity() {
     let (mut before, _, context, _, _, _) = repair_fresh_coherent_compaction_fixture().unwrap();
-    let net = before
-        .nets
-        .iter_mut()
-        .find(|n| n.id == "retained-second-key-net")
-        .unwrap();
+    let net = before.nets.by_id_mut("retained-second-key-net");
     assert_eq!(net.pins[0].pad_id, "pad-one");
     net.pins[0].pad_id = "1".into();
     let part = before
@@ -964,28 +873,20 @@ fn repair_fresh_refuses_invalid_before_pad_identity() {
         .iter()
         .find(|p| p.id == net.pins[0].part_id)
         .unwrap();
-    let definition = before
-        .definitions
-        .iter()
-        .find(|d| d.id == part.definition_id)
-        .unwrap();
+    let definition = before.definitions.by_id(&part.definition_id);
     assert!(definition.pads.iter().any(|p| p.number == "1"));
     assert!(!definition.pads.iter().any(|p| p.id == "1"));
     assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&before).is_ok());
     let source_map = before
         .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let mirror_map = before
         .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -1043,9 +944,7 @@ fn repair_fresh_refuses_chained_identity_ambiguous_actual_board_owner() {
     let second_child = "matrix/mirror-matrix/r1c1/diode";
     invalid
         .boards
-        .iter_mut()
-        .find(|b| b.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(second_child.into());
     assert_eq!(
@@ -1058,18 +957,14 @@ fn repair_fresh_refuses_chained_identity_ambiguous_actual_board_owner() {
     );
     let source_map = invalid
         .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let mirror_map = invalid
         .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -1112,9 +1007,7 @@ fn repair_fresh_refuses_wrong_historical_owner_context() {
     assert!(
         before
             .boards
-            .iter()
-            .find(|b| b.id == "mirror-board")
-            .unwrap()
+            .by_id("mirror-board")
             .part_ids
             .iter()
             .any(|id| id == second_child)
@@ -1282,12 +1175,7 @@ fn repair_fresh_accepts_shifted_local_parent_with_explicit_omitted_child() {
 #[test]
 fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
     let (mut before, _, mut context, _, _, _) = repair_fresh_coherent_compaction_fixture().unwrap();
-    let mut third = before
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
-        .clone();
+    let mut third = before.matrices.by_id("source-matrix").clone();
     third.id = "legacy-third-matrix".into();
     third.part_ids.clear();
     boardstudio_core_kernel::matrix::set_matrix(&mut before, &third).unwrap();
@@ -1341,18 +1229,14 @@ fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
     }
     let source_map = before
         .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap()
+        .by_id("source-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let mirror_map = before
         .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -1412,23 +1296,14 @@ fn cutover_replay_compensation_survives_shifted_local_key() {
     })
     .unwrap();
     let mut regenerated = output.draft.clone();
-    let matrix = output
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap();
+    let matrix = output.draft.matrices.by_id("mirror-matrix");
     boardstudio_core_kernel::matrix::set_matrix(&mut regenerated, matrix).unwrap();
     for suffix in ["", "/diode"] {
         let old = format!("matrix/mirror-matrix/r1c2{suffix}");
         let new = format!("matrix/mirror-matrix/r1c1{suffix}");
-        let expected = before.parts.iter().find(|p| p.id == old).unwrap().pose;
+        let expected = before.parts.by_id(&old).pose;
         for doc in [&output.draft, &regenerated] {
-            assert_eq!(
-                doc.parts.iter().find(|p| p.id == new).unwrap().pose,
-                expected,
-                "{new}"
-            );
+            assert_eq!(doc.parts.by_id(&new).pose, expected, "{new}");
         }
     }
 }

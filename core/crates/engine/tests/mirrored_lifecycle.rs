@@ -4,7 +4,10 @@
 // via `use super::*` and cross-imports helpers from sibling submodules.
 #[path = "support/base.rs"]
 pub mod base_fixtures;
+#[path = "mirrored_reconcile_a/fixture_rows.rs"]
+pub mod fixture_rows;
 pub mod support;
+use fixture_rows::{FixturePair, FixtureRows};
 
 use crate::base_fixtures::fixture_document;
 use crate::support::linked_endpoint;

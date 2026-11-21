@@ -3,12 +3,7 @@ use super::*;
 #[test]
 fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts() {
     let (mut document, mut projection) = fixed_geometry_fixture().unwrap();
-    let mut source = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut source = document.parts.by_id("matrix/source-matrix/r0c1").clone();
     source.id = "independent-source".into();
     source.reference = "J1".into();
     source.pose = Pose2 {
@@ -56,12 +51,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     target_definition.name = "Mirror switch".into();
     document.definitions.push(target_definition);
     document.parts.extend([source.clone(), target]);
-    let mut unrelated_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "geometry-probe")
-        .unwrap()
-        .clone();
+    let mut unrelated_part = document.parts.by_id("geometry-probe").clone();
     unrelated_part.id = "unrelated-part".into();
     unrelated_part.reference = "LOCAL1".into();
     document.parts.push(unrelated_part);
@@ -72,37 +62,26 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     document.parts.push(added_source.clone());
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(source.id.clone());
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(added_source.id.clone());
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push("independent-mirror".into());
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push("unrelated-part".into());
 
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.extend([
         MirroredCorrespondence {
             companion_mode: None,
@@ -184,18 +163,8 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     .expect("the ordinary source SetLayout operation records its membership change");
 
     boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
-    let source_before = document
-        .parts
-        .iter()
-        .find(|part| part.id == "independent-source")
-        .unwrap()
-        .clone();
-    let unrelated_part_before = document
-        .parts
-        .iter()
-        .find(|part| part.id == "unrelated-part")
-        .unwrap()
-        .clone();
+    let source_before = document.parts.by_id("independent-source").clone();
+    let unrelated_part_before = document.parts.by_id("unrelated-part").clone();
     let unrelated_owner_ids_before: Vec<_> = document
         .boards
         .iter()
@@ -244,9 +213,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     two_sources.parts.push(second_source.clone());
     two_sources
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(second_source.id.clone());
     boardstudio_core_mechanical::mechanical::halves::validate_document(&two_sources)
@@ -375,16 +342,12 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     let mut stale_source_owner = original.clone();
     stale_source_owner
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .retain(|id| id != "independent-source-added");
     stale_source_owner
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push("independent-source-added".into());
     let stale_source_owner_before = stale_source_owner.clone();
@@ -408,11 +371,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
             "mirror-matrix",
         ]
     );
-    let mirrored = document
-        .parts
-        .iter()
-        .find(|part| part.id == "independent-mirror")
-        .unwrap();
+    let mirrored = document.parts.by_id("independent-mirror");
     assert_eq!(mirrored.id, "independent-mirror");
     assert_eq!(mirrored.definition_id, "mirror-switch");
     assert_eq!(mirrored.reference, "J9");
@@ -461,14 +420,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
             .any(|board| board.id == "mirror-board"
                 && board.part_ids.contains(&"independent-mirror-added".into()))
     );
-    assert_eq!(
-        document
-            .parts
-            .iter()
-            .find(|part| part.id == "independent-source")
-            .unwrap(),
-        &source_before
-    );
+    assert_eq!(document.parts.by_id("independent-source"), &source_before);
     assert_eq!(document.layouts[1].id, mirror_layout.id);
     assert_eq!(document.layouts[1].name, mirror_layout.name);
     assert_eq!(document.layouts[1].board_id, mirror_layout.board_id);
@@ -485,11 +437,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     assert!(changed.contains(&"mirror-layout".to_owned()));
     assert_eq!(document.layouts[2], unrelated_layout);
     assert_eq!(
-        document
-            .parts
-            .iter()
-            .find(|part| part.id == "unrelated-part")
-            .unwrap(),
+        document.parts.by_id("unrelated-part"),
         &unrelated_part_before
     );
     let unrelated_owner_ids_after: Vec<_> = document
@@ -536,9 +484,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     });
     removal_source
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .net_ids
         .push("independent-removal-net".into());
     removal_source
@@ -592,12 +538,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
         source_id: "independent-source-added".into(),
         mirror_id: "independent-mirror-added".into(),
     }];
-    let persisted_pair_before = removal_source.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
-        .correspondences
-        .clone();
+    let persisted_pair_before = removal_source.first_halves().correspondences.clone();
     let mut refused_removal = removal_source.clone();
     refused_removal.layouts[1]
         .part_ids
@@ -646,12 +587,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
             .all(|id| id != "independent-mirror-added")
     );
     assert_eq!(
-        removal_source
-            .nets
-            .iter()
-            .find(|net| net.id == "independent-removal-net")
-            .unwrap()
-            .pins,
+        removal_source.nets.by_id("independent-removal-net").pins,
         vec![boardstudio_model::model::Pin {
             part_id: "geometry-probe".into(),
             pad_id: "pad-two".into(),
@@ -680,11 +616,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
         ]
     );
     assert_eq!(
-        removal_source.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
-            .correspondences,
+        removal_source.first_halves().correspondences,
         persisted_pair_before
     );
     let first_removal_output = removal_source.clone();
@@ -701,20 +633,10 @@ fn source_layout_removal_prunes_linked_projection_and_keeps_local_and_unpaired_m
     let mirror_linked = "layout-linked-mirror";
     let source_local = "layout-local-source";
     let mirror_local = "layout-local-mirror";
-    let mut linked_source_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut linked_source_part = document.parts.by_id("matrix/source-matrix/r0c1").clone();
     linked_source_part.id = source_linked.into();
     linked_source_part.reference = "LINKED-SOURCE".into();
-    let mut linked_mirror_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut linked_mirror_part = document.parts.by_id("matrix/mirror-matrix/r0c1").clone();
     linked_mirror_part.id = mirror_linked.into();
     linked_mirror_part.reference = "LINKED-MIRROR".into();
     let mut local_source_part = linked_source_part.clone();
@@ -731,23 +653,16 @@ fn source_layout_removal_prunes_linked_projection_and_keeps_local_and_unpaired_m
     ]);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .extend([source_linked.into(), source_local.into()]);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .extend([mirror_linked.into(), mirror_local.into()]);
 
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.extend([
         MirroredCorrespondence {
             companion_mode: None,
@@ -834,36 +749,16 @@ fn mirror_layout_reorder_survives_source_apply_and_reconciliation() {
     let source_u1 = "layout-u1-source";
     let mirror_header = "layout-header-mirror";
     let mirror_u1 = "layout-u1-mirror";
-    let mut source_header_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut source_header_part = document.parts.by_id("matrix/source-matrix/r0c0").clone();
     source_header_part.id = source_header.into();
     source_header_part.reference = "LAYOUT-HEADER-SOURCE".into();
-    let mut source_u1_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut source_u1_part = document.parts.by_id("matrix/source-matrix/r0c1").clone();
     source_u1_part.id = source_u1.into();
     source_u1_part.reference = "LAYOUT-U1-SOURCE".into();
-    let mut mirror_header_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut mirror_header_part = document.parts.by_id("matrix/mirror-matrix/r0c0").clone();
     mirror_header_part.id = mirror_header.into();
     mirror_header_part.reference = "LAYOUT-HEADER-MIRROR".into();
-    let mut mirror_u1_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c1")
-        .unwrap()
-        .clone();
+    let mut mirror_u1_part = document.parts.by_id("matrix/mirror-matrix/r0c1").clone();
     mirror_u1_part.id = mirror_u1.into();
     mirror_u1_part.reference = "LAYOUT-U1-MIRROR".into();
     document.parts.extend([
@@ -874,50 +769,36 @@ fn mirror_layout_reorder_survives_source_apply_and_reconciliation() {
     ]);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .extend([source_header.into(), source_u1.into()]);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .extend([mirror_header.into(), mirror_u1.into()]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: source_header.into(),
-                mirror_id: mirror_header.into(),
-            },
-            MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Part,
-                source_id: source_u1.into(),
-                mirror_id: mirror_u1.into(),
-            },
-        ]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .push(
-            serde_json::from_value(serde_json::json!({
-                "kind": "part", "mirrorId": mirror_u1, "state": "local"
-            }))
-            .unwrap(),
-        );
+    document.first_halves_mut().correspondences.extend([
+        MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Part,
+            source_id: source_header.into(),
+            mirror_id: mirror_header.into(),
+        },
+        MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Part,
+            source_id: source_u1.into(),
+            mirror_id: mirror_u1.into(),
+        },
+    ]);
+    document.first_halves_mut().exceptions.push(
+        serde_json::from_value(serde_json::json!({
+            "kind": "part", "mirrorId": mirror_u1, "state": "local"
+        }))
+        .unwrap(),
+    );
     let source_layout = Layout {
         id: "source-layout-reorder".into(),
         name: "Source layout".into(),
@@ -939,10 +820,8 @@ fn mirror_layout_reorder_survives_source_apply_and_reconciliation() {
         mirror_link: None,
     };
     document.layouts = vec![source_layout.clone(), mirror_layout.clone()];
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    document
+        .first_halves_mut()
         .correspondences
         .push(MirroredCorrespondence {
             companion_mode: None,

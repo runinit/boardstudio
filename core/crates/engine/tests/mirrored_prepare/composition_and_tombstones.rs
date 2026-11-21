@@ -3,12 +3,7 @@ use super::*;
 #[test]
 fn set_case_keeps_the_other_boards_custom_body_independent() {
     let mut accepted = pair_document();
-    let accepted_correspondences = accepted.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
-        .correspondences
-        .clone();
+    let accepted_correspondences = accepted.first_halves().correspondences.clone();
     accepted.case_bodies = [("left-case", "left", 2.0), ("right-case", "right", 3.0)]
         .into_iter()
         .map(|(id, board_id, thickness)| {
@@ -23,46 +18,17 @@ fn set_case_keeps_the_other_boards_custom_body_independent() {
             .unwrap()
         })
         .collect();
-    let right_before = accepted
-        .case_bodies
-        .iter()
-        .find(|body| body.id == "right-case")
-        .unwrap()
-        .clone();
-    let mut left = accepted
-        .case_bodies
-        .iter()
-        .find(|body| body.id == "left-case")
-        .unwrap()
-        .clone();
+    let right_before = accepted.case_bodies.by_id("right-case").clone();
+    let mut left = accepted.case_bodies.by_id("left-case").clone();
     left.thickness = 4.0;
 
     let (prepared, _) = prepare_transaction(&accepted, &[], &EditOperation::SetCase { body: left })
         .expect("the per-board case edit is preserved through pair reconciliation");
 
+    assert_eq!(prepared.case_bodies.by_id("left-case").thickness, 4.0);
+    assert_eq!(prepared.case_bodies.by_id("right-case"), &right_before);
     assert_eq!(
-        prepared
-            .case_bodies
-            .iter()
-            .find(|body| body.id == "left-case")
-            .unwrap()
-            .thickness,
-        4.0
-    );
-    assert_eq!(
-        prepared
-            .case_bodies
-            .iter()
-            .find(|body| body.id == "right-case")
-            .unwrap(),
-        &right_before
-    );
-    assert_eq!(
-        prepared.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
-            .correspondences,
+        prepared.first_halves().correspondences,
         accepted_correspondences
     );
     boardstudio_core_mechanical::mechanical::halves::validate_document(&prepared).unwrap();
@@ -95,9 +61,7 @@ fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
     ) -> &'a boardstudio_model::model::MatrixCell {
         document
             .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
+            .by_id(matrix_id)
             .cells
             .iter()
             .find(|cell| (cell.row, cell.column) == coordinate)
@@ -106,11 +70,7 @@ fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
 
     fn assert_tombstone(document: &ProjectDoc) {
         for (matrix_id, board_id) in [("left-keys", "left"), ("right-keys", "right")] {
-            let matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == matrix_id)
-                .unwrap();
+            let matrix = document.matrices.by_id(matrix_id);
             let cell_id = format!("matrix/{matrix_id}/r0c0");
             assert!(!cell(document, matrix_id, (0, 0)).enabled);
             assert!(cell(document, matrix_id, (0, 0)).deleted);
@@ -123,9 +83,7 @@ fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
             assert!(
                 !document
                     .boards
-                    .iter()
-                    .find(|board| board.id == board_id)
-                    .unwrap()
+                    .by_id(board_id)
                     .part_ids
                     .iter()
                     .any(|id| id == &cell_id || id.starts_with(&format!("{cell_id}/")))
@@ -139,20 +97,8 @@ fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
     };
     let (removed, _) = prepare_transaction(&accepted, &[], &remove)
         .expect("selected-cell removal prepares paired tombstones");
-    let source_cells = removed
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
-        .cells
-        .clone();
-    let mirror_cells = removed
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "right-keys")
-        .unwrap()
-        .cells
-        .clone();
+    let source_cells = removed.matrices.by_id("left-keys").cells.clone();
+    let mirror_cells = removed.matrices.by_id("right-keys").cells.clone();
     assert_tombstone(&removed);
 
     let (opened, findings) = crate::support::prepare_open(&removed, &[])
@@ -167,24 +113,8 @@ fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
         cell(&opened, "right-keys", (0, 0)),
         cell(&removed, "right-keys", (0, 0))
     );
-    assert_eq!(
-        opened
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "left-keys")
-            .unwrap()
-            .cells,
-        source_cells
-    );
-    assert_eq!(
-        opened
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "right-keys")
-            .unwrap()
-            .cells,
-        mirror_cells
-    );
+    assert_eq!(opened.matrices.by_id("left-keys").cells, source_cells);
+    assert_eq!(opened.matrices.by_id("right-keys").cells, mirror_cells);
 
     let source_move = EditOperation::MoveParts {
         positions: vec![Position {

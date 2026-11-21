@@ -1,6 +1,9 @@
+#[path = "mirrored_reconcile_a/fixture_rows.rs"]
+pub mod fixture_rows;
 #[path = "support/matrix.rs"]
 pub mod matrix_fixtures;
 pub mod support;
+use fixture_rows::{FixturePair, FixtureRows};
 
 use boardstudio_core_mirrored_half::mirrored_half::{inverse::MatrixAddition, matrix_addition::*};
 use boardstudio_model::model::*;
@@ -94,11 +97,7 @@ fn editing_a_new_matrix_from_the_mirror_half_names_its_source() {
         panic!("a move is expected");
     };
     assert_eq!(positions[0].id, "matrix/left-thumbs/r0c0");
-    let source = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/left-thumbs/r0c0")
-        .unwrap();
+    let source = document.parts.by_id("matrix/left-thumbs/r0c0");
     assert!((positions[0].at.x - (source.pose.at.x - 3.0)).abs() < 1e-9);
 }
 
@@ -341,17 +340,12 @@ fn local_electrical_board_keeps_its_setup_and_omitted_gets_none() {
                 .retain(|board| board.board_id != "right");
             None
         };
-        next.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap()
-            .exceptions
-            .push(
-                serde_json::from_value(
-                    json!({"kind": "electrical-board", "mirrorId": "right", "state": state}),
-                )
-                .unwrap(),
-            );
+        next.first_halves_mut().exceptions.push(
+            serde_json::from_value(
+                json!({"kind": "electrical-board", "mirrorId": "right", "state": state}),
+            )
+            .unwrap(),
+        );
 
         let document = mirror_added_matrix(&next, &addition).unwrap().draft;
         let mirror = document
@@ -463,7 +457,7 @@ fn a_layout_of_the_new_matrix_is_mirrored_with_its_independent_parts() {
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
     let mirror = correspondence(&document, MirroredItemKind::Layout, "left-thumbs-layout")
         .expect("the layout is linked");
-    let layout = document.layouts.iter().find(|l| l.id == mirror).unwrap();
+    let layout = document.layouts.by_id(&mirror);
     assert_eq!(layout.board_id, "right");
     assert_eq!(layout.matrix_ids, ["right-thumbs"]);
     assert_eq!(layout.name, "Thumbs");
@@ -491,27 +485,17 @@ fn a_net_that_a_new_member_pin_uses_is_mirrored_onto_the_mirror_board() {
         ],
     });
     next.boards
-        .iter_mut()
-        .find(|board| board.id == "left")
-        .unwrap()
+        .by_id_mut("left")
         .net_ids
         .push("left-thumb-row".into());
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
     let mirror = correspondence(&document, MirroredItemKind::Net, "left-thumb-row")
         .expect("the net is linked");
-    let net = document.nets.iter().find(|n| n.id == mirror).unwrap();
+    let net = document.nets.by_id(&mirror);
     assert_eq!(net.name, "RIGHT_THUMB_ROW");
     let pins: Vec<_> = net.pins.iter().map(|p| p.part_id.as_str()).collect();
     assert_eq!(pins, ["matrix/right-thumbs/r0c0", "right/U1"]);
-    assert!(
-        document
-            .boards
-            .iter()
-            .find(|board| board.id == "right")
-            .unwrap()
-            .net_ids
-            .contains(&mirror)
-    );
+    assert!(document.boards.by_id("right").net_ids.contains(&mirror));
 }
 
 #[test]
@@ -532,17 +516,9 @@ fn a_net_the_mirror_already_has_receives_the_new_pins_without_a_second_net() {
                 pad_id: "P2".into(),
             }],
         });
-        next.boards
-            .iter_mut()
-            .find(|b| b.id == board)
-            .unwrap()
-            .net_ids
-            .push(id.into());
+        next.boards.by_id_mut(board).net_ids.push(id.into());
     }
-    let halves = next.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = next.first_halves_mut();
     halves.correspondences.push(
         serde_json::from_value(
             json!({"kind": "net", "sourceId": "left-bus", "mirrorId": "right-bus"}),
@@ -550,9 +526,7 @@ fn a_net_the_mirror_already_has_receives_the_new_pins_without_a_second_net() {
         .unwrap(),
     );
     next.nets
-        .iter_mut()
-        .find(|net| net.id == "left-bus")
-        .unwrap()
+        .by_id_mut("left-bus")
         .pins
         .push(boardstudio_model::model::Pin {
             part_id: "matrix/left-thumbs/r0c1".into(),
@@ -561,7 +535,7 @@ fn a_net_the_mirror_already_has_receives_the_new_pins_without_a_second_net() {
     let nets_before = next.nets.len();
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
     assert_eq!(document.nets.len(), nets_before);
-    let mirror = document.nets.iter().find(|n| n.id == "right-bus").unwrap();
+    let mirror = document.nets.by_id("right-bus");
     assert!(
         mirror
             .pins
@@ -588,7 +562,7 @@ fn a_module_connected_to_a_new_member_is_mirrored_with_its_correspondence() {
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
     let mirror = correspondence(&document, MirroredItemKind::Module, "left-ring")
         .expect("the module is linked");
-    let placed = document.modules.iter().find(|m| m.id == mirror).unwrap();
+    let placed = document.modules.by_id(&mirror);
     assert_eq!(placed.host_board_id, "right");
     assert_eq!(
         placed.connection.as_ref().unwrap().host_connector_part_id,
@@ -660,9 +634,7 @@ fn the_added_mirror_is_the_mirror_creation_derives_for_the_same_source() {
             "{label}: matrix"
         );
         let comparable = |document: &ProjectDoc, id: &str| {
-            let mut part =
-                serde_json::to_value(document.parts.iter().find(|part| part.id == id).unwrap())
-                    .unwrap();
+            let mut part = serde_json::to_value(document.parts.by_id(id)).unwrap();
             part.as_object_mut().unwrap().remove("reference");
             part
         };
@@ -731,11 +703,7 @@ fn a_reused_board_has_no_second_board_to_receive_the_matrix() {
         &pair_document(),
         &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
     );
-    next.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .mirror_board_id = "left".into();
+    next.first_halves_mut().mirror_board_id = "left".into();
     addition.mirror_board_id = "left".into();
     let message = refusal(&next, &addition);
     assert!(message.contains("reuses one board"), "{message}");
@@ -754,9 +722,7 @@ fn a_layout_part_with_no_linked_mirror_refuses_rather_than_dropping_it() {
         part
     });
     next.boards
-        .iter_mut()
-        .find(|board| board.id == "left")
-        .unwrap()
+        .by_id_mut("left")
         .part_ids
         .push("left/EXTRA".into());
     next.layouts = serde_json::from_value(json!([
@@ -774,11 +740,7 @@ fn member_attributes_the_creation_path_copies_travel_to_the_mirror() {
         &pair_document(),
         &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
     );
-    let key = next
-        .parts
-        .iter_mut()
-        .find(|part| part.id == "matrix/left-thumbs/r0c0")
-        .unwrap();
+    let key = next.parts.by_id_mut("matrix/left-thumbs/r0c0");
     key.keycap = Some(boardstudio_model::model::Vec2 { x: 1.5, y: 1.0 });
     key.locked = Some(true);
     key.properties = Some(std::collections::BTreeMap::from([(
@@ -786,11 +748,7 @@ fn member_attributes_the_creation_path_copies_travel_to_the_mirror() {
         json!("keep"),
     )]));
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
-    let mirror = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/right-thumbs/r0c0")
-        .unwrap();
+    let mirror = document.parts.by_id("matrix/right-thumbs/r0c0");
     assert_eq!(
         mirror.keycap,
         Some(boardstudio_model::model::Vec2 { x: 1.5, y: 1.0 })
@@ -817,17 +775,9 @@ fn a_local_mirror_net_is_left_alone_when_a_new_member_joins_its_source() {
                 pad_id: "P2".into(),
             }],
         });
-        next.boards
-            .iter_mut()
-            .find(|b| b.id == board)
-            .unwrap()
-            .net_ids
-            .push(id.into());
+        next.boards.by_id_mut(board).net_ids.push(id.into());
     }
-    let halves = next.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = next.first_halves_mut();
     halves.correspondences.push(
         serde_json::from_value(
             json!({"kind": "net", "sourceId": "left-bus", "mirrorId": "right-bus"}),
@@ -839,16 +789,14 @@ fn a_local_mirror_net_is_left_alone_when_a_new_member_joins_its_source() {
             .unwrap(),
     );
     next.nets
-        .iter_mut()
-        .find(|net| net.id == "left-bus")
-        .unwrap()
+        .by_id_mut("left-bus")
         .pins
         .push(boardstudio_model::model::Pin {
             part_id: "matrix/left-thumbs/r0c1".into(),
             pad_id: "pad-2".into(),
         });
     let document = mirror_added_matrix(&next, &addition).unwrap().draft;
-    let mirror = document.nets.iter().find(|n| n.id == "right-bus").unwrap();
+    let mirror = document.nets.by_id("right-bus");
     assert_eq!(mirror.pins.len(), 1, "the Local net keeps its own pins");
 }
 
@@ -858,11 +806,7 @@ fn a_source_matrix_that_is_not_on_the_source_board_is_refused() {
         &pair_document(),
         &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
     );
-    next.matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "left-thumbs")
-        .unwrap()
-        .board_id = Some("right".into());
+    next.matrices.by_id_mut("left-thumbs").board_id = Some("right".into());
     let message = refusal(&next, &addition);
     assert!(message.contains("The source matrix"), "{message}");
     assert!(message.contains("left-thumbs"), "{message}");
@@ -906,17 +850,12 @@ fn a_draft_that_does_not_validate_as_a_mirrored_record_is_refused_whole() {
         &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
     );
     // A legacy exception naming a mirror item that is not on the mirror board.
-    next.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .push(
-            serde_json::from_value(
-                json!({"kind": "part", "mirrorId": "right/ghost", "state": "local"}),
-            )
-            .unwrap(),
-        );
+    next.first_halves_mut().exceptions.push(
+        serde_json::from_value(
+            json!({"kind": "part", "mirrorId": "right/ghost", "state": "local"}),
+        )
+        .unwrap(),
+    );
     let message = refusal(&next, &addition);
     assert!(message.contains("right/ghost"), "{message}");
 }

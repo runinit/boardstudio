@@ -2,9 +2,12 @@
 // submodules under `mirrored_prepare/` so no file exceeds ~1,600 LOC.
 // Shared fixtures/helpers live in `support/`; each submodule inherits this
 // crate's imports via `use super::*`.
+#[path = "mirrored_reconcile_a/fixture_rows.rs"]
+pub mod fixture_rows;
 #[path = "support/matrix.rs"]
 pub mod matrix_fixtures;
 pub mod support;
+use fixture_rows::{FixturePair, FixtureRows};
 
 use crate::matrix_fixtures::pair_document;
 use crate::support::{
@@ -126,10 +129,7 @@ fn sparse_axis_edits_preserve_survivors_local_overrides_and_history() {
                 "literal-mirror",
                 None,
             );
-            let halves = paired.hardware.as_mut().unwrap().pairs[0]
-                .halves
-                .as_mut()
-                .unwrap();
+            let halves = paired.first_halves_mut();
             halves
                 .correspondences
                 .sort_by(|a, b| b.source_id.cmp(&a.source_id));
@@ -203,17 +203,8 @@ fn sparse_axis_edits_preserve_survivors_local_overrides_and_history() {
                     }
                 }
             }
-            let halves = after.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap();
-            for id in &after
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "left-keys")
-                .unwrap()
-                .part_ids
-            {
+            let halves = after.first_halves();
+            for id in &after.matrices.by_id("left-keys").part_ids {
                 let target = id.replace("matrix/left-keys/", "matrix/right-keys/");
                 assert_eq!(
                     halves
@@ -231,12 +222,7 @@ fn sparse_axis_edits_preserve_survivors_local_overrides_and_history() {
             assert_eq!(opened, saved);
             assert!(findings.is_empty());
             assert_eq!(part(&after, "right/U1"), part(&before, "right/U1"));
-            let mut expected_overlays = before.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .exceptions
-                .clone();
+            let mut expected_overlays = before.first_halves().exceptions.clone();
             let after_id = if removed_axis == 0 {
                 "matrix/right-keys/r0c0/diode"
             } else {

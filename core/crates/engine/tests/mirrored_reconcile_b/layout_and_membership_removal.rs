@@ -5,41 +5,24 @@ fn local_mirror_layout_edit_survives_source_reconciliation() {
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
     let source_part_id = "local-layout-source-part";
     let mirror_part_id = "local-layout-mirror-part";
-    let mut source_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut source_part = document.parts.by_id("matrix/source-matrix/r0c0").clone();
     source_part.id = source_part_id.into();
     source_part.reference = "LOCAL-SOURCE".into();
-    let mut mirror_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/mirror-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut mirror_part = document.parts.by_id("matrix/mirror-matrix/r0c0").clone();
     mirror_part.id = mirror_part_id.into();
     mirror_part.reference = "LOCAL-MIRROR".into();
     document.parts.extend([source_part, mirror_part]);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push(source_part_id.into());
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .part_ids
         .push(mirror_part_id.into());
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.extend([
         MirroredCorrespondence {
             companion_mode: None,
@@ -108,26 +91,16 @@ fn local_mirror_layout_edit_survives_source_reconciliation() {
 #[test]
 fn omitted_mirror_layout_stays_absent_after_source_edit_and_reconciliation() {
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
-    let mut source_part = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut source_part = document.parts.by_id("matrix/source-matrix/r0c0").clone();
     source_part.id = "omitted-layout-source-part".into();
     source_part.reference = "OMITTED-SOURCE".into();
     document.parts.push(source_part);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap()
+        .by_id_mut("source-board")
         .part_ids
         .push("omitted-layout-source-part".into());
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.push(MirroredCorrespondence {
         companion_mode: None,
         companion_tweak: None,
@@ -189,12 +162,7 @@ fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
         )
         .unwrap();
     }
-    let mut source = document
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/source-matrix/r0c0")
-        .unwrap()
-        .clone();
+    let mut source = document.parts.by_id("matrix/source-matrix/r0c0").clone();
     source.id = "legacy-source-part".into();
     source.reference = "J3".into();
     source.pose = Pose2 {
@@ -209,11 +177,7 @@ fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
         rotation: 72.0,
     };
     document.parts.extend([source.clone(), unrelated.clone()]);
-    let source_board = document
-        .boards
-        .iter_mut()
-        .find(|board| board.id == "source-board")
-        .unwrap();
+    let source_board = document.boards.by_id_mut("source-board");
     source_board
         .part_ids
         .extend([source.id.clone(), unrelated.id.clone()]);
@@ -290,11 +254,7 @@ fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
     assert_eq!(document.layouts[1].part_ids, vec![target_id.to_owned()]);
     assert_eq!(document.layouts[2], unrelated_layout_before);
     assert_eq!(
-        document
-            .parts
-            .iter()
-            .find(|part| part.id == "legacy-unrelated-part")
-            .unwrap(),
+        document.parts.by_id("legacy-unrelated-part"),
         &unrelated_part_before
     );
     let unrelated_owner_ids_after: Vec<_> = document
@@ -491,9 +451,7 @@ fn membership_transition_accepts_a_valid_identity_operation_as_a_no_op() {
     }
     let mirror_identity_map: BTreeMap<_, _> = document
         .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id("mirror-matrix")
         .part_ids
         .iter()
         .map(|id| (id.clone(), Some(id.clone())))
@@ -545,12 +503,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         &fixture_matrix("unrelated-matrix", "mirror-board"),
     )
     .expect("the unrelated matrix is materialized through Core");
-    let unrelated_matrix = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "unrelated-matrix")
-        .unwrap()
-        .clone();
+    let unrelated_matrix = before.matrices.by_id("unrelated-matrix").clone();
     let unrelated_member = unrelated_matrix.part_ids[0].clone();
     for id in &unrelated_matrix.part_ids {
         context
@@ -623,9 +576,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
     before.outline.push(unrelated_envelope.clone());
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == context.mirror_board_id)
-        .unwrap()
+        .by_id_mut(&context.mirror_board_id)
         .outline_ids
         .push("unrelated-layout-envelope".into());
     let source_net_id = format!(
@@ -642,9 +593,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
     ] {
         before
             .boards
-            .iter_mut()
-            .find(|board| board.id == board_id)
-            .unwrap()
+            .by_id_mut(board_id)
             .net_ids
             .push(net_id.into());
         before.nets.push(Net {
@@ -973,9 +922,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
     });
     before
         .boards
-        .iter_mut()
-        .find(|board| board.id == context.mirror_board_id)
-        .unwrap()
+        .by_id_mut(&context.mirror_board_id)
         .net_ids
         .push("retained-local-net".into());
     before.constraints.push(Constraint::Offset {
@@ -1094,9 +1041,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
         output
             .draft
             .boards
-            .iter()
-            .find(|board| board.id == context.mirror_board_id)
-            .unwrap()
+            .by_id(&context.mirror_board_id)
             .part_ids
             .contains(&local_mirror_id)
     );
@@ -1104,9 +1049,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
         output
             .draft
             .boards
-            .iter()
-            .find(|board| board.id == context.mirror_board_id)
-            .unwrap()
+            .by_id(&context.mirror_board_id)
             .part_ids
             .contains(&local_child_mirror_id)
     );

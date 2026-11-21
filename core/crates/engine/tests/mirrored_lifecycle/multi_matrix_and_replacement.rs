@@ -11,9 +11,7 @@ fn saved_copper_that_collides_with_live_copper_refuses_the_rejoin_atomically() {
     let mut occupied = omitted.draft.clone();
     occupied
         .boards
-        .iter_mut()
-        .find(|b| b.id == "mirror-board")
-        .unwrap()
+        .by_id_mut("mirror-board")
         .traces
         .push(CopperTrace {
             id: "t-sda".into(),
@@ -192,11 +190,7 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
         }));
 
         let mut edited_source = local.draft.clone();
-        let source = edited_source
-            .parts
-            .iter_mut()
-            .find(|part| part.id == "source-encoder")
-            .unwrap();
+        let source = edited_source.parts.by_id_mut("source-encoder");
         source.pose.at.x += 23.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
         let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
@@ -206,17 +200,8 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             crate::support::test_dispatch(),
         )
         .expect("unrelated linked Part follows its current source");
-        let source = edited_source
-            .parts
-            .iter()
-            .find(|part| part.id == "source-encoder")
-            .unwrap();
-        let mirror = edited
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "mirror-encoder")
-            .unwrap();
+        let source = edited_source.parts.by_id("source-encoder");
+        let mirror = edited.draft.parts.by_id("mirror-encoder");
         assert_eq!(
             mirror,
             &boardstudio_core_mirrored_half::mirrored_half::derive::part(
@@ -265,18 +250,8 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
         .unwrap_or_else(|error| panic!("{matrix_count} Matrix pairs: {error}"))
         .pop()
         .unwrap();
-        let source = rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "source-screen")
-            .unwrap();
-        let mirror = rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "mirror-screen")
-            .unwrap();
+        let source = rejoined.draft.parts.by_id("source-screen");
+        let mirror = rejoined.draft.parts.by_id("mirror-screen");
         assert_eq!(
             mirror,
             &boardstudio_core_mirrored_half::mirrored_half::derive::part(
@@ -453,20 +428,8 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         crate::support::test_dispatch(),
     )
     .expect("first Matrix child can be independently made Local");
-    let retained_first_child = first_local
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == first_mirror)
-        .unwrap()
-        .clone();
-    let retained_first_matrix = first_local
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
-        .clone();
+    let retained_first_child = first_local.draft.parts.by_id(first_mirror).clone();
+    let retained_first_matrix = first_local.draft.matrices.by_id("mirror-matrix").clone();
     let second_source = "matrix/source-matrix-2/r0c0";
     let second_mirror = "matrix/mirror-matrix-2/r0c0";
     let second_context =
@@ -621,9 +584,7 @@ fn matrix_pair_resolution_refuses_duplicate_exact_durable_owner_atomically() {
         .as_mut()
         .unwrap()
         .pairs
-        .iter_mut()
-        .find(|pair| pair.id == pair_id)
-        .unwrap()
+        .by_id_mut(&pair_id)
         .halves
         .as_mut()
         .unwrap();
@@ -644,9 +605,7 @@ fn matrix_pair_resolution_refuses_duplicate_exact_durable_owner_atomically() {
         .as_ref()
         .unwrap()
         .pairs
-        .iter()
-        .find(|pair| pair.id == pair_id)
-        .unwrap()
+        .by_id(&pair_id)
         .halves
         .as_ref()
         .unwrap();
@@ -682,9 +641,7 @@ fn lifecycle_context_refuses_missing_companion_membership_without_pending_select
     let mut wrong_membership = document.clone();
     wrong_membership
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap()
+        .by_id_mut("mirror-matrix")
         .part_ids
         .retain(|id| id != "matrix/mirror-matrix/r0c0/diode");
     let frozen_document = wrong_membership.clone();
@@ -751,9 +708,7 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
     let mut wrong_membership = before.clone();
     wrong_membership
         .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == "mirror-matrix-2")
-        .unwrap()
+        .by_id_mut("mirror-matrix-2")
         .part_ids
         .retain(|id| id != second_mirror);
     let exact_second =
@@ -845,10 +800,7 @@ pub(crate) fn replacement_retirement_fixture() -> ProjectDoc {
     use boardstudio_model::model::MirroredItemKind as Kind;
 
     let mut document = valid_omitted_document();
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     let mut rows = vec![(Kind::Part, "source-part", "mirror-part")];
     for (kind, source_id, mirror_id) in [
         (Kind::Matrix, "source-matrix", "mirror-matrix"),
@@ -939,10 +891,7 @@ fn replacement_batch_retires_typed_part_matrix_layout_net_and_circuit_rows() {
 
     retire_replacement_records(&accepted, &mut replacement).unwrap();
 
-    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = replacement.first_halves();
     assert!(halves.correspondences.is_empty());
     assert!(halves.exceptions.is_empty());
     assert!(
@@ -956,10 +905,7 @@ fn replacement_batch_keeps_local_target_geometry_byte_for_byte() {
     let mirror = part("mirror-part");
     accepted.parts.push(mirror.clone());
     accepted.boards[1].part_ids.push("mirror-part".into());
-    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = accepted.first_halves_mut();
     halves.exceptions[0].state = MirroredExceptionState::Local;
     assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&accepted).is_ok());
     let mut replacement = accepted.clone();
@@ -983,10 +929,7 @@ fn replacement_batch_keeps_local_target_geometry_byte_for_byte() {
             .iter()
             .any(|id| id == "mirror-part")
     );
-    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = replacement.first_halves();
     assert!(halves.correspondences.is_empty());
     assert!(halves.exceptions.is_empty());
 }
@@ -999,18 +942,12 @@ fn replacement_batch_retires_exact_record_with_unrelated_halves_metadata_change(
     replacement.boards[0]
         .part_ids
         .retain(|part_id| part_id != "source-part");
-    let halves = replacement.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = replacement.first_halves_mut();
     halves.companion_mode = MirroredCompanionMode::DuplicatePosition;
 
     retire_replacement_records(&accepted, &mut replacement).unwrap();
 
-    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
+    let halves = replacement.first_halves();
     assert!(halves.correspondences.is_empty());
     assert!(halves.exceptions.is_empty());
     assert_eq!(
@@ -1035,11 +972,7 @@ fn replacement_batch_refuses_incomplete_matrix_owned_part_closure_atomically() {
     replacement.boards[0]
         .part_ids
         .retain(|part_id| part_id != "source-part");
-    let halves_before = replacement.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
-        .clone();
+    let halves_before = replacement.first_halves().clone();
 
     let refusal = retire_replacement_records(&accepted, &mut replacement).unwrap_err();
 
@@ -1048,10 +981,7 @@ fn replacement_batch_refuses_incomplete_matrix_owned_part_closure_atomically() {
         "{refusal}"
     );
     assert_eq!(
-        replacement.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap(),
+        replacement.first_halves(),
         &halves_before,
         "a refused batch does not partially retire any metadata"
     );
@@ -1062,10 +992,7 @@ fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
     use boardstudio_model::model::MirroredItemKind;
 
     let mut accepted = valid_omitted_document();
-    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = accepted.first_halves_mut();
     halves.correspondences[0].kind = MirroredItemKind::Outline;
     halves.correspondences[0].source_id = "source-outline".into();
     halves.correspondences[0].mirror_id = "mirror-outline".into();
@@ -1087,11 +1014,7 @@ fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
     replacement.boards[0]
         .outline_ids
         .retain(|outline_id| outline_id != "source-outline");
-    let halves_before = replacement.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
-        .clone();
+    let halves_before = replacement.first_halves().clone();
 
     let refusal = retire_replacement_records(&accepted, &mut replacement).unwrap_err();
 
@@ -1099,13 +1022,7 @@ fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
         refusal.contains("names outline"),
         "existing halves validation owns unsupported-kind refusal: {refusal}"
     );
-    assert_eq!(
-        replacement.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap(),
-        &halves_before
-    );
+    assert_eq!(replacement.first_halves(), &halves_before);
 }
 
 pub(crate) fn prepare_exception_intent(

@@ -48,10 +48,7 @@ pub(crate) fn associated_local_circuit_document() -> ProjectDoc {
          "partIds":[],"netIds":[],"ports":{}}
     ]))
     .unwrap();
-    let halves = document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
+    let halves = document.first_halves_mut();
     halves.correspondences.push(
         serde_json::from_value(json!({
             "kind":"embedded-circuit","sourceId":"source-circuit","mirrorId":"mirror-circuit"
@@ -130,16 +127,8 @@ fn prepared_open_preserves_an_associated_local_circuit_and_validates_its_definit
         .expect("a valid associated Local circuit remains openable");
     assert_eq!(opened.embedded_circuits, accepted.embedded_circuits);
     assert_eq!(
-        opened.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
-            .exceptions,
-        accepted.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
-            .exceptions
+        opened.first_halves().exceptions,
+        accepted.first_halves().exceptions
     );
     let (reopened, _) = crate::support::prepare_open(&opened, &[])
         .expect("the preserved Local circuit is stable on repeat Open");
@@ -161,12 +150,7 @@ fn replace_document_validates_local_owner_when_every_matrix_membership_changed()
         ("left-keys", "matrix/left-keys/r0c0"),
         ("right-keys", "matrix/right-keys/r0c0"),
     ] {
-        let mut matrix = replacement
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap()
-            .clone();
+        let mut matrix = replacement.matrices.by_id(matrix_id).clone();
         let cell = matrix
             .cells
             .iter_mut()
@@ -175,10 +159,8 @@ fn replace_document_validates_local_owner_when_every_matrix_membership_changed()
         cell.deleted = true;
         boardstudio_core_kernel::matrix::set_matrix(&mut replacement, &matrix)
             .expect("the replacement removes a valid matrix member");
-        replacement.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap()
+        replacement
+            .first_halves_mut()
             .correspondences
             .retain(|association| {
                 let member_prefix = format!("{part_id}/");
@@ -245,9 +227,7 @@ fn matrix_membership_change_table() {
                 let mut after = before.clone();
                 after
                     .matrices
-                    .iter_mut()
-                    .find(|matrix| matrix.id == "left-keys")
-                    .unwrap()
+                    .by_id_mut("left-keys")
                     .part_ids
                     .push("left/new-member".into());
                 (before, after)
@@ -255,35 +235,19 @@ fn matrix_membership_change_table() {
             "removing a member" => {
                 let before = pair_document();
                 let mut after = before.clone();
-                after
-                    .matrices
-                    .iter_mut()
-                    .find(|matrix| matrix.id == "left-keys")
-                    .unwrap()
-                    .part_ids
-                    .pop();
+                after.matrices.by_id_mut("left-keys").part_ids.pop();
                 (before, after)
             }
             "duplicating a member" => {
                 let before = pair_document();
                 let mut after = before.clone();
-                let matrix = after
-                    .matrices
-                    .iter_mut()
-                    .find(|matrix| matrix.id == "left-keys")
-                    .unwrap();
+                let matrix = after.matrices.by_id_mut("left-keys");
                 matrix.part_ids.push(matrix.part_ids[0].clone());
                 (before, after)
             }
             "missing matrix versus present-but-empty matrix" => {
                 let mut empty = pair_document();
-                empty
-                    .matrices
-                    .iter_mut()
-                    .find(|matrix| matrix.id == "left-keys")
-                    .unwrap()
-                    .part_ids
-                    .clear();
+                empty.matrices.by_id_mut("left-keys").part_ids.clear();
                 let mut missing = empty.clone();
                 missing.matrices.retain(|matrix| matrix.id != "left-keys");
                 (missing, empty)
@@ -318,24 +282,19 @@ pub(crate) fn add_linked_independent_part(document: &mut ProjectDoc) {
     for (board_id, part_id) in [("left", "left/RST"), ("right", "right/RST")] {
         document
             .boards
-            .iter_mut()
-            .find(|board| board.id == board_id)
-            .unwrap()
+            .by_id_mut(board_id)
             .part_ids
             .push(part_id.into());
     }
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .push(boardstudio_model::model::MirroredCorrespondence {
+    document.first_halves_mut().correspondences.push(
+        boardstudio_model::model::MirroredCorrespondence {
             companion_mode: None,
             companion_tweak: None,
             kind: boardstudio_model::model::MirroredItemKind::Part,
             source_id: "left/RST".into(),
             mirror_id: "right/RST".into(),
-        });
+        },
+    );
 }
 
 pub(crate) fn add_unpaired_mirror_board_part(document: &mut ProjectDoc) {
@@ -349,9 +308,7 @@ pub(crate) fn add_unpaired_mirror_board_part(document: &mut ProjectDoc) {
     document.parts.push(free);
     document
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .push("right/FREE".into());
 }
@@ -447,22 +404,13 @@ fn prepared_matrix_pose_edits_preserve_authored_companions_from_both_sides() {
         ] {
             let accepted = pair_document_with_unrelated_matrix();
             let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
-            let matrix_before = accepted
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == matrix_id)
-                .unwrap();
+            let matrix_before = accepted.matrices.by_id(matrix_id);
             let member_ids = matrix_before.part_ids.clone();
             let companion_fields: Vec<_> = member_ids
                 .iter()
                 .map(|id| (id.clone(), part(&accepted, id).clone()))
                 .collect();
-            let unrelated_matrix = accepted
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "right-unrelated")
-                .unwrap()
-                .clone();
+            let unrelated_matrix = accepted.matrices.by_id("right-unrelated").clone();
             let unrelated_member_ids = unrelated_matrix.part_ids.clone();
             let key_id = format!("matrix/{matrix_id}/r0c1");
             let companion_id = format!("{key_id}/diode");
@@ -472,11 +420,7 @@ fn prepared_matrix_pose_edits_preserve_authored_companions_from_both_sides() {
                 .expect("a linked source or mirror matrix pose edit prepares");
 
             assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
-            let matrix_after = prepared
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == matrix_id)
-                .unwrap();
+            let matrix_after = prepared.matrices.by_id(matrix_id);
             assert_eq!(matrix_after.part_ids.len(), member_ids.len());
             assert!(
                 !boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_membership_changed(&accepted, &prepared, matrix_id),
@@ -504,11 +448,7 @@ fn prepared_matrix_pose_edits_preserve_authored_companions_from_both_sides() {
                     "authored member fields remain intact for {id}"
                 );
             }
-            let unrelated_after = prepared
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "right-unrelated")
-                .unwrap();
+            let unrelated_after = prepared.matrices.by_id("right-unrelated");
             assert_eq!(unrelated_after, &unrelated_matrix);
             for id in &unrelated_member_ids {
                 assert_eq!(part(&prepared, id), part(&accepted, id));
@@ -814,10 +754,8 @@ fn mirror_side_prepared_preview_uses_a_draft_without_publishing() {
 fn mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent() {
     let mut accepted = pair_document();
     add_linked_independent_part(&mut accepted);
-    accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    accepted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Part,
@@ -909,15 +847,11 @@ fn omitted_mirror_preview_refusal_preserves_document_and_history() {
     accepted.parts.retain(|part| part.id != "right/U1");
     accepted
         .boards
-        .iter_mut()
-        .find(|board| board.id == "right")
-        .unwrap()
+        .by_id_mut("right")
         .part_ids
         .retain(|id| id != "right/U1");
-    accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    accepted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Part,
@@ -983,10 +917,8 @@ fn prepared_publication_and_history_restore_both_halves_and_local_exception_once
     let mut accepted = pair_document();
     add_linked_independent_part(&mut accepted);
     part_mut(&mut accepted, "right/RST").pose.at = Vec2 { x: 260.0, y: 25.0 };
-    accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
+    accepted
+        .first_halves_mut()
         .exceptions
         .push(boardstudio_model::model::MirroredException {
             kind: boardstudio_model::model::MirroredItemKind::Part,
@@ -1161,12 +1093,7 @@ fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
 #[test]
 fn open_and_prepared_matrix_edits_preserve_explicit_cell_data() {
     let mut accepted = pair_document();
-    let mut source_matrix = accepted
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
-        .clone();
+    let mut source_matrix = accepted.matrices.by_id("left-keys").clone();
     source_matrix.cells[0].definition_id = Some(source_matrix.definition_id.clone());
     source_matrix.cells[0].variant = Some("open-authored-variant".into());
     source_matrix.cells[0].assemblies_local = Some(false);
@@ -1178,19 +1105,11 @@ fn open_and_prepared_matrix_edits_preserve_explicit_cell_data() {
     assert_eq!(findings.len(), 1);
     assert!(findings[0].target_ids.contains(&"right-keys".to_owned()));
     assert_eq!(
-        opened
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "left-keys")
-            .unwrap(),
+        opened.matrices.by_id("left-keys"),
         &source_matrix,
         "a complete authored source matrix remains unchanged during Open"
     );
-    let open_mirror = opened
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "right-keys")
-        .unwrap();
+    let open_mirror = opened.matrices.by_id("right-keys");
     assert_eq!(
         open_mirror.cells[0].definition_id,
         source_matrix.cells[0].definition_id
@@ -1218,11 +1137,7 @@ fn open_and_prepared_matrix_edits_preserve_explicit_cell_data() {
         },
     )
     .expect("prepared SetMatrix keeps the explicit per-cell override");
-    let edit_mirror = edited
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "right-keys")
-        .unwrap();
+    let edit_mirror = edited.matrices.by_id("right-keys");
     assert_eq!(
         edit_mirror.cells[0].definition_id,
         source_matrix.cells[0].definition_id
@@ -1255,13 +1170,7 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
     .unwrap();
     crate::support::apply_for_test(&mut accepted, &[], &create)
         .expect("the unchanged modern fixture pairs");
-    let original_source_cells = accepted
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-synthetic-keys")
-        .unwrap()
-        .cells
-        .clone();
+    let original_source_cells = accepted.matrices.by_id("left-synthetic-keys").cells.clone();
     assert_eq!(
         original_source_cells, original_cells,
         "the shared fixture's authored cell fields are used as-is"
@@ -1271,32 +1180,15 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
         .expect("private Open preparation accepts modern local cell records");
     let matrix_cells_before: Vec<_> = ["left-synthetic-keys", "right-synthetic-keys"]
         .into_iter()
-        .map(|matrix_id| {
-            opened
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == matrix_id)
-                .unwrap()
-                .cells
-                .clone()
-        })
+        .map(|matrix_id| opened.matrices.by_id(matrix_id).cells.clone())
         .collect();
     assert_eq!(
-        opened
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "left-synthetic-keys")
-            .unwrap()
-            .cells,
+        opened.matrices.by_id("left-synthetic-keys").cells,
         original_source_cells,
         "private Open leaves complete source cells unchanged"
     );
     for matrix_id in ["left-synthetic-keys", "right-synthetic-keys"] {
-        let matrix = opened
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_id)
-            .unwrap();
+        let matrix = opened.matrices.by_id(matrix_id);
         for cell in &matrix.cells {
             assert_eq!(
                 cell.definition_id.as_deref(),
@@ -1323,22 +1215,12 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
         "preview is isolated"
     );
     assert_eq!(
-        preview
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "left-synthetic-keys")
-            .unwrap()
-            .cells,
+        preview.matrices.by_id("left-synthetic-keys").cells,
         matrix_cells_before[0],
         "prepared preview preserves the source's modern cell records"
     );
     assert_eq!(
-        preview
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "right-synthetic-keys")
-            .unwrap()
-            .cells,
+        preview.matrices.by_id("right-synthetic-keys").cells,
         matrix_cells_before[1],
         "prepared preview preserves the target's local cell records"
     );
@@ -1347,10 +1229,8 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
 #[test]
 fn open_preparation_reports_linked_drift_normalized_before_reconciliation() {
     let mut accepted = pair_document();
-    let target_id = accepted.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
+    let target_id = accepted
+        .first_halves()
         .correspondences
         .iter()
         .find(|association| {
