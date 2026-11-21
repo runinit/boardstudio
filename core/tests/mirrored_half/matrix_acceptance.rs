@@ -573,6 +573,94 @@ fn parent19_matrix_keycap_settings_and_key_legend_project_from_either_half() {
     }
 }
 
+#[test]
+fn keycap_edits_follow_current_exception_state_through_history_and_open() {
+    let pair_id = "keycap-settings-history";
+    let (mut engine, before) = accepted_matrix_pair(pair_id);
+    let board_color = |board_id| {
+        json!({"kind":"set-keycap-board","boardId":board_id,
+            "change":{"kind":"color","value":"#123456"}})
+    };
+    preview_without_publishing(
+        &mut engine,
+        &before,
+        "preview-board-color",
+        board_color("right"),
+        &["right"],
+    );
+    let colored = matrix_commit(
+        &mut engine,
+        &before,
+        "board-color",
+        board_color("right"),
+        &["right"],
+    )["document"]
+        .clone();
+    for board in ["left", "right"] {
+        assert_eq!(colored["keycaps"]["boards"][board]["color"], "#123456");
+    }
+    let repeated = matrix_commit(
+        &mut engine,
+        &colored,
+        "repeat-color",
+        board_color("left"),
+        &["left"],
+    );
+    assert_eq!(repeated["document"], colored);
+    assert_document_history(&mut engine, &before, &colored, "board-color");
+
+    let legend = |part_id, value| json!({"kind":"set-keycap-key","keyId":part_id,"change":{"kind":"legend","value":value}});
+    for (state, mirror_legend) in [
+        ("local", json!("OWN")),
+        ("omitted", Value::Null),
+        ("linked", json!("linked")),
+    ] {
+        let before = snapshot(&mut engine);
+        let exception = matrix_commit(
+            &mut engine,
+            &before,
+            state,
+            json!({"kind":"set-half-exception","pairId":pair_id,
+                "itemKind":"part","mirrorId":"right/RST","state":state}),
+            &["right/RST"],
+        )["document"]
+            .clone();
+        let before_source_edit = if state == "local" {
+            matrix_commit(
+                &mut engine,
+                &exception,
+                "mirror-legend",
+                legend("right/RST", "OWN"),
+                &["right/RST"],
+            )["document"]
+                .clone()
+        } else {
+            exception
+        };
+        let after = matrix_commit(
+            &mut engine,
+            &before_source_edit,
+            "source-legend",
+            legend("left/RST", state),
+            &["left/RST"],
+        )["document"]
+            .clone();
+        assert_eq!(after["keycaps"]["keys"]["left/RST"]["legend"], state);
+        assert_eq!(
+            after["keycaps"]["keys"]["right/RST"]["legend"],
+            mirror_legend
+        );
+        assert_eq!(after["hardware"], before_source_edit["hardware"]);
+        assert_eq!(after["parts"], before_source_edit["parts"]);
+        if state == "omitted" {
+            assert!(after["keycaps"]["keys"].get("right/RST").is_none());
+        }
+        assert_document_history(&mut engine, &before_source_edit, &after, state);
+        let (_, reopened) = open(&after);
+        assert_eq!(reopened["keycaps"], after["keycaps"]);
+    }
+}
+
 fn expanded_matrix(document: &Value, matrix_id: &str) -> Value {
     let mut expanded = matrix(document, matrix_id).clone();
     expanded["columns"] = json!(3);

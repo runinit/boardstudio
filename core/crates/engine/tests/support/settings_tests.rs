@@ -88,6 +88,23 @@ fn paired() -> ProjectDoc {
     document
 }
 
+fn keycap_pair() -> ProjectDoc {
+    let mut document = paired();
+    // The plain-net kernel fixture uses symbolic pad IDs. Prepared edits also run
+    // layout validation, so these settings tests use the same pair without that copper.
+    document.nets.clear();
+    for board in &mut document.boards {
+        board.net_ids.clear();
+    }
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .retain(|link| link.kind != MirroredItemKind::Net);
+    crate::support::prepare_open(&document, &[]).unwrap().0
+}
+
 fn reconciled(document: &ProjectDoc) -> ProjectDoc {
     let mut document = document.clone();
     let pair = document.hardware.as_ref().unwrap().pairs[0].clone();
@@ -332,6 +349,118 @@ fn a_mirror_side_keycap_board_edit_reaches_the_source_then_the_mirror_exactly_on
         1.5
     );
     assert_eq!(reconciled(&once), once);
+}
+
+#[test]
+fn prepared_keycap_sequences_match_full_reconciliation() {
+    use MirroredExceptionState::{Local, Omitted};
+
+    for state in [None, Some(Local), Some(Omitted)] {
+        let mut document = keycap_pair();
+        match state {
+            Some(Local) => exception(&mut document, "right/J1", Local),
+            Some(Omitted) => omit_j1(&mut document),
+            None => {}
+        }
+        // Start at a full reconciliation boundary, as a loaded document does.
+        document = reconciled(&document);
+        for side in ["left", "right", "left", "right"] {
+            let operations = [
+                EditOperation::SetKeycapBoard {
+                    board_id: side.into(),
+                    change: KeycapBoardChange::Clearance { value: 1.5 },
+                },
+                EditOperation::SetMatrixKeycaps {
+                    matrix_id: format!("{side}-keys"),
+                    change: KeycapMatrixChange::Profile {
+                        value: (side == "left").then_some(KeycapProfile::Choc),
+                    },
+                },
+                set_legend(&format!("matrix/{side}-keys/r0c0"), "Å"),
+                EditOperation::SetKeycapKey {
+                    key_id: format!("matrix/{side}-keys/r0c0"),
+                    change: KeycapKeyChange::Legend { value: None },
+                },
+                set_legend("left/J1", "SRC"),
+                set_legend("right/J1", "DST"),
+            ];
+            for operation in operations {
+                let result = crate::support::prepare_transaction(&document, &[], &operation);
+                if state == Some(Omitted) && operation == set_legend("right/J1", "DST") {
+                    assert!(result.unwrap_err().contains("omitted"), "{operation:?}");
+                    continue;
+                }
+                let expected = reconciled(&applied_canonical(&document, &operation));
+                let (next, changed) =
+                    result.unwrap_or_else(|error| panic!("{operation:?}: {error}"));
+                assert_eq!(next, expected, "{state:?}, {operation:?}");
+                assert!(changed.is_empty(), "{state:?}, {operation:?}: {changed:?}");
+                let repeated = crate::support::prepare_transaction(&next, &[], &operation).unwrap();
+                assert_eq!(
+                    repeated,
+                    (next.clone(), Vec::new()),
+                    "{state:?}, {operation:?}"
+                );
+                document = next;
+            }
+            if state == Some(Local) {
+                assert_eq!(legend(&document, "right/J1").as_deref(), Some("DST"));
+                assert_eq!(legend(&document, "left/J1").as_deref(), Some("SRC"));
+            } else if state == Some(Omitted) {
+                assert!(key(&document, "right/J1").is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn keycap_edit_keeps_full_reconciliation_when_layout_refreshes_geometry() {
+    let settled = keycap_pair();
+    let mut drifted = settled.clone();
+    for id in ["matrix/right-keys/r0c0", "right/J1"] {
+        drifted
+            .parts
+            .iter_mut()
+            .find(|part| part.id == id)
+            .unwrap()
+            .pose
+            .at
+            .x += 100.0;
+    }
+    drifted
+        .keycaps
+        .as_mut()
+        .unwrap()
+        .keys
+        .get_mut("right/J1")
+        .unwrap()
+        .legend = Some("stale".into());
+    let operation = set_legend("matrix/right-keys/r0c0", "A");
+    let expected = reconciled(&applied_canonical(&settled, &operation));
+    let (next, changed) = crate::support::prepare_transaction(&drifted, &[], &operation).unwrap();
+    assert_eq!(next, expected);
+    assert!(changed.iter().any(|id| id == "right/J1"));
+}
+
+#[test]
+fn matrixless_native_pair_projects_a_keycap_edit() {
+    let mut document = keycap_pair();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .retain(|link| link.kind != MirroredItemKind::Matrix);
+    let operation = set_legend("right/J1", "NEW");
+    let (edited, changed) =
+        crate::support::prepare_transaction(&document, &[], &operation).unwrap();
+    assert!(changed.is_empty());
+    assert_eq!(legend(&edited, "left/J1").as_deref(), Some("NEW"));
+    assert_eq!(legend(&edited, "right/J1").as_deref(), Some("NEW"));
+
+    let (opened, findings) = crate::support::prepare_open(&edited, &[]).unwrap();
+    assert_eq!(opened.keycaps, edited.keycaps);
+    assert!(findings.is_empty(), "{findings:?}");
 }
 
 #[test]
