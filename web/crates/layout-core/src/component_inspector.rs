@@ -1,6 +1,14 @@
-use super::*;
+use super::companion_placement::{layout_relationship_summary, part_anchor_summary};
+use super::inspector_types as inspector;
+use boardstudio_application::{AcceptedSnapshot, EditResolver, ReadModel, Resolution};
+use boardstudio_core::model::{
+    EditOperation, HalfExceptionState, MirroredExceptionState, MirroredItemKind, PartKind,
+    PartOutline,
+};
+use boardstudio_web_ui_model::tree as objects;
+use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) fn layout_component_inspector_projection(
+pub fn layout_component_inspector_projection(
     model: &ReadModel,
     selected: Option<&objects::ScopedTreeContext>,
     context_generation: u64,
@@ -18,7 +26,7 @@ pub(crate) fn layout_component_inspector_projection(
     };
     if model.selected_part_ids.is_empty()
         || model.selected_part_ids.first() != Some(part_id)
-        || !selection::context_is_current(model, &selected.scope, &selected.context)
+        || !objects::selection_context_is_current(model, &selected.scope, &selected.context)
     {
         return None;
     }
@@ -185,7 +193,7 @@ pub(crate) fn layout_component_inspector_projection(
 /// anchor key and Follow subset, the carried Spread/Stagger/Splay and the
 /// local Offset/Rotation. `None` is a detached part; parts homed on a
 /// layout without an anchor stay detached.
-pub(crate) fn part_anchor_projection(
+pub fn part_anchor_projection(
     document: &boardstudio_core::model::ProjectDoc,
     part: &boardstudio_core::model::Part,
 ) -> Option<inspector::PartAnchorProjection> {
@@ -210,7 +218,7 @@ pub(crate) fn part_anchor_projection(
 
 /// Ticket 13: the anchor-key choices for Pick: every matrix on the part's
 /// layout with its live dimensions.
-pub(crate) fn part_anchor_choices(
+pub fn part_anchor_choices(
     document: &boardstudio_core::model::ProjectDoc,
     active_layout: Option<&boardstudio_core::model::Layout>,
 ) -> Vec<inspector::AnchorKeyChoice> {
@@ -238,7 +246,7 @@ pub(crate) fn part_anchor_choices(
 /// Ticket 12: the "Mirror on both halves" toggle for an independent part on a
 /// stored-gap half. `Some(true)` while a live Part correspondence mirrors it;
 /// `Some(false)` while it stays local. Members keep the exception buttons.
-pub(crate) fn part_mirror_projection(
+pub fn part_mirror_projection(
     document: &boardstudio_core::model::ProjectDoc,
     part_id: &str,
     active_layout: Option<&boardstudio_core::model::Layout>,
@@ -266,7 +274,7 @@ pub(crate) fn part_mirror_projection(
     Some(mirrored)
 }
 
-pub(crate) fn mirrored_half_projection(
+pub fn mirrored_half_projection(
     document: &boardstudio_core::model::ProjectDoc,
     part_id: &str,
 ) -> Option<inspector::MirroredHalfProjection> {
@@ -299,4 +307,62 @@ pub(crate) fn mirrored_half_projection(
         });
     }
     None
+}
+
+/// Resolve a linked part's exception against the accepted mirrored-half record.
+pub fn mirrored_half_state_resolver(
+    pair_id: String,
+    mirror_id: String,
+    state: HalfExceptionState,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-mirrored-half-state",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(pair) = accepted
+                .document
+                .hardware
+                .as_ref()
+                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
+            else {
+                return Resolution::Retire("The mirrored pair no longer exists.".into());
+            };
+            let Some(halves) = pair.halves.as_ref() else {
+                return Resolution::Retire("The mirrored pair no longer links items.".into());
+            };
+            if !halves
+                .correspondences
+                .iter()
+                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
+            {
+                return Resolution::Retire("The linked part no longer exists.".into());
+            }
+            let current = halves
+                .exceptions
+                .iter()
+                .find(|exception| {
+                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
+                })
+                .map(|exception| match exception.state {
+                    boardstudio_core::model::MirroredExceptionState::Local => {
+                        HalfExceptionState::Local
+                    }
+                    boardstudio_core::model::MirroredExceptionState::Omitted => {
+                        HalfExceptionState::Omitted
+                    }
+                })
+                .unwrap_or(HalfExceptionState::Linked);
+            if current == state {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![pair_id.clone(), mirror_id.clone()],
+                EditOperation::SetHalfException {
+                    pair_id: pair_id.clone(),
+                    kind: MirroredItemKind::Part,
+                    mirror_id: mirror_id.clone(),
+                    state,
+                },
+            )
+        },
+    )
 }
