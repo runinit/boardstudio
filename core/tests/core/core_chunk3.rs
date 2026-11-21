@@ -359,6 +359,78 @@ fn matrixless_linked_add_part_projects_from_either_half_and_preserves_omission()
         let mut expected_ids = vec![association.source_id.clone(), association.mirror_id.clone()];
         expected_ids.sort();
         assert_eq!(delta.changed_ids, expected_ids);
+
+        let (delta, rotated) = scene(engine.handle(edit(
+            moved.revision,
+            EditPhase::Commit,
+            EditOperation::SetPartRotation {
+                part_id: association.source_id.clone(),
+                rotation: 35.0,
+            },
+        )));
+        let source = rotated
+            .parts
+            .iter()
+            .find(|p| p.id == association.source_id)
+            .unwrap();
+        let mirror = rotated
+            .parts
+            .iter()
+            .find(|p| p.id == association.mirror_id)
+            .unwrap();
+        assert_eq!(
+            source.pose,
+            Pose2 {
+                at: Vec2 { x: 9.0, y: -4.0 },
+                rotation: 35.0
+            }
+        );
+        assert_eq!(mirror.pose.rotation, 235.0);
+        assert!((mirror.pose.at.x - 204.0).abs() < 1e-9);
+        assert!((mirror.pose.at.y + 9.0).abs() < 1e-9);
+        assert_eq!(delta.changed_ids, expected_ids);
+        assert_eq!(
+            rotated.hardware.as_ref().unwrap().pairs[0].halves.as_ref(),
+            Some(halves)
+        );
+        assert!(
+            rotated
+                .parts
+                .iter()
+                .all(|part| part.id != "part-previous-mirror")
+        );
+
+        let (_, local) = scene(engine.handle(edit(
+            rotated.revision,
+            EditPhase::Commit,
+            EditOperation::SetHalfException {
+                pair_id: "pair-main-mirror".into(),
+                kind: MirroredItemKind::Part,
+                mirror_id: association.mirror_id.clone(),
+                state: HalfExceptionState::Local,
+            },
+        )));
+        let local_mirror = local
+            .parts
+            .iter()
+            .find(|p| p.id == association.mirror_id)
+            .unwrap();
+        let (delta, rotated_again) = scene(engine.handle(edit(
+            local.revision,
+            EditPhase::Commit,
+            EditOperation::SetPartRotation {
+                part_id: association.source_id.clone(),
+                rotation: 61.0,
+            },
+        )));
+        assert_eq!(delta.changed_ids, [association.source_id.as_str()]);
+        assert_eq!(
+            rotated_again
+                .parts
+                .iter()
+                .find(|p| p.id == association.mirror_id),
+            Some(local_mirror)
+        );
     }
 }
 

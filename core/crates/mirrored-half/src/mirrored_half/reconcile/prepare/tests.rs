@@ -262,6 +262,118 @@ fn with_second_pair(mut accepted: ProjectDoc) -> ProjectDoc {
 }
 
 #[test]
+fn matrixless_placement_repairs_drift_in_both_mixed_pair_orders() {
+    let mut accepted = document();
+    for board in &mut accepted.boards {
+        let mut part = accepted.parts[0].clone();
+        part.id = format!("{}/free", board.id);
+        part.reference = part.id.clone();
+        board.part_ids.push(part.id.clone());
+        accepted.parts.push(part);
+    }
+    let pair = &mut accepted.hardware.as_mut().unwrap().pairs[0];
+    pair.mapping = Pose2 {
+        at: crate::model::Vec2 { x: 80.0, y: -25.0 },
+        rotation: 0.0,
+    };
+    pair.halves.as_mut().unwrap().correspondences.push(
+        serde_json::from_value(json!({
+            "kind":"part", "sourceId":"source-board/free", "mirrorId":"mirror-board/free"
+        }))
+        .unwrap(),
+    );
+    let mut accepted = with_second_pair(accepted);
+    accepted
+        .matrices
+        .retain(|matrix| matrix.id.starts_with("other-"));
+    accepted.parts.retain(|part| {
+        !part.id.starts_with("matrix/source-matrix/")
+            && !part.id.starts_with("matrix/mirror-matrix/")
+    });
+    for board in &mut accepted.boards[..2] {
+        board.part_ids.retain(|id| id.ends_with("/free"));
+    }
+    accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .retain(|link| !link.source_id.contains("source-matrix"));
+    let accepted = prepare_open(&accepted, &[]).unwrap().0;
+    let matrixless_mirror = "mirror-board/free";
+    let matrix_backed_mirror = "other-mirror-board/free";
+    let part_index = |id| {
+        accepted
+            .parts
+            .iter()
+            .position(|part| part.id == id)
+            .unwrap()
+    };
+    let matrixless_index = part_index(matrixless_mirror);
+    let matrix_backed_index = part_index(matrix_backed_mirror);
+
+    for reverse_order in [false, true] {
+        let mut drifted = accepted.clone();
+        if reverse_order {
+            drifted.hardware.as_mut().unwrap().pairs.reverse();
+        }
+        drifted.parts[matrix_backed_index].pose.at.x += 37.0;
+        let (mut moved, changed) = compare(
+            &drifted,
+            json!({"kind":"move-parts","positions":[{"id":"source-board/free","at":{"x":15.0,"y":-8.0}}]}),
+        );
+        assert_eq!(
+            moved.parts[matrix_backed_index],
+            accepted.parts[matrix_backed_index]
+        );
+        assert_eq!(
+            moved.parts[matrixless_index].pose.at,
+            crate::model::Vec2 { x: 65.0, y: -33.0 }
+        );
+        assert_eq!(
+            changed,
+            [matrixless_mirror, matrix_backed_mirror, "source-board/free"]
+        );
+
+        let expected_mirror = moved.parts[matrixless_index].clone();
+        moved.parts[matrixless_index].pose.rotation = 73.0;
+        let rotation = json!({
+            "kind":"set-part-rotation", "partId":"other-source-board/free", "rotation":35.0
+        });
+        let mut projected = moved.clone();
+        let pair = moved
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair-source-mirror")
+            .unwrap();
+        assert!(
+            projection::project_matrixless_placement(
+                &moved,
+                &mut projected,
+                pair,
+                &serde_json::from_value(rotation.clone()).unwrap(),
+            )
+            .unwrap()
+        );
+        assert_eq!(projected.parts[matrixless_index], expected_mirror);
+        let (rotated, changed) = compare(&moved, rotation);
+        assert_eq!(rotated.parts[matrixless_index], expected_mirror);
+        assert_eq!(rotated.parts[matrix_backed_index].pose.rotation, 145.0);
+        assert_eq!(
+            changed,
+            [
+                matrixless_mirror,
+                matrix_backed_mirror,
+                "other-source-board/free"
+            ]
+        );
+    }
+}
+
+#[test]
 fn placement_repairs_stale_link_in_another_pair() {
     use crate::mirrored_half::reconcile::tests::fixtures::fixture_matrix;
     use crate::model::MirroredCorrespondence;

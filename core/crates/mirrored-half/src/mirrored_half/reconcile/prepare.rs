@@ -668,9 +668,9 @@ fn prepare_transaction(
     } else {
         ChangeScope::Full
     };
-    // Lifecycle projects matrixless pairs and supplies the poses used to retune constraints.
+    // Project pairs before binding deferred retunes, which read the projected poses.
     changed.extend(prepare_lifecycle_pairs(
-        accepted, &mut draft, &canonical, dispatch,
+        accepted, &mut draft, &canonical, dispatch, directed,
     )?);
 
     for addition in &canonical.matrix_additions {

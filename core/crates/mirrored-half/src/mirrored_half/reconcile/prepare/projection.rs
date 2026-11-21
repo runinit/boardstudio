@@ -1,7 +1,7 @@
 //! Pair projection and membership-transition construction for prepared drafts.
 
 use super::*;
-use crate::model::{MirroredCorrespondence, MirroredHalves};
+use crate::model::{MechanicalMirrorPair, MirroredCorrespondence, MirroredHalves};
 use std::cell::OnceCell;
 
 pub(super) struct PairProjection<'a> {
@@ -49,6 +49,107 @@ impl<'a> PairProjection<'a> {
             None => Err(format!("Matrix part {source_id:?} has no correspondence")),
         }
     }
+}
+
+/// Project a matrixless pair before the second constraint solve, at the same point as lifecycle
+/// projection. The shared projector still repairs every linked row, including unedited parts
+/// and settings. The outer report computes changed IDs from the finished draft.
+pub(super) fn project_matrixless_placement(
+    accepted: &ProjectDoc,
+    draft: &mut ProjectDoc,
+    pair: &MechanicalMirrorPair,
+    operation: &EditOperation,
+) -> Result<bool, String> {
+    let Some(halves) = &pair.halves else {
+        return Ok(false);
+    };
+    // Keep hosted inheritance, matrix membership, same-board and legacy layout links with
+    // lifecycle. The lifecycle also validates and retires stored constraint records.
+    if !matches!(
+        operation,
+        EditOperation::MoveParts { .. } | EditOperation::SetPartRotation { .. }
+    ) || halves.source_board_id == halves.mirror_board_id
+        || halves.correspondences.iter().any(|link| match link.kind {
+            MirroredItemKind::Matrix | MirroredItemKind::EmbeddedCircuit => true,
+            MirroredItemKind::Net => !draft.nets.iter().any(|net| net.id == link.source_id),
+            _ => false,
+        })
+        || halves
+            .exceptions
+            .iter()
+            .any(|exception| halves.overlaid_correspondence(exception).is_none())
+        || !accepted.constraints.is_empty()
+        || !draft.constraints.is_empty()
+        || !stable_placement(accepted, draft, operation)
+        || draft.matrices.iter().any(|matrix| {
+            matrix.board_id.as_ref().is_some_and(|board| {
+                *board == halves.source_board_id || *board == halves.mirror_board_id
+            })
+        })
+    {
+        return Ok(false);
+    }
+    // Authenticate the selected pair and the same materialized ownership the lifecycle needs.
+    for document in [accepted, &*draft] {
+        let mut matching = document
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter(|row| row.id == pair.id);
+        if matching.next() != Some(pair) || matching.next().is_some() {
+            return Ok(false);
+        }
+    }
+    if !accepted
+        .parts
+        .iter()
+        .map(|part| &part.id)
+        .eq(draft.parts.iter().map(|part| &part.id))
+    {
+        return Ok(false);
+    }
+    let mut registrations = BTreeSet::new();
+    if !accepted
+        .boards
+        .iter()
+        .flat_map(|board| &board.part_ids)
+        .all(|id| registrations.insert(id))
+        || !accepted.parts.iter().all(|part| {
+            registrations.remove(&part.id)
+                && part.pose.at.x.is_finite()
+                && part.pose.at.y.is_finite()
+                && part.pose.rotation.is_finite()
+        })
+    {
+        return Ok(false);
+    }
+
+    // An already absent Omitted target can still have stale references. Apply the same cleanup
+    // before projecting the remaining rows, while keeping its correspondence and overlay.
+    let omitted: BTreeSet<_> = halves
+        .exceptions
+        .iter()
+        .filter(|exception| {
+            exception.kind == MirroredItemKind::Part
+                && exception.state == MirroredExceptionState::Omitted
+        })
+        .map(|exception| exception.mirror_id.clone())
+        .collect();
+    if !omitted.is_empty() {
+        if accepted
+            .matrices
+            .iter()
+            .flat_map(|matrix| &matrix.part_ids)
+            .any(|id| omitted.contains(id))
+        {
+            return Ok(false);
+        }
+        crate::matrix::deletion::remove_parts_by_id(draft, &omitted);
+    }
+
+    let projection = super::super::projection_for_matrixless_pair(halves, pair.mapping);
+    reconcile_with_report(draft, &pair.id, &projection, None)?;
+    Ok(true)
 }
 
 pub(super) fn reconcile_pairs(
