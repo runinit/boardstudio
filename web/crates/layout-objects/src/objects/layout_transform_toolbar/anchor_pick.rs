@@ -146,9 +146,10 @@ pub fn LayoutAnchorPickOverlay(
     height: f64,
 ) -> Element {
     let _ = surface_size.map(|size| size());
-    let svg_key: usize = Rc::as_ptr(&svg.0) as usize;
+    // W3-C: canvas-owned rail sets; siblings share the handle, a second canvas owns its own.
+    let svg_handle = svg.clone();
     let rail = pick_owner.rail();
-    use_rail_mount(rail, svg_key, LayoutTransformTool::Anchor);
+    use_rail_mount(rail, svg_handle.clone(), LayoutTransformTool::Anchor);
     let armed = use_signal(|| false);
     let hovered_target = use_signal(|| None::<PickTarget>);
     let preview = use_signal(Vec::<(String, Pose2)>::new);
@@ -161,7 +162,9 @@ pub fn LayoutAnchorPickOverlay(
 
     // Leaving pick mode clears the armed peer, the hover preview and the
     // popup. The selection and focus stay put: nothing here writes them.
+    let svg_for_disarm = svg_handle.clone();
     let disarm = {
+        let svg_for_disarm = svg_for_disarm.clone();
         Rc::new(move || {
             let mut armed = armed;
             let mut hovered_target = hovered_target;
@@ -174,7 +177,7 @@ pub fn LayoutAnchorPickOverlay(
             // the feedback it writes would re-run it forever.
             let dismissed = advance_feedback(&feedback.peek(), FeedbackEvent::Dismiss);
             feedback.set(dismissed);
-            rail.set_active(svg_key, None);
+            set_rail_active(rail, &svg_for_disarm, None);
         })
     };
     use_document_escape({
@@ -226,8 +229,8 @@ pub fn LayoutAnchorPickOverlay(
     // last in canonical order. The matrix rail drops Spread on column 0,
     // like the drag overlay, so the token stays centred on what draws.
     let rail_tools: Vec<LayoutTransformTool> = match &pick_owner {
-        AnchorPickOwner::Matrix { .. } => matrix_rail_tools(svg_key, &context),
-        AnchorPickOwner::Part { .. } => Rail::Part.peers(svg_key),
+        AnchorPickOwner::Matrix { .. } => matrix_rail_tools(&svg_handle, &context),
+        AnchorPickOwner::Part { .. } => rail_peers(Rail::Part, &svg_handle),
     };
     let rail_index = rail_tools
         .iter()
@@ -311,6 +314,7 @@ pub fn LayoutAnchorPickOverlay(
     // The pinned panel measures its own rows; see anchor_pick_popup_panel.
     // Arming toggles on the token; the peers dim while one is armed, like a
     // drag. Nothing writes the selection or focus.
+    let svg_handle_for_toggle = svg_handle.clone();
     let toggle_arm = {
         let disarm = disarm.clone();
         let current_label = current_label.clone();
@@ -322,7 +326,11 @@ pub fn LayoutAnchorPickOverlay(
                 return;
             }
             armed.set(true);
-            rail.set_active(svg_key, Some(LayoutTransformTool::Anchor));
+            set_rail_active(
+                rail,
+                &svg_handle_for_toggle,
+                Some(LayoutTransformTool::Anchor),
+            );
             feedback.set(advance_feedback(
                 &feedback(),
                 FeedbackEvent::Choose {
@@ -493,7 +501,7 @@ pub fn LayoutAnchorPickOverlay(
             .into_iter()
             .collect(),
     };
-    let active_peer = rail.active(svg_key);
+    let active_peer = rail_active(rail, &svg_handle);
     let token_opacity = if active_peer.is_some_and(|peer| peer != LayoutTransformTool::Anchor) {
         "0.35"
     } else {
