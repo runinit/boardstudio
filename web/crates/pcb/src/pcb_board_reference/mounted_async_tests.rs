@@ -496,7 +496,7 @@ async fn changed_owner(fixture: &Fixture, change: OwnerChange) {
 }
 
 fn replacement_file(salt: usize) -> (File, String) {
-    let mut bytes = include_bytes!("../../../tests/fixtures/replacement.kicad_pcb").to_vec();
+    let mut bytes = include_bytes!("../../../../tests/fixtures/replacement.kicad_pcb").to_vec();
     // Trailing whitespace preserves the fixture as KiCad text while giving
     // each stale-owner case a unique BrowserStore identity.
     bytes.extend(std::iter::repeat_n(b'\n', salt));
