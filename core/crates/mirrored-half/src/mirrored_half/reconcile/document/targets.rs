@@ -1,6 +1,7 @@
 //! Correspondence target views for forward reconciliation.
 
 use super::*;
+use crate::model::MirroredExceptionState;
 
 /// Three views of the correspondences. `part_targets` and `net_targets` are the linked items,
 /// the only ones a projection may write over. `reference_*` also name Local items, so a
@@ -18,60 +19,35 @@ pub(super) struct CorrespondenceTargets {
 pub(super) fn correspondence_targets(
     document: &ProjectDoc,
     halves: &MirroredHalves,
+    circuit_links: &[&MirroredCorrespondence],
     projection: &Projection,
 ) -> Result<CorrespondenceTargets, String> {
-    let overlay_state = |kind: MirroredItemKind, correspondence: &MirroredCorrespondence| {
-        debug_assert_eq!(correspondence.kind, kind);
-        effective_circuit_child_state(document, halves, correspondence)
-    };
-    let part_targets: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Part
-                && overlay_state(MirroredItemKind::Part, association).is_none()
-        })
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let mut reference_part_targets: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Part
-                && overlay_state(MirroredItemKind::Part, association)
-                    != Some(crate::model::MirroredExceptionState::Omitted)
-        })
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let omitted_part_sources: BTreeSet<String> = halves
-        .correspondences
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Part
-                && overlay_state(MirroredItemKind::Part, association)
-                    == Some(crate::model::MirroredExceptionState::Omitted)
-        })
-        .map(|association| association.source_id.clone())
-        .collect();
-    let net_targets: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Net
-                && overlay_state(MirroredItemKind::Net, association).is_none()
-        })
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
-    let mut reference_net_targets: BTreeMap<_, _> = halves
-        .correspondences
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Net
-                && overlay_state(MirroredItemKind::Net, association)
-                    != Some(crate::model::MirroredExceptionState::Omitted)
-        })
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect();
+    let mut part_targets = BTreeMap::new();
+    let mut reference_part_targets = BTreeMap::new();
+    let mut omitted_part_sources = BTreeSet::new();
+    let mut net_targets = BTreeMap::new();
+    let mut reference_net_targets = BTreeMap::new();
+    for link in &halves.correspondences {
+        let (linked, references) = match link.kind {
+            MirroredItemKind::Part => (&mut part_targets, &mut reference_part_targets),
+            MirroredItemKind::Net => (&mut net_targets, &mut reference_net_targets),
+            _ => continue,
+        };
+        let state = super::super::effective_circuit_child_state(
+            document,
+            halves,
+            link,
+            circuit_links.iter().copied(),
+        );
+        if state.is_none() {
+            linked.insert(link.source_id.clone(), link.mirror_id.clone());
+        }
+        if state != Some(MirroredExceptionState::Omitted) {
+            references.insert(link.source_id.clone(), link.mirror_id.clone());
+        } else if link.kind == MirroredItemKind::Part {
+            omitted_part_sources.insert(link.source_id.clone());
+        }
+    }
     let compose_reference_target = |targets: &mut BTreeMap<String, String>,
                                     source_id: &str,
                                     mirror_id: &str,
