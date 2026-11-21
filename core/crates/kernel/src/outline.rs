@@ -7,9 +7,21 @@ use crate::model::{CornerStyle, OutlineSettings, PartKind, Pose2, ProjectDoc, Ve
 use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-    mesh::float::{
-        outline::offset::OutlineOffset,
-        style::{LineJoin, OutlineStyle},
+    i_float::{
+        adapter::FloatPointAdapter,
+        float::rect::FloatRect,
+        int::{angle::Angle, point::IntPoint},
+    },
+    i_shape::{float::adapter::ShapesToFloat, int::shape::IntShapes},
+    mesh::{
+        float::{
+            outline::offset::OutlineOffset,
+            style::{LineJoin, OutlineStyle},
+        },
+        int::{
+            outline::offset::IntOutlineOffset,
+            style::{IntLineJoin, IntOutlineStyle},
+        },
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -213,6 +225,63 @@ enum LocalEnvelope<'a> {
 }
 
 type OffsetKey = (u64, Vec<[u64; 2]>);
+type QuadOffsetKey = (i32, [IntPoint<i32>; 4]);
+const ENVELOPE_MITER_JOIN: LineJoin<f64> = LineJoin::Miter(0.1);
+
+// The common switch/keycap path has four points. Within a projection, reuse
+// only the integer offset solution of the last matching input. Conversion in
+// both directions still uses the current world path's adapter.
+struct QuadOffsets {
+    style: IntOutlineStyle,
+    padding: f64,
+    previous: Option<(QuadOffsetKey, IntShapes<i32>)>,
+}
+
+impl QuadOffsets {
+    fn new() -> Self {
+        let float_style = OutlineStyle::default().line_join(ENVELOPE_MITER_JOIN);
+        let join = IntLineJoin::from(&float_style.join);
+        let IntLineJoin::Miter(angle) = join else {
+            unreachable!()
+        };
+        // Match i_overlay 9's OutlineSolver::prepare and int_style for
+        // expand_envelope, including the padded bounds and join angle.
+        let padding = 1.1 * (1_u32 << 30) as f64 / Angle::from_bits(angle.bits() / 2).sin() as f64;
+        let style = IntOutlineStyle::new(0)
+            .line_join(join)
+            .miter_min_turn(Angle::from_radians(float_style.miter_min_turn).unwrap())
+            .math(float_style.math);
+        Self {
+            style,
+            padding,
+            previous: None,
+        }
+    }
+
+    fn expand(&mut self, path: &[[f64; 2]; 4], margin: f64) -> Option<Shapes> {
+        let mut bounds = FloatRect::with_iter(path.iter()).ok()??;
+        bounds.add_offset((margin + margin) * self.padding).ok()?;
+        let adapter =
+            FloatPointAdapter::<_, i32>::try_with_scale_conservative(bounds, SCALE).ok()?;
+        let key = (
+            adapter.round_len_to_int(margin),
+            path.map(|point| adapter.float_to_int(&point)),
+        );
+        if let Some((previous, shapes)) = &self.previous
+            && *previous == key
+        {
+            return Some(shapes.to_float(&adapter));
+        }
+        // These are the same default CCW/positive-fill integer offset and
+        // extraction options as the float solver. Its f64/i32 route has no
+        // float cleanup pass. Keep the output in the solver's contour order.
+        let shapes = key.1.outline(&self.style.offset(key.0)).ok()?;
+        let expanded = shapes.to_float(&adapter);
+        self.previous = Some((key, shapes));
+        Some(expanded)
+    }
+}
+
 #[derive(Default)]
 pub struct EnvelopeCache {
     pub(super) offsets: BTreeMap<OffsetKey, Shapes>,
@@ -247,7 +316,7 @@ impl EnvelopeReuse<'_> {
 
 fn expand_envelope(path: &Path, margin: f64) -> Result<Shapes, String> {
     path.outline_fixed_scale(
-        &OutlineStyle::new(margin).line_join(LineJoin::Miter(0.1)),
+        &OutlineStyle::new(margin).line_join(ENVELOPE_MITER_JOIN),
         SCALE,
     )
     .map_err(|_| "Outline offset is outside supported coordinate range".into())
@@ -330,6 +399,7 @@ pub(super) fn envelope(
     let mut last_local = None;
     let mut local_path = Vec::new();
     let mut path = Vec::new();
+    let mut quad_offsets = None;
     for (index, p) in selected.iter().enumerate() {
         let d = defs
             .get(&p.definition_id)
@@ -405,6 +475,13 @@ pub(super) fn envelope(
             && !reuse.moved.contains(p.id.as_str())
         {
             reuse.expand(&path, m)?
+        } else if reuse.is_some()
+            && let Ok(quad) = path.as_slice().try_into()
+            && let Some(expanded) = quad_offsets
+                .get_or_insert_with(QuadOffsets::new)
+                .expand(quad, m)
+        {
+            expanded
         } else {
             expand_envelope(&path, m)?
         };
@@ -666,6 +743,42 @@ pub(super) fn finish(
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+
+    #[test]
+    fn quad_offset_matches_world_offset_bits_with_distinct_adapters() {
+        let mut offsets = QuadOffsets::new();
+        let local = [[-9.0, -7.0], [9.0, -7.0], [9.0, 7.0], [-9.0, 7.0]];
+        let mut matched = 0;
+        for (rotation, margin) in [(0.0_f64, 4.0), (0.0, 3.9995), (27.185, 1.5065)] {
+            let (sin, cos) = rotation.to_radians().sin_cos();
+            for (x, y) in [
+                (0.0, -0.0),
+                (128.0, 16.0),
+                (-384.0, 17.1255),
+                (-0.0005, 2.0005),
+                (65536.25, -98214.75),
+                (1e15, -1e15),
+            ] {
+                let path = local
+                    .map(|[dx, dy]| [snap(x + dx * cos - dy * sin), snap(y + dx * sin + dy * cos)]);
+                let before = offsets.previous.as_ref().map(|(key, _)| *key);
+                let actual = offsets.expand(&path, margin).unwrap();
+                matched += usize::from(before == offsets.previous.as_ref().map(|(key, _)| *key));
+                let expected = expand_envelope(&path.to_vec(), margin).unwrap();
+                assert_eq!(
+                    serde_json::to_vec(&actual).unwrap(),
+                    serde_json::to_vec(&expected).unwrap(),
+                    "{path:?}, margin {margin}",
+                );
+            }
+        }
+        assert!(
+            matched > 0,
+            "distinct world paths must share integer operands"
+        );
+        assert!(offsets.expand(&local, 1e12).is_none());
+        assert!(expand_envelope(&local.to_vec(), 1e12).is_err());
+    }
 
     #[test]
     fn sweep_rejects_crossings_and_non_adjacent_contacts() {
