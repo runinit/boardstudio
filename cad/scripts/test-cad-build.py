@@ -267,6 +267,7 @@ class CadBuildTests(unittest.TestCase):
             "layered-adoption.cjs": "separate layered-adoption fixture corpus",
             "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
             "keycap-print-legends.cjs": "separate printable keycap export regression",
+            "step-native-analytic.cjs": "standalone packaged-provider STEP refinement and face identity regression",
         }
         mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
         self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
