@@ -592,12 +592,26 @@ mod queued_edits {
         }
     }
 
-    #[wasm_bindgen_test]
-    async fn mounted_delete_stays_disabled_until_saved_then_clears_its_exact_selection() {
+    /// Mount the Matrix inspector and hold its Delete action at the Core reply.
+    /// Every held-delete scenario waits on the same production callback instead
+    /// of repeating the open/mount/click/drive sequence.
+    async fn held_delete_mount() -> (
+        Rc<Runtime>,
+        MountedMatrixInspectorProbe,
+        web_sys::Element,
+        MountedFixture,
+        futures_channel::oneshot::Sender<()>,
+    ) {
         let runtime = fixture::open_matrix_runtime().await;
-        let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
+        let (probe, root, mounted) = mount_matrix_inspector(runtime.clone()).await;
         let (entered, release) = hold_button_click(&runtime, &root, "Delete matrix");
         entered.await.expect("the mounted delete reached Core");
+        (runtime, probe, root, mounted, release)
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_delete_stays_disabled_until_saved_then_clears_its_exact_selection() {
+        let (runtime, probe, root, _mounted, release) = held_delete_mount().await;
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
             button_named(&root, "Delete matrix").has_attribute("disabled"),
@@ -630,10 +644,7 @@ mod queued_edits {
 
     #[wasm_bindgen_test]
     async fn mounted_delete_does_not_clear_a_newer_outline_selection() {
-        let runtime = fixture::open_matrix_runtime().await;
-        let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
-        let (entered, release) = hold_button_click(&runtime, &root, "Delete matrix");
-        entered.await.expect("the mounted delete reached Core");
+        let (runtime, probe, _root, _mounted, release) = held_delete_mount().await;
         let newer_selection = ScopedTreeContext {
             scope: probe.scope.clone(),
             context: TreeContext::Outline {
@@ -661,12 +672,7 @@ mod queued_edits {
 
     #[wasm_bindgen_test]
     async fn current_matrix_owner_still_reports_a_held_delete_save_failure() {
-        let runtime = fixture::open_matrix_runtime().await;
-        let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
-        let (core_entered, release_core) = hold_button_click(&runtime, &root, "Delete matrix");
-        core_entered
-            .await
-            .expect("the mounted delete reached the held Core reply");
+        let (runtime, probe, _root, _mounted, release_core) = held_delete_mount().await;
         support::fail_next_persist(&runtime, "injected matrix delete save failure");
         release_core.send(()).expect("release the held Core reply");
         run_and_bump(&runtime, &probe).await;

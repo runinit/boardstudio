@@ -414,6 +414,22 @@ fn aggregate_anchor_fixture(keys: u32) -> (ProjectDoc, TreeContext) {
     (document, matrix_context("matrix-b"))
 }
 
+/// Mount the average-aggregate fixture and capture its dependant pose and
+/// revision. Aggregate edit scenarios share this instead of repeating the
+/// fixture/mount/capture sequence.
+async fn aggregate_mount() -> (Probe, Root, Pose2, u64) {
+    let (document, context) = aggregate_anchor_fixture(2);
+    let (probe, root) = mount_probe(document, context, &[]).await;
+    let pose = probe.scene_pose("matrix-b", 0, 0);
+    let revision = probe.revision();
+    (probe, root, pose, revision)
+}
+
+/// The current laid-out dependant pose of an aggregate fixture mount.
+fn aggregate_pose(probe: &Probe) -> Pose2 {
+    probe.scene_pose("matrix-b", 0, 0)
+}
+
 /// Ticket 32 slice: opening the Anchor section of an average-anchored matrix lists its two
 /// part links, and activating a part link navigates to the part key with the revision
 /// unchanged and no Undo entry.
@@ -444,10 +460,7 @@ async fn aggregate_anchor_section_lists_part_links_that_navigate_without_writing
 /// Core-published dependant pose unchanged, and Redo restores the committed method and pose.
 #[wasm_bindgen_test]
 async fn aggregate_method_switch_commits_with_undo_redo_and_pose_round_trip() {
-    let (document, context) = aggregate_anchor_fixture(2);
-    let (probe, root) = mount_probe(document, context, &[]).await;
-    let pose = || probe.scene_pose("matrix-b", 0, 0);
-    let (pose_before, revision_before) = (pose(), probe.revision());
+    let (probe, root, pose_before, revision_before) = aggregate_mount().await;
     let method = by_role_name(&root, "button", "Method").expect("aggregate method");
     assert!(
         method
@@ -478,7 +491,7 @@ async fn aggregate_method_switch_commits_with_undo_redo_and_pose_round_trip() {
         revision_before + 1,
         "the switch is one atomic Core intent"
     );
-    let pose_after = pose();
+    let pose_after = aggregate_pose(&probe);
     probe.undo().await;
     assert_eq!(
         probe.aggregate().method,
@@ -486,7 +499,7 @@ async fn aggregate_method_switch_commits_with_undo_redo_and_pose_round_trip() {
         "Undo restores the method"
     );
     assert_eq!(
-        pose(),
+        aggregate_pose(&probe),
         pose_before,
         "Undo restores the Core-published pose exactly"
     );
@@ -497,7 +510,7 @@ async fn aggregate_method_switch_commits_with_undo_redo_and_pose_round_trip() {
         "Redo restores the switch"
     );
     assert_eq!(
-        pose(),
+        aggregate_pose(&probe),
         pose_after,
         "Redo restores the Core-published committed pose exactly"
     );
@@ -508,10 +521,7 @@ async fn aggregate_method_switch_commits_with_undo_redo_and_pose_round_trip() {
 /// cannot be removed, and Undo restores the parts and the pose.
 #[wasm_bindgen_test]
 async fn aggregate_part_remove_updates_the_dependant_pose_with_one_undo() {
-    let (document, context) = aggregate_anchor_fixture(2);
-    let (probe, root) = mount_probe(document, context, &[]).await;
-    let pose = || probe.scene_pose("matrix-b", 0, 0);
-    let (pose_before, revision_before) = (pose(), probe.revision());
+    let (probe, root, pose_before, revision_before) = aggregate_mount().await;
     let removes: Vec<_> = [0, 1]
         .into_iter()
         .filter_map(|column| {
@@ -539,7 +549,7 @@ async fn aggregate_part_remove_updates_the_dependant_pose_with_one_undo() {
         revision_before + 1,
         "the removal is one atomic Core intent"
     );
-    let pose_after = pose();
+    let pose_after = aggregate_pose(&probe);
     assert_ne!(
         (pose_after.at.x, pose_after.at.y, pose_after.rotation),
         (pose_before.at.x, pose_before.at.y, pose_before.rotation),
@@ -558,7 +568,7 @@ async fn aggregate_part_remove_updates_the_dependant_pose_with_one_undo() {
         "one Undo restores the removed part"
     );
     assert_eq!(
-        pose(),
+        aggregate_pose(&probe),
         pose_before,
         "one Undo restores the Core-published pose exactly"
     );

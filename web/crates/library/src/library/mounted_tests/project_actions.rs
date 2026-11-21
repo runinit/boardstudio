@@ -5,27 +5,18 @@ async fn current_project_delete_sorts_remaining_records_by_stored_name() {
     let current = ProjectDoc::empty("delete-sort-current", "Current keyboard");
     let alpha = ProjectDoc::empty("delete-sort-alpha", "Alpha keyboard");
     let unnamed = ProjectDoc::empty("delete-sort-unnamed", "");
-    let (session, core) = accepted(current.clone());
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    clean_saved_projects(
-        &runtime,
+    let (runtime, root, _mounted) = seeded_menu(
+        current.clone(),
         &[
             "delete-sort-current",
             "delete-sort-alpha",
             "delete-sort-unnamed",
         ],
+        &[&current, &alpha, &unnamed],
+        "delete-current-sort-regression",
+        3,
     )
     .await;
-    for document in [&current, &alpha, &unnamed] {
-        runtime
-            .store
-            .save_document(document, &Default::default())
-            .await
-            .unwrap();
-    }
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
-    let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-sort-regression");
-    wait_for_saved_cards(&root, 3).await;
     click(&root, "Delete Current keyboard");
     wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
     click(&root, "Delete keyboard");
@@ -70,21 +61,12 @@ async fn failed_current_project_replacement_keeps_the_record_and_dialog_availabl
     remove_test_root("delete-current-failure-regression");
     let current = ProjectDoc::empty("delete-failure-current", "Current board");
     let candidate = ProjectDoc::empty("delete-failure-alpha", "Alpha board");
-    let (session, core) = accepted(current.clone());
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    clean_saved_projects(
-        &runtime,
+    let runtime = seeded_runtime(
+        current.clone(),
         &["delete-failure-current", "delete-failure-alpha"],
+        &[&current, &candidate],
     )
     .await;
-    for document in [&current, &candidate] {
-        runtime
-            .store
-            .save_document(document, &Default::default())
-            .await
-            .unwrap();
-    }
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
     boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
         &runtime,
         "replacement storage failed",
@@ -162,21 +144,12 @@ async fn noncurrent_delete_preserves_accepted_document_and_undo_history() {
     remove_test_root("delete-noncurrent-mounted-regression");
     let current = ProjectDoc::empty("delete-noncurrent-active", "Current board");
     let saved = ProjectDoc::empty("delete-noncurrent-target", "Other board");
-    let (session, core) = accepted(current.clone());
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    clean_saved_projects(
-        &runtime,
+    let runtime = seeded_runtime(
+        current.clone(),
         &["delete-noncurrent-active", "delete-noncurrent-target"],
+        &[&current, &saved],
     )
     .await;
-    for document in [&current, &saved] {
-        runtime
-            .store
-            .save_document(document, &Default::default())
-            .await
-            .unwrap();
-    }
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
 
     let initial = runtime.model().accepted.unwrap();
     let mut renamed = (*initial.document).clone();
@@ -241,21 +214,7 @@ async fn project_menu_name_draft_survives_unrelated_accepted_revision_and_commit
     search_two.revision = 1;
     let mut search_three = ProjectDoc::empty("menu-search-untitled", "  ");
     search_three.revision = 1;
-    runtime
-        .store
-        .save_document(&search_one, &Default::default())
-        .await
-        .unwrap();
-    runtime
-        .store
-        .save_document(&search_two, &Default::default())
-        .await
-        .unwrap();
-    runtime
-        .store
-        .save_document(&search_three, &Default::default())
-        .await
-        .unwrap();
+    save_all(&runtime, &[&search_one, &search_two, &search_three]).await;
     boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
     let seed = Rc::new(Seed {
         state: Rc::new(RefCell::new(None)),
@@ -670,33 +629,7 @@ async fn retained_project_name_action_is_rejected_after_library_unmount() {
 
 #[wasm_bindgen_test]
 async fn pending_project_rename_preserves_typing_and_escape_does_not_commit() {
-    let (session, core) = accepted(ProjectDoc::empty("menu-name-typing", "Original"));
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
-    let seed = Rc::new(Seed {
-        state: Rc::new(RefCell::new(None)),
-        show_library: Rc::new(RefCell::new(None)),
-    });
-    let root = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .create_element("div")
-        .unwrap();
-    root.set_id("project-name-typing-regression");
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .body()
-        .unwrap()
-        .append_child(&root)
-        .unwrap();
-    let dom = VirtualDom::new(host);
-    dom.provide_root_context(seed);
-    dom.provide_root_context(runtime.clone());
-    let _mounted = MountedFixture::new(root.clone(), dom);
-    wait_until("the Library mounts the name field", name_field_rendered).await;
+    let (runtime, root, _mounted) = mounted_name_field("menu-name-typing").await;
 
     use boardstudio_web_test_runtime::project_name_test_support as support;
     let (mut entered, release) = support::gate_next_core_reply(&runtime);
@@ -909,33 +842,7 @@ async fn two_project_name_commits_keep_the_latest_observation_and_both_undo_step
 
 #[wasm_bindgen_test]
 async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_project() {
-    let (session, core) = accepted(ProjectDoc::empty("menu-name-delayed", "Original"));
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
-    let seed = Rc::new(Seed {
-        state: Rc::new(RefCell::new(None)),
-        show_library: Rc::new(RefCell::new(None)),
-    });
-    let root = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .create_element("div")
-        .unwrap();
-    root.set_id("project-name-delayed-regression");
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .body()
-        .unwrap()
-        .append_child(&root)
-        .unwrap();
-    let dom = VirtualDom::new(host);
-    dom.provide_root_context(seed);
-    dom.provide_root_context(runtime.clone());
-    let _mounted = MountedFixture::new(root.clone(), dom);
-    wait_until("the Library mounts the name field", name_field_rendered).await;
+    let (runtime, root, _mounted) = mounted_name_field("menu-name-delayed").await;
 
     let (mut entered, release) =
         boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(&runtime);

@@ -119,24 +119,13 @@ async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
 async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_cleanly() {
     use wasm_bindgen::JsCast;
     let runtime = support::new_runtime();
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({
-        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
-        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
-    })).unwrap());
+    let doc = macro_document();
     support::open_document(&runtime, doc).await;
     let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let tap = || macro_input(&root, "Original tapMs");
     let (entered, release) = support::gate_next_core_reply(&runtime);
     let input = tap();
-    input.focus().unwrap();
-    input.set_value("55");
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    input
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
-        .unwrap();
-    input.blur().unwrap();
+    commit_input_value(&input, "55");
     support::drive_pending(&runtime);
     wait_until_future("the held edit reaches the Core executor", entered)
         .await
@@ -201,15 +190,6 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
     root.remove();
 }
 
-fn macro_doc() -> ProjectDoc {
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({
-        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
-        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
-    })).unwrap());
-    doc
-}
-
 fn macro_field_failure(root: &web_sys::Element, label: &str) -> Option<web_sys::Element> {
     let id = macro_input(root, label).get_attribute("aria-describedby")?;
     root.owner_document()?.get_element_by_id(&id)
@@ -228,14 +208,12 @@ fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
 /// failure must report at the field, and nowhere in the panel status.
 async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &str) {
     let runtime = support::new_runtime();
-    support::open_document(&runtime, macro_doc()).await;
+    support::open_document(&runtime, macro_document()).await;
     let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let input = macro_input(&root, label);
     support::fail_next_core_reply(&runtime, "macro executor failed");
     let mark = probe.renders.get();
-    input.focus().unwrap();
-    type_value(&input, first);
-    input.blur().unwrap();
+    commit_input_value(&input, first);
     rendered_after(&probe, mark).await;
     // The older edit has not settled when the user types the next draft.
     type_value(&input, newer);
@@ -281,13 +259,11 @@ async fn a_newer_macro_field_draft_keeps_an_older_failure_inline_only() {
 #[wasm_bindgen_test]
 async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inline_failure() {
     let runtime = support::new_runtime();
-    support::open_document(&runtime, macro_doc()).await;
+    support::open_document(&runtime, macro_document()).await;
     let (_probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     support::fail_next_core_reply(&runtime, "macro executor failed");
     let input = macro_input(&root, "Original tapMs");
-    input.focus().unwrap();
-    type_value(&input, "55");
-    input.blur().unwrap();
+    commit_input_value(&input, "55");
     settle_until(
         &runtime,
         support::run_pending,
@@ -314,7 +290,7 @@ async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inl
 #[wasm_bindgen_test]
 async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo() {
     let runtime = support::new_runtime();
-    support::open_document(&runtime, macro_doc()).await;
+    support::open_document(&runtime, macro_document()).await;
     let (_probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let tap_ms = |runtime: &Rc<Runtime>| {
         runtime
@@ -330,16 +306,12 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
     };
     let (entered, release) = support::gate_next_core_reply(&runtime);
     let input = macro_input(&root, "Original tapMs");
-    input.focus().unwrap();
-    type_value(&input, "55");
-    input.blur().unwrap();
+    commit_input_value(&input, "55");
     support::drive_pending(&runtime);
     wait_until_future("the held edit reaches the Core executor", entered)
         .await
         .unwrap();
-    input.focus().unwrap();
-    type_value(&input, "66");
-    input.blur().unwrap();
+    commit_input_value(&input, "66");
     support::drive_pending(&runtime);
     release.send(()).unwrap();
     settle_until(
