@@ -267,6 +267,31 @@ impl Solid {
                 planes.insert(faces[face.source].support_id);
             }
         }
+        // A plane displaced from an otherwise intact trim loop uses the
+        // existing support-incidence route. Shared repair addresses loops
+        // whose original LINE and vertex attachments also disagree.
+        for face in &self.faces {
+            for ring in &face.loops {
+                let mut off_plane = false;
+                let mut off_line = false;
+                for (id, _) in &ring.edges {
+                    let edge = &self.edges[id];
+                    let Curve::Line {
+                        origin, direction, ..
+                    } = edge.curve
+                    else {
+                        unreachable!("only plain LINE edges are eligible for planar repair");
+                    };
+                    for point in edge.points {
+                        off_plane |= face.surface.local(point).z.abs() > epsilon;
+                        off_line |= (point - origin).cross(direction).magnitude() > epsilon;
+                    }
+                }
+                if off_plane && !off_line {
+                    return Ok(None);
+                }
+            }
+        }
         Ok(Some(Plan {
             points,
             endpoints,
