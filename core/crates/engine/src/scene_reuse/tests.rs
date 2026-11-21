@@ -53,6 +53,14 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
     } = &actual
     {
         let (cache, contours, findings) = outlines(document, None, &[]);
+        assert_eq!(
+            scene.board_contours,
+            geometry::board_contours(document, &cache).0
+        );
+        assert_eq!(
+            scene.board_outline_scenes,
+            geometry::board_outline_scenes(document, &cache)
+        );
         let fresh = engine.scene(
             id.clone(),
             SceneInput {
@@ -71,6 +79,142 @@ fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest)
         );
     }
     actual
+}
+
+#[test]
+fn stagger_preview_commit_and_invalidation_match_cold_projection() {
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    let mut document = fixture();
+    document.matrices[0].column_layout = vec![ColumnLayout {
+        splay: -17.125,
+        ..Default::default()
+    }];
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Open {
+            id: "open".into(),
+            document,
+        },
+    );
+    let stagger = |base, phase, value| {
+        let mut request = edit(
+            base,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "matrix".into(),
+                change: MatrixPlacementChange::ColumnStagger { column: 1, value },
+            },
+        );
+        let CoreRequest::Edit { command, .. } = &mut request else {
+            unreachable!()
+        };
+        command.phase = phase;
+        request
+    };
+    let value = -3.125_000_000_000_001;
+    let initial = serde_json::to_vec(&engine.document).unwrap();
+    let CoreReply::Preview { scene: preview, .. } = compare(
+        &mut engine,
+        &mut cold,
+        stagger(0, EditPhase::Preview, value),
+    ) else {
+        panic!("stagger should preview");
+    };
+    assert_eq!(serde_json::to_vec(&engine.document).unwrap(), initial);
+    assert!(engine.undo.is_empty() && engine.redo.is_empty());
+    let CoreReply::Scene {
+        mut scene,
+        document,
+        ..
+    } = compare(&mut engine, &mut cold, stagger(0, EditPhase::Commit, value))
+    else {
+        panic!("stagger should commit");
+    };
+    assert_eq!(
+        document.matrices[0].column_layout[1].stagger.to_bits(),
+        value.to_bits()
+    );
+    assert_eq!(scene.revision, 1);
+    scene.revision = preview.revision;
+    assert_eq!(scene, preview);
+
+    assert!(matches!(
+        compare(&mut engine, &mut cold, stagger(0, EditPhase::Preview, 2.0)),
+        CoreReply::Error { revision: 1, .. }
+    ));
+    assert!(matches!(
+        compare(&mut engine, &mut cold, stagger(1, EditPhase::Commit, value)),
+        CoreReply::Scene { scene, .. } if scene.revision == 1 && scene.changed_ids.is_empty()
+    ));
+    assert_eq!(engine.undo.len(), 1);
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Undo { id: "undo".into() },
+    );
+    compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Redo { id: "redo".into() },
+    );
+
+    let position = Position {
+        id: "main/U1".into(),
+        at: Vec2 { x: 19.0, y: 32.0 },
+    };
+    compare(
+        &mut engine,
+        &mut cold,
+        edit(
+            3,
+            EditOperation::MoveParts {
+                positions: vec![position],
+            },
+        ),
+    );
+    assert!(engine.reusable_scene.is_none());
+    compare(&mut engine, &mut cold, stagger(4, EditPhase::Preview, 1.5));
+    compare(&mut engine, &mut cold, stagger(4, EditPhase::Commit, 1.5));
+    let CoreReply::Scene { document, .. } = compare(
+        &mut engine,
+        &mut cold,
+        CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        },
+    ) else {
+        panic!("expected saved stagger scene");
+    };
+    assert_eq!(document.revision, 5);
+    assert_eq!(document.matrices[0].column_layout[1].stagger, 1.5);
+
+    let copy: EditOperation = serde_json::from_value(serde_json::json!({
+        "kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "main"},
+            "change": {"copy": {"version_id": "fixed", "name": "Fixed outline"}},
+            "seed": 1, "reviewed": null
+        }
+    }))
+    .unwrap();
+    let CoreReply::Scene {
+        scene: fixed,
+        document: saved,
+        ..
+    } = compare(&mut engine, &mut cold, edit(5, copy))
+    else {
+        panic!("expected a saved fixed outline");
+    };
+    assert!(engine.reusable_scene.is_none());
+    let CoreReply::Preview { scene: preview, .. } =
+        compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
+    else {
+        panic!("expected a preview with a fixed outline");
+    };
+    assert_eq!(preview.board_contours, fixed.board_contours);
+    assert_eq!(
+        serde_json::to_vec(&engine.document).unwrap(),
+        serde_json::to_vec(&saved).unwrap(),
+    );
 }
 
 #[test]

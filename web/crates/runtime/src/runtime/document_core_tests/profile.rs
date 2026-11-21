@@ -1,5 +1,7 @@
 use super::*;
-use boardstudio_model::model::{EditCommand, EditPhase, OutlineFeature, RowLayout};
+use boardstudio_model::model::{
+    EditCommand, EditPhase, MatrixPlacementChange, OutlineFeature, RowLayout,
+};
 
 #[derive(Clone, Copy)]
 pub(in crate::runtime) enum Phase {
@@ -220,6 +222,59 @@ async fn page_core_profiles_rename_and_stagger_submission() {
             }
         }
         report(size, "column stagger", &samples);
+    }
+}
+
+#[wasm_bindgen_test]
+fn page_core_profiles_stagger_preview() {
+    for (size, large) in [("2 keys", false), ("60 keys", true)] {
+        let document = fixture(large);
+        let columns = document.matrices[0].columns;
+        let mut engine = boardstudio_core::CoreEngine::new();
+        assert!(matches!(
+            engine.handle(CoreRequest::Open {
+                id: "preview-open".into(),
+                document,
+            }),
+            CoreReply::Scene { .. }
+        ));
+        for (label, column) in [("first column", 0), ("last column", columns - 1)] {
+            let mut samples = Vec::with_capacity(100);
+            for i in 0..124 {
+                let request = CoreRequest::Edit {
+                    id: "stagger-preview".into(),
+                    command: EditCommand {
+                        base_revision: 0,
+                        transaction_id: "stagger-preview".into(),
+                        phase: EditPhase::Preview,
+                        target_ids: vec!["matrix".into()],
+                        operation: EditOperation::SetMatrixPlacement {
+                            matrix_id: "matrix".into(),
+                            change: MatrixPlacementChange::ColumnStagger {
+                                column,
+                                value: [2.0, 4.0][i % 2],
+                            },
+                        },
+                    },
+                };
+                let start = now();
+                let reply = std::hint::black_box(engine.handle(request));
+                let elapsed = now() - start;
+                assert!(matches!(reply, CoreReply::Preview { scene, .. }
+                    if scene.revision == 0 && !scene.changed_ids.is_empty()));
+                if i >= 24 {
+                    samples.push(elapsed);
+                }
+            }
+            samples.sort_by(f64::total_cmp);
+            web_sys::console::log_1(
+                &format!(
+                    "{size} / stagger preview / {label}: n=100, p50={:.3} ms, p95={:.3} ms",
+                    samples[49], samples[94],
+                )
+                .into(),
+            );
+        }
     }
 }
 

@@ -1,5 +1,15 @@
 use super::*;
 
+pub(super) fn is_column_stagger(operation: &EditOperation) -> bool {
+    matches!(
+        operation,
+        EditOperation::SetMatrixPlacement {
+            change: MatrixPlacementChange::ColumnStagger { .. },
+            ..
+        }
+    )
+}
+
 /// Compare the settled draft, after topology, constraints and spacing have run.
 /// Project name is absent from the scene payload and its diagnostics.
 pub(super) fn replacement_keeps_scene(accepted: &ProjectDoc, next: &mut ProjectDoc) -> bool {
@@ -26,27 +36,28 @@ pub(super) fn stagger_outline_changes(
     next: &ProjectDoc,
     operation: &EditOperation,
 ) -> Option<Vec<String>> {
-    if !matches!(
-        operation,
-        EditOperation::SetMatrixPlacement {
-            change: MatrixPlacementChange::ColumnStagger { .. },
-            ..
-        }
-    ) || accepted.layouts != next.layouts
-        || next
-            .layouts
-            .iter()
-            .any(|layout| layout.mirror_link.is_some())
-        || accepted.definitions != next.definitions
-        || accepted.boards != next.boards
+    if !is_column_stagger(operation) || accepted.definitions != next.definitions {
+        return None;
+    }
+    stagger_dependencies(&accepted.layouts, &accepted.boards, &accepted.parts, next)
+}
+
+pub(super) fn stagger_dependencies(
+    layouts: &[Layout],
+    boards: &[Board],
+    parts: &[Part],
+    next: &ProjectDoc,
+) -> Option<Vec<String>> {
+    if layouts != next.layouts
+        || layouts.iter().any(|layout| layout.mirror_link.is_some())
+        || boards != next.boards
         || !next.board_outlines.is_empty()
-        || accepted.parts.len() != next.parts.len()
+        || parts.len() != next.parts.len()
     {
         return None;
     }
-
     let mut changed = Vec::new();
-    for (before, after) in accepted.parts.iter().zip(&next.parts) {
+    for (before, after) in parts.iter().zip(&next.parts) {
         if before.id != after.id || before.anchor.is_some() || after.anchor.is_some() {
             return None;
         }

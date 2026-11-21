@@ -1,6 +1,6 @@
 use crate::model::{
-    BoardOutlineScene, Contour, Finding, Operation, OutlineFeature, OutlineSettings, Part,
-    ProjectDoc, Scope, Severity, Vec2,
+    Board, BoardContours, BoardOutlineScene, Contour, Finding, FindingMarker, Operation,
+    OutlineFeature, OutlineSettings, Part, ProjectDoc, Scope, Severity, Vec2,
 };
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
@@ -856,71 +856,119 @@ pub fn board_outline_scenes(doc: &ProjectDoc, cache: &OutlineCache) -> Vec<Board
     doc.boards
         .iter()
         .map(|board| {
-            let (result, _) = board_composition(doc, cache, board);
-            let bridges = match crate::outline_versions::active_version(doc, &board.id) {
-                // A linked refinement's material bridges follow its current projection.
-                Some(version) if !version.ownership.is_fixed() => result.bridges.clone(),
-                Some(_) => crate::outline_versions::active_snapshot(doc, &board.id)
-                    .map(|snapshot| snapshot.bridges.clone())
-                    .unwrap_or_else(|| result.bridges.clone()),
-                None => result.bridges.clone(),
-            };
-            BoardOutlineScene {
-                board_id: board.id.clone(),
-                source_contours: result.source,
-                bridges,
-                gaps: result.gaps,
-            }
+            let (mut result, _) = board_composition(doc, cache, board);
+            take_board_outline_scene(doc, board, &mut result)
         })
         .collect()
+}
+
+fn take_board_outline_scene(
+    doc: &ProjectDoc,
+    board: &Board,
+    result: &mut ComposedOutline,
+) -> BoardOutlineScene {
+    // A linked refinement's material bridges follow its current projection.
+    let bridges = match crate::outline_versions::active_version(doc, &board.id) {
+        Some(version) if version.ownership.is_fixed() => {
+            crate::outline_versions::active_snapshot(doc, &board.id)
+                .map(|snapshot| snapshot.bridges.clone())
+                .unwrap_or_else(|| std::mem::take(&mut result.bridges))
+        }
+        _ => std::mem::take(&mut result.bridges),
+    };
+    BoardOutlineScene {
+        board_id: board.id.clone(),
+        source_contours: std::mem::take(&mut result.source),
+        bridges,
+        gaps: std::mem::take(&mut result.gaps),
+    }
+}
+
+#[derive(Default)]
+pub struct BoardSceneGeometry {
+    pub contours: Vec<BoardContours>,
+    pub outlines: Vec<BoardOutlineScene>,
+    pub findings: Vec<Finding>,
+    pub markers: Vec<FindingMarker>,
+}
+
+/// Project the source and fabricated outlines from one composition per board.
+pub fn board_scene_geometry(doc: &ProjectDoc, cache: &OutlineCache) -> BoardSceneGeometry {
+    let mut scene = BoardSceneGeometry::default();
+    for board in &doc.boards {
+        let (mut result, problem) = board_composition(doc, cache, board);
+        scene
+            .outlines
+            .push(take_board_outline_scene(doc, board, &mut result));
+        scene.contours.push(finish_board_contours(
+            board,
+            result,
+            problem,
+            &mut scene.findings,
+            &mut scene.markers,
+        ));
+    }
+    scene
 }
 
 pub fn board_contours(
     doc: &ProjectDoc,
     cache: &OutlineCache,
-) -> (
-    Vec<crate::model::BoardContours>,
-    Vec<Finding>,
-    Vec<crate::model::FindingMarker>,
-) {
+) -> (Vec<BoardContours>, Vec<Finding>, Vec<FindingMarker>) {
     let mut boards = Vec::with_capacity(doc.boards.len());
     let mut findings = vec![];
     let mut markers = vec![];
     for board in &doc.boards {
         let (result, problem) = board_composition(doc, cache, board);
-        markers.extend(corner_markers_for(&board.id, &result.corner_locations));
-        if let Some(problem) = &problem {
-            // The last valid shape is what the board displays; the finding identifies
-            // the board and version it belongs to and locates it on the workbench.
-            markers.push(crate::model::FindingMarker {
-                finding_id: problem.finding_id(&board.id),
-                board_id: board.id.clone(),
-                contours: result
-                    .contours
-                    .iter()
-                    .filter(|contour| !contour.hole)
-                    .cloned()
-                    .collect(),
-            });
-        }
-        for problem in result.findings {
-            findings.push(Finding {
-                id: format!("board:{}:feature:{}", board.id, problem.id),
-                severity: problem.severity,
-                scope: Scope::Pcb,
-                message: problem.message,
-                target_ids: vec![board.id.clone()]
-                    .into_iter()
-                    .chain(problem.target_ids)
-                    .collect(),
-            });
-        }
-        boards.push(crate::model::BoardContours {
-            board_id: board.id.clone(),
-            contours: result.contours,
-        });
+        boards.push(finish_board_contours(
+            board,
+            result,
+            problem,
+            &mut findings,
+            &mut markers,
+        ));
     }
     (boards, findings, markers)
+}
+
+fn finish_board_contours(
+    board: &Board,
+    result: ComposedOutline,
+    problem: Option<LinkedProblem>,
+    findings: &mut Vec<Finding>,
+    markers: &mut Vec<FindingMarker>,
+) -> BoardContours {
+    markers.extend(corner_markers_for(&board.id, &result.corner_locations));
+    if let Some(problem) = problem {
+        // The last valid shape is what the board displays; the finding identifies
+        // the board and version it belongs to and locates it on the workbench.
+        markers.push(FindingMarker {
+            finding_id: problem.finding_id(&board.id),
+            board_id: board.id.clone(),
+            contours: result
+                .contours
+                .iter()
+                .filter(|contour| !contour.hole)
+                .cloned()
+                .collect(),
+        });
+    }
+    findings.extend(result.findings.into_iter().map(|problem| {
+        Finding {
+            id: format!("board:{}:feature:{}", board.id, problem.id),
+            severity: problem.severity,
+            scope: Scope::Pcb,
+            message: problem.message,
+            target_ids: vec![board.id.clone()]
+                .into_iter()
+                .chain(problem.target_ids)
+                .collect(),
+        }
+    }));
+    BoardContours {
+        board_id: board.id.clone(),
+        contours: result.contours,
+    }
 }
 
 pub fn part_valid(part: &Part, doc: &ProjectDoc) -> bool {
