@@ -706,12 +706,15 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual([item["filter"] for item in data["filters"]],
                          ["cad_presentation::", "presentation::", "presentation::inspector::"])
 
-    def test_parallel_filters_start_largest_first_and_report_in_filter_order(self):
-        started, lock = [], __import__("threading").Lock()
+    def test_parallel_filters_submit_largest_first_and_report_in_filter_order(self):
+        submitted = []
+        submit = runner.ThreadPoolExecutor.submit
+
+        def record_submit(executor, invoke, filter_, skips):
+            submitted.append(filter_)
+            return submit(executor, invoke, filter_, skips)
 
         def fake_run_filter(filter_, env, root, skip_filters=()):
-            with lock:
-                started.append(filter_)
             tests = {name: "ok" for name in expected[filter_]}
             return 0, tests, "".join(f"test {name} ... ok\n" for name in tests)
 
@@ -719,11 +722,11 @@ class RunWasmTestsTests(unittest.TestCase):
                     "c::": [f"c::m::t{index}" for index in range(2)]}
         err = io.StringIO()
         with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                patch.object(runner.ThreadPoolExecutor, "submit", record_submit), \
                 patch.object(runner, "run_filter", side_effect=fake_run_filter), contextlib.redirect_stderr(err):
             executed, failed, _, problems, _ = runner.run(list(expected), {}, self.dir, expected, env={})
         self.assertEqual((executed, failed, problems), (6, [], []))
-        self.assertEqual(set(started[:2]), {"b::", "c::"})
-        self.assertEqual(started[2], "a::")
+        self.assertEqual(submitted, ["b::", "c::", "a::"])
         self.assertEqual(re.findall(r"\[\d/3\] (\S+)", err.getvalue()), ["a::", "b::", "c::"])
 
     def test_result_json_distinguishes_complete_known_failure_from_success(self):
