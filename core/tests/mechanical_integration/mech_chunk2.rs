@@ -19,10 +19,7 @@ fn the_evaluator_reports_changed_and_unchanged_without_touching_the_document() {
 
 #[test]
 fn a_linked_feature_is_read_from_the_single_authored_value_on_both_halves() {
-    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
-
-    let mut document = pair_document();
-    link_pair(&mut document);
+    let mut document = linked_pair_document();
 
     // Move the pair's single authored value. Nothing else is written.
     document.hardware.as_mut().unwrap().pairs[0].features[0].value =
@@ -30,10 +27,8 @@ fn a_linked_feature_is_read_from_the_single_authored_value_on_both_halves() {
             mount: mount("mount-1", 4.0, 0.0),
         };
 
-    let left: MechanicalInputs =
-        effective_inputs(&document, &[], &instance_target("left")).unwrap();
-    let right: MechanicalInputs =
-        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    let left = instance_inputs(&document, "left");
+    let right = instance_inputs(&document, "right");
 
     // The author reads the stored value; the other half reads the reflected one.
     assert_eq!(
@@ -63,28 +58,13 @@ fn a_linked_feature_is_read_from_the_single_authored_value_on_both_halves() {
 
 #[test]
 fn an_ordinary_delete_of_a_linked_feature_removes_both_halves() {
-    use boardstudio_core::mechanical::edit::apply;
-
-    let mut document = pair_document();
-    link_pair(&mut document);
+    let mut document = linked_pair_document();
 
     // Ordinary Delete is the linked deletion: it removes both counterparts and the
     // relationship itself. Remove-on-this-half is the explicit Omit action.
-    apply(
-        &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("right"),
-            change: MechanicalChange::RemoveMount {
-                collection: MechanicalMountCollection::Suspension,
-                mount_id: "mount-1".into(),
-            },
-            mounting_hole: Some(Box::new(template())),
-        },
-    )
-    .unwrap();
+    apply_with_template(&mut document, instance_target("right"), delete_mount()).unwrap();
 
-    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let pair = pair(&document);
     assert!(
         pair.features.is_empty(),
         "a linked delete removes the relationship, not just one half"
@@ -134,14 +114,13 @@ fn accepted_contours_drive_absent_closure_mount_initialization() {
         contours: vec![small_rect()],
     }];
 
-    let initialization = MechanicalEdit {
-        target: board_target(),
-        change: MechanicalChange::SetDimension {
+    let initialization = with_template(
+        board_target(),
+        MechanicalChange::SetDimension {
             field: MechanicalDimension::WallThickness,
             value: 3.0,
         },
-        mounting_hole: Some(Box::new(template())),
-    };
+    );
 
     let mut from_accepted = document.clone();
     apply(&mut from_accepted, &accepted, &initialization).unwrap();
@@ -174,12 +153,8 @@ fn accepted_contours_drive_absent_closure_mount_initialization() {
 
 #[test]
 fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
-    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
-
-    let mut document = pair_document();
-    link_pair(&mut document);
-    let before: MechanicalInputs =
-        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let mut document = linked_pair_document();
+    let before = instance_inputs(&document, "left");
     let survivor_geometry = mount_at(&before.configuration, "mount-1");
 
     let changed = remove_member(&mut document, "right").unwrap();
@@ -208,8 +183,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
     }
 
     // The survivor's effective read still shows the same geometry.
-    let after: MechanicalInputs =
-        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let after = instance_inputs(&document, "left");
     assert_eq!(mount_at(&after.configuration, "mount-1"), survivor_geometry);
 }
 
@@ -218,8 +192,7 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
     use boardstudio_core::CoreEngine;
     use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
 
-    let mut document = pair_document();
-    link_pair(&mut document);
+    let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
     let accepted = match engine.handle(CoreRequest::Open {
@@ -281,15 +254,13 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
 #[test]
 fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
     use boardstudio_core::model::{CoreReply, CoreRequest, Scope};
 
     let mut document = conflicting_pair_document();
     link_pair(&mut document);
 
     // The reflected mount is exactly where the right half's own hardware sits.
-    let right: MechanicalInputs =
-        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    let right = instance_inputs(&document, "right");
     assert_eq!(
         mount_at(&right.configuration, "mount-1"),
         Vec2 { x: -2.0, y: 3.0 },
@@ -382,13 +353,12 @@ fn a_removed_opening_vertex_identity_is_never_reused() {
         apply(
             document,
             &[],
-            &MechanicalEdit {
-                target: board_target(),
-                change: MechanicalChange::AddOpeningVertex {
+            &with_template(
+                board_target(),
+                MechanicalChange::AddOpeningVertex {
                     opening_id: opening.clone(),
                 },
-                mounting_hole: Some(Box::new(template())),
-            },
+            ),
         )
         .unwrap();
         document
@@ -408,16 +378,12 @@ fn a_removed_opening_vertex_identity_is_never_reused() {
             .clone()
     };
     let first = add_vertex(&mut document);
-    apply(
+    apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::RemoveOpeningVertex {
-                opening_id: opening.clone(),
-                vertex_id: first.clone(),
-            },
-            mounting_hole: Some(Box::new(template())),
+        board_target(),
+        MechanicalChange::RemoveOpeningVertex {
+            opening_id: opening.clone(),
+            vertex_id: first.clone(),
         },
     )
     .unwrap();
@@ -427,16 +393,15 @@ fn a_removed_opening_vertex_identity_is_never_reused() {
         "a removed vertex identity must not be handed out again"
     );
 
-    let queued = MechanicalEdit {
-        target: board_target(),
-        change: MechanicalChange::SetOpeningDimension {
+    let queued = with_template(
+        board_target(),
+        MechanicalChange::SetOpeningDimension {
             opening_id: opening.clone(),
             vertex_id: Some(first.clone()),
             field: MechanicalDimension::OpeningPointX,
             value: 4.0,
         },
-        mounting_hole: Some(Box::new(template())),
-    };
+    );
     assert_eq!(
         evaluate_edit(&document, &[], &queued).unwrap(),
         MechanicalEditDisposition::Retire
@@ -445,9 +410,6 @@ fn a_removed_opening_vertex_identity_is_never_reused() {
 
 #[test]
 fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
-    use boardstudio_core::mechanical::edit::apply;
-    use boardstudio_core::mechanical::effective_inputs;
-
     let mut document = pair_document_with_openings();
     // The opening is authored by the second half, so it leaves both raw
     // configurations and becomes visible on both through the pair.
@@ -461,7 +423,7 @@ fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
         )],
     )
     .unwrap();
-    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let left = instance_inputs(&document, "left");
     assert!(
         left.configuration
             .openings
@@ -477,7 +439,7 @@ fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
         new_id, "opening-1",
         "the visible pair-owned identity is reserved on the member"
     );
-    let after = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let after = instance_inputs(&document, "left");
     let ids: Vec<&str> = after
         .configuration
         .openings
@@ -495,22 +457,18 @@ fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
 
     // A commit against the pair-owned identity still lands on the linked opening, not
     // the local addition.
-    apply(
+    apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::SetOpeningDimension {
-                opening_id: "opening-1".into(),
-                vertex_id: None,
-                field: MechanicalDimension::OpeningHeight,
-                value: 7.0,
-            },
-            mounting_hole: Some(Box::new(template())),
+        instance_target("left"),
+        MechanicalChange::SetOpeningDimension {
+            opening_id: "opening-1".into(),
+            vertex_id: None,
+            field: MechanicalDimension::OpeningHeight,
+            value: 7.0,
         },
     )
     .unwrap();
-    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let pair = pair(&document);
     let MechanicalFeatureValue::Opening { opening } = &pair.features[0].value else {
         panic!("a linked opening stores an opening");
     };
@@ -522,21 +480,13 @@ fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
 
 #[test]
 fn disabling_a_paired_half_unlinks_it_and_keeps_the_other_half() {
-    use boardstudio_core::mechanical::edit::apply;
-    use boardstudio_core::mechanical::effective_inputs;
+    let mut document = linked_pair_document();
+    let before_left = instance_inputs(&document, "left");
 
-    let mut document = pair_document();
-    link_pair(&mut document);
-    let before_left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
-
-    let changed = apply(
+    let changed = apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("right"),
-            change: MechanicalChange::Disable,
-            mounting_hole: Some(Box::new(template())),
-        },
+        instance_target("right"),
+        MechanicalChange::Disable,
     )
     .unwrap();
 
@@ -571,7 +521,7 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_other_half() {
         Vec2 { x: 2.0, y: 3.0 },
         "the surviving half keeps the geometry it showed"
     );
-    let after_left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let after_left = instance_inputs(&document, "left");
     assert_eq!(
         mount_at(&after_left.configuration, "mount-1"),
         Vec2 { x: 2.0, y: 3.0 }
@@ -589,7 +539,7 @@ fn a_case_conflict_on_one_half_does_not_scope_to_the_other_half() {
     let mut document = conflicting_pair_document();
     link_pair(&mut document);
 
-    let right = effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    let right = instance_inputs(&document, "right");
     assert!(
         right
             .findings
@@ -598,7 +548,7 @@ fn a_case_conflict_on_one_half_does_not_scope_to_the_other_half() {
         "the conflicting half carries the finding: {:?}",
         right.findings
     );
-    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let left = instance_inputs(&document, "left");
     assert!(
         left.findings.is_empty(),
         "the other half on the same PCB is unaffected: {:?}",
@@ -656,25 +606,14 @@ fn a_re_enabled_half_never_reuses_an_identity_its_removed_stack_reserved() {
     )
     .unwrap();
     // The right half is unlinked and disabled (Q14), which removes its stack.
-    apply(
+    apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("right"),
-            change: MechanicalChange::Disable,
-            mounting_hole: Some(Box::new(template())),
-        },
+        instance_target("right"),
+        MechanicalChange::Disable,
     )
     .unwrap();
     assert!(
-        document
-            .hardware
-            .as_ref()
-            .unwrap()
-            .instances
-            .iter()
-            .find(|instance| instance.id == "right")
-            .unwrap()
+        stored_instance(&document, "right")
             .mechanical_identity_reservation
             .is_some(),
         "the removed stack's reservations are kept on the half"
@@ -682,14 +621,10 @@ fn a_re_enabled_half_never_reuses_an_identity_its_removed_stack_reserved() {
 
     // Re-enabling builds fresh defaults, and the next authored addition must still avoid
     // the identity the removed stack reserved.
-    apply(
+    apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("right"),
-            change: MechanicalChange::Enable,
-            mounting_hole: Some(Box::new(template())),
-        },
+        instance_target("right"),
+        MechanicalChange::Enable,
     )
     .unwrap();
     let new_id = add_instance_opening(&mut document, "right");
@@ -703,21 +638,13 @@ fn a_re_enabled_half_never_reuses_an_identity_its_removed_stack_reserved() {
     apply(
         &mut unpaired,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::Disable,
-            mounting_hole: Some(Box::new(template())),
-        },
+        &with_template(instance_target("left"), MechanicalChange::Disable),
     )
     .unwrap();
     apply(
         &mut unpaired,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::Enable,
-            mounting_hole: Some(Box::new(template())),
-        },
+        &with_template(instance_target("left"), MechanicalChange::Enable),
     )
     .unwrap();
     let new_id = add_instance_opening(&mut unpaired, "left");
@@ -861,15 +788,7 @@ fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
         },
     }));
     assert_eq!(
-        converted
-            .hardware
-            .as_ref()
-            .unwrap()
-            .instances
-            .iter()
-            .find(|instance| instance.id == "a")
-            .unwrap()
-            .construction_ownership,
+        stored_instance(&converted, "a").construction_ownership,
         MechanicalConstructionOwnership::Local
     );
     assert!(
@@ -883,15 +802,7 @@ fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
 
     let restored = document_of(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(
-        restored
-            .hardware
-            .as_ref()
-            .unwrap()
-            .instances
-            .iter()
-            .find(|instance| instance.id == "a")
-            .unwrap()
-            .construction_ownership,
+        stored_instance(&restored, "a").construction_ownership,
         MechanicalConstructionOwnership::Legacy
     );
     assert!(
@@ -916,49 +827,48 @@ fn generated_gasket_geometry_uses_the_reflected_author_placement() {
     use boardstudio_core::mechanical::effective_inputs;
     use boardstudio_core::mechanical::inputs::effective_document;
 
-    let (mut document, accepted) = same_board_gasket_pair_document();
-    link_gasket_support(&mut document, &accepted, "left");
+    // Exercise both the forward and the inverse pair map.
+    for (source, mirror) in [("left", "right"), ("right", "left")] {
+        let (mut document, accepted) = same_board_gasket_pair_document();
+        let author = link_gasket_support(&mut document, &accepted, source, "board");
+        let target = instance_target(mirror);
+        let inputs = effective_inputs(&document, &accepted, &target).unwrap();
+        let reflected = inputs
+            .gasket_supports
+            .first()
+            .expect("the linked support is reflected for the read path");
+        assert!(
+            (reflected.at.x - author.at.x).abs() > 1.0,
+            "{source}: reflection differs from the authored placement"
+        );
 
-    // The read path reports the author's placement reflected into the other half.
-    let reflected = effective_inputs(&document, &accepted, &instance_target("right"))
-        .unwrap()
-        .gasket_supports
-        .first()
-        .cloned()
-        .expect("the linked support is reflected for the read path");
-    let author = author_gasket_support(&document, &accepted, "left", "board");
-    assert!(
-        (reflected.at.x - author.at.x).abs() > 1.0,
-        "the reflected placement differs from the author's own"
-    );
-
-    // The generated assembly for that half uses the same resolved placement instead of
-    // re-resolving the author's perimeter fraction on its own contour.
-    let (right_document, _) = effective_document(&document, &instance_target("right")).unwrap();
-    let assembly = boardstudio_core::mechanical::resolve(&right_document, &accepted[0].contours);
-    assert!(
-        !assembly.generation_blocked,
-        "the assembly resolves: {:?}",
-        assembly.diagnostics
-    );
-    let generated = assembly
-        .gasket_supports
-        .iter()
-        .find(|support| support.id == reflected.id)
-        .unwrap_or_else(|| {
-            panic!(
-                "no generated support {}: {:?}",
-                reflected.id, assembly.gasket_supports
-            )
-        });
-    assert_close(generated.at, reflected.at, "generated placement");
-    assert_close(generated.tangent, reflected.tangent, "generated tangent");
-    assert_close(generated.normal, reflected.normal, "generated normal");
-    assert_eq!(
-        generated.fit_error, reflected.fit_error,
-        "the located association is reported by the generated geometry too"
-    );
-    assert_eq!(generated.pair_id, reflected.pair_id);
+        // Generation must use that same placement, not re-resolve its perimeter fraction.
+        let (effective, _) = effective_document(&document, &target).unwrap();
+        let assembly = boardstudio_core::mechanical::resolve(&effective, &accepted[0].contours);
+        assert!(
+            !assembly.generation_blocked,
+            "{source}: {:?}",
+            assembly.diagnostics
+        );
+        let generated = assembly
+            .gasket_supports
+            .iter()
+            .find(|support| support.id == reflected.id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{source}: no generated support {}: {:?}",
+                    reflected.id, assembly.gasket_supports
+                )
+            });
+        assert_close(generated.at, reflected.at, "generated placement");
+        assert_close(generated.tangent, reflected.tangent, "generated tangent");
+        assert_close(generated.normal, reflected.normal, "generated normal");
+        assert_eq!(
+            generated.fit_error, reflected.fit_error,
+            "{source}: generation reports the located association"
+        );
+        assert_eq!(generated.pair_id, reflected.pair_id, "{source}");
+    }
 }
 
 #[test]
@@ -980,15 +890,11 @@ fn pair_dissolution_refuses_an_exhausted_linked_identity_and_keeps_the_pair() {
     .expect("the max-identity opening links");
     let before = document.clone();
 
-    let error = boardstudio_core::mechanical::edit::apply(
+    let error = apply_with_template(
         &mut document,
-        &[],
-        &MechanicalEdit {
-            target: instance_target("right"),
-            change: MechanicalChange::UnlinkMirrorPair {
-                instance_id: "right".into(),
-            },
-            mounting_hole: Some(Box::new(template())),
+        instance_target("right"),
+        MechanicalChange::UnlinkMirrorPair {
+            instance_id: "right".into(),
         },
     )
     .unwrap_err();

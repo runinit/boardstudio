@@ -164,12 +164,11 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
 }
 
 fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-        .at
+    pose_of(doc, id).at
+}
+
+fn assert_at(doc: &ProjectDoc, id: &str, x: f64, y: f64) {
+    assert_eq!(at(doc, id), Vec2 { x, y }, "position of {id}");
 }
 
 fn member(matrix: &str, row: u32, column: u32) -> String {
@@ -180,6 +179,98 @@ fn anchored_fixture() -> (CoreEngine, ProjectDoc) {
     let (mut engine, doc) = fixture();
     let doc = add_thumb(&mut engine, &doc);
     (engine, doc)
+}
+
+fn matrix<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Matrix {
+    doc.matrices
+        .iter()
+        .find(|matrix| matrix.id == id)
+        .unwrap_or_else(|| panic!("missing matrix {id}"))
+}
+
+fn layout<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Layout {
+    doc.layouts
+        .iter()
+        .find(|layout| layout.id == id)
+        .unwrap_or_else(|| panic!("missing layout {id}"))
+}
+
+fn mirror_link(doc: &ProjectDoc) -> &LayoutMirrorLink {
+    layout(doc, "mirror-layout")
+        .mirror_link
+        .as_ref()
+        .expect("mirror link")
+}
+
+fn with_mirror_exception(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    kind: MirroredItemKind,
+    mirror_id: impl Into<String>,
+    state: MirroredExceptionState,
+) -> ProjectDoc {
+    let mut layout = layout(doc, "mirror-layout").clone();
+    layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind,
+            mirror_id: mirror_id.into(),
+            state,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    edit(engine, doc, EditOperation::SetLayout { layout }).1
+}
+
+fn poses(doc: &ProjectDoc) -> impl Iterator<Item = (&str, Pose2)> {
+    doc.parts.iter().map(|part| (part.id.as_str(), part.pose))
+}
+
+fn change_matrix(doc: &ProjectDoc, id: &str, update: impl FnOnce(&mut Matrix)) -> EditOperation {
+    let mut matrix = matrix(doc, id).clone();
+    update(&mut matrix);
+    EditOperation::SetMatrix {
+        matrix,
+        definitions: None,
+    }
+}
+
+fn move_part(id: impl Into<String>, at: Vec2) -> EditOperation {
+    EditOperation::MoveParts {
+        positions: vec![Position { id: id.into(), at }],
+    }
+}
+
+fn key_anchor(id: &str, row: u32, column: u32) -> MatrixAnchor {
+    MatrixAnchor {
+        matrix_id: id.into(),
+        row,
+        column,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+        aggregate: None,
+    }
+}
+
+fn add_anchored(id: &str, anchor: MatrixAnchor) -> EditOperation {
+    EditOperation::AddAnchoredMatrix {
+        id: id.into(),
+        anchor,
+    }
+}
+
+fn reanchor(id: &str, anchor: MatrixAnchor) -> EditOperation {
+    EditOperation::SetMatrixAnchor {
+        matrix_id: id.into(),
+        anchor,
+    }
 }
 
 fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
@@ -208,25 +299,7 @@ fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
 }
 
 fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
-    edit(
-        engine,
-        doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor: MatrixAnchor {
-                matrix_id: "main".into(),
-                row: 0,
-                column: 2,
-                follow: Follow {
-                    x: true,
-                    y: true,
-                    rotation: true,
-                },
-                aggregate: None,
-            },
-        },
-    )
-    .1
+    edit(engine, doc, add_anchored("thumb", key_anchor("main", 0, 2))).1
 }
 
 fn pose_of(doc: &ProjectDoc, id: &str) -> Pose2 {

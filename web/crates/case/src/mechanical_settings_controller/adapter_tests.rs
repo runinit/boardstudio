@@ -743,82 +743,55 @@ async fn flush_prepared_keeps_commit_order_when_catalogue_loads_finish_out_of_or
 }
 
 #[wasm_bindgen_test]
-async fn a_vertex_edit_retires_after_its_opening_is_removed() {
-    let (_runtime, accepted) = accepted_fixture("adapter-retire-opening").await;
-    let port = RecordingPort::default();
-    let feedback = Rc::new(RefCell::new(Vec::new()));
-    let current = current(&accepted, None);
-    let identity = current.identity.clone();
-    let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+async fn a_vertex_edit_retires_after_its_target_is_removed() {
+    use boardstudio_core_mechanical::mechanical::change::MechanicalDimension;
 
-    // A destructive predecessor is queued first, addressed to the whole opening.
-    assert!(controller.submit(request(
-        identity.clone(),
-        1,
-        MechanicalSettingsPatch::RemoveOpening {
-            opening_id: "opening-1".into(),
-        },
-    )));
-    loaded().await;
-    assert!(controller.submit(request(
-        identity,
-        2,
-        MechanicalSettingsPatch::SetOpeningDimension {
-            opening_id: "opening-1".into(),
-            vertex_id: Some("vertex-1".into()),
-            field:
-                boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointX,
-            value: 1.0,
-        },
-    )));
-    loaded().await;
+    for (project, removal, field) in [
+        (
+            "adapter-retire-opening",
+            MechanicalSettingsPatch::RemoveOpening {
+                opening_id: "opening-1".into(),
+            },
+            MechanicalDimension::OpeningPointX,
+        ),
+        (
+            "adapter-retire-vertex",
+            MechanicalSettingsPatch::RemoveOpeningVertex {
+                opening_id: "opening-1".into(),
+                vertex_id: "vertex-1".into(),
+            },
+            MechanicalDimension::OpeningPointY,
+        ),
+    ] {
+        let (_runtime, accepted) = accepted_fixture(project).await;
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-    let resolutions = port.resolutions.borrow();
-    assert_eq!(resolutions.len(), 2);
-    let resolution = resolutions[1].resolve(&accepted);
-    let Resolution::Retire(reason) = resolution else {
-        panic!("a queued edit to a removed opening must retire, got {resolution:?}");
-    };
-    assert!(reason.contains("removed before this edit could run"));
-}
+        assert!(controller.submit(request(identity.clone(), 1, removal)));
+        loaded().await;
+        assert!(controller.submit(request(
+            identity,
+            2,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_id: "opening-1".into(),
+                vertex_id: Some("vertex-1".into()),
+                field,
+                value: 1.0,
+            },
+        )));
+        loaded().await;
 
-#[wasm_bindgen_test]
-async fn a_vertex_edit_retires_after_its_vertex_is_removed() {
-    let (_runtime, accepted) = accepted_fixture("adapter-retire-vertex").await;
-    let port = RecordingPort::default();
-    let feedback = Rc::new(RefCell::new(Vec::new()));
-    let current = current(&accepted, None);
-    let identity = current.identity.clone();
-    let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
-
-    assert!(controller.submit(request(
-        identity.clone(),
-        1,
-        MechanicalSettingsPatch::RemoveOpeningVertex {
-            opening_id: "opening-1".into(),
-            vertex_id: "vertex-1".into(),
-        },
-    )));
-    loaded().await;
-    assert!(controller.submit(request(
-        identity,
-        2,
-        MechanicalSettingsPatch::SetOpeningDimension {
-            opening_id: "opening-1".into(),
-            vertex_id: Some("vertex-1".into()),
-            field:
-                boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointY,
-            value: 1.0,
-        },
-    )));
-    loaded().await;
-
-    let resolutions = port.resolutions.borrow();
-    let resolution = resolutions[1].resolve(&accepted);
-    let Resolution::Retire(reason) = resolution else {
-        panic!("a queued edit to a removed vertex must retire, got {resolution:?}");
-    };
-    assert!(reason.contains("removed before this edit could run"));
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 2);
+        let resolution = resolutions[1].resolve(&accepted);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a queued edit to a removed target must retire, got {resolution:?}");
+        };
+        assert!(reason.contains("removed before this edit could run"));
+    }
 }
 
 #[wasm_bindgen_test]

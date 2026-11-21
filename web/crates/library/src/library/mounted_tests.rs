@@ -168,6 +168,52 @@ async fn clean_saved_projects(runtime: &Runtime, ids: &[&str]) {
     }
 }
 
+/// Save every `documents` entry into the runtime store. Multi-card list
+/// scenarios share this instead of repeating the save block per document.
+async fn save_all(runtime: &Runtime, documents: &[&ProjectDoc]) {
+    for document in documents {
+        runtime
+            .store
+            .save_document(document, &Default::default())
+            .await
+            .unwrap();
+    }
+}
+
+/// Seed `saved` into storage (clearing `clean` first so cross-test storage
+/// state cannot leak in), install `current` as the accepted project, and
+/// return the runtime. Delete/list scenarios share this instead of repeating
+/// the new/clean/save/install sequence.
+async fn seeded_runtime(current: ProjectDoc, clean: &[&str], saved: &[&ProjectDoc]) -> Rc<Runtime> {
+    let (session, core) = accepted(current);
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    clean_saved_projects(&runtime, clean).await;
+    for document in saved {
+        runtime
+            .store
+            .save_document(document, &Default::default())
+            .await
+            .unwrap();
+    }
+    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
+    runtime
+}
+
+/// `seeded_runtime` plus mounting the project menu and waiting for
+/// `expected_cards` saved cards.
+async fn seeded_menu(
+    current: ProjectDoc,
+    clean: &[&str],
+    saved: &[&ProjectDoc],
+    root_id: &str,
+    expected_cards: u32,
+) -> (Rc<Runtime>, web_sys::Element, MountedFixture) {
+    let runtime = seeded_runtime(current, clean, saved).await;
+    let (root, mounted) = mount_menu(runtime.clone(), root_id);
+    wait_for_saved_cards(&root, expected_cards).await;
+    (runtime, root, mounted)
+}
+
 async fn wait_outcome(
     runtime: &Rc<Runtime>,
     slot: &crate::operation_outcomes::OutcomeSlot,

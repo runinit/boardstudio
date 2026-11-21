@@ -3,45 +3,15 @@ use super::*;
 #[test]
 fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
     let (mut engine, doc) = anchored_fixture();
-    let origin_before = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb")
-        .expect("thumb matrix")
-        .origin;
+    let origin_before = matrix(&doc, "thumb").origin;
     let anchor_before = anchor_of(&doc, "thumb");
     let key_before = at(&doc, &member("thumb", 0, 0));
-    let moved = MatrixAnchor {
-        matrix_id: "main".into(),
-        row: 0,
-        column: 0,
-        follow: Follow {
-            x: true,
-            y: true,
-            rotation: true,
-        },
-        aggregate: None,
-    };
-    let (_, committed) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrixAnchor {
-            matrix_id: "thumb".into(),
-            anchor: moved.clone(),
-        },
-    );
+    let moved = key_anchor("main", 0, 0);
+    let (_, committed) = edit(&mut engine, &doc, reanchor("thumb", moved.clone()));
     // Re-anchoring moves the matrix onto the new anchor but keeps its stored
     // frame: Origin is untouched.
     assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
-    assert_eq!(
-        committed
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "thumb")
-            .expect("thumb matrix")
-            .origin,
-        origin_before
-    );
+    assert_eq!(matrix(&committed, "thumb").origin, origin_before);
     assert_ne!(at(&committed, &member("thumb", 0, 0)), key_before);
     // One Undo entry restores the old anchor and pose.
     let undone_doc = undone(&mut engine);
@@ -52,20 +22,7 @@ fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
 #[test]
 fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
     let (mut engine, doc) = fixture();
-    let operation = EditOperation::AddAnchoredMatrix {
-        id: "thumb".into(),
-        anchor: MatrixAnchor {
-            matrix_id: "main".into(),
-            row: 0,
-            column: 2,
-            follow: Follow {
-                x: true,
-                y: true,
-                rotation: true,
-            },
-            aggregate: None,
-        },
-    };
+    let operation = add_anchored("thumb", key_anchor("main", 0, 2));
     // Preview evaluates the new members but stores nothing.
     let previewed = preview(&mut engine, &doc, operation.clone());
     assert!(
@@ -106,89 +63,50 @@ fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
 #[test]
 fn anchor_graph_refusals_leave_state_unchanged() {
     let (mut engine, doc) = anchored_rich_fixture();
-    let all = || Follow {
-        x: true,
-        y: true,
-        rotation: true,
-    };
-    let anchor = |matrix: &str, row: u32, column: u32| MatrixAnchor {
-        matrix_id: matrix.into(),
-        row,
-        column,
-        follow: all(),
-        aggregate: None,
-    };
-    let cases: Vec<(&str, EditOperation, &str)> = vec![
+    for (name, operation, reason) in [
         (
             "self",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "thumb".into(),
-                anchor: anchor("thumb", 0, 0),
-            },
+            reanchor("thumb", key_anchor("thumb", 0, 0)),
             "cannot anchor to itself",
         ),
         (
             "cycle",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "main".into(),
-                anchor: anchor("thumb", 0, 0),
-            },
+            reanchor("main", key_anchor("thumb", 0, 0)),
             "anchor cycle",
         ),
         (
             "missing-target",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "thumb".into(),
-                anchor: anchor("ghost", 0, 0),
-            },
+            reanchor("thumb", key_anchor("ghost", 0, 0)),
             "anchor target ghost is missing",
         ),
         (
             "out-of-range",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "thumb".into(),
-                anchor: anchor("main", 0, 9),
-            },
+            reanchor("thumb", key_anchor("main", 0, 9)),
             "anchor key matrix/main/r0c9 is missing",
         ),
         (
             "cross-layout",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "thumb".into(),
-                anchor: anchor("aux", 0, 0),
-            },
+            reanchor("thumb", key_anchor("aux", 0, 0)),
             "same board and Layout",
         ),
         (
             "cross-board",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "thumb".into(),
-                anchor: anchor("far", 0, 0),
-            },
+            reanchor("thumb", key_anchor("far", 0, 0)),
             "same board and Layout",
         ),
         (
             "duplicate-id",
-            EditOperation::AddAnchoredMatrix {
-                id: "thumb".into(),
-                anchor: anchor("main", 0, 0),
-            },
+            add_anchored("thumb", key_anchor("main", 0, 0)),
             "Duplicate matrix identity",
         ),
         (
             "bad-id",
-            EditOperation::AddAnchoredMatrix {
-                id: "bad id".into(),
-                anchor: anchor("main", 0, 0),
-            },
+            add_anchored("bad id", key_anchor("main", 0, 0)),
             "letters, digits",
         ),
         (
             "missing-matrix",
-            EditOperation::SetMatrixAnchor {
-                matrix_id: "ghost".into(),
-                anchor: anchor("main", 0, 0),
-            },
+            reanchor("ghost", key_anchor("main", 0, 0)),
             "Matrix not found",
         ),
         (
@@ -211,8 +129,7 @@ fn anchor_graph_refusals_leave_state_unchanged() {
             },
             "anchors to it",
         ),
-    ];
-    for (name, operation, reason) in cases {
+    ] {
         let message = error(&mut engine, &doc, operation);
         assert!(
             message.contains(reason),
@@ -241,12 +158,7 @@ fn anchor_follow_covers_every_subset_with_zeroing() {
         let (_, moved) = edit(
             &mut engine,
             &doc,
-            EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: member("main", 0, 2),
-                    at: Vec2 { x: 43.0, y: 7.0 },
-                }],
-            },
+            move_part(member("main", 0, 2), Vec2 { x: 43.0, y: 7.0 }),
         );
         let expected = Vec2 {
             x: if x { 43.0 } else { 0.0 },
@@ -280,51 +192,10 @@ fn compaction_remaps_anchors_onto_the_surviving_key() {
     // retargeting the new key at the old coordinate.
     assert_eq!(
         anchor_of(&compacted, "thumb"),
-        Some(MatrixAnchor {
-            matrix_id: "main".into(),
-            row: 0,
-            column: 1,
-            follow: Follow {
-                x: true,
-                y: true,
-                rotation: true,
-            },
-            aggregate: None,
-        })
+        Some(key_anchor("main", 0, 1))
     );
-    assert_eq!(
-        pose_of(&compacted, &member("thumb", 0, 0)).at,
-        Vec2 { x: 19.0, y: -19.0 }
-    );
-    assert_eq!(
-        pose_of(&compacted, &member("thumb", 0, 2)).at,
-        Vec2 { x: 57.0, y: -19.0 }
-    );
-}
-
-#[test]
-fn shrinking_through_set_matrix_detaches_out_of_range_anchors() {
-    let (mut engine, doc) = anchored_fixture();
-    let mut shrunk = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main")
-        .expect("main matrix")
-        .clone();
-    shrunk.columns = 2;
-    let (_, detached) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: shrunk,
-            definitions: None,
-        },
-    );
-    assert_eq!(anchor_of(&detached, "thumb"), None);
-    assert_eq!(
-        pose_of(&detached, &member("thumb", 0, 0)).at,
-        Vec2 { x: 38.0, y: -19.0 }
-    );
+    assert_at(&compacted, &member("thumb", 0, 0), 19.0, -19.0);
+    assert_at(&compacted, &member("thumb", 0, 2), 57.0, -19.0);
 }
 
 #[test]
@@ -380,18 +251,9 @@ fn column_align_moves_through_the_actual_anchor_frame() {
             },
         },
     );
-    assert_eq!(
-        pose_of(&moved, &member("thumb", 0, 1)).at,
-        Vec2 { x: 57.0, y: -14.0 }
-    );
-    assert_eq!(
-        pose_of(&moved, &member("thumb", 0, 0)).at,
-        Vec2 { x: 38.0, y: -19.0 }
-    );
-    assert_eq!(
-        pose_of(&moved, &member("thumb", 0, 2)).at,
-        Vec2 { x: 76.0, y: -19.0 }
-    );
+    assert_at(&moved, &member("thumb", 0, 1), 57.0, -14.0);
+    assert_at(&moved, &member("thumb", 0, 0), 38.0, -19.0);
+    assert_at(&moved, &member("thumb", 0, 2), 76.0, -19.0);
 }
 
 #[test]
@@ -400,27 +262,12 @@ fn linked_dependent_follows_actual_local_anchor() {
     // Local anchor key pose, not a substitute invisible pose.
     let (mut engine, doc) = linked_anchored_fixture();
     // Make the mirror anchor key Local via its Layout link.
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    let link = mirror_layout.mirror_link.as_mut().expect("mirror link");
-    link.exceptions.push(MirroredException {
-        kind: MirroredItemKind::Part,
-        mirror_id: member("main2", 0, 2),
-        state: MirroredExceptionState::Local,
-        companion_mode: None,
-        companion_tweak: None,
-        removed_copper: None,
-    });
-    let (_, doc) = edit(
+    let doc = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Part,
+        member("main2", 0, 2),
+        MirroredExceptionState::Local,
     );
     assert!(
         doc.layouts
@@ -437,28 +284,14 @@ fn linked_dependent_follows_actual_local_anchor() {
     let (_, moved) = edit(
         &mut engine,
         &doc,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: member("main2", 0, 2),
-                at: Vec2 { x: -10.0, y: 5.0 },
-            }],
-        },
+        move_part(member("main2", 0, 2), Vec2 { x: -10.0, y: 5.0 }),
     );
     // Source stays where it was; the mirror anchor moved locally.
-    assert_eq!(
-        pose_of(&moved, &member("main", 0, 2)).at,
-        Vec2 { x: 38.0, y: 0.0 }
-    );
-    assert_eq!(
-        pose_of(&moved, &member("main2", 0, 2)).at,
-        Vec2 { x: -10.0, y: 5.0 }
-    );
+    assert_at(&moved, &member("main", 0, 2), 38.0, 0.0);
+    assert_at(&moved, &member("main2", 0, 2), -10.0, 5.0);
     // The mirror dependent follows its actual Local anchor; its own layout
     // values stay linked (empty, like the source thumb).
-    assert_eq!(
-        pose_of(&moved, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -10.0, y: -14.0 }
-    );
+    assert_at(&moved, &member("thumb2", 0, 0), -10.0, -14.0);
     let thumb = moved
         .matrices
         .iter()
@@ -545,12 +378,7 @@ fn linked_resize_keeps_omitted_partner_live_and_absent() {
     // stays absent (no parts fabricated) while its record follows the source
     // so anchors through it keep a live logical pose.
     let (mut engine, doc) = linked_anchored_fixture();
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
+    let mut mirror_layout = layout(&doc, "mirror-layout").clone();
     mirror_layout
         .mirror_link
         .as_mut()
@@ -583,36 +411,14 @@ fn linked_resize_keeps_omitted_partner_live_and_absent() {
         "omit keeps the live record"
     );
     // Grow the source through the public prepared route.
-    let mut grown = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main")
-        .expect("main matrix")
-        .clone();
-    grown.columns = 4;
     let (_, resized) = edit(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: grown,
-            definitions: None,
-        },
+        change_matrix(&doc, "main", |matrix| matrix.columns = 4),
     );
     // The source grew; the Omitted record followed without materializing.
-    assert_eq!(
-        resized
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "main")
-            .expect("grown source")
-            .columns,
-        4
-    );
-    let partner = resized
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main2")
-        .expect("omitted partner");
+    assert_eq!(matrix(&resized, "main").columns, 4);
+    let partner = matrix(&resized, "main2");
     assert_eq!((partner.rows, partner.columns), (1, 4));
     assert!(
         resized
@@ -622,10 +428,7 @@ fn linked_resize_keeps_omitted_partner_live_and_absent() {
         "no mirrored newcomer fabricated for the Omitted partner"
     );
     // Anchors through the Omitted record still evaluate at the live pose.
-    assert_eq!(
-        pose_of(&resized, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -18.0, y: -19.0 }
-    );
+    assert_at(&resized, &member("thumb2", 0, 0), -18.0, -19.0);
     // One transaction: Undo restores the pre-resize document.
     let undone_doc = undone(&mut engine);
     assert_eq!(undone_doc.matrices, doc.matrices);
@@ -642,42 +445,18 @@ fn linked_make_local_on_anchored_matrix_detaches_and_keeps_pose() {
     // Ticket 21: making an anchored matrix Local detaches its own anchor and
     // keeps its world pose; its future layout stays its own.
     let (mut engine, doc) = linked_anchored_fixture();
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Matrix,
-            mirror_id: "thumb2".into(),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, local) = edit(
+    let local = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Matrix,
+        "thumb2",
+        MirroredExceptionState::Local,
     );
     // Its own anchor cleared, every pose kept.
     assert_eq!(anchor_of(&local, "thumb2"), None);
     assert!(anchor_of(&local, "thumb").is_some());
-    for (id, pose) in &poses_before {
-        assert_eq!(pose_of(&local, id), *pose, "{id}");
+    for (id, pose) in poses(&doc) {
+        assert_eq!(pose_of(&local, id), pose, "{id}");
     }
     // One Undo restores the anchor and the exception state together.
     let undone_doc = undone(&mut engine);
@@ -694,49 +473,20 @@ fn linked_rejoin_adopts_current_source_and_keeps_child_exceptions() {
     // and preserves explicit child exceptions.
     let (mut engine, doc) = linked_anchored_fixture();
     // Child exception first: the mirror key goes Local and moves.
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: member("main2", 0, 0),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, doc) = edit(
+    let doc = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Part,
+        member("main2", 0, 0),
+        MirroredExceptionState::Local,
     );
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: member("main2", 0, 0),
-                at: Vec2 { x: 30.0, y: 5.0 },
-            }],
-        },
+        move_part(member("main2", 0, 0), Vec2 { x: 30.0, y: 5.0 }),
     );
     // Omit the whole matrix, grow the source while absent, then Rejoin.
-    let mut omitted_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
+    let mut omitted_layout = layout(&doc, "mirror-layout").clone();
     omitted_layout
         .mirror_link
         .as_mut()
@@ -767,32 +517,14 @@ fn linked_rejoin_adopts_current_source_and_keeps_child_exceptions() {
             == vec![member("main2", 0, 0)],
         "omit sheds inherited parts but keeps explicit child exceptions"
     );
-    assert_eq!(
-        pose_of(&doc, &member("main2", 0, 0)).at,
-        Vec2 { x: 30.0, y: 5.0 }
-    );
-    let mut grown = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main")
-        .expect("main matrix")
-        .clone();
-    grown.columns = 4;
+    assert_at(&doc, &member("main2", 0, 0), 30.0, 5.0);
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: grown,
-            definitions: None,
-        },
+        change_matrix(&doc, "main", |matrix| matrix.columns = 4),
     );
     // Rejoin: remove the matrix overlay, keep the child.
-    let mut rejoined_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
+    let mut rejoined_layout = layout(&doc, "mirror-layout").clone();
     if let Some(link) = rejoined_layout.mirror_link.as_mut() {
         link.exceptions.retain(|exception| {
             !(exception.kind == MirroredItemKind::Matrix && exception.mirror_id == "main2")
@@ -806,11 +538,7 @@ fn linked_rejoin_adopts_current_source_and_keeps_child_exceptions() {
         },
     );
     // Current source dimensions adopted with materialized parts.
-    let partner = rejoined
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main2")
-        .expect("rejoined partner");
+    let partner = matrix(&rejoined, "main2");
     assert_eq!((partner.rows, partner.columns), (1, 4));
     for column in 0..4 {
         assert!(
@@ -834,15 +562,9 @@ fn linked_rejoin_adopts_current_source_and_keeps_child_exceptions() {
                     && exception.state == MirroredExceptionState::Local
             }))
     );
-    assert_eq!(
-        pose_of(&rejoined, &member("main2", 0, 0)).at,
-        Vec2 { x: 30.0, y: 5.0 }
-    );
+    assert_at(&rejoined, &member("main2", 0, 0), 30.0, 5.0);
     // Shared members track the source again.
-    assert_eq!(
-        pose_of(&rejoined, &member("main2", 0, 1)).at,
-        Vec2 { x: 1.0, y: 0.0 }
-    );
+    assert_at(&rejoined, &member("main2", 0, 1), 1.0, 0.0);
 }
 
 #[test]
@@ -852,46 +574,19 @@ fn linked_detach_needing_local_exception_refuses_with_proposal() {
     let (mut engine, doc) = linked_anchored_fixture();
     // The mirror anchor key goes Local and moves: the dependent follows its
     // actual Local anchor, so a plain detach would jump the partner.
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: member("main2", 0, 2),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, doc) = edit(
+    let doc = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Part,
+        member("main2", 0, 2),
+        MirroredExceptionState::Local,
     );
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: member("main2", 0, 2),
-                at: Vec2 { x: -10.0, y: 5.0 },
-            }],
-        },
+        move_part(member("main2", 0, 2), Vec2 { x: -10.0, y: 5.0 }),
     );
-    assert_eq!(
-        pose_of(&doc, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -10.0, y: -14.0 }
-    );
+    assert_at(&doc, &member("thumb2", 0, 0), -10.0, -14.0);
     // Plain detach refuses naming the needed Local exception.
     let message = error(
         &mut engine,

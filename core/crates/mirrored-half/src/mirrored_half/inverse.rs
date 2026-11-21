@@ -6,7 +6,7 @@
 //! call it before staging the canonical source and mirror changes.
 //!
 //! Where things live (search the names; line numbers drift):
-//! - Seam: [`canonicalize`] is the one exhaustive dispatch over every `EditOperation` variant. It
+//! - Seam: [`canonicalize_with_dispatch`] is the exhaustive dispatch over `EditOperation`. It
 //!   returns a [`Canonical`] request, or a [`Refusal`] that carries the ledger entry
 //!   ([`Coverage`]) of a family another ticket owns. There is no wildcard arm: a new variant does
 //!   not compile until it is given a ledger entry here.
@@ -28,8 +28,13 @@
 //!   (`PartAddition`, `MatrixAddition`) for the forward Add transitions to consume.
 
 #[cfg(test)]
+#[path = "inverse/tests/support.rs"]
+mod test_support;
+#[cfg(test)]
 #[path = "inverse/tests.rs"]
 mod tests;
+#[cfg(test)]
+use test_support::canonicalize;
 
 mod constraints;
 mod hosted;
@@ -159,25 +164,6 @@ const HALF_CREATION_DELEGATED: &str =
     "CreateMirroredHalf derives both halves through the Core mirror lifecycle";
 const REPLACE_DOCUMENT_DELEGATED: &str =
     "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
-
-#[cfg(test)]
-pub(super) fn canonicalize(
-    document: &ProjectDoc,
-    operation: &EditOperation,
-) -> Result<Canonical, Refusal> {
-    canonicalize_with_dispatch(
-        document,
-        operation,
-        super::EditDispatch {
-            apply_with_ledger: |_, _, _, _| {
-                panic!("engine-backed translation belongs in the engine integration tests")
-            },
-            apply_unscripted: |_, _| {
-                panic!("engine-backed translation belongs in the engine integration tests")
-            },
-        },
-    )
-}
 
 /// Rewrites `operation` so that every linked mirror target names its authored source value.
 #[doc(hidden)]

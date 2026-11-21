@@ -123,16 +123,7 @@ async fn unreadable_record_keeps_healthy_card_and_requires_confirmation_to_delet
     let healthy = ProjectDoc::empty("partial-list-healthy", "Healthy saved keyboard");
     let mut future = ProjectDoc::empty("partial-list-future", "Future saved keyboard");
     future.format_version = 999;
-    runtime
-        .store
-        .save_document(&healthy, &Default::default())
-        .await
-        .unwrap();
-    runtime
-        .store
-        .save_document(&future, &Default::default())
-        .await
-        .unwrap();
+    save_all(&runtime, &[&healthy, &future]).await;
     let (session, core) = accepted(healthy.clone());
     boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
     let (root, _mounted) = mount_menu(runtime.clone(), "partial-list-mounted-regression");
@@ -608,15 +599,8 @@ async fn project_menu_exposes_the_whole_project_copy_action() {
 #[wasm_bindgen_test]
 async fn project_delete_alert_cancel_keeps_the_named_project() {
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
     let document = ProjectDoc::empty("alert-safe-project", "Safe project");
-    let (session, core) = accepted(document.clone());
-    runtime
-        .store
-        .save_document(&document, &Default::default())
-        .await
-        .unwrap();
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
+    let runtime = seeded_runtime(document.clone(), &[], &[&document]).await;
     let (root, _mounted) = mount_library(runtime.clone(), "alert-safe-root", false);
     wait_for_saved_cards(&root, 1).await;
     let opener = by_role_name(&root, "button", "Delete Safe project").unwrap();
@@ -661,23 +645,16 @@ async fn current_project_delete_cancel_and_confirm_use_the_observed_replacement_
     remove_test_root("delete-current-mounted-regression");
     remove_test_root("delete-current-failure-regression");
     let document = ProjectDoc::empty("delete-current-ui", "Current board");
-    let (session, core) = accepted(document.clone());
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    clean_saved_projects(
-        &runtime,
+    let runtime = seeded_runtime(
+        document.clone(),
         &[
             "delete-current-ui",
             "delete-failure-current",
             "delete-failure-alpha",
         ],
+        &[&document],
     )
     .await;
-    runtime
-        .store
-        .save_document(&document, &Default::default())
-        .await
-        .unwrap();
-    boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
     let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-mounted-regression");
     wait_for_saved_cards(&root, 1).await;
 

@@ -139,6 +139,33 @@ fn document() -> ProjectDoc {
     document
 }
 
+/// A document with the shared single-macro keymap: one `base` layer and the
+/// `Original` macro (tap A). Queued macro scenarios share this shape instead
+/// of repeating the JSON.
+fn macro_document() -> ProjectDoc {
+    let mut document = document();
+    document.keymap = Some(serde_json::from_value(serde_json::json!({
+        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
+        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
+    })).unwrap());
+    document
+}
+
+/// A document with `base` and `child` layers and no macros for layer
+/// queue/removal scenarios.
+fn child_layer_document() -> ProjectDoc {
+    let mut document = document();
+    document.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
+    document
+}
+
+/// A document with the shared macro plus two wait steps for step-queue scenarios.
+fn wait_steps_document() -> ProjectDoc {
+    let mut document = document();
+    document.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}},{"kind":"wait","ms":10},{"kind":"wait","ms":20}]}]})).unwrap());
+    document
+}
+
 async fn mounted() -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document()).await;
@@ -404,11 +431,7 @@ async fn two_queued_layer_adds_get_distinct_ids() {
 #[wasm_bindgen_test]
 async fn macro_fields_queue_and_undo_separately() {
     let runtime = support::new_runtime();
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({
-        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
-        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
-    })).unwrap());
+    let doc = macro_document();
     support::open_document(&runtime, doc).await;
     let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let submit = |target, change| {
@@ -556,8 +579,7 @@ async fn macro_fields_queue_and_undo_separately() {
 #[wasm_bindgen_test]
 async fn rename_of_layer_removed_before_execution_retires_with_reason() {
     let runtime = support::new_runtime();
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
+    let doc = child_layer_document();
     support::open_document(&runtime, doc).await;
     let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let mark = probe.renders.get();
@@ -657,8 +679,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
 #[wasm_bindgen_test]
 async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     let runtime = support::new_runtime();
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}}]}]})).unwrap());
+    let doc = macro_document();
     support::open_document(&runtime, doc).await;
     let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let input = macro_input(&root, "Original tapMs");
@@ -756,32 +777,44 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     root.remove();
 }
 
-#[wasm_bindgen_test]
-async fn failed_binding_restores_accepted_field_and_explains_failure() {
+/// Mount with key `a` bound to `A` and return its keycode combobox input.
+/// The three keycode scenarios share this admission instead of repeating the
+/// mount/bind/settle/lookup sequence.
+async fn open_keycode_input(probe: &Probe, root: &web_sys::Element) -> web_sys::HtmlInputElement {
     use wasm_bindgen::JsCast;
-    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
-    binding(&probe, "a", "A").await;
+    binding(probe, "a", "A").await;
     settle_until(
         runtime,
         support::run_pending,
         "the binding editor renders its keycode field",
-        || by_role_name(&root, "combobox", "a keycode").is_some(),
+        || by_role_name(root, "combobox", "a keycode").is_some(),
     )
     .await;
-    let input = by_role_name(&root, "combobox", "a keycode")
+    by_role_name(root, "combobox", "a keycode")
+        .expect("keycode combobox")
+        .dyn_into()
         .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
-    support::fail_next_core_reply(runtime, "binding executor failed");
+}
+
+fn commit_input_value(input: &web_sys::HtmlInputElement, value: &str) {
     input.focus().unwrap();
-    input.set_value("B");
+    input.set_value(value);
     let event = web_sys::EventInit::new();
     event.set_bubbles(true);
     input
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
         .unwrap();
     input.blur().unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn failed_binding_restores_accepted_field_and_explains_failure() {
+    let (probe, root, _mounted) = mounted().await;
+    let runtime = &probe.runtime;
+    let input = open_keycode_input(&probe, &root).await;
+    support::fail_next_core_reply(runtime, "binding executor failed");
+    commit_input_value(&input, "B");
     settle_until(
         runtime,
         support::run_pending,
@@ -815,29 +848,10 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
 
 #[wasm_bindgen_test]
 async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed() {
-    use wasm_bindgen::JsCast;
     let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
-    binding(&probe, "a", "A").await;
-    settle_until(
-        runtime,
-        support::run_pending,
-        "the accepted binding is visible",
-        || key_binding(runtime, "a").is_some(),
-    )
-    .await;
-    let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
-        .expect("keycode combobox")
-        .dyn_into()
-        .unwrap();
-    input.focus().unwrap();
-    input.set_value("CUSTOM_CODE");
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    input
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
-        .unwrap();
-    input.blur().unwrap();
+    let input = open_keycode_input(&probe, &root).await;
+    commit_input_value(&input, "CUSTOM_CODE");
     settle_until(
         runtime,
         support::run_pending,
@@ -856,21 +870,9 @@ async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed(
 
 #[wasm_bindgen_test]
 async fn keycode_combobox_filters_and_commits_a_suggestion_on_blur() {
-    use wasm_bindgen::JsCast;
     let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
-    binding(&probe, "a", "A").await;
-    settle_until(
-        runtime,
-        support::run_pending,
-        "the accepted binding is visible",
-        || key_binding(runtime, "a").is_some(),
-    )
-    .await;
-    let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
-        .unwrap()
-        .dyn_into()
-        .unwrap();
+    let input = open_keycode_input(&probe, &root).await;
     input.focus().unwrap();
     input.set_value("Backspace");
     let event = web_sys::EventInit::new();
@@ -929,8 +931,7 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
     };
     for removed in [None, Some(2), Some(0), Some(1)] {
         let runtime = support::new_runtime();
-        let mut doc = document();
-        doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}},{"kind":"wait","ms":10},{"kind":"wait","ms":20}]}]})).unwrap());
+        let doc = wait_steps_document();
         support::open_document(&runtime, doc).await;
         let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
         let submit = |target, change| {

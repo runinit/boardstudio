@@ -63,6 +63,17 @@ fn configuration() -> MechanicalConfiguration {
     .unwrap()
 }
 
+fn hardware(instances: Vec<PhysicalBoardInstance>) -> HardwareConfiguration {
+    HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances,
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    }
+}
+
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");
     document.boards.push(board("board"));
@@ -114,6 +125,20 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
     let mut mechanical = configuration();
     mechanical.board_id = board_id.into();
     mechanical.mounts = mounts;
+    instance(
+        id,
+        board_id,
+        Some(mechanical),
+        MechanicalConstructionOwnership::Local,
+    )
+}
+
+fn instance(
+    id: &str,
+    board_id: &str,
+    mechanical: Option<MechanicalConfiguration>,
+    construction_ownership: MechanicalConstructionOwnership,
+) -> PhysicalBoardInstance {
     PhysicalBoardInstance {
         id: id.into(),
         name: id.into(),
@@ -122,8 +147,8 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
         role: "controller".into(),
         flipped: false,
         controller_part_id: None,
-        mechanical: Some(mechanical),
-        construction_ownership: MechanicalConstructionOwnership::Local,
+        mechanical,
+        construction_ownership,
         mechanical_identity_reservation: None,
     }
 }
@@ -131,17 +156,10 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
 /// Two physical halves on one board, each with its own local mount geometry.
 fn pair_document() -> ProjectDoc {
     let mut document = document();
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![
-            mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
-            mirror_instance("right", vec![mount("mount-1", 7.0, 3.0)]),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![
+        mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
+        mirror_instance("right", vec![mount("mount-1", 7.0, 3.0)]),
+    ]));
     document
 }
 
@@ -164,48 +182,78 @@ fn template() -> PartDefinition {
     .unwrap()
 }
 
-/// Links the two halves with an explicit identity mapping (no guessing).
+fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {
+    MechanicalEdit {
+        target,
+        change,
+        mounting_hole: Some(Box::new(template())),
+    }
+}
+
+/// Links the two halves with an explicit zero-origin reflection (no guessing).
 fn link_pair(document: &mut ProjectDoc) {
-    boardstudio_core::mechanical::edit::apply(
+    link_with_correspondences(
         document,
-        &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::LinkMirrorPair {
-                pair_id: "pair-left-right".into(),
-                members: ["left".into(), "right".into()],
-                mapping: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                construction_source: "left".into(),
-                correspondences: vec![MechanicalFeatureCorrespondence {
-                    kind: MechanicalFeatureKind::Mount,
-                    first_feature_id: "mount-1".into(),
-                    second_feature_id: "mount-1".into(),
-                    source_instance_id: None,
-                }],
-            },
-            mounting_hole: Some(Box::new(template())),
-        },
+        vec![correspondence(
+            MechanicalFeatureKind::Mount,
+            "mount-1",
+            "mount-1",
+            None,
+        )],
     )
     .unwrap();
 }
 
-fn stored_mounts(document: &ProjectDoc, instance_id: &str) -> Vec<Mount> {
+fn linked_pair_document() -> ProjectDoc {
+    let mut document = pair_document();
+    link_pair(&mut document);
     document
-        .hardware
-        .as_ref()
-        .unwrap()
-        .instances
-        .iter()
-        .find(|instance| instance.id == instance_id)
-        .unwrap()
-        .mechanical
-        .as_ref()
-        .unwrap()
-        .mounts
-        .clone()
+}
+
+fn pair(document: &ProjectDoc) -> &boardstudio_core::model::MechanicalMirrorPair {
+    &document.hardware.as_ref().unwrap().pairs[0]
+}
+
+fn apply_with_template(
+    document: &mut ProjectDoc,
+    target: MechanicalTarget,
+    change: MechanicalChange,
+) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(document, &[], &with_template(target, change))
+}
+
+fn instance_inputs(
+    document: &ProjectDoc,
+    id: &str,
+) -> boardstudio_core::mechanical::MechanicalInputs {
+    boardstudio_core::mechanical::effective_inputs(document, &[], &instance_target(id))
+        .unwrap_or_else(|error| panic!("effective mechanical inputs for {id}: {error:?}"))
+}
+
+fn move_mount(at: Vec2) -> MechanicalChange {
+    MechanicalChange::SetMountPosition {
+        collection: MechanicalMountCollection::Suspension,
+        mount_id: "mount-1".into(),
+        at,
+    }
+}
+
+fn delete_mount() -> MechanicalChange {
+    MechanicalChange::RemoveMount {
+        collection: MechanicalMountCollection::Suspension,
+        mount_id: "mount-1".into(),
+    }
+}
+
+fn local_mount(id: &str) -> MechanicalChange {
+    MechanicalChange::MakeFeatureLocal {
+        feature_id: "mount-1".into(),
+        instance_id: id.into(),
+    }
+}
+
+fn stored_mounts(document: &ProjectDoc, instance_id: &str) -> Vec<Mount> {
+    stored_configuration(document, instance_id).mounts.clone()
 }
 
 fn mount_at(configuration: &MechanicalConfiguration, id: &str) -> Vec2 {
@@ -223,29 +271,16 @@ fn mount_at(configuration: &MechanicalConfiguration, id: &str) -> Vec2 {
 
 /// A legacy half with no stored configuration of its own, on its own board.
 fn unconfigured_legacy(id: &str) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: format!("board-{id}"),
-        half: id.into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical: None,
-        construction_ownership: MechanicalConstructionOwnership::Legacy,
-        mechanical_identity_reservation: None,
-    }
+    instance(
+        id,
+        &format!("board-{id}"),
+        None,
+        MechanicalConstructionOwnership::Legacy,
+    )
 }
 
 fn stored_closure_mounts(document: &ProjectDoc, instance_id: &str) -> Option<Vec<Mount>> {
-    document
-        .hardware
-        .as_ref()
-        .unwrap()
-        .instances
-        .iter()
-        .find(|instance| instance.id == instance_id)
-        .unwrap()
+    stored_instance(document, instance_id)
         .mechanical
         .as_ref()
         .and_then(|configuration| configuration.closure_mounts.clone())
@@ -259,10 +294,7 @@ fn two_unconfigured_halves() -> (ProjectDoc, Vec<BoardContours>) {
     document.hardware = Some(HardwareConfiguration {
         topology: HardwareTopology::Split,
         transport: HardwareTransport::Wired,
-        instances: vec![unconfigured_legacy("a"), unconfigured_legacy("b")],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
+        ..hardware(vec![unconfigured_legacy("a"), unconfigured_legacy("b")])
     });
     let accepted = vec![
         BoardContours {
@@ -278,23 +310,11 @@ fn two_unconfigured_halves() -> (ProjectDoc, Vec<BoardContours>) {
 }
 
 fn enable_edit(id: &str) -> MechanicalEdit {
-    MechanicalEdit {
-        target: instance_target(id),
-        change: MechanicalChange::Enable,
-        mounting_hole: Some(Box::new(template())),
-    }
+    with_template(instance_target(id), MechanicalChange::Enable)
 }
 
 fn small_rect() -> Contour {
-    Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: -10.0, y: -5.0 },
-            Vec2 { x: 10.0, y: -5.0 },
-            Vec2 { x: 10.0, y: 5.0 },
-            Vec2 { x: -10.0, y: 5.0 },
-        ],
-    }
+    rect_contour(10.0, 5.0)
 }
 
 fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
@@ -309,23 +329,16 @@ fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
 
 fn pair_document_with_two_mounts() -> ProjectDoc {
     let mut document = document();
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![
-            mirror_instance(
-                "left",
-                vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
-            ),
-            mirror_instance(
-                "right",
-                vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
-            ),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![
+        mirror_instance(
+            "left",
+            vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
+        ),
+        mirror_instance(
+            "right",
+            vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
+        ),
+    ]));
     document
 }
 
@@ -428,23 +441,16 @@ fn with_board_outline(document: &mut ProjectDoc) {
 fn conflicting_pair_document() -> ProjectDoc {
     let mut document = document();
     with_board_outline(&mut document);
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![
-            mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
-            mirror_instance(
-                "right",
-                vec![
-                    mount("mount-1", 7.0, 3.0),
-                    mount("mount-encoder", -2.0, 3.0),
-                ],
-            ),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![
+        mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
+        mirror_instance(
+            "right",
+            vec![
+                mount("mount-1", 7.0, 3.0),
+                mount("mount-encoder", -2.0, 3.0),
+            ],
+        ),
+    ]));
     document
 }
 
@@ -548,14 +554,7 @@ fn cross_board_closure_document() -> ProjectDoc {
     let mut right = mirror_instance_on("right", "narrow", vec![]);
     left.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 30.0, 0.0)]);
     right.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 30.0, 0.0)]);
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![left, right],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![left, right]));
     document
 }
 
@@ -564,14 +563,7 @@ fn document_with_an_opening() -> ProjectDoc {
     let mut document = document();
     let mut instance = mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]);
     instance.mechanical.as_mut().unwrap().openings = Some(vec![opening_json("opening-1")]);
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![instance],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![instance]));
     document
 }
 
@@ -585,38 +577,40 @@ fn assert_close(actual: Vec2, expected: Vec2, label: &str) {
 
 /// Two halves on distinct boards whose mechanical stack uses discrete gasket supports.
 fn gasket_pair_document() -> (ProjectDoc, Vec<BoardContours>) {
+    gasket_pair("wide", "narrow", (10.0, 5.0))
+}
+
+fn gasket_pair(
+    left: &str,
+    right: &str,
+    right_extent: (f64, f64),
+) -> (ProjectDoc, Vec<BoardContours>) {
     let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("wide"));
-    document.boards.push(board("narrow"));
-    let gasket = |board_id: &str| {
+    document.boards.push(board(left));
+    let mut accepted = vec![BoardContours {
+        board_id: left.into(),
+        contours: vec![rect_contour(200.0, 150.0)],
+    }];
+    if right != left {
+        document.boards.push(board(right));
+        accepted.push(BoardContours {
+            board_id: right.into(),
+            contours: vec![rect_contour(right_extent.0, right_extent.1)],
+        });
+    }
+    let instances = [("left", left), ("right", right)].map(|(id, board)| {
         let mut configuration = configuration();
-        configuration.board_id = board_id.into();
+        configuration.board_id = board.into();
         configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
         configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
-        configuration
-    };
-    let mut left = mirror_instance_on("left", "wide", vec![]);
-    let mut right = mirror_instance_on("right", "narrow", vec![]);
-    left.mechanical = Some(gasket("wide"));
-    right.mechanical = Some(gasket("narrow"));
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![left, right],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
+        instance(
+            id,
+            board,
+            Some(configuration),
+            MechanicalConstructionOwnership::Local,
+        )
     });
-    let accepted = vec![
-        BoardContours {
-            board_id: "wide".into(),
-            contours: vec![rect_contour(200.0, 150.0)],
-        },
-        BoardContours {
-            board_id: "narrow".into(),
-            contours: vec![rect_contour(10.0, 5.0)],
-        },
-    ];
+    document.hardware = Some(hardware(instances.into()));
     (document, accepted)
 }
 
@@ -629,19 +623,7 @@ fn author_gasket_support(
 ) -> boardstudio_core::model::MechanicalGasketSupport {
     let mut author_document = document.clone();
     author_document.physical_instance_id = Some(instance_id.into());
-    author_document.mechanical = Some(
-        document
-            .hardware
-            .as_ref()
-            .unwrap()
-            .instances
-            .iter()
-            .find(|instance| instance.id == instance_id)
-            .unwrap()
-            .mechanical
-            .clone()
-            .unwrap(),
-    );
+    author_document.mechanical = Some(stored_configuration(document, instance_id).clone());
     let contours = accepted
         .iter()
         .find(|entry| entry.board_id == board_id)
@@ -722,35 +704,22 @@ fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfigu
 }
 
 fn legacy_instance(id: &str, marker: &str, plate_thickness: f64) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: "board".into(),
-        half: id.into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical: Some(legacy_configuration(marker, plate_thickness)),
-        construction_ownership: MechanicalConstructionOwnership::Legacy,
-        mechanical_identity_reservation: None,
-    }
+    instance(
+        id,
+        "board",
+        Some(legacy_configuration(marker, plate_thickness)),
+        MechanicalConstructionOwnership::Legacy,
+    )
 }
 
 /// Three legacy members whose first member is the fallback shared source.
 fn legacy_document() -> ProjectDoc {
     let mut document = document();
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![
-            legacy_instance("a", "a", 1.5),
-            legacy_instance("b", "b", 9.9),
-            legacy_instance("c", "c", 9.9),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
+    document.hardware = Some(hardware(vec![
+        legacy_instance("a", "a", 1.5),
+        legacy_instance("b", "b", 9.9),
+        legacy_instance("c", "c", 9.9),
+    ]));
     document
 }
 
@@ -768,7 +737,7 @@ fn convert(document: &mut ProjectDoc, ids: &[&str]) -> Result<Vec<String>, Strin
     )
 }
 
-fn stored_configuration<'a>(document: &'a ProjectDoc, id: &str) -> &'a MechanicalConfiguration {
+fn stored_instance<'a>(document: &'a ProjectDoc, id: &str) -> &'a PhysicalBoardInstance {
     document
         .hardware
         .as_ref()
@@ -776,55 +745,29 @@ fn stored_configuration<'a>(document: &'a ProjectDoc, id: &str) -> &'a Mechanica
         .instances
         .iter()
         .find(|instance| instance.id == id)
-        .unwrap()
+        .unwrap_or_else(|| panic!("missing physical instance {id}"))
+}
+
+fn stored_configuration<'a>(document: &'a ProjectDoc, id: &str) -> &'a MechanicalConfiguration {
+    stored_instance(document, id)
         .mechanical
         .as_ref()
-        .unwrap()
+        .unwrap_or_else(|| panic!("missing mechanical configuration for {id}"))
 }
 
 /// Two halves on one board whose mechanical stack uses discrete gasket supports.
 fn same_board_gasket_pair_document() -> (ProjectDoc, Vec<BoardContours>) {
-    let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("board"));
-    let gasket = || {
-        let mut configuration = configuration();
-        configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
-        configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
-        configuration
-    };
-    let mut left = mirror_instance("left", vec![]);
-    let mut right = mirror_instance("right", vec![]);
-    left.mechanical = Some(gasket());
-    right.mechanical = Some(gasket());
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![left, right],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
-    let accepted = vec![BoardContours {
-        board_id: "board".into(),
-        contours: vec![rect_contour(200.0, 150.0)],
-    }];
-    (document, accepted)
+    gasket_pair("board", "board", (200.0, 150.0))
 }
 
 /// Links one resolved gasket support between the halves, choosing the source half.
-fn link_gasket_support(document: &mut ProjectDoc, accepted: &[BoardContours], source: &str) {
-    let (author_board, author) = if source == "left" {
-        (
-            "left",
-            author_gasket_support(document, accepted, "left", "board"),
-        )
-    } else {
-        (
-            "right",
-            author_gasket_support(document, accepted, "right", "board"),
-        )
-    };
-    let _ = author_board;
+fn link_gasket_support(
+    document: &mut ProjectDoc,
+    accepted: &[BoardContours],
+    source: &str,
+    board: &str,
+) -> boardstudio_core::model::MechanicalGasketSupport {
+    let author = author_gasket_support(document, accepted, source, board);
     let anchor = anchor_of(&author);
     for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
         instance
@@ -846,6 +789,7 @@ fn link_gasket_support(document: &mut ProjectDoc, accepted: &[BoardContours], so
         )],
     )
     .unwrap();
+    author
 }
 
 /// Three legacy halves that own no per-instance configuration and share one source.
@@ -854,25 +798,10 @@ fn legacy_halves_document() -> ProjectDoc {
     let mut shared = configuration();
     shared.wall_thickness = 2.0;
     shared.internal_gasket = Some(boardstudio_core::mechanical::default_internal_gasket());
-    let half = |id: &str| PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: "board".into(),
-        half: id.into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical: None,
-        construction_ownership: MechanicalConstructionOwnership::Legacy,
-        mechanical_identity_reservation: None,
-    };
+    let half = |id| instance(id, "board", None, MechanicalConstructionOwnership::Legacy);
     document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![half("left"), half("right"), half("third")],
-        boards: vec![],
         shared_construction: Some(shared),
-        pairs: vec![],
+        ..hardware(vec![half("left"), half("right"), half("third")])
     });
     document
 }

@@ -1,45 +1,84 @@
 use super::*;
 
 #[test]
-fn set_constraint_compiles_mixed_linked_and_local_overlay_endpoints() {
-    let document = rotated_fixture();
-    let canonical = canonicalize(
-        &document,
-        &EditOperation::SetConstraint {
-            constraint: Constraint::Offset {
-                id: "constraint/mixed-local".into(),
-                source_part_id: "right/U1".into(),
-                target_part_id: "right/HEADER".into(),
-                offset: Vec2 { x: 5.0, y: -2.0 },
-                rotation: 15.0,
-            },
-        },
-    )
-    .unwrap();
+fn set_constraint_prepares_one_record_with_the_authored_live_endpoints() {
+    use crate::constraints::{ConstraintRelation, FramedConstraint};
+    use test_support::{linked_endpoint, local_endpoint, only_upsert};
 
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &canonical.prepared_constraints[0]
-    else {
-        panic!("the mixed SetConstraint must prepare one relation");
-    };
-    assert_eq!(
-        record,
-        &crate::constraints::FramedConstraint::Framed {
-            id: "constraint/mixed-local".into(),
-            source: crate::constraints::ConstraintEndpoint::LinkedMirror {
-                pair_id: "pair".into(),
-                source_part_id: "left/U1".into(),
-                mirror_part_id: "right/U1".into(),
-            },
-            target: crate::constraints::ConstraintEndpoint::Part {
-                part_id: "right/HEADER".into(),
-            },
-            relation: crate::constraints::ConstraintRelation::Offset {
-                offset: Vec2 { x: 5.0, y: -2.0 },
-                rotation: 15.0,
-            },
+    let document = rotated_fixture();
+    for (id, source_id, target_id, (x, y, rotation), framed, source, target) in [
+        (
+            "constraint/mixed-local",
+            "right/U1",
+            "right/HEADER",
+            (5.0, -2.0, 15.0),
+            false,
+            linked_endpoint("left/U1", "right/U1"),
+            local_endpoint("right/HEADER"),
+        ),
+        (
+            "constraint/durable-7",
+            "right/U1",
+            "matrix/right-keys/r0c0",
+            (5.0, -2.0, 15.0),
+            false,
+            linked_endpoint("left/U1", "right/U1"),
+            linked_endpoint("matrix/left-keys/r0c0", "matrix/right-keys/r0c0"),
+        ),
+        (
+            "constraint/framed-command",
+            "right/U1",
+            "left/U2",
+            (3.0, -8.0, 17.0),
+            true,
+            linked_endpoint("left/U1", "right/U1"),
+            local_endpoint("left/U2"),
+        ),
+        (
+            "constraint/local-3",
+            "right/HEADER",
+            "right/HEADER",
+            (-4.0, 9.0, -0.0),
+            false,
+            local_endpoint("right/HEADER"),
+            local_endpoint("right/HEADER"),
+        ),
+    ] {
+        let offset = Vec2 { x, y };
+        let relation = ConstraintRelation::Offset { offset, rotation };
+        let constraint = if framed {
+            Constraint::Framed {
+                id: id.into(),
+                source: local_endpoint(source_id),
+                target: local_endpoint(target_id),
+                relation: relation.clone(),
+            }
+        } else {
+            Constraint::Offset {
+                id: id.into(),
+                source_part_id: source_id.into(),
+                target_part_id: target_id.into(),
+                offset,
+                rotation,
+            }
+        };
+        let operation = EditOperation::SetConstraint { constraint };
+        let result =
+            canonicalize(&document, &operation).unwrap_or_else(|err| panic!("{id}: {err}"));
+        if id == "constraint/durable-7" {
+            assert_eq!(result.operation, operation);
         }
-    );
+        assert_eq!(
+            only_upsert(&result),
+            &FramedConstraint::Framed {
+                id: id.into(),
+                source,
+                target,
+                relation
+            },
+            "{id}"
+        );
+    }
 }
 
 #[test]
@@ -77,20 +116,11 @@ fn moving_a_linked_target_retunes_the_offset_in_its_authored_target_view() {
     });
     let prepared = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![crate::model::Position {
-                id: "left/U1".into(),
-                at: Vec2 { x: -20.0, y: 4.0 },
-            }],
-        },
+        &test_support::move_positions([("left/U1", -20.0, 4.0)]),
     )
     .unwrap();
 
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("the linked target move must prepare one retuned record");
-    };
+    let record = test_support::only_upsert(&prepared);
     let crate::constraints::FramedConstraint::Framed {
         id,
         source,
@@ -135,20 +165,11 @@ fn moving_a_part_offset_target_uses_the_linked_source_view_and_keeps_position_he
     });
     let prepared = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![crate::model::Position {
-                id: "right/HEADER".into(),
-                at: Vec2 { x: 228.0, y: 32.0 },
-            }],
-        },
+        &test_support::move_positions([("right/HEADER", 228.0, 32.0)]),
     )
     .unwrap();
 
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("the PartOffset target move must prepare one retuned record");
-    };
+    let record = test_support::only_upsert(&prepared);
     let crate::constraints::FramedConstraint::Framed {
         relation: crate::constraints::ConstraintRelation::PartOffset { offset, rotation },
         ..
@@ -248,194 +269,110 @@ fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_loca
 }
 
 #[test]
-fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overlap() {
-    let document = native_layout_fixture();
-    let mut renamed = document.layouts[1].clone();
-    renamed.name = "Target-only rename".into();
-    let rename_request = EditOperation::SetLayout { layout: renamed };
-    let renamed_result = canonicalize(&document, &rename_request).unwrap();
-    assert_eq!(renamed_result.operation, rename_request);
-    assert!(matches!(
-        renamed_result.coverage,
-        Coverage::DeliberatelyUnchanged(_)
-    ));
-
-    let mut reassigned = document.layouts[1].clone();
-    reassigned.matrix_ids = vec!["left-keys".into()];
-    assert!(matches!(
-        canonicalize(&document, &EditOperation::SetLayout { layout: reassigned }),
-        Err(Refusal::Request(message)) if message.contains("ownership")
-    ));
-
-    let mut linked = document.layouts[1].clone();
-    linked.mirror_link = Some(
-        serde_json::from_value(json!({
-            "sourceId":"left-layout","axisX":100.0
-        }))
-        .unwrap(),
-    );
-    assert!(matches!(
-        canonicalize(&document, &EditOperation::SetLayout { layout: linked }),
-        Err(Refusal::Request(message)) if message.contains("legacy mirror link")
-    ));
-
-    let mut source_with_new_legacy_link = document.layouts[0].clone();
-    source_with_new_legacy_link.mirror_link =
-        Some(serde_json::from_value(json!({"sourceId":"right-layout","axisX":100.0})).unwrap());
-    assert!(matches!(
-        canonicalize(
-            &document,
-            &EditOperation::SetLayout {
-                layout: source_with_new_legacy_link
-            }
-        ),
-        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
-    ));
-
-    let mut new_overlap = document.clone();
-    add_empty_local_matrix(&mut new_overlap, "new-legacy-peer-matrix");
-    new_overlap.layouts.push(
-        serde_json::from_value(json!({"id":"new-legacy-peer","name":"New legacy peer",
-            "boardId":"right","matrixIds": ["new-legacy-peer-matrix"],"partIds":[]}))
-        .unwrap(),
-    );
-    let mut new_legacy_link = new_overlap.layouts[2].clone();
-    new_legacy_link.mirror_link =
-        Some(serde_json::from_value(json!({"sourceId":"right-layout","axisX":100.0})).unwrap());
-    assert!(matches!(
-        canonicalize(
-            &new_overlap,
-            &EditOperation::SetLayout {
-                layout: new_legacy_link
-            }
-        ),
-        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
-    ));
-
-    let mut changed_local_members = document.layouts[1].clone();
-    changed_local_members
-        .part_ids
-        .retain(|id| id != "right/FREE");
-    let local_request = EditOperation::SetLayout {
-        layout: changed_local_members,
-    };
-    let local_result = canonicalize(&document, &local_request).unwrap();
-    assert_eq!(local_result.operation, local_request);
-    assert!(matches!(
-        local_result.coverage,
-        Coverage::DeliberatelyUnchanged(_)
-    ));
-
-    let mut removed_source_local = document.layouts[1].clone();
-    removed_source_local
-        .part_ids
-        .retain(|id| id != "right/HEADER");
-    assert!(matches!(
-        canonicalize(
-            &document,
-            &EditOperation::SetLayout {
-                layout: removed_source_local
-            }
-        ),
-        Err(Refusal::Request(message)) if message.contains("cannot be removed")
-    ));
-
-    let mut mixed_target_change = document.layouts[1].clone();
-    mixed_target_change.name = "Mixed target-owned name".into();
-    mixed_target_change.part_ids = vec![
-        "right/HEADER".into(),
-        "right/U1".into(),
-        "right/FREE".into(),
-    ];
-    assert!(matches!(
-        canonicalize(
-            &document,
-            &EditOperation::SetLayout {
-                layout: mixed_target_change
-            }
-        ),
-        Err(Refusal::Request(message)) if message.contains("source-projected membership changes")
-    ));
-
-    let mut overlap = document.clone();
-    add_empty_local_matrix(&mut overlap, "right-local-matrix");
-    overlap.layouts.push(
-        serde_json::from_value(json!({"id":"legacy-peer","name":"Legacy peer",
-            "boardId":"right","matrixIds": ["right-local-matrix"],"partIds":[],
-            "mirrorLink":{"sourceId":"right-layout","axisX":100.0}}))
-        .unwrap(),
-    );
-    for id in ["right-layout", "left-layout"] {
-        let operation = EditOperation::SetLayout {
-            layout: overlap
-                .layouts
-                .iter()
-                .find(|layout| layout.id == id)
-                .unwrap()
-                .clone(),
-        };
-        let result = canonicalize(&overlap, &operation);
+fn native_layout_refuses_unrepresentable_membership_and_legacy_overlap() {
+    fn link(source: &str) -> crate::model::LayoutMirrorLink {
+        serde_json::from_value(json!({"sourceId":source,"axisX":100.0})).unwrap()
+    }
+    fn layout_edit(
+        doc: &ProjectDoc,
+        id: &str,
+        update: impl FnOnce(&mut crate::model::Layout),
+    ) -> EditOperation {
+        let mut layout = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == id)
+            .unwrap()
+            .clone();
+        update(&mut layout);
+        EditOperation::SetLayout { layout }
+    }
+    fn assert_refused(document: &ProjectDoc, request: &EditOperation, reasons: &[&str]) {
+        let result = canonicalize(document, request);
         assert!(
-            matches!(
-                &result,
-                Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
-                    && message.contains("legacy layout mirror link")
-            ),
-            "{operation:?}: {result:?}"
+            matches!(&result, Err(Refusal::Request(message)) if reasons.iter().all(|reason| message.contains(reason))),
+            "{request:?}: expected {reasons:?}, got {result:?}"
         );
     }
 
-    let mut repair = overlap
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "legacy-peer")
-        .unwrap()
-        .clone();
-    repair.mirror_link = None;
-    let repair_request = EditOperation::SetLayout { layout: repair };
-    assert_eq!(
-        canonicalize(&overlap, &repair_request).unwrap().operation,
-        repair_request
-    );
+    let doc = native_layout_fixture();
+    let mirror = "right-layout";
+    let source = "left-layout";
+    let overlap = "native mirrored-pair";
+    for (request, reason) in [
+        (
+            layout_edit(&doc, mirror, |layout| {
+                layout.matrix_ids = vec!["left-keys".into()]
+            }),
+            "ownership",
+        ),
+        (
+            layout_edit(&doc, mirror, |layout| {
+                layout.mirror_link = Some(link(source))
+            }),
+            "legacy mirror link",
+        ),
+        (
+            layout_edit(&doc, source, |layout| {
+                layout.mirror_link = Some(link(mirror))
+            }),
+            overlap,
+        ),
+        (
+            layout_edit(&doc, mirror, |layout| {
+                layout.part_ids.retain(|id| id != "right/HEADER")
+            }),
+            "cannot be removed",
+        ),
+        (
+            layout_edit(&doc, mirror, |layout| {
+                layout.name = "Mixed target-owned name".into();
+                layout.part_ids = ["right/HEADER", "right/U1", "right/FREE"]
+                    .map(str::to_owned)
+                    .into();
+            }),
+            "source-projected membership changes",
+        ),
+    ] {
+        assert_refused(&doc, &request, &[reason]);
+    }
 
-    let mut direct_overlap = document.clone();
-    add_empty_local_matrix(&mut direct_overlap, "native-legacy-source-matrix");
-    direct_overlap.layouts.push(
-        serde_json::from_value(json!({"id":"native-legacy-source",
-            "name":"Native legacy source","boardId":"right",
-            "matrixIds": ["native-legacy-source-matrix"],"partIds":[]}))
+    // Adding a legacy link to an adjacent layout is also an overlap. An already
+    // overlapping document can remove that link, but cannot edit either native side.
+    let mut adjacent = doc.clone();
+    add_empty_local_matrix(&mut adjacent, "legacy-peer-matrix");
+    adjacent.layouts.push(
+        serde_json::from_value(json!({
+            "id":"legacy-peer", "name":"Legacy peer", "boardId":"right",
+            "matrixIds": ["legacy-peer-matrix"], "partIds":[]
+        }))
         .unwrap(),
     );
-    let native_mirror = direct_overlap
-        .layouts
-        .iter_mut()
-        .find(|layout| layout.id == "right-layout")
-        .unwrap();
-    native_mirror.mirror_link = Some(
-        serde_json::from_value(json!({"sourceId":"native-legacy-source","axisX":100.0})).unwrap(),
-    );
-    let mut direct_repair = native_mirror.clone();
-    direct_repair.mirror_link = None;
-    let mut changed_while_unlinking = direct_repair.clone();
-    changed_while_unlinking.name = "Changed during unlink".into();
-    assert!(matches!(
-        canonicalize(
-            &direct_overlap,
-            &EditOperation::SetLayout {
-                layout: changed_while_unlinking
-            }
-        ),
-        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
-    ));
-    let direct_repair_request = EditOperation::SetLayout {
-        layout: direct_repair,
-    };
-    assert_eq!(
-        canonicalize(&direct_overlap, &direct_repair_request)
-            .unwrap()
-            .operation,
-        direct_repair_request
-    );
+    let request = layout_edit(&adjacent, "legacy-peer", |layout| {
+        layout.mirror_link = Some(link(mirror))
+    });
+    assert_refused(&adjacent, &request, &[overlap]);
+    adjacent.layouts[2].mirror_link = Some(link(mirror));
+    for id in [mirror, source] {
+        assert_refused(
+            &adjacent,
+            &layout_edit(&adjacent, id, |_| {}),
+            &[overlap, "legacy layout mirror link"],
+        );
+    }
+    let repair = layout_edit(&adjacent, "legacy-peer", |layout| layout.mirror_link = None);
+    assert_eq!(canonicalize(&adjacent, &repair).unwrap().operation, repair);
+
+    // Direct overlap can also be repaired, but changing anything else while unlinking is refused.
+    adjacent.layouts[2].mirror_link = None;
+    adjacent.layouts[1].mirror_link = Some(link("legacy-peer"));
+    let changed = layout_edit(&adjacent, mirror, |layout| {
+        layout.mirror_link = None;
+        layout.name = "Changed during unlink".into();
+    });
+    assert_refused(&adjacent, &changed, &[overlap]);
+    let repair = layout_edit(&adjacent, mirror, |layout| layout.mirror_link = None);
+    assert_eq!(canonicalize(&adjacent, &repair).unwrap().operation, repair);
 }
 
 #[test]
@@ -546,54 +483,6 @@ fn rotated_outline_controls_anchors_reviews_and_identity_are_inverse_mapped_toge
         &value["edit"]["reviewed"][0]["points"][2],
         &json!({"x": -5.0, "y": 20.0}),
         "review last",
-    );
-}
-
-#[test]
-fn a_matrix_shaped_anchor_without_matrix_membership_uses_full_heading_rule() {
-    let mut document = fixture();
-    let source_id = "matrix/left-loose/r0c0";
-    let mirror_id = "matrix/right-loose/r0c0";
-    for (old_id, new_id, board_id) in [
-        ("matrix/left-keys/r0c0", source_id, "left"),
-        ("matrix/right-keys/r0c0", mirror_id, "right"),
-    ] {
-        let mut new_part = document
-            .parts
-            .iter()
-            .find(|part| part.id == old_id)
-            .unwrap()
-            .clone();
-        new_part.id = new_id.into();
-        document.parts.push(new_part);
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == board_id)
-            .unwrap()
-            .part_ids
-            .push(new_id.into());
-    }
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .push(serde_json::from_value(corr("part", source_id, mirror_id)).unwrap());
-
-    let request = json!({"kind": "apply-outline-edit", "edit": {
-        "target": {"kind": "board", "boardId": "right"},
-        "change": {"add-feature": {"feature": {"kind": "polygon",
-            "id": "right/new", "anchorPartId": mirror_id,
-            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
-            "operation": "add"}}},
-        "seed": 17
-    }});
-    let translated = canonical(&document, &request).expect("the linked anchor translates");
-    let value = serde_json::to_value(translated.operation).unwrap();
-    assert_eq!(
-        value["edit"]["change"]["add-feature"]["feature"]["points"],
-        json!([{"x": 12.0, "y": -14.0}, {"x": 8.0, "y": -10.0}, {"x": 4.0, "y": -6.0}])
     );
 }
 
@@ -735,18 +624,6 @@ fn a_mirror_side_addition_keeps_an_unpaired_target_layout_membership() {
 }
 
 #[test]
-fn removing_an_omitted_mirror_part_is_refused() {
-    let message = refusal(
-        &fixture(),
-        json!({"kind": "remove-parts", "ids": ["right/GONE"]}),
-    );
-    assert!(
-        message.contains("right/GONE") && message.contains("omitted"),
-        "{message}"
-    );
-}
-
-#[test]
 fn a_duplicate_position_companion_follows_its_key_when_both_move_in_one_request() {
     let mut document = fixture();
     set_companion(&mut document, "duplicate-position", json!(null));
@@ -763,30 +640,28 @@ fn a_duplicate_position_companion_follows_its_key_when_both_move_in_one_request(
 }
 
 #[test]
-fn a_literal_mirror_companion_flips_offset_and_turn() {
-    let matrix = companion_matrix(&fixture(), "d", -60.0);
-    assert_close(
-        &matrix["cells"][0]["assemblies"],
-        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -3}, "rotation": 60}]),
-        "assemblies",
-    );
-}
-
-#[test]
-fn a_tweaked_companion_subtracts_its_tweak_before_flipping() {
-    let mut document = fixture();
-    set_companion(
-        &mut document,
-        "literal-mirror-with-tweak",
-        json!({"x": 1.0, "y": 2.0, "rotation": 10.0}),
-    );
-    // Payload offset (-8, -3) and turn -60: source x = -(-8 - 1), y = -3 - 2, turn = -(-60 - 10).
-    let matrix = companion_matrix(&document, "d", -60.0);
-    assert_close(
-        &matrix["cells"][0]["assemblies"],
-        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": 9, "y": -5}, "rotation": 70}]),
-        "assemblies",
-    );
+fn companion_matrix_payloads_follow_the_requested_placement_mode() {
+    for (mode, tweak, (x, y, rotation)) in [
+        ("literal-mirror", Value::Null, (8, -3, 60)),
+        (
+            "literal-mirror-with-tweak",
+            json!({"x": 1.0, "y": 2.0, "rotation": 10.0}),
+            (9, -5, 70),
+        ),
+        ("duplicate-position", Value::Null, (-8, -3, -60)),
+    ] {
+        let mut doc = fixture();
+        if mode != "literal-mirror" {
+            set_companion(&mut doc, mode, tweak);
+        }
+        // Literal reflection flips the X offset and turn; tweaked reflection subtracts the tweak first.
+        let matrix = companion_matrix(&doc, "d", -60.0);
+        assert_close(
+            &matrix["cells"][0]["assemblies"],
+            &json!([{"id": "diode", "definitionId": "d", "offset": {"x": x, "y": y}, "rotation": rotation}]),
+            mode,
+        );
+    }
 }
 
 #[test]

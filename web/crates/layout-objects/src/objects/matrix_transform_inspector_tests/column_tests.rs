@@ -1,14 +1,23 @@
 //! Column, row and carried-field tests for the matrix transform Inspector.
 use super::*;
 
-fn angled_column_fixture(splay: f64, rotation: f64) -> ProjectDoc {
+/// A two-key column whose first column carries `splay`/`rotation` layout and an
+/// optional `offset_y`, for column-scope Inspector scenarios.
+fn column_layout_fixture(splay: f64, rotation: f64, offset_y: f64) -> ProjectDoc {
     let (mut document, _) = two_key_fixture(false);
-    document.matrices[0]
-        .column_layout
-        .resize_with(1, Default::default);
-    document.matrices[0].column_layout[0].splay = splay;
-    document.matrices[0].column_layout[0].rotation = rotation;
+    let column_layout = &mut document.matrices[0].column_layout;
+    column_layout.resize_with(1, Default::default);
+    column_layout[0].splay = splay;
+    column_layout[0].rotation = rotation;
+    column_layout[0].offset = Vec2 {
+        x: 0.0,
+        y: offset_y,
+    };
     document
+}
+
+fn angled_column_fixture(splay: f64, rotation: f64) -> ProjectDoc {
+    column_layout_fixture(splay, rotation, 0.0)
 }
 
 #[wasm_bindgen_test]
@@ -113,12 +122,7 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
 }
 
 fn offset_column_fixture(splay: f64) -> ProjectDoc {
-    let (mut document, _) = two_key_fixture(false);
-    let column_layout = &mut document.matrices[0].column_layout;
-    column_layout.resize_with(1, Default::default);
-    column_layout[0].offset = Vec2 { x: 0.0, y: -9.525 };
-    column_layout[0].splay = splay;
-    document
+    column_layout_fixture(splay, 0.0, -9.525)
 }
 
 #[wasm_bindgen_test]
