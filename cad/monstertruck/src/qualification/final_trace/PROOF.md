@@ -2,47 +2,64 @@
 
 ## Native production proof
 
-The producer qualifies the delivered body-local f64 triangle buffer against
-the generated B-rep. It checks face occurrence and support census, render casts,
-triangle orientation, and exact oriented shell incidence. It groups triangles by
-source face and proves coverage independently of the tessellator's strip list,
-UV coordinates, requested deflection, and closed-shell status flag. The
-qualification facade binds the result to the emitted buffers for provider queries.
-A source bound describes symmetric surface distance in f64 millimeters.
+`prepare_generated_analysis` qualifies the delivered body-local f64 triangles
+against the generated B-rep. The verifier requires the emitter's
+`mesh_closed_oriented` flag and independently recomputes exact oriented triangle
+incidence for each shell. It checks the face occurrence and support census,
+the render casts, and triangle validity and orientation. Coverage is proved
+from the native boundaries and final triangle groups, independently of the
+tessellator's strip list, UV coordinates, and requested deflection.
+
+Preparation seals the emitted arrays, face catalogue, and report under one
+mesh identity. The WASM `analyze_generated_body` result publishes that report
+as `sourceQualification` and mirrors its total in `analysisErrorBoundMm`.
+A bounded report gives a symmetric source surface distance in body-local f64
+millimeters. Its direct and total bounds are equal and its source precision
+term is zero. An unproved source publishes Unknown and a null
+`analysisErrorBoundMm` when mesh preparation succeeds. The qualified pair query
+uses the sealed handles to scale the local bound by an upper bound on the
+physical row's linear norm and add a separate enclosure of world transform
+rounding.
 
 For each axis-aligned plane the verifier computes the exact normal of its stored
 tangent vectors and checks that the stored boundary lines and final triangles
-lie on that plane. It verifies exact rectangular sides, allowing collinear
-subdivisions, and uses oriented triangle boundary and winding to prove complete
-coverage. A qualifying plane-only shell has zero direct error. Planes joined to
-a cylinder can have full circular trims with matching native edge IDs and
-matching delivered cap/cylinder end cycles. The shared projected-domain proof
-below checks orientation, complete coverage, and separation between boundaries.
+lie on that plane. It verifies exact rectangular sides, including collinear
+subdivisions, and uses the oriented triangle boundary and winding to prove
+complete coverage. Qualifying planar shells, including multiple disjoint
+planar shells, have zero direct error.
+
+For a cap joined to a cylinder, the source join identifies the native cap trim
+by its set of edge IDs shared with one native cylinder end ring. The final
+mesh join independently compares the exact geometric boundary edge sets of the
+triangles assigned to that cap and to that cylinder end. Both joins are required.
+Each cap also checks the orientation and separation of its outer boundary and
+holes using the projected triangle domain.
 
 For each constant-radius unit-Z carrier, the source domain is the strip
-between its two native end loops. The build stores an authored center and
+between its two native end loops. The build stores the authored center and
 radius, endpoint vertices, and an arc traversal sign. The source arc follows
 the authored circle between the endpoint rays in that direction, as in the
-generated STEP writer. The stored f64 sweep magnitude controls sampling.
-The proof checks exact circle identity, constant Z, angular span, and one
-oriented turn for each source ring. It includes the maximum radial discrepancy
-of the retained endpoint coordinates. The final whole-triangle radial enclosure
-and projection degree below account for chord error and coordinate rounding.
-The proof charges final end-height displacement and checks separation and
-orientation. Caps independently check their source rings and account for their
-boundary bands. Exact rational bounds are rounded outward to f64. Cones,
-partial cylinders, nonrectangular line trims, and unproved joins or domains
-return Unknown.
+generated STEP writer. The stored f64 sweep magnitude controls sampling. The
+proof checks exact circle identity, constant Z, angular span, and one oriented
+turn for each source ring. It includes the maximum radial discrepancy of the
+retained endpoint coordinates. The shared whole-triangle radial enclosure and
+projection degree account for chord error and coordinate rounding. The proof
+also charges final end-height displacement. Caps verify their source rings
+and include their boundary bands. The resulting exact rational bound is
+rounded outward to f64. Cones, partial cylinders, nonrectangular line trims,
+and unproved joins or domains return Unknown.
 
-Analysis and preview share one tessellation. At a positive f64 layer interval
-whose levels cast to the same f32, the tessellator can remove an internal strip
-separator only when both adjacent strips have identical oriented XY cross
-sections, including exact circle identity and signed sweep for curved strips.
-The replacement spans the same endpoints and the same extruded f64 surface.
+Analysis and preview share the native tessellator. At a positive f64 layer
+interval whose levels cast to the same f32, the tessellator can remove an
+internal strip separator only when that strip and its neighbor have the same
+oriented XY cross section at all three levels, including exact circle identity
+and oriented sweep for curved strips. If both neighboring strips can absorb the
+interval, the tessellator prefers the lower neighbor when a cap uses the upper
+level. The replacement spans the same endpoints and the same extruded f64 surface.
 Exact B-rep rings and all authored elevations remain available to qualification
 and export. The final f64 shell still has to close exactly. A collapsed interval
-that changes geometry or has no eligible continuation must still produce
-renderable triangles, so a sub-ULP shallow cut can fail mesh construction.
+that changes geometry or has no eligible continuation must produce renderable
+triangles, so a sub-ULP shallow cut can fail mesh construction.
 
 PCB midpoint arcs and standalone circles require their structural circular
 support at contour intake. Round features and slots construct their carriers
@@ -50,10 +67,52 @@ from authored dimensions and placement. Boolean stitching preserves source
 lineage. Contour validation and native edge assembly refuse a bulge whose
 structural source is missing or has the wrong kind.
 
+## Native production controls
+
+The cases in `cylinder_proof/native.rs` use native `build_case` models and
+`prepare_generated_analysis` emissions. The outward boss and counterbore case
+checks the emitted annular caps and measures final chord witnesses on both cap
+inner rims and all three curved walls. Moving the shared XY seam of a through-hole gives a
+second witness, exactly 0.25 mm from the source. The narrow-hole case requires
+a 1/32 mm source clearance, refuses the coarse trim band, and publishes a
+refined bound below that clearance. Disjoint rectangular shells publish zero,
+and the conical seat still produces a mesh with Unknown source qualification.
+
+The mutation cases pass modified source or final data directly to the
+production `native::qualify` verifier. Replacing a cap's native edge with a
+coincident edge or splitting it into two coincident subarcs breaks the shared
+source edge IDs. Swapping coplanar cap groups preserves native IDs and final
+shell incidence while breaking the exact final geometric joins. A retraced arc
+and a cylinder end divided into multiple rings refuse independently. The closed
+flag and the recomputed shell incidence are
+checked separately by clearing the flag on a valid mesh and removing a triangle
+while keeping the flag set.
+
+The strip-chain test exercises production preparation across two consecutive
+f64 intervals that collapse in f32, and checks refusal for a real shallow cut.
+A focused tessellator test varies upper-level cap membership and moves one
+oriented sweep by one ULP while holding the endpoints and circle fixed. The
+world-row case checks the nonzero local bound under a reflected scale of two
+with translation, including independent exact measurement of the resulting
+vertex rounding and outward conversion of the total.
+
+The native qualification cases and the focused sweep/cap test register as
+individually named `wasm_bindgen_test` entries. The locked CAD workspace
+manifest builds them for `wasm32-unknown-unknown` in the `cad-test` profile.
+The native qualification and tessellation logs are
+`.evidence/native-qualification-remediation-native.log` and
+`.evidence/native-qualification-remediation-strip.log`. The Node/WASM execution
+is recorded in `.evidence/native-qualification-remediation-wasm.log`.
+The packaged `qualified-analysis` provider case checks the generated cylinder's
+published mesh identity and bound mirror. Its Chrome result is recorded in
+`.evidence/native-qualification-remediation-provider.log`.
+
 ## Retained vendor fixture proof (014)
 
-The following coefficient and UV controls exercise the test-only vendor
-representation and the shared final-domain predicates.
+The following sections describe the historical vendor-representation proof,
+the test-only controls retained from it, and the shared final-domain predicates.
+Their source geometry, UV requirements, and test results refer to that proof.
+The production entry and its controls use native layered topology.
 
 Frozen `5bc56d35` failed independent Spec review with a P1 soundness
 counterexample. Its prior green checks did not cover that defect. Corrected raw
@@ -268,14 +327,15 @@ General source affine maps, cones, unproved trims/seams, invalid normalization,
 out-of-domain numerics and exhausted limits return Unknown. No global continuous
 solid correspondence or containment follows from this facewise surface bound.
 
-## Evidence and private WASM harness
+## Historical vendor fixture evidence and private WASM harness
 
 The expected RED is `.evidence/cylinder-proof-red.log`. Native tests include
 real drilled 20x10 plates, the authored-circle PCB with an additional drill,
 the existing tray/boss route, refinement and independent radius/height controls,
 clearance-band refusal, consistently bound missing/duplicate/sliver triangles,
 UV/census mutations, trim coefficients, spans, normalization, translation,
-large coordinates and the real open seam. Production bounds remain null.
+large coordinates and the real open seam. Production bounds were null at that
+checkpoint.
 
 The private WASM harness uses the **same source library path**, with the existing
 standalone CAD manifest's dependency/patch paths made absolute in a temporary
@@ -359,7 +419,7 @@ transform`), rather than being silently canonicalized. Cones still lack the
 joint mixed/evaluation/trim proof and remain Unknown. This feature adds no
 general affine maps or continuous containment correspondence.
 
-Current native evidence is `.evidence/cylinder-height-profile-tests.log` (all
+The height extension's retained evidence is `.evidence/cylinder-height-profile-tests.log` (all
 51 profile tests, including all 24 proof controls) and
 `.evidence/cylinder-height-integration.log` (all 6 tests across `layered_case`,
 `native_revolution_frame`, `profile_validation`). Commands were

@@ -256,7 +256,10 @@ const cylinderTimes=[];
 for(const name of ['cylinderDefault','cylinderRefined']) {
  const requested=name==='cylinderDefault'?null:0.01;
  const at=performance.now(),cylinder=cad.analyze_generated_body(cylinderBody,{targetDeflectionMm:requested});
- assert.equal(cylinder.sourceQualification.state,'bounded');
+ assert.deepEqual(
+   [cylinder.sourceQualification.state,cylinder.sourceQualification.meshIdentity,cylinder.analysisErrorBoundMm],
+   ['bounded',cylinder.analysisMesh.meshIdentity,cylinder.sourceQualification.totalBoundMm],
+ );
  const expected=activation.sourceReports[name];
  assert(cylinder.sourceQualification.totalBoundMm<=expected.totalBoundMm);
  assert(cylinder.sourceQualification.totalBoundMm>0.01,'selected deflection is not an accuracy certificate');

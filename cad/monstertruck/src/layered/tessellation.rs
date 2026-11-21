@@ -369,7 +369,76 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layered::brep::{Edge, Vector3};
+    use crate::layered::brep::{Circle, Edge, Vector3};
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn strip_merge_keeps_the_cap_level_and_requires_identical_oriented_sweep() {
+        let low = 1.0_f64;
+        let high = low.next_up();
+        assert_eq!(low as f32, high as f32);
+        let mut topology = Topology::default();
+        for z in [0., low, high, 2.] {
+            let first = topology.vertices.len();
+            topology
+                .vertices
+                .extend([Point3::new(1., 0., z), Point3::new(0., 1., z)]);
+            topology.edges.push(Edge {
+                vertices: [first, first + 1],
+                circle: Some(Circle {
+                    center: Point3::new(0., 0., z),
+                    radius: 1.,
+                    sweep: std::f64::consts::FRAC_PI_2,
+                }),
+            });
+        }
+        let edge = |index| EdgeUse {
+            index,
+            forward: true,
+        };
+        let face = Face {
+            rings: vec![],
+            support: Support::Round {
+                center: [0., 0.],
+                lower: [0., 1.],
+                upper: [2., 1.],
+                outward: true,
+            },
+            forward: true,
+            strips: (0..3)
+                .map(|i| Strip {
+                    lower: edge(i),
+                    upper: edge(i + 1),
+                })
+                .collect(),
+        };
+        let ranges = |strips: &[Strip]| {
+            strips
+                .iter()
+                .map(|strip| [strip.lower.index, strip.upper.index])
+                .collect::<Vec<_>>()
+        };
+        let uncapped = HashSet::new();
+        let capped = HashSet::from([coordinate_key(high)]);
+        // The thin interval can merge in either direction. The shared cap at
+        // its upper edge requires it to merge into the strip below.
+        assert_eq!(
+            ranges(&render_strips(&topology, &face, &uncapped)),
+            [[0, 1], [1, 3]]
+        );
+        assert_eq!(
+            ranges(&render_strips(&topology, &face, &capped)),
+            [[0, 2], [2, 3]]
+        );
+
+        let arc = topology.edges[2].circle.as_mut().unwrap();
+        arc.sweep = arc.sweep.next_down();
+        // Same XY endpoints and radius still cannot establish the same trim.
+        assert_eq!(
+            ranges(&render_strips(&topology, &face, &capped)),
+            [[0, 1], [1, 2], [2, 3]]
+        );
+    }
 
     #[test]
     fn strip_merge_rejects_an_in_plane_sub_ulp_change_of_section() {
