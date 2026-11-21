@@ -787,6 +787,7 @@ pub(super) fn validate_transition_input<'a>(
             .flat_map(|addition| [addition.source_id.clone(), addition.mirror_id.clone()]),
     );
     required_owners.extend(context.owners.keys().cloned());
+    required_owners.extend(mapped_mirror_ids.iter().cloned());
     if input.final_owners.keys().cloned().collect::<BTreeSet<_>>() != required_owners {
         return Err("The final owner map is not total for the transition identity universe".into());
     }

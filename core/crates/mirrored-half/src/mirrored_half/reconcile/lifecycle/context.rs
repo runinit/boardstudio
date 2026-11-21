@@ -589,8 +589,8 @@ pub(super) fn project_lifecycle_matrix(
         .find(|p| p.id == context.pair_id)
         .unwrap()
         .halves = Some(matrix_context.pair_right.clone());
-    let output =
-        super::super::transition::project_membership_if_changed(MembershipTransitionInput {
+    let output = super::super::transition::project_membership_if_changed(
+        MembershipTransitionInput {
             dispatch,
             valid_before: &draft,
             post_source: &draft,
@@ -601,7 +601,9 @@ pub(super) fn project_lifecycle_matrix(
             planned_additions: &[],
             final_owners: &matrix_context.owners,
             explicit_removal_closure: &closure,
-        })?;
+        },
+        None,
+    )?;
     if let Some(output) = output {
         draft = output.draft;
     }

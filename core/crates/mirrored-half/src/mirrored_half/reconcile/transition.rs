@@ -7,14 +7,45 @@ use super::{
     remove_omitted_matrix_parts, require_matrix_pair, transition_matrix_by_id,
     validate_transition_input, validate_transition_output,
 };
-use crate::model::{Matrix, MirroredItemKind, Vec2};
+use crate::model::{EditOperation, Matrix, MirroredItemKind, Vec2};
 use std::collections::BTreeSet;
+
+/// Axis intent is already known while applying an editor command. Replay callers
+/// have only identity evidence and must establish the same mapping independently.
+#[derive(Clone, Copy)]
+pub(super) enum RemovedAxis {
+    Row(u32),
+    Column(u32),
+}
+
+impl RemovedAxis {
+    pub(super) fn for_operation(operation: &EditOperation, source: &str) -> Option<Self> {
+        match operation {
+            EditOperation::RemoveMatrixRow { matrix_id, row } if matrix_id == source => {
+                Some(Self::Row(*row))
+            }
+            EditOperation::RemoveMatrixColumn { matrix_id, column } if matrix_id == source => {
+                Some(Self::Column(*column))
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) fn remap(self, row: u32, column: u32) -> Option<(u32, u32)> {
+        match self {
+            Self::Row(index) => (row != index).then(|| (row - u32::from(row > index), column)),
+            Self::Column(index) => {
+                (column != index).then(|| (row, column - u32::from(column > index)))
+            }
+        }
+    }
+}
 
 #[doc(hidden)]
 pub fn prepare_membership_transition_kernel(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
-    let mut output = project_membership(input)?;
+    let mut output = project_membership(input, None)?;
     (output.changed_document_ids, output.changed_field_paths) =
         super::changed_document_fields(input.post_source, &output.draft)?;
     Ok(output)
@@ -22,9 +53,10 @@ pub fn prepare_membership_transition_kernel(
 
 fn project_membership(
     input: MembershipTransitionInput<'_>,
+    axis: Option<RemovedAxis>,
 ) -> Result<MembershipTransitionOutput, String> {
     Ok(
-        project_membership_if_changed(input)?.unwrap_or_else(|| MembershipTransitionOutput {
+        project_membership_if_changed(input, axis)?.unwrap_or_else(|| MembershipTransitionOutput {
             draft: input.post_source.clone(),
             context: input.context.clone(),
             context_delta: MembershipContextDelta {
@@ -43,6 +75,7 @@ fn project_membership(
 /// the draft can carry it into correspondence projection without materializing a second copy.
 pub(super) fn project_membership_if_changed(
     input: MembershipTransitionInput<'_>,
+    axis: Option<RemovedAxis>,
 ) -> Result<Option<MembershipTransitionOutput>, String> {
     let matrix_pair = require_matrix_pair(input.context)?;
 
@@ -232,153 +265,25 @@ pub(super) fn project_membership_if_changed(
         return Ok(None);
     }
 
-    let mut removed_slots = BTreeSet::new();
-    let mut shifted_slots = BTreeSet::new();
-    for (old_id, new_id) in input.source_identity_map {
-        let Some((old_row, old_column, old_suffix)) =
-            matrix_identity_slot(old_id, matrix_pair.source_id.as_str())
-        else {
-            return Err(format!("The source identity {old_id:?} is not canonical"));
-        };
-        match new_id {
-            None => {
-                removed_slots.insert((old_row, old_column, old_suffix.to_owned()));
-                if !input.explicit_removal_closure.contains(old_id) {
-                    return Err(format!(
-                        "Removed source identity {old_id:?} lacks explicit operation evidence"
-                    ));
-                }
-            }
-            Some(new_id) => {
-                let Some((new_row, new_column, new_suffix)) =
-                    matrix_identity_slot(new_id, matrix_pair.source_id.as_str())
-                else {
-                    return Err(format!(
-                        "The mapped source identity {new_id:?} is not canonical"
-                    ));
-                };
-                if old_suffix != new_suffix {
-                    return Err("The source identity map changes a companion identity".into());
-                }
-                if (old_row, old_column) != (new_row, new_column) {
-                    shifted_slots.insert(((old_row, old_column), (new_row, new_column)));
-                }
-            }
-        }
-    }
-    let is_compaction = !removed_slots.is_empty()
-        && !shifted_slots.is_empty()
-        && input.planned_additions.is_empty();
-    let is_trim =
-        !removed_slots.is_empty() && shifted_slots.is_empty() && input.planned_additions.is_empty();
-    let is_expansion =
-        removed_slots.is_empty() && shifted_slots.is_empty() && !input.planned_additions.is_empty();
-    let is_rejoin = removed_slots.is_empty()
-        && shifted_slots.is_empty()
-        && input.planned_additions.is_empty()
-        && (!context.pending_rejoins.is_empty() || !context.pending_pair_transitions.is_empty());
-    // A detached mirror owns its membership (spec §5): source-side growth
-    // projects nothing, so the map carries no additions for the kernel to
-    // materialize. The map check above already proved the residual change is
-    // genuine source growth; every other arm keeps its shape. Only a Local
-    // mirror skips projection below; an Omitted mirror still follows the
-    // source record while staying absent.
-    let matrix_detached = context.pending_rejoins.is_empty()
-        && context.pending_pair_transitions.is_empty()
-        && context.associations.iter().any(|association| {
+    let detached_state = context
+        .associations
+        .iter()
+        .find(|association| {
             association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && matches!(
-                    association.state,
-                    TransitionState::Local | TransitionState::Omitted
-                )
+                && association.source_id == matrix_pair.source_id
+                && association.mirror_id == matrix_pair.mirror_id
                 && association.explicit_state
-        });
-    let matrix_detached_local = context.pending_rejoins.is_empty()
-        && context.pending_pair_transitions.is_empty()
-        && context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && association.state == TransitionState::Local
-                && association.explicit_state
-        });
-    let matrix_detached_omitted = context.pending_rejoins.is_empty()
-        && context.pending_pair_transitions.is_empty()
-        && context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && association.state == TransitionState::Omitted
-                && association.explicit_state
-        });
-    if matrix_detached && !input.planned_additions.is_empty() {
+                && context.pending_pair_transitions.is_empty()
+                && context.pending_rejoins.is_empty()
+        })
+        .map(|association| association.state);
+    let matrix_detached_local = detached_state == Some(TransitionState::Local);
+    let matrix_detached_omitted = detached_state == Some(TransitionState::Omitted);
+    let detached = matrix_detached_local || matrix_detached_omitted;
+    if detached && !input.planned_additions.is_empty() {
         return Err("A detached mirror takes no projected additions".into());
     }
-    let is_detached_expansion = removed_slots.is_empty()
-        && shifted_slots.is_empty()
-        && input.planned_additions.is_empty()
-        && (matrix_detached_local || matrix_detached_omitted);
-    if !is_compaction && !is_trim && !is_expansion && !is_rejoin && !is_detached_expansion {
-        return Err("The source operation is not a supported identity, trim, expansion, or single-axis compaction".into());
-    }
-    let compaction_axis = if is_compaction {
-        Some({
-            let &(removed_row, removed_column, _) = removed_slots
-                .iter()
-                .next()
-                .ok_or_else(|| "The source operation has no removed slot".to_owned())?;
-            let row_axis =
-                shifted_slots
-                    .iter()
-                    .all(|((old_row, old_column), (new_row, new_column))| {
-                        old_column == new_column && old_row != new_row
-                    });
-            let column_axis =
-                shifted_slots
-                    .iter()
-                    .all(|((old_row, old_column), (new_row, new_column))| {
-                        old_row == new_row && old_column != new_column
-                    });
-            if row_axis == column_axis {
-                return Err(
-                    "The source identity map does not describe one unambiguous axis compaction"
-                        .into(),
-                );
-            }
-            let index = if row_axis {
-                removed_row
-            } else {
-                removed_column
-            };
-            if removed_slots.iter().any(|(row, column, _)| {
-                if row_axis {
-                    *row != index
-                } else {
-                    *column != index
-                }
-            }) {
-                return Err("The source operation removes more than one matrix axis".into());
-            }
-            for (old, new) in &shifted_slots {
-                let (old_axis, new_axis, other_axis_equal) = if row_axis {
-                    (old.0, new.0, old.1 == new.1)
-                } else {
-                    (old.1, new.1, old.0 == new.0)
-                };
-                if !other_axis_equal
-                    || old_axis == index
-                    || new_axis != old_axis - u32::from(old_axis > index)
-                {
-                    return Err("The source identity map is not a canonical axis compaction".into());
-                }
-            }
-            (row_axis, index)
-        })
-    } else {
-        None
-    };
+    let removal = membership_removal(input, axis, detached)?;
 
     let mut staged = input.post_source.clone();
     // An Omitted-absent mirror has no record to stage or project onto: the
@@ -422,9 +327,14 @@ pub(super) fn project_membership_if_changed(
     // A detached Local mirror owns its descriptor, and an absent mirror has
     // no record at all: membership staging never rewrites either, whatever
     // the source operation removed or compacted.
-    if let Some((axis_row, removed_index)) =
-        compaction_axis.filter(|_| !matrix_detached_local && !mirror_absent)
+    if let MembershipRemoval::Axis(axis) = removal
+        && !matrix_detached_local
+        && !mirror_absent
     {
+        let (axis_row, removed_index) = match axis {
+            RemovedAxis::Row(row) => (true, row),
+            RemovedAxis::Column(column) => (false, column),
+        };
         crate::matrix::deletion::remove_axis(
             &mut staged,
             matrix_pair.mirror_id.as_str(),
@@ -432,12 +342,11 @@ pub(super) fn project_membership_if_changed(
             axis_row,
             input.dispatch.apply_unscripted,
         )?;
-    } else if is_trim && !matrix_detached_local && !mirror_absent {
+    } else if let MembershipRemoval::Cells(mut removed_cells) = removal
+        && !matrix_detached_local
+        && !mirror_absent
+    {
         let old_mirror = transition_matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?;
-        let mut removed_cells: BTreeSet<_> = removed_slots
-            .iter()
-            .filter_map(|(row, column, suffix)| suffix.is_empty().then_some((*row, *column)))
-            .collect();
         if removed_cells.is_empty() {
             return Err("The trimmed membership removes no complete matrix key".into());
         }
@@ -1020,6 +929,104 @@ pub(super) fn project_membership_if_changed(
     .map(Some)
 }
 
+enum MembershipRemoval {
+    Axis(RemovedAxis),
+    Cells(BTreeSet<(u32, u32)>),
+    None,
+}
+
+/// Only legacy transition inputs need to infer an axis from a shifted survivor
+/// and an explicitly removed member. An empty axis has no such witness.
+fn membership_removal(
+    input: MembershipTransitionInput<'_>,
+    axis: Option<RemovedAxis>,
+    detached: bool,
+) -> Result<MembershipRemoval, String> {
+    let matrix = &require_matrix_pair(input.context)?.source_id;
+    let slot = |id| {
+        matrix_identity_slot(id, matrix)
+            .ok_or_else(|| format!("The source identity {id:?} is not canonical"))
+    };
+    if let Some(axis) = axis {
+        if !input.planned_additions.is_empty() {
+            return Err("Axis removal cannot introduce members".into());
+        }
+        // A trailing removal may detach a Local member as an independent part.
+        // The cell trim below protects it from the destructive matrix setter.
+        let detaches_local = input.context.associations.iter().any(|a| {
+            a.state == TransitionState::Local
+                && input.source_identity_map.get(&a.source_id) == Some(&None)
+        });
+        if !detaches_local
+            || input
+                .source_identity_map
+                .iter()
+                .any(|(old, new)| new.as_ref().is_some_and(|new| new != old))
+        {
+            return Ok(MembershipRemoval::Axis(axis));
+        }
+    }
+    let mut removed = None;
+    let mut removed_cells = BTreeSet::new();
+    let mut shifted_row = None;
+    for (old, new) in input.source_identity_map {
+        let (row, column, child) = slot(old)?;
+        if let Some(new) = new {
+            let (next_row, next_column, next_child) = slot(new)?;
+            if child != next_child {
+                return Err("The source identity map changes a companion identity".into());
+            }
+            if (row, column) != (next_row, next_column) {
+                shifted_row = Some(row != next_row);
+            }
+        } else {
+            if !input.explicit_removal_closure.contains(old) {
+                return Err(format!(
+                    "Removed source identity {old:?} lacks explicit operation evidence"
+                ));
+            }
+            removed = Some((row, column));
+            if child.is_empty() {
+                removed_cells.insert((row, column));
+            }
+        }
+    }
+    if !input.planned_additions.is_empty()
+        && (removed.is_some() || shifted_row.is_some() || axis.is_some())
+    {
+        return Err("A compaction or trim cannot introduce members".into());
+    }
+    let compaction = match (shifted_row, removed) {
+        (Some(true), Some((row, _))) => RemovedAxis::Row(row),
+        (Some(false), Some((_, column))) => RemovedAxis::Column(column),
+        (Some(_), None) => {
+            return Err("A shifted membership lacks evidence of a removed axis".into());
+        }
+        (None, Some(_)) => return Ok(MembershipRemoval::Cells(removed_cells)),
+        (None, None)
+            if !input.planned_additions.is_empty()
+                || detached
+                || !input.context.pending_rejoins.is_empty()
+                || !input.context.pending_pair_transitions.is_empty() =>
+        {
+            return Ok(MembershipRemoval::None);
+        }
+        _ => return Err("The source operation does not describe a membership transition".into()),
+    };
+    // Replay must account for every survivor, including slots it claims stayed put.
+    for (old, new) in input.source_identity_map {
+        let (row, column, _) = slot(old)?;
+        let mapped = new
+            .as_ref()
+            .map(|id| slot(id).map(|(r, c, _)| (r, c)))
+            .transpose()?;
+        if mapped != compaction.remap(row, column) {
+            return Err("The source identity map is not a canonical axis compaction".into());
+        }
+    }
+    Ok(MembershipRemoval::Axis(compaction))
+}
+
 #[doc(hidden)]
 pub fn prepare_membership_transition(
     input: MembershipTransitionInput<'_>,
@@ -1027,7 +1034,7 @@ pub fn prepare_membership_transition(
     if input.context.matrix_pair.is_none() {
         return Err("Matrix membership transition requires an exact Matrix correspondence".into());
     }
-    let mut output = prepare_membership_projection(input)?;
+    let mut output = prepare_membership_projection(input, None)?;
     (output.changed_document_ids, output.changed_field_paths) =
         super::changed_document_fields(input.post_source, &output.draft)?;
     Ok(output)
@@ -1035,8 +1042,9 @@ pub fn prepare_membership_transition(
 
 pub(super) fn prepare_membership_projection(
     input: MembershipTransitionInput<'_>,
+    axis: Option<RemovedAxis>,
 ) -> Result<MembershipTransitionOutput, String> {
-    let mut output = project_membership(input)?;
+    let mut output = project_membership(input, axis)?;
     // The membership kernel retains detached Local geometry. Once its source is explicitly
     // deleted, the durable lifecycle also retires that geometry's former association.
     let detached: Vec<_> = output

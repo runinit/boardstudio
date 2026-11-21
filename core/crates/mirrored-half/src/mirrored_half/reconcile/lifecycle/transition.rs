@@ -887,88 +887,74 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         .ok_or_else(|| "The lifecycle candidate pair has no halves record".to_owned())?;
 
     let mut next_halves = halves.clone();
-    let remove_exact = |halves: &mut crate::model::MirroredHalves,
-                        association: &super::super::TransitionAssociation|
-     -> Result<(), String> {
-        let matches: Vec<_> = halves
-            .correspondences
-            .iter()
-            .enumerate()
-            .filter(|(_, record)| {
-                record.kind == association.kind
-                    && record.source_id == association.source_id
-                    && record.mirror_id == association.mirror_id
-            })
-            .map(|(index, _)| index)
-            .collect();
-        let [index] = matches.as_slice() else {
-            return Err(format!(
-                "Retired {:?} association {:?} does not have one exact durable pair record",
-                association.kind, association.source_id
-            ));
+    // Locate each change in the original pair. Writing a survivor into another
+    // survivor's old slot must not change which row (or overlay) moves next.
+    let mut row_changes = std::collections::BTreeMap::new();
+    let mut overlay_changes = std::collections::BTreeMap::new();
+    let mut plan_change =
+        |old: &super::super::TransitionAssociation,
+         new: Option<&super::super::TransitionAssociation>|
+         -> Result<(), String> {
+            let mut rows = halves
+                .correspondences
+                .iter()
+                .enumerate()
+                .filter(|(_, row)| {
+                    row.kind == old.kind
+                        && row.source_id == old.source_id
+                        && row.mirror_id == old.mirror_id
+                });
+            let (index, _) = rows
+                .next()
+                .ok_or_else(|| format!("Missing durable association {:?}", old.source_id))?;
+            let replacement = new.map(|a| MirroredCorrespondence {
+                kind: a.kind,
+                source_id: a.source_id.clone(),
+                mirror_id: a.mirror_id.clone(),
+                companion_mode: a.raw_mode_override,
+                companion_tweak: a.raw_tweak,
+            });
+            if rows.next().is_some() || row_changes.insert(index, replacement).is_some() {
+                return Err(format!("Ambiguous durable association {:?}", old.source_id));
+            }
+            for (index, _) in halves.exceptions.iter().enumerate().filter(|(_, overlay)| {
+                overlay.kind == old.kind && overlay.mirror_id == old.mirror_id
+            }) {
+                overlay_changes.insert(index, new.map(|a| a.mirror_id.clone()));
+            }
+            Ok(())
         };
-        halves.correspondences.remove(*index);
-        // A retired association also retires its state overlay; a Local target stays as a plain
-        // mirror item with no source.
-        halves.exceptions.retain(|record| {
-            !(record.kind == association.kind && record.mirror_id == association.mirror_id)
-        });
-        Ok(())
-    };
-
-    let relocate_exact = |halves: &mut crate::model::MirroredHalves,
-                          old: &super::super::TransitionAssociation,
-                          new: &super::super::TransitionAssociation|
-     -> Result<(), String> {
-        let matches: Vec<_> = halves
-            .correspondences
-            .iter()
-            .enumerate()
-            .filter(|(_, record)| {
-                record.kind == old.kind
-                    && record.source_id == old.source_id
-                    && record.mirror_id == old.mirror_id
-            })
-            .map(|(index, _)| index)
-            .collect();
-        let [index] = matches.as_slice() else {
-            return Err(format!(
-                "Relocated {:?} association {:?} has no exact durable pair record",
-                old.kind, old.source_id
-            ));
-        };
-        let record = &mut halves.correspondences[*index];
-        record.source_id = new.source_id.clone();
-        record.mirror_id = new.mirror_id.clone();
-        record.companion_mode = new.raw_mode_override;
-        record.companion_tweak = new.raw_tweak;
-        for overlay in halves
-            .exceptions
-            .iter_mut()
-            .filter(|record| record.kind == old.kind && record.mirror_id == old.mirror_id)
-        {
-            overlay.mirror_id = new.mirror_id.clone();
-        }
-        Ok(())
-    };
-
     for retired in &output.context_delta.retired {
-        remove_exact(&mut next_halves, retired)?;
+        plan_change(retired, None)?;
     }
-    for (old_source_id, new_source_id) in &output.context_delta.relocated {
+    for (old_id, new_id) in &output.context_delta.relocated {
         let old = input
             .context
             .associations
             .iter()
-            .find(|association| association.source_id == *old_source_id)
-            .ok_or_else(|| format!("The relocated source {old_source_id:?} is unavailable"))?;
+            .find(|a| a.kind == MirroredItemKind::Part && a.source_id == *old_id)
+            .ok_or_else(|| format!("Missing relocated source {old_id:?}"))?;
         let new = output
             .context
             .associations
             .iter()
-            .find(|association| association.source_id == *new_source_id)
-            .ok_or_else(|| format!("The relocated source {new_source_id:?} is unavailable"))?;
-        relocate_exact(&mut next_halves, old, new)?;
+            .find(|a| a.kind == MirroredItemKind::Part && a.source_id == *new_id)
+            .ok_or_else(|| format!("Missing relocation target {new_id:?}"))?;
+        plan_change(old, Some(new))?;
+    }
+    for (index, replacement) in row_changes.into_iter().rev() {
+        if let Some(row) = replacement {
+            next_halves.correspondences[index] = row;
+        } else {
+            next_halves.correspondences.remove(index);
+        }
+    }
+    for (index, target) in overlay_changes.into_iter().rev() {
+        if let Some(target) = target {
+            next_halves.exceptions[index].mirror_id = target;
+        } else {
+            next_halves.exceptions.remove(index);
+        }
     }
     for added in &output.context_delta.added {
         if added.kind != MirroredItemKind::Part
