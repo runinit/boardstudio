@@ -25,6 +25,7 @@ struct Plan {
 pub(super) struct Repairs {
     plans: HashMap<u64, Plan>,
     source: NativeSources,
+    placements: HashMap<usize, ExactPlacement>,
 }
 
 impl Repairs {
@@ -34,6 +35,7 @@ impl Repairs {
         faces: &[StepSourceFace],
         records: &SourceRecords<'_>,
         bytes: &[u8],
+        occurrences: &[scene::TracedInstance],
     ) -> Result<Option<Self>, String> {
         let mut plans = HashMap::new();
         let mut moved = HashMap::new();
@@ -73,32 +75,57 @@ impl Repairs {
                 }
             }
         }
-        let source = finite_line::capture_native(bytes, &lines, &planes)
-            .ok_or("shared trim repair requires original LINE and PLANE coefficients")?;
-        Ok(Some(Self { plans, source }))
+        let mut placement_inputs = placement::Inputs::default();
+        let mut placed = Vec::new();
+        for (index, &((solid, _, representation), ref path)) in occurrences.iter().enumerate() {
+            if plans.contains_key(&solid) {
+                let path = path
+                    .as_ref()
+                    .ok_or("missing authored shared trim placement")?;
+                placement_inputs
+                    .add(records, representation, path)
+                    .ok_or("unsupported exact shared trim placement or length unit")?;
+                placed.push((index, representation, path));
+            }
+        }
+        let source = finite_line::capture_native(bytes, &lines, &planes, &placement_inputs.values)
+            .ok_or("shared trim repair requires original LINE, PLANE and placement coefficients")?;
+        let mut steps = HashMap::new();
+        let placements = placed
+            .into_iter()
+            .map(|(index, representation, path)| {
+                placement_inputs
+                    .resolve(&source, representation, path, &mut steps)
+                    .map(|placement| (index, placement))
+                    .ok_or("unsupported exact shared trim placement axes or scale")
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Some(Self {
+            plans,
+            source,
+            placements,
+        }))
     }
 
     pub(super) fn apply(
         &self,
         id: u64,
         solid: &Solid,
-        placement: Matrix4,
-        mm_per_unit: f64,
+        occurrence: usize,
         frame: &OccurrenceGeometry,
         bounds: &mut [[f64; 3]; 2],
     ) -> Result<Option<SharedRepair>, String> {
         let Some(plan) = self.plans.get(&id) else {
             return Ok(None);
         };
-        let exact = ExactPlacement::new(mm_per_unit, placement)
-            .ok_or("invalid exact shared trim placement")?;
+        let exact = &self.placements[&occurrence];
         for (&vertex, &(point, ref planes)) in &plan.endpoints {
             let emitted = frame.world.transform_point(point);
             for &support in planes {
                 if self.source.planes[&support].contains(
                     point,
                     emitted,
-                    &exact,
+                    exact,
                     frame.epsilon,
                     frame.world_epsilon,
                 ) != Some(true)
@@ -137,7 +164,7 @@ impl Repairs {
                     .shared_repair_bound(
                         repaired.points,
                         frame.world,
-                        &exact,
+                        exact,
                         frame.allowance_mm,
                         bounds,
                     )
@@ -155,7 +182,7 @@ impl Repairs {
                 movement_mm.insert(id, movement);
             } else {
                 self.source.lines[&id]
-                    .include_placed_bounds(&exact, bounds)
+                    .include_placed_bounds(exact, bounds)
                     .map_err(|error| format!("native edge #{id}: {error}"))?;
             }
             edges.insert(id, repaired);

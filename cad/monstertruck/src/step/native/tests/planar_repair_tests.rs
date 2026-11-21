@@ -1,4 +1,5 @@
 use super::*;
+use num_rational::BigRational as Q;
 use repair::finite_line::{ExactPlacement, NATIVE_SCANS, capture_native};
 
 const PIN_SOCKET: &[u8] = include_bytes!(
@@ -121,6 +122,123 @@ fn longer_pin_sockets_keep_complete_native_occurrences() {
 }
 
 #[test]
+fn pin_socket_source_extrema_enclose_exact_decimal_product_placement() {
+    // The upper endpoints are in the child frame. Resolve the authored
+    // +24.13 mm exactly before rounding the world bound upwards.
+    for (bytes, expected_upper) in [
+        (PIN_SOCKET, "91399989318848/10000000000000"),
+        (PIN_SOCKET_1X5, "116799989318848/10000000000000"),
+    ] {
+        let model = native_model(bytes, StepImportOptions::default());
+        let bounds = model.bounds();
+        let lower: Q = "-15200003814697/10000000000000".parse().unwrap();
+        let upper: Q = expected_upper.parse().unwrap();
+        assert!(Q::from_float(bounds[0][0]).unwrap() <= lower);
+        assert!(Q::from_float(bounds[0][0].next_up()).unwrap() > lower);
+        assert!(Q::from_float(bounds[1][0]).unwrap() >= upper);
+        assert!(Q::from_float(bounds[1][0].next_down()).unwrap() < upper);
+    }
+}
+
+#[test]
+fn native_repair_bounds_apply_exact_si_unit_to_geometry_and_frame_origins() {
+    let microns = replace_record(
+        PIN_SOCKET_1X5,
+        "SI_UNIT(.MILLI.,.METRE.)",
+        "SI_UNIT(.MICRO.,.METRE.)",
+    );
+    let model = native_model(
+        microns.as_bytes(),
+        StepImportOptions {
+            preview_repair_budget_mm: Some(4e-10),
+            target_deflection_mm: Some(1e-7),
+        },
+    );
+    assert!(
+        model
+            .face_occurrences()
+            .iter()
+            .any(|face| face.repair_displacement_mm > 0.)
+    );
+    let upper: Q = "116799989318848/10000000000000000".parse().unwrap();
+    let bound = model.bounds()[1][0];
+    assert!(Q::from_float(bound).unwrap() >= upper);
+    assert!(Q::from_float(bound.next_down()).unwrap() < upper);
+}
+
+#[test]
+fn mapped_signed_axes_and_decimal_scale_compose_with_product_placement() {
+    let mapped = replace_record(
+        PIN_SOCKET,
+        "#15=SHAPE_REPRESENTATION_RELATIONSHIP('SRR','None',#4442,#16);",
+        "#9900=REPRESENTATION_MAP(#2827,#16);
+         #9901=MAPPED_ITEM('',#9900,#9902);
+         #9902=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',#9903,$,#3663,1.0000000000000001,$);
+         #9903=DIRECTION('',(0.,1.,0.));",
+    );
+    let mapped = replace_record(
+        mapped.as_bytes(),
+        "#4442=SHAPE_REPRESENTATION('',(#2827),#4430);",
+        "#4442=SHAPE_REPRESENTATION('',(#2827,#9901),#4430);",
+    );
+    let model = native_model(mapped.as_bytes(), StepImportOptions::default());
+    assert_eq!(model.occurrence_count(), 1);
+    let bounds = model.bounds();
+    // The map sends (x,y,z) to (-y,x,z) and its exact scale differs from 1.
+    // The enclosing product placement then translates the mapped X coordinate.
+    assert!((bounds[0][0] - 19.13).abs() < 1e-12);
+    assert!((bounds[1][0] - 27.13).abs() < 1e-12);
+    let original: Q = "-256500003814697/10000000000000".parse().unwrap();
+    let scale: Q = "10000000000000001/10000000000000000".parse().unwrap();
+    let lower_y = original * scale;
+    assert!(Q::from_float(bounds[0][1]).unwrap() <= lower_y);
+    assert!(Q::from_float(bounds[0][1].next_up()).unwrap() > lower_y);
+}
+
+#[test]
+fn native_repair_refuses_placed_plane_error_from_decimal_cancellation() {
+    let translated = replace_record(
+        PIN_SOCKET_1X5,
+        "#4513=CARTESIAN_POINT('',(0.,0.,0.));",
+        "#4513=CARTESIAN_POINT('',(1000000000.00000005,0.,0.));",
+    );
+    let translated = replace_record(
+        translated.as_bytes(),
+        "#5453=CARTESIAN_POINT('',(24.13,0.,0.));",
+        "#5453=CARTESIAN_POINT('',(1000000000.00000015,0.,0.));",
+    );
+    // The rendered transform translates by one ULP at 1e9. The authored
+    // translation is 1e-7 mm, more than the 1e-8 mm plane tolerance away.
+    let error = native_candidate(translated.as_bytes(), StepImportOptions::default())
+        .err()
+        .unwrap();
+    assert!(
+        error.contains("emitted trim does not meet original PLANE"),
+        "{error}"
+    );
+    if let Ok(model) = import_step(translated.as_bytes().to_vec()) {
+        assert!(!model.solids.is_empty());
+        assert_eq!(model.original_bytes(), translated.as_bytes());
+    }
+}
+
+#[test]
+fn native_repair_requires_supported_authored_placement_axes() {
+    let rotated = replace_record(
+        PIN_SOCKET_1X5,
+        "#4511=DIRECTION('',(1.,0.,0.));",
+        "#4511=DIRECTION('',(1.,1.,0.));",
+    );
+    let error = native_candidate(rotated.as_bytes(), StepImportOptions::default())
+        .err()
+        .unwrap();
+    assert!(
+        error.contains("unsupported exact shared trim placement axes"),
+        "{error}"
+    );
+}
+
+#[test]
 fn pin_socket_repair_honors_world_mm_budget_and_retains_refusal() {
     let expected = native_model(PIN_SOCKET, budget(4e-7));
     let error = native_candidate(PIN_SOCKET, budget(3.8e-7)).err().unwrap();
@@ -215,6 +333,7 @@ fn shared_line_budget_and_bounds_include_world_translation_rounding() {
         source,
         &HashMap::from([(4, ([1, 3, 1, 2], true)), (7, ([1, 3, 5, 6], true))]),
         &HashMap::new(),
+        &HashSet::new(),
     )
     .unwrap();
     let t = 2_f64.powi(30);
@@ -258,6 +377,7 @@ fn shared_trim_checks_original_plane_spelling_and_emitted_incidence() {
         source,
         &HashMap::new(),
         &HashMap::from([(11, [1, 3]), (12, [2, 3]), (13, [4, 3]), (14, [5, 6])]),
+        &HashSet::new(),
     )
     .unwrap();
     assert_eq!(

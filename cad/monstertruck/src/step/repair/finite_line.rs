@@ -4,7 +4,7 @@ use super::*;
 use num_rational::BigRational as Q;
 use num_traits::{Signed, ToPrimitive, Zero};
 
-type Point = [Q; 3];
+pub(in crate::step) type Point = [Q; 3];
 
 pub(in crate::step) struct Source {
     points: [Point; 2],
@@ -104,7 +104,7 @@ fn numeric_values(mut entity: &[u8]) -> Option<Scalars> {
             *slot = decimal(literal)?;
             values.len += 1;
             entity = rest;
-        } else if matches!(entity[0], b'(' | b')' | b',') {
+        } else if matches!(entity[0], b'(' | b')' | b',' | b'$') {
             entity = &entity[1..];
         } else {
             return None;
@@ -125,8 +125,10 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>>
         }
         if !seen.insert(instance.id) {
             result.remove(&instance.id);
-        } else if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR")
-            && let Some(values) = numeric_values(instance.parameters)
+        } else if matches!(
+            instance.kind,
+            b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR" | b"CARTESIAN_TRANSFORMATION_OPERATOR_3D"
+        ) && let Some(values) = numeric_values(instance.parameters)
         {
             result.insert(instance.id, values);
         }
@@ -137,6 +139,20 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>>
 pub(in crate::step) struct NativeSources {
     pub lines: HashMap<u64, Source>,
     pub planes: HashMap<u64, Plane>,
+    placement_values: HashMap<u64, Scalars>,
+}
+
+impl NativeSources {
+    pub(in crate::step) fn placement_point(&self, id: u64) -> Option<Point> {
+        self.placement_values.get(&id)?.point()
+    }
+
+    pub(in crate::step) fn placement_scale(&self, id: u64) -> Option<Q> {
+        let [scale] = self.placement_values.get(&id)?.as_slice() else {
+            return None;
+        };
+        scale.is_positive().then(|| scale.clone())
+    }
 }
 
 pub(in crate::step) struct Plane {
@@ -150,6 +166,7 @@ pub(in crate::step) fn capture_native(
     bytes: &[u8],
     lines: &HashMap<u64, ([u64; 4], bool)>,
     planes: &HashMap<u64, [u64; 2]>,
+    placement_ids: &HashSet<u64>,
 ) -> Option<NativeSources> {
     #[cfg(test)]
     NATIVE_SCANS.with(|count| count.set(count.get() + 1));
@@ -157,8 +174,9 @@ pub(in crate::step) fn capture_native(
         .values()
         .flat_map(|(ids, _)| *ids)
         .chain(planes.values().flatten().copied())
+        .chain(placement_ids.iter().copied())
         .collect();
-    let values = numbers(bytes, &needed)?;
+    let mut values = numbers(bytes, &needed)?;
     let point = |id| values.get(&id)?.point();
     let lines = lines
         .iter()
@@ -186,7 +204,15 @@ pub(in crate::step) fn capture_native(
             ))
         })
         .collect::<Option<_>>()?;
-    Some(NativeSources { lines, planes })
+    if placement_ids.iter().any(|id| !values.contains_key(id)) {
+        return None;
+    }
+    values.retain(|id, _| placement_ids.contains(id));
+    Some(NativeSources {
+        lines,
+        planes,
+        placement_values: values,
+    })
 }
 
 #[cfg(test)]
@@ -275,6 +301,7 @@ pub(in crate::step) struct ExactPlacement {
 }
 
 impl ExactPlacement {
+    #[cfg(test)]
     pub(in crate::step) fn new(factor: f64, placement: Matrix4) -> Option<Self> {
         if [placement.x.w, placement.y.w, placement.z.w, placement.w.w] != [0., 0., 0., 1.] {
             return None;
@@ -285,6 +312,10 @@ impl ExactPlacement {
             return None;
         };
         let axes = [x, y, z].map(|v| v.map(|q| q * &factor));
+        Self::from_coefficients(axes, point(placement.w)?)
+    }
+
+    pub(in crate::step) fn from_coefficients(axes: [Point; 3], origin: Point) -> Option<Self> {
         let cross = |a: &Point, b: &Point| {
             std::array::from_fn(|i| {
                 let j = (i + 1) % 3;
@@ -299,17 +330,35 @@ impl ExactPlacement {
         }
         Some(Self {
             axes,
-            origin: point(placement.w)?,
+            origin,
             cofactors,
         })
     }
 
     fn point(&self, p: &Point) -> Point {
-        std::array::from_fn(|row| {
-            (0..3).fold(self.origin[row].clone(), |sum, col| {
-                sum + &self.axes[col][row] * &p[col]
-            })
-        })
+        let linear = self.vector(p);
+        std::array::from_fn(|i| &self.origin[i] + &linear[i])
+    }
+
+    fn vector(&self, p: &Point) -> Point {
+        std::array::from_fn(|row| (0..3).map(|col| &self.axes[col][row] * &p[col]).sum())
+    }
+
+    pub(in crate::step) fn compose(&self, child: &Self) -> Option<Self> {
+        Self::from_coefficients(
+            child.axes.each_ref().map(|a| self.vector(a)),
+            self.point(&child.origin),
+        )
+    }
+
+    pub(in crate::step) fn inverse(&self) -> Option<Self> {
+        let determinant = dot(&self.axes[0], &self.cofactors[0]);
+        let axes = std::array::from_fn(|col| {
+            std::array::from_fn(|row| &self.cofactors[row][col] / &determinant)
+        });
+        let mut inverse = Self::from_coefficients(axes, std::array::from_fn(|_| Q::zero()))?;
+        inverse.origin = inverse.vector(&self.origin).map(|value| -value);
+        Some(inverse)
     }
 }
 

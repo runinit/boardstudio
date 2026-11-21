@@ -853,27 +853,67 @@ fn length_measure(parameter: &Parameter) -> Result<f64, String> {
 }
 
 fn si_prefix_factor(prefix: Option<&str>) -> Option<f64> {
-    let metres_per_unit = match prefix {
-        None => 1.0,
-        Some("EXA") => 1e18,
-        Some("PETA") => 1e15,
-        Some("TERA") => 1e12,
-        Some("GIGA") => 1e9,
-        Some("MEGA") => 1e6,
-        Some("KILO") => 1e3,
-        Some("HECTO") => 1e2,
-        Some("DECA") => 1e1,
-        Some("DECI") => 1e-1,
-        Some("CENTI") => 1e-2,
-        Some("MILLI") => 1e-3,
-        Some("MICRO") => 1e-6,
-        Some("NANO") => 1e-9,
-        Some("PICO") => 1e-12,
-        Some("FEMTO") => 1e-15,
-        Some("ATTO") => 1e-18,
+    Some(si_prefix(prefix)?.0 * 1000.0)
+}
+
+fn si_prefix(prefix: Option<&str>) -> Option<(f64, i32)> {
+    // Retain the binary constants used for mesh placement and also the
+    // corresponding decimal exponents used for exact source placement.
+    Some(match prefix {
+        None => (1.0, 0),
+        Some("EXA") => (1e18, 18),
+        Some("PETA") => (1e15, 15),
+        Some("TERA") => (1e12, 12),
+        Some("GIGA") => (1e9, 9),
+        Some("MEGA") => (1e6, 6),
+        Some("KILO") => (1e3, 3),
+        Some("HECTO") => (1e2, 2),
+        Some("DECA") => (1e1, 1),
+        Some("DECI") => (1e-1, -1),
+        Some("CENTI") => (1e-2, -2),
+        Some("MILLI") => (1e-3, -3),
+        Some("MICRO") => (1e-6, -6),
+        Some("NANO") => (1e-9, -9),
+        Some("PICO") => (1e-12, -12),
+        Some("FEMTO") => (1e-15, -15),
+        Some("ATTO") => (1e-18, -18),
         Some(_) => return None,
+    })
+}
+
+/// Exact units for the repaired native class. The ordinary length resolver
+/// has already validated the owning contexts and their assignments.
+pub(super) fn exact_si_mm_exponent(records: &Records<'_>, representation: u64) -> Option<i32> {
+    let shape = records
+        .get(&representation)?
+        .iter()
+        .find(|r| is_shape_representation_kind(&r.name))?;
+    let context = entity_ref(&list_params(shape, 3).ok()?[2])?;
+    let Some(assignment) = records
+        .get(&context)?
+        .iter()
+        .find(|r| r.name == "GLOBAL_UNIT_ASSIGNED_CONTEXT")
+    else {
+        return Some(0);
     };
-    Some(metres_per_unit * 1000.0)
+    let Parameter::List(units) = &list_params(assignment, 1).ok()?[0] else {
+        return None;
+    };
+    for unit in units {
+        let id = entity_ref(unit)?;
+        let parts = records.get(&id)?;
+        if unit_kind(id, parts).ok()? != UnitKind::Length {
+            continue;
+        }
+        let unit = parts.iter().find(|r| r.name == "SI_UNIT")?;
+        let prefix = match &list_params(unit, 2).ok()?[0] {
+            Parameter::Enumeration(prefix) => Some(prefix.as_str()),
+            Parameter::NotProvided | Parameter::Omitted => None,
+            _ => return None,
+        };
+        return Some(si_prefix(prefix)?.1 + 3);
+    }
+    Some(0)
 }
 
 pub fn solid_representation_units(

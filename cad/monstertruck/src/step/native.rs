@@ -8,6 +8,7 @@ mod cylinder_band;
 mod facet;
 mod geometry;
 mod oblique;
+mod placement;
 mod planar_repair;
 mod rational_trim;
 mod sphere;
@@ -167,7 +168,8 @@ pub(super) fn build(
     let factors = units::solid_representation_units(&ids, items, units)?;
     let scene = scene::Scene::new(exchange, items, units, &ids);
     scene.validate()?;
-    let occurrences = assembly::occurrences(&records, &scene, config_control)?;
+    let traced = assembly::occurrences(&records, &scene, config_control)?;
+    let occurrences: Vec<_> = traced.iter().map(|(instance, _)| *instance).collect();
     if occurrences.is_empty()
         || occurrences
             .iter()
@@ -267,6 +269,7 @@ pub(super) fn build(
         &asset.source_faces,
         &records,
         bytes,
+        &traced,
     )?;
     if repairs.is_some() && records.len() != exchange.data[0].entities.len() {
         return Err("native shared trim repair requires unique DATA entity IDs".into());
@@ -282,14 +285,7 @@ pub(super) fn build(
         } = frame;
         let solid = &solids[&id];
         let repaired = if let Some(repairs) = &repairs {
-            repairs.apply(
-                id,
-                solid,
-                placement,
-                factors[&id],
-                &frame,
-                &mut asset.bounds,
-            )?
+            repairs.apply(id, solid, index, &frame, &mut asset.bounds)?
         } else {
             None
         };
