@@ -262,6 +262,59 @@ fn with_second_pair(mut accepted: ProjectDoc) -> ProjectDoc {
 }
 
 #[test]
+fn omitted_source_in_ownerless_matrix_leaves_reference_cleanup_to_lifecycle() {
+    let mut accepted = document();
+    let source = "matrix/source-matrix/r0c0";
+    let mirror = "matrix/mirror-matrix/r0c0";
+    accepted
+        .matrices
+        .retain(|matrix| matrix.id == "source-matrix");
+    accepted.matrices[0].board_id = None;
+    assert!(accepted.matrices[0].part_ids.iter().any(|id| id == source));
+    accepted.parts.retain(|part| part.id != mirror);
+    let mut free = accepted.parts[0].clone();
+    free.id = "unrelated".into();
+    accepted.boards[0].part_ids.push(free.id.clone());
+    accepted.parts.push(free);
+    for board in &mut accepted.boards {
+        board.part_ids.retain(|id| id != mirror);
+    }
+    accepted.nets.push(
+        serde_json::from_value(json!({
+            "id":"unlinked", "name":"Unlinked", "pins":[{"partId":mirror,"padId":"1"}]
+        }))
+        .unwrap(),
+    );
+    let pair = &mut accepted.hardware.as_mut().unwrap().pairs[0];
+    let halves = pair.halves.as_mut().unwrap();
+    halves
+        .correspondences
+        .retain(|link| link.kind != MirroredItemKind::Matrix);
+    assert!(
+        halves
+            .correspondences
+            .iter()
+            .any(|link| link.source_id == source && link.mirror_id == mirror)
+    );
+    halves.exceptions.push(
+        serde_json::from_value(json!({
+            "kind":"part", "mirrorId":mirror, "state":"omitted"
+        }))
+        .unwrap(),
+    );
+    let mut draft = accepted.clone();
+    let pair = &accepted.hardware.as_ref().unwrap().pairs[0];
+    let operation = EditOperation::SetPartRotation {
+        part_id: "unrelated".into(),
+        rotation: 15.0,
+    };
+    assert!(
+        !projection::project_matrixless_placement(&accepted, &mut draft, pair, &operation).unwrap()
+    );
+    assert_eq!(draft, accepted);
+}
+
+#[test]
 fn matrixless_placement_repairs_drift_in_both_mixed_pair_orders() {
     let mut accepted = document();
     for board in &mut accepted.boards {

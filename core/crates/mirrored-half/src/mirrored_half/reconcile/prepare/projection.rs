@@ -136,12 +136,17 @@ pub(super) fn project_matrixless_placement(
         .map(|exception| exception.mirror_id.clone())
         .collect();
     if !omitted.is_empty() {
-        if accepted
+        let matrix_members: BTreeSet<_> = accepted
             .matrices
             .iter()
             .flat_map(|matrix| &matrix.part_ids)
-            .any(|id| omitted.contains(id))
-        {
+            .collect();
+        if halves.correspondences.iter().any(|link| {
+            link.kind == MirroredItemKind::Part
+                && omitted.contains(&link.mirror_id)
+                && (matrix_members.contains(&link.source_id)
+                    || matrix_members.contains(&link.mirror_id))
+        }) {
             return Ok(false);
         }
         crate::matrix::deletion::remove_parts_by_id(draft, &omitted);
