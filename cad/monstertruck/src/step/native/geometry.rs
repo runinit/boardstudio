@@ -26,7 +26,10 @@ impl Surface {
     }
 
     pub(super) fn local(self, point: Point3) -> Vector3<f64> {
-        let delta = point - point_from_vector(self.frame.w.truncate());
+        self.local_direction(point - point_from_vector(self.frame.w.truncate()))
+    }
+
+    pub(super) fn local_direction(self, delta: Vector3<f64>) -> Vector3<f64> {
         Vector3::new(
             delta.dot(self.frame.x.truncate()),
             delta.dot(self.frame.y.truncate()),
@@ -51,6 +54,12 @@ pub(super) enum Curve {
     Circle {
         frame: Matrix4,
         radius: f64,
+        forward: bool,
+    },
+    Ellipse {
+        frame: Matrix4,
+        major: f64,
+        minor: f64,
         forward: bool,
     },
 }
@@ -80,7 +89,12 @@ impl Edge {
         } else {
             (id, None)
         };
-        let params = named_parameters(records, curve_id, kind, 3)?;
+        let params = named_parameters(
+            records,
+            curve_id,
+            kind,
+            if kind == "ELLIPSE" { 4 } else { 3 },
+        )?;
         let curve = match kind {
             "LINE" => {
                 let vector = named_parameters(records, reference(&params[2])?, "VECTOR", 3)?;
@@ -98,6 +112,19 @@ impl Edge {
                 radius: positive(&params[2])?,
                 forward,
             },
+            "ELLIPSE" => {
+                let major = positive(&params[2])?;
+                let minor = positive(&params[3])?;
+                if minor > major {
+                    return Err("native ellipse semiaxes are out of order".into());
+                }
+                Curve::Ellipse {
+                    frame: scene.frame(reference(&params[1])?, 1.0)?,
+                    major,
+                    minor,
+                    forward,
+                }
+            }
             _ => return Err(format!("unsupported native edge {kind}")),
         };
         Ok(Self {
@@ -126,15 +153,48 @@ impl Edge {
             }
         }
         let [start, end] = local.map(|p| p.y.atan2(p.x));
+        self.sweep(start, end, forward)
+    }
+
+    fn sweep(&self, start: f64, end: f64, forward: bool) -> Result<(f64, f64), String> {
         let sense = if forward { 1.0 } else { -1.0 };
         if self.vertices[0] == self.vertices[1] {
             return Ok((start, sense * TAU));
         }
         let sweep = ((end - start) * sense).rem_euclid(TAU);
         if self.points[0] == self.points[1] || sweep <= 0.0 || sweep >= TAU {
-            return Err("ambiguous authored circle interval".into());
+            return Err("ambiguous authored conic interval".into());
         }
         Ok((start, sense * sweep))
+    }
+
+    pub(super) fn ellipse(&self, epsilon: f64) -> Result<(Matrix4, f64, f64, f64), String> {
+        let Curve::Ellipse {
+            frame,
+            major,
+            minor,
+            forward,
+        } = self.curve
+        else {
+            return Err("expected an elliptical trim".into());
+        };
+        let chart = frame * Matrix4::from_nonuniform_scale(major, minor, 1.0);
+        let local = Surface {
+            frame,
+            radius: None,
+        };
+        let [start, end] = self.points.map(|p| {
+            let q = local.local(p);
+            (q.y / minor).atan2(q.x / major)
+        });
+        for (point, angle) in self.points.into_iter().zip([start, end]) {
+            let residual = (point - conic_point(chart, angle)).magnitude();
+            if !residual.is_finite() || residual > epsilon {
+                return Err("source boundary vertex is off its ellipse".into());
+            }
+        }
+        let (_, sweep) = self.sweep(start, end, forward)?;
+        Ok((chart, major, start, sweep))
     }
 
     pub(super) fn cylinder_sweep(
@@ -189,22 +249,42 @@ impl Edge {
                 forward,
             } => {
                 let (start, sweep) = self.interval(frame, radius, forward, epsilon)?;
-                let limit = circle_step(radius, deflection);
-                let count = (sweep.abs() / limit).ceil() as usize;
-                if !(1..=4096).contains(&count) {
-                    return Err("native circle subdivision limit".into());
-                }
-                let mut points = Vec::with_capacity(count + 1);
-                points.push(self.points[0]);
-                let chart = frame * Matrix4::from_scale(radius);
-                points.extend(
-                    (1..count)
-                        .map(|i| circle_point(chart, start + sweep * i as f64 / count as f64)),
-                );
-                points.push(self.points[1]);
-                Ok(points)
+                self.sample_conic(
+                    frame * Matrix4::from_scale(radius),
+                    radius,
+                    start,
+                    sweep,
+                    deflection,
+                )
+            }
+            Curve::Ellipse { .. } => {
+                let (chart, major, start, sweep) = self.ellipse(epsilon)?;
+                // The ellipse is a linear image of the unit circle with operator
+                // norm equal to its major semiaxis, including on a finite arc.
+                self.sample_conic(chart, major, start, sweep, deflection)
             }
         }
+    }
+
+    fn sample_conic(
+        &self,
+        chart: Matrix4,
+        major: f64,
+        start: f64,
+        sweep: f64,
+        deflection: f64,
+    ) -> Result<Vec<Point3>, String> {
+        let count = (sweep.abs() / circle_step(major, deflection)).ceil() as usize;
+        if !(1..=4096).contains(&count) {
+            return Err("native conic subdivision limit".into());
+        }
+        let mut points = Vec::with_capacity(count + 1);
+        points.push(self.points[0]);
+        points.extend(
+            (1..count).map(|i| conic_point(chart, start + sweep * i as f64 / count as f64)),
+        );
+        points.push(self.points[1]);
+        Ok(points)
     }
 
     pub(super) fn include_bounds(
@@ -218,28 +298,33 @@ impl Edge {
             check_coordinate(point)?;
             super::super::bounds::push(bounds, point)?;
         }
-        if let Curve::Circle {
-            frame,
-            radius,
-            forward,
-        } = self.curve
-        {
-            let (start, sweep) = self.interval(frame, radius, forward, epsilon)?;
-            let chart = world * frame * Matrix4::from_scale(radius);
-            let (lo, hi) = (start.min(start + sweep), start.max(start + sweep));
-            let mut include = |angle| -> Result<(), String> {
-                let point = circle_point(chart, angle);
-                check_coordinate(point)?;
-                super::super::bounds::push(bounds, point)
-            };
-            include(lo)?;
-            include(hi)?;
-            for axis in 0..3 {
-                for angle in
-                    super::super::bounds::ellipse_extrema(chart.x[axis], chart.y[axis], lo, hi)
-                {
-                    include(angle)?;
-                }
+        let (chart, start, sweep) = match self.curve {
+            Curve::Line { .. } => return Ok(()),
+            Curve::Circle {
+                frame,
+                radius,
+                forward,
+            } => {
+                let (start, sweep) = self.interval(frame, radius, forward, epsilon)?;
+                (world * frame * Matrix4::from_scale(radius), start, sweep)
+            }
+            Curve::Ellipse { .. } => {
+                let (chart, _, start, sweep) = self.ellipse(epsilon)?;
+                (world * chart, start, sweep)
+            }
+        };
+        let (lo, hi) = (start.min(start + sweep), start.max(start + sweep));
+        let mut include = |angle| -> Result<(), String> {
+            let point = conic_point(chart, angle);
+            check_coordinate(point)?;
+            super::super::bounds::push(bounds, point)
+        };
+        include(lo)?;
+        include(hi)?;
+        for axis in 0..3 {
+            for angle in super::super::bounds::ellipse_extrema(chart.x[axis], chart.y[axis], lo, hi)
+            {
+                include(angle)?;
             }
         }
         Ok(())
@@ -258,7 +343,7 @@ pub(super) fn positive(parameter: &Parameter) -> Result<f64, String> {
     Ok(value)
 }
 
-fn circle_point(frame: Matrix4, angle: f64) -> Point3 {
+fn conic_point(frame: Matrix4, angle: f64) -> Point3 {
     // Keep the endpoint and extremum evaluations identical.
     frame.transform_point(Point3::new(angle.cos(), angle.sin(), 0.0))
 }

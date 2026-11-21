@@ -7,8 +7,8 @@ use cgmath::Point2;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as ChartPoint, Triangulation};
 
 type Chart = ConstrainedDelaunayTriangulation<ChartPoint<f64>>;
-type Samples = HashMap<u64, Vec<Point3>>;
-type Triangles = Vec<[Point3; 3]>;
+pub(super) type Samples = HashMap<u64, Vec<Point3>>;
+pub(super) type Triangles = Vec<[Point3; 3]>;
 
 impl Face {
     pub(super) fn mesh(
@@ -30,6 +30,14 @@ impl Face {
         samples: &Samples,
         epsilon: f64,
     ) -> Result<Triangles, String> {
+        if self
+            .loops
+            .iter()
+            .flat_map(|ring| &ring.edges)
+            .any(|(id, _)| matches!(edges[id].curve, Curve::Ellipse { .. }))
+        {
+            self.check_planar_ellipse_trim(edges, epsilon)?;
+        }
         let mut points = Vec::new();
         let mut rings = Vec::new();
         for ring in &self.loops {
@@ -48,8 +56,20 @@ impl Face {
                         self.surface.local(center).z.abs()
                             + radius * frame.x.truncate().dot(n).hypot(frame.y.truncate().dot(n))
                     }
+                    Curve::Ellipse {
+                        frame,
+                        major,
+                        minor,
+                        ..
+                    } => {
+                        let center = Point3::new(frame.w.x, frame.w.y, frame.w.z);
+                        let n = self.surface.frame.z.truncate();
+                        self.surface.local(center).z.abs()
+                            + (major * frame.x.truncate().dot(n))
+                                .hypot(minor * frame.y.truncate().dot(n))
+                    }
                 };
-                if residual > epsilon {
+                if !residual.is_finite() || residual > epsilon {
                     return Err("source boundary is off its PLANE".into());
                 }
                 let span = &samples[&id];
@@ -91,6 +111,13 @@ impl Face {
         let [ring] = self.loops.as_slice() else {
             return Err("native cylinder requires one strip boundary".into());
         };
+        if ring
+            .edges
+            .iter()
+            .any(|(id, _)| matches!(edges[id].curve, Curve::Ellipse { .. }))
+        {
+            return self.mesh_oblique_cylinder(radius, ring, edges, samples, epsilon);
+        }
         if ring.edges.len() != 4 {
             return self.mesh_cylinder_chart(radius, ring, edges, samples, epsilon, deflection);
         }
@@ -241,25 +268,9 @@ impl Face {
             ];
             let longest = (0..3).max_by(|&a, &b| side[a].total_cmp(&side[b])).unwrap();
             if side[longest] <= max_boundary_step {
-                let [a, b, c] = triangle.map(|(_, point)| point);
-                let normal = (b - a).cross(c - a);
-                // The radial direction varies affinely on a chord triangle.
-                // A consistent sign at the corners rules out a fold under radial projection.
-                for point in [a, b, c] {
-                    let local = self.surface.local(point);
-                    let radial = self.surface.frame.x.truncate() * local.x
-                        + self.surface.frame.y.truncate() * local.y;
-                    let orientation = normal.dot(radial);
-                    if !orientation.is_finite()
-                        || orientation == 0.0
-                        || (orientation > 0.0) != self.same_sense
-                    {
-                        return Err(
-                            "native cylindrical chart folds when lifted to its support".into()
-                        );
-                    }
-                }
-                triangles.push([a, b, c]);
+                let lifted = triangle.map(|(_, point)| point);
+                self.check_cylinder_triangle(lifted)?;
+                triangles.push(lifted);
                 continue;
             }
             if pending.len() + triangles.len() >= 32768 {
@@ -273,6 +284,25 @@ impl Face {
             pending.extend([[a, mid, c], [mid, b, c]]);
         }
         Ok(triangles)
+    }
+
+    pub(super) fn check_cylinder_triangle(&self, [a, b, c]: [Point3; 3]) -> Result<(), String> {
+        let normal = (b - a).cross(c - a);
+        // The radial direction varies affinely on a chord triangle.
+        // A consistent sign at the corners rules out a fold under radial projection.
+        for point in [a, b, c] {
+            let local = self.surface.local(point);
+            let radial = self.surface.frame.x.truncate() * local.x
+                + self.surface.frame.y.truncate() * local.y;
+            let orientation = normal.dot(radial);
+            if !orientation.is_finite()
+                || orientation == 0.0
+                || (orientation > 0.0) != self.same_sense
+            {
+                return Err("native cylindrical chart folds when lifted to its support".into());
+            }
+        }
+        Ok(())
     }
 }
 

@@ -23,6 +23,14 @@ const FH12_30: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step"
 );
 const SECTOR: &str = include_str!("../../../tests/fixtures/trimmed-cylinder-sector.step");
+const MOLEX_CABLE_2: &[u8] = include_bytes!(
+    "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Cable_2pin.step"
+);
+const MOLEX_CABLE_5: &[u8] = include_bytes!(
+    "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Cable_5pin.step"
+);
+const RESET_SWITCH: &[u8] =
+    include_bytes!("../../../../../ergogen/library/vendor/infused-kim/3d_models/Switch_Reset.step");
 
 fn native_candidate(bytes: &[u8], options: StepImportOptions) -> Result<Asset, String> {
     let exchange = parser::parse(&units::decode_step_bytes(bytes)).unwrap();
@@ -62,6 +70,242 @@ fn native_model(bytes: &[u8], options: StepImportOptions) -> ImportedStep {
         (0..model.face_occurrences.len()).collect()
     );
     model
+}
+
+#[test]
+fn bundled_elliptical_trims_use_native_geometry() {
+    let coarse = native_model(RESET_SWITCH, StepImportOptions::default());
+    let fine = native_model(
+        RESET_SWITCH,
+        StepImportOptions {
+            target_deflection_mm: Some(0.001),
+            ..Default::default()
+        },
+    );
+    for model in [&coarse, &fine] {
+        assert_eq!(model.solid_count(), 6);
+        assert_eq!(model.occurrence_count(), 6);
+        assert_eq!(model.source_faces().len(), 326);
+        assert_eq!(model.face_occurrences().len(), 326);
+        assert!(model.validate_invariants().is_ok());
+        let analysis = crate::qualification::prepare_vendor_analysis(model).unwrap();
+        assert!(matches!(
+            analysis.source_qualification(),
+            crate::qualification::SourceQualification::Unknown { .. }
+        ));
+        for (actual, expected) in model
+            .bounds()
+            .into_iter()
+            .flatten()
+            .zip([-2.35, 0.0, -1.45, 2.35, 1.35, 2.1])
+        {
+            assert!((actual - expected).abs() < 1e-9);
+        }
+    }
+    assert_eq!(coarse.bounds(), fine.bounds());
+    assert_eq!(coarse.source_faces(), fine.source_faces());
+    assert_eq!(coarse.face_occurrences(), fine.face_occurrences());
+    assert!(fine.triangle_faces().len() > coarse.triangle_faces().len());
+
+    let rim_edges = |model: &ImportedStep, face_id, support_id, kind| {
+        let source = model
+            .source_faces()
+            .iter()
+            .position(|face| {
+                face.face_id == face_id
+                    && face.support_id == support_id
+                    && face.support_kind == kind
+            })
+            .unwrap();
+        let (tag, occurrence) = model
+            .face_occurrences()
+            .iter()
+            .enumerate()
+            .find(|(_, face)| face.source_face == source)
+            .unwrap();
+        assert_eq!(model.source_faces()[source].solid_id, 25);
+        assert_eq!(occurrence.occurrence, 5);
+        assert_eq!(occurrence.representation_id, 12);
+        let on_rim = |[x, y, z]: [f64; 3]| {
+            ((y - 0.3).hypot(z - 1.9) - 0.2).abs() < 1e-9 && (x + y + 0.45).abs() < 1e-9
+        };
+        let mut edges = HashSet::new();
+        for (points, &face) in model
+            .preview_positions_f64()
+            .chunks_exact(3)
+            .zip(model.triangle_faces())
+        {
+            if face != tag {
+                continue;
+            }
+            if face_id == 6077 {
+                for [_, y, z] in points {
+                    assert!(((y - 0.3).hypot(z - 1.9) - 0.2).abs() < 1e-9);
+                }
+            }
+            for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+                if face_id == 6077 {
+                    let y = (points[a][1] + points[b][1]) * 0.5;
+                    let z = (points[a][2] + points[b][2]) * 0.5;
+                    let residual = (0.2 - (y - 0.3).hypot(z - 1.9)).abs();
+                    assert!(residual <= model.accuracy().preview_deflection_mm);
+                }
+                if on_rim(points[a]) && on_rim(points[b]) {
+                    let a = points[a].map(f64::to_bits);
+                    let b = points[b].map(f64::to_bits);
+                    if !edges.remove(&(b, a)) {
+                        assert!(edges.insert((a, b)));
+                    }
+                }
+            }
+        }
+        edges
+    };
+    for (model, segments) in [(&coarse, 4), (&fine, 10)] {
+        let cylinder = rim_edges(model, 6077, 60, "CYLINDRICAL_SURFACE");
+        let plane = rim_edges(model, 6180, 5854, "PLANE");
+        assert_eq!(cylinder.len(), segments);
+        assert_eq!(cylinder, plane.into_iter().map(|(a, b)| (b, a)).collect());
+    }
+}
+
+#[test]
+fn finite_ellipse_bounds_include_its_rotated_interior_extremum() {
+    let exchange = parser::parse(str::from_utf8(RESET_SWITCH).unwrap()).unwrap();
+    let items = units::representation_items(&exchange).unwrap();
+    let factors = units::length_factors(&exchange).unwrap();
+    let scene = scene::Scene::new(&exchange, &items, &factors, &[25]);
+    let edge = Edge::read(3655, &source_records(&exchange), &scene).unwrap();
+    let world = Matrix4::from_angle_y(cgmath::Rad(std::f64::consts::FRAC_PI_4));
+    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+    edge.include_bounds(world, 1e-8, &mut bounds).unwrap();
+    // World X is (source X + source Z) / sqrt(2). The maximum is
+    // inside the quarter ellipse, and the minimum is at either endpoint.
+    let center = (-0.75 + 1.9) * std::f64::consts::FRAC_1_SQRT_2;
+    assert!((bounds[1][0] - (center + 0.2)).abs() < 1e-12);
+    assert!((bounds[0][0] - (center + 0.2 * std::f64::consts::FRAC_1_SQRT_2)).abs() < 1e-12);
+}
+
+#[test]
+fn planar_ellipse_refuses_a_crossing_between_mesh_samples() {
+    let exchange = parser::parse(str::from_utf8(RESET_SWITCH).unwrap()).unwrap();
+    let items = units::representation_items(&exchange).unwrap();
+    let factors = units::length_factors(&exchange).unwrap();
+    let scene = scene::Scene::new(&exchange, &items, &factors, &[25]);
+    let mut catalogue = Vec::new();
+    let mut solid = Solid::read(25, &source_records(&exchange), &scene, &mut catalogue).unwrap();
+    let face = solid
+        .faces
+        .iter()
+        .find(|face| catalogue[face.source].face_id == 6180)
+        .unwrap();
+    let (chart, _, start, sweep) = solid.edges[&3655].ellipse(1e-8).unwrap();
+    let angle = start + sweep / 8.0;
+    // The line crosses the ellipse halfway between two coarse samples.
+    // Its entire span is outside their chord at radius cos(pi / 16).
+    solid.edges.get_mut(&3822).unwrap().points = [0.99, 1.01]
+        .map(|r| chart.transform_point(Point3::new(r * angle.cos(), r * angle.sin(), 0.0)));
+    assert_eq!(
+        face.check_planar_ellipse_trim(&solid.edges, 1e-8)
+            .err()
+            .as_deref(),
+        Some("native planar return path enters the elliptical arc sector")
+    );
+}
+
+#[test]
+fn oblique_cylinder_refuses_the_complementary_ellipse_interval() {
+    let original = str::from_utf8(RESET_SWITCH).unwrap();
+    let changed = original.replace(
+        "#3655=EDGE_CURVE('',#2872,#2875,#13,.T.);",
+        "#3655=EDGE_CURVE('',#2872,#2875,#13,.F.);",
+    );
+    assert_ne!(changed, original);
+    assert_eq!(
+        native_candidate(changed.as_bytes(), StepImportOptions::default())
+            .err()
+            .as_deref(),
+        Some(
+            "native face #6077: native oblique cylinder trims do not have a common single-chart sweep"
+        )
+    );
+}
+
+#[test]
+fn oblique_cylinder_refuses_off_support_ellipse_with_unchanged_endpoints() {
+    let original = str::from_utf8(RESET_SWITCH).unwrap();
+    let pivot = Point3::new(-0.75, 0.3, 2.1);
+    let chord = Vector3::new(1.0, -1.0, -1.0).normalize();
+    let rotation = Matrix4::from_axis_angle(chord, cgmath::Rad(0.25));
+    let center = pivot + rotation.transform_vector(Vector3::new(0.0, 0.0, -0.2));
+    let axis = rotation.transform_vector(Vector3::new(1.0, 1.0, 0.0));
+    let reference = rotation.transform_vector(Vector3::new(1.0, -1.0, 0.0));
+    let changed = original.replace(
+        "#6494=AXIS2_PLACEMENT_3D('',#9606,#7819,#7820);",
+        &format!(
+            "#6494=AXIS2_PLACEMENT_3D('',#10001,#10002,#10003);\n\
+             #10001=CARTESIAN_POINT('',({:.17E},{:.17E},{:.17E}));\n\
+             #10002=DIRECTION('',({:.17E},{:.17E},{:.17E}));\n\
+             #10003=DIRECTION('',({:.17E},{:.17E},{:.17E}));",
+            center.x,
+            center.y,
+            center.z,
+            axis.x,
+            axis.y,
+            axis.z,
+            reference.x,
+            reference.y,
+            reference.z,
+        ),
+    );
+    assert_ne!(changed, original);
+    assert_eq!(
+        native_candidate(changed.as_bytes(), StepImportOptions::default())
+            .err()
+            .as_deref(),
+        Some("native face #6077: source elliptical boundary is off its CYLINDRICAL_SURFACE")
+    );
+}
+
+#[test]
+fn bundled_molex_cables_remain_on_the_vendor_path() {
+    for bytes in [MOLEX_CABLE_2, MOLEX_CABLE_5] {
+        assert!(native_candidate(bytes, StepImportOptions::default()).is_err());
+        let model = import_step(bytes.to_vec()).unwrap();
+        assert!(!model.solids.is_empty());
+        assert_eq!(model.original_bytes(), bytes);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
+}
+
+#[test]
+fn native_oblique_trims_use_representation_length_units() {
+    let original = str::from_utf8(RESET_SWITCH).unwrap();
+    let centimetres = original.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT(.CENTI.,.METRE.)");
+    assert_ne!(centimetres, original);
+    let original = native_model(
+        RESET_SWITCH,
+        StepImportOptions {
+            target_deflection_mm: Some(0.001),
+            ..Default::default()
+        },
+    );
+    let scaled = native_model(
+        centimetres.as_bytes(),
+        StepImportOptions {
+            target_deflection_mm: Some(0.01),
+            ..Default::default()
+        },
+    );
+    assert_eq!(scaled.triangle_faces(), original.triangle_faces());
+    for (actual, source) in scaled
+        .preview_positions_f64()
+        .iter()
+        .flatten()
+        .zip(original.preview_positions_f64().iter().flatten())
+    {
+        assert!((actual - 10.0 * source).abs() < 1e-10);
+    }
 }
 
 #[test]
