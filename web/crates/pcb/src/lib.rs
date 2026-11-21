@@ -60,9 +60,9 @@ pub(crate) mod parts {
     pub use boardstudio_web_parts::parts::load_horizontal_host_connector_definition;
 }
 
-mod pcb_layer_projection;
 pub mod connector_admission;
 pub mod firmware_position_choices;
+mod pcb_layer_projection;
 pub mod pcb_wiring_remap_operation;
 
 #[cfg(target_arch = "wasm32")]

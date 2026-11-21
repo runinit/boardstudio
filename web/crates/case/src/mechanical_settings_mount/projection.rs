@@ -1,5 +1,5 @@
-use crate::layer_projection::project_layer_rows;
 use super::*;
+use crate::layer_projection::project_layer_rows;
 
 pub(super) fn current_settings(owner: &CurrentSettingsOwner) -> Option<MechanicalSettingsCurrent> {
     let CurrentSettingsOwner {
@@ -257,7 +257,6 @@ pub(super) fn project_scene_rows(
         findings: Rc::from(findings),
     })
 }
-
 
 pub(super) fn current_source_key(runtime: &Runtime) -> Option<SettingsSourceKey> {
     let model = runtime.model();
@@ -521,7 +520,6 @@ pub(super) fn stabilizer_fits(
         })
         .collect()
 }
-
 
 pub(super) fn profile_choices(
     accepted: &AcceptedSnapshot,

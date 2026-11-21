@@ -25,13 +25,13 @@ pub mod layout_camera;
 pub mod owned_edits;
 pub mod ui;
 
+pub mod board_layer;
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_effect;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
-pub mod board_layer;
 pub mod choice_field;
 #[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;

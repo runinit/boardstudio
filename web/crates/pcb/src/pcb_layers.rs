@@ -3,9 +3,9 @@ use super::canvas_layers::{CanvasLayer, CanvasLayerGroup, CanvasLayers};
 use super::footprint_graphics::generator_drawings;
 use crate::pcb_layer_projection::pad_copper_layers;
 pub use crate::pcb_layer_projection::pad_is_visible;
-use boardstudio_web_ui_shared::board_layer::resolve_board_layer;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Part, PartDefinition, ProjectDoc, Side};
+use boardstudio_web_ui_shared::board_layer::resolve_board_layer;
 use dioxus::prelude::*;
 use std::collections::{BTreeSet, HashSet};
 
@@ -269,7 +269,6 @@ fn visible_layer_label(layer: &str) -> String {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,6 +367,4 @@ mod tests {
         extend_generator_layers(&mut layers, &Side::Front, Err("one bad source".into()));
         assert_eq!(layers, BTreeSet::from(["F.SilkS".into()]));
     }
-
-
 }

@@ -63,21 +63,22 @@ pub(crate) fn mechanical_layer_label(id: &str, internal_gasket: bool) -> String 
 }
 
 #[cfg(test)]
+pub(crate) fn assembly_with_plate(thickness: f64) -> MechanicalAssembly {
+    serde_json::from_value(serde_json::json!({
+        "revision": 1,
+        "case": { "revision": 1, "bodies": [] },
+        "stack": [{ "id": "plate", "z": 3.5, "thickness": thickness }],
+        "suggestedMounts": [],
+        "nominalPlateContours": [],
+        "plateContours": [],
+        "diagnostics": []
+    }))
+    .expect("valid minimal mechanical assembly")
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assembly_with_plate(thickness: f64) -> MechanicalAssembly {
-        serde_json::from_value(serde_json::json!({
-            "revision": 1,
-            "case": { "revision": 1, "bodies": [] },
-            "stack": [{ "id": "plate", "z": 3.5, "thickness": thickness }],
-            "suggestedMounts": [],
-            "nominalPlateContours": [],
-            "plateContours": [],
-            "diagnostics": []
-        }))
-        .expect("valid minimal mechanical assembly")
-    }
 
     #[test]
     fn current_resolution_layers_precede_previous_display_layers() {

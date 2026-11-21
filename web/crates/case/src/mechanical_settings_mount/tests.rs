@@ -1,4 +1,5 @@
 use super::*;
+use crate::layer_projection::assembly_with_plate;
 use boardstudio_model::model::{Board, PartDefinition, PartGenerator, Pose2, Side};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -115,19 +116,6 @@ async fn hidden_case_skips_presentation_props_and_rebuilds_them_on_return() {
     root.remove();
 }
 
-fn assembly_with_plate(thickness: f64) -> MechanicalAssembly {
-    serde_json::from_value(serde_json::json!({
-        "revision": 1,
-        "case": { "revision": 1, "bodies": [] },
-        "stack": [{ "id": "plate", "z": 3.5, "thickness": thickness }],
-        "suggestedMounts": [],
-        "nominalPlateContours": [],
-        "plateContours": [],
-        "diagnostics": []
-    }))
-    .expect("valid minimal mechanical assembly")
-}
-
 #[wasm_bindgen_test]
 fn stabilizer_projection_uses_accepted_wide_mx_keys_and_current_override_kind() {
     let mut document = ProjectDoc::empty("doc", "doc");
@@ -212,7 +200,6 @@ fn stabilizer_projection_uses_accepted_wide_mx_keys_and_current_override_kind() 
     assert_eq!(fits[0].current.units, 2.0);
     assert_eq!(fits[0].current.rotation, Some(90.0));
 }
-
 
 #[wasm_bindgen_test]
 fn mounted_current_resolution_layer_is_selectable_before_scene_completion() {
