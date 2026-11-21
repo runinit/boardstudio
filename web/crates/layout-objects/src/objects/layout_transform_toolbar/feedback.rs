@@ -131,6 +131,21 @@ pub(super) fn feedback_chrome(
     }
 }
 
+/// The shared card rect for one view-only chrome panel, drawn in the caller's y-down px
+/// group. The popup and toast share fill, border and corner; only the drop shadow differs.
+pub(super) fn chrome_panel_rect(width_px: f64, height_px: f64, shadow: &str) -> Element {
+    rsx! {
+        rect {
+            x: "0",
+            y: "0",
+            width: "{width_px}",
+            height: "{height_px}",
+            rx: "8",
+            style: "fill:var(--card);stroke:var(--border-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow({shadow})",
+        }
+    }
+}
+
 /// Ticket 06: the commit toast panel at the top centre of the canvas view.
 /// The value renders bold, the rest plain, inside one `role="status"` group
 /// that never takes focus.
@@ -152,14 +167,7 @@ pub(super) fn feedback_toast_panel(
             role: "status",
             transform: "translate({panel_x} {panel_y}) scale({px} {-px})",
             style: "pointer-events:none",
-            rect {
-                x: "0",
-                y: "0",
-                width: "{width_px}",
-                height: "33.5",
-                rx: "8",
-                style: "fill:var(--card);stroke:var(--border-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 6px 18px rgb(24 35 49 / 18%))",
-            }
+            {chrome_panel_rect(width_px, 33.5, "0 6px 18px rgb(24 35 49 / 18%)")}
             text {
                 x: "12",
                 y: "20.5",
@@ -197,14 +205,7 @@ pub(super) fn feedback_panel_contents(
         })
         .collect();
     rsx! {
-        rect {
-            x: "0",
-            y: "0",
-            width: "{width_px}",
-            height: "{height_px}",
-            rx: "8",
-            style: "fill:var(--card);stroke:var(--border-strong);stroke-width:1px;vector-effect:non-scaling-stroke;filter:drop-shadow(0 2px 4px rgb(24 35 49 / 12%))",
-        }
+        {chrome_panel_rect(width_px, height_px, "0 2px 4px rgb(24 35 49 / 12%)")}
         for (text, size, fill, style, y) in placed {
             text {
                 x: "{pad}",

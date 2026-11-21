@@ -107,19 +107,27 @@ where
         PlacementValue::Spread(value) => value,
         _ => matrix.pitch.x,
     };
-    let handle_label = match (tool, &context) {
-        (LayoutTransformTool::Stagger, _) if control() || quick_glyph() => "Drag to offset column",
-        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => "Drag to offset row",
-        (LayoutTransformTool::Offset, _) => "Drag to offset column",
+    // Splay, Move and Rotate keep hardcoded labels: the gesture distinguishes
+    // them, and the mounted drag tests query these strings.
+    let token_aria_label: String = match (tool, &context) {
+        (LayoutTransformTool::Splay, _) => "Drag to splay",
+        (LayoutTransformTool::Move, _) => "Drag to move matrix",
+        (LayoutTransformTool::Rotate, _) => "Drag to rotate matrix",
+        (LayoutTransformTool::Anchor, _) => "Pick anchor",
+        (LayoutTransformTool::Origin, _) => "Move splay origin",
         (LayoutTransformTool::Shift, TreeContext::Row { .. }) => "Drag to shift row",
         (LayoutTransformTool::Shift, TreeContext::Key { .. }) => "Drag to shift key",
         (LayoutTransformTool::Shift, _) => "Drag to shift",
         (LayoutTransformTool::Bend, TreeContext::Row { .. }) => "Drag to bend row",
         (LayoutTransformTool::Bend, TreeContext::Key { .. }) => "Drag to bend key",
         (LayoutTransformTool::Bend, _) => "Drag to bend",
+        (LayoutTransformTool::Stagger, _) if control() || quick_glyph() => "Drag to offset column",
+        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => "Drag to offset row",
+        (LayoutTransformTool::Offset, _) => "Drag to offset column",
         (LayoutTransformTool::Spread, _) => "Drag to spread",
         _ => "Drag to stagger",
-    };
+    }
+    .to_owned();
     let handle_value = match tool {
         LayoutTransformTool::Offset => {
             format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
@@ -137,34 +145,15 @@ where
     let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
     let active_peer = rail_active(Rail::Matrix, &svg);
     let dragging_here = drag.borrow().is_some();
-    // A live drag on a peer dims this token to 35%; the active token keeps
-    // full opacity. Siblings re-read the shared mount set whenever the
-    // Editor re-renders, which every preview submit triggers.
-    let rail_dimmed = active_peer.is_some_and(|peer| peer != tool) && rail_index.is_some();
+    let rail_dimmed = rail_dimmed(active_peer, tool, rail_index);
     let token_active = dragging_here;
     let token_lit = hovered() || focused() || token_active;
     // Screen-frame glyph rotation for the column axis: the px groups below
     // are y-down, so the world axis appears mirrored vertically.
     let glyph_degrees = (-stagger_axis.y).atan2(stagger_axis.x).to_degrees();
     let (token_fill, glyph_stroke) = token_paint(token_active, hovered() || focused());
-    let token_opacity = if rail_dimmed { "0.35" } else { "1" };
-    let guide_opacity = if token_active { "0.8" } else { "0.35" };
-    // Splay, Move and Rotate keep hardcoded labels: the gesture distinguishes
-    // them, and the mounted drag tests query these strings.
-    let token_aria_label: String = match (tool, &context) {
-        (LayoutTransformTool::Splay, _) => "Drag to splay".to_owned(),
-        (LayoutTransformTool::Move, _) => "Drag to move matrix".to_owned(),
-        (LayoutTransformTool::Rotate, _) => "Drag to rotate matrix".to_owned(),
-        (LayoutTransformTool::Anchor, _) => "Pick anchor".to_owned(),
-        (LayoutTransformTool::Origin, _) => "Move splay origin".to_owned(),
-        (LayoutTransformTool::Shift, TreeContext::Row { .. }) => "Drag to shift row".to_owned(),
-        (LayoutTransformTool::Shift, TreeContext::Key { .. }) => "Drag to shift key".to_owned(),
-        (LayoutTransformTool::Shift, _) => "Drag to shift".to_owned(),
-        (LayoutTransformTool::Bend, TreeContext::Row { .. }) => "Drag to bend row".to_owned(),
-        (LayoutTransformTool::Bend, TreeContext::Key { .. }) => "Drag to bend key".to_owned(),
-        (LayoutTransformTool::Bend, _) => "Drag to bend".to_owned(),
-        _ => handle_label.to_owned(),
-    };
+    let token_opacity = token_opacity(rail_dimmed);
+    let guide_opacity = guide_opacity(token_active);
     let token_description: String = match tool {
         LayoutTransformTool::Spread => handle_value.clone(),
         LayoutTransformTool::Shift | LayoutTransformTool::Bend => handle_value.clone(),
@@ -256,8 +245,7 @@ where
         if token_shown {
             {
                 let (tok_x, tok_y) = token_center.unwrap_or((0.0, 0.0));
-                let token_style =
-                    format!("cursor:grab;opacity:{token_opacity};touch-action:none");
+                let token_style = rail_token_style(token_opacity);
                 let glyph = rail_token_glyph(tool, quick_offset_shown, glyph_degrees, glyph_stroke);
                 let face = token_face(token_fill, glyph, token_title.as_deref());
                 let show_hover = show_preview.clone();
@@ -304,13 +292,7 @@ where
                             {face}
                         }
                     }
-                    if token_lit
-                        && matches!(
-                            tool,
-                            LayoutTransformTool::Spread
-                                | LayoutTransformTool::Stagger
-                                | LayoutTransformTool::Offset
-                        )
+                    if token_lit && is_axis_tool(tool)
                     {
                         {axis_guide((tok_x, tok_y), guide_axis, world_per_screen, guide_opacity)}
                     }
