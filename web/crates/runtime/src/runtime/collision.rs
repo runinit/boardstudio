@@ -64,7 +64,11 @@ impl Runtime {
         self.native_model_jobs
             .borrow_mut()
             .insert(request.job_id.clone());
-        let reply = worker.request(request.clone()).await;
+        let reply = if bytes.is_packaged() {
+            worker.request_packaged_step(request.clone()).await
+        } else {
+            worker.request(request.clone()).await
+        };
         let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
         if !active || !is_current() || self.scope().as_ref() != Some(&scope) {

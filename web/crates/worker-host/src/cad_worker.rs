@@ -87,6 +87,8 @@ struct WireRequest {
     collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
+    #[serde(default)]
+    packaged_step: bool,
 }
 
 #[derive(Deserialize)]
@@ -200,10 +202,39 @@ impl CadWorker {
     }
 
     pub async fn request(&self, request: CadRequest) -> Result<CadReply, CadWorkerError> {
+        self.request_with_step_origin(request, false).await
+    }
+
+    pub async fn request_packaged_step(
+        &self,
+        request: CadRequest,
+    ) -> Result<CadReply, CadWorkerError> {
+        self.request_with_step_origin(request, true).await
+    }
+
+    async fn request_with_step_origin(
+        &self,
+        request: CadRequest,
+        packaged_step: bool,
+    ) -> Result<CadReply, CadWorkerError> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Frame<'a> {
+            #[serde(flatten)]
+            request: &'a CadRequest,
+            packaged_step: bool,
+        }
         validate_request(&request)?;
         self.ready().await?;
-        let frame =
-            serde_json::to_string(&request).map_err(|error| CadWorkerError(error.to_string()))?;
+        let frame = if packaged_step {
+            serde_json::to_string(&Frame {
+                request: &request,
+                packaged_step,
+            })
+        } else {
+            serde_json::to_string(&request)
+        }
+        .map_err(|error| CadWorkerError(error.to_string()))?;
         let reply = self
             .request_frame_with_payloads(
                 &request.request_id,
@@ -703,7 +734,10 @@ fn js_error(error: JsValue) -> CadWorkerError {
 }
 
 #[wasm_bindgen]
-pub fn start_cad_worker(cad_module_url: String) -> Result<(), JsValue> {
+pub fn start_cad_worker(
+    cad_module_url: String,
+    load_baked_step: Option<Function>,
+) -> Result<(), JsValue> {
     let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into()?;
     let target = scope.clone();
     spawn_local(async move {
@@ -714,7 +748,10 @@ pub fn start_cad_worker(cad_module_url: String) -> Result<(), JsValue> {
                 return;
             }
         };
-        let queue = Rc::new(RefCell::new(WorkerQueue::default()));
+        let queue = Rc::new(RefCell::new(WorkerQueue {
+            load_baked_step,
+            ..Default::default()
+        }));
         let receiving = queue.clone();
         let worker_scope = target.clone();
         let worker_module = module.clone();
@@ -752,6 +789,7 @@ async fn initialize_cad_module(url: &str) -> Result<JsValue, String> {
 }
 
 struct WorkerQueue {
+    load_baked_step: Option<Function>,
     pending: VecDeque<(WireRequest, Vec<u8>)>,
     cancelled: BTreeSet<String>,
     active: bool,
@@ -772,6 +810,7 @@ impl Default for WorkerQueue {
             .as_string()
             .expect("worker UUID");
         Self {
+            load_baked_step: None,
             pending: VecDeque::new(),
             cancelled: BTreeSet::new(),
             active: false,

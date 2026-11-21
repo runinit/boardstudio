@@ -260,6 +260,33 @@ pub fn prepare_vendor_analysis(model: &ImportedStep) -> Result<PreparedAnalysisM
         source,
     })
 }
+/// Restore a default preview emission without granting source accuracy evidence.
+pub fn prepare_baked_vendor_preview(
+    view: PreparedVendorView<'_>,
+    selected_deflection_mm: f64,
+    angular_rad: f64,
+    reasons: Vec<String>,
+) -> Result<PreparedAnalysisMesh, String> {
+    let descriptor = descriptor(
+        MeshSettings {
+            target_deflection_mm: None,
+            selected_deflection_mm,
+            angular_rad,
+            preview_repair_budget_mm: None,
+        },
+        false,
+    )?;
+    Ok(PreparedAnalysisMesh {
+        emission: Emission::Vendor {
+            positions: view.positions_mm_f64.to_vec(),
+            tags: view.triangle_face_occurrence_indices.to_vec(),
+            faces: view.source_faces.to_vec(),
+            occurrences: view.face_occurrences.to_vec(),
+        },
+        descriptor,
+        source: SourceQualification::Unknown { reasons },
+    })
+}
 pub fn verify_analysis_pair(
     left: &PreparedAnalysisMesh,
     right: &PreparedAnalysisMesh,

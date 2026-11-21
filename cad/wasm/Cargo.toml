@@ -20,7 +20,8 @@ serde-wasm-bindgen = "=0.6.5"
 ttf-parser = "=0.25.1"
 wasm-bindgen = "=0.2.129"
 
-[dev-dependencies]
 serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
+
+[dev-dependencies]
 sha2 = "=0.10.9"
 step-p21 = "=0.1.1"
