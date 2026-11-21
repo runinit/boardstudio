@@ -37,12 +37,11 @@ struct Probe {
 }
 
 fn observed_requests(edits: &KeycapsEdits) -> Vec<(Option<KeycapsEditRequest>, bool)> {
-    let shared = edits.shared.edits();
-    let key = edits.key.edits();
-    shared
+    edits
+        .shared
         .observations()
-        .chain(key.observations())
-        .map(|(key, pending)| (key.request.as_deref().cloned(), pending))
+        .chain(edits.key.observations())
+        .map(|(key, pending)| (Some(key.0.clone()), pending))
         .collect()
 }
 

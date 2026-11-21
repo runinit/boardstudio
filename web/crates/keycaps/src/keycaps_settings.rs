@@ -8,8 +8,7 @@ use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
@@ -167,71 +166,26 @@ pub struct KeycapsSettingsActions {
     pub on_discard: EventHandler<KeycapsRetryIdentity>,
 }
 
-/// A field's logical identity: the latest edit for it replaces the earlier observation.
-/// The key carries its request for follow-ups; keys compare by target and field only.
-#[derive(Clone)]
-struct KeycapsPendingKey {
-    target: KeycapsEditTarget,
-    field: KeycapEditField,
-    request: Option<Rc<KeycapsEditRequest>>,
-}
+/// Compare by field identity so a newer request replaces its observation.
+struct KeycapsPendingKey(KeycapsEditRequest);
 
 impl PartialEq for KeycapsPendingKey {
     fn eq(&self, other: &Self) -> bool {
-        self.target == other.target && self.field == other.field
+        self.0.target == other.0.target && self.0.change.field() == other.0.change.field()
     }
 }
 
-impl KeycapsPendingKey {
-    fn of(request: &KeycapsEditRequest) -> Self {
-        Self {
-            target: request.target.clone(),
-            field: request.change.field(),
-            request: Some(Rc::new(request.clone())),
-        }
-    }
-
-    fn bound(target: KeycapsEditTarget, field: KeycapEditField) -> Self {
-        Self {
-            target,
-            field,
-            request: None,
-        }
-    }
-}
-
-type KeycapsHelper = PendingEditSignals<KeycapsPendingKey>;
-
-/// The edit observers, one per owner lifetime. Board and Matrix edits live while the Editor
-/// owns the scope in the Keycaps workspace; a Key edit also needs its selection. A changed
-/// owner replaces the helper, silently retiring the observation; the Session edit still runs.
+/// Board and Matrix edits follow the scope and workspace. Key edits also follow selection.
+#[derive(Default)]
 struct KeycapsEdits {
-    shared: KeycapsHelper,
+    shared: PendingEdits<KeycapsPendingKey>,
     shared_owner: Option<(Option<Scope>, u64, &'static str)>,
-    key: KeycapsHelper,
+    key: PendingEdits<KeycapsPendingKey>,
     key_owner: u64,
 }
 
-impl Default for KeycapsEdits {
-    fn default() -> Self {
-        Self {
-            shared: KeycapsHelper::new(),
-            shared_owner: None,
-            key: KeycapsHelper::new(),
-            key_owner: 0,
-        }
-    }
-}
-
 impl KeycapsEdits {
-    fn helper(&self, target: &KeycapsEditTarget) -> &KeycapsHelper {
-        match target {
-            KeycapsEditTarget::Key(_) => &self.key,
-            _ => &self.shared,
-        }
-    }
-
-    /// Replace each helper whose owner lifetime ended.
+    /// Drop the observations whose owner lifetime ended.
     fn follow_owner(
         &mut self,
         scope: Option<&Scope>,
@@ -241,15 +195,11 @@ impl KeycapsEdits {
     ) {
         let shared_owner = (scope.cloned(), scope_generation, workspace);
         if self.shared_owner.as_ref() != Some(&shared_owner) {
-            if self.shared_owner.is_some() {
-                self.shared = KeycapsHelper::new();
-            }
+            self.shared = PendingEdits::default();
             self.shared_owner = Some(shared_owner);
         }
         if self.key_owner != owner_generation {
-            if self.key_owner != 0 {
-                self.key = KeycapsHelper::new();
-            }
+            self.key = PendingEdits::default();
             self.key_owner = owner_generation;
         }
     }
@@ -263,25 +213,6 @@ impl KeycapsEdits {
     ) -> bool {
         self.shared_owner.as_ref() != Some(&(scope.cloned(), scope_generation, workspace))
             || self.key_owner != owner_generation
-    }
-
-    /// Bind the selected key's legend Signals to the key helper.
-    fn bind_legend(
-        &self,
-        selected_key_id: Option<&str>,
-        draft: Signal<String>,
-        failure: Signal<Option<String>>,
-    ) {
-        if let Some(id) = selected_key_id {
-            self.key.bind_field(
-                KeycapsPendingKey::bound(
-                    KeycapsEditTarget::Key(id.to_owned()),
-                    KeycapEditField::Legend,
-                ),
-                draft,
-                failure,
-            );
-        }
     }
 
     fn has_terminal(&self) -> bool {
@@ -306,12 +237,13 @@ fn pending_changes(
         return vec![];
     };
     let edits = context.edits.read();
-    edits
-        .helper(target)
-        .edits()
+    let tickets = match target {
+        KeycapsEditTarget::Key(_) => &edits.key,
+        _ => &edits.shared,
+    };
+    tickets
         .pending_keys()
-        .filter_map(|entry| {
-            let request = entry.request.as_ref()?;
+        .filter_map(|KeycapsPendingKey(request)| {
             (request.scope == actions.scope
                 && request.scope_generation == actions.scope_generation
                 && request.selection_generation == actions.selection_generation
@@ -447,6 +379,8 @@ pub fn use_keycaps_settings_actions(
         let mut edits = edits;
         let mut retry_drafts = retry_drafts;
         let owner_tracker = owner_tracker.clone();
+        let mut legend_draft = legend_draft;
+        let mut legend_failure = legend_failure;
         move |_| {
             let live_key_id = live_selected_key_id(&runtime);
             let live_scope = runtime.scope();
@@ -471,32 +405,23 @@ pub fn use_keycaps_settings_actions(
                     live_workspace,
                     owner_generation,
                 );
-                guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
             }
             if !edits.peek().has_terminal() {
                 return;
             }
             let document = runtime.model().accepted.map(|snapshot| snapshot.document);
             let results = {
-                let guard = edits.write();
-                let accepted = |key: &KeycapsPendingKey| match (&key.target, &document) {
-                    (KeycapsEditTarget::Key(id), Some(document)) => {
-                        accepted_legend_text(document, id)
-                    }
-                    _ => String::new(),
-                };
-                let mut results = guard.shared.settle(true, accepted);
-                results.extend(guard.key.settle(true, accepted));
+                let mut guard = edits.write();
+                let mut results = guard.shared.settle(true);
+                results.extend(guard.key.settle(true));
                 results
             };
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
                 | PendingEditResult::Failed { key, .. }
                 | PendingEditResult::Retired { key }) = &result;
-                let Some(request) = key.request.as_deref() else {
-                    continue;
-                };
-                let live = request_owner_is_current(
+                let request = &key.0;
+                if !request_owner_is_current(
                     request,
                     editor_instance_id,
                     live_scope.as_ref(),
@@ -504,15 +429,34 @@ pub fn use_keycaps_settings_actions(
                     owner_generation,
                     live_key_id.as_deref(),
                     live_workspace,
-                );
+                ) {
+                    continue;
+                }
+                if let (KeycapsEditTarget::Key(id), KeycapEditChange::Legend(submitted)) =
+                    (&request.target, &request.change)
+                {
+                    let message = match &result {
+                        PendingEditResult::Failed { message, .. } => Some(message.clone()),
+                        _ => None,
+                    };
+                    legend_failure.set(message);
+                    let accepted = document
+                        .as_ref()
+                        .map(|document| accepted_legend_text(document, id))
+                        .unwrap_or_default();
+                    let current = legend_draft.peek().clone();
+                    if current == submitted.as_deref().unwrap_or_default() && current != accepted {
+                        legend_draft.set(accepted);
+                    }
+                }
                 match &result {
-                    PendingEditResult::Landed { .. } if live => remove_retry_draft_through(
+                    PendingEditResult::Landed { .. } => remove_retry_draft_through(
                         &mut retry_drafts,
                         &request.target,
                         &request.change.field(),
                         request.request_id,
                     ),
-                    PendingEditResult::Failed { message, .. } if live => {
+                    PendingEditResult::Failed { message, .. } => {
                         keep_retry_draft(&mut retry_drafts, request, message.clone());
                     }
                     _ => {}
@@ -532,12 +476,11 @@ pub fn use_keycaps_settings_actions(
             live_key_id.as_deref(),
         );
         let guard = edits.read();
-        let shared = guard.shared.edits();
-        let key = guard.key.edits();
-        shared
+        guard
+            .shared
             .pending_keys()
-            .chain(key.pending_keys())
-            .filter_map(|key| key.request.as_deref())
+            .chain(guard.key.pending_keys())
+            .map(|KeycapsPendingKey(request)| request)
             .filter(|request| {
                 request_owner_is_current(
                     request,
@@ -634,7 +577,6 @@ pub fn use_keycaps_settings_actions(
                     live_workspace,
                     live_selection_generation,
                 );
-                guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
             }
             submit_keycap_edit(&runtime, &mut edits, request);
         }

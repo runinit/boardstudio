@@ -22,16 +22,21 @@ impl<K: PartialEq + 'static> Default for OwnedEdits<K> {
 
 impl<K: PartialEq + 'static> OwnedEdits<K> {
     pub fn owner_changed(&self, scope: Option<&Scope>, generation: u64) -> bool {
-        self.owner.as_ref() != Some(&(scope.cloned(), generation))
+        !self
+            .owner
+            .as_ref()
+            .is_some_and(|(owner_scope, owner_generation)| {
+                owner_scope.as_ref() == scope && *owner_generation == generation
+            })
     }
 
     /// Adopt the current owner, retiring every observation of the previous one.
     pub fn follow_owner(&mut self, scope: Option<&Scope>, generation: u64) {
-        if self.owner_changed(scope, generation) {
-            if self.owner.is_some() {
-                self.helper.retire_owner();
-            }
-            self.owner = Some((scope.cloned(), generation));
+        if !self.owner_changed(scope, generation) {
+            return;
+        }
+        if self.owner.replace((scope.cloned(), generation)).is_some() {
+            self.helper.retire_owner();
         }
     }
 }

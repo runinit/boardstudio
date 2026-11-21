@@ -156,17 +156,16 @@ pub(super) fn submit_keycap_edit(
         }
         Resolution::submit(vec![target_id(&intent.target, &intent.scope)], operation)
     });
-    let key = KeycapsPendingKey::of(&request);
-    let submitted = match &request.change {
-        KeycapEditChange::Legend(value) => value.clone().unwrap_or_default(),
-        change => change_label(change),
+    let mut edits = edits.write();
+    let tickets = match request.target {
+        KeycapsEditTarget::Key(_) => &mut edits.key,
+        _ => &mut edits.shared,
     };
-    edits.write().helper(&request.target).begin_field(
+    tickets.begin(
         runtime,
-        key,
+        KeycapsPendingKey(request),
         "keycaps",
         Some("keycap settings".into()),
         resolver,
-        &submitted,
     );
 }

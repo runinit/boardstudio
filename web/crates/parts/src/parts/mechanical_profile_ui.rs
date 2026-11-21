@@ -13,8 +13,7 @@ use crate::parts_mechanical_profile::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{MechanicalPartProfile, PartDefinition};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -22,22 +21,6 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
-
-/// This panel's one bounded key: the mechanical profile save.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ProfileKey {
-    Save,
-}
-
-/// The profile the latest save was submitted with, so a reopened editor starts from
-/// the submitted draft; the shared helper owns the observation itself.
-#[derive(Clone)]
-struct SubmittedProfile {
-    owner: ProfileEditOwner,
-    scope_generation: u64,
-    selection_generation: u64,
-    profile: MechanicalPartProfile,
-}
 
 #[component]
 pub fn PartsMechanicalProfileWorkspace(
@@ -66,14 +49,7 @@ pub fn PartsMechanicalProfileWorkspace(
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
     let editing = use_signal(|| false);
-    let pending_edits = use_hook(PendingEditSignals::<ProfileKey>::new);
-    let save_disabled = use_signal(|| false);
-    pending_edits.bind_one_shot(ProfileKey::Save, save_disabled);
-    use_drop({
-        let pending_edits = pending_edits.clone();
-        move || pending_edits.unbind_one_shot(&ProfileKey::Save)
-    });
-    let mut pending = use_signal(|| None::<SubmittedProfile>);
+    let mut pending = use_signal(|| None::<(EditTicket, MechanicalPartProfile)>);
     let mut owner_seen = use_signal(|| None::<(ProfileEditOwner, u64, u64)>);
     let scope_generation_at_render = (selection_adapter.generation)();
     let selection_generation_at_render = selection_generation();
@@ -87,25 +63,26 @@ pub fn PartsMechanicalProfileWorkspace(
             scope_generation_at_render,
             selection_generation_at_render,
         ));
-        if owner_seen.read().as_ref() != current_owner.as_ref() {
-            if owner_seen.read().is_some() {
-                let _ = pending_edits.settle(false, |_| String::new());
-                pending.set(None);
-            }
+        if owner_seen.peek().as_ref() != current_owner.as_ref() {
+            pending.set(None);
             owner_seen.set(current_owner);
-        } else if pending.peek().is_some() {
-            let live = workspace() == "Parts"
-                && selection() == Some((owner.scope.clone(), owner.definition_id.clone()))
-                && runtime.scope() == owner.scope
-                && runtime.model().accepted.as_ref().is_some_and(|current| {
-                    current.session_epoch == owner.session_epoch
-                        && current.document.id == owner.document_id
-                });
-            for result in pending_edits.settle(live, |_| String::new()) {
-                if let PendingEditResult::Failed { message, .. } = result {
+        } else {
+            let ticket = pending.peek().as_ref().map(|(ticket, _)| ticket.clone());
+            if let Some(ticket) = ticket {
+                let live = workspace() == "Parts"
+                    && selection() == Some((owner.scope.clone(), owner.definition_id.clone()))
+                    && runtime.scope() == owner.scope
+                    && runtime.model().accepted.as_ref().is_some_and(|current| {
+                        current.session_epoch == owner.session_epoch
+                            && current.document.id == owner.document_id
+                    });
+                let settlement = ticket.settlement(live);
+                if settlement != Settlement::Pending {
+                    pending.set(None);
+                }
+                if let Settlement::Failed { message } = settlement {
                     error.set(message);
                 }
-                pending.set(None);
             }
         }
     }
@@ -130,14 +107,16 @@ pub fn PartsMechanicalProfileWorkspace(
         let runtime = runtime.clone();
         let owner = owner.clone();
         let definition = definition.clone();
-        let pending_edits = pending_edits.clone();
         let mut pending = pending;
         let mut error = error;
         move |profile: MechanicalPartProfile| {
             // Admission: this view's owner is still the current Parts project and the
             // profile belongs to the definition being edited. Every document-dependent
             // check runs in the resolver at execution.
-            if pending_edits.is_pending(&ProfileKey::Save)
+            if pending
+                .peek()
+                .as_ref()
+                .is_some_and(|(ticket, _)| ticket.is_pending())
                 || workspace() != "Parts"
                 || selection() != Some((owner.scope.clone(), owner.definition_id.clone()))
                 || selection_generation() != selection_generation_at_render
@@ -157,33 +136,22 @@ pub fn PartsMechanicalProfileWorkspace(
                 definition.clone(),
                 profile.clone(),
             );
-            pending_edits.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                ProfileKey::Save,
                 "parts-mechanical-profile",
                 Some("mechanical profile".into()),
                 resolver,
             );
-            pending.set(Some(SubmittedProfile {
-                owner: owner.clone(),
-                scope_generation: scope_generation_at_render,
-                selection_generation: selection_generation_at_render,
-                profile,
-            }));
+            pending.set(Some((ticket, profile)));
             error.set(String::new());
         }
     };
 
     if editing() {
         let initial = pending
-            .peek()
-            .clone()
-            .filter(|save| {
-                save.owner == owner
-                    && save.scope_generation == scope_generation_at_render
-                    && save.selection_generation == selection_generation_at_render
-            })
-            .map(|save| save.profile)
+            .read()
+            .as_ref()
+            .map(|(_, profile)| profile.clone())
             .or_else(|| definition.mechanical_profile.clone());
         let editor_key = format!("{owner:?}");
         let request_runtime = runtime.clone();
@@ -259,7 +227,7 @@ pub fn PartsMechanicalProfileWorkspace(
                 Button {
                     variant: ButtonVariant::Secondary,
                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    disabled: save_disabled(),
+                    disabled: pending.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()),
                     onclick: start_editing,
                     if profile_defined { "Edit profile" } else { "Define profile" }
                 }

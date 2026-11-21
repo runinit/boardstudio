@@ -34,18 +34,19 @@ pub enum PendingEditResult<K> {
 /// Replacing a key drops only its observation. The earlier edit remains owned by the
 /// Session and continues to execute. Keys are compared with `PartialEq`, so callers can
 /// use their existing field enum without adding ordering or hashing traits.
-pub struct PendingEdits<K> {
-    tickets: Vec<Observation<K>>,
+pub struct PendingEdits<K, P = ()> {
+    tickets: Vec<Observation<K, P>>,
     next_submission: u64,
 }
 
-struct Observation<K> {
+struct Observation<K, P> {
     key: K,
+    payload: P,
     ticket: EditTicket,
     submission: u64,
 }
 
-impl<K> Default for PendingEdits<K> {
+impl<K, P> Default for PendingEdits<K, P> {
     fn default() -> Self {
         Self {
             tickets: Vec::new(),
@@ -66,10 +67,32 @@ impl<K: PartialEq> PendingEdits<K> {
         feature: Option<String>,
         resolver: EditResolver,
     ) -> OperationId {
+        self.begin_with(port, key, label, feature, resolver, ())
+    }
+
+    /// Drain terminal observations once in key insertion order.
+    pub fn settle(&mut self, owner_is_live: bool) -> Vec<PendingEditResult<K>> {
+        self.drain_terminal(owner_is_live, |result, ()| result)
+    }
+}
+
+impl<K: PartialEq, P> PendingEdits<K, P> {
+    /// Attach display or follow-up data to this observation. It is replaced and
+    /// drained with the ticket; the Session still owns the submitted resolver.
+    pub fn begin_with(
+        &mut self,
+        port: &dyn EditTicketPort,
+        key: K,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+        payload: P,
+    ) -> OperationId {
         let ticket = EditTicket::begin(port, label, feature, resolver);
         let operation = ticket.operation();
         let observation = Observation {
             key,
+            payload,
             ticket,
             submission: self.next_submission,
         };
@@ -89,22 +112,33 @@ impl<K: PartialEq> PendingEdits<K> {
     /// Whether the latest observation for this key is still pending in its captured
     /// document scope. One-shot controls use this to block repeat submission.
     pub fn is_pending(&self, key: &K) -> bool {
+        self.pending_payload(key).is_some()
+    }
+
+    /// The display data for a key whose latest observation is still pending.
+    pub fn pending_payload(&self, key: &K) -> Option<&P> {
         self.tickets
             .iter()
-            .find(|entry| &entry.key == key)
-            .is_some_and(|entry| entry.ticket.is_pending())
+            .find(|entry| &entry.key == key && entry.ticket.is_pending())
+            .map(|entry| &entry.payload)
     }
 
     /// Live payloads in submission order. Replacing a key moves its payload to the
     /// end of this projection while retaining its original settlement position.
     pub fn pending_keys(&self) -> impl Iterator<Item = &K> {
+        self.pending_entries().map(|(key, _)| key)
+    }
+
+    pub fn pending_entries(&self) -> impl Iterator<Item = (&K, &P)> {
         let mut pending: Vec<_> = self
             .tickets
             .iter()
             .filter(|entry| entry.ticket.is_pending())
             .collect();
         pending.sort_unstable_by_key(|entry| entry.submission);
-        pending.into_iter().map(|entry| &entry.key)
+        pending
+            .into_iter()
+            .map(|entry| (&entry.key, &entry.payload))
     }
 
     /// All stored observations, including terminal results awaiting settlement.
@@ -121,29 +155,34 @@ impl<K: PartialEq> PendingEdits<K> {
     /// Drain terminal observations once, preserving key insertion order. Pending tickets
     /// stay stored. The owner predicate describes only panel lifetime; each ticket checks
     /// its captured Scope and permanently retires after a mismatch.
-    pub fn settle(&mut self, owner_is_live: bool) -> Vec<PendingEditResult<K>> {
+    pub fn settle_with(&mut self, owner_is_live: bool) -> Vec<(PendingEditResult<K>, P)> {
+        self.drain_terminal(owner_is_live, |result, payload| (result, payload))
+    }
+
+    fn drain_terminal<T>(
+        &mut self,
+        owner_is_live: bool,
+        project: impl Fn(PendingEditResult<K>, P) -> T,
+    ) -> Vec<T> {
         let mut pending = Vec::with_capacity(self.tickets.len());
         let mut results = Vec::new();
         for entry in self.tickets.drain(..) {
-            let Observation {
-                key,
-                ticket,
-                submission,
-            } = entry;
-            match ticket.settlement(owner_is_live) {
-                Settlement::Pending => pending.push(Observation {
-                    key,
-                    ticket,
-                    submission,
-                }),
-                Settlement::Landed { revision } => {
-                    results.push(PendingEditResult::Landed { key, revision });
+            let result = match entry.ticket.settlement(owner_is_live) {
+                Settlement::Pending => {
+                    pending.push(entry);
+                    continue;
                 }
-                Settlement::Failed { message } => {
-                    results.push(PendingEditResult::Failed { key, message });
-                }
-                Settlement::Retired => results.push(PendingEditResult::Retired { key }),
-            }
+                Settlement::Landed { revision } => PendingEditResult::Landed {
+                    key: entry.key,
+                    revision,
+                },
+                Settlement::Failed { message } => PendingEditResult::Failed {
+                    key: entry.key,
+                    message,
+                },
+                Settlement::Retired => PendingEditResult::Retired { key: entry.key },
+            };
+            results.push(project(result, entry.payload));
         }
         self.tickets = pending;
         results
@@ -245,24 +284,26 @@ mod tests {
         let runtime = opened_runtime();
         let mut edits = PendingEdits::default();
         runtime.hold_next_core();
-        edits.begin(
+        edits.begin_with(
             &runtime,
             Field::Name,
             "rename first",
             Some("project".into()),
             rename_resolver("First"),
+            "First draft",
         );
         assert!(runtime.core_entered());
-        assert!(edits.is_pending(&Field::Name));
+        assert_eq!(edits.pending_payload(&Field::Name), Some(&"First draft"));
 
-        edits.begin(
+        edits.begin_with(
             &runtime,
             Field::Name,
             "rename latest",
             Some("project".into()),
             rename_resolver("Latest"),
+            "Latest draft",
         );
-        assert!(edits.is_pending(&Field::Name));
+        assert_eq!(edits.pending_payload(&Field::Name), Some(&"Latest draft"));
         runtime.release_core();
 
         let accepted = runtime.model().accepted.unwrap();
@@ -279,14 +320,17 @@ mod tests {
             "replacing observation must not cancel the first edit"
         );
         assert_eq!(
-            edits.settle(true),
-            vec![PendingEditResult::Landed {
-                key: Field::Name,
-                revision: 2,
-            }]
+            edits.settle_with(true),
+            vec![(
+                PendingEditResult::Landed {
+                    key: Field::Name,
+                    revision: 2,
+                },
+                "Latest draft"
+            )]
         );
         assert!(!edits.is_pending(&Field::Name));
-        assert!(edits.settle(true).is_empty());
+        assert!(edits.settle_with(true).is_empty());
     }
 
     #[test]

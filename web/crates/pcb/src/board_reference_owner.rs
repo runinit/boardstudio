@@ -278,25 +278,6 @@ fn board_reference_removal_resolver(scope_board_id: String, reference_id: String
     })
 }
 
-/// The removal edit for the panel's one-shot helper: `None` when the owner is no longer
-/// current or the active board is unavailable.
-pub(crate) fn board_reference_removal(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    reference_id: &str,
-) -> Option<EditResolver> {
-    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
-        return None;
-    }
-    let scope = owner.scope.clone()?;
-    Some(board_reference_removal_resolver(
-        scope.board_id,
-        reference_id.to_owned(),
-    ))
-}
-
 pub(crate) fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
@@ -304,21 +285,21 @@ pub(crate) fn dispatch_board_reference_action(
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-    edits: &mut PendingEdits<BoardReferenceKey>,
+    edits: &mut PendingEdits<BoardReferenceKey, pcb_board_reference::Action>,
 ) -> Option<BoardReferenceKey> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
-        return None;
-    }
-    // Removal is owned by the panel's one-shot helper (board_reference_removal);
-    // beginning it here would bypass that control's disabled state and double-submit
-    // guard, so the dispatcher refuses it outright.
-    if matches!(action, pcb_board_reference::Action::Remove) {
         return None;
     }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
     let key = BoardReferenceKey::of(&action);
-    let resolver =
+    let intent = action.clone();
+    let resolver = if key == BoardReferenceKey::Remove {
+        if edits.is_pending(&key) {
+            return None;
+        }
+        board_reference_removal_resolver(scope.board_id, reference_id)
+    } else {
         EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
             let mut proposed = accepted.document.as_ref().clone();
             let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
@@ -328,7 +309,7 @@ pub(crate) fn dispatch_board_reference_action(
                     "The reference or model asset is no longer available.".into(),
                 );
             };
-            match action.clone() {
+            match intent.clone() {
                 pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
                 pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
                     reference.pose.at.x = value;
@@ -361,10 +342,8 @@ pub(crate) fn dispatch_board_reference_action(
                         reference.model_assets.remove(&path);
                     }
                 }
-                // Unreachable: the dispatcher refuses Remove above, and non-finite
-                // positions fall through their guards. The arm keeps the match total.
-                pcb_board_reference::Action::Remove
-                | pcb_board_reference::Action::SetPositionX(_)
+                pcb_board_reference::Action::Remove => unreachable!("separate removal resolver"),
+                pcb_board_reference::Action::SetPositionX(_)
                 | pcb_board_reference::Action::SetPositionY(_)
                 | pcb_board_reference::Action::SetRotation(_)
                 | pcb_board_reference::Action::SetElevation(_) => {
@@ -380,13 +359,15 @@ pub(crate) fn dispatch_board_reference_action(
                     document: Box::new(proposed),
                 },
             )
-        });
-    edits.begin(
+        })
+    };
+    edits.begin_with(
         runtime,
         key.clone(),
         "board-reference",
         Some("board reference".into()),
         resolver,
+        action,
     );
     Some(key)
 }
