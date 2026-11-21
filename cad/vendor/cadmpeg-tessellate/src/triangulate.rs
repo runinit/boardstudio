@@ -35,6 +35,18 @@ fn visible(points: &[Uv], from: usize, to: usize, rings: &[&[usize]]) -> bool {
     for ring in rings {
         for at in 0..ring.len() {
             let (c, d) = (ring[at], ring[(at + 1) % ring.len()]);
+            // A bridge through a third vertex creates an unrepresented junction
+            // in the joined ring, even when neither incident edge crosses it.
+            let vertex = points[c];
+            if vertex != a
+                && vertex != b
+                && (0..2).all(|axis| {
+                    a[axis].min(b[axis]) <= vertex[axis] && vertex[axis] <= a[axis].max(b[axis])
+                })
+                && cross2(a, b, vertex) == 0.0
+            {
+                return false;
+            }
             if [c, d].contains(&from) || [c, d].contains(&to) {
                 continue;
             }
@@ -44,6 +56,23 @@ fn visible(points: &[Uv], from: usize, to: usize, rings: &[&[usize]]) -> bool {
         }
     }
     true
+}
+
+/// A joined boundary can visit a bridge endpoint several times. Select the
+/// occurrence whose interior wedge contains the next bridge.
+fn matches_corner(points: &[Uv], ring: &[usize], at: usize, from: usize) -> bool {
+    let prev = points[ring[(at + ring.len() - 1) % ring.len()]];
+    let target = points[ring[at]];
+    let next = points[ring[(at + 1) % ring.len()]];
+    let from = points[from];
+    let left_of_incoming = cross2(prev, target, from) > 0.0;
+    let left_of_outgoing = cross2(target, next, from) > 0.0;
+    let enters_wedge = if cross2(prev, target, next) >= 0.0 {
+        left_of_incoming && left_of_outgoing
+    } else {
+        left_of_incoming || left_of_outgoing
+    };
+    enters_wedge || (!ring[..at].contains(&ring[at]) && !ring[at + 1..].contains(&ring[at]))
 }
 
 /// Joins each hole to `outer` with a bridge.
@@ -85,7 +114,10 @@ fn bridge(
         rings.extend(others);
         let target = candidates
             .into_iter()
-            .find(|position| visible(points, from, outer[*position], &rings))
+            .find(|&position| {
+                matches_corner(points, &outer, position, from)
+                    && visible(points, from, outer[position], &rings)
+            })
             .ok_or_else(|| Refusal::new("an inner loop has no bridge to the outer loop"))?;
         let mut joined = outer[..=target].to_vec();
         joined.extend(hole[from_position..].iter().copied());
