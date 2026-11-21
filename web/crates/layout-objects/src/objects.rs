@@ -38,6 +38,7 @@ mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_canvas_controls;
+mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_transform_toolbar;
 mod matrix_departure_actions;

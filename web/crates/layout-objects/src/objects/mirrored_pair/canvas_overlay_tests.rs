@@ -129,8 +129,8 @@ fn composition() -> Element {
                     },
                 }
             }
-            button { id: "mirror-overlay-return", onclick: move |_| active.set(true), "Return to form" }
-            button {
+            Button { id: "mirror-overlay-return", onclick: move |_| active.set(true), "Return to form" }
+            Button {
                 id: "mirror-overlay-new-owner",
                 onclick: move |_| {
                     current.set(projection(owner(2), MirroredPairFormValues::default()));
