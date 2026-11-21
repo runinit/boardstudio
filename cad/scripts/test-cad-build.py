@@ -264,13 +264,15 @@ class CadBuildTests(unittest.TestCase):
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
         opt_in = {
-            "bundled-step-parity.cjs": "compares native-baked catalogue previews with the packaged WASM provider",
             "layered-adoption.cjs": "separate layered-adoption fixture corpus",
             "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
             "keycap-print-legends.cjs": "separate printable keycap export regression",
             "step-native-analytic.cjs": "standalone packaged-provider STEP refinement and face identity regression",
         }
-        mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
+        mapped = {
+            "step-face-completeness.cjs": "source for the required browser regression",
+            "bundled-step-parity.cjs": "runs after baking in scripts/build-web.py provider builds",
+        }
         self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
         self.assertTrue(all(opt_in.values()) and all(mapped.values()))
 

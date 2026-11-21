@@ -80,10 +80,11 @@ class BuildWebTests(unittest.TestCase):
             public.mkdir()
 
         def stage():
-            self.assertEqual(len([step for step in finished if step != "css"]), 8)
+            self.assertEqual(len([step for step in finished if step != "css"]), 9)
             cad = next(i for i, step in enumerate(finished) if "cad/scripts/build-cad-wasm.py" in step)
             bake = next(i for i, step in enumerate(finished) if "cad/scripts/bake-bundled-step.py" in step)
             self.assertLess(cad, bake)
+            self.assertLess(bake, finished.index(["node", "cad/wasm/tests/bundled-step-parity.cjs"]))
 
         with patch.object(BUILD, "run", fake_run), patch.object(BUILD, "check_jobs", return_value=3), \
              patch.object(BUILD, "page_tools", return_value=tools), patch.object(BUILD, "PAGE_PUBLIC", public), \

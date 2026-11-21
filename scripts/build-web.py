@@ -512,18 +512,20 @@ def prepare_runtime_providers(fast: bool = False, *, page_build=None, defer_stag
     the wasm test prebuilds instead of behind the Cargo lock.
     """
     commands = provider_commands(fast)
-    bake = ([sys.executable, "cad/scripts/bake-bundled-step.py"], ROOT)
+    baked_checks = [
+        ([sys.executable, "cad/scripts/bake-bundled-step.py"], ROOT),
+        (["node", "cad/wasm/tests/bundled-step-parity.cjs"], ROOT),
+    ]
     if page_build is None:
-        for command, cwd in commands:
+        for command, cwd in [*commands, *baked_checks]:
             run(command, cwd=cwd)
-        run(bake[0], cwd=bake[1])
     else:
         # Prepare Ergogen before the page build sees the asset directory. The wasm-pack providers
         # and the page share the `wasm-check` target directory lock, so they run in one lane.
         wasm_packs, cad, ergogen = commands[:-2], commands[-2], commands[-1]
         command, cwd = ergogen
         run(command, cwd=cwd)
-        run_lanes([[*wasm_packs, page_build], [cad, bake]])
+        run_lanes([[*wasm_packs, page_build], [cad, *baked_checks]])
     if defer_staging:
         return
     finish_provider_staging()
