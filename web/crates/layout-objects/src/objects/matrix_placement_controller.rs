@@ -116,7 +116,8 @@ pub fn use_matrix_placement(
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, current_workspace, current_generation)| {
-                if let Some((ticket, follow_up)) = waiting.read().clone() {
+                let observation = waiting.read().clone();
+                if let Some((ticket, follow_up)) = observation {
                     let owner_is_live = same_session_scope(&runtime, &follow_up.owner);
                     let visible = current_workspace == "Layout"
                         && current_generation == follow_up.owner.scope_generation
@@ -197,7 +198,6 @@ pub fn use_matrix_placement(
         let mut preparing = preparing;
         let mut error = error;
         let assembly_orientation = assembly_orientation.0;
-        let waiting = waiting;
         move |source: super::MatrixPlacementSource| {
             if waiting.read().is_some() || preparing.read().is_some() || placement.read().is_some()
             {
@@ -409,7 +409,6 @@ pub fn use_matrix_placement(
         let mut placement = placement;
         let mut error = error;
         let canvas_interaction = canvas_interaction.clone();
-        let waiting = waiting;
         move |owner: MatrixPlacementOwner| {
             if waiting.read().is_some()
                 || !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)

@@ -8,6 +8,7 @@ use boardstudio_model::model::{
     Board, Follow, MatrixAnchor, MatrixCell, MatrixPlacementChange, OutlineFeature,
     OutlineSettings, Pose2,
 };
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use wasm_bindgen_test::wasm_bindgen_test;
 

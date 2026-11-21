@@ -160,12 +160,6 @@ impl<K: PartialEq, D: Clone + PartialEq + 'static> DraftEdits<K, D> {
         }
     }
 
-    pub(crate) fn detach_disabled(&self, key: &K) {
-        if let Some(display) = self.0.borrow_mut().payload_mut(key) {
-            display.disabled = None;
-        }
-    }
-
     /// Forget observations when their presentation owner changes. Session still
     /// runs the edits. The caller resets any UI it reuses for the next owner.
     pub fn clear(&self) {

@@ -14,6 +14,7 @@ use boardstudio_application::{
 use boardstudio_model::model::{
     DiodeDirection, EditOperation, Matrix, PartDefinition, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
@@ -466,12 +467,14 @@ pub fn use_matrix_inspector(
     // lets the action's own landing run its exact-selection follow-up before the view
     // unmounts. An externally hidden Inspector still retires through `inspector_mounted`.
     let projection_was_missing = fresh_projection.is_none();
-    let delete_pending = edits
+    let delete_observed = edits
         .read()
-        .is_pending(&MatrixPendingKey::Action(MatrixActionKey::delete()));
+        .observations()
+        .observations()
+        .any(|(key, _)| matches!(key, MatrixPendingKey::Action(MatrixActionKey::Delete(_))));
     let projection = fresh_projection.or_else(|| {
         let delete_owner = pending_action_owner.read().as_ref()?.clone();
-        if !delete_pending {
+        if !delete_observed {
             return None;
         }
         let selected_matches = selected_context.read().as_ref().is_some_and(|selected| {
@@ -528,7 +531,6 @@ pub fn use_matrix_inspector(
         {
             let runtime = runtime.clone();
             let alive = alive.clone();
-            let edits = edits;
             let mut pending_action_owner = pending_action_owner;
             let mut feedback = feedback;
             let mut settlement_tick = settlement_tick;
@@ -576,7 +578,7 @@ pub fn use_matrix_inspector(
         let context_generation = context_generation.clone();
         let callback_fields = fields.clone();
         let mut last_request_id = last_request_id;
-        let edits = edits;
+        let mut edits = edits;
         let mut feedback = feedback;
         move |request: MatrixEditRequest| {
             let current_generation = context_generation.borrow().value;
@@ -677,7 +679,7 @@ pub fn use_matrix_inspector(
                     FieldView::new(view.draft, view.failure).submitted(view.draft.peek().clone())
                 })
                 .expect("Matrix Inspector field is bound by the controller");
-            edits.read().submit(
+            edits.write().submit(
                 &runtime,
                 MatrixPendingKey::Field(request.field),
                 "layout-matrix-inspector",
@@ -765,7 +767,7 @@ pub fn use_matrix_inspector(
             preparing_preset.set(true);
             let runtime = runtime.clone();
             let mut preparing = preparing_preset;
-            let preset_edits = preset_edits;
+            let mut preset_edits = preset_edits;
             let mut pending_action_owner = pending_action_owner;
             let mut feedback = feedback;
             let selected_context = selected_context;
@@ -846,7 +848,7 @@ pub fn use_matrix_inspector(
                     return;
                 }
                 pending_action_owner.set(Some(request.owner.clone()));
-                preset_edits.read().begin(
+                preset_edits.write().begin(
                     &runtime,
                     MatrixPendingKey::Action(MatrixActionKey::Preset(Some(request.clone()))),
                     "layout-matrix-preset",
@@ -860,7 +862,7 @@ pub fn use_matrix_inspector(
     let on_delete = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let edits = edits;
+        let mut edits = edits;
         let mut pending_action_owner = pending_action_owner;
         move |request: MatrixDeleteRequest| {
             if request.owner.editor_instance_id != editor_instance_id
@@ -898,7 +900,7 @@ pub fn use_matrix_inspector(
             }
             let matrix_id = request.owner.matrix_id.clone();
             pending_action_owner.set(Some(request.owner.clone()));
-            edits.read().begin(
+            edits.write().begin(
                 &runtime,
                 MatrixPendingKey::Action(MatrixActionKey::Delete(Some(request))),
                 "layout-matrix-delete",
@@ -1004,7 +1006,6 @@ pub fn use_matrix_inspector(
     let on_add_row = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let field_pending = field_pending.clone();
         move |()| {
             submit_dimension_bump(
                 &runtime,
@@ -1024,7 +1025,6 @@ pub fn use_matrix_inspector(
     let on_add_column = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let field_pending = field_pending.clone();
         move |()| {
             submit_dimension_bump(
                 &runtime,
@@ -1044,7 +1044,7 @@ pub fn use_matrix_inspector(
     let on_unlink = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let edits = edits;
+        let mut edits = edits;
         let mut pending_action_owner = pending_action_owner;
         move |request: MatrixUnlinkRequest| {
             if request.owner.editor_instance_id != editor_instance_id
@@ -1088,7 +1088,7 @@ pub fn use_matrix_inspector(
                 return;
             }
             pending_action_owner.set(Some(request.owner.clone()));
-            edits.read().begin(
+            edits.write().begin(
                 &runtime,
                 MatrixPendingKey::Action(MatrixActionKey::Unlink),
                 "layout-matrix-unlink",

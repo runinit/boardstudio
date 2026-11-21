@@ -160,7 +160,6 @@ pub fn use_existing_half(
         let mut open = open;
         let mut open_id = open_id;
         let mut error = error;
-        let waiting = waiting;
         move |_| {
             if waiting.read().is_some() {
                 return;
@@ -199,7 +198,6 @@ pub fn use_existing_half(
     let on_cancel = use_callback({
         let mut open = open;
         let mut error = error;
-        let waiting = waiting;
         move |owner: ExistingHalfOwner| {
             if waiting.read().is_none() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
@@ -513,7 +511,7 @@ fn settle_pending(
         && workspace == "Layout"
         && scope_generation == owner.scope_generation;
     match ticket.settlement(owner_is_live) {
-        Settlement::Pending => return,
+        Settlement::Pending => (),
         Settlement::Retired => {
             waiting.set(None);
             if open.read().as_ref() == Some(&owner) {

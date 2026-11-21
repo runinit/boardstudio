@@ -195,7 +195,6 @@ pub fn use_mirrored_pair(
         let mut error = error;
         let mut status = status;
         let canvas_interaction = canvas_interaction.clone();
-        let waiting = waiting;
         move |_| {
             if waiting.read().is_some()
                 || preparing.read().is_some()
@@ -246,7 +245,6 @@ pub fn use_mirrored_pair(
         let mut placement = placement;
         let mut error = error;
         let mut status = status;
-        let waiting = waiting;
         let canvas_interaction = canvas_interaction.clone();
         move |owner: MirroredPairOwner| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
@@ -278,7 +276,6 @@ pub fn use_mirrored_pair(
         let mut error = error;
         let mut status = status;
         let canvas_interaction = canvas_interaction.clone();
-        let waiting = waiting;
         move |request: MirroredPairRequest| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 || open.read().as_ref() != Some(&request.owner)
@@ -998,7 +995,7 @@ fn settle_pending(
         && scope_generation == follow_up.owner.scope_generation
         && signals.open.read().as_ref() == Some(&follow_up.owner);
     match settlement {
-        Settlement::Pending => return,
+        Settlement::Pending => (),
         Settlement::Landed { revision } => {
             let token = model.accepted.as_ref().map(|snapshot| snapshot.token);
             finish_pending(signals.waiting, signals.status);

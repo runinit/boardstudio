@@ -704,7 +704,6 @@ pub fn use_workspace_matrix_transform(
     let canvas_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        let edits = edits;
         move || {
             alive.set(false);
             let _ = edits.read().settle(false, |_| String::new());
@@ -892,7 +891,6 @@ pub fn use_workspace_matrix_transform(
             let runtime = runtime.clone();
             let mut feedback = feedback;
             let mut change_status = change_status;
-            let edits = edits;
             let alive = alive.clone();
             move |(_, current_workspace, _, _)| {
                 let owner_is_live = alive.get()
@@ -912,7 +910,6 @@ pub fn use_workspace_matrix_transform(
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let edits = edits;
         let one_shot_fields = one_shot_fields.clone();
         let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;

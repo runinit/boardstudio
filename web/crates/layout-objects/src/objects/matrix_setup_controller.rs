@@ -92,7 +92,6 @@ pub fn use_matrix_setup(
         let mut open_id = open_id;
         let mut error = error;
         let mut status = status;
-        let waiting = waiting;
         move |_| {
             if waiting.read().is_some() || preparing.read().is_some() {
                 return;
@@ -132,7 +131,6 @@ pub fn use_matrix_setup(
         let mut error = error;
         let mut status = status;
         let mut preparing = preparing;
-        let waiting = waiting;
         move |owner: MatrixSetupOwner| {
             if open.read().as_ref() == Some(&owner) && waiting.read().is_none() {
                 open.set(None);
@@ -149,7 +147,6 @@ pub fn use_matrix_setup(
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
-        let waiting = waiting;
         move |request: MatrixSetupCreateRequest| {
             if open.read().as_ref() != Some(&request.owner)
                 || waiting.read().is_some()

@@ -174,7 +174,6 @@ pub fn use_key_size(
     let inspector_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        let edits = edits;
         move || {
             alive.set(false);
             let _ = edits.read().settle(false, |_| Vec2::default());
@@ -249,7 +248,6 @@ pub fn use_key_size(
         ),
         {
             let mut feedback = feedback;
-            let edits = edits;
             let alive = alive.clone();
             move |(_, current_workspace, _, owner_is_current, inspector_mounted, accepted_units)| {
                 let owner_is_live = alive.get()
@@ -275,7 +273,6 @@ pub fn use_key_size(
     ));
 
     let on_bind_draft = use_callback({
-        let edits = edits;
         let mut bound = bound;
         let runtime = runtime.clone();
         let tracker = tracker.clone();
@@ -358,8 +355,6 @@ pub fn use_key_size(
     let on_resize = use_callback({
         let runtime = runtime.clone();
         let tracker = tracker.clone();
-        let edits = edits;
-        let bound = bound;
         let mut feedback = feedback;
         let mut last_request = last_request;
         move |request: KeySizeRequest| {

@@ -75,7 +75,7 @@ pub fn use_board_setup(
     // The committed add-board edit is observed through its ticket; the waiting entry
     // (ticket plus the board it should navigate to) is the pending state. There is no
     // separate disabled flag: the button derives its availability from this entry.
-    let mut waiting = use_signal(|| None::<(EditTicket, BoardCreateOwner, String)>);
+    let waiting = use_signal(|| None::<(EditTicket, BoardCreateOwner, String)>);
     use_effect(use_reactive((&version(), &workspace(), &generation()), {
         let runtime = runtime.clone();
         let mut waiting = waiting;
