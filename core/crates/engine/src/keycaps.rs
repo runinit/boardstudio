@@ -88,6 +88,43 @@ pub(crate) struct KeycapProjection {
     footprints: Vec<[Vec2; 4]>,
 }
 
+const CLEARANCE_TOLERANCE: f64 = 1e-7;
+
+struct ClearanceBounds {
+    min: Vec2,
+    max: Vec2,
+}
+
+impl ClearanceBounds {
+    fn from_footprint([min, right, max, left]: &[Vec2; 4]) -> Option<Self> {
+        // Axis-aligned edges avoid cancellation in the legacy crossing test.
+        // Within this coordinate range, roundoff in the axis separation and
+        // point-to-segment projection stays well below CLEARANCE_TOLERANCE.
+        const LIMIT: f64 = 1_048_576.0;
+        (min.x >= -LIMIT
+            && min.y >= -LIMIT
+            && max.x <= LIMIT
+            && max.y <= LIMIT
+            && min.x < max.x
+            && min.y < max.y
+            && right.x == max.x
+            && right.y == min.y
+            && left.x == min.x
+            && left.y == max.y)
+            .then_some(Self {
+                min: *min,
+                max: *max,
+            })
+    }
+
+    fn separated_from(&self, other: &Self, distance: f64) -> bool {
+        other.min.x - self.max.x > distance
+            || self.min.x - other.max.x > distance
+            || other.min.y - self.max.y > distance
+            || self.min.y - other.max.y > distance
+    }
+}
+
 pub(crate) fn resolve(
     doc: &ProjectDoc,
     board_id: &str,
@@ -361,16 +398,28 @@ pub(crate) fn project(
         ));
     }
     projection.footprints = result.specs.iter().map(envelope).collect();
+    let bounds: Vec<_> = projection
+        .footprints
+        .iter()
+        .map(ClearanceBounds::from_footprint)
+        .collect();
+    let broad_phase_distance = defaults.clearance + CLEARANCE_TOLERANCE;
     for (i, (a, footprint)) in result.specs.iter().zip(&projection.footprints).enumerate() {
-        for (b, other) in result.specs[i + 1..]
+        let footprint_bounds = bounds[i].as_ref();
+        for ((b, other), other_bounds) in result.specs[i + 1..]
             .iter()
             .zip(&projection.footprints[i + 1..])
+            .zip(&bounds[i + 1..])
         {
-            if a.side != b.side {
+            if a.side != b.side
+                || footprint_bounds
+                    .zip(other_bounds.as_ref())
+                    .is_some_and(|(a, b)| a.separated_from(b, broad_phase_distance))
+            {
                 continue;
             }
             let gap = rectangle_gap(footprint, other);
-            if gap + 1e-7 < defaults.clearance {
+            if gap + CLEARANCE_TOLERANCE < defaults.clearance {
                 result.findings.push(finding(
                     format!("keycaps/{}/{}", a.id, b.id),
                     format!(
@@ -612,6 +661,39 @@ impl KeycapProjection {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clearance_bounds_reject_only_safely_separated_rectangles() {
+        let rectangle = |x: f64, y: f64| {
+            [(x, y), (x + 18.0, y), (x + 18.0, y + 18.0), (x, y + 18.0)].map(|(x, y)| Vec2 { x, y })
+        };
+        let origin = rectangle(0.0, 0.0);
+        let bounds = ClearanceBounds::from_footprint(&origin).unwrap();
+        for clearance in [0.0, 1.5, 5.0] {
+            let distance = clearance + CLEARANCE_TOLERANCE;
+            let near = rectangle(18.0 + clearance, 0.0);
+            let overlap = rectangle(17.0, 0.0);
+            for footprint in [near, overlap] {
+                let other = ClearanceBounds::from_footprint(&footprint).unwrap();
+                assert!(!bounds.separated_from(&other, distance));
+            }
+            for (x, y) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                let offset = 18.0 + clearance + 2.0 * CLEARANCE_TOLERANCE;
+                let far = rectangle(x * offset, y * offset);
+                let other = ClearanceBounds::from_footprint(&far).unwrap();
+                assert!(bounds.separated_from(&other, distance));
+                assert!(rectangle_gap(&origin, &far) + CLEARANCE_TOLERANCE >= clearance);
+            }
+        }
+        let rotated =
+            [(0.0, 0.0), (12.0, 12.0), (0.0, 24.0), (-12.0, 12.0)].map(|(x, y)| Vec2 { x, y });
+        let mut malformed = origin;
+        malformed[1].x = f64::NAN;
+        for footprint in [rotated, [origin[0]; 4], rectangle(1.0e15, 0.0), malformed] {
+            assert!(ClearanceBounds::from_footprint(&footprint).is_none());
+        }
+    }
+
     #[test]
     fn rotated_gap_and_overlap() {
         let a = vec![
