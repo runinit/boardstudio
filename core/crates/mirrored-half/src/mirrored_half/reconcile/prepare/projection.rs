@@ -55,10 +55,8 @@ pub(super) fn reconcile_pairs(
     accepted: &ProjectDoc,
     document: &mut ProjectDoc,
     canonical: &Canonical,
-    report: ChangeScope,
-) -> Result<Vec<String>, String> {
+) -> Result<(), String> {
     let pair_views = native_pair_views(document);
-    let mut changed = Vec::new();
     for pair in pair_views {
         super::super::validate_local_circuit_targets(document, &pair.halves)?;
         let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
@@ -80,12 +78,10 @@ pub(super) fn reconcile_pairs(
                     false,
                 )?
                 .0;
-                changed.extend(reconcile_with_report(
-                    document,
-                    &pair.pair_id,
-                    &projection,
-                    Some(report),
-                )?);
+                // Caller-owned draft: no per-pair report. The outer transaction guarantees
+                // rollback and owns the single final scoped report, so refusals still leave
+                // the accepted document intact while ledger updates stay atomic on success.
+                reconcile_with_report(document, &pair.pair_id, &projection, None)?;
             }
             continue;
         }
@@ -103,15 +99,10 @@ pub(super) fn reconcile_pairs(
                 matrix_link,
                 index == 0,
             )?;
-            changed.extend(reconcile_with_report(
-                document,
-                &pair.pair_id,
-                &projection,
-                Some(report),
-            )?);
+            reconcile_with_report(document, &pair.pair_id, &projection, None)?;
         }
     }
-    Ok(changed)
+    Ok(())
 }
 
 /// The forward projector materializes an independent Add using the selected identities. Commit
