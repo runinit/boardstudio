@@ -21,6 +21,8 @@ use boardstudio_web_ui_shared::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     field::{Field, FieldLabel},
     icons::ChevronDown,
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
     label::Label,
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
@@ -1161,9 +1163,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     h3 { "Display" }
                     Field {
                         Label { html_for: format!("case-part-colour-{}", dioxus::core::current_scope_id().0), "Colour" }
-                        input {
+                        InputGroup {
+                            InputGroupInput {
                                 id: format!("case-part-colour-{}", dioxus::core::current_scope_id().0),
-                                r#type: "color", "aria-label": "Part colour", value: "{color}",
+                                r#type: InputType::Color, aria_label: "Part colour", value: "{color}",
                                 oninput: move |event: FormEvent| {
                                     if let (Some(scope), Some(id)) = (&scope_for_color, &display_id_for_color) {
                                         display_for_color.call(DisplayRequest {
@@ -1173,6 +1176,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                         });
                                     }
                                 }
+                            }
                         }
                     }
                     Button {
