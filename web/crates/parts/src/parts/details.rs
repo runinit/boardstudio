@@ -48,6 +48,7 @@ pub fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_style_tests {
     use super::*;
+    use boardstudio_web_catalogue::catalogue::CatalogueSource;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::rc::Rc;

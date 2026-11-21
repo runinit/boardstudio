@@ -144,71 +144,74 @@ pub fn validate_parameter_value(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(super) fn project_fixture() -> ProjectDoc {
     use boardstudio_model::model::{Board, Matrix};
     use serde_json::json;
 
-    fn project_fixture() -> ProjectDoc {
-        let mut document = ProjectDoc::empty("project", "Input fixture");
-        document.boards.push(Board {
-            id: "left".into(),
-            name: "Left PCB".into(),
-            outline_ids: vec![],
-            part_ids: vec!["matrix/main/r0c0".into(), "switch".into(), "mcu".into()],
-            net_ids: vec!["vcc".into()],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.nets = serde_json::from_value(json!([
-            {"id":"vcc","name":"VCC","pins":[]},
-            {"id":"legacy","name":"Legacy","pins":[{"partId":"mcu","padId":"P1"}]},
-            {"id":"other","name":"Other board only","pins":[]}
-        ]))
-        .unwrap();
-        document.boards.push(Board {
-            id: "right".into(),
-            name: "Right PCB".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec!["other".into()],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.definitions = serde_json::from_value(json!([
-            {"id":"encoder","name":"EC11/EC12","kind":"encoder","inputProfile":{"press":{"row":"S1","column":"S2","independent":true}},"courtyard":[],"pads":[],"terminals":{},"generator":{"source":"ceoloide/rotary_encoder_ec11_ec12","version":"bundled-1","parameters":{}}},
-            {"id":"switch-def","name":"MX switch","kind":"switch","courtyard":[],"pads":[],"terminals":{}},
-            {"id":"mcu-def","name":"MCU","kind":"controller","courtyard":[],"pads":[],"terminals":{}},
-            {"id":"rotation-only","name":"Rotation only","kind":"encoder","inputProfile":{"rotary":{"a":"A","b":"B","common":"C"}},"courtyard":[],"pads":[],"terminals":{}}
-        ])).unwrap();
-        document.parts = serde_json::from_value(json!([
-            {"id":"matrix/main/r0c0","definitionId":"encoder","reference":"ENC1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
-            {"id":"switch","definitionId":"switch-def","reference":"SW1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
-            {"id":"mcu","definitionId":"mcu-def","reference":"MCU","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}
-        ])).unwrap();
-        document.matrices.push(Matrix {
-            id: "main".into(),
-            name: None,
-            rows: 1,
-            columns: 1,
-            pitch: boardstudio_model::model::Vec2 { x: 19.0, y: 19.0 },
-            origin: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
-            definition_id: "encoder".into(),
-            part_ids: vec!["matrix/main/r0c0".into()],
-            board_id: Some("left".into()),
-            mirror: None,
-            rotation: None,
-            edge_gap: None,
-            diode_direction: None,
-            row_layout: vec![],
-            column_layout: vec![],
-            anchor: None,
-            cells: vec![],
-        });
-        document
-    }
+    let mut document = ProjectDoc::empty("project", "Input fixture");
+    document.boards.push(Board {
+        id: "left".into(),
+        name: "Left PCB".into(),
+        outline_ids: vec![],
+        part_ids: vec!["matrix/main/r0c0".into(), "switch".into(), "mcu".into()],
+        net_ids: vec!["vcc".into()],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.nets = serde_json::from_value(json!([
+        {"id":"vcc","name":"VCC","pins":[]},
+        {"id":"legacy","name":"Legacy","pins":[{"partId":"mcu","padId":"P1"}]},
+        {"id":"other","name":"Other board only","pins":[]}
+    ]))
+    .unwrap();
+    document.boards.push(Board {
+        id: "right".into(),
+        name: "Right PCB".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec!["other".into()],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.definitions = serde_json::from_value(json!([
+        {"id":"encoder","name":"EC11/EC12","kind":"encoder","inputProfile":{"press":{"row":"S1","column":"S2","independent":true}},"courtyard":[],"pads":[],"terminals":{},"generator":{"source":"ceoloide/rotary_encoder_ec11_ec12","version":"bundled-1","parameters":{}}},
+        {"id":"switch-def","name":"MX switch","kind":"switch","courtyard":[],"pads":[],"terminals":{}},
+        {"id":"mcu-def","name":"MCU","kind":"controller","courtyard":[],"pads":[],"terminals":{}},
+        {"id":"rotation-only","name":"Rotation only","kind":"encoder","inputProfile":{"rotary":{"a":"A","b":"B","common":"C"}},"courtyard":[],"pads":[],"terminals":{}}
+    ])).unwrap();
+    document.parts = serde_json::from_value(json!([
+        {"id":"matrix/main/r0c0","definitionId":"encoder","reference":"ENC1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
+        {"id":"switch","definitionId":"switch-def","reference":"SW1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
+        {"id":"mcu","definitionId":"mcu-def","reference":"MCU","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}
+    ])).unwrap();
+    document.matrices.push(Matrix {
+        id: "main".into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: boardstudio_model::model::Vec2 { x: 19.0, y: 19.0 },
+        origin: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
+        definition_id: "encoder".into(),
+        part_ids: vec!["matrix/main/r0c0".into()],
+        board_id: Some("left".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![],
+    });
+    document
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
 
     pub fn projection_for_validation() -> PartInputProjection {
         project(&project_fixture(), "left", "matrix/main/r0c0").unwrap()
