@@ -630,3 +630,113 @@ fn saved_copper_that_collides_with_live_copper_refuses_the_rejoin_atomically() {
     assert!(error.contains("t-sda"), "{error}");
     assert_eq!(omitted, frozen);
 }
+
+const MATRIX: &str = "mirror-matrix";
+const CHILD: &str = "matrix/mirror-matrix/r0c0";
+const SOURCE_CHILD: &str = "matrix/source-matrix/r0c0";
+
+#[test]
+fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
+    use HalfExceptionState::{Linked, Local, Omitted};
+    use MirroredItemKind::{Matrix, Part};
+
+    for (owner_state, child_state) in [(Local, Local), (Local, Omitted), (Omitted, Omitted)] {
+        let start = independent_lifecycle_fixture();
+        let mut owner = exception(&start, Matrix, MATRIX, owner_state).unwrap();
+        if child_state == Local {
+            owner.parts.by_id_mut(CHILD).properties =
+                Some(BTreeMap::from([("mirror-authored".into(), json!(true))]));
+        }
+        let payload = owner
+            .parts
+            .iter()
+            .find(|p| p.id == CHILD && child_state == Local);
+        let child = exception(&owner, Part, CHILD, child_state)
+            .unwrap_or_else(|e| panic!("{owner_state:?} owner, {child_state:?} child: {e}"));
+        let overlays = &child.first_halves().exceptions;
+        assert_eq!(overlays.len(), 2);
+        assert!(overlays.contains(&owner.first_halves().exceptions[0]));
+        let explicit = overlays
+            .iter()
+            .find(|e| e.kind == Part && e.mirror_id == CHILD)
+            .unwrap();
+        assert_eq!(
+            explicit.state,
+            if child_state == Local {
+                MirroredExceptionState::Local
+            } else {
+                MirroredExceptionState::Omitted
+            }
+        );
+        assert_eq!(child.parts.iter().find(|p| p.id == CHILD), payload);
+        let diode = "matrix/mirror-matrix/r0c0/diode";
+        assert_eq!(
+            child.parts.iter().any(|p| p.id == diode),
+            child_state == Local
+        );
+
+        let rejoined = exception(&child, Matrix, MATRIX, Linked).unwrap();
+        assert_eq!(
+            rejoined.first_halves().exceptions,
+            std::slice::from_ref(explicit)
+        );
+        assert!(rejoined.matrices.iter().any(|m| m.id == MATRIX));
+        assert_eq!(rejoined.parts.iter().find(|p| p.id == CHILD), payload);
+        assert_eq!(
+            rejoined.parts.iter().any(|p| p.id == diode),
+            child_state == Local
+        );
+        assert_eq!(
+            exception(&rejoined, Matrix, MATRIX, Linked).unwrap(),
+            rejoined
+        );
+    }
+}
+
+#[test]
+fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
+    use HalfExceptionState::{Linked, Local, Omitted};
+    use MirroredItemKind::{Matrix, Part};
+
+    for owner_state in [Local, Omitted] {
+        let start = independent_lifecycle_fixture();
+        let mut child = exception(&start, Part, CHILD, Local).unwrap();
+        child.parts.by_id_mut(CHILD).properties =
+            Some(BTreeMap::from([("mirror-authored".into(), json!(true))]));
+        let payload = child.parts.by_id(CHILD);
+        let owner = exception(&child, Matrix, MATRIX, owner_state).unwrap();
+        let overlays = &owner.first_halves().exceptions;
+        assert_eq!(overlays.len(), 2);
+        assert!(overlays.contains(&child.first_halves().exceptions[0]));
+        let explicit = overlays
+            .iter()
+            .find(|e| e.kind == Matrix && e.mirror_id == MATRIX)
+            .unwrap();
+        let mut inherited = exception(&owner, Part, CHILD, Linked).unwrap();
+        assert_eq!(
+            inherited.first_halves().exceptions,
+            std::slice::from_ref(explicit)
+        );
+        assert_eq!(
+            inherited.matrices.iter().any(|m| m.id == MATRIX),
+            owner_state == Local
+        );
+        assert_eq!(
+            inherited.parts.iter().find(|p| p.id == CHILD),
+            (owner_state == Local).then_some(payload)
+        );
+        assert_eq!(
+            exception(&inherited, Part, CHILD, Linked).unwrap(),
+            inherited
+        );
+
+        inherited.parts.by_id_mut(SOURCE_CHILD).properties =
+            Some(BTreeMap::from([("source-edited".into(), json!(true))]));
+        let rejoined = exception(&inherited, Matrix, MATRIX, Linked).unwrap();
+        assert!(rejoined.first_halves().exceptions.is_empty());
+        assert_eq!(
+            rejoined.parts.by_id(CHILD).properties,
+            inherited.parts.by_id(SOURCE_CHILD).properties
+        );
+    }
+}

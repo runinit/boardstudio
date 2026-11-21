@@ -94,6 +94,24 @@ pub(super) fn reconcile_canonical(
         let mirror_is_matrix_member = mirror_matrix_members.contains(&correspondence.mirror_id);
         if source_is_matrix_member || mirror_is_matrix_member {
             if source_is_matrix_member != mirror_is_matrix_member {
+                // Omitting a key under a Local matrix also removes its companions. The
+                // key owns the overlay, so its absent companion has no overlay of its own.
+                if source_is_matrix_member
+                    && let Some((source_key, assembly)) = correspondence.source_id.rsplit_once('/')
+                    && halves
+                        .overlay_for_source(MirroredItemKind::Part, source_key)
+                        .is_some_and(|key| {
+                            key.state == crate::model::MirroredExceptionState::Omitted
+                                && crate::matrix::companion_id(&key.mirror_id, assembly)
+                                    == correspondence.mirror_id
+                        })
+                    && !document
+                        .parts
+                        .iter()
+                        .any(|part| part.id == correspondence.mirror_id)
+                {
+                    continue;
+                }
                 return Err("A part correspondence crosses the matrix membership boundary".into());
             }
             continue;
