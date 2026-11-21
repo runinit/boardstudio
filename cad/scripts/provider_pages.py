@@ -42,7 +42,7 @@ SUITES = {
 STATIC_ASSERT_SITES = {
     'collision-analysis': 66,
     'step-repair-accounting': 45,
-    'step-zero-repair': 53,
+    'step-zero-repair': 59,
     'step-projected-line-repair': 16,
     'step-planar-seam-repair': 16,
     'step-complete-surface-preview': 39,

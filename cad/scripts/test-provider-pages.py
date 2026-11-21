@@ -70,7 +70,7 @@ class ProviderPagesTests(unittest.TestCase):
     def test_suite_assertion_sites_and_fixture_paths(self):
         pattern = r'\bassert(?:\.[A-Za-z]+)?\s*\('
         ports = {'collision-analysis': 66, 'step-repair-accounting': 45,
-                 'step-zero-repair': 53, 'step-projected-line-repair': 16,
+                 'step-zero-repair': 59, 'step-projected-line-repair': 16,
                  'step-planar-seam-repair': 16, 'step-complete-surface-preview': 39,
                  'qualified-analysis': 102, 'measure-cad-worker': 13}
         self.assertEqual(pages.STATIC_ASSERT_SITES, ports)
