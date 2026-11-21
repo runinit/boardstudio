@@ -71,50 +71,51 @@ pub(super) fn direct_analysis(model: &ExactModel, target: Option<f64>) -> Vec<Ve
         assert_eq!(crate::mesh_profile(model).unwrap(), analysis.mesh);
     }
 
-    let layered = model.layered_mesh.as_ref().unwrap();
     let mut triangles = analysis
         .positions_mm_f64
         .chunks_exact(9)
         .zip(&analysis.triangle_face_occurrence_indices);
     let mut occurrences = analysis.source_faces.iter().enumerate();
     let mut solids = Vec::new();
-    for (solid_index, solid) in model.solids.iter().enumerate() {
-        let mut meshes = Vec::new();
-        for (shell_index, shell) in solid.boundaries().iter().enumerate() {
-            let faces = layered
-                .tessellate(shell, analysis.deflection_mm, analysis.angular_rad)
-                .expect("analytic fixture must use direct tessellation");
-            for (face_index, (poly, face)) in faces.iter().zip(shell.face_iter()).enumerate() {
-                let (occurrence, source) = occurrences.next().unwrap();
-                assert_eq!(
-                    (source.solid_index, source.shell_index, source.face_index),
-                    (solid_index, shell_index, face_index)
-                );
-                assert_eq!(
-                    source.support_kind,
-                    match face.surface() {
-                        Surface::Plane(_) => "PLANE",
-                        Surface::RevolutionSurface(_) => "REVOLUTION_SURFACE",
-                        _ => panic!("unexpected source surface"),
-                    }
-                );
-                assert!(poly.faces().triangle_iter().count() > 0);
-                for tri in poly.faces().triangle_iter() {
-                    let (points, &tag) = triangles.next().unwrap();
-                    assert_eq!(tag, occurrence);
-                    assert_eq!(
-                        points,
-                        tri.map(|v| {
-                            let p = poly.positions()[v.pos];
-                            [p.x, p.y, p.z]
-                        })
-                        .as_flattened()
-                    );
+    for (solid_index, (topology, shell)) in model.shells().enumerate() {
+        let faces = tessellation::tessellate(
+            topology,
+            shell,
+            analysis.deflection_mm,
+            analysis.angular_rad,
+        )
+        .expect("analytic fixture must use direct tessellation")
+        .into_iter()
+        .map(crate::qualification::proof_geometry::polygon)
+        .collect::<Vec<_>>();
+        for (face_index, (poly, face)) in faces.iter().zip(shell).enumerate() {
+            let (occurrence, source) = occurrences.next().unwrap();
+            assert_eq!(
+                (source.solid_index, source.shell_index, source.face_index),
+                (solid_index, 0, face_index)
+            );
+            assert_eq!(
+                source.support_kind,
+                match face.support {
+                    brep::Support::Plane { .. } => "PLANE",
+                    brep::Support::Round { .. } => "REVOLUTION_SURFACE",
                 }
+            );
+            assert!(poly.faces().triangle_iter().count() > 0);
+            for tri in poly.faces().triangle_iter() {
+                let (points, &tag) = triangles.next().unwrap();
+                assert_eq!(tag, occurrence);
+                assert_eq!(
+                    points,
+                    tri.map(|v| {
+                        let p = poly.positions()[v.pos];
+                        [p.x, p.y, p.z]
+                    })
+                    .as_flattened()
+                );
             }
-            meshes.extend(faces);
         }
-        solids.push(meshes);
+        solids.push(faces);
     }
     assert!(triangles.next().is_none());
     assert!(occurrences.next().is_none());
@@ -165,8 +166,8 @@ fn plate() -> PreparedCaseIR {
 #[test]
 fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
     let model = build_layered_case(&plate()).expect("layered through-hole");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented shell");
     assert!(solid.is_geometric_consistent());
     assert_eq!(
@@ -259,8 +260,8 @@ fn verify(
         );
     }
     let model = build_layered_case(input).expect("layered exact case");
-    assert_eq!(model.solids.len(), 1, "one connected material solid");
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1, "one connected material solid");
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     let mesh =
         shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).expect("every exact face meshes");
@@ -300,9 +301,9 @@ fn verify(
         "exact merged cylinders"
     );
     assert_eq!(
-        step.matches("RATIONAL_B_SPLINE_SURFACE(").count(),
+        step.matches("CONICAL_SURFACE(").count(),
         cones,
-        "exact cones encoded by a rational tensor net"
+        "analytic conical support"
     );
     if cones > 0 {
         inspect_cone_step(&step, [10., 8.], 2., 4., 2., 1.);
@@ -416,7 +417,7 @@ fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
             let expected = if inside { 1. } else { 0. };
             assert!((mesh_winding(fine, Point3::from(p)) - expected).abs() < 1e-8);
         }
-        let shell = &model.solids[0].boundaries()[0];
+        let shell = &model.test_solids()[0].boundaries()[0];
         for (mesh, deflection) in [(coarse, 0.1), (fine, tolerance)] {
             for (native, face) in shell.face_iter().zip(mesh) {
                 if !matches!(native.surface(), Surface::RevolutionSurface(_)) {
@@ -486,6 +487,14 @@ fn opening_subdivides_a_boss_arc_and_its_horizontal_caps() {
     ] {
         assert!((mesh_winding(faces, Point3::from(probe)) - expected).abs() < 1e-8);
     }
+
+    // One sub-angular arc and its chord bound each cap in this thin cut.
+    input.body.openings.as_mut().unwrap()[0].points = rectangle(6., 10.95, 8., 4.);
+    let thin = crate::build_case(&input).unwrap();
+    let direct = direct_analysis(&thin, None);
+    assert_eq!(direct.len(), 1);
+    assert!(mesh_winding(&direct[0], Point3::new(10., 10.975, 4.5)) > 0.999);
+    assert!(mesh_winding(&direct[0], Point3::new(10., 10.975, 5.5)).abs() < 1e-8);
 }
 
 #[test]
@@ -604,7 +613,7 @@ fn countersink_uses_exact_cone_and_independent_frustum_integral() {
         diameter: 4.,
         end_diameter: 2.,
     }]);
-    let (mut model, step) = verify(
+    let (_, step) = verify(
         &input,
         1280. - 14. * std::f64::consts::PI / 3.,
         [[0., 0., 0.], [20., 16., 4.]],
@@ -630,14 +639,15 @@ fn countersink_uses_exact_cone_and_independent_frustum_integral() {
     let volume = 1280. - 14. * std::f64::consts::PI / 3.;
     assert!(certificate.volume[0] <= volume && certificate.volume[1] >= volume);
     let imported = assert_step_round_trip(&step, bounds, 8);
-    // The cone's rational surface already has a preview seam. Compare reader
-    // closure against the same B-rep emitted using the original spline edges.
-    model.circles.clear();
-    let spline = assert_step_round_trip(&step_text(&model), bounds, 8);
-    assert_eq!(
-        imported.accuracy().mesh_closed_oriented,
-        spline.accuracy().mesh_closed_oriented
-    );
+    assert!(imported.accuracy().mesh_closed_oriented);
+    let records = StepRecords::parse(&step);
+    let (cone, args) = records.named("CONICAL_SURFACE").next().unwrap();
+    let radius = format!("#{cone} = CONICAL_SURFACE('', #{}, 1.0,", id(&args[1]));
+    let wrong_radius = radius.replace(", 1.0,", ", 1.01,");
+    assert_eq!(step.matches(&radius).count(), 1);
+    assert!(certify_countersink(&step.replacen(&radius, &wrong_radius, 1), shape).is_err());
+    let wrong_units = step.replacen(".RADIAN.", ".STERADIAN.", 1);
+    assert!(certify_countersink(&wrong_units, shape).is_err());
 }
 #[test]
 fn cavity_and_wall_opening_keep_exact_horizontal_profile_differences() {
@@ -696,8 +706,8 @@ fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
     ))
     .unwrap();
     let model = crate::build_case(&input).expect("height-clipped exact cone");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     assert_eq!(solid.boundaries().len(), 1);
     Solid::try_new(solid.boundaries().clone())
         .expect("closed consistently oriented native topology");
@@ -767,8 +777,9 @@ fn adoption_ring_island_product_removes_only_the_authored_blind_union() {
     )
     .unwrap();
     let baseline = crate::build_case(&baseline).unwrap();
-    assert_eq!(baseline.solids.len(), 1);
-    let baseline = shell_to_polygon_strict(&baseline.solids[0].boundaries()[0], 1e-3).unwrap();
+    assert_eq!(baseline.test_solids().len(), 1);
+    let baseline =
+        shell_to_polygon_strict(&baseline.test_solids()[0].boundaries()[0], 1e-3).unwrap();
     verify(
         &product,
         baseline.volume() - 164., // Unchanged independent cutter union: 82 mm² * 2 mm.
@@ -796,12 +807,12 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
     }
     let model = crate::build_case(&input).expect("legitimate post-opening material split");
     assert_eq!(
-        model.solids.len(),
+        model.test_solids().len(),
         2,
         "through cut disconnects the 32 mm² island"
     );
     let mut volumes = Vec::new();
-    for solid in &model.solids {
+    for solid in model.test_solids() {
         assert_eq!(solid.boundaries().len(), 1);
         Solid::try_new(solid.boundaries().clone()).unwrap();
         assert!(solid.is_geometric_consistent());
@@ -909,84 +920,22 @@ fn adoption_ring_island_retains_another_owned_cut_in_either_authoring_order() {
 
 fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64, r1: f64) {
     let records = StepRecords::parse(text);
-    let surfaces = records
-        .named("RATIONAL_B_SPLINE_SURFACE")
-        .map(|(id, _)| id)
-        .collect::<Vec<_>>();
-    assert_eq!(surfaces.len(), 1);
-    let surface = surfaces[0];
-    let net = records.args(surface, "B_SPLINE_SURFACE");
-    assert_eq!([num(&net[0]), num(&net[1])], [1., 2.]);
-    let rows = list(&net[2]);
-    assert_eq!(rows.len(), 2);
-    let weights = list(&records.args(surface, "RATIONAL_B_SPLINE_SURFACE")[0]);
-    assert_eq!(weights.len(), 2);
-    let knots = records.args(surface, "B_SPLINE_SURFACE_WITH_KNOTS");
-    assert_eq!(
-        list(&knots[0]).iter().map(num).collect::<Vec<_>>(),
-        vec![2., 2.]
-    );
-    assert_eq!(
-        list(&knots[1]).iter().map(num).collect::<Vec<_>>(),
-        vec![3., 2., 2., 2., 3.]
-    );
-    assert_eq!(
-        list(&knots[2]).iter().map(num).collect::<Vec<_>>(),
-        vec![0., 1.]
-    );
-    assert_eq!(
-        list(&knots[3]).iter().map(num).collect::<Vec<_>>(),
-        vec![0., 0.25, 0.5, 0.75, 1.]
-    );
-    for (row_index, (z, radius)) in [(low, r0), (high, r1)].into_iter().enumerate() {
-        let row: Vec<_> = list(&rows[row_index])
-            .iter()
-            .map(|p| records.xyz(id(p), "CARTESIAN_POINT"))
-            .collect();
-        let w = list(&weights[row_index]);
-        assert_eq!(row.len(), 9);
-        assert_eq!(w.len(), 9);
-        for i in 0..9 {
-            assert!((row[i][2] - z).abs() < 1e-12);
-            let expected = if i % 2 == 0 {
-                1.
-            } else {
-                std::f64::consts::FRAC_1_SQRT_2
-            };
-            assert!((num(&w[i]) - expected).abs() < 1e-15);
-        }
-        assert_eq!(row[0], row[8]);
-        for i in (0..8).step_by(2) {
-            let a = [row[i][0] - center[0], row[i][1] - center[1]];
-            let b = [row[i + 2][0] - center[0], row[i + 2][1] - center[1]];
-            assert!((a[0].hypot(a[1]) - radius).abs() < 1e-12);
-            assert!((b[0].hypot(b[1]) - radius).abs() < 1e-12);
-            assert!(
-                (a[0] * b[0] + a[1] * b[1]).abs() < 1e-12,
-                "orthogonal quarter-circle endpoints"
-            );
-            for axis in 0..2 {
-                assert!(
-                    (row[i + 1][axis] - center[axis] - a[axis] - b[axis]).abs() < 1e-12,
-                    "exact rational quarter-circle middle control"
-                );
-            }
-        }
-    }
-    // Equal weights and corresponding radial controls in the two degree-one rows prove linear r(z).
-    for i in 0..9 {
-        assert_eq!(num(&list(&weights[0])[i]), num(&list(&weights[1])[i]));
-        let a = records.xyz(id(&list(&rows[0])[i]), "CARTESIAN_POINT");
-        let b = records.xyz(id(&list(&rows[1])[i]), "CARTESIAN_POINT");
-        for axis in 0..2 {
-            assert!(((a[axis] - center[axis]) / r0 - (b[axis] - center[axis]) / r1).abs() < 1e-12);
-        }
-    }
+    let [(surface, support)] = records.named("CONICAL_SURFACE").collect::<Vec<_>>()[..] else {
+        panic!("expected one conical support");
+    };
+    let placement = records.args(id(&support[1]), "AXIS2_PLACEMENT_3D");
+    let origin = records.xyz(id(&placement[1]), "CARTESIAN_POINT");
+    let axis = records.xyz(id(&placement[2]), "DIRECTION");
+    assert_eq!(origin, [center[0], center[1], high]);
+    assert_eq!(axis, [0., 0., -1.]);
+    assert_eq!(num(&support[2]), r1);
+    assert!((num(&support[3]).tan() * (high - low) - (r0 - r1)).abs() < 1e-12);
     let radius = |z: f64| r0 + (r1 - r0) * (z - low) / (high - low);
     let (_, face) = records
         .named("ADVANCED_FACE")
         .find(|(_, p)| id(&p[2]) == surface)
         .expect("cone face is actually used");
+    assert_eq!(face[3], step_p21::ast::Parameter::Enumeration("F".into()));
     let mut zs = vec![];
     for bound in list(&face[1]) {
         let bound = records.args(id(bound), "FACE_BOUND");
@@ -1083,7 +1032,7 @@ fn authored_close_height_boundaries_are_retained_exactly() {
         diameter: 2.,
     }]);
     let model = build_layered_case(&input).expect("authored thin cut");
-    let vertices: Vec<_> = model.solids[0]
+    let vertices: Vec<_> = model.test_solids()[0]
         .boundaries()
         .iter()
         .flat_map(|s| s.vertex_iter())
@@ -1183,7 +1132,7 @@ fn reviewed_authored_mount_order_preserves_later_boss_hole() {
         },
     ];
     let model = build_layered_case(&input).expect("authored mixed mount sequence");
-    let solid = &model.solids[0];
+    let solid = &model.test_solids()[0];
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!(
         (mesh.volume() - (1280. - 1.5 * std::f64::consts::PI)).abs() < 0.065,
@@ -1242,8 +1191,15 @@ fn outward_material_split_by_opening_remains_two_valid_solids() {
         height: 4.,
     }]);
     let model = build_layered_case(&input).expect("valid outward split bodies");
-    assert_eq!(model.solids.len(), 2);
-    for solid in &model.solids {
+    let direct = direct_analysis(&model, None);
+    assert_eq!(direct.len(), 2);
+    for faces in &direct {
+        let volume: f64 = faces.iter().map(|face| face.volume()).sum();
+        assert!((volume - 512.).abs() < 1e-8);
+        assert!(mesh_winding(faces, Point3::new(10., 8., 2.)).abs() < 1e-8);
+    }
+    assert_eq!(model.test_solids().len(), 2);
+    for solid in model.test_solids() {
         Solid::try_new(solid.boundaries().clone()).unwrap();
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 512.).abs() < 1e-8);

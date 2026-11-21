@@ -7,23 +7,23 @@
 //! The proof independently binds final points and topology to the native support
 //! and trims. UV attributes and requested settings alone prove no error bound.
 
-use crate::profile::{EmissionObserver, ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace};
+use crate::profile::{EmissionObserver, GeneratedAnalysisMesh, GeneratedSourceFace};
 #[cfg(test)]
-use crate::profile::{mesh_profile_for_analysis, mesh_profile_observed};
+use crate::profile::{ExactModel, mesh_profile_for_analysis, mesh_profile_observed};
 #[cfg(test)]
 use boardstudio_contracts::Vec2;
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_modeling::{EuclideanSpace, Face};
 #[cfg(test)]
 use monstertruck_modeling::{Invertible, Point3, Vector3, builder};
-use monstertruck_modeling::{Surface, Wire};
+use monstertruck_modeling::{Solid, Surface, Wire};
 
 mod cylinder_proof;
 mod retained;
 
 // New owner-side wrapper; no trace or native geometry leaves this module.
 pub(super) fn qualified_bound(
-    model: &ExactModel,
+    model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
     trace: &AnalysisTrace,
 ) -> super::generated_qualification::GeneratedQualification {
@@ -252,7 +252,7 @@ fn checked_trace(
     }
     assert!(seen.into_iter().all(|v| v));
     let mut face_index = 0;
-    for (si, solid) in model.solids.iter().enumerate() {
+    for (si, solid) in model.test_solids().iter().enumerate() {
         for (shi, shell) in solid.boundaries().iter().enumerate() {
             for (fi, native) in shell.face_iter().enumerate() {
                 let face = &trace.faces[face_index];
@@ -418,33 +418,27 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
     let elevated = crate::build_case(&input).unwrap();
     let (mesh, _) = checked_trace(&elevated, None);
     assert_eq!(mesh.bounds, [[0., 0., 7.], [20., 16., 8.6]]);
-    let translated = ExactModel {
-        circles: Default::default(),
-        layered_mesh: None,
-        solids: elevated
-            .solids
+    let translated = ExactModel::from_test_solids(
+        elevated
+            .test_solids()
             .iter()
             .map(|s| builder::translated(s, Vector3::new(32., -16., 0.)))
             .collect(),
-    };
+    );
     let (mesh, _) = checked_trace(&translated, None);
     assert_eq!(mesh.bounds, [[32., -16., 7.], [52., 0., 8.6]]);
-    let rotated = ExactModel {
-        circles: Default::default(),
-        layered_mesh: None,
-        solids: plate()
-            .solids
+    let rotated = ExactModel::from_test_solids(
+        plate()
+            .test_solids()
             .iter()
             .map(|s| builder::rotated(s, Point3::origin(), Vector3::unit_z(), Rad(0.3)))
             .collect(),
-    };
+    );
     checked_trace(&rotated, None);
     // Reflection reverses winding to preserve the solid; no physical row is applied.
-    let reflected = ExactModel {
-        circles: Default::default(),
-        layered_mesh: None,
-        solids: plate()
-            .solids
+    let reflected = ExactModel::from_test_solids(
+        plate()
+            .test_solids()
             .iter()
             .map(|s| {
                 let mut s = builder::transformed(s, Matrix4::from_nonuniform_scale(-1., 1., 1.));
@@ -452,7 +446,7 @@ fn final_trace_is_body_local_with_elevation_and_source_placement_once() {
                 s
             })
             .collect(),
-    };
+    );
     let (mesh, _) = checked_trace(&reflected, None);
     assert_eq!(mesh.bounds, [[-20., 0., 0.], [0., 10., 2.]]);
 }
@@ -576,15 +570,13 @@ fn final_trace_preserves_fan_and_inverted_uv_corner_order() {
 #[test]
 fn final_trace_does_not_retain_triangles_rejected_by_real_emission() {
     use monstertruck_modeling::Matrix4;
-    let model = ExactModel {
-        circles: Default::default(),
-        layered_mesh: None,
-        solids: plate()
-            .solids
+    let model = ExactModel::from_test_solids(
+        plate()
+            .test_solids()
             .iter()
             .map(|s| builder::transformed(s, Matrix4::from_translation(Vector3::new(1e10, 0., 0.))))
             .collect(),
-    };
+    );
     let mut trace = AnalysisTrace::default();
     let error = mesh_profile_observed(&model, None, &mut trace).unwrap_err();
     assert_eq!(error, mesh_profile_for_analysis(&model, None).unwrap_err());

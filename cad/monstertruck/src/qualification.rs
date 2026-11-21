@@ -2,8 +2,9 @@
 //! read-only values; only preparation can create an evidence owner.
 mod final_trace;
 mod generated_qualification;
+pub(crate) mod proof_geometry;
 mod types;
-use crate::profile::mesh_profile_observed;
+use crate::profile::emit_analysis;
 use crate::{ExactModel, GeneratedAnalysisMesh, ImportedStep, StepFaceOccurrence, StepSourceFace};
 use std::sync::atomic::{AtomicU64, Ordering};
 pub use types::*;
@@ -192,20 +193,27 @@ fn prepare_qualified_emission(
     model: &ExactModel,
     target: Option<f64>,
 ) -> Result<(GeneratedAnalysisMesh, LocalMeshBound), String> {
+    let proof = match model.proof_solids() {
+        Ok(proof) => proof,
+        Err(error) => {
+            let mesh = crate::mesh_profile_for_analysis(model, target)?;
+            return Ok((mesh, Err(vec![error])));
+        }
+    };
     let mut trace = final_trace::AnalysisTrace::default();
-    let mesh = mesh_profile_observed(model, target, &mut trace)?;
+    let mesh = emit_analysis(model, target, Some(&proof), &mut trace)?;
     let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
         && mesh
             .positions_mm_f64
             .iter()
             .all(|x| x.is_finite() && (*x == 0. || (1e-100..=1e12).contains(&x.abs())));
     let result = if within_profile {
-        let planar = generated_qualification::qualify_generated(model, &mesh);
+        let planar = generated_qualification::qualify_generated(&proof, &mesh);
         if matches!(
             planar,
             generated_qualification::GeneratedQualification::Unknown { .. }
         ) {
-            final_trace::qualified_bound(model, &mesh, &trace)
+            final_trace::qualified_bound(&proof, &mesh, &trace)
         } else {
             planar
         }

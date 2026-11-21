@@ -1,6 +1,7 @@
 //! Layered case and PCB construction. Every operation before topology assembly is planar.
 use crate::ExactModel;
 use boardstudio_contracts::{CaseFeature, CaseKind, MountKind, PreparedCaseIR, Vec2};
+pub(crate) mod brep;
 mod contours;
 mod pcb;
 pub(crate) mod tessellation;
@@ -153,11 +154,7 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
             }
         }
     }
-    let mut model = ExactModel {
-        solids: Vec::new(),
-        circles: Default::default(),
-        layered_mesh: Some(Default::default()),
-    };
+    let mut model = ExactModel::empty();
     for (region_index, region) in input.regions.iter().enumerate() {
         let exterior: Vec<_> = region.outer.iter().map(|p| [p.x, p.y]).collect();
         let holes: Vec<Vec<_>> = region
@@ -417,7 +414,7 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                 });
             }
         }
-        if !before.is_empty() && topology::assemble(&before, &features, &frame)?.solids.len() != 1 {
+        if !before.is_empty() && topology::assemble(&before, &features, &frame)?.shells.len() != 1 {
             return Err(format!(
                 "Region {region_index}: features leave disconnected material before openings"
             ));
@@ -430,20 +427,14 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                 .join(", ");
             format!("Region {region_index}, features [{ids}]: {error}")
         })?;
-        if before_openings == features.len() && !features.is_empty() && built.solids.len() != 1 {
+        if before_openings == features.len() && !features.is_empty() && built.shells.len() != 1 {
             return Err(format!(
                 "Region {region_index}: features leave disconnected material"
             ));
         }
-        model.solids.extend(built.solids);
-        model.circles.extend(built.circles);
-        model.layered_mesh.as_mut().unwrap().extend(
-            built
-                .layered_mesh
-                .expect("layered assembly retains mesh geometry"),
-        );
+        model.regions.push(built);
     }
-    if model.solids.is_empty() {
+    if model.shells().next().is_none() {
         return Err("Layered case has no material".into());
     }
     Ok(model)

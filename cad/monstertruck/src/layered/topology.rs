@@ -1,13 +1,12 @@
+use super::brep::{Point3, Vector3};
 use super::{
     Feature,
+    brep::{self, Circle, Edge, EdgeUse, Face, Region, Ring as EdgeRing, Strip, Support, Topology},
     contours::{self, Profile, Ring},
-    tessellation::{LayeredMesh, WallStrip},
 };
-use crate::{ExactModel, profile::CircleEdge};
 use cavalier_contours::polyline::*;
-use monstertruck_modeling::*;
-use monstertruck_topology::EdgeId;
-use std::collections::{BTreeMap, HashMap};
+use cgmath::{EuclideanSpace, InnerSpace};
+use std::collections::BTreeMap;
 type Result<T> = std::result::Result<T, String>;
 pub(super) struct Band {
     pub low: f64,
@@ -24,16 +23,16 @@ struct Cap {
     up: bool,
 }
 struct Patch {
-    wire: Wire,
-    surface: Surface,
+    wire: [EdgeUse; 4],
+    support: Support,
     reversed: bool,
-    strip: WallStrip,
+    strip: Strip,
 }
 #[derive(Default)]
 struct Cache {
-    vertices: BTreeMap<[u64; 3], Vertex>,
-    edges: BTreeMap<([u64; 3], [u64; 3], [u64; 4]), Edge>,
-    circles: HashMap<EdgeId<Curve>, CircleEdge>,
+    vertices: BTreeMap<[u64; 3], usize>,
+    edges: BTreeMap<([u64; 3], [u64; 3], [u64; 4]), usize>,
+    topology: Topology,
 }
 fn bits(x: f64) -> u64 {
     if x == 0. { 0 } else { x.to_bits() }
@@ -42,11 +41,12 @@ fn key(p: Point3) -> [u64; 3] {
     [bits(p.x), bits(p.y), bits(p.z)]
 }
 impl Cache {
-    fn vertex(&mut self, p: Point3) -> Vertex {
-        self.vertices
-            .entry(key(p))
-            .or_insert_with(|| builder::vertex(p))
-            .clone()
+    fn vertex(&mut self, point: Point3) -> usize {
+        *self.vertices.entry(key(point)).or_insert_with(|| {
+            let index = self.topology.vertices.len();
+            self.topology.vertices.push(point);
+            index
+        })
     }
     fn edge(
         &mut self,
@@ -54,7 +54,7 @@ impl Cache {
         b: Point3,
         bulge: f64,
         source: Option<&contours::Source>,
-    ) -> Result<Edge> {
+    ) -> Result<EdgeUse> {
         let forward = key(a) < key(b);
         let (first, last, bulge) = if forward {
             (a, b, bulge)
@@ -71,17 +71,14 @@ impl Cache {
             [bits(x), bits(y), bits(circle.radius), bits(bulge.signum())]
         });
         let k = (key(first), key(last), support);
-        if let Some(e) = self.edges.get(&k) {
-            return Ok(if forward { e.clone() } else { e.inverse() });
+        if key(first) == key(last) {
+            return Err("layered edge has coincident vertices".into());
         }
-        let va = self.vertex(first);
-        let vb = self.vertex(last);
-        let edge = if let Some(circle) = circle {
+        if let Some(&index) = self.edges.get(&k) {
+            return Ok(EdgeUse { index, forward });
+        }
+        let circle = if let Some(circle) = circle {
             let [x, y] = circle.center;
-            let radial = Vector3::new(first.x - x, first.y - y, 0.);
-            let tangent = Vector3::new(-radial.y, radial.x, 0.) * bulge.signum();
-            let edge = builder::try_circle_arc(&va, &vb, tangent)
-                .map_err(|e| format!("exact circle edge: {e:?}"))?;
             // Measure the signed trim on the authored carrier in the shared edge direction.
             let sweep = arc_distance(
                 circle.center,
@@ -92,21 +89,19 @@ impl Cache {
             if !(sweep > 0. && sweep <= std::f64::consts::PI + 1e-10) {
                 return Err("circular edge has an invalid signed trim".into());
             }
-            self.circles.insert(
-                edge.id(),
-                CircleEdge {
-                    center: Point3::new(x, y, first.z),
-                    radius: circle.radius,
-                    axis_z: bulge.signum(),
-                    sweep: bulge.signum() * sweep,
-                },
-            );
-            edge
+            Some(Circle {
+                center: Point3::new(x, y, first.z),
+                radius: circle.radius,
+                sweep: bulge.signum() * sweep,
+            })
         } else {
-            builder::line(&va, &vb)
+            None
         };
-        self.edges.insert(k, edge.clone());
-        Ok(if forward { edge } else { edge.inverse() })
+        let vertices = [self.vertex(first), self.vertex(last)];
+        let index = self.topology.edges.len();
+        self.topology.edges.push(Edge { vertices, circle });
+        self.edges.insert(k, index);
+        Ok(EdgeUse { index, forward })
     }
 }
 fn rings(p: &Profile) -> Vec<Ring> {
@@ -240,7 +235,12 @@ fn segment_point(a: PlineVertex, b: PlineVertex, t: f64, z: f64) -> Point3 {
         z,
     )
 }
-fn ring_wire(cache: &mut Cache, ring: &Ring, z: f64, points: &[PartitionPoint]) -> Result<Wire> {
+fn ring_wire(
+    cache: &mut Cache,
+    ring: &Ring,
+    z: f64,
+    points: &[PartitionPoint],
+) -> Result<EdgeRing> {
     let mut edges = vec![];
     for (index, (a, b)) in ring.iter_segments().enumerate() {
         let ts = partitions(a, b, ring.sources[index].as_ref(), points);
@@ -253,7 +253,7 @@ fn ring_wire(cache: &mut Cache, ring: &Ring, z: f64, points: &[PartitionPoint]) 
             )?);
         }
     }
-    Ok(edges.into())
+    Ok(edges)
 }
 fn caps(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<Vec<Cap>> {
     let mut caps = vec![];
@@ -323,7 +323,7 @@ fn surface_key(
     bulge: f64,
     authored: Option<([f64; 2], f64, f64)>,
     authored_line: Option<([f64; 2], [f64; 2])>,
-) -> Result<(Vec<u64>, Surface, bool)> {
+) -> Result<(Vec<u64>, Support, bool)> {
     if bulge == 0. {
         let (first, last) = authored_line.ok_or("planar wall has no structural authored line")?;
         let mut first = Point3::new(first[0], first[1], 0.);
@@ -338,10 +338,14 @@ fn surface_key(
         let normal = Vector3::new(direction.y, -direction.x, 0.).normalize();
         let d = normal.dot(first.to_vec());
         // Every split patch uses its authored carrier, independent of split-point roundoff.
-        let surface = Surface::Plane(Plane::new(first, last, first + Vector3::unit_z()));
+        let support = Support::Plane {
+            origin: first,
+            u: direction,
+            v: Vector3::unit_z(),
+        };
         Ok((
             vec![0, bits(normal.x), bits(normal.y), bits(d)],
-            surface,
+            support,
             false,
         ))
     } else {
@@ -352,18 +356,12 @@ fn surface_key(
         let reversed = top_radius == r && !positive;
         // Keep the generator's radius in local coordinates, before translating its authored axis.
         // Measuring an arbitrary intersection endpoint would round the nominal radius differently.
-        let lower = Point3::new(r, 0., a.z);
-        let upper = Point3::new(top_radius, 0., c.z);
-        let (start, end) = if positive || reversed {
-            (upper, lower)
-        } else {
-            (lower, upper)
+        let support = Support::Round {
+            center: [x, y],
+            lower: [a.z, r],
+            upper: [c.z, top_radius],
+            outward: positive || reversed,
         };
-        let generator = Curve::Line(Line(start, end));
-        let surface = Surface::RevolutionSurface(Processor::with_transform(
-            RevolutionSurface::by_revolution(generator, Point3::origin(), Vector3::unit_z()),
-            Matrix4::from_translation(Vector3::new(x, y, 0.)),
-        ));
         let slope = (top_radius - r) / (c.z - a.z);
         let intercept = r - slope * a.z;
         Ok((
@@ -375,7 +373,7 @@ fn surface_key(
                 bits(slope),
                 positive as u64,
             ],
-            surface,
+            support,
             reversed,
         ))
     }
@@ -427,8 +425,7 @@ fn wall_patches(
                     let right = cache.edge(q, s, 0., None)?;
                     let upper = cache.edge(r, s, bulge, high.sources[index].as_ref())?;
                     let left = cache.edge(p, r, 0., None)?;
-                    let wire: Wire =
-                        vec![lower.clone(), right, upper.inverse(), left.inverse()].into();
+                    let wire = [lower, right, upper.inverse(), left.inverse()];
                     let authored = if bulge == 0. {
                         None
                     } else {
@@ -481,18 +478,13 @@ fn wall_patches(
                     } else {
                         None
                     };
-                    let (key, surface, reversed) =
+                    let (key, support, reversed) =
                         surface_key(p, q, r, bulge, authored, authored_line)?;
                     groups.entry(key).or_default().push(Patch {
                         wire,
-                        surface,
+                        support,
                         reversed,
-                        strip: WallStrip {
-                            lower,
-                            upper,
-                            axis: authored.map(|(center, _, _)| center),
-                            tapered: authored.is_some_and(|(_, low, high)| low != high),
-                        },
+                        strip: Strip { lower, upper },
                     });
                 }
             }
@@ -500,18 +492,18 @@ fn wall_patches(
     }
     Ok(groups)
 }
-fn merge(mut patches: Vec<Patch>, layered_mesh: &mut LayeredMesh) -> Result<Vec<Face>> {
+fn merge(mut patches: Vec<Patch>, topology: &Topology) -> Result<Vec<Face>> {
     let mut faces = vec![];
     while let Some(seed) = patches.pop() {
-        let surface = seed.surface;
+        let support = seed.support;
         let reversed = seed.reversed;
-        let mut boundary: Vec<Edge> = seed.wire.into_iter().collect();
+        let mut boundary = seed.wire.to_vec();
         let mut strips = vec![seed.strip];
         loop {
             let index = patches.iter().position(|p| {
                 p.wire
                     .iter()
-                    .any(|edge| boundary.iter().any(|e| e.id() == edge.id()))
+                    .any(|edge| boundary.iter().any(|e| e.index == edge.index))
             });
             let Some(index) = index else {
                 break;
@@ -519,8 +511,8 @@ fn merge(mut patches: Vec<Patch>, layered_mesh: &mut LayeredMesh) -> Result<Vec<
             let patch = patches.remove(index);
             strips.push(patch.strip);
             for edge in patch.wire {
-                if let Some(i) = boundary.iter().position(|e| e.id() == edge.id()) {
-                    if boundary[i].orientation() == edge.orientation() {
+                if let Some(i) = boundary.iter().position(|e| e.index == edge.index) {
+                    if boundary[i].forward == edge.forward {
                         return Err("coincident wall patches have inconsistent orientation".into());
                     }
                     boundary.remove(i);
@@ -531,38 +523,39 @@ fn merge(mut patches: Vec<Patch>, layered_mesh: &mut LayeredMesh) -> Result<Vec<
         }
         let mut wires = vec![];
         while let Some(first) = boundary.pop() {
-            let start = first.front().id();
-            let mut end = first.back().id();
+            let [start, mut end] = first.vertices(topology);
             let mut edges = vec![first];
             while end != start {
                 let matches: Vec<_> = boundary
                     .iter()
                     .enumerate()
-                    .filter(|(_, e)| e.front().id() == end)
+                    .filter(|(_, e)| e.vertices(topology)[0] == end)
                     .map(|(i, _)| i)
                     .collect();
                 if matches.len() != 1 {
                     return Err("wall merge leaves an open or branching boundary".into());
                 }
                 let edge = boundary.remove(matches[0]);
-                end = edge.back().id();
+                end = edge.vertices(topology)[1];
                 edges.push(edge);
             }
-            wires.push(edges.into());
+            wires.push(edges);
         }
-        let absolute = if reversed {
-            wires.into_iter().map(|wire: Wire| wire.inverse()).collect()
-        } else {
-            wires
-        };
-        let face =
-            Face::try_new(absolute, surface).map_err(|e| format!("merged exact face: {e:?}"))?;
-        layered_mesh.walls.insert(face.id(), strips);
-        faces.push(if reversed { face.inverse() } else { face });
+        if reversed {
+            for ring in &mut wires {
+                brep::reverse(ring);
+            }
+        }
+        faces.push(Face {
+            rings: wires,
+            support,
+            forward: !reversed,
+            strips,
+        });
     }
     Ok(faces)
 }
-pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<ExactModel> {
+pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Result<Region> {
     let caps = caps(bands, features, frame)?;
     let points = partition_points(&caps, bands);
     let mut cache = Cache::default();
@@ -574,56 +567,20 @@ pub(super) fn assemble(bands: &[Band], features: &[Feature], frame: &Ring) -> Re
                 hole.invert_direction_mut();
                 wires.push(ring_wire(&mut cache, &hole, cap.z, &points)?);
             }
-            let face: Face = builder::try_attach_plane(wires)
-                .map_err(|e| format!("horizontal profile difference: {e:?}"))?;
-            faces.push(if cap.up { face } else { face.inverse() });
+            faces.push(Face {
+                rings: wires,
+                support: Support::Plane {
+                    origin: Point3::new(0., 0., cap.z),
+                    u: Vector3::unit_x(),
+                    v: Vector3::unit_y(),
+                },
+                forward: cap.up,
+                strips: vec![],
+            });
         }
     }
-    let mut layered_mesh = LayeredMesh::default();
     for patches in wall_patches(bands, &points, &mut cache)?.into_values() {
-        faces.extend(merge(patches, &mut layered_mesh)?);
+        faces.extend(merge(patches, &cache.topology)?);
     }
-    let shell: Shell = faces.into();
-
-    let solids = shell
-        .connected_components()
-        .into_iter()
-        .map(|shell| {
-            let top = shell
-                .vertex_iter()
-                .map(|vertex| vertex.point().z)
-                .fold(f64::NEG_INFINITY, f64::max);
-            // An outward Z-feature shell has an upward face at its highest authored Z.
-            let outward = shell.iter().any(|face| {
-                matches!(face.oriented_surface(), Surface::Plane(plane) if plane.normal().z > 0.0)
-                    && face
-                        .boundaries()
-                        .iter()
-                        .all(|wire| wire.vertex_iter().all(|vertex| vertex.point().z == top))
-            });
-            if !outward {
-                return Err("disconnected sealed void shell has unsupported ownership".into());
-            }
-            Solid::try_new(vec![shell]).map_err(|e| format!("layered exact solid: {e:?}"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    // Merging walls removes internal edges. Keep provenance only for IDs owned
-    // by the returned solids, so a later allocation cannot reuse a stale ID.
-    let circles = solids
-        .iter()
-        .flat_map(Solid::face_iter)
-        .flat_map(Face::edge_iter)
-        .filter_map(|edge| {
-            cache
-                .circles
-                .get(&edge.id())
-                .map(|&circle| (edge.id(), circle))
-        })
-        .collect();
-    layered_mesh.arcs = cache.circles;
-    Ok(ExactModel {
-        solids,
-        circles,
-        layered_mesh: Some(layered_mesh),
-    })
+    Region::new(cache.topology, faces)
 }

@@ -1,9 +1,12 @@
 //! Private generated analytic verifier, consumed by the sealed qualification owner.
 
-use crate::{ExactModel, GeneratedAnalysisMesh};
-use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface, Vector3, Wire};
 #[cfg(test)]
-use monstertruck_modeling::{Plane, Solid};
+use crate::ExactModel;
+use crate::GeneratedAnalysisMesh;
+#[cfg(test)]
+use monstertruck_modeling::Plane;
+use monstertruck_modeling::Solid;
+use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface, Vector3, Wire};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,8 +53,8 @@ fn support_kind_name(kind: NativeSupportKind) -> &'static str {
     }
 }
 
-fn native_face_boundaries(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<Wire>> {
-    let solid = model.solids.get(key.solid_index)?;
+fn native_face_boundaries(model: &[Solid], key: NativeFaceKey) -> Option<Vec<Wire>> {
+    let solid = model.get(key.solid_index)?;
     let shell = solid.boundaries().get(key.shell_index)?;
     let face = shell.face_iter().nth(key.face_index)?;
     Some(face.boundaries())
@@ -65,14 +68,14 @@ fn nonzero_axis(delta: Vector3) -> Option<usize> {
     axes.iter().position(|value| *value)
 }
 
-fn native_face_surface(model: &ExactModel, key: NativeFaceKey) -> Option<Surface> {
-    let solid = model.solids.get(key.solid_index)?;
+fn native_face_surface(model: &[Solid], key: NativeFaceKey) -> Option<Surface> {
+    let solid = model.get(key.solid_index)?;
     let shell = solid.boundaries().get(key.shell_index)?;
     let face = shell.face_iter().nth(key.face_index)?;
     Some(face.surface().clone())
 }
 
-fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<Point3>> {
+fn exact_plane_rectangle_corners(model: &[Solid], key: NativeFaceKey) -> Option<Vec<Point3>> {
     let surface = native_face_surface(model, key)?;
     let plane = match surface {
         Surface::Plane(plane) => plane,
@@ -233,12 +236,12 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
 }
 
 pub fn qualify_generated(
-    model: &ExactModel,
+    model: &[Solid],
     analysis: &GeneratedAnalysisMesh,
 ) -> GeneratedQualification {
     let mut reasons: Vec<String> = Vec::new();
 
-    if model.solids.is_empty() {
+    if model.is_empty() {
         reasons.push("missing exact solid".into());
     }
     if analysis.positions_mm_f64.is_empty() || !analysis.positions_mm_f64.len().is_multiple_of(9) {
@@ -275,7 +278,7 @@ pub fn qualify_generated(
     let mut native_keys = BTreeSet::new();
     let mut native_key_to_support = BTreeMap::new();
     let mut native_accepted = BTreeMap::new();
-    for (solid_index, solid) in model.solids.iter().enumerate() {
+    for (solid_index, solid) in model.iter().enumerate() {
         for (shell_index, shell) in solid.boundaries().iter().enumerate() {
             for (face_index, face) in shell.face_iter().enumerate() {
                 let key = NativeFaceKey {
@@ -547,7 +550,7 @@ mod tests {
     fn plane_plate_qualifies_with_zero_direct_bound() {
         let model = plate_model();
         let analysis = mesh_profile_for_analysis(&model, Some(0.01)).expect("mesh");
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         match result {
             GeneratedQualification::Bounded {
                 direct_bound_mm,
@@ -587,7 +590,7 @@ mod tests {
             let base_second = second * 9;
             analysis.positions_mm_f64[base_second..base_second + 9].copy_from_slice(&copy);
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -604,7 +607,7 @@ mod tests {
                 }
             }
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -623,7 +626,7 @@ mod tests {
                 }
             }
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -640,7 +643,7 @@ mod tests {
         if !analysis.source_faces.is_empty() {
             analysis.source_faces[0].support_kind = "REVOLUTION_SURFACE".into();
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -664,7 +667,7 @@ mod tests {
         }
         analysis.positions_mm_f64 = new_positions;
         analysis.triangle_face_occurrence_indices = new_tags;
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         match result {
             GeneratedQualification::Unknown { reasons } => {
                 assert!(reasons.iter().any(|reason| reason.contains("census")));
@@ -680,7 +683,7 @@ mod tests {
         if !analysis.triangle_face_occurrence_indices.is_empty() {
             analysis.triangle_face_occurrence_indices[0] = analysis.source_faces.len() + 1;
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -691,7 +694,7 @@ mod tests {
         if !analysis.source_faces.is_empty() {
             analysis.source_faces[0].support_kind = "SURFACE".into();
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -700,7 +703,7 @@ mod tests {
         let model = plate_model();
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
         analysis.source_faces.push(analysis.source_faces[0].clone());
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         match result {
             GeneratedQualification::Unknown { reasons } => {
                 assert!(
@@ -717,9 +720,8 @@ mod tests {
     fn mismatched_plane_support_is_unknown() {
         let original = plate_model();
         let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
-        let mut model = original;
         let mut solids = Vec::new();
-        for solid in model.solids {
+        for solid in original.test_solids().iter().cloned() {
             let mut shells = solid.into_boundaries();
             for shell in &mut shells {
                 for face in shell.face_iter_mut() {
@@ -732,8 +734,8 @@ mod tests {
             }
             solids.push(Solid::new_unchecked(shells));
         }
-        model.solids = solids;
-        let result = qualify_generated(&model, &analysis);
+        let model = ExactModel::from_test_solids(solids);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -741,9 +743,8 @@ mod tests {
     fn reversed_line_endpoint_is_unknown() {
         let original = plate_model();
         let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
-        let mut model = original;
         let mut solids = Vec::new();
-        for solid in model.solids {
+        for solid in original.test_solids().iter().cloned() {
             let mut shells = solid.into_boundaries();
             for shell in &mut shells {
                 for face in shell.face_iter_mut() {
@@ -767,8 +768,8 @@ mod tests {
             }
             solids.push(Solid::new_unchecked(shells));
         }
-        model.solids = solids;
-        let result = qualify_generated(&model, &analysis);
+        let model = ExactModel::from_test_solids(solids);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -780,7 +781,7 @@ mod tests {
         // Select the native bottom face by its exact z=0 corners, not by ordinal.
         let mut bottom_keys = Vec::new();
         let mut native_keys = BTreeSet::new();
-        for (solid_index, solid) in original.solids.iter().enumerate() {
+        for (solid_index, solid) in original.test_solids().iter().enumerate() {
             for (shell_index, shell) in solid.boundaries().iter().enumerate() {
                 for (face_index, _) in shell.face_iter().enumerate() {
                     native_keys.insert(NativeFaceKey {
@@ -792,7 +793,7 @@ mod tests {
             }
         }
         for key in &native_keys {
-            if let Some(corners) = exact_plane_rectangle_corners(&original, *key)
+            if let Some(corners) = exact_plane_rectangle_corners(original.test_solids(), *key)
                 && corners.iter().all(|point| point.z == 0.0)
             {
                 bottom_keys.push(*key);
@@ -809,9 +810,8 @@ mod tests {
             Point3::new(0.0, 2.0_f64.powi(100), 5e-324),
         ));
 
-        let mut model = original;
         let mut solids = Vec::new();
-        for (solid_index, solid) in model.solids.into_iter().enumerate() {
+        for (solid_index, solid) in original.test_solids().iter().cloned().enumerate() {
             let mut shells = solid.into_boundaries();
             for (shell_index, shell) in shells.iter_mut().enumerate() {
                 for (face_index, face) in shell.face_iter_mut().enumerate() {
@@ -825,9 +825,9 @@ mod tests {
             }
             solids.push(Solid::new_unchecked(shells));
         }
-        model.solids = solids;
+        let model = ExactModel::from_test_solids(solids);
 
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -846,7 +846,7 @@ mod tests {
         };
         let model = build_profile(input).expect("triangle");
         let analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -861,7 +861,7 @@ mod tests {
                 }
             }
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -870,7 +870,7 @@ mod tests {
         let model = plate_model();
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
         analysis.source_faces.pop();
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -900,7 +900,7 @@ mod tests {
                     (analysis.positions_mm_f64[index + 2] + cz) * 0.5;
             }
         }
-        let result = qualify_generated(&model, &analysis);
+        let result = qualify_generated(model.test_solids(), &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -912,7 +912,7 @@ mod tests {
         .expect("pcb fixture");
         let entry = crate::build_case(&input).expect("build");
         let analysis = mesh_profile_for_analysis(&entry, Some(0.01)).expect("mesh");
-        let result = qualify_generated(&entry, &analysis);
+        let result = qualify_generated(entry.test_solids(), &analysis);
         match result {
             GeneratedQualification::Unknown { reasons } => {
                 assert!(

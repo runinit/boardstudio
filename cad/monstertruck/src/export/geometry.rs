@@ -1,9 +1,14 @@
-use super::{List, Ref, StepResult, Writer};
-use crate::profile::CircleEdge;
+#[cfg(test)]
+use super::StepResult;
+use super::{List, Ref, Writer};
+use crate::layered::brep::{Point3, Vector3};
+use cgmath::InnerSpace;
+#[cfg(test)]
 use monstertruck_io::step::load::step_geometry::TryIntoHomogeneousBsplineSurface;
+#[cfg(test)]
 use monstertruck_modeling::{
-    Curve, Decomposition, Homogeneous, InnerSpace, Line, Matrix4, NurbsSurface, Origin, Point3,
-    Processor, RevolutionSurface, Surface, Tolerance, Transform, Transformed, Vector3,
+    Curve, Decomposition, Homogeneous, Line, Matrix4, NurbsSurface, Origin, Processor,
+    RevolutionSurface, Surface, Tolerance, Transform, Transformed,
 };
 use std::fmt::{self, Display};
 
@@ -18,7 +23,7 @@ impl Writer {
         self.entity(format_args!("DIRECTION('', {values})"))
     }
 
-    fn placement(&mut self, origin: Point3, normal: Vector3, reference: Vector3) -> Ref {
+    pub(super) fn placement(&mut self, origin: Point3, normal: Vector3, reference: Vector3) -> Ref {
         let origin = self.point(origin);
         let normal = self.direction(normal);
         let reference = self.direction(reference);
@@ -27,30 +32,37 @@ impl Writer {
         ))
     }
 
-    pub(super) fn circle(&mut self, circle: &CircleEdge, start: Point3) -> Ref {
-        // STEP trims the circle by the EDGE_CURVE vertices in its positive
-        // parameter direction. The signed axis preserves which arc they bound.
+    pub(super) fn circle(
+        &mut self,
+        center: Point3,
+        radius: f64,
+        axis_z: f64,
+        start: Point3,
+    ) -> Ref {
+        // EDGE_CURVE vertices trim the positive parameter direction of the circle.
         let placement = self.placement(
-            circle.center,
-            circle.axis_z * Vector3::unit_z(),
-            (start - circle.center).normalize(),
+            center,
+            axis_z * Vector3::unit_z(),
+            (start - center).normalize(),
         );
-        self.entity(format_args!(
-            "CIRCLE('', {placement}, {})",
-            Real(circle.radius)
-        ))
+        self.entity(format_args!("CIRCLE('', {placement}, {})", Real(radius)))
     }
 
+    pub(super) fn line(&mut self, start: Point3, end: Point3) -> Ref {
+        let delta = end - start;
+        let magnitude = delta.magnitude();
+        let origin = self.point(start);
+        let axis = self.direction(delta / magnitude);
+        let vector = self.entity(format_args!("VECTOR('', {axis}, {})", Real(magnitude)));
+        self.entity(format_args!("LINE('', {origin}, {vector})"))
+    }
+}
+
+#[cfg(test)]
+impl Writer {
     pub(super) fn curve(&mut self, curve: &Curve) -> StepResult<Ref> {
         Ok(match curve {
-            Curve::Line(Line(a, b)) => {
-                let delta = b - a;
-                let magnitude = delta.magnitude();
-                let origin = self.point(*a);
-                let axis = self.direction(delta / magnitude);
-                let vector = self.entity(format_args!("VECTOR('', {axis}, {})", Real(magnitude)));
-                self.entity(format_args!("LINE('', {origin}, {vector})"))
-            }
+            Curve::Line(Line(a, b)) => self.line(*a, *b),
             Curve::BsplineCurve(curve) => {
                 let controls = curve
                     .control_points()
@@ -162,8 +174,7 @@ REPRESENTATION_ITEM(''))",
             }
         }
 
-        // Generated countersinks retain the exact directed rational net used
-        // by the independent source and trim certificate.
+        // The generic fixture writer also supports transformed rational surfaces.
         if let Some(net) = surface.try_into_homogeneous_bspline_surface() {
             return Ok((self.nurbs_surface(&NurbsSurface::new(net)), true));
         }
@@ -219,6 +230,7 @@ SURFACE())",
     }
 }
 
+#[cfg(test)]
 fn rows<T: Display>(rows: &[Vec<T>]) -> impl Display + '_ {
     struct Rows<'a, T>(&'a [Vec<T>]);
     impl<T: Display> Display for Rows<'_, T> {
@@ -230,10 +242,12 @@ fn rows<T: Display>(rows: &[Vec<T>]) -> impl Display + '_ {
     Rows(rows)
 }
 
+#[cfg(test)]
 fn reals(values: &[f64]) -> Vec<Real> {
     values.iter().copied().map(Real).collect()
 }
 
+#[cfg(test)]
 fn surface_knots((u, um): (Vec<f64>, Vec<usize>), (v, vm): (Vec<f64>, Vec<usize>)) -> String {
     format!(
         "{}, {}, {}, {}",
@@ -245,7 +259,7 @@ fn surface_knots((u, um): (Vec<f64>, Vec<usize>), (v, vm): (Vec<f64>, Vec<usize>
 }
 
 #[derive(Clone, Copy)]
-struct Real(f64);
+pub(super) struct Real(pub(super) f64);
 
 impl Display for Real {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

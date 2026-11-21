@@ -26,11 +26,7 @@ fn circular_profile_step(shape: crate::step_accuracy::CircularExtrusion, radii: 
         Vector3::new(0.0, 0.0, shape.z[1] - shape.z[0]),
     )
     .unwrap();
-    step_text(&crate::ExactModel {
-        solids: vec![solid],
-        circles: Default::default(),
-        layered_mesh: None,
-    })
+    step_text(&crate::ExactModel::from_test_solids(vec![solid]))
 }
 
 fn is_true(value: &Parameter) -> bool {
@@ -47,11 +43,7 @@ fn noncircular_rational_edges_round_trip_as_splines() {
     let solid =
         profile::solid_from_planar_profile::<Curve, Surface>(vec![ellipse], 2. * Vector3::unit_z())
             .unwrap();
-    let text = step_text(&crate::ExactModel {
-        solids: vec![solid],
-        circles: Default::default(),
-        layered_mesh: None,
-    });
+    let text = step_text(&crate::ExactModel::from_test_solids(vec![solid]));
     let records = StepRecords::parse(&text);
     assert_eq!(records.named("CIRCLE").count(), 0);
     assert_eq!(records.named("RATIONAL_B_SPLINE_CURVE").count(), 4);

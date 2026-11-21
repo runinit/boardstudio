@@ -478,7 +478,7 @@ impl Document {
             | "FACE_OUTER_BOUND"
             | "B_SPLINE_CURVE_WITH_KNOTS" => Some(3),
             "PRODUCT" | "PRODUCT_DEFINITION" | "AXIS2_PLACEMENT_3D" | "SURFACE_CURVE"
-            | "SEAM_CURVE" | "ADVANCED_FACE" => Some(4),
+            | "SEAM_CURVE" | "ADVANCED_FACE" | "CONICAL_SURFACE" => Some(4),
             "EDGE_CURVE" | "ORIENTED_EDGE" | "B_SPLINE_CURVE" | "B_SPLINE_SURFACE_WITH_KNOTS" => {
                 Some(5)
             }

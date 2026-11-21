@@ -446,11 +446,7 @@ fn valid_wrong_geometry_fails_existing_reference_measurements() {
 #[test]
 fn empty_body_geometry_is_refused_without_silently_dropping_identity() {
     use crate::{ExactModel, StepBody, export_step_bodies};
-    let empty = ExactModel {
-        solids: vec![],
-        circles: Default::default(),
-        layered_mesh: None,
-    };
+    let empty = ExactModel::from_test_solids(vec![]);
     assert!(export_step(&empty).is_err());
     assert!(export_step_bodies(&[]).is_err());
     assert!(
@@ -588,12 +584,7 @@ fn curved_exact_solids_are_written_and_never_measured_as_vertex_chords() {
     );
     let disk = builder::try_attach_plane(&[circle]).unwrap();
     let solid: Solid = builder::extrude(&disk, Vector3::new(0.0, 0.0, 3.0));
-    let bytes = export_step(&crate::ExactModel {
-        solids: vec![solid],
-        circles: Default::default(),
-        layered_mesh: None,
-    })
-    .unwrap();
+    let bytes = export_step(&crate::ExactModel::from_test_solids(vec![solid])).unwrap();
     let text = std::str::from_utf8(&bytes).unwrap();
     assert!(text.contains("RATIONAL_B_SPLINE_CURVE") || text.contains("CIRCLE("));
     assert!(!text.contains("TRIANGULATED"));

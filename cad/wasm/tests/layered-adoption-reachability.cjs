@@ -56,7 +56,7 @@ for (const item of fixture.cases) {
   assert(step.includes('SI_UNIT(.MILLI.,.METRE.)'));
   for (const [entity, count] of [
     ['MANIFOLD_SOLID_BREP', expected.solidCount], ['CLOSED_SHELL', expected.shellCount],
-    ['CYLINDRICAL_SURFACE', expected.cylindricalFaces], ['RATIONAL_B_SPLINE_SURFACE', expected.conicalFaces],
+    ['CYLINDRICAL_SURFACE', expected.cylindricalFaces], ['CONICAL_SURFACE', expected.conicalFaces],
   ]) assert.equal((step.match(new RegExp(`${entity}\\(`, 'g')) || []).length, count);
   if (item.prototypeId === 'opening-ring-island') {
     console.error('Product ring: baseline f64 analysis');

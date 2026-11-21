@@ -1,4 +1,4 @@
-//! Exact BoardStudio case profiles backed by Monstertruck.
+//! Generated case and PCB profiles and vendor STEP import.
 
 mod export;
 pub use export::{StepBody, export_step, export_step_bodies};

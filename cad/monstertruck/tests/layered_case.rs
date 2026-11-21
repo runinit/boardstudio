@@ -45,5 +45,5 @@ fn adoption_cone_checks_only_the_height_band_intersecting_material() {
     assert!((volume - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.002);
     let step = String::from_utf8(export_step(&model).unwrap()).unwrap();
     assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 1);
-    assert_eq!(step.matches("RATIONAL_B_SPLINE_SURFACE(").count(), 1);
+    assert_eq!(step.matches("CONICAL_SURFACE(").count(), 1);
 }

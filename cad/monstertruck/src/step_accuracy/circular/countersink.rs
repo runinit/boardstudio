@@ -186,6 +186,86 @@ fn cone(doc: &Document, id: u64, shape: Countersink) -> Result<f64> {
     Ok(band / shape.radii[0].min(shape.radii[1]))
 }
 
+fn analytic_cone(doc: &Document, id: u64, shape: Countersink) -> Result<f64> {
+    let cone = doc.record(id, "CONICAL_SURFACE")?;
+    let placement = doc.record(reference(&cone[1])?, "AXIS2_PLACEMENT_3D")?;
+    let origin = doc.point(reference(&placement[1])?)?;
+    let axis = vector(&doc.record(reference(&placement[2])?, "DIRECTION")?[1])?;
+    let x = vector(&doc.record(reference(&placement[3])?, "DIRECTION")?[1])?;
+    let narrow = usize::from(shape.radii[1] < shape.radii[0]);
+    let wide = 1 - narrow;
+    let direction = if narrow == 0 { 1. } else { -1. };
+    if axis != [0., 0., direction]
+        || x != [1., 0., 0.]
+        || origin != [shape.center[0], shape.center[1], shape.z[narrow]]
+        || number(&cone[2])? != shape.radii[narrow]
+    {
+        return Err(Error::Geometry);
+    }
+    let angle = number(&cone[3])?;
+    if !(0. < angle && angle < std::f64::consts::FRAC_PI_2) {
+        return Err(Error::Geometry);
+    }
+
+    // Bound tan from exact rational Taylor intervals for the parsed radian
+    // parameter. The alternating remainder lies between the last two sums.
+    let x = exact(angle)?;
+    let x2 = &x * &x;
+    let alternating = |first: Q, offset: i64| {
+        let mut term = first.clone();
+        let mut sum = first;
+        for n in 1..=13 {
+            term *= -&x2 / integer((2 * n + offset - 1) * (2 * n + offset));
+            sum += &term;
+        }
+        let upper = &sum - &term;
+        [sum, upper]
+    };
+    let [sin_lo, sin_hi] = alternating(x.clone(), 1);
+    let [cos_lo, cos_hi] = alternating(integer(1), 0);
+    if cos_lo <= integer(0) || sin_lo <= integer(0) {
+        return Err(Error::Unsupported);
+    }
+    let height = exact(shape.z[1])? - exact(shape.z[0])?;
+    let delta = exact(shape.radii[wide])? - exact(shape.radii[narrow])?;
+    let budget = exact(JOIN)?;
+    if sin_lo / cos_hi * &height < &delta - &budget || sin_hi / cos_lo * &height > delta + budget {
+        return Err(Error::Geometry);
+    }
+    // The carrier radius and the oracle radius are affine in Z. The endpoint
+    // enclosure bounds their separation throughout the trimmed frustum.
+    Ok(JOIN)
+}
+
+fn require_radians(doc: &Document, solid: u64) -> Result<()> {
+    for name in ["SHAPE_REPRESENTATION", "ADVANCED_BREP_SHAPE_REPRESENTATION"] {
+        for id in doc.ids(name) {
+            let representation = doc.record(id, name)?;
+            if !refs(&representation[1])?.contains(&solid) {
+                continue;
+            }
+            let context = reference(&representation[2])?;
+            let units = doc.record(context, "GLOBAL_UNIT_ASSIGNED_CONTEXT")?;
+            let angle_units = refs(&units[0])?
+                .into_iter()
+                .filter(|id| doc.record(*id, "PLANE_ANGLE_UNIT").is_ok())
+                .collect::<Vec<_>>();
+            let [angle_unit] = angle_units[..] else {
+                return Err(Error::Units);
+            };
+            if doc.record(angle_unit, "SI_UNIT")?
+                != [
+                    Parameter::NotProvided,
+                    Parameter::Enumeration("RADIAN".into()),
+                ]
+            {
+                return Err(Error::Units);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn rectangle(
     doc: &Document,
     boundary: &[(u64, bool)],
@@ -256,6 +336,7 @@ pub(super) fn certify(text: &str, shape: Countersink) -> Result<CountersinkCerti
             && !matches!(
                 record.name.as_str(),
                 "CIRCLE"
+                    | "CONICAL_SURFACE"
                     | "BOUNDED_CURVE"
                     | "B_SPLINE_CURVE"
                     | "B_SPLINE_CURVE_WITH_KNOTS"
@@ -282,6 +363,9 @@ pub(super) fn certify(text: &str, shape: Countersink) -> Result<CountersinkCerti
     }
     if doc.solid_scales(&solids)?[&solids[0]] != 1.0 {
         return Err(Error::Units);
+    }
+    if !doc.ids("CONICAL_SURFACE").is_empty() {
+        require_radians(&doc, solids[0])?;
     }
     let shell = reference(&doc.record(solids[0], "MANIFOLD_SOLID_BREP")?[1])?;
     let ids = refs(&doc.record(shell, "CLOSED_SHELL")?[1])?;
@@ -394,7 +478,7 @@ pub(super) fn certify(text: &str, shape: Countersink) -> Result<CountersinkCerti
         return Err(Error::Topology);
     }
     let mut planes = BTreeSet::new();
-    let mut tensors = BTreeSet::new();
+    let mut cone_supports = BTreeSet::new();
     let mut roles = BTreeSet::new();
     let mut cone_error = 0.0;
     for face in &faces {
@@ -468,8 +552,9 @@ pub(super) fn certify(text: &str, shape: Countersink) -> Result<CountersinkCerti
                 _ => return Err(Error::Geometry),
             }
         } else {
-            if !tensors.insert(face.surface)
-                || !face.sense
+            let analytic = doc.record(face.surface, "CONICAL_SURFACE").is_ok();
+            if !cone_supports.insert(face.surface)
+                || face.sense == analytic
                 || !rectangular.is_empty()
                 || circular.len() != 2
                 || !circular.iter().any(|(z, t)| *z == 0 && *t < 0.0)
@@ -477,13 +562,22 @@ pub(super) fn certify(text: &str, shape: Countersink) -> Result<CountersinkCerti
             {
                 return Err(Error::Geometry);
             }
-            cone_error = cone(&doc, face.surface, shape)?;
+            cone_error = if analytic {
+                analytic_cone(&doc, face.surface, shape)?
+            } else {
+                cone(&doc, face.surface, shape)?
+            };
         }
     }
     if roles.len() != 7
-        || tensors.len() != 1
+        || cone_supports.len() != 1
         || planes != doc.ids("PLANE").into_iter().collect()
-        || tensors != doc.ids("B_SPLINE_SURFACE").into_iter().collect()
+        || cone_supports
+            != doc
+                .ids("B_SPLINE_SURFACE")
+                .into_iter()
+                .chain(doc.ids("CONICAL_SURFACE"))
+                .collect()
     {
         return Err(Error::Topology);
     }

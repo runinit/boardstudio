@@ -1,7 +1,9 @@
 use crate::ExactModel;
+#[cfg(test)]
 use monstertruck_modeling::{Shell, Solid};
 use std::fmt::{self, Display, Write};
 
+mod generated;
 mod geometry;
 
 /// One prepared body's identity and exact geometry, already in world coordinates.
@@ -23,7 +25,7 @@ pub fn export_step(model: &ExactModel) -> Result<Vec<u8>, String> {
 /// Writes one STEP product per body, retaining every exact solid in body order.
 /// Placement is already baked into geometry; no additional transform is applied.
 pub fn export_step_bodies(bodies: &[StepBody<'_>]) -> Result<Vec<u8>, String> {
-    if bodies.is_empty() || bodies.iter().any(|body| body.model.solids.is_empty()) {
+    if bodies.is_empty() || bodies.iter().any(|body| body.model.is_empty()) {
         return Err("STEP export requires at least one exact solid per body".into());
     }
 
@@ -91,8 +93,12 @@ impl Writer {
             "PRODUCT_DEFINITION_SHAPE('', '', {definition})"
         ));
         let mut items = vec![Ref(9)];
-        for solid in &body.model.solids {
-            items.push(self.solid(solid, body.model)?);
+        for (topology, shell) in body.model.shells() {
+            items.push(self.generated_solid(topology, shell));
+        }
+        #[cfg(test)]
+        for solid in body.model.test_override().into_iter().flatten() {
+            items.push(self.solid(solid)?);
         }
         let representation = self.entity(format_args!(
             "SHAPE_REPRESENTATION('', {}, #2)",
@@ -104,19 +110,20 @@ impl Writer {
         Ok(())
     }
 
-    fn solid(&mut self, solid: &Solid, model: &ExactModel) -> StepResult<Ref> {
+    #[cfg(test)]
+    fn solid(&mut self, solid: &Solid) -> StepResult<Ref> {
         let (outer, inner) = solid
             .boundaries()
             .split_first()
             .ok_or("solid has no shell")?;
-        let outer = self.shell(outer, model)?;
+        let outer = self.shell(outer)?;
         if inner.is_empty() {
             return Ok(self.entity(format_args!("MANIFOLD_SOLID_BREP('', {outer})")));
         }
         let voids = inner
             .iter()
             .map(|shell| {
-                let shell = self.shell(shell, model)?;
+                let shell = self.shell(shell)?;
                 Ok(self.entity(format_args!("ORIENTED_CLOSED_SHELL('', *, {shell}, .T.)")))
             })
             .collect::<StepResult<Vec<_>>>()?;
@@ -126,7 +133,8 @@ impl Writer {
         )))
     }
 
-    fn shell(&mut self, source: &Shell, model: &ExactModel) -> StepResult<Ref> {
+    #[cfg(test)]
+    fn shell(&mut self, source: &Shell) -> StepResult<Ref> {
         let shell = source.compress();
         let vertices = shell
             .vertices
@@ -142,34 +150,19 @@ impl Writer {
             .map(|face| self.surface(&face.surface))
             .collect::<StepResult<Vec<_>>>()?;
         let mut supports = vec![Vec::new(); shell.edges.len()];
-        let mut circles = vec![None; shell.edges.len()];
-        for ((face, source), &(surface, _)) in shell.faces.iter().zip(source.iter()).zip(&surfaces)
-        {
-            // Shell compression preserves absolute face, wire and edge-use order.
-            for (edge, source) in face
-                .boundaries
-                .iter()
-                .flatten()
-                .zip(source.absolute_boundaries().iter().flatten())
-            {
+        for (face, &(surface, _)) in shell.faces.iter().zip(&surfaces) {
+            for edge in face.boundaries.iter().flatten() {
                 supports[edge.index].push(surface);
-                circles[edge.index] = model.circles.get(&source.id());
             }
         }
         let edges = shell
             .edges
             .iter()
             .zip(supports)
-            .zip(circles)
-            .map(|((edge, supports), circle)| {
+            .map(|(edge, supports)| {
                 let (a, b) = edge.vertices;
-                let mut curve = match circle {
-                    Some(circle) => self.circle(circle, shell.vertices[a]),
-                    None => self.curve(&edge.curve)?,
-                };
-                // A direct CIRCLE lets the reader trim and certify the conic
-                // from its topological endpoints. No pcurves are emitted here.
-                if circle.is_none() && !supports.is_empty() {
+                let mut curve = self.curve(&edge.curve)?;
+                if !supports.is_empty() {
                     curve = self.entity(format_args!(
                         "SURFACE_CURVE('', {curve}, {}, .CURVE_3D.)",
                         List(&supports)

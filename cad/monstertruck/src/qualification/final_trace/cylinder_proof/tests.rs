@@ -2,7 +2,7 @@ use super::*;
 use boardstudio_contracts::Vec2;
 use monstertruck_modeling::{Invertible, builder};
 fn bound(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -> f64 {
-    match qualify(model, mesh, trace) {
+    match qualify(model.test_solids(), mesh, trace) {
         GeneratedQualification::Bounded {
             direct_bound_mm,
             source_precision_mm,
@@ -48,6 +48,10 @@ fn cylinder_proof_authored_radius_height_and_actual_refinement_controls() {
         let ef = bound(&model, &fine, &trace);
         eprintln!("authored R={radius} H={height}: coarse={eb:.17} refined={ef:.17}");
         assert!(ef < eb && ef < 0.04 && eb < 0.4);
+        if radius == 1. && height == 2. {
+            // Same authored fixture and bound as the packaged qualification contract.
+            assert!(ef > 0.01 && ef <= 0.015386, "{ef}");
+        }
         assert!(fine.positions_mm_f64.len() > coarse.positions_mm_f64.len());
         assert_eq!(fine.bounds, [[0., 0., 0.], [20., 10., height]]);
         // Independent chord-midpoint observation only checks the certificate's
@@ -106,9 +110,9 @@ fn circular_drilled_input(thickness: f64, elevation: f64) -> boardstudio_contrac
 #[test]
 fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
     for input in [drilled_input(1., 1.6), circular_drilled_input(1.6, 0.)] {
-        let mut model = crate::build_case(&input).unwrap();
+        let model = crate::build_case(&input).unwrap();
         let (mesh, trace) = checked_trace(&model, Some(0.01));
-        assert!(bind(&model, &mesh, &trace).is_ok());
+        assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
         assert_eq!(mesh.bounds[0][2], 0.);
         let error = bound(&model, &mesh, &trace);
         assert!(error < 0.04);
@@ -126,7 +130,7 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
                 );
             }
         }
-        let groups = bind(&model, &mesh, &trace).unwrap();
+        let groups = bind(model.test_solids(), &mesh, &trace).unwrap();
         let mut radii = BTreeSet::new();
         for (face, tris) in trace.faces.iter().zip(&groups) {
             if matches!(face.surface, Surface::RevolutionSurface(_)) {
@@ -180,9 +184,9 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
 
         // The existing fallback still exercises evaluation rounding away from
         // the exact end height. Its bound must cover that displacement too.
-        model.layered_mesh = None;
+        let model = ExactModel::from_test_solids(model.test_solids().to_vec());
         let (mesh, trace) = checked_trace(&model, Some(0.01));
-        let groups = bind(&model, &mesh, &trace).unwrap();
+        let groups = bind(model.test_solids(), &mesh, &trace).unwrap();
         let (ci, _) = upper_circular_trim(&trace);
         let (circle, _) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
         assert!(circle.mesh_height > n(0));
@@ -243,7 +247,7 @@ fn cylinder_proof_height_distortion_grows_and_encloses_an_independent_source_wit
             .max()
             .unwrap();
         edge.set_curve(Curve::NurbsCurve(raw));
-        assert!(bind(&model, &mesh, &trace).is_ok());
+        assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
         if delta == 1. {
             unknown(&model, &mesh, &trace); // height slabs no longer separated
             continue;
@@ -255,7 +259,7 @@ fn cylinder_proof_height_distortion_grows_and_encloses_an_independent_source_wit
             "retained upper source point lies above every final triangle"
         );
         previous = error;
-        let groups = bind(&model, &mesh, &trace).unwrap();
+        let groups = bind(model.test_solids(), &mesh, &trace).unwrap();
         let (circle, radial) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
         let ids = wire_ids(&trace.faces[ci].boundaries[wi]);
         let cap = trace
@@ -311,7 +315,7 @@ fn cylinder_proof_1_6_malformed_trim_domains_and_denominators_are_unknown() {
             }
         }
         edge.set_curve(Curve::NurbsCurve(raw));
-        assert!(bind(&model, &mesh, &trace).is_ok());
+        assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
         unknown(&model, &mesh, &trace);
     }
 }
@@ -330,8 +334,8 @@ fn cylinder_proof_1_6_height_bands_enter_narrow_hole_separation() {
     };
     raw.control_point_mut(1).z += 0.03125;
     edge.set_curve(Curve::NurbsCurve(raw));
-    assert!(bind(&model, &mesh, &trace).is_ok());
-    match qualify(&model, &mesh, &trace) {
+    assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
+    match qualify(model.test_solids(), &mesh, &trace) {
         GeneratedQualification::Unknown { reasons } => assert!(
             reasons[0].contains("trim band reaches exterior"),
             "{reasons:?}"
@@ -354,13 +358,13 @@ fn cylinder_proof_1_6_source_plane_displacement_is_charged() {
     let mut value = serde_json::to_value(plane).unwrap();
     value["transform"]["w"]["z"] = serde_json::json!(0.125);
     let surface = Surface::Plane(serde_json::from_value(value).unwrap());
-    model.solids[0].boundaries()[0]
+    model.test_solids()[0].boundaries()[0]
         .face_iter()
         .nth(cap)
         .unwrap()
         .set_surface(surface.clone());
     trace.faces[cap].surface = surface;
-    assert!(bind(&model, &mesh, &trace).is_ok());
+    assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
     let displaced = q(bound(&model, &mesh, &trace)).unwrap();
     assert!(displaced > original && displaced >= n(1) / n(8));
 }
@@ -406,7 +410,7 @@ fn cylinder_proof_1_6_final_cap_and_end_height_displacement_is_charged() {
                 }
             }
         }
-        assert!(bind(&model, &mesh, &trace).is_ok());
+        assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
         if delta == 2. {
             unknown(&model, &mesh, &trace);
         } else {
@@ -431,15 +435,13 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
         let mut input = drilled_input(1., thickness);
         input.body.z = Some(7.);
         let model = crate::build_case(&input).unwrap();
-        let translated = ExactModel {
-            circles: Default::default(),
-            layered_mesh: None,
-            solids: model
-                .solids
+        let translated = ExactModel::from_test_solids(
+            model
+                .test_solids()
                 .iter()
                 .map(|s| builder::translated(s, Vector3::new(32., -16., 8.)))
                 .collect(),
-        };
+        );
         let (mesh, trace) = checked_trace(&translated, Some(0.01));
         let error = q(bound(&translated, &mesh, &trace)).unwrap();
         assert!(error < n(1) / n(25));
@@ -449,11 +451,9 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
                 assert!((q(actual[axis]).unwrap() - q(expected[axis]).unwrap()).abs() <= error);
             }
         }
-        let reflected = ExactModel {
-            circles: Default::default(),
-            layered_mesh: None,
-            solids: translated
-                .solids
+        let reflected = ExactModel::from_test_solids(
+            translated
+                .test_solids()
                 .iter()
                 .map(|s| {
                     let mut s =
@@ -462,13 +462,13 @@ fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
                     s
                 })
                 .collect(),
-        };
+        );
         let (mesh, trace) = checked_trace(&reflected, Some(0.01));
         assert_eq!(mesh.bounds[0][0], -52.);
         assert_eq!(mesh.bounds[1][0], -32.);
-        assert!(bind(&reflected, &mesh, &trace).is_ok());
+        assert!(bind(reflected.test_solids(), &mesh, &trace).is_ok());
         // Reflected native processors are outside this canonical-carrier class.
-        match qualify(&reflected, &mesh, &trace) {
+        match qualify(reflected.test_solids(), &mesh, &trace) {
             GeneratedQualification::Unknown { reasons } => {
                 assert!(reasons[0].contains("affine transform"), "{reasons:?}")
             }
@@ -506,7 +506,7 @@ fn cylinder_proof_clearance_is_independent_of_requested_deflection() {
     let model = crate::build_case(&input).unwrap();
     let (coarse, trace) = checked_trace(&model, None);
     assert!(matches!(
-        qualify(&model, &coarse, &trace),
+        qualify(model.test_solids(), &coarse, &trace),
         GeneratedQualification::Unknown { .. }
     ));
     let (fine, trace) = checked_trace(&model, Some(0.01));
@@ -514,7 +514,7 @@ fn cylinder_proof_clearance_is_independent_of_requested_deflection() {
 }
 
 fn unknown(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) {
-    match qualify(model, mesh, trace) {
+    match qualify(model.test_solids(), mesh, trace) {
         GeneratedQualification::Unknown { reasons } => assert!(!reasons.is_empty()),
         other => panic!("expected Unknown, got {other:?}"),
     }
@@ -575,7 +575,7 @@ fn cylinder_proof_missing_duplicate_and_seam_sliver_fail_after_binding() {
                 .position(|f| matches!(f.surface, Surface::RevolutionSurface(_)) == curved)
                 .unwrap();
             mutate_face_triangle(&mut mesh, &mut trace, fi, duplicate);
-            assert!(bind(&model, &mesh, &trace).is_ok());
+            assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
             unknown(&model, &mesh, &trace);
         }
     }
@@ -626,7 +626,7 @@ fn cylinder_proof_rejects_bad_span_retrace_and_normalization() {
         .position(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
         .unwrap();
     let tris = bind(
-        &model,
+        model.test_solids(),
         &mesh_profile_for_analysis(&model, None).unwrap(),
         &trace,
     )
@@ -694,7 +694,7 @@ fn cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution() {
         .iter()
         .position(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
         .unwrap();
-    let groups = bind(&model, &mesh, &trace).unwrap();
+    let groups = bind(model.test_solids(), &mesh, &trace).unwrap();
     let (original, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
     assert_eq!(original.source_error, n(0));
     let edge = trace.faces[fi].boundaries[0]
@@ -707,10 +707,10 @@ fn cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution() {
     };
     curve.control_point_mut(1).x = curve.control_point(1).x.next_up();
     edge.set_curve(Curve::NurbsCurve(curve));
-    assert!(bind(&model, &mesh, &trace).is_ok());
+    assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
     let (changed, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
     assert!(changed.source_error > n(0));
-    assert!(prove(&model, &mesh, &trace).unwrap() > original.source_error);
+    assert!(prove(model.test_solids(), &mesh, &trace).unwrap() > original.source_error);
     let Curve::NurbsCurve(mut curve) = edge.curve() else {
         unreachable!()
     };
@@ -718,7 +718,7 @@ fn cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution() {
     edge.set_curve(Curve::NurbsCurve(curve));
     let (height_changed, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
     assert!(height_changed.source_error > changed.source_error);
-    assert!(prove(&model, &mesh, &trace).unwrap() > n(1) / n(4));
+    assert!(prove(model.test_solids(), &mesh, &trace).unwrap() > n(1) / n(4));
 }
 
 #[test]
@@ -750,17 +750,17 @@ fn cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown()
             }
         }
     }
-    assert!(bind(&model, &mesh, &trace).is_ok());
+    assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
     unknown(&model, &mesh, &trace);
-    let mut model = crate::build_case(&drilled_input(2., 4.)).unwrap();
+    let model = crate::build_case(&drilled_input(2., 4.)).unwrap();
     let (mesh, trace) = checked_trace(&model, None);
     assert!(mesh.mesh_closed_oriented);
     assert!(bound(&model, &mesh, &trace) < 0.2);
 
     // The vendor mesh of the same native source has an open periodic seam.
-    model.layered_mesh = None;
+    let model = ExactModel::from_test_solids(model.test_solids().to_vec());
     let (mesh, trace) = checked_trace(&model, None);
-    match qualify(&model, &mesh, &trace) {
+    match qualify(model.test_solids(), &mesh, &trace) {
         GeneratedQualification::Unknown { reasons } => {
             assert!(reasons.iter().any(|r| r.contains("seam")), "{reasons:?}")
         }
@@ -821,8 +821,8 @@ fn cylinder_proof_discontinuous_trim_knots_are_unknown() {
         knots.into(),
         controls,
     ))));
-    assert!(bind(&model, &mesh, &trace).is_ok());
-    match qualify(&model, &mesh, &trace) {
+    assert!(bind(model.test_solids(), &mesh, &trace).is_ok());
+    match qualify(model.test_solids(), &mesh, &trace) {
         GeneratedQualification::Unknown { reasons } => {
             assert!(reasons[0].contains("trim knots"), "{reasons:?}")
         }
@@ -907,7 +907,7 @@ fn asymmetric_shared_trim_with_left(left: f64) -> AsymmetricTrim {
         q(z).unwrap(),
     ];
     assert!(
-        bind(&model, &mesh, &trace).is_ok(),
+        bind(model.test_solids(), &mesh, &trace).is_ok(),
         "shared source mutation must retain binding"
     );
     AsymmetricTrim {
@@ -1020,7 +1020,7 @@ fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
         cap: (cap, cap_wire),
         witness: p,
     } = asymmetric_shared_trim();
-    let groups = bind(&model, &mesh, &trace).unwrap();
+    let groups = bind(model.test_solids(), &mesh, &trace).unwrap();
     assert_eq!(
         trace
             .faces
@@ -1077,7 +1077,7 @@ fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
                 .edge_iter()
                 .any(|other| !other.orientation() && other.id() == e.id())
     }));
-    match qualify(&model, &mesh, &trace) {
+    match qualify(model.test_solids(), &mesh, &trace) {
         GeneratedQualification::Bounded {
             direct_bound_mm, ..
         } => {
@@ -1134,7 +1134,7 @@ fn p1_raw_orientation_preserves_locus_when_reflected_knots_collide() {
 #[test]
 fn p1_cap_trim_error_is_returned_without_a_cylinder_error_allowance() {
     let case = asymmetric_shared_trim();
-    let groups = bind(&case.model, &case.mesh, &case.trace).unwrap();
+    let groups = bind(case.model.test_solids(), &case.mesh, &case.trace).unwrap();
     let (circle, mesh_error) =
         cylinder(&case.trace.faces[case.side.0], &groups[case.side.0]).unwrap();
     let cap = &case.trace.faces[case.cap.0];
@@ -1156,7 +1156,7 @@ fn p1_cap_trim_error_is_returned_without_a_cylinder_error_allowance() {
 #[test]
 fn p1_cap_trim_error_participates_in_nesting_separation() {
     let case = asymmetric_shared_trim_with_left(8.75);
-    let groups = bind(&case.model, &case.mesh, &case.trace).unwrap();
+    let groups = bind(case.model.test_solids(), &case.mesh, &case.trace).unwrap();
     let (circle, mesh_error) =
         cylinder(&case.trace.faces[case.side.0], &groups[case.side.0]).unwrap();
     let cap = &case.trace.faces[case.cap.0];

@@ -39,7 +39,7 @@ for (const expected of expectations) {
   const step = Buffer.from(built.step).toString();
   assert.equal((step.match(/MANIFOLD_SOLID_BREP\(/g) || []).length, expected.solidCount);
   assert.equal((step.match(/CLOSED_SHELL\(/g) || []).length, expected.shellCount);
-  assert.equal((step.match(/RATIONAL_B_SPLINE_SURFACE\(/g) || []).length, expected.coneFaces);
+  assert.equal((step.match(/CONICAL_SURFACE\(/g) || []).length, expected.coneFaces);
   if (expected.cylindricalFaces !== undefined) {
     assert.equal((step.match(/CYLINDRICAL_SURFACE\(/g) || []).length, expected.cylindricalFaces);
     assert(!step.includes('B_SPLINE_SURFACE'), 'PCB walls remain exact planes/cylinders');

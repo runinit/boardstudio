@@ -184,13 +184,15 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
         lower: profile.clone(),
         upper: profile,
     }];
-    topology::assemble(&bands, &[], &frame).map_err(|error| {
-        format!(
-            "PCB '{}' cuts [{}]: {error}",
-            body.id,
-            cut_ids.into_iter().collect::<Vec<_>>().join(", ")
-        )
-    })
+    topology::assemble(&bands, &[], &frame)
+        .map(ExactModel::from_region)
+        .map_err(|error| {
+            format!(
+                "PCB '{}' cuts [{}]: {error}",
+                body.id,
+                cut_ids.into_iter().collect::<Vec<_>>().join(", ")
+            )
+        })
 }
 
 fn fail(primitive: &CasePcbSourcePrimitive, message: &str) -> String {

@@ -1,108 +1,154 @@
 //! Tessellate the validated layer boundaries in model coordinates.
-use crate::profile::{CircleEdge, closed_oriented_shell_triangles};
-use monstertruck_meshing::rexport_polymesh::{
-    Faces, PolygonMesh, StandardAttributes, StandardVertex,
-};
-use monstertruck_modeling::{Curve, Edge, Face, Point3, Shell, Surface, Vector2};
-use monstertruck_topology::{EdgeId, FaceId};
+use super::brep::{EdgeUse, Face, Point3, Strip, Support, Topology};
+use crate::profile::closed_oriented_shell_triangles;
+type Vector2 = cgmath::Vector2<f64>;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet, hash_map::Entry},
+};
 
 type Result<T> = std::result::Result<T, String>;
 const MAX_ARC_STEPS: usize = 4096;
 
-pub(super) struct WallStrip {
-    pub lower: Edge,
-    pub upper: Edge,
-    pub axis: Option<[f64; 2]>,
-    pub tapered: bool,
+pub(crate) struct FaceMesh {
+    pub positions: Vec<Point3>,
+    pub uv: Vec<Vector2>,
+    pub triangles: Vec<[usize; 3]>,
 }
 
-#[derive(Default)]
-pub(crate) struct LayeredMesh {
-    // Missing wall strips identify caps. A merged native wall owns all of its strips.
-    pub(super) walls: HashMap<FaceId<Surface>, Vec<WallStrip>>,
-    pub(super) arcs: HashMap<EdgeId<Curve>, CircleEdge>,
-}
-
-impl LayeredMesh {
-    pub(super) fn extend(&mut self, other: Self) {
-        self.walls.extend(other.walls);
-        self.arcs.extend(other.arcs);
+impl FaceMesh {
+    pub(crate) fn triangle_points(&self) -> impl Iterator<Item = [Point3; 3]> + '_ {
+        self.triangles
+            .iter()
+            .map(|triangle| triangle.map(|i| self.positions[i]))
     }
+}
 
-    pub(crate) fn cache_complexity(&self) -> usize {
-        self.walls.values().fold(self.arcs.len(), |total, strips| {
-            total.saturating_add(strips.len().saturating_mul(2))
+pub(crate) fn tessellate(
+    topology: &Topology,
+    faces: &[Face],
+    deflection: f64,
+    angular: f64,
+) -> Result<Vec<FaceMesh>> {
+    let cap_levels: HashSet<_> = faces
+        .iter()
+        .filter(|face| face.strips.is_empty())
+        .filter_map(|face| match face.support {
+            Support::Plane { origin, .. } => Some(coordinate_key(origin.z)),
+            Support::Round { .. } => None,
         })
-    }
-
-    pub(crate) fn tessellate(
-        &self,
-        shell: &Shell,
-        deflection: f64,
-        angular: f64,
-    ) -> Result<Vec<PolygonMesh>> {
-        let mut effective_radii = HashMap::<_, f64>::new();
-        for face in shell.face_iter() {
-            for strip in self.walls.get(&face.id()).into_iter().flatten() {
-                if let Some(axis) = strip.axis {
-                    let radius = effective_radii.entry(axis.map(coordinate_key)).or_default();
-                    // Reserve half the chord budget on tapered walls to retain the
-                    // public analysis fixture's clipped-frustum volume accuracy.
-                    let factor = if strip.tapered { 2. } else { 1. };
-                    for edge in [&strip.lower, &strip.upper] {
-                        let arc = self.arcs.get(&edge.id()).ok_or("Missing wall arc")?;
-                        *radius = radius.max(arc.radius * factor);
-                    }
-                }
-            }
-        }
-
-        // Sample the absolute edge once, so every use has exactly the same vertices.
-        // Concentric strips share the tightest sampling budget on their axis,
-        // keeping cones and adjoining cylinders on the same angular partition.
-        let mut samples = EdgeSamples::default();
-        for face in shell.face_iter() {
-            for strip in self.walls.get(&face.id()).into_iter().flatten() {
-                for edge in [&strip.lower, &strip.upper] {
-                    let radius = strip
-                        .axis
-                        .map(|axis| effective_radii[&axis.map(coordinate_key)]);
-                    samples.insert(edge, self.arcs.get(&edge.id()), radius, deflection, angular)?;
-                }
-            }
-        }
-
-        let faces = shell
-            .face_iter()
-            .map(|face| match self.walls.get(&face.id()) {
-                Some(strips) => walls(strips, &samples),
-                None => cap(face, &samples),
-            })
-            .collect::<Result<Vec<_>>>()?;
-        if faces
-            .iter()
-            .any(|face| face.faces().triangle_iter().next().is_none())
+        .collect();
+    let strips: Vec<_> = faces
+        .iter()
+        .map(|face| render_strips(topology, face, &cap_levels))
+        .collect();
+    let mut effective_radii = HashMap::<_, f64>::new();
+    for (face, strips) in faces.iter().zip(&strips) {
+        if let Support::Round {
+            center,
+            lower,
+            upper,
+            ..
+        } = face.support
         {
-            return Err("Layered tessellation left a source face empty".into());
+            let radius = effective_radii
+                .entry(center.map(coordinate_key))
+                .or_default();
+            // A tapered patch uses half the chord budget to retain the frustum
+            // volume accuracy of generated case analysis.
+            let factor = if lower[1] == upper[1] { 1. } else { 2. };
+            for strip in strips.iter() {
+                for edge in [strip.lower, strip.upper] {
+                    let circle = topology.edges[edge.index]
+                        .circle
+                        .ok_or("Missing wall arc")?;
+                    *radius = radius.max(circle.radius * factor);
+                }
+            }
         }
-        let triangles = faces
-            .iter()
-            .flat_map(|face| {
-                face.faces()
-                    .triangle_iter()
-                    .map(|tri| tri.map(|v| face.positions()[v.pos]))
-            })
-            .collect::<Vec<_>>();
-        if !closed_oriented_shell_triangles(&triangles) {
-            return Err("Layered tessellation has an open or inconsistently wound shell".into());
-        }
-        for triangle in triangles {
-            crate::mesh::triangle_normal(triangle)?;
-        }
-        Ok(faces)
     }
+
+    // Sample each edge once, with one budget on each round wall axis. This
+    // keeps the common boundaries of strips, cones and cylinders identical.
+    let mut samples = EdgeSamples::default();
+    for (face, strips) in faces.iter().zip(&strips) {
+        let radius = match face.support {
+            Support::Round { center, .. } => Some(effective_radii[&center.map(coordinate_key)]),
+            Support::Plane { .. } => None,
+        };
+        for strip in strips.iter() {
+            for edge in [strip.lower, strip.upper] {
+                samples.insert(topology, edge, radius, deflection, angular)?;
+            }
+        }
+    }
+    let faces = faces
+        .iter()
+        .zip(&strips)
+        .map(|(face, strips)| {
+            if strips.is_empty() {
+                cap(face, &samples)
+            } else {
+                walls(strips, &samples)
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if faces.iter().any(|face| face.triangles.is_empty()) {
+        return Err("Layered tessellation left a source face empty".into());
+    }
+    let triangles = faces
+        .iter()
+        .flat_map(FaceMesh::triangle_points)
+        .collect::<Vec<_>>();
+    if !closed_oriented_shell_triangles(&triangles) {
+        return Err("Layered tessellation has an open or inconsistently wound shell".into());
+    }
+    Ok(faces)
+}
+
+// Adjacent strips on the same Z-invariant support can share a triangle
+// across an internal layer break. Omit breaks that would otherwise create
+// zero-height render triangles. Native rings and their exact Z stay intact.
+fn render_strips<'a>(
+    topology: &Topology,
+    face: &'a Face,
+    cap_levels: &HashSet<u64>,
+) -> Cow<'a, [Strip]> {
+    let strips = &face.strips;
+    let height = |edge: EdgeUse| topology.vertices[edge.vertices(topology)[0]].z;
+    let thin = |strip: &Strip| height(strip.lower) as f32 == height(strip.upper) as f32;
+    if matches!(face.support, Support::Round { lower, upper, .. } if lower[1] != upper[1])
+        || !strips.iter().any(thin)
+    {
+        return Cow::Borrowed(strips);
+    }
+
+    let mut strips = strips.clone();
+    let mut index = 0;
+    while index < strips.len() {
+        let current = strips[index];
+        if !thin(&current) {
+            index += 1;
+            continue;
+        }
+        let above = strips.iter().position(|next| next.lower == current.upper);
+        let below = strips.iter().position(|next| next.upper == current.lower);
+        // Keep the shared cap elevation when either neighboring strip is available.
+        let prefer_below = cap_levels.contains(&coordinate_key(height(current.upper)));
+        if let Some(above) = above.filter(|_| !prefer_below || below.is_none()) {
+            let upper = strips.remove(above).upper;
+            index -= usize::from(above < index);
+            strips[index].upper = upper;
+        } else if let Some(below) = below {
+            let lower = strips.remove(below).lower;
+            index -= usize::from(below < index);
+            strips[index].lower = lower;
+        } else {
+            index += 1;
+        }
+    }
+    Cow::Owned(strips)
 }
 
 fn coordinate_key(value: f64) -> u64 {
@@ -110,28 +156,34 @@ fn coordinate_key(value: f64) -> u64 {
 }
 
 #[derive(Default)]
-struct EdgeSamples(HashMap<EdgeId<Curve>, Vec<Point3>>);
+struct EdgeSamples(HashMap<usize, Vec<Point3>>);
 
 impl EdgeSamples {
     fn insert(
         &mut self,
-        edge: &Edge,
-        arc: Option<&CircleEdge>,
+        topology: &Topology,
+        edge: EdgeUse,
         axis_radius: Option<f64>,
         deflection: f64,
         angular: f64,
     ) -> Result<()> {
-        let Entry::Vacant(entry) = self.0.entry(edge.id()) else {
+        let Entry::Vacant(entry) = self.0.entry(edge.index) else {
             return Ok(());
         };
-        let first = edge.absolute_front().point();
-        let last = edge.absolute_back().point();
+        let edge = topology.edges[edge.index];
+        let [first, last] = edge.vertices.map(|index| topology.vertices[index]);
         let mut points = vec![first];
-        if let Some(arc) = arc {
+        if let Some(arc) = edge.circle {
             let radius = axis_radius.ok_or("Missing circular wall axis")?;
             // Sagitta = 2 r sin²(angle / 4). This form avoids cancellation for small angles.
-            let span = angular.min(4. * (0.5 * (deflection / radius)).sqrt().min(1.).asin());
-            let steps = (arc.sweep.abs() / span).ceil().max(1.) as usize;
+            let chord_span = 4. * (0.5 * (deflection / radius)).sqrt().min(1.).asin();
+            let span = angular.min(chord_span);
+            let steps = (arc.sweep.abs() / span).ceil() as usize;
+            // Keep the refined cylinder inside the qualified-analysis source budget.
+            let steps = steps.saturating_add(usize::from(chord_span < angular));
+            // An arc and its chord can be a two-edge cap. Reserve an interior
+            // arc sample so that such a cap always has a nonzero area.
+            let steps = steps.max(2);
             if steps > MAX_ARC_STEPS {
                 return Err("Layered arc exceeds the sampling budget".into());
             }
@@ -151,45 +203,23 @@ impl EdgeSamples {
         Ok(())
     }
 
-    fn directed(&self, edge: &Edge) -> Result<impl ExactSizeIterator<Item = Point3> + '_> {
-        let Some(points) = self.0.get(&edge.id()) else {
+    fn directed(&self, edge: EdgeUse) -> Result<impl ExactSizeIterator<Item = Point3> + '_> {
+        let Some(points) = self.0.get(&edge.index) else {
             return Err("Missing shared cap or wall edge".into());
         };
-        let forward = edge.orientation();
+        let forward = edge.forward;
         let len = points.len();
         Ok((0..len).map(move |i| points[if forward { i } else { len - i - 1 }]))
     }
 }
 
-fn polygon(
-    positions: Vec<Point3>,
-    uv_coords: Vec<Vector2>,
-    triangles: impl IntoIterator<Item = [usize; 3]>,
-) -> PolygonMesh {
-    let faces = Faces::from_iter(triangles.into_iter().map(|tri| {
-        tri.map(|pos| StandardVertex {
-            pos,
-            uv: Some(pos),
-            nor: None,
-        })
-    }));
-    PolygonMesh::new(
-        StandardAttributes {
-            positions,
-            uv_coords,
-            ..Default::default()
-        },
-        faces,
-    )
-}
-
-fn walls(strips: &[WallStrip], samples: &EdgeSamples) -> Result<PolygonMesh> {
+fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
     let mut positions = Vec::new();
     let mut uv = Vec::new();
     let mut triangles = Vec::new();
     for strip in strips {
-        let lower = samples.directed(&strip.lower)?;
-        let upper = samples.directed(&strip.upper)?;
+        let lower = samples.directed(strip.lower)?;
+        let upper = samples.directed(strip.upper)?;
         let count = lower.len();
         if count != upper.len() {
             return Err("Layered wall has mismatched arc partitions".into());
@@ -205,20 +235,20 @@ fn walls(strips: &[WallStrip], samples: &EdgeSamples) -> Result<PolygonMesh> {
             triangles.extend([[i, i + 2, i + 3], [i, i + 3, i + 1]]);
         }
     }
-    Ok(polygon(positions, uv, triangles))
+    Ok(FaceMesh {
+        positions,
+        uv,
+        triangles,
+    })
 }
 
-fn cap(face: &Face, samples: &EdgeSamples) -> Result<PolygonMesh> {
-    let Surface::Plane(plane) = face.oriented_surface() else {
-        return Err("Layered cap has unsupported surface".into());
-    };
-    let up = plane.normal().z > 0.;
+fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
     let mut cdt = ConstrainedDelaunayTriangulation::<Point2<f64>>::new();
     let mut positions = Vec::new();
     let mut rings = Vec::new();
-    for wire in face.boundaries() {
+    for wire in &face.rings {
         let mut ring = Vec::new();
-        for edge in wire.edge_iter() {
+        for &edge in wire {
             let points = samples.directed(edge)?;
             // The last point is the first point of the next oriented edge.
             let count = points.len();
@@ -278,9 +308,14 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<PolygonMesh> {
     let triangles = cdt
         .inner_faces()
         .filter(|face| material[face.index()] == Some(true))
-        .map(|face| {
-            let [a, b, c] = face.vertices().map(|v| v.index());
-            if up { [a, b, c] } else { [a, c, b] }
-        });
-    Ok(polygon(positions, uv, triangles))
+        .map(|triangle| {
+            let [a, b, c] = triangle.vertices().map(|v| v.index());
+            if face.forward { [a, b, c] } else { [a, c, b] }
+        })
+        .collect();
+    Ok(FaceMesh {
+        positions,
+        uv,
+        triangles,
+    })
 }

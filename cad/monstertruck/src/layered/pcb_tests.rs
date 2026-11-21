@@ -17,8 +17,8 @@ fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
         .find(|entry| entry["id"] == input.body.id)
         .unwrap();
     let model = crate::build_case(&input).expect("complete authored PCB cutter composition");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     assert_eq!(solid.boundaries().len(), 1);
     check_solid(solid);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -98,7 +98,8 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
     let mut polygon_only = input.clone();
     polygon_only.body.pcb_source = None;
     let legacy = crate::build_case(&polygon_only).expect("unchanged polygon-only input");
-    let legacy_mesh = shell_to_polygon_strict(&legacy.solids[0].boundaries()[0], 1e-5).unwrap();
+    let legacy_mesh =
+        shell_to_polygon_strict(&legacy.test_solids()[0].boundaries()[0], 1e-5).unwrap();
     assert!(
         (legacy_mesh.volume() - 16.).abs() < 1e-10,
         "diamond control"
@@ -111,8 +112,8 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
         1,
         "source metadata must replace the diamond compatibility projection"
     );
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 3);
     assert_eq!(
@@ -221,8 +222,8 @@ fn source_line_arc_loop_is_authoritative_through_public_build_case() {
     ))
     .unwrap();
     let model = crate::build_case(&input).expect("authored line/arc half disc");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -297,8 +298,8 @@ fn source_body_round_drills_do_not_use_polygon_region_filtering() {
     }]);
     assert!(input.regions[0].mounts.is_empty());
     let model = crate::build_case(&input).expect("complete authored body drill inventory");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -371,8 +372,8 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
         expected_cylinders.push(([drill.at.x, drill.at.y], drill.hole_diameter / 2.));
     }
     let model = crate::build_case(&input).expect("actual Core PrepareCase VIK source fixture");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 48); // 42 cylinders, four walls, two caps.
     super::tests::direct_analysis(&model, None);
@@ -476,8 +477,8 @@ fn source_contour_hole_ownership_is_preserved() {
     }
     source.contours.push(hole);
     let model = crate::build_case(&input).expect("source-declared owned hole");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), 4);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -556,8 +557,8 @@ fn slot_geometry(
     cylinder_count: usize,
 ) -> String {
     let model = crate::build_case(input).expect("reflected rotated authored oval slot");
-    assert_eq!(model.solids.len(), 1);
-    let solid = &model.solids[0];
+    assert_eq!(model.test_solids().len(), 1);
+    let solid = &model.test_solids()[0];
     check_solid(solid);
     assert_eq!(solid.boundaries()[0].len(), faces);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -658,9 +659,9 @@ fn source_declared_owner_is_not_silently_reassigned_to_nested_island() {
     assert!(error.contains("contradicts declared owner"), "{error}");
     input.body.pcb_source.as_mut().unwrap().contours[3].outer_id = Some("island".into());
     let model = crate::build_case(&input).expect("correctly owned nested island and hole");
-    assert_eq!(model.solids.len(), 2);
+    assert_eq!(model.test_solids().len(), 2);
     let mut volume = 0.;
-    for solid in &model.solids {
+    for solid in model.test_solids() {
         check_solid(solid);
         volume += shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
             .unwrap()
@@ -693,8 +694,8 @@ fn source_crossing_and_tangent_drills_are_named_refusals() {
             assert!(error.contains("boundary-drill"), "{error}");
         } else {
             let model = crate::build_case(&input).expect("regular circular edge cut");
-            assert_eq!(model.solids.len(), 1);
-            let solid = &model.solids[0];
+            assert_eq!(model.test_solids().len(), 1);
+            let solid = &model.test_solids()[0];
             check_solid(solid);
             let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
             // Exact intersection area of circles R=2, r=0.5, centre distance d=1.6.
@@ -726,9 +727,9 @@ fn adoption_pcb_slot_preserves_both_material_components() {
     *size = boardstudio_contracts::Vec2 { x: 2., y: 20. };
     let model =
         crate::build_case(&input).expect("through-slot splits the PCB into two material solids");
-    assert_eq!(model.solids.len(), 2);
+    assert_eq!(model.test_solids().len(), 2);
     let mut extents = Vec::new();
-    for solid in &model.solids {
+    for solid in model.test_solids() {
         assert_eq!(solid.boundaries().len(), 1);
         check_solid(solid);
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();

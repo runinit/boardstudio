@@ -882,14 +882,14 @@ fn planar(
 }
 
 fn bind(
-    model: &ExactModel,
+    model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
     trace: &AnalysisTrace,
 ) -> Proof<Vec<Vec<[P; 3]>>> {
-    if model.solids.len() != 1 || model.solids[0].boundaries().len() != 1 {
+    if model.len() != 1 || model[0].boundaries().len() != 1 {
         return Err("unsupported solid/shell census");
     }
-    let shell = &model.solids[0].boundaries()[0];
+    let shell = &model[0].boundaries()[0];
     if trace.faces.len() != shell.len()
         || trace.faces.len() != mesh.source_faces.len()
         || trace.faces.is_empty()
@@ -966,7 +966,7 @@ fn bind(
     }
     Ok(groups)
 }
-fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -> Proof<Q> {
+fn prove(model: &[Solid], mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -> Proof<Q> {
     let groups = bind(model, mesh, trace)?;
     let mut circles = Vec::new();
     let mut mesh_error = n(0);
@@ -998,7 +998,7 @@ fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace
     Ok(band)
 }
 fn qualify(
-    model: &ExactModel,
+    model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
     trace: &AnalysisTrace,
 ) -> GeneratedQualification {
@@ -1023,7 +1023,7 @@ fn qualify(
     }
 }
 pub(super) fn qualified_bound(
-    model: &ExactModel,
+    model: &[Solid],
     mesh: &GeneratedAnalysisMesh,
     trace: &AnalysisTrace,
 ) -> GeneratedQualification {

@@ -20,7 +20,7 @@ fn pcb_polygon_outline_and_authored_round_drill_are_exact() {
         0,
     );
     assert_eq!(
-        model.solids[0]
+        model.test_solids()[0]
             .boundaries()
             .iter()
             .flatten()
@@ -52,7 +52,7 @@ fn pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact() {
         3,
         0,
     );
-    let shell = &model.solids[0].boundaries()[0];
+    let shell = &model.test_solids()[0].boundaries()[0];
     assert_eq!(
         shell
             .iter()
@@ -209,9 +209,9 @@ fn prepared_internal_gasket_inventory() {
                     match build_layered_case(&input) {
                         Ok(model) => {
                             let expected = &expectations["fixtures"][name][&input.body.id];
-                            assert_eq!(model.solids.len(), input.regions.len());
+                            assert_eq!(model.test_solids().len(), input.regions.len());
                             let mut meshes = vec![];
-                            for solid in &model.solids {
+                            for solid in model.test_solids() {
                                 check_solid(solid);
                                 for shell in solid.boundaries() {
                                     meshes.push(
@@ -228,7 +228,7 @@ fn prepared_internal_gasket_inventory() {
                                 input.body.id
                             );
                             let points = model
-                                .solids
+                                .test_solids()
                                 .iter()
                                 .flat_map(Solid::boundaries)
                                 .flat_map(|shell| shell.vertex_iter())
@@ -374,7 +374,7 @@ fn rotated_notched_wall_is_one_authored_plane() {
     assert_eq!(input, retained);
     let model = build_layered_case(&input).expect("rotated wall with finite-height notch");
     let outward = Vector3::new(sine, -cosine, 0.);
-    let count=model.solids[0].boundaries()[0].iter().filter(|face| matches!(face.oriented_surface(),Surface::Plane(plane) if plane.normal().normalize().dot(outward)>1.-1e-12)).count();
+    let count=model.test_solids()[0].boundaries()[0].iter().filter(|face| matches!(face.oriented_surface(),Surface::Plane(plane) if plane.normal().normalize().dot(outward)>1.-1e-12)).count();
     assert_eq!(
         count, 1,
         "one connected authored wall plane, including the boundary around its notch"

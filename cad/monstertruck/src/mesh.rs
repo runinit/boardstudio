@@ -1,5 +1,7 @@
+use crate::layered::brep::{Point3, Vector3};
+use cgmath::InnerSpace;
+#[cfg(test)]
 use monstertruck_meshing::rexport_polymesh::PolygonMesh;
-use monstertruck_modeling::{InnerSpace, Point3, Vector3};
 
 /// Triangle-soup render buffers in millimeters, matching the CAD worker protocol.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -35,6 +37,7 @@ pub(crate) fn closed_oriented_edges<K: Copy + Ord + std::hash::Hash>(
             .all(|&(count, orientation)| count == 2 && orientation == 0)
 }
 
+#[cfg(test)]
 pub(crate) fn mesh_buffers(
     meshes: impl IntoIterator<Item = PolygonMesh>,
 ) -> Result<MeshBuffers, String> {

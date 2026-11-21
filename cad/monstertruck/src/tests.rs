@@ -56,8 +56,8 @@ fn assert_model_matches(
     z_bounds: [f64; 2],
 ) {
     let model = build_profile(input).expect("valid prepared profile");
-    assert_eq!(model.solids.len(), expected_volumes.len());
-    for solid in &model.solids {
+    assert_eq!(model.test_solids().len(), expected_volumes.len());
+    for solid in model.test_solids() {
         assert!(solid.is_geometric_consistent());
         assert_eq!(solid.boundaries().len(), 1);
     }
