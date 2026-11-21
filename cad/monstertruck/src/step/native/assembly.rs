@@ -1,14 +1,13 @@
 //! Product occurrence links and their source-authored frame placements.
 use super::*;
+use scene::{PlacementPath, PlacementStep, TracedInstance};
 use std::collections::BTreeMap;
-
-type Instances = Vec<(u64, Matrix4, u64)>;
 
 pub(super) fn occurrences(
     records: &SourceRecords<'_>,
     scene: &scene::Scene<'_>,
     config_control: bool,
-) -> Result<Instances, String> {
+) -> Result<Vec<TracedInstance>, String> {
     let mut nodes = BTreeMap::new();
     let mut shape_definitions = HashMap::new();
     let mut usages = BTreeMap::new();
@@ -77,7 +76,7 @@ pub(super) fn occurrences(
         return Err("incomplete native assembly links".into());
     }
 
-    let mut edges = HashMap::<u64, Vec<(u64, Matrix4)>>::new();
+    let mut edges = HashMap::<u64, Vec<(u64, Matrix4, PlacementStep)>>::new();
     let mut children = HashSet::new();
     let mut used_relationships = HashSet::new();
     for (&usage_id, &shape) in &usages {
@@ -96,8 +95,11 @@ pub(super) fn occurrences(
         if !used_relationships.insert(relationship) {
             return Err("native assembly relationship is reused".into());
         }
-        let placement = placement(records, scene, relationship, child_rep, parent_rep)?;
-        edges.entry(parent).or_default().push((child, placement));
+        let (placement, source) = placement(records, scene, relationship, child_rep, parent_rep)?;
+        edges
+            .entry(parent)
+            .or_default()
+            .push((child, placement, source));
         children.insert(child);
     }
     if records
@@ -116,7 +118,12 @@ pub(super) fn occurrences(
     let mut budget = OccurrenceBudget::default();
     if nodes.is_empty() {
         for root in scene.roots()? {
-            result.extend(scene.instances(root, Matrix4::identity(), &mut budget)?);
+            result.extend(scene.traced_instances(
+                root,
+                Matrix4::identity(),
+                Some(PlacementPath::default()),
+                &mut budget,
+            )?);
         }
     } else {
         let mut seen = HashSet::new();
@@ -124,9 +131,16 @@ pub(super) fn occurrences(
             .keys()
             .rev()
             .filter(|id| !children.contains(id))
-            .map(|&id| (id, Matrix4::identity(), Vec::new()))
+            .map(|&id| {
+                (
+                    id,
+                    Matrix4::identity(),
+                    PlacementPath::default(),
+                    Vec::new(),
+                )
+            })
             .collect();
-        while let Some((node, transform, mut path)) = pending.pop() {
+        while let Some((node, transform, source, mut path)) = pending.pop() {
             budget.traverse()?;
             if path.len() >= 128 || path.contains(&node) {
                 return Err("cyclic or excessively deep native assembly".into());
@@ -134,10 +148,20 @@ pub(super) fn occurrences(
             path.push(node);
             seen.insert(node);
             units::validate_placement_matrix(transform)?;
-            result.extend(scene.instances(nodes[&node], transform, &mut budget)?);
-            for &(child, placement) in edges.get(&node).into_iter().flatten().rev() {
+            result.extend(scene.traced_instances(
+                nodes[&node],
+                transform,
+                Some(source.clone()),
+                &mut budget,
+            )?);
+            for &(child, placement, step) in edges.get(&node).into_iter().flatten().rev() {
                 budget.traverse()?;
-                pending.push((child, transform * placement, path.clone()));
+                pending.push((
+                    child,
+                    transform * placement,
+                    source.through(step),
+                    path.clone(),
+                ));
             }
         }
         if seen.len() != nodes.len() {
@@ -203,7 +227,7 @@ fn placement(
     id: u64,
     child: u64,
     parent: u64,
-) -> Result<Matrix4, String> {
+) -> Result<(Matrix4, PlacementStep), String> {
     let parts = records
         .get(&id)
         .ok_or("missing native assembly placement")?;
@@ -231,7 +255,18 @@ fn placement(
         )?,
         4,
     )?;
-    let from = scene.frame(reference(&transform[2])?, scene.factor(child)?)?;
-    let to = scene.frame(reference(&transform[3])?, scene.factor(parent)?)?;
-    Ok(to * from.invert().ok_or("singular native assembly frame")?)
+    let from_frame = reference(&transform[2])?;
+    let to_frame = reference(&transform[3])?;
+    let from = scene.frame(from_frame, scene.factor(child)?)?;
+    let to = scene.frame(to_frame, scene.factor(parent)?)?;
+    Ok((
+        to * from.invert().ok_or("singular native assembly frame")?,
+        PlacementStep {
+            from_frame,
+            from_rep: child,
+            to_frame,
+            to_rep: parent,
+            mapped: false,
+        },
+    ))
 }

@@ -289,6 +289,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let representation_units = units::length_factors(&exchange)?;
     let shape_items = units::representation_items(&exchange)?;
     if let Ok(asset) = native::build(
+        &bytes,
         &exchange,
         &shape_items,
         &representation_units,

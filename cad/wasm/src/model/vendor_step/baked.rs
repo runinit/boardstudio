@@ -3,7 +3,7 @@
 use super::*;
 use boardstudio_cad::qualification::{self, SourceQualification};
 
-const MAGIC: &[u8; 8] = b"BSSTEP01";
+const MAGIC: &[u8; 8] = b"BSSTEP02";
 const MAX_BAKED_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
@@ -37,18 +37,19 @@ fn encode(bytes: Vec<u8>, source_sha256: String) -> Result<Vec<u8>, String> {
     let qualification::PreparedAnalysisView::Vendor(view) = asset.analysis.export_view() else {
         unreachable!();
     };
-    if view
-        .face_occurrences
-        .iter()
-        .any(|face| face.repair_displacement_mm != 0.0)
-    {
-        return Err("preview bake does not support retained face movement".into());
-    }
     let mut output = MAGIC.to_vec();
     let metadata_size =
         u32::try_from(metadata.len()).map_err(|_| "baked STEP metadata is too large")?;
     output.extend(metadata_size.to_le_bytes());
     output.extend(metadata);
+    // Private measurements follow the face occurrence table in the same order.
+    for face in view.face_occurrences {
+        let movement = face.repair_displacement_mm;
+        if !valid_movement(movement) {
+            return Err("preview bake received invalid retained face movement".into());
+        }
+        output.extend(movement.to_le_bytes());
+    }
     for value in view.positions_mm_f64.iter().flatten() {
         output.extend(value.to_le_bytes());
     }
@@ -103,10 +104,20 @@ fn decode(bytes: &[u8], expected_sha: &str) -> Result<ReadStepAsset, String> {
         || !boardstudio_contracts::is_sha256_hex(expected_sha)
         || vendor.import_options.target_deflection_mm.is_some()
         || vendor.import_options.preview_repair_budget_mm.is_some()
+        || vendor.accuracy.selected_repair_budget_mm.is_some()
         || vendor.accuracy.analysis_error_bound_mm.is_some()
     {
         return Err(invalid());
     }
+
+    let movement_bytes = vendor
+        .face_occurrences
+        .len()
+        .checked_mul(8)
+        .ok_or_else(invalid)?;
+    let (movements, buffers) = buffers
+        .split_at_checked(movement_bytes)
+        .ok_or_else(invalid)?;
 
     // Per triangle: 9 doubles, 9 floats, one occurrence index. The f32
     // positions are the same projection as the live import and need no disk copy.
@@ -147,14 +158,18 @@ fn decode(bytes: &[u8], expected_sha: &str) -> Result<ReadStepAsset, String> {
     let face_occurrences = vendor
         .face_occurrences
         .iter()
-        .map(|face| {
+        .zip(movements.as_chunks::<8>().0)
+        .map(|(face, movement)| {
+            let repair_displacement_mm = f64::from_le_bytes(*movement);
+            if !valid_movement(repair_displacement_mm) || face.repair_displacement_mm.is_some() {
+                return Err(invalid());
+            }
             Ok(StepFaceOccurrence {
                 source_face: face.source_face_index as usize,
                 occurrence: face.solid_occurrence_index as usize,
                 representation_id: face.representation_id.parse().map_err(|_| invalid())?,
                 source_uncertainty_mm: face.source_uncertainty_mm,
-                // The importer keeps the complete-asset movement unknown on this route.
-                repair_displacement_mm: 0.0,
+                repair_displacement_mm,
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -194,3 +209,10 @@ fn decode(bytes: &[u8], expected_sha: &str) -> Result<ReadStepAsset, String> {
         vendor_step: vendor,
     })
 }
+
+fn valid_movement(value: f64) -> bool {
+    value.is_finite() && value >= 0.0
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;

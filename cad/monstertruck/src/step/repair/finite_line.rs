@@ -2,11 +2,11 @@
 //! This does not authenticate a face trim or any subsequent meshing operation.
 use super::*;
 use num_rational::BigRational as Q;
-use num_traits::{Signed, Zero};
+use num_traits::{Signed, ToPrimitive, Zero};
 
-type Point = [Q; 3];
+pub(in crate::step) type Point = [Q; 3];
 
-pub(super) struct Source {
+pub(in crate::step) struct Source {
     points: [Point; 2],
     origin: Point,
     direction: Point,
@@ -104,7 +104,7 @@ fn numeric_values(mut entity: &[u8]) -> Option<Scalars> {
             *slot = decimal(literal)?;
             values.len += 1;
             entity = rest;
-        } else if matches!(entity[0], b'(' | b')' | b',') {
+        } else if matches!(entity[0], b'(' | b')' | b',' | b'$') {
             entity = &entity[1..];
         } else {
             return None;
@@ -125,8 +125,10 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>>
         }
         if !seen.insert(instance.id) {
             result.remove(&instance.id);
-        } else if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR")
-            && let Some(values) = numeric_values(instance.parameters)
+        } else if matches!(
+            instance.kind,
+            b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR" | b"CARTESIAN_TRANSFORMATION_OPERATOR_3D"
+        ) && let Some(values) = numeric_values(instance.parameters)
         {
             result.insert(instance.id, values);
         }
@@ -134,6 +136,89 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>>
     Some(result)
 }
 
+pub(in crate::step) struct NativeSources {
+    pub lines: HashMap<u64, Source>,
+    pub planes: HashMap<u64, Plane>,
+    placement_values: HashMap<u64, Scalars>,
+}
+
+impl NativeSources {
+    pub(in crate::step) fn placement_point(&self, id: u64) -> Option<Point> {
+        self.placement_values.get(&id)?.point()
+    }
+
+    pub(in crate::step) fn placement_scale(&self, id: u64) -> Option<Q> {
+        let [scale] = self.placement_values.get(&id)?.as_slice() else {
+            return None;
+        };
+        scale.is_positive().then(|| scale.clone())
+    }
+}
+
+pub(in crate::step) struct Plane {
+    origin: Point,
+    normal: Point,
+}
+
+// The native reader supplies only IDs used by planned trim repairs. Scan DATA
+// once for the entire asset, including every plane incident to those endpoints.
+pub(in crate::step) fn capture_native(
+    bytes: &[u8],
+    lines: &HashMap<u64, ([u64; 4], bool)>,
+    planes: &HashMap<u64, [u64; 2]>,
+    placement_ids: &HashSet<u64>,
+) -> Option<NativeSources> {
+    #[cfg(test)]
+    NATIVE_SCANS.with(|count| count.set(count.get() + 1));
+    let needed = lines
+        .values()
+        .flat_map(|(ids, _)| *ids)
+        .chain(planes.values().flatten().copied())
+        .chain(placement_ids.iter().copied())
+        .collect();
+    let mut values = numbers(bytes, &needed)?;
+    let point = |id| values.get(&id)?.point();
+    let lines = lines
+        .iter()
+        .map(|(&edge, &([origin, direction, start, end], same_sense))| {
+            Some((
+                edge,
+                Source {
+                    origin: point(origin)?,
+                    direction: point(direction)?,
+                    points: [point(start)?, point(end)?],
+                    same_sense,
+                },
+            ))
+        })
+        .collect::<Option<_>>()?;
+    let planes = planes
+        .iter()
+        .map(|(&id, &[origin, normal])| {
+            Some((
+                id,
+                Plane {
+                    origin: point(origin)?,
+                    normal: point(normal)?,
+                },
+            ))
+        })
+        .collect::<Option<_>>()?;
+    if placement_ids.iter().any(|id| !values.contains_key(id)) {
+        return None;
+    }
+    values.retain(|id, _| placement_ids.contains(id));
+    Some(NativeSources {
+        lines,
+        planes,
+        placement_values: values,
+    })
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(in crate::step) static NATIVE_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 pub(super) fn capture(table: &Table, bytes: &[u8]) -> HashMap<u64, Source> {
     let mut needed = HashSet::new();
     for edge in table.edge_curve.values() {
@@ -209,6 +294,135 @@ fn rational_point(p: Point3) -> Option<Point> {
     ])
 }
 
+pub(in crate::step) struct ExactPlacement {
+    axes: [Point; 3],
+    origin: Point,
+    cofactors: [Point; 3],
+}
+
+impl ExactPlacement {
+    #[cfg(test)]
+    pub(in crate::step) fn new(factor: f64, placement: Matrix4) -> Option<Self> {
+        if [placement.x.w, placement.y.w, placement.z.w, placement.w.w] != [0., 0., 0., 1.] {
+            return None;
+        }
+        let factor = Q::from_float(factor).filter(|f| f.is_positive())?;
+        let point = |v: cgmath::Vector4<f64>| rational_point(Point3::new(v.x, v.y, v.z));
+        let [Some(x), Some(y), Some(z)] = [placement.x, placement.y, placement.z].map(point) else {
+            return None;
+        };
+        let axes = [x, y, z].map(|v| v.map(|q| q * &factor));
+        Self::from_coefficients(axes, point(placement.w)?)
+    }
+
+    pub(in crate::step) fn from_coefficients(axes: [Point; 3], origin: Point) -> Option<Self> {
+        let cross = |a: &Point, b: &Point| {
+            std::array::from_fn(|i| {
+                let j = (i + 1) % 3;
+                let k = (i + 2) % 3;
+                &a[j] * &b[k] - &a[k] * &b[j]
+            })
+        };
+        let [x, y, z] = &axes;
+        let cofactors = [cross(y, z), cross(z, x), cross(x, y)];
+        if dot(x, &cofactors[0]).is_zero() {
+            return None;
+        }
+        Some(Self {
+            axes,
+            origin,
+            cofactors,
+        })
+    }
+
+    fn point(&self, p: &Point) -> Point {
+        let linear = self.vector(p);
+        std::array::from_fn(|i| &self.origin[i] + &linear[i])
+    }
+
+    fn vector(&self, p: &Point) -> Point {
+        std::array::from_fn(|row| (0..3).map(|col| &self.axes[col][row] * &p[col]).sum())
+    }
+
+    pub(in crate::step) fn compose(&self, child: &Self) -> Option<Self> {
+        Self::from_coefficients(
+            child.axes.each_ref().map(|a| self.vector(a)),
+            self.point(&child.origin),
+        )
+    }
+
+    pub(in crate::step) fn inverse(&self) -> Option<Self> {
+        let determinant = dot(&self.axes[0], &self.cofactors[0]);
+        let axes = std::array::from_fn(|col| {
+            std::array::from_fn(|row| &self.cofactors[row][col] / &determinant)
+        });
+        let mut inverse = Self::from_coefficients(axes, std::array::from_fn(|_| Q::zero()))?;
+        inverse.origin = inverse.vector(&self.origin).map(|value| -value);
+        Some(inverse)
+    }
+}
+
+impl Plane {
+    pub(in crate::step) fn contains(
+        &self,
+        local: Point3,
+        emitted: Point3,
+        placement: &ExactPlacement,
+        source_epsilon: f64,
+        world_epsilon: f64,
+    ) -> Option<bool> {
+        let contains = |point: Point, origin, normal, epsilon| {
+            let epsilon = Q::from_float(epsilon)?;
+            let squared_normal = dot(normal, normal);
+            let residual = dot(&sub(&point, origin), normal);
+            Some(
+                squared_normal.is_positive()
+                    && &residual * &residual <= &epsilon * &epsilon * squared_normal,
+            )
+        };
+        // Cofactors transform normal covectors without rounding an inverse.
+        let normal = std::array::from_fn(|row| {
+            (0..3)
+                .map(|col| &placement.cofactors[col][row] * &self.normal[col])
+                .sum()
+        });
+        Some(
+            contains(
+                rational_point(local)?,
+                &self.origin,
+                &self.normal,
+                source_epsilon,
+            )? && contains(
+                rational_point(emitted)?,
+                &placement.point(&self.origin),
+                &normal,
+                world_epsilon,
+            )?,
+        )
+    }
+}
+
+fn include_exact(bounds: &mut [[f64; 3]; 2], point: &Point) -> Option<()> {
+    let mut lower = [0.; 3];
+    let mut upper = [0.; 3];
+    for (i, exact) in point.iter().enumerate() {
+        let rounded = exact.to_f64()?;
+        let comparison = Q::from_float(rounded)?.cmp(exact);
+        lower[i] = if comparison.is_gt() {
+            rounded.next_down()
+        } else {
+            rounded
+        };
+        upper[i] = if comparison.is_lt() {
+            rounded.next_up()
+        } else {
+            rounded
+        };
+    }
+    super::bounds::push(bounds, Point3::from(lower)).ok()?;
+    super::bounds::push(bounds, Point3::from(upper)).ok()
+}
+
 fn world_square(
     before: &Point,
     after: &Point,
@@ -239,6 +453,70 @@ fn world_square(
 }
 
 impl Source {
+    /// Bound the original endpoint chord, its projected LINE interval, and the
+    /// repaired chord against one another. Affine correspondence places each
+    /// maximum at an endpoint, in either direction after instance placement.
+    pub(in crate::step) fn shared_repair_bound(
+        &self,
+        repaired: [Point3; 2],
+        world: Matrix4,
+        placement: &ExactPlacement,
+        allowance: f64,
+        bounds: &mut [[f64; 3]; 2],
+    ) -> Result<f64, &'static str> {
+        if dot(&self.direction, &self.direction).is_zero() {
+            return Err("zero authored LINE direction");
+        }
+        let projected = self.projected_controls();
+        let candidate = repaired.map(rational_point);
+        let [Some(a), Some(b)] = candidate else {
+            return Err("nonfinite repaired LINE");
+        };
+        for (start, end) in [(&projected[0], &projected[1]), (&a, &b)] {
+            let advance = dot(&sub(end, start), &self.direction);
+            if advance.is_zero() || advance.is_positive() != self.same_sense {
+                return Err("finite LINE interval is degenerate or contradicts its sense");
+            }
+        }
+        let mut squared = Q::zero();
+        for ((vertex, line), candidate) in self.points.iter().zip(&projected).zip(repaired) {
+            let vertex = placement.point(vertex);
+            let line = placement.point(line);
+            // Match the mesh emission's exact operation order, including the
+            // rounding of the addition of the occurrence translation.
+            let actual = rational_point(world.transform_point(candidate))
+                .ok_or("nonfinite emitted world LINE")?;
+            for (before, after) in [(&vertex, &line), (&vertex, &actual), (&line, &actual)] {
+                let delta = sub(before, after);
+                squared = squared.max(dot(&delta, &delta));
+            }
+            for point in [&vertex, &line, &actual] {
+                include_exact(bounds, point).ok_or("nonfinite shared LINE bounds")?;
+            }
+        }
+        let budget = Q::from_float(allowance)
+            .filter(|q| q.is_positive())
+            .ok_or("invalid shared LINE repair allowance")?;
+        if squared > &budget * &budget {
+            return Err("finite LINE displacement exceeds preview repair budget");
+        }
+        sqrt_upper(&squared, "shared LINE movement range")
+    }
+
+    pub(in crate::step) fn include_placed_bounds(
+        &self,
+        placement: &ExactPlacement,
+        bounds: &mut [[f64; 3]; 2],
+    ) -> Result<(), &'static str> {
+        if dot(&self.direction, &self.direction).is_zero() {
+            return Err("zero authored LINE direction");
+        }
+        for point in self.points.iter().chain(&self.projected_controls()) {
+            include_exact(bounds, &placement.point(point)).ok_or("nonfinite placed LINE bounds")?;
+        }
+        Ok(())
+    }
+
     fn projected_controls(&self) -> [Point; 2] {
         let project = |point: &Point| {
             let parameter = dot(&sub(point, &self.origin), &self.direction)

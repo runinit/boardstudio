@@ -5,6 +5,7 @@ mod cone_tests;
 mod cuboid_tests;
 mod cylinder_band_tests;
 mod diode_tests;
+mod planar_repair_tests;
 
 const MOLEX: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Socket_2pin.step"
@@ -44,6 +45,7 @@ fn native_candidate(bytes: &[u8], options: StepImportOptions) -> Result<Asset, S
     let factors = units::length_factors(&exchange).unwrap();
     let precision = units::precision::resolve(&exchange).unwrap();
     build(
+        bytes,
         &exchange,
         &items,
         &factors,
@@ -573,6 +575,7 @@ fn native_does_not_admit_open_or_off_support_geometry() {
         let exchange = parser::parse(&changed).unwrap();
         assert!(
             build(
+                changed.as_bytes(),
                 &exchange,
                 &units::representation_items(&exchange).unwrap(),
                 &units::length_factors(&exchange).unwrap(),
