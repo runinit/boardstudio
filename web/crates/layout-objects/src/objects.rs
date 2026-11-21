@@ -34,6 +34,7 @@ mod add_matrix_surface;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
+mod keycap_size_logic;
 mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
@@ -41,19 +42,24 @@ mod layout_align_logic;
 mod layout_canvas_controls;
 mod layout_selection_kind;
 mod layout_toolbar;
+mod layout_toolbar_logic;
 mod layout_transform_toolbar;
 mod matrix_departure_actions;
 mod matrix_edit_test_support;
 mod matrix_inspector;
 mod matrix_inspector_controller;
+mod matrix_inspector_logic;
 mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
+mod matrix_setup_logic;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
+mod matrix_transform_logic;
 mod mirrored_pair;
 mod mirrored_pair_controller;
+mod tree_projection_logic;
 pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
 use boardstudio_web_ui_model::tree;
@@ -1064,76 +1070,4 @@ fn tree_glyph(kind: TreeKind) -> Element {
     }
 }
 
-fn grouped_part_tree(model: &ReadModel, expanded: &BTreeSet<String>) -> Vec<tree::TreeItem> {
-    let Some(snapshot) = model.accepted.as_ref() else {
-        return Vec::new();
-    };
-    let flat = tree::build_pcb_tree(model, expanded);
-    let mut result: Vec<_> = flat
-        .iter()
-        .filter(|row| row.kind != TreeKind::Component)
-        .cloned()
-        .collect();
-    let mut groups = std::collections::BTreeMap::<&str, Vec<tree::TreeItem>>::new();
-    for mut row in flat
-        .into_iter()
-        .filter(|row| row.kind == TreeKind::Component)
-    {
-        let definition = row
-            .primary_id
-            .as_ref()
-            .and_then(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
-            .and_then(|part| {
-                snapshot
-                    .document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == part.definition_id)
-            });
-        let category = definition.map_or("Other", |definition| {
-            let name = format!("{} {}", definition.id, definition.name).to_lowercase();
-            match definition.kind {
-                boardstudio_model::model::PartKind::Switch => "Switches",
-                boardstudio_model::model::PartKind::Controller => "MCUs",
-                boardstudio_model::model::PartKind::Encoder => "Encoders",
-                boardstudio_model::model::PartKind::Connector => "Connectors",
-                _ if name.contains("diode") => "Diodes",
-                _ if name.contains("led") => "LEDs",
-                _ => "Other",
-            }
-        });
-        row.level = 2;
-        groups.entry(category).or_default().push(row);
-    }
-    for name in [
-        "Switches",
-        "MCUs",
-        "Diodes",
-        "LEDs",
-        "Encoders",
-        "Connectors",
-        "Other",
-    ] {
-        let Some(mut rows) = groups.remove(name) else {
-            continue;
-        };
-        rows.sort_by(|a, b| a.label.cmp(&b.label));
-        let id = format!("category:{name}");
-        let open = expanded.contains(&id);
-        result.push(tree::TreeItem {
-            id,
-            label: name.into(),
-            detail: Some(format!("{} parts", rows.len())),
-            level: 1,
-            kind: TreeKind::Components,
-            context: None,
-            expanded: Some(open),
-            primary_id: None,
-            expandable: true,
-        });
-        if open {
-            result.extend(rows);
-        }
-    }
-    result
-}
+pub(crate) use tree_projection_logic::grouped_part_tree;

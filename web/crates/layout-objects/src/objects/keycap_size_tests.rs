@@ -276,102 +276,6 @@ async fn size_selection_is_submitted_once_for_its_owner_before_selection_changes
 }
 
 #[wasm_bindgen_test]
-fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
-    let parts = vec![
-        Part {
-            keycap: None,
-            outline: None,
-            anchor: None,
-            id: "a".into(),
-            definition_id: "switch".into(),
-            reference: "A".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        },
-        Part {
-            keycap: None,
-            outline: None,
-            anchor: None,
-            id: "c".into(),
-            definition_id: "switch".into(),
-            reference: "C".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        },
-        Part {
-            keycap: None,
-            outline: None,
-            anchor: None,
-            id: "b".into(),
-            definition_id: "switch".into(),
-            reference: "B".into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        },
-    ];
-    let placements = vec![
-        KeycapPlacement {
-            id: "a".into(),
-            matrix_id: "m1".into(),
-            row: 0,
-            column: 0,
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-            size: Vec2 { x: 18.0, y: 18.0 },
-        },
-        KeycapPlacement {
-            id: "c".into(),
-            matrix_id: "m2".into(),
-            row: 0,
-            column: 0,
-            at: Vec2 { x: 10.0, y: 0.0 },
-            rotation: 0.0,
-            size: Vec2 { x: 18.0, y: 18.0 },
-        },
-        KeycapPlacement {
-            id: "b".into(),
-            matrix_id: "m3".into(),
-            row: 0,
-            column: 0,
-            at: Vec2 { x: 100.0, y: 0.0 },
-            rotation: 0.0,
-            size: Vec2 { x: 18.0, y: 18.0 },
-        },
-    ];
-    let labels = |selected: &[&str]| {
-        let ids: Vec<String> = selected.iter().map(|id| (*id).to_owned()).collect();
-        let selected = super::selected_keycap_ids(&ids, &placements);
-        super::overlap_references(&parts, &placements, &selected)
-    };
-
-    // The last-hit context is B, but the selected set contains A+B after Add.
-    assert!(labels(&["b"]).is_empty());
-    assert_eq!(labels(&["a", "b"]), ["A", "C"]);
-    // Toggling A off leaves B, so its unrelated context must clear the warning.
-    assert!(labels(&["b"]).is_empty());
-    // Selecting C after that still reports both members across matrix contexts.
-    assert_eq!(labels(&["b", "c"]), ["A", "C"]);
-}
-
-#[wasm_bindgen_test]
 fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     let mut document: boardstudio_model::model::ProjectDoc = serde_json::from_str(include_str!(
         "../../../../../core/tests/fixtures/synthetic-outline.json"
@@ -687,56 +591,6 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
 }
 
 #[wasm_bindgen_test]
-fn mixed_size_draft_uses_react_visible_document_part_order() {
-    let make_part = |id: &str, reference: &str| Part {
-        keycap: None,
-        outline: None,
-        anchor: None,
-        id: id.into(),
-        definition_id: "switch".into(),
-        reference: reference.into(),
-        pose: boardstudio_model::model::Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    };
-    let make_placement = |id: &str, width: f64, matrix_id: &str| KeycapPlacement {
-        id: id.into(),
-        matrix_id: matrix_id.into(),
-        row: 0,
-        column: 0,
-        at: Vec2 { x: 0.0, y: 0.0 },
-        rotation: 0.0,
-        size: Vec2 { x: width, y: 18.0 },
-    };
-    let document_parts = vec![make_part("part-a", "A"), make_part("part-b", "B")];
-    // Matrix traversal is deliberately opposite to the TypeScript visibleParts order.
-    let mut accepted_placements = vec![
-        make_placement("part-b", 18.0, "matrix-b"),
-        make_placement("part-a", 37.0, "matrix-a"),
-    ];
-
-    super::order_placements_by_document_parts(&document_parts, &mut accepted_placements);
-
-    let selected: BTreeSet<_> = ["part-a", "part-b"].into_iter().collect();
-    let selected_items: Vec<_> = accepted_placements
-        .iter()
-        .filter(|placement| selected.contains(placement.id.as_str()))
-        .collect();
-    let first = selected_items
-        .first()
-        .expect("both selected caps are projected");
-    let first_units = ((first.size.x + 1.0) / 19.0 * 4.0).round() / 4.0;
-    assert_eq!(first.id, "part-a");
-    assert_eq!(first_units, 2.0, "Wide/Tall drafts from React's first item");
-    assert_eq!(selected_items.len(), 2);
-}
-
-#[wasm_bindgen_test]
 async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     let references = [
         "Selected",
@@ -774,21 +628,24 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     let mut placements: Vec<_> = parts
         .iter()
         .enumerate()
-        .map(|(index, part)| KeycapPlacement {
-            id: part.id.clone(),
-            matrix_id: format!("matrix-{}", index % 3),
-            row: 0,
-            column: index as u32,
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-            size: Vec2 { x: 18.0, y: 18.0 },
-        })
+        .map(
+            |(index, part)| super::super::keycap_resize::KeycapPlacement {
+                id: part.id.clone(),
+                matrix_id: format!("matrix-{}", index % 3),
+                row: 0,
+                column: index as u32,
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+                size: Vec2 { x: 18.0, y: 18.0 },
+            },
+        )
         .collect();
     // Matrix traversal interleaves ownership; document order is the stable React tie-breaker.
     placements.reverse();
-    super::order_placements_by_document_parts(&parts, &mut placements);
-    let selected = BTreeSet::from(["part-0".to_owned()]);
-    let labels = super::overlap_references(&parts, &placements, &selected);
+    super::super::keycap_size_logic::order_placements_by_document_parts(&parts, &mut placements);
+    let selected = std::collections::BTreeSet::from(["part-0".to_owned()]);
+    let labels =
+        super::super::keycap_size_logic::overlap_references(&parts, &placements, &selected);
     assert_eq!(
         labels,
         [
@@ -1182,7 +1039,6 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
 
 #[wasm_bindgen_test]
 async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
-    use boardstudio_model::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use boardstudio_web_test_runtime::project_name_test_support as support;
 
@@ -1205,10 +1061,10 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
         &runtime,
         "delete-row",
         None,
-        EditResolver::new("delete-row", |_| {
-            Resolution::submit(
+        boardstudio_application::EditResolver::new("delete-row", |_| {
+            boardstudio_application::Resolution::submit(
                 vec!["matrix-main".into()],
-                EditOperation::RemoveMatrixRow {
+                boardstudio_model::model::EditOperation::RemoveMatrixRow {
                     matrix_id: "matrix-main".into(),
                     row: 0,
                 },
@@ -1245,47 +1101,5 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
     assert_eq!(
         accepted.document.parts[0].keycap,
         captured.document.parts[0].keycap
-    );
-}
-
-/// Ticket 33: the key-size resolver submits one typed SetKeycapSize edit, never
-/// a whole-document replacement; invalid units resolve Unchanged and write nothing.
-#[wasm_bindgen_test]
-async fn resize_resolver_submits_a_typed_keycap_size_edit() {
-    use boardstudio_model::model::EditOperation;
-    use boardstudio_web_test_runtime::project_name_test_support as support;
-
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, key_fixture()).await;
-    let accepted = runtime.model().accepted.expect("the fixture opens");
-    let resolver = resize_resolver_for(
-        &accepted.document,
-        "board-main".into(),
-        vec![KEY_ID.into()],
-        Vec2 { x: 2.0, y: 1.0 },
-        Some(ResizeAxis::X),
-    );
-    match resolver.resolve(&accepted) {
-        Resolution::Submit(command) => assert!(
-            matches!(command.operation, EditOperation::SetKeycapSize { .. }),
-            "key size must commit a typed edit, got {:?}",
-            command.operation
-        ),
-        Resolution::Unchanged => panic!("a valid resize must submit"),
-        Resolution::Retire(message) => panic!("a valid resize must not retire: {message}"),
-    }
-    let invalid = resize_resolver_for(
-        &accepted.document,
-        "board-main".into(),
-        vec![KEY_ID.into()],
-        Vec2 {
-            x: f64::NAN,
-            y: 1.0,
-        },
-        Some(ResizeAxis::X),
-    );
-    assert!(
-        matches!(invalid.resolve(&accepted), Resolution::Unchanged),
-        "invalid units write nothing"
     );
 }

@@ -67,6 +67,24 @@ mod objects {
     mod layout_align_logic;
 
     #[cfg(test)]
+    mod keycap_size_logic;
+
+    #[cfg(test)]
+    mod matrix_inspector_logic;
+
+    #[cfg(test)]
+    mod tree_projection_logic;
+
+    #[cfg(test)]
+    mod layout_toolbar_logic;
+
+    #[cfg(test)]
+    mod matrix_setup_logic;
+
+    #[cfg(test)]
+    mod matrix_transform_logic;
+
+    #[cfg(test)]
     #[path = "layout_align_geometry.rs"]
     mod layout_align_geometry_tests;
 

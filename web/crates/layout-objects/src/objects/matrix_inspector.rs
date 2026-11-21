@@ -23,58 +23,11 @@ use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MatrixNameTarget {
-    Matrix,
-    Layout { id: String },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatrixEditField {
-    Name,
-    Rows,
-    Columns,
-    PitchX,
-    PitchY,
-    SwitchDefinition,
-    ApplyPreset,
-    DiodeDirection,
-    EdgeGapX,
-    EdgeGapY,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatrixPreset {
-    MxSolder,
-    MxHotswap,
-    ChocSolder,
-    ChocHotswap,
-    MxRgb,
-    ChocRgb,
-    MxHotswapRgb,
-    ChocHotswapRgb,
-}
+pub use super::matrix_inspector_logic::{
+    MatrixEditField, MatrixEditValue, MatrixNameTarget, MatrixPreset, SwitchOrientation,
+};
 
 impl MatrixPreset {
-    pub fn parse(value: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|preset| preset.as_str() == value)
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::MxSolder => "mx-solder",
-            Self::MxHotswap => "mx-hotswap",
-            Self::ChocSolder => "choc-solder",
-            Self::ChocHotswap => "choc-hotswap",
-            Self::MxRgb => "mx-rgb",
-            Self::ChocRgb => "choc-rgb",
-            Self::MxHotswapRgb => "mx-hotswap-rgb",
-            Self::ChocHotswapRgb => "choc-hotswap-rgb",
-        }
-    }
-
     fn label(self) -> &'static str {
         match self {
             Self::MxSolder => "MX Solder",
@@ -85,32 +38,6 @@ impl MatrixPreset {
             Self::ChocRgb => "Choc V1 RGB",
             Self::MxHotswapRgb => "MX Hotswap RGB",
             Self::ChocHotswapRgb => "Choc V1 Hotswap RGB",
-        }
-    }
-
-    const ALL: [Self; 8] = [
-        Self::MxSolder,
-        Self::MxHotswap,
-        Self::ChocSolder,
-        Self::ChocHotswap,
-        Self::MxRgb,
-        Self::ChocRgb,
-        Self::MxHotswapRgb,
-        Self::ChocHotswapRgb,
-    ];
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SwitchOrientation {
-    South,
-    North,
-}
-
-impl SwitchOrientation {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::South => "south",
-            Self::North => "north",
         }
     }
 }
@@ -143,19 +70,6 @@ impl MatrixEditField {
             Self::EdgeGapY => "edge-gap-y",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum MatrixEditValue {
-    Name(Option<String>),
-    Rows(u32),
-    Columns(u32),
-    PitchX(f64),
-    PitchY(f64),
-    SwitchDefinition(String),
-    DiodeDirection(DiodeDirection),
-    EdgeGapX(f64),
-    EdgeGapY(f64),
 }
 
 /// Draft owner excludes accepted token/revision so unrelated accepted edits do not erase text.

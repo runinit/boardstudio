@@ -12,8 +12,7 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_model::model::{
-    DiodeDirection, EditOperation, Matrix, MatrixAssembly, MatrixCell, PartDefinition, ProjectDoc,
-    Side, Vec2,
+    DiodeDirection, EditOperation, Matrix, PartDefinition, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
@@ -1117,8 +1116,6 @@ mod projection;
 mod tests;
 mod variant;
 
-#[cfg(test)]
-use edits::matrix_edit;
 use edits::{
     build_operation, clear_action_feedback, duplicate_design_variant, field_value,
     prepare_preset_matrix, publish_action_feedback, publish_feedback, settle_action_results,
@@ -1127,9 +1124,9 @@ use projection::{
     MatrixProjectionContext, matrix_field_text, matrix_field_value_text, project_current,
     project_current_for,
 };
-use variant::is_reversible;
 #[cfg(test)]
-use variant::{current_variant_snapshot, variant_session_matches};
+use variant::current_variant_snapshot;
+use variant::is_reversible;
 
 pub use projection::switch_choices;
 pub use variant::matrix_with_preset;

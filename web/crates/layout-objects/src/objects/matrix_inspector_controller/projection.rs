@@ -144,6 +144,7 @@ fn parse_matrix_preset(value: &str) -> Option<MatrixPreset> {
     })
 }
 
+#[allow(dead_code)]
 pub(super) fn matrix_preset_variant(matrix: &Matrix) -> Option<String> {
     matrix
         .cells

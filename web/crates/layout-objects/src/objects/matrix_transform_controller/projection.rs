@@ -274,21 +274,4 @@ pub(super) fn matrix_has_linked_layout(
         })
 }
 
-pub(super) fn workspace_route_matches(current: &str, owner: &str) -> bool {
-    matches!(owner, "Layout" | "PCB") && current == owner
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod workspace_route_tests {
-    use super::workspace_route_matches;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[wasm_bindgen_test]
-    fn matrix_transform_owner_cannot_cross_workspace_routes() {
-        assert!(workspace_route_matches("Layout", "Layout"));
-        assert!(workspace_route_matches("PCB", "PCB"));
-        assert!(!workspace_route_matches("PCB", "Layout"));
-        assert!(!workspace_route_matches("Layout", "PCB"));
-        assert!(!workspace_route_matches("Case", "Case"));
-    }
-}
+pub(super) use super::super::matrix_transform_logic::workspace_route_matches;

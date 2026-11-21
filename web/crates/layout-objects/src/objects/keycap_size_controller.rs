@@ -1,19 +1,16 @@
 //! Accepted active-board projection and single edit owner for Layout key-size controls.
-use super::{
-    ScopedTreeContext, TreeContext,
-    keycap_resize::{self, KeycapPlacement, KeycapResizeInput, ResizeAxis},
+use super::keycap_size_logic::{
+    overlap_references, placements, quarter, resize_resolver_for, selected_keycap_ids,
 };
+use super::{ScopedTreeContext, TreeContext, keycap_resize::ResizeAxis};
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
-};
-use boardstudio_model::model::{EditOperation, ProjectDoc, Vec2};
+use boardstudio_application::{Durability, Lifecycle, Scope, SnapshotToken};
+use boardstudio_model::model::Vec2;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeSet,
     rc::Rc,
 };
 
@@ -100,80 +97,6 @@ pub struct KeySizeMount {
     pub(super) inspector_mounted: Signal<bool>,
     pub(super) on_bind_draft: EventHandler<KeySizeDraftBinding>,
     pub on_resize: EventHandler<KeySizeRequest>,
-}
-
-/// Resolve a key-size change against the accepted document at execution time. The plan is
-/// built from the accepted placements, so a resize queued behind other edits applies on
-/// top of them; a selection that no longer exists retires, and a plan with nothing to
-/// change resolves `Unchanged`.
-fn resize_resolver(
-    board_id: String,
-    selected_ids: Vec<String>,
-    units: Vec2,
-    axis: Option<ResizeAxis>,
-) -> EditResolver {
-    EditResolver::new("layout-key-size", move |accepted: &AcceptedSnapshot| {
-        let document = &accepted.document;
-        let placements = placements(document, &accepted.scene.matrix_scenes, &board_id);
-        if selected_ids
-            .iter()
-            .any(|id| !placements.iter().any(|placement| placement.id == *id))
-        {
-            return Resolution::Retire("A selected key no longer exists.".into());
-        }
-        let selected = selected_ids.iter().cloned().collect::<BTreeSet<_>>();
-        let Some(plan) = keycap_resize::plan_resize(KeycapResizeInput {
-            document,
-            matrices: &document.matrices,
-            scenes: &accepted.scene.matrix_scenes,
-            layouts: &document.layouts,
-            placements: &placements,
-            selected_ids: &selected,
-            units,
-            axis,
-        }) else {
-            return Resolution::Unchanged;
-        };
-        // Ticket 33: the resize commits as one typed keycap-size edit, never a
-        // document replacement.
-        Resolution::submit(
-            plan.target_ids,
-            EditOperation::SetKeycapSize {
-                sizes: plan.sizes,
-                moves: plan.moves,
-                offsets: plan.offsets,
-            },
-        )
-    })
-}
-
-/// Coordinate-based member IDs can be reused after a row or column is removed.
-/// Keep the admitted matrix topology as eligibility, while allowing accepted
-/// position, size and unrelated document edits to compose normally.
-fn resize_resolver_for(
-    captured: &ProjectDoc,
-    board_id: String,
-    selected_ids: Vec<String>,
-    units: Vec2,
-    axis: Option<ResizeAxis>,
-) -> EditResolver {
-    let topology: Vec<_> = captured
-        .matrices
-        .iter()
-        .filter(|matrix| selected_ids.iter().any(|id| matrix.part_ids.contains(id)))
-        .map(|matrix| (matrix.id.clone(), matrix.rows, matrix.columns))
-        .collect();
-    let resolver = resize_resolver(board_id, selected_ids, units, axis);
-    EditResolver::new("layout-key-size", move |accepted: &AcceptedSnapshot| {
-        if topology.iter().any(|(id, rows, columns)| {
-            !accepted.document.matrices.iter().any(|matrix| {
-                matrix.id == *id && matrix.rows == *rows && matrix.columns == *columns
-            })
-        }) {
-            return Resolution::Retire("The selected key's matrix topology changed.".into());
-        }
-        resolver.resolve(accepted)
-    })
 }
 
 #[derive(Default)]
@@ -645,123 +568,6 @@ fn project_for_scope(
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "keycap_size_tests.rs"]
 mod tests;
-
-fn placements(
-    document: &ProjectDoc,
-    scenes: &[boardstudio_model::model::MatrixScene],
-    board_id: &str,
-) -> Vec<KeycapPlacement> {
-    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
-        return Vec::new();
-    };
-    let board_parts: BTreeSet<_> = board.part_ids.iter().map(String::as_str).collect();
-    let mut result = Vec::new();
-    for matrix in document
-        .matrices
-        .iter()
-        .filter(|matrix| matrix.board_id.as_deref().is_none_or(|id| id == board_id))
-    {
-        let Some(scene) = scenes.iter().find(|scene| scene.matrix_id == matrix.id) else {
-            continue;
-        };
-        for cell in scene.cells.iter().filter(|cell| cell.enabled) {
-            let Some(id) = cell.member_id.as_deref() else {
-                continue;
-            };
-            if !matrix.part_ids.iter().any(|member| member == id) || !board_parts.contains(id) {
-                continue;
-            }
-            let Some(part) = document.parts.iter().find(|part| part.id == id) else {
-                continue;
-            };
-            let definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id);
-            let gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
-            let size = part
-                .keycap
-                .or_else(|| definition.and_then(|definition| definition.keycap))
-                .unwrap_or(Vec2 {
-                    x: (matrix.pitch.x - gap.x).max(1.0),
-                    y: (matrix.pitch.y - gap.y).max(1.0),
-                });
-            result.push(KeycapPlacement {
-                id: id.to_owned(),
-                matrix_id: matrix.id.clone(),
-                row: cell.row,
-                column: cell.column,
-                at: cell.pose.at,
-                rotation: cell.pose.rotation,
-                size,
-            });
-        }
-    }
-    order_placements_by_document_parts(&document.parts, &mut result);
-    result
-}
-
-fn order_placements_by_document_parts(
-    parts: &[boardstudio_model::model::Part],
-    placements: &mut [KeycapPlacement],
-) {
-    let order: std::collections::HashMap<_, _> = parts
-        .iter()
-        .enumerate()
-        .map(|(index, part)| (part.id.as_str(), index))
-        .collect();
-    placements.sort_by_key(|placement| {
-        order
-            .get(placement.id.as_str())
-            .copied()
-            .unwrap_or(usize::MAX)
-    });
-}
-
-fn selected_keycap_ids(
-    selected_part_ids: &[String],
-    placements: &[KeycapPlacement],
-) -> BTreeSet<String> {
-    let visible: BTreeSet<_> = placements
-        .iter()
-        .map(|placement| placement.id.as_str())
-        .collect();
-    selected_part_ids
-        .iter()
-        .filter(|id| visible.contains(id.as_str()))
-        .cloned()
-        .collect()
-}
-
-fn quarter(value: f64) -> f64 {
-    (value * 4.0).round() / 4.0
-}
-
-fn overlap_references(
-    parts: &[boardstudio_model::model::Part],
-    placements: &[KeycapPlacement],
-    selected_ids: &BTreeSet<String>,
-) -> Vec<String> {
-    let references: std::collections::HashMap<_, _> = parts
-        .iter()
-        .map(|part| (part.id.as_str(), part.reference.as_str()))
-        .collect();
-    let mut shown = BTreeSet::new();
-    let mut result = Vec::new();
-    for (first, second) in keycap_resize::overlapping_pairs(placements) {
-        if !selected_ids.contains(&first) && !selected_ids.contains(&second) {
-            continue;
-        }
-        for id in [first, second] {
-            if let Some(reference) = references.get(id.as_str())
-                && shown.insert(*reference)
-            {
-                result.push((*reference).to_owned());
-            }
-        }
-    }
-    result
-}
 
 fn field_for_axis(axis: Option<ResizeAxis>) -> KeySizeField {
     match axis {
