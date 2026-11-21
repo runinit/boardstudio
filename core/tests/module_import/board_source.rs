@@ -9,17 +9,9 @@ fn modern_outline_source_ids_match_legacy_source_geometry() {
         &format!("(uuid {outline_id})"),
     );
     assert_ne!(legacy, modern, "the control changes only identifier keys");
-    let read = |source: &str| -> Value {
-        serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"identity", "kind":"read-board-source", "source":source,
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
-            .to_string(),
-        ))
-        .unwrap()
-    };
-    let expected = read(&legacy);
+    let expected = read_source(&legacy);
     assert_eq!(expected["kind"], "read-board-source", "{expected}");
-    let actual = read(&modern);
+    let actual = read_source(&modern);
     assert_eq!(actual["kind"], "read-board-source", "{actual}");
     assert_eq!(actual["result"], expected["result"]);
     let primitives = actual["result"]["pcbSource"]["contours"][0]["primitives"]
@@ -42,14 +34,10 @@ fn outline_source_identity_policy_keeps_nonempty_legacy_precedence() {
         (r#"(tstamp "") (uuid "modern")"#, "modern"),
         (r#"(uuid "") (tstamp legacy)"#, "legacy"),
     ] {
-        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"identity-policy", "kind":"read-board-source",
-                "source":format!(r#"(kicad_pcb (general (thickness 1.6))
-                    (gr_circle (center 0 0) (end 2 0) (layer "Edge.Cuts") {identity}))"#),
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
-            .to_string(),
-        ))
-        .unwrap();
+        let reply = read_source(&format!(
+            r#"(kicad_pcb (general (thickness 1.6))
+                    (gr_circle (center 0 0) (end 2 0) (layer "Edge.Cuts") {identity}))"#
+        ));
         assert_eq!(reply["kind"], "read-board-source", "{identity}: {reply}");
         assert_eq!(
             reply["result"]["pcbSource"]["contours"][0]["primitives"][0]["sourceId"], expected,
@@ -84,13 +72,7 @@ fn outline_source_rejects_missing_empty_and_duplicate_modern_identities() {
                 )
             })
             .collect();
-        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"invalid-identity", "kind":"read-board-source",
-                "source":format!("(kicad_pcb (general (thickness 1.6)) {curves})"),
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
-            .to_string(),
-        ))
-        .unwrap();
+        let reply = read_source(&format!("(kicad_pcb (general (thickness 1.6)) {curves})"));
         assert_eq!(reply["kind"], "error", "{identities:?}: {reply}");
         assert!(
             reply["error"]["message"].as_str().unwrap().contains(reason),
@@ -122,12 +104,7 @@ fn direct_board_source_refuses_unsupported_via_depths() {
         let source = source_board_with(&format!(
             "(via {kind} (at 10 10) (size 0.8) (drill 0.4) {layers} (uuid via-depth))"
         ));
-        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"via-depth", "kind":"read-board-source", "source":source,
-                "placement":{"at":{"x":100,"y":200},"rotation":90},"flipped":true})
-            .to_string(),
-        ))
-        .unwrap();
+        let reply = read_placed_source(&source, (100, 200), 90, true);
         assert_eq!(
             reply["kind"], "error",
             "{kind} must refuse physical drilling: {reply}"
@@ -150,12 +127,7 @@ fn through_vias_keep_uuid_centres_and_diameters_with_slots_and_source_placement(
         let source = source_board_with(&format!(
             "(via {flag} (at 8 6) (size 0.8) (drill 0.4) (layers {layers}) ({identity} through-via))"
         ));
-        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"through", "kind":"read-board-source", "source":source,
-                "placement":{"at":{"x":100,"y":200},"rotation":90},"flipped":true})
-            .to_string(),
-        ))
-        .unwrap();
+        let reply = read_placed_source(&source, (100, 200), 90, true);
         assert_eq!(reply["kind"], "read-board-source", "{reply}");
         assert_eq!(
             reply["result"]["roundDrills"],
@@ -187,17 +159,11 @@ fn through_vias_keep_uuid_centres_and_diameters_with_slots_and_source_placement(
 
 #[test]
 fn direct_board_source_preserves_a_circular_outline_hole_without_refitting() {
-    let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-        &json!({
-            "id":"annulus", "kind":"read-board-source",
-            "source":r#"(kicad_pcb (general (thickness 1.6))
+    let result = read_source(
+        r#"(kicad_pcb (general (thickness 1.6))
                 (gr_circle (center 10 20) (end 11 20) (layer "Edge.Cuts") (tstamp inner))
                 (gr_circle (center 10 20) (end 15 20) (layer "Edge.Cuts") (tstamp outer)))"#,
-            "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false
-        })
-        .to_string(),
-    ))
-    .unwrap();
+    );
     assert_eq!(result["kind"], "read-board-source", "{result}");
     let board = &result["result"];
     let contours = board["pcbSource"]["contours"].as_array().unwrap();
@@ -241,12 +207,7 @@ fn direct_board_source_names_intersecting_touching_and_ambiguous_outline_sources
         (format!(r#"{outer} (gr_circle (center 0 0) (end -5 0) (layer "Edge.Cuts") (tstamp coincident))"#), vec!["outer", "coincident"]),
         (r#"(gr_poly (pts (xy 0 0) (xy 10 0) (xy 5 5) (xy 10 10) (xy 0 10) (xy 5 5)) (layer "Edge.Cuts") (tstamp self-touch))"#.into(), vec!["self-touch"]),
     ] {
-        let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"invalid-loops","kind":"read-board-source",
-                "source":format!("(kicad_pcb (general (thickness 1.6)) {outline})"),
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false
-            }).to_string(),
-        )).unwrap();
+        let result = read_source(&format!("(kicad_pcb (general (thickness 1.6)) {outline})"));
         assert_eq!(result["kind"], "error", "ambiguous geometry must refuse: {result}");
         let message = result["error"]["message"].as_str().unwrap();
         for id in expected_ids {
@@ -268,14 +229,15 @@ fn direct_board_source_preserves_nested_islands_and_nearest_hole_owners() {
         if flipped {
             ordered.reverse();
         }
-        let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"nested","kind":"read-board-source",
-                "source":format!("(kicad_pcb (general (thickness 1.6)) {})", ordered.join("\n")),
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":flipped
-            })
-            .to_string(),
-        ))
-        .unwrap();
+        let result = read_placed_source(
+            &format!(
+                "(kicad_pcb (general (thickness 1.6)) {})",
+                ordered.join("\n")
+            ),
+            (0, 0),
+            0,
+            flipped,
+        );
         assert_eq!(result["kind"], "read-board-source", "{result}");
         let board = &result["result"];
         let contours = board["pcbSource"]["contours"].as_array().unwrap();
@@ -335,17 +297,12 @@ fn direct_board_source_preserves_nested_islands_and_nearest_hole_owners() {
 
 #[test]
 fn direct_board_source_classifies_a_hole_inside_a_major_arc_without_changing_the_arc() {
-    let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-        &json!({"id":"major-arc","kind":"read-board-source",
-            "source":r#"(kicad_pcb (general (thickness 1.6))
+    let result = read_source(
+        r#"(kicad_pcb (general (thickness 1.6))
                 (gr_arc (start 55 50) (mid 45 50) (end 50 55) (layer "Edge.Cuts") (tstamp major))
                 (gr_line (start 50 55) (end 55 50) (layer "Edge.Cuts") (tstamp chord))
                 (gr_circle (center 50 48) (end 50.5 48) (layer "Edge.Cuts") (tstamp hole)))"#,
-            "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false
-        })
-        .to_string(),
-    ))
-    .unwrap();
+    );
     assert_eq!(result["kind"], "read-board-source", "{result}");
     let contours = result["result"]["pcbSource"]["contours"]
         .as_array()
@@ -378,15 +335,7 @@ fn direct_board_source_enforces_the_existing_module_contour_budget() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-        &json!({
-            "id":"too-many-loops","kind":"read-board-source",
-            "source":format!("(kicad_pcb (general (thickness 1.6)) {loops})"),
-            "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false
-        })
-        .to_string(),
-    ))
-    .unwrap();
+    let result = read_source(&format!("(kicad_pcb (general (thickness 1.6)) {loops})"));
     assert_eq!(result["kind"], "error", "{result}");
     assert!(
         result["error"]["message"]
@@ -398,23 +347,13 @@ fn direct_board_source_enforces_the_existing_module_contour_budget() {
 
 #[test]
 fn direct_board_source_keeps_unknown_thickness_and_refuses_incomplete_outlines() {
-    let read = |source: String| -> Value {
-        serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({
-                "id":"read","kind":"read-board-source","source":source,
-                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false
-            })
-            .to_string(),
-        ))
-        .unwrap()
-    };
     let source = source_board_with("");
     let missing_thickness = source.replace("(general (thickness 1.6))", "");
     assert_ne!(
         source, missing_thickness,
         "fixture contains authored thickness"
     );
-    let result = read(missing_thickness);
+    let result = read_source(&missing_thickness);
     assert_eq!(result["kind"], "read-board-source", "{result}");
     assert!(
         result["result"].get("thickness").is_none(),
@@ -424,7 +363,7 @@ fn direct_board_source_keeps_unknown_thickness_and_refuses_incomplete_outlines()
         r#"(gr_curve (pts (xy 0 0) (xy 1 1) (xy 2 2) (xy 3 3)) (layer "Edge.Cuts") (tstamp unsupported))"#,
         r#"(gr_line (start 30 30) (end 40 40) (layer "Edge.Cuts") (tstamp unmatched-edge))"#,
     ] {
-        let result = read(source_board_with(extra));
+        let result = read_source(&source_board_with(extra));
         assert_eq!(
             result["kind"], "error",
             "incomplete source must refuse as a whole: {result}"
@@ -449,12 +388,7 @@ fn direct_board_source_retains_raw_origin_curves_and_drills_through_placement() 
     .into_iter()
     .enumerate()
     {
-        let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"read-board","kind":"read-board-source","source":source,
-                "placement":{"at":{"x":tx,"y":200},"rotation":rotation},"flipped":flipped})
-            .to_string(),
-        ))
-        .unwrap();
+        let result = read_placed_source(source, (tx, 200), rotation, flipped);
         assert_eq!(result["kind"], "read-board-source", "{result}");
         let board = &result["result"];
         assert_eq!(board["thickness"], 1.6);
@@ -636,22 +570,15 @@ fn board_preview_preserves_midpoint_arcs_and_refuses_invalid_arc_definitions() {
 
 #[test]
 fn board_source_operations_keep_their_own_error_envelopes_and_validation_order() {
-    let origin = json!({"at":{"x":0,"y":0},"rotation":0});
-    let preview = |source: &str| -> Value {
-        serde_json::from_str(&boardstudio_core::artifact::request(
-            &json!({"id":"p","kind":"preview-board","source":source,"revision":3}).to_string(),
-        ))
-        .unwrap()
-    };
     for (source, message) in [
         ("(kicad_pcb", None),
         ("", Some("expected single root, got 0")),
         ("(footprint \"x\")", Some("Expected a .kicad_pcb board")),
     ] {
-        let read = error_of(&read_with(source, origin.clone()));
+        let read = error_of(&read_source(source));
         assert_eq!(
             read,
-            error_of(&preview(source)),
+            error_of(&preview(source, 3)),
             "read reports the preview parse"
         );
         assert_eq!(read.0, "parse-error");
@@ -672,10 +599,10 @@ fn board_source_operations_keep_their_own_error_envelopes_and_validation_order()
     let oversized = format!("(kicad_pcb{} ", " ".repeat(32 * 1024 * 1024));
     let limit = "Board exceeds the 32 MiB preview limit";
     assert_eq!(
-        error_of(&read_with(&oversized, origin)),
+        error_of(&read_source(&oversized)),
         ("parse-error".into(), limit.into())
     );
-    assert_eq!(error_of(&preview(&oversized)).1, limit);
+    assert_eq!(error_of(&preview(&oversized, 3)).1, limit);
     // Import has no whole-source cap: only its hole geometry is gated.
     let padded = format!("{}{}", source_board_with(""), " ".repeat(32 * 1024 * 1024));
     let imported = import(padded, "fixture:padded");

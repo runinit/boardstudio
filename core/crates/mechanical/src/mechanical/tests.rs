@@ -1,11 +1,37 @@
+#[path = "tests/cutouts.rs"]
+mod cutouts;
 #[path = "tests/stack.rs"]
 mod stack;
 #[path = "tests/switch_fits.rs"]
 mod switch_fits;
-#[path = "tests/cutouts.rs"]
-mod cutouts;
 
 use super::*;
+
+fn board(part_ids: Vec<String>, thickness: f64) -> Board {
+    Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids,
+        net_ids: vec![],
+        thickness,
+        traces: vec![],
+        vias: vec![],
+    }
+}
+
+fn rectangle(x0: f64, y0: f64, x1: f64, y1: f64) -> Contour {
+    Contour {
+        hole: false,
+        points: vec![
+            Vec2 { x: x0, y: y0 },
+            Vec2 { x: x1, y: y0 },
+            Vec2 { x: x1, y: y1 },
+            Vec2 { x: x0, y: y1 },
+        ],
+    }
+}
+
 fn config() -> MechanicalConfiguration {
     MechanicalConfiguration {
         internal_gasket: None,

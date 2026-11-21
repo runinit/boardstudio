@@ -23,26 +23,9 @@ fn part_owned_profiles_supply_case_cutouts_without_case_assignment() {
         }))
         .unwrap(),
     );
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["key".into()],
-        net_ids: vec![],
-        thickness: 1.2,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec!["key".into()], 1.2));
     doc.mechanical = Some(config());
-    let outline = Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0., y: 0. },
-            Vec2 { x: 40., y: 0. },
-            Vec2 { x: 40., y: 40. },
-            Vec2 { x: 0., y: 40. },
-        ],
-    };
+    let outline = rectangle(0., 0., 40., 40.);
     let saved = doc.clone();
     let result = resolve(&doc, &[outline]);
     assert_eq!(
@@ -77,16 +60,8 @@ fn part_owned_profiles_supply_case_cutouts_without_case_assignment() {
 #[test]
 fn switch_profiles_drive_spacing_and_reject_incompatible_engagement() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["key".into(), "key2".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards
+        .push(board(vec!["key".into(), "key2".into()], 1.6));
     for (id, definition_id) in [("key", "switch"), ("key2", "switch2")] {
         doc.parts.push(serde_json::from_value(serde_json::json!({"id":id,"definitionId":definition_id,"reference":id,"pose":{"at":{"x":20,"y":20},"rotation":0},"side":"front"})).unwrap());
         doc.definitions.push(serde_json::from_value(serde_json::json!({"id":definition_id,"name":"Switch","kind":"switch","courtyard":[],"pads":[]})).unwrap());
@@ -177,15 +152,7 @@ fn imported_stabilizers_use_the_mx_mounting_datum() {
             let mut settings = config();
             settings.plate_thickness = thickness;
             doc.mechanical = Some(settings);
-            let outline = Contour {
-                hole: false,
-                points: vec![
-                    Vec2 { x: 0.0, y: 0.0 },
-                    Vec2 { x: 140.0, y: 0.0 },
-                    Vec2 { x: 140.0, y: 60.0 },
-                    Vec2 { x: 0.0, y: 60.0 },
-                ],
-            };
+            let outline = rectangle(0.0, 0.0, 140.0, 60.0);
             let saved = doc.clone();
             let result = resolve(&doc, std::slice::from_ref(&outline));
             assert_eq!(doc, saved);
@@ -264,16 +231,8 @@ fn canonical_switch_profiles_produce_seventy_square_openings() {
                 }
             }
         }
-        doc.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: doc.parts.iter().map(|p| p.id.clone()).collect(),
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        doc.boards
+            .push(board(doc.parts.iter().map(|p| p.id.clone()).collect(), 1.6));
         let mut settings = config();
         settings.plate_thickness = if source.ends_with("switch_mx") {
             1.5
@@ -355,16 +314,7 @@ fn generator_switches_derive_their_fit_and_plate_gap() {
         ),
     ] {
         let mut doc = ProjectDoc::empty("switch-fit", "switch-fit");
-        doc.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["switch".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
+        doc.boards.push(board(vec!["switch".into()], 1.6));
         doc.parts.push(
             serde_json::from_value(serde_json::json!({
                 "id":"switch", "definitionId":"switch-def", "reference":"SW1",
@@ -384,15 +334,7 @@ fn generator_switches_derive_their_fit_and_plate_gap() {
         configuration.plate_to_pcb = gap;
         configuration.plate_foam_thickness = 0.0;
         doc.mechanical = Some(configuration);
-        let outline = [Contour {
-            hole: false,
-            points: vec![
-                Vec2 { x: 0.0, y: 0.0 },
-                Vec2 { x: 100.0, y: 0.0 },
-                Vec2 { x: 100.0, y: 100.0 },
-                Vec2 { x: 0.0, y: 100.0 },
-            ],
-        }];
+        let outline = [rectangle(0.0, 0.0, 100.0, 100.0)];
 
         let assembly = resolve(&doc, &outline);
         assert!(
@@ -437,16 +379,7 @@ fn generator_switches_derive_their_fit_and_plate_gap() {
 #[test]
 fn unknown_switch_requires_a_fit_choice_before_plate_generation() {
     let mut doc = ProjectDoc::empty("unknown-switch", "unknown-switch");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["switch".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec!["switch".into()], 1.6));
     doc.parts.push(
         serde_json::from_value(serde_json::json!({
             "id":"switch", "definitionId":"imported", "reference":"SW1",
@@ -462,15 +395,7 @@ fn unknown_switch_requires_a_fit_choice_before_plate_generation() {
     );
     let configuration = config();
     doc.mechanical = Some(configuration);
-    let outline = [Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0.0, y: 0.0 },
-            Vec2 { x: 100.0, y: 0.0 },
-            Vec2 { x: 100.0, y: 100.0 },
-            Vec2 { x: 0.0, y: 100.0 },
-        ],
-    }];
+    let outline = [rectangle(0.0, 0.0, 100.0, 100.0)];
 
     let unresolved = resolve(&doc, &outline);
     assert!(unresolved.generation_blocked);
@@ -716,16 +641,10 @@ fn generator_definition(id: &str, source: &str, parameters: serde_json::Value) -
 
 fn switch_document(parts: Vec<Part>, definitions: Vec<PartDefinition>) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("family", "family");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: parts.iter().map(|part| part.id.clone()).collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(
+        parts.iter().map(|part| part.id.clone()).collect(),
+        1.6,
+    ));
     doc.parts = parts;
     doc.definitions = definitions;
     doc

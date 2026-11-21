@@ -15,16 +15,7 @@ fn disabled_mechanical_configuration_has_no_stack() {
 fn stack_is_explicit_and_revision_tagged() {
     let mut doc = ProjectDoc::empty("test", "test");
     doc.revision = 7;
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     doc.mechanical = Some(config());
     let result = resolve(&doc, &[]);
     assert_eq!(result.revision, 7);
@@ -66,16 +57,10 @@ fn custom_dimensions_and_disabled_foam_survive_normalization() {
 #[test]
 fn no_model_foam_fallbacks_transform_union_and_warn() {
     let mut doc = ProjectDoc::empty("foam", "foam");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["front-a".into(), "front-b".into(), "back".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(
+        vec!["front-a".into(), "front-b".into(), "back".into()],
+        1.6,
+    ));
     doc.parts.extend([
         serde_json::from_value(serde_json::json!({
             "id":"front-a", "definitionId":"courtyard-part", "reference":"U1",
@@ -110,15 +95,7 @@ fn no_model_foam_fallbacks_transform_union_and_warn() {
     let mut configuration = config();
     configuration.clearance = 0.3;
     doc.mechanical = Some(configuration);
-    let outline = [Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0.0, y: 0.0 },
-            Vec2 { x: 100.0, y: 0.0 },
-            Vec2 { x: 100.0, y: 100.0 },
-            Vec2 { x: 0.0, y: 100.0 },
-        ],
-    }];
+    let outline = [rectangle(0.0, 0.0, 100.0, 100.0)];
 
     let assembly = resolve(&doc, &outline);
     let plate_foam = assembly
@@ -173,32 +150,12 @@ fn no_model_foam_fallbacks_transform_union_and_warn() {
 #[test]
 fn integrated_frame_uses_lid_and_separate_bottom() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     let mut c = config();
     c.integrated_plate_frame = true;
     c.mount = MechanicalMount::Rigid;
     doc.mechanical = Some(c);
-    let resolved = resolve(
-        &doc,
-        &[Contour {
-            hole: false,
-            points: vec![
-                Vec2 { x: 0.0, y: 0.0 },
-                Vec2 { x: 50.0, y: 0.0 },
-                Vec2 { x: 50.0, y: 50.0 },
-                Vec2 { x: 0.0, y: 50.0 },
-            ],
-        }],
-    );
+    let resolved = resolve(&doc, &[rectangle(0.0, 0.0, 50.0, 50.0)]);
     let plate = &resolved
         .case
         .bodies
@@ -223,28 +180,11 @@ fn integrated_frame_uses_lid_and_separate_bottom() {
 #[test]
 fn gasket_mode_places_discrete_supports_and_retaining_frame_from_defaults() {
     let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     let mut settings = config();
     settings.mount = MechanicalMount::Gasket;
     doc.mechanical = Some(settings);
-    let contours = vec![Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0., y: 0. },
-            Vec2 { x: 130., y: 0. },
-            Vec2 { x: 130., y: 90. },
-            Vec2 { x: 0., y: 90. },
-        ],
-    }];
+    let contours = vec![rectangle(0., 0., 130., 90.)];
     let result = resolve(&doc, &contours);
     assert!(!result.generation_blocked, "{:?}", result.diagnostics);
     assert!(result.case.bodies.iter().any(|b| b.body.id == "retainer"));
@@ -262,28 +202,11 @@ fn gasket_mode_places_discrete_supports_and_retaining_frame_from_defaults() {
 #[test]
 fn manual_gasket_anchors_are_exact_persistent_and_invalidated_by_outline_changes() {
     let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     let mut settings = config();
     settings.mount = MechanicalMount::Gasket;
     doc.mechanical = Some(settings);
-    let mut contours = vec![Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0., y: 0. },
-            Vec2 { x: 130., y: 0. },
-            Vec2 { x: 130., y: 90. },
-            Vec2 { x: 0., y: 90. },
-        ],
-    }];
+    let mut contours = vec![rectangle(0., 0., 130., 90.)];
     let first = resolve(&doc, &contours);
     let support = &first.gasket_supports[0];
     let anchor = support.anchor + 0.0007;
@@ -324,16 +247,7 @@ fn manual_gasket_anchors_are_exact_persistent_and_invalidated_by_outline_changes
 #[test]
 fn gasket_support_reaches_plate_without_rigid_contact() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     let mut c = config();
     c.mount = MechanicalMount::Gasket;
     c.gasket_travel = Some(0.5);
@@ -343,18 +257,7 @@ fn gasket_support_reaches_plate_without_rigid_contact() {
         depth: 0.4,
     });
     doc.mechanical = Some(c);
-    let resolved = resolve(
-        &doc,
-        &[Contour {
-            hole: false,
-            points: vec![
-                Vec2 { x: 0.0, y: 0.0 },
-                Vec2 { x: 50.0, y: 0.0 },
-                Vec2 { x: 50.0, y: 50.0 },
-                Vec2 { x: 0.0, y: 50.0 },
-            ],
-        }],
-    );
+    let resolved = resolve(&doc, &[rectangle(0.0, 0.0, 50.0, 50.0)]);
     let bottom = &resolved
         .case
         .bodies
@@ -403,16 +306,7 @@ fn gasket_support_reaches_plate_without_rigid_contact() {
 #[test]
 fn cable_exit_regenerates_single_foam_envelope_without_mutation() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec![], 1.6));
     let mut c = config();
     c.battery = Some(MechanicalBattery {
         size: Vec3 {
@@ -425,15 +319,7 @@ fn cable_exit_regenerates_single_foam_envelope_without_mutation() {
         cable_width: Some(2.0),
     });
     doc.mechanical = Some(c);
-    let outline = [Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0.0, y: 0.0 },
-            Vec2 { x: 50.0, y: 0.0 },
-            Vec2 { x: 50.0, y: 50.0 },
-            Vec2 { x: 0.0, y: 50.0 },
-        ],
-    }];
+    let outline = [rectangle(0.0, 0.0, 50.0, 50.0)];
     let saved = doc.clone();
     let first = resolve(&doc, &outline);
     assert_eq!(doc, saved);
@@ -463,34 +349,38 @@ fn cable_exit_regenerates_single_foam_envelope_without_mutation() {
 }
 #[test]
 fn rejects_impossible_foam_and_rigid_gasket() {
-    let mut doc = ProjectDoc::empty("test", "test");
-    let mut c = config();
-    c.plate_foam_thickness = 4.0;
-    c.mount = MechanicalMount::Gasket;
-    c.integrated_plate_frame = true;
-    doc.mechanical = Some(c);
-    let result = resolve(&doc, &[]);
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.id == "mechanical:foam-engagement")
-    );
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.id == "mechanical:gasket-rigid-frame")
-    );
+    let foam = "mechanical:foam-engagement";
+    let frame = "mechanical:gasket-rigid-frame";
+    for (thickness, integrated, expected) in [
+        (4.0, false, &[foam][..]),
+        (1.0, true, &[frame][..]),
+        (4.0, true, &[foam, frame][..]),
+    ] {
+        let mut doc = ProjectDoc::empty("test", "test");
+        let mut c = config();
+        c.plate_foam_thickness = thickness;
+        c.mount = MechanicalMount::Gasket;
+        c.integrated_plate_frame = integrated;
+        doc.mechanical = Some(c);
+        let result = resolve(&doc, &[]);
+        for id in [foam, frame] {
+            assert_eq!(
+                result.diagnostics.iter().any(|d| d.id == id),
+                expected.contains(&id),
+                "foam {thickness}, integrated {integrated}: {id}: {:?}",
+                result.diagnostics
+            );
+        }
+    }
 }
 
 #[test]
 fn mechanical_defaults_have_their_reference_values() {
-    assert_eq!(mounting_datum(MechanicalSwitchFamily::Mx), 5.0);
-    assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV1), 3.5);
-    assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV2), 5.0);
-    assert_eq!(default_plate_thickness(MechanicalSwitchFamily::Mx), 1.5);
-    assert_eq!(default_plate_thickness(MechanicalSwitchFamily::ChocV1), 1.3);
+    use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+    for (family, datum, thickness) in [(Mx, 5.0, 1.5), (ChocV1, 3.5, 1.3), (ChocV2, 5.0, 1.5)] {
+        assert_eq!(mounting_datum(family), datum, "{family:?}");
+        assert_eq!(default_plate_thickness(family), thickness, "{family:?}");
+    }
     assert_eq!(default_plate_foam_thickness(3.5), 3.0);
     assert_eq!(default_plate_foam_thickness(0.0), 0.0);
     assert_eq!(default_material("plate", &PlateMethod::Printed), "PLA");

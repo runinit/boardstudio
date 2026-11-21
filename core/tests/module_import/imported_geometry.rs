@@ -102,9 +102,7 @@ fn unsupported_via_depth_gates_module_exact_geometry_and_retains_source_provenan
 
 #[test]
 fn module_import_retains_source_outline_support_and_every_round_drill() {
-    let source = include_str!(
-        "../../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
-    );
+    let source = VIK_SPLITTER;
     let result = import(source.to_owned(), "fixture:splitter");
     assert_eq!(result["kind"], "import-module-board", "{result}");
 
@@ -334,10 +332,7 @@ fn module_import_preserves_absolute_pad_angle_and_offset_on_both_board_sides() {
         include_str!("../fixtures/pcb_back_slot.kicad_pcb").to_owned(),
         "fixture:back-offset-slot",
     );
-    let front = import(
-        include_str!("../fixtures/pcb_front_slot.kicad_pcb").to_owned(),
-        "fixture:front-offset-slot",
-    );
+    let front = import(FRONT_SLOT.to_owned(), "fixture:front-offset-slot");
     assert_eq!(back["kind"], "import-module-board", "{back}");
     assert_eq!(front["kind"], "import-module-board", "{front}");
     let board = &back["result"]["board"];
@@ -436,8 +431,7 @@ fn module_import_preserves_absolute_pad_angle_and_offset_on_both_board_sides() {
 
 #[test]
 fn module_import_retains_drilled_pads_in_legacy_module_containers() {
-    let source =
-        include_str!("../fixtures/pcb_front_slot.kicad_pcb").replace("(footprint ", "(module ");
+    let source = FRONT_SLOT.replace("(footprint ", "(module ");
     let result = import(source, "fixture:legacy-slot");
     assert_eq!(result["kind"], "import-module-board", "{result}");
     let slots = result["result"]["board"]["pcbSource"]["slots"]
@@ -463,19 +457,23 @@ fn assert_source_gate(result: &Value, detail: &str) {
 
 #[test]
 fn module_import_refuses_unsupported_outline_records_instead_of_partial_source() {
-    let result = import(
-        source_board_with(
-            "(gr_curve (pts (xy 1 1) (xy 2 3) (xy 4 5) (xy 6 6)) (layer \"Edge.Cuts\") (tstamp unsupported-curve))",
+    for (id, source, detail) in [
+        (
+            "fixture:unsupported-outline",
+            source_board_with(r#"(gr_curve (pts (xy 1 1) (xy 2 3) (xy 4 5) (xy 6 6)) (layer "Edge.Cuts") (tstamp unsupported-curve))"#),
+            "unsupported-curve",
         ),
-        "fixture:unsupported-outline",
-    );
-    assert_source_gate(&result, "unsupported-curve");
-
-    let source = include_str!("../fixtures/pcb_front_slot.kicad_pcb").replace(
-        "(property \"Reference\" \"J1\")",
-        "(property \"Reference\" \"J1\") (fp_line (start 0 0) (end 1 0) (layer \"Edge.Cuts\") (tstamp nested-outline))",
-    );
-    assert_source_gate(&import(source, "fixture:nested-outline"), "nested-outline");
+        (
+            "fixture:nested-outline",
+            FRONT_SLOT.replace(
+                r#"(property "Reference" "J1")"#,
+                r#"(property "Reference" "J1") (fp_line (start 0 0) (end 1 0) (layer "Edge.Cuts") (tstamp nested-outline))"#,
+            ),
+            "nested-outline",
+        ),
+    ] {
+        assert_source_gate(&import(source, id), detail);
+    }
 }
 
 #[test]

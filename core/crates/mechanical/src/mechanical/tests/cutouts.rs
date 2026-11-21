@@ -19,16 +19,7 @@ fn duplicate_rings_ignore_winding_start_and_closure() {
 #[test]
 fn profiles_follow_rotation_and_back_side_mirror() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["key".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec!["key".into()], 1.6));
     doc.parts.push(serde_json::from_value(serde_json::json!({"id":"key","definitionId":"switch","reference":"SW1","pose":{"at":{"x":10,"y":20},"rotation":90},"side":"back"})).unwrap());
     let mut configuration = config();
     configuration.profiles.push(MechanicalPartProfile {
@@ -49,23 +40,27 @@ fn profiles_follow_rotation_and_back_side_mirror() {
         supported_thickness: None,
     });
     doc.mechanical = Some(configuration);
-    let resolved = resolve(&doc, &[]);
-    assert!((resolved.plate_contours[0].points[0].x - 10.0).abs() < 1e-9);
-    assert!((resolved.plate_contours[0].points[0].y - 19.0).abs() < 1e-9);
+    for (side, rotation, x, y) in [
+        (Side::Back, 90.0, 10.0, 19.0),
+        (Side::Front, 90.0, 10.0, 21.0),
+        (Side::Front, 0.0, 11.0, 20.0),
+        (Side::Back, 0.0, 9.0, 20.0),
+    ] {
+        doc.parts[0].side = side;
+        doc.parts[0].pose.rotation = rotation;
+        let resolved = resolve(&doc, &[]);
+        let point = resolved.plate_contours[0].points[0];
+        assert!(
+            (point.x - x).abs() < 1e-9 && (point.y - y).abs() < 1e-9,
+            "{:?} at {rotation} degrees: {point:?}, expected ({x}, {y})",
+            doc.parts[0].side
+        );
+    }
 }
 #[test]
 fn combined_switch_stabilizer_deduplicates_and_regenerates_with_pose() {
     let mut doc = ProjectDoc::empty("test", "test");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["key".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(board(vec!["key".into()], 1.6));
     doc.parts.push(serde_json::from_value(serde_json::json!({"id":"key","definitionId":"switch","reference":"SW1","pose":{"at":{"x":30,"y":30},"rotation":0},"side":"front"})).unwrap());
     let mut c = config();
     let mut profile =
@@ -99,15 +94,7 @@ fn combined_switch_stabilizer_deduplicates_and_regenerates_with_pose() {
 }
 #[test]
 fn outer_expansion_preserves_nominal_holes() {
-    let outer = Contour {
-        hole: false,
-        points: vec![
-            Vec2 { x: 0.0, y: 0.0 },
-            Vec2 { x: 20.0, y: 0.0 },
-            Vec2 { x: 20.0, y: 20.0 },
-            Vec2 { x: 0.0, y: 20.0 },
-        ],
-    };
+    let outer = rectangle(0.0, 0.0, 20.0, 20.0);
     let hole = Contour {
         hole: true,
         points: vec![

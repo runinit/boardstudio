@@ -1,25 +1,34 @@
 #[path = "module_import/board_source.rs"]
 mod board_source;
-#[path = "module_import/imported_geometry.rs"]
-mod imported_geometry;
-#[path = "module_import/circuit_identity.rs"]
-mod circuit_identity;
 #[path = "module_import/case_preview.rs"]
 mod case_preview;
+#[path = "module_import/circuit_identity.rs"]
+mod circuit_identity;
+#[path = "module_import/imported_geometry.rs"]
+mod imported_geometry;
 
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
+const FRONT_SLOT: &str = include_str!("fixtures/pcb_front_slot.kicad_pcb");
+const VIK_SPLITTER: &str = include_str!(
+    "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
+);
+
+fn artifact(request: Value) -> Value {
+    serde_json::from_str(&boardstudio_core::artifact::request(&request.to_string())).unwrap()
+}
+
 fn import(source: String, id: &str) -> Value {
-    serde_json::from_str(&boardstudio_core::artifact::request(&json!({
+    artifact(json!({
         "id":"import","kind":"import-module-board","definitionId":id,
         "name":"Fixture module","source":source,"family":"fixture","variant":"source",
         "provenance":{"repository":"https://example.invalid/repo","revision":"abc","path":"board.kicad_pcb","license":"MIT"}
-    }).to_string())).unwrap()
+    }))
 }
 
 fn source_board_with(extra: &str) -> String {
-    let source = include_str!("fixtures/pcb_front_slot.kicad_pcb").trim_end();
+    let source = FRONT_SLOT.trim_end();
     format!("{}\n{extra}\n)", source.strip_suffix(')').unwrap())
 }
 
@@ -48,13 +57,19 @@ fn resolve_source_modules(definitions: Vec<Value>) -> Value {
     .unwrap()
 }
 
-fn read_with(source: &str, placement: Value) -> Value {
-    serde_json::from_str(&boardstudio_core::artifact::request(
-        &json!({"id":"read","kind":"read-board-source","source":source,
-            "placement":placement,"flipped":false})
-        .to_string(),
-    ))
-    .unwrap()
+fn read_source(source: &str) -> Value {
+    read_placed_source(source, (0, 0), 0, false)
+}
+
+fn read_placed_source(source: &str, (x, y): (i32, i32), rotation: i32, flipped: bool) -> Value {
+    artifact(
+        json!({"id":"read", "kind":"read-board-source", "source":source,
+        "placement":{"at":{"x":x,"y":y},"rotation":rotation}, "flipped":flipped}),
+    )
+}
+
+fn preview(source: &str, revision: u64) -> Value {
+    artifact(json!({"id":"preview", "kind":"preview-board", "source":source, "revision":revision}))
 }
 
 fn error_of(reply: &Value) -> (String, String) {

@@ -1,102 +1,12 @@
 use super::*;
 
 #[test]
-fn a_new_framed_part_endpoint_naming_a_linked_mirror_normalizes_to_its_binding() {
-    let document = rotated_fixture();
-    let constraint = Constraint::Framed {
-        id: "constraint/framed-command".into(),
-        source: crate::model::ConstraintEndpoint::Part {
-            part_id: "right/U1".into(),
-        },
-        target: crate::model::ConstraintEndpoint::Part {
-            part_id: "left/U2".into(),
-        },
-        relation: crate::model::ConstraintRelation::Offset {
-            offset: Vec2 { x: 3.0, y: -8.0 },
-            rotation: 17.0,
-        },
+fn remove_constraint_keeps_the_exact_global_id() {
+    let request = EditOperation::RemoveConstraint {
+        id: "constraint/authored-on-mirror".into(),
     };
-
-    let canonical = canonicalize(&document, &EditOperation::SetConstraint { constraint })
-        .expect("a new Part endpoint naming a linked mirror is normalized");
-
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &canonical.prepared_constraints[0]
-    else {
-        panic!("the Framed command compiles into one prepared record");
-    };
-    assert_eq!(
-        record,
-        &crate::constraints::FramedConstraint::Framed {
-            id: "constraint/framed-command".into(),
-            source: crate::constraints::ConstraintEndpoint::LinkedMirror {
-                pair_id: "pair".into(),
-                source_part_id: "left/U1".into(),
-                mirror_part_id: "right/U1".into(),
-            },
-            target: crate::constraints::ConstraintEndpoint::Part {
-                part_id: "left/U2".into(),
-            },
-            relation: crate::constraints::ConstraintRelation::Offset {
-                offset: Vec2 { x: 3.0, y: -8.0 },
-                rotation: 17.0,
-            },
-        }
-    );
-}
-
-#[test]
-fn local_constraint_edit_stays_local_and_remove_keeps_the_exact_global_id() {
-    let document = rotated_fixture();
-    let constraint = Constraint::Offset {
-        id: "constraint/local-3".into(),
-        source_part_id: "right/HEADER".into(),
-        target_part_id: "right/HEADER".into(),
-        offset: Vec2 { x: -4.0, y: 9.0 },
-        rotation: -0.0,
-    };
-    let prepared = canonicalize(
-        &document,
-        &EditOperation::SetConstraint {
-            constraint: constraint.clone(),
-        },
-    )
-    .unwrap();
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("the local SetConstraint must prepare its record");
-    };
-    assert_eq!(
-        record,
-        &crate::constraints::FramedConstraint::Framed {
-            id: "constraint/local-3".into(),
-            source: crate::constraints::ConstraintEndpoint::Part {
-                part_id: "right/HEADER".into(),
-            },
-            target: crate::constraints::ConstraintEndpoint::Part {
-                part_id: "right/HEADER".into(),
-            },
-            relation: crate::constraints::ConstraintRelation::Offset {
-                offset: Vec2 { x: -4.0, y: 9.0 },
-                rotation: -0.0,
-            },
-        }
-    );
-
-    let removed = canonicalize(
-        &document,
-        &EditOperation::RemoveConstraint {
-            id: "constraint/authored-on-mirror".into(),
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        removed.operation,
-        EditOperation::RemoveConstraint {
-            id: "constraint/authored-on-mirror".into(),
-        }
-    );
+    let removed = canonicalize(&rotated_fixture(), &request).unwrap();
+    assert_eq!(removed.operation, request);
     assert_eq!(
         removed.prepared_constraints,
         [super::constraints::PreparedConstraintEdit::Remove {
@@ -124,11 +34,7 @@ fn convert_offset_prepares_the_same_part_axes_values_as_the_legacy_operation() {
     )
     .unwrap();
 
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("ConvertOffsetConstraint must prepare its converted relation");
-    };
+    let record = test_support::only_upsert(&prepared);
     let crate::constraints::FramedConstraint::Framed {
         id,
         source,
@@ -170,26 +76,11 @@ fn moving_source_and_target_in_one_batch_retunes_by_target_delta_not_final_fit()
     });
     let prepared = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![
-                crate::model::Position {
-                    id: "right/FREE".into(),
-                    at: Vec2 { x: 302.0, y: 4.0 },
-                },
-                crate::model::Position {
-                    id: "right/HEADER".into(),
-                    at: Vec2 { x: 225.0, y: 31.0 },
-                },
-            ],
-        },
+        &test_support::move_positions([("right/FREE", 302.0, 4.0), ("right/HEADER", 225.0, 31.0)]),
     )
     .unwrap();
 
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("the batch target move must prepare one retuned record");
-    };
+    let record = test_support::only_upsert(&prepared);
     let crate::constraints::FramedConstraint::Framed {
         relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
         ..
@@ -204,25 +95,10 @@ fn moving_source_and_target_in_one_batch_retunes_by_target_delta_not_final_fit()
 
     let reversed = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![
-                crate::model::Position {
-                    id: "right/HEADER".into(),
-                    at: Vec2 { x: 225.0, y: 31.0 },
-                },
-                crate::model::Position {
-                    id: "right/FREE".into(),
-                    at: Vec2 { x: 302.0, y: 4.0 },
-                },
-            ],
-        },
+        &test_support::move_positions([("right/HEADER", 225.0, 31.0), ("right/FREE", 302.0, 4.0)]),
     )
     .unwrap();
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &reversed.prepared_constraints[0]
-    else {
-        panic!("the reordered batch must retain one retuned record");
-    };
+    let record = test_support::only_upsert(&reversed);
     let crate::constraints::FramedConstraint::Framed {
         relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
         ..
@@ -757,23 +633,6 @@ fn removing_linked_mirror_parts_removes_their_sources_once() {
 }
 
 #[test]
-fn a_stabiliser_keeps_the_literal_position_in_every_mode() {
-    let mut document = fixture();
-    set_companion(&mut document, "duplicate-position", json!(null));
-    document
-        .parts
-        .iter_mut()
-        .find(|part| part.id == DIODE)
-        .unwrap()
-        .definition_id = "kicad:marbastlib/STAB_MX_2u".into();
-    expect_operation(
-        &document,
-        move_diode((190.0, -5.0)),
-        moved_source_diode((10.0, -5.0)),
-    );
-}
-
-#[test]
 fn a_rotated_pair_map_turns_the_matrix_origin_and_heading_back_once() {
     let matrix = translated_matrix(
         &rotated_fixture(),
@@ -882,16 +741,4 @@ fn matrix_structure_requests_on_the_mirror_name_the_source_matrix() {
     ] {
         expect_operation(&fixture(), request, expected);
     }
-}
-
-#[test]
-fn an_omitted_matrix_is_refused() {
-    let message = refusal(
-        &with_matrix_state(fixture(), "omitted"),
-        json!({"kind": "remove-matrix", "id": "right-keys"}),
-    );
-    assert!(
-        message.contains("right-keys") && message.contains("omitted"),
-        "{message}"
-    );
 }

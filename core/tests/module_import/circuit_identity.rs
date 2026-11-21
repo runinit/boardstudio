@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn module_import_rejects_duplicate_source_references_before_namespacing_a_circuit() {
-    let source = include_str!(
-        "../../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
-    )
-    .replace(
+    let source = VIK_SPLITTER.replace(
         "(fp_text reference \"J1002\"",
         "(fp_text reference \"J1001\"",
     );
@@ -25,10 +22,7 @@ fn module_import_rejects_duplicate_source_references_before_namespacing_a_circui
 
 #[test]
 fn module_import_gives_unannotated_footprints_unique_circuit_identities() {
-    let source = include_str!(
-        "../../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
-    )
-    .to_owned();
+    let source = VIK_SPLITTER.to_owned();
     let result = import(source, "fixture:splitter");
     assert_eq!(result["kind"], "import-module-board", "{result}");
     let parts = result["result"]["circuit"]["parts"].as_array().unwrap();

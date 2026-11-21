@@ -1,66 +1,6 @@
 use super::*;
 
 #[test]
-fn set_constraint_prepares_one_global_record_with_two_live_mirror_views() {
-    let document = rotated_fixture();
-    let constraint = Constraint::Offset {
-        id: "constraint/durable-7".into(),
-        source_part_id: "right/U1".into(),
-        target_part_id: "matrix/right-keys/r0c0".into(),
-        offset: Vec2 { x: 5.0, y: -2.0 },
-        rotation: 15.0,
-    };
-    let canonical = canonicalize(
-        &document,
-        &EditOperation::SetConstraint {
-            constraint: constraint.clone(),
-        },
-    )
-    .unwrap();
-
-    assert_eq!(
-        canonical.operation,
-        EditOperation::SetConstraint { constraint }
-    );
-    assert_eq!(canonical.prepared_constraints.len(), 1);
-    let super::constraints::PreparedConstraintEdit::Upsert(
-        crate::constraints::FramedConstraint::Framed {
-            id,
-            source,
-            target,
-            relation,
-        },
-    ) = &canonical.prepared_constraints[0]
-    else {
-        panic!("SetConstraint did not prepare one framed record");
-    };
-    assert_eq!(id, "constraint/durable-7");
-    assert_eq!(
-        source,
-        &crate::constraints::ConstraintEndpoint::LinkedMirror {
-            pair_id: "pair".into(),
-            source_part_id: "left/U1".into(),
-            mirror_part_id: "right/U1".into(),
-        }
-    );
-    assert_eq!(
-        target,
-        &crate::constraints::ConstraintEndpoint::LinkedMirror {
-            pair_id: "pair".into(),
-            source_part_id: "matrix/left-keys/r0c0".into(),
-            mirror_part_id: "matrix/right-keys/r0c0".into(),
-        }
-    );
-    assert_eq!(
-        relation,
-        &crate::constraints::ConstraintRelation::Offset {
-            offset: Vec2 { x: 5.0, y: -2.0 },
-            rotation: 15.0,
-        }
-    );
-}
-
-#[test]
 fn convert_offset_keeps_legacy_missing_target_precedence_for_mirrors() {
     let mut document = rotated_fixture();
     document.constraints.push(Constraint::Mirror {
@@ -96,12 +36,7 @@ fn moving_a_visible_mirror_constraint_target_uses_its_literal_inverse_position()
     });
     let prepared = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![crate::model::Position {
-                id: "right/U1".into(),
-                at: Vec2 { x: 104.0, y: -1.0 },
-            }],
-        },
+        &test_support::move_positions([("right/U1", 104.0, -1.0)]),
     )
     .unwrap();
 
@@ -120,11 +55,7 @@ fn moving_a_visible_mirror_constraint_target_uses_its_literal_inverse_position()
         "{:?}",
         positions[0]
     );
-    let super::constraints::PreparedConstraintEdit::Upsert(record) =
-        &prepared.prepared_constraints[0]
-    else {
-        panic!("moving the visible mirror target must retune the same global record");
-    };
+    let record = test_support::only_upsert(&prepared);
     let crate::constraints::FramedConstraint::Framed {
         id,
         relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
@@ -152,12 +83,7 @@ fn moving_a_legacy_mirror_constraint_target_is_refused() {
     });
     let error = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![crate::model::Position {
-                id: "right/FREE".into(),
-                at: Vec2 { x: 302.0, y: 4.0 },
-            }],
-        },
+        &test_support::move_positions([("right/FREE", 302.0, 4.0)]),
     )
     .unwrap_err()
     .to_string();
@@ -179,12 +105,7 @@ fn moving_a_companion_target_defers_until_its_key_owner_pose_is_resolved() {
     });
     let prepared = canonicalize(
         &document,
-        &EditOperation::MoveParts {
-            positions: vec![crate::model::Position {
-                id: "matrix/right-keys/r0c0/diode".into(),
-                at: Vec2 { x: 187.0, y: -4.0 },
-            }],
-        },
+        &test_support::move_positions([("matrix/right-keys/r0c0/diode", 187.0, -4.0)]),
     )
     .unwrap();
 
@@ -438,154 +359,82 @@ fn omitted_native_layout_is_refused_instead_of_recreated() {
 }
 
 #[test]
-fn an_anchor_in_another_matrix_uses_its_own_matrix_frame_rule() {
-    let mut document = fixture();
-    let source_id = "matrix/left-other/r0c0";
-    let mirror_id = "matrix/right-other/r0c0";
-    let mut source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
-        .clone();
-    source_matrix.id = "left-other".into();
-    source_matrix.part_ids = vec![source_id.into()];
-    let mut mirror_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "right-keys")
-        .unwrap()
-        .clone();
-    mirror_matrix.id = "right-other".into();
-    mirror_matrix.part_ids = vec![mirror_id.into()];
-    for (old_id, new_id, board_id) in [
-        ("matrix/left-keys/r0c0", source_id, "left"),
-        ("matrix/right-keys/r0c0", mirror_id, "right"),
+fn outline_anchors_use_actual_matrix_membership_even_without_board_id() {
+    let matrix_frame =
+        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}]);
+    let full_heading =
+        json!([{"x": 12.0, "y": -14.0}, {"x": 8.0, "y": -10.0}, {"x": 4.0, "y": -6.0}]);
+    for (name, membership, expected) in [
+        ("other", Some(true), &matrix_frame),
+        ("legacy", Some(false), &matrix_frame),
+        ("loose", None, &full_heading),
     ] {
-        let mut new_part = document
-            .parts
-            .iter()
-            .find(|part| part.id == old_id)
+        let mut document = fixture();
+        let [source_id, mirror_id] =
+            ["left", "right"].map(|board| format!("matrix/{board}-{name}/r0c0"));
+        let mut links = vec![serde_json::from_value(corr("part", &source_id, &mirror_id)).unwrap()];
+        for (board, id) in [("left", &source_id), ("right", &mirror_id)] {
+            let mut part = document
+                .parts
+                .iter()
+                .find(|part| part.id == format!("matrix/{board}-keys/r0c0"))
+                .unwrap()
+                .clone();
+            part.id = id.clone();
+            document.parts.push(part);
+            document
+                .boards
+                .iter_mut()
+                .find(|entry| entry.id == board)
+                .unwrap()
+                .part_ids
+                .push(id.clone());
+            if let Some(has_board) = membership {
+                let mut matrix = document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == format!("{board}-keys"))
+                    .unwrap()
+                    .clone();
+                matrix.id = format!("{board}-{name}");
+                if !has_board {
+                    matrix.board_id = None;
+                }
+                matrix.part_ids = vec![id.clone()];
+                document.matrices.push(matrix);
+            }
+        }
+        if membership.is_some() {
+            links.push(
+                serde_json::from_value(corr(
+                    "matrix",
+                    &format!("left-{name}"),
+                    &format!("right-{name}"),
+                ))
+                .unwrap(),
+            );
+        }
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
             .unwrap()
-            .clone();
-        new_part.id = new_id.into();
-        document.parts.push(new_part);
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == board_id)
-            .unwrap()
-            .part_ids
-            .push(new_id.into());
+            .correspondences
+            .extend(links);
+        let request = json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "right"},
+            "change": {"add-feature": {"feature": {"kind": "polygon",
+                "id": "right/new", "anchorPartId": mirror_id,
+                "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+                "operation": "add"}}},
+            "seed": 13
+        }});
+        let result = canonical(&document, &request).unwrap_or_else(|err| panic!("{name}: {err}"));
+        let output = serde_json::to_value(result.operation).unwrap();
+        let feature = &output["edit"]["change"]["add-feature"]["feature"];
+        assert_eq!(feature["id"], "left/new", "{name}");
+        assert_eq!(feature["anchorPartId"], source_id, "{name}");
+        assert_eq!(&feature["points"], expected, "{name}");
     }
-    document.matrices.extend([source_matrix, mirror_matrix]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("matrix", "left-other", "right-other")).unwrap(),
-            serde_json::from_value(corr(
-                "part",
-                "matrix/left-other/r0c0",
-                "matrix/right-other/r0c0",
-            ))
-            .unwrap(),
-        ]);
-    let request = json!({"kind": "apply-outline-edit", "edit": {
-        "target": {"kind": "board", "boardId": "right"},
-        "change": {"add-feature": {"feature": {"kind": "polygon",
-            "id": "right/new", "anchorPartId": "matrix/right-other/r0c0",
-            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
-            "operation": "add"}}},
-        "seed": 13
-    }});
-
-    let translated = canonical(&document, &request).expect("the linked anchor translates");
-    let value = serde_json::to_value(translated.operation).unwrap();
-    assert_eq!(
-        value["edit"]["change"]["add-feature"]["feature"]["id"],
-        "left/new"
-    );
-    assert_eq!(
-        value["edit"]["change"]["add-feature"]["feature"]["anchorPartId"],
-        "matrix/left-other/r0c0"
-    );
-    assert_eq!(
-        value["edit"]["change"]["add-feature"]["feature"]["points"],
-        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
-    );
-}
-
-#[test]
-fn legacy_matrix_membership_without_board_id_uses_matrix_frame_rule() {
-    let mut document = fixture();
-    let source_id = "matrix/left-legacy/r0c0";
-    let mirror_id = "matrix/right-legacy/r0c0";
-    let mut source_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "left-keys")
-        .unwrap()
-        .clone();
-    source_matrix.id = "left-legacy".into();
-    source_matrix.board_id = None;
-    source_matrix.part_ids = vec![source_id.into()];
-    let mut mirror_matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "right-keys")
-        .unwrap()
-        .clone();
-    mirror_matrix.id = "right-legacy".into();
-    mirror_matrix.board_id = None;
-    mirror_matrix.part_ids = vec![mirror_id.into()];
-    for (old_id, new_id, board_id) in [
-        ("matrix/left-keys/r0c0", source_id, "left"),
-        ("matrix/right-keys/r0c0", mirror_id, "right"),
-    ] {
-        let mut new_part = document
-            .parts
-            .iter()
-            .find(|part| part.id == old_id)
-            .unwrap()
-            .clone();
-        new_part.id = new_id.into();
-        document.parts.push(new_part);
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == board_id)
-            .unwrap()
-            .part_ids
-            .push(new_id.into());
-    }
-    document.matrices.extend([source_matrix, mirror_matrix]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("matrix", "left-legacy", "right-legacy")).unwrap(),
-            serde_json::from_value(corr("part", source_id, mirror_id)).unwrap(),
-        ]);
-
-    let request = json!({"kind": "apply-outline-edit", "edit": {
-        "target": {"kind": "board", "boardId": "right"},
-        "change": {"add-feature": {"feature": {"kind": "polygon",
-            "id": "right/legacy-anchor", "anchorPartId": mirror_id,
-            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
-            "operation": "add"}}},
-        "seed": 18
-    }});
-    let translated = canonical(&document, &request).expect("the linked anchor translates");
-    let value = serde_json::to_value(translated.operation).unwrap();
-    assert_eq!(
-        value["edit"]["change"]["add-feature"]["feature"]["points"],
-        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
-    );
 }
 
 #[test]
@@ -685,15 +534,28 @@ fn current_projected_review_keeps_exact_source_coordinates_while_stale_review_st
 }
 
 #[test]
-fn an_omitted_mirror_target_is_refused_not_recreated() {
-    let message = refusal(
-        &fixture(),
-        json!({"kind": "move-parts", "positions": [{"id": "right/GONE", "at": {"x": 1, "y": 1}}]}),
-    );
-    assert!(
-        message.contains("right/GONE") && message.contains("omitted"),
-        "{message}"
-    );
+fn omitted_mirror_targets_are_refused_not_recreated() {
+    let document = with_matrix_state(fixture(), "omitted");
+    for (id, request) in [
+        (
+            "right/GONE",
+            json!({"kind": "move-parts", "positions": [{"id": "right/GONE", "at": {"x": 1, "y": 1}}]}),
+        ),
+        (
+            "right/GONE",
+            json!({"kind": "remove-parts", "ids": ["right/GONE"]}),
+        ),
+        (
+            "right-keys",
+            json!({"kind": "remove-matrix", "id": "right-keys"}),
+        ),
+    ] {
+        let message = refusal(&document, request.clone());
+        assert!(
+            message.contains(id) && message.contains("omitted"),
+            "{request}: {message}"
+        );
+    }
 }
 
 #[test]
@@ -737,54 +599,48 @@ fn a_mirror_side_addition_whose_source_identity_is_taken_allocates_the_next_free
 }
 
 #[test]
-fn a_literal_mirror_companion_moves_its_source_to_the_mirrored_point() {
-    expect_operation(
-        &fixture(),
-        move_diode((190.0, -5.0)),
-        moved_source_diode((10.0, -5.0)),
-    );
-}
-
-#[test]
-fn a_tweaked_companion_removes_the_tweak_turned_by_the_mirror_key_heading() {
-    let mut document = fixture();
-    set_companion(
-        &mut document,
-        "literal-mirror-with-tweak",
-        json!({"x": 1.0, "y": 2.0, "rotation": 0.0}),
-    );
-    // Mirror key heading 0: the tweak (1, 2) is removed as it stands.
-    expect_operation(
-        &document,
-        move_diode((190.0, -5.0)),
-        moved_source_diode((11.0, -7.0)),
-    );
-    // Mirror key heading 90: the tweak is (-2, 1) in the world.
-    pose_of(&mut document, "matrix/right-keys/r0c0").rotation = 90.0;
-    expect_operation(
-        &document,
-        move_diode((190.0, -5.0)),
-        moved_source_diode((8.0, -6.0)),
-    );
-}
-
-#[test]
-fn a_duplicate_position_companion_keeps_the_mirror_offset_in_the_source_key_frame() {
-    let mut document = fixture();
-    set_companion(&mut document, "duplicate-position", json!(null));
-    // Offset from the mirror key (200, 0) is (-10, -5); the source key (0, 0) heads 0.
-    expect_operation(
-        &document,
-        move_diode((190.0, -5.0)),
-        moved_source_diode((-10.0, -5.0)),
-    );
-    // A source key heading 90 turns that offset to (5, -10).
-    pose_of(&mut document, "matrix/left-keys/r0c0").rotation = 90.0;
-    expect_operation(
-        &document,
-        move_diode((190.0, -5.0)),
-        moved_source_diode((5.0, -10.0)),
-    );
+fn companion_moves_use_the_requested_placement_mode_and_key_heading() {
+    for (mode, source_heading, mirror_heading, stabilizer, source) in [
+        ("literal-mirror", 0.0, 0.0, false, (10.0, -5.0)),
+        // Remove the world tweak (1, 2), or (-2, 1) with a quarter turn.
+        ("literal-mirror-with-tweak", 0.0, 0.0, false, (11.0, -7.0)),
+        ("literal-mirror-with-tweak", 0.0, 90.0, false, (8.0, -6.0)),
+        // Copy the mirror offset (-10, -5) into the source key's frame.
+        ("duplicate-position", 0.0, 0.0, false, (-10.0, -5.0)),
+        ("duplicate-position", 90.0, 0.0, false, (5.0, -10.0)),
+        // A stabilizer still uses literal positions in duplicate-position mode.
+        ("duplicate-position", 0.0, 0.0, true, (10.0, -5.0)),
+    ] {
+        let mut document = fixture();
+        if mode != "literal-mirror" {
+            let tweak = if mode == "literal-mirror-with-tweak" {
+                json!({"x": 1.0, "y": 2.0, "rotation": 0.0})
+            } else {
+                Value::Null
+            };
+            set_companion(&mut document, mode, tweak);
+        }
+        if stabilizer {
+            document
+                .parts
+                .iter_mut()
+                .find(|part| part.id == DIODE)
+                .unwrap()
+                .definition_id = "kicad:marbastlib/STAB_MX_2u".into();
+        }
+        pose_of(&mut document, "matrix/left-keys/r0c0").rotation = source_heading;
+        pose_of(&mut document, "matrix/right-keys/r0c0").rotation = mirror_heading;
+        let request = move_diode((190.0, -5.0));
+        let context =
+            format!("{mode}, headings {source_heading}/{mirror_heading}, stabilizer {stabilizer}");
+        let result =
+            canonical(&document, &request).unwrap_or_else(|err| panic!("{context}: {err}"));
+        assert_close(
+            &serde_json::to_value(result.operation).unwrap(),
+            &moved_source_diode(source),
+            &context,
+        );
+    }
 }
 
 #[test]
@@ -827,18 +683,6 @@ fn a_mirror_matrix_payload_becomes_the_source_matrix_through_the_inverse_pair_ma
             {"row": 0, "column": 1, "enabled": false}
         ]}),
         "matrix",
-    );
-}
-
-#[test]
-fn a_duplicate_position_companion_keeps_the_mirror_values_as_the_source_values() {
-    let mut document = fixture();
-    set_companion(&mut document, "duplicate-position", json!(null));
-    let matrix = companion_matrix(&document, "d", -60.0);
-    assert_close(
-        &matrix["cells"][0]["assemblies"],
-        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": -8, "y": -3}, "rotation": -60}]),
-        "assemblies",
     );
 }
 

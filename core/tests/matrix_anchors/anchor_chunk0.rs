@@ -10,26 +10,9 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor: MatrixAnchor {
-                matrix_id: "main".into(),
-                row: 0,
-                column: 2,
-                follow: Follow {
-                    x: true,
-                    y: true,
-                    rotation: true,
-                },
-                aggregate: None,
-            },
-        },
+        add_anchored("thumb", key_anchor("main", 0, 2)),
     );
-    let thumb = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb")
-        .expect("added matrix is stored");
+    let thumb = matrix(&doc, "thumb");
     assert_eq!((thumb.rows, thumb.columns), (1, 3));
     assert_eq!(thumb.origin, Vec2 { x: 0.0, y: -19.0 });
     assert_eq!(thumb.board_id.as_deref(), Some("board"));
@@ -40,23 +23,18 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
             .is_some_and(|layout| layout.matrix_ids.contains(&"thumb".to_string()))
     );
     // Dependent members hang off the anchor key's final pose plus the relative origin.
-    assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 38.0, y: -19.0 });
-    assert_eq!(at(&doc, &member("thumb", 0, 2)), Vec2 { x: 76.0, y: -19.0 });
+    assert_at(&doc, &member("thumb", 0, 0), 38.0, -19.0);
+    assert_at(&doc, &member("thumb", 0, 2), 76.0, -19.0);
 
     // Moving the anchor key moves the anchored members with it.
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: anchor_key.clone(),
-                at: Vec2 { x: 43.0, y: 7.0 },
-            }],
-        },
+        move_part(anchor_key.clone(), Vec2 { x: 43.0, y: 7.0 }),
     );
-    assert_eq!(at(&doc, &anchor_key), Vec2 { x: 43.0, y: 7.0 });
-    assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 43.0, y: -12.0 });
-    assert_eq!(at(&doc, &member("thumb", 0, 2)), Vec2 { x: 81.0, y: -12.0 });
+    assert_at(&doc, &anchor_key, 43.0, 7.0);
+    assert_at(&doc, &member("thumb", 0, 0), 43.0, -12.0);
+    assert_at(&doc, &member("thumb", 0, 2), 81.0, -12.0);
 }
 
 #[test]
@@ -65,15 +43,7 @@ fn linked_detach_clears_both_anchors_and_keeps_both_poses() {
     assert!(anchor_of(&doc, "thumb").is_some());
     assert!(anchor_of(&doc, "thumb2").is_some());
     // Mirror sanity: the partner group is the x=10 reflection of the source.
-    assert_eq!(
-        pose_of(&doc, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -18.0, y: -19.0 }
-    );
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
+    assert_at(&doc, &member("thumb2", 0, 0), -18.0, -19.0);
     let (_, detached) = edit(
         &mut engine,
         &doc,
@@ -85,8 +55,8 @@ fn linked_detach_clears_both_anchors_and_keeps_both_poses() {
     assert_eq!(anchor_of(&detached, "thumb"), None);
     assert_eq!(anchor_of(&detached, "thumb2"), None);
     // Every materialized pose on both halves is unchanged.
-    for (id, pose) in &poses_before {
-        assert_eq!(pose_of(&detached, id), *pose, "{id}");
+    for (id, pose) in poses(&doc) {
+        assert_eq!(pose_of(&detached, id), pose, "{id}");
     }
     // One transaction: Undo restores both anchors, Redo clears both again.
     let undone_doc = undone(&mut engine);
@@ -116,20 +86,7 @@ fn anchoring_to_a_constraint_driven_key_is_refused() {
     let message = error(
         &mut engine,
         &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor: MatrixAnchor {
-                matrix_id: "main".into(),
-                row: 0,
-                column: 0,
-                follow: Follow {
-                    x: true,
-                    y: true,
-                    rotation: true,
-                },
-                aggregate: None,
-            },
-        },
+        add_anchored("thumb", key_anchor("main", 0, 0)),
     );
     assert!(
         message.contains("constraint-driven"),
@@ -196,32 +153,11 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "claw".into(),
-            anchor: MatrixAnchor {
-                matrix_id: "left-matrix".into(),
-                row: 0,
-                column: 0,
-                follow: Follow {
-                    x: true,
-                    y: true,
-                    rotation: true,
-                },
-                aggregate: None,
-            },
-        },
+        add_anchored("claw", key_anchor("left-matrix", 0, 0)),
     );
     // Both halves gain a 1x3 thumb; the mirror anchors to the counterpart.
-    let claw = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "claw")
-        .expect("claw matrix");
-    let mirror = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "claw-mirror")
-        .expect("claw mirror");
+    let claw = matrix(&doc, "claw");
+    let mirror = matrix(&doc, "claw-mirror");
     assert_eq!(
         claw.anchor.as_ref().expect("claw anchor").matrix_id,
         "left-matrix"
@@ -236,14 +172,8 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     // Partner poses are the x=10 reflection of the source. Ticket 11: the
     // 1x1 creation requested a 2 mm gap, so the stored gap is the 40 mm
     // default and both anchored thumbs ride 19 mm farther out.
-    assert_eq!(
-        pose_of(&doc, &member("claw", 0, 0)).at,
-        Vec2 { x: -19.0, y: -19.0 }
-    );
-    assert_eq!(
-        pose_of(&doc, &member("claw-mirror", 0, 0)).at,
-        Vec2 { x: 39.0, y: -19.0 }
-    );
+    assert_at(&doc, &member("claw", 0, 0), -19.0, -19.0);
+    assert_at(&doc, &member("claw-mirror", 0, 0), 39.0, -19.0);
     // Layout membership and matrix correspondences cover both.
     let left = doc
         .layouts
@@ -285,20 +215,10 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
 #[test]
 fn anchor_follow_rotation_filters_the_completed_heading() {
     let (mut engine, doc) = anchored_fixture();
-    let mut turned = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main")
-        .expect("main matrix")
-        .clone();
-    turned.rotation = Some(30.0);
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: turned,
-            definitions: None,
-        },
+        change_matrix(&doc, "main", |matrix| matrix.rotation = Some(30.0)),
     );
     let followed = pose_of(&doc, &member("thumb", 0, 0));
     assert_eq!(followed.rotation, 30.0);
@@ -348,34 +268,18 @@ fn anchored_matrix_translation_respects_follow_and_refuses_impossible_drags() {
             },
         },
     );
-    assert_eq!(
-        pose_of(&moved, &member("thumb", 0, 0)).at,
-        Vec2 { x: 0.0, y: -14.0 }
-    );
-    assert_eq!(
-        pose_of(&moved, &member("thumb", 0, 2)).at,
-        Vec2 { x: 38.0, y: -14.0 }
-    );
+    assert_at(&moved, &member("thumb", 0, 0), 0.0, -14.0);
+    assert_at(&moved, &member("thumb", 0, 2), 38.0, -14.0);
 }
 
 #[test]
 fn anchored_frame_edits_refuse_unfollowed_components() {
     let (mut engine, doc) = anchored_fixture();
     let doc = set_follow(&mut engine, &doc, true, true, false);
-    let mut rotated = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb")
-        .expect("thumb matrix")
-        .clone();
-    rotated.rotation = Some(15.0);
     let message = error(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: rotated,
-            definitions: None,
-        },
+        change_matrix(&doc, "thumb", |matrix| matrix.rotation = Some(15.0)),
     );
     assert!(
         message.contains("not followed"),
@@ -401,10 +305,7 @@ fn constraints_consume_final_anchored_poses() {
         },
     );
     // The anchored member solves from its laid-out pose, not from a stale one.
-    assert_eq!(
-        pose_of(&doc, &member("thumb", 0, 1)).at,
-        Vec2 { x: 5.0, y: 5.0 }
-    );
+    assert_at(&doc, &member("thumb", 0, 1), 5.0, 5.0);
 }
 
 #[test]
@@ -534,14 +435,8 @@ fn linked_omitted_anchor_keeps_live_logical_pose() {
     // Both dependants still evaluate through the live logical anchor: source
     // thumb at its anchor key plus relative origin, mirror thumb at the
     // reflected logical pose (axis x=10).
-    assert_eq!(
-        pose_of(&doc, &member("thumb", 0, 0)).at,
-        Vec2 { x: 38.0, y: -19.0 }
-    );
-    assert_eq!(
-        pose_of(&doc, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -18.0, y: -19.0 }
-    );
+    assert_at(&doc, &member("thumb", 0, 0), 38.0, -19.0);
+    assert_at(&doc, &member("thumb2", 0, 0), -18.0, -19.0);
 }
 
 #[test]
@@ -549,37 +444,13 @@ fn linked_compaction_excludes_local_partner() {
     // Ticket 21: a grouped column removal edits the linked source alone; the
     // Local partner keeps its own dimensions and every world pose.
     let (mut engine, doc) = linked_anchored_fixture();
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Matrix,
-            mirror_id: "main2".into(),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, doc) = edit(
+    let doc = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Matrix,
+        "main2",
+        MirroredExceptionState::Local,
     );
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
     let (_, compacted) = edit(
         &mut engine,
         &doc,
@@ -589,26 +460,14 @@ fn linked_compaction_excludes_local_partner() {
         },
     );
     // Source compacted; Local partner untouched.
-    assert_eq!(
-        compacted
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "main")
-            .expect("compacted source")
-            .columns,
-        2
-    );
-    let partner = compacted
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "main2")
-        .expect("local partner");
+    assert_eq!(matrix(&compacted, "main").columns, 2);
+    let partner = matrix(&compacted, "main2");
     assert_eq!((partner.rows, partner.columns), (1, 3));
     // The Local partner keeps every world pose; the linked thumb pair
     // follows the compacted anchor (ticket 19 remap), so only main2 stays.
-    for (id, pose) in &poses_before {
+    for (id, pose) in poses(&doc) {
         if id.starts_with("matrix/main2/") {
-            assert_eq!(pose_of(&compacted, id), *pose, "{id}");
+            assert_eq!(pose_of(&compacted, id), pose, "{id}");
         }
     }
     assert!(
@@ -620,17 +479,7 @@ fn linked_compaction_excludes_local_partner() {
     // The source anchor compacted onto its surviving physical key.
     assert_eq!(
         anchor_of(&compacted, "thumb"),
-        Some(MatrixAnchor {
-            matrix_id: "main".into(),
-            row: 0,
-            column: 1,
-            follow: Follow {
-                x: true,
-                y: true,
-                rotation: true,
-            },
-            aggregate: None,
-        })
+        Some(key_anchor("main", 0, 1))
     );
     let undone_doc = undone(&mut engine);
     assert_eq!(undone_doc.matrices, doc.matrices);
@@ -641,47 +490,18 @@ fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
     // Ticket 21: the confirmed detach clears both anchors, keeps both world
     // poses, and records the Local exception in one Undo entry.
     let (mut engine, doc) = linked_anchored_fixture();
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: member("main2", 0, 2),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, doc) = edit(
+    let doc = with_mirror_exception(
         &mut engine,
         &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
+        MirroredItemKind::Part,
+        member("main2", 0, 2),
+        MirroredExceptionState::Local,
     );
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: member("main2", 0, 2),
-                at: Vec2 { x: -10.0, y: 5.0 },
-            }],
-        },
+        move_part(member("main2", 0, 2), Vec2 { x: -10.0, y: 5.0 }),
     );
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
     let (_, detached) = edit(
         &mut engine,
         &doc,
@@ -693,8 +513,8 @@ fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
     // Both anchors cleared, every world pose kept, exception recorded.
     assert_eq!(anchor_of(&detached, "thumb"), None);
     assert_eq!(anchor_of(&detached, "thumb2"), None);
-    for (id, pose) in &poses_before {
-        assert_eq!(pose_of(&detached, id), *pose, "{id}");
+    for (id, pose) in poses(&doc) {
+        assert_eq!(pose_of(&detached, id), pose, "{id}");
     }
     assert!(
         detached
@@ -732,132 +552,98 @@ fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
 }
 
 #[test]
-fn linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair() {
-    // Ticket 21: without an exception the linked counterpart follows the
-    // source deletion; unrelated pairs and their poses survive.
-    let (mut engine, doc) = linked_anchored_fixture();
-    let poses_before: Vec<(String, Pose2)> = doc
-        .parts
-        .iter()
-        .map(|part| (part.id.clone(), part.pose))
-        .collect();
-    let (_, removed) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::RemoveMatrix { id: "main".into() },
-    );
-    // Both halves of the removed pair are gone with their parts.
-    for gone in ["main", "main2"] {
+fn linked_source_removal_preserves_only_local_partners_and_unrelated_links() {
+    // Ticket 21: a linked counterpart follows the source deletion, an omitted one
+    // is not resurrected, and a local counterpart survives with its world poses.
+    for state in [
+        None,
+        Some(MirroredExceptionState::Omitted),
+        Some(MirroredExceptionState::Local),
+    ] {
+        let (mut engine, doc) = linked_anchored_fixture();
+        let doc = if let Some(state) = state {
+            with_mirror_exception(&mut engine, &doc, MirroredItemKind::Matrix, "main2", state)
+        } else {
+            doc
+        };
+        let local = state == Some(MirroredExceptionState::Local);
+        let (_, removed) = edit(
+            &mut engine,
+            &doc,
+            EditOperation::RemoveMatrix { id: "main".into() },
+        );
         assert!(
-            removed.matrices.iter().all(|matrix| matrix.id != gone),
-            "{gone} removed"
+            removed.matrices.iter().all(|matrix| matrix.id != "main"),
+            "{state:?}"
         );
         assert!(
             removed
                 .parts
                 .iter()
-                .all(|part| !part.id.starts_with(&format!("matrix/{gone}/"))),
-            "{gone} parts removed"
+                .all(|part| !part.id.starts_with("matrix/main/")),
+            "{state:?}"
         );
-    }
-    // The unrelated pair survives with its poses and correspondence.
-    for kept in ["thumb", "thumb2"] {
-        assert!(
-            removed.matrices.iter().any(|matrix| matrix.id == kept),
-            "{kept} survives"
-        );
-    }
-    for (id, pose) in &poses_before {
-        if id.starts_with("matrix/thumb") {
-            assert_eq!(pose_of(&removed, id), *pose, "{id}");
+        if local {
+            let survivor = matrix(&removed, "main2");
+            assert_eq!((survivor.rows, survivor.columns), (1, 3));
+            for column in 0..3 {
+                let id = member("main2", 0, column);
+                assert_eq!(
+                    pose_of(&removed, &id),
+                    pose_of(&doc, &id),
+                    "local survivor {id}"
+                );
+            }
+        } else {
+            assert!(
+                removed.matrices.iter().all(|matrix| matrix.id != "main2"),
+                "{state:?}"
+            );
+            assert!(
+                removed
+                    .parts
+                    .iter()
+                    .all(|part| !part.id.starts_with("matrix/main2/")),
+                "{state:?}"
+            );
         }
-    }
-    let link = removed
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .and_then(|layout| layout.mirror_link.as_ref())
-        .expect("surviving link");
-    assert!(
-        link.correspondences.iter().any(|record| {
-            record.kind == MirroredItemKind::Matrix
-                && record.source_id == "thumb"
-                && record.mirror_id == "thumb2"
-        }),
-        "unrelated correspondence preserved"
-    );
-    assert!(
-        link.correspondences
-            .iter()
-            .all(|record| { record.source_id != "main" && record.mirror_id != "main2" }),
-        "defunct records retired"
-    );
-    let undone_doc = undone(&mut engine);
-    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
-    assert!(
-        undone_doc
-            .matrices
-            .iter()
-            .any(|matrix| matrix.id == "main2")
-    );
-}
+        // The unrelated pair survives with its poses and correspondence.
+        for kept in ["thumb", "thumb2"] {
+            assert!(
+                removed.matrices.iter().any(|matrix| matrix.id == kept),
+                "{state:?}: {kept} survives"
+            );
+        }
+        for (id, pose) in poses(&doc).filter(|(id, _)| id.starts_with("matrix/thumb")) {
+            assert_eq!(pose_of(&removed, id), pose, "{state:?}: {id}");
+        }
+        assert_eq!(anchor_of(&removed, "thumb"), None, "{state:?}");
+        assert_at(&removed, &member("thumb2", 0, 0), -18.0, -19.0);
+        let records = &mirror_link(&removed).correspondences;
+        assert!(
+            records
+                .iter()
+                .any(|record| record.kind == MirroredItemKind::Matrix
+                    && record.source_id == "thumb"
+                    && record.mirror_id == "thumb2"),
+            "{state:?}: unrelated link preserved"
+        );
+        assert!(
+            records
+                .iter()
+                .all(|record| record.source_id != "main" && record.mirror_id != "main2"),
+            "{state:?}: defunct link retired"
+        );
 
-#[test]
-fn linked_source_removal_retires_omitted_records_without_resurrection() {
-    // Ticket 21: an Omitted counterpart stays absent and its record retires
-    // with the source; nothing resurrects it.
-    let (mut engine, doc) = linked_anchored_fixture();
-    let mut mirror_layout = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .expect("mirror layout")
-        .clone();
-    mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Matrix,
-            mirror_id: "main2".into(),
-            state: MirroredExceptionState::Omitted,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetLayout {
-            layout: mirror_layout,
-        },
-    );
-    let (_, removed) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::RemoveMatrix { id: "main".into() },
-    );
-    assert!(
-        removed.matrices.iter().all(|matrix| matrix.id != "main"),
-        "source removed"
-    );
-    assert!(
-        removed.matrices.iter().all(|matrix| matrix.id != "main2"),
-        "omitted record retired"
-    );
-    assert!(
-        removed
-            .parts
-            .iter()
-            .all(|part| !part.id.starts_with("matrix/main2/")),
-        "nothing resurrected"
-    );
-    // The surviving pair still evaluates through its live anchors.
-    assert_eq!(
-        pose_of(&removed, &member("thumb2", 0, 0)).at,
-        Vec2 { x: -18.0, y: -19.0 }
-    );
-    let undone_doc = undone(&mut engine);
-    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
+        assert_eq!(
+            undone(&mut engine).matrices,
+            doc.matrices,
+            "{state:?}: undo restores matrices"
+        );
+        assert_eq!(
+            redone(&mut engine).matrices,
+            removed.matrices,
+            "{state:?}: redo removes them again"
+        );
+    }
 }

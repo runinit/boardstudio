@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn source_backed_module_board_is_one_complete_case_body() {
-    let imported = import(
-        include_str!("../fixtures/pcb_front_slot.kicad_pcb").into(),
-        "fixture:two-islands",
-    );
+    let imported = import(FRONT_SLOT.into(), "fixture:two-islands");
     let mut definition = imported["result"].clone();
     let mut second = definition["board"]["contours"][0].clone();
     for point in second["points"].as_array_mut().unwrap() {
@@ -48,11 +45,7 @@ fn source_backed_module_board_is_one_complete_case_body() {
 
 #[test]
 fn source_failure_blocks_whole_exact_preview_and_retains_model_placements() {
-    let valid = import(
-        include_str!("../fixtures/pcb_front_slot.kicad_pcb").into(),
-        "fixture:valid",
-    )["result"]
-        .clone();
+    let valid = import(FRONT_SLOT.into(), "fixture:valid")["result"].clone();
     let mut invalid = valid.clone();
     invalid["id"] = "fixture:invalid".into();
     invalid["board"]
@@ -93,16 +86,7 @@ fn source_failure_blocks_whole_exact_preview_and_retains_model_placements() {
 
 #[test]
 fn source_backed_preview_retains_legacy_voids_without_duplicate_mount_cuts() {
-    for (raw, expected_holes, expected_drills) in [
-        (include_str!("../fixtures/pcb_front_slot.kicad_pcb"), 1, 0),
-        (
-            include_str!(
-                "../../../catalogue/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb"
-            ),
-            38,
-            38,
-        ),
-    ] {
+    for (raw, expected_holes, expected_drills) in [(FRONT_SLOT, 1, 0), (VIK_SPLITTER, 38, 38)] {
         let definition = import(raw.into(), "fixture:compatibility-voids")["result"].clone();
         let result = resolve_source_modules(vec![definition]);
         assert_eq!(result["kind"], "modules-resolved", "{result}");
