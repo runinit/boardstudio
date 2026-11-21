@@ -235,10 +235,7 @@ pub fn build_fixed_membership_view(
                 .then_some((cell.row, cell.column))
         })
         .collect();
-    let mut adjusted_projected = projected.clone();
-    tombstone_omitted_cells(&mut adjusted_projected, &omitted_slot_ids);
-    // Member accounting below reads the suppressed projection.
-    let mut projected = adjusted_projected.clone();
+    tombstone_omitted_cells(&mut projected, &omitted_slot_ids);
 
     if source.id == mirror.id
         || source.rows != mirror.rows
@@ -274,12 +271,29 @@ pub fn build_fixed_membership_view(
             .into_iter()
             .map(|companion| companion.mirror_id)
             .collect();
-    projected
-        .part_ids
-        .retain(|id| !omitted_mirror_companions.contains(id));
-    let source_members = canonical_members(&source, &source_slots, &BTreeSet::new())?;
-    let mirror_members = canonical_members(&mirror, &mirror_slots, &omitted_mirror_companions)?;
-    canonical_members(&projected, &projected_slots, &omitted_mirror_companions)?;
+    let source_members = canonical_members(
+        &source,
+        &source_slots,
+        &BTreeSet::new(),
+        source.part_ids.iter(),
+    )?;
+    let mirror_members = canonical_members(
+        &mirror,
+        &mirror_slots,
+        &omitted_mirror_companions,
+        mirror.part_ids.iter(),
+    )?;
+    // Ignore suppressed companions when checking the projection's ownership. Keep the IDs on
+    // the returned matrix until staging applies the omission.
+    canonical_members(
+        &projected,
+        &projected_slots,
+        &omitted_mirror_companions,
+        projected
+            .part_ids
+            .iter()
+            .filter(|id| !omitted_mirror_companions.contains(*id)),
+    )?;
 
     let mut linked_slots = std::collections::BTreeMap::<Slot, String>::new();
     let mut linked_source_ids = std::collections::BTreeSet::new();
@@ -539,7 +553,7 @@ pub fn build_fixed_membership_view(
             .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
         let projected_cell = projected
             .cells
-            .iter()
+            .iter_mut()
             .find(|cell| (cell.row, cell.column) == *slot)
             .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
         if source_cell.assemblies_local == Some(true) || mirror_cell.assemblies_local == Some(true)
@@ -763,7 +777,7 @@ pub fn build_fixed_membership_view(
             }
             let projected_assembly = projected_cell
                 .assemblies
-                .iter()
+                .iter_mut()
                 .find(|assembly| assembly.id == *assembly_id)
                 .ok_or_else(|| "A projected matrix assembly is unavailable".to_owned())?;
             let derived = super::super::derive::companion_assembly(
@@ -786,16 +800,6 @@ pub fn build_fixed_membership_view(
             {
                 return Err("The projected matrix assembly contains non-finite values".into());
             }
-            let projected_assembly = adjusted_projected
-                .cells
-                .iter_mut()
-                .find(|cell| (cell.row, cell.column) == *slot)
-                .and_then(|cell| {
-                    cell.assemblies
-                        .iter_mut()
-                        .find(|assembly| assembly.id == *assembly_id)
-                })
-                .ok_or_else(|| "A projected matrix assembly is unavailable".to_owned())?;
             projected_assembly.offset = derived.0;
             projected_assembly.rotation = derived.1;
         }
@@ -812,7 +816,7 @@ pub fn build_fixed_membership_view(
             .iter()
             .find(|cell| (cell.row, cell.column) == (*row, *column))
             .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
-        let projected_cell = adjusted_projected
+        let projected_cell = projected
             .cells
             .iter_mut()
             .find(|cell| (cell.row, cell.column) == (*row, *column))
@@ -826,10 +830,10 @@ pub fn build_fixed_membership_view(
             }
         }
     }
-    for matrix in [&source, &mirror, &adjusted_projected] {
+    for matrix in [&source, &mirror, &projected] {
         crate::matrix::valid_projection_matrix(matrix)?;
     }
-    let evaluated = crate::matrix::evaluated(&adjusted_projected, document)?;
+    let evaluated = crate::matrix::evaluated(&projected, document)?;
     let projected_key_poses: BTreeMap<_, _> = evaluated
         .cells
         .iter()
@@ -857,7 +861,7 @@ pub fn build_fixed_membership_view(
         if !point_is_finite(local_offset) || !local_rotation.is_finite() {
             return Err("The retained Local matrix companion has non-finite geometry".into());
         }
-        let assembly = adjusted_projected
+        let assembly = projected
             .cells
             .iter_mut()
             .find(|cell| (cell.row, cell.column) == (row, column))
@@ -870,7 +874,7 @@ pub fn build_fixed_membership_view(
         assembly.offset = local_offset;
         assembly.rotation = Some(local_rotation);
     }
-    for cell in &adjusted_projected.cells {
+    for cell in &projected.cells {
         let key_pose = projected_key_poses
             .get(&(cell.row, cell.column))
             .ok_or_else(|| "The projected matrix cell pose is unavailable".to_owned())?;
@@ -906,7 +910,7 @@ pub fn build_fixed_membership_view(
                 y: retained.pose.at.y - geometry.pose.at.y,
             },
         );
-        let old_cell = adjusted_projected
+        let old_cell = projected
             .cells
             .iter()
             .find(|cell| cell.row == row && cell.column == column)
@@ -917,7 +921,7 @@ pub fn build_fixed_membership_view(
             y: old.y + delta.y,
         };
         let sign = if matches!(
-            adjusted_projected.mirror,
+            projected.mirror,
             Some(crate::model::Mirror::X | crate::model::Mirror::Y)
         ) {
             -1.0
@@ -929,7 +933,7 @@ pub fn build_fixed_membership_view(
         if !point_is_finite(cell_offset) || !cell_rotation.is_finite() {
             return Err("The retained cell inverse produced non-finite geometry".into());
         }
-        let mut cell = adjusted_projected
+        let mut cell = projected
             .cells
             .iter()
             .find(|cell| cell.row == row && cell.column == column)
@@ -976,7 +980,7 @@ pub fn build_fixed_membership_view(
     retained_cells.extend(omitted_cells);
     retained_cells.sort_by_key(|retained| (retained.cell.row, retained.cell.column));
 
-    let mut incoming_matrix = adjusted_projected;
+    let mut incoming_matrix = projected;
     for retained in &retained_cells {
         let cell = incoming_matrix
             .cells
@@ -1123,10 +1127,11 @@ pub(super) fn canonical_slots(matrix: &Matrix) -> Result<SlotIds, String> {
     Ok(slots)
 }
 
-pub(super) fn canonical_members(
+fn canonical_members<'a>(
     matrix: &Matrix,
     slots: &SlotIds,
     omitted_companions: &BTreeSet<String>,
+    mut actual_ids: impl Iterator<Item = &'a String>,
 ) -> Result<std::collections::BTreeSet<String>, String> {
     let mut members: std::collections::BTreeSet<_> = slots.values().cloned().collect();
     for cell in &matrix.cells {
@@ -1154,8 +1159,8 @@ pub(super) fn canonical_members(
             }
         }
     }
-    let actual: std::collections::BTreeSet<_> = matrix.part_ids.iter().cloned().collect();
-    if actual.len() != matrix.part_ids.len() || actual != members {
+    let mut actual = BTreeSet::new();
+    if !actual_ids.all(|id| actual.insert(id)) || !actual.into_iter().eq(&members) {
         return Err("The reconciliation matrix membership is not canonical".into());
     }
     Ok(members)
