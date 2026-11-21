@@ -10,16 +10,10 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MatrixSetupAction {
-    Create,
-}
 
 use super::matrix_setup_logic::create_matrix_resolver;
 
@@ -47,10 +41,9 @@ pub fn use_matrix_setup(
     let preparing = use_signal(|| None::<MatrixSetupOwner>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
-    let pending = use_hook(PendingEditSignals::<MatrixSetupAction>::new);
-    let pending_create = use_signal(|| false);
-    pending.bind_one_shot(MatrixSetupAction::Create, pending_create);
-    let pending_owner = use_signal(|| None::<(MatrixSetupOwner, String)>);
+    // The committed SetMatrix is observed through its ticket; the waiting entry is the
+    // pending state. No separate disabled flag is kept: availability derives from it.
+    let waiting = use_signal(|| None::<(EditTicket, MatrixSetupOwner, String)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -60,8 +53,7 @@ pub fn use_matrix_setup(
             let mut preparing = preparing;
             let mut error = error;
             let mut status = status;
-            let pending = pending.clone();
-            let mut pending_owner = pending_owner;
+            let mut waiting = waiting;
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, workspace, scope_generation)| {
@@ -70,8 +62,7 @@ pub fn use_matrix_setup(
                     workspace,
                     scope_generation,
                     &mut SetupSettlement {
-                        pending: &pending,
-                        pending_owner: &mut pending_owner,
+                        waiting: &mut waiting,
                         open: &mut open,
                         error: &mut error,
                         status: &mut status,
@@ -79,7 +70,7 @@ pub fn use_matrix_setup(
                         anchor_scope: &mut anchor_scope,
                     },
                 );
-                if pending_owner.read().is_none()
+                if waiting.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
                         workspace != "Layout"
                             || owner.scope_generation != scope_generation
@@ -101,8 +92,9 @@ pub fn use_matrix_setup(
         let mut open_id = open_id;
         let mut error = error;
         let mut status = status;
+        let waiting = waiting;
         move |_| {
-            if pending_create() || preparing.read().is_some() {
+            if waiting.read().is_some() || preparing.read().is_some() {
                 return;
             }
             let current_workspace = workspace();
@@ -140,8 +132,9 @@ pub fn use_matrix_setup(
         let mut error = error;
         let mut status = status;
         let mut preparing = preparing;
+        let waiting = waiting;
         move |owner: MatrixSetupOwner| {
-            if open.read().as_ref() == Some(&owner) && !pending_create() {
+            if open.read().as_ref() == Some(&owner) && waiting.read().is_none() {
                 open.set(None);
                 preparing.set(None);
                 error.set(None);
@@ -156,9 +149,10 @@ pub fn use_matrix_setup(
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
+        let waiting = waiting;
         move |request: MatrixSetupCreateRequest| {
             if open.read().as_ref() != Some(&request.owner)
-                || pending_create()
+                || waiting.read().is_some()
                 || preparing.read().is_some()
                 || request.owner.editor_instance_id != editor_instance_id
                 || workspace() != "Layout"
@@ -218,8 +212,7 @@ pub fn use_matrix_setup(
             let mut preparing = preparing;
             let mut error = error;
             let mut status = status;
-            let pending = pending.clone();
-            let mut pending_owner = pending_owner;
+            let mut waiting = waiting;
             let mut open = open;
             let alive = alive.clone();
             spawn_local(async move {
@@ -318,32 +311,32 @@ pub fn use_matrix_setup(
                     return;
                 }
                 let matrix_id = matrix.id.clone();
-                pending_owner.set(Some((owner.clone(), matrix_id.clone())));
-                pending.begin_one_shot(
+                let ticket = EditTicket::begin(
                     &runtime,
-                    MatrixSetupAction::Create,
                     "layout-matrix-setup",
                     Some("matrix".into()),
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
+                waiting.set(Some((ticket, owner.clone(), matrix_id.clone())));
                 preparing.set(None);
                 status.set(None);
             });
         }
     });
 
+    let create_pending = waiting.read().is_some();
     let projection = open.read().clone().map(|owner| {
-        let idle = !pending_create() && preparing.read().is_none();
+        let idle = !create_pending && preparing.read().is_none();
         MatrixSetupProjection {
             editable: idle && setup_owner_live(&runtime, &owner, workspace(), scope_generation()),
-            can_cancel: !pending_create(),
+            can_cancel: !create_pending,
             owner,
             status: status.read().clone(),
             error: error.read().clone(),
         }
     });
     let current_model = runtime.model();
-    let can_open = !pending_create()
+    let can_open = !create_pending
         && preparing.read().is_none()
         && open.read().is_none()
         && setup_source(
@@ -426,8 +419,7 @@ fn setup_source<'a>(
 }
 
 struct SetupSettlement<'a> {
-    pending: &'a PendingEditSignals<MatrixSetupAction>,
-    pending_owner: &'a mut Signal<Option<(MatrixSetupOwner, String)>>,
+    waiting: &'a mut Signal<Option<(EditTicket, MatrixSetupOwner, String)>>,
     open: &'a mut Signal<Option<MatrixSetupOwner>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,
@@ -441,7 +433,7 @@ fn settle_pending(
     scope_generation: u64,
     signals: &mut SetupSettlement<'_>,
 ) {
-    let Some((owner, matrix_id)) = signals.pending_owner.read().clone() else {
+    let Some((ticket, owner, matrix_id)) = signals.waiting.read().clone() else {
         return;
     };
     let model = runtime.model();
@@ -453,43 +445,46 @@ fn settle_pending(
             snapshot.session_epoch == owner.scope.session_epoch
                 && snapshot.document.id == owner.scope.document_id
         });
-    for result in signals.pending.settle(owner_is_live, |_| String::new()) {
-        signals.pending_owner.set(None);
-        signals.status.set(None);
-        match result {
-            PendingEditResult::Retired { .. } => {
-                signals.open.set(None);
-                signals.error.set(None);
+    match ticket.settlement(owner_is_live) {
+        Settlement::Pending => {}
+        Settlement::Retired => {
+            signals.waiting.set(None);
+            signals.status.set(None);
+            signals.open.set(None);
+            signals.error.set(None);
+        }
+        Settlement::Landed { .. } => {
+            signals.waiting.set(None);
+            signals.status.set(None);
+            signals.open.set(None);
+            signals.error.set(None);
+            if model.active_board_id == owner.board_id {
+                let context = TreeContext::Matrix {
+                    matrix_id: matrix_id.clone(),
+                };
+                let Some(ids) = super::resolve_selection(&model, &context) else {
+                    signals.error.set(Some(
+                        "The new matrix could not be selected from the saved board.".into(),
+                    ));
+                    return;
+                };
+                signals.selected_context.set(Some(ScopedTreeContext {
+                    scope: owner.scope.clone(),
+                    context,
+                }));
+                signals.anchor_scope.set(None);
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: ids,
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
             }
-            PendingEditResult::Landed { .. } => {
-                signals.open.set(None);
-                signals.error.set(None);
-                if model.active_board_id == owner.board_id {
-                    let context = TreeContext::Matrix {
-                        matrix_id: matrix_id.clone(),
-                    };
-                    let Some(ids) = super::resolve_selection(&model, &context) else {
-                        signals.error.set(Some(
-                            "The new matrix could not be selected from the saved board.".into(),
-                        ));
-                        return;
-                    };
-                    signals.selected_context.set(Some(ScopedTreeContext {
-                        scope: owner.scope.clone(),
-                        context,
-                    }));
-                    signals.anchor_scope.set(None);
-                    runtime.submit(Event::SelectParts {
-                        operation_id: runtime.operation(),
-                        part_ids: ids,
-                        range_part_ids: Vec::new(),
-                        mode: SelectionMode::Replace,
-                    });
-                }
-            }
-            PendingEditResult::Failed { message, .. } => {
-                signals.error.set(Some(message));
-            }
+        }
+        Settlement::Failed { message } => {
+            signals.waiting.set(None);
+            signals.status.set(None);
+            signals.error.set(Some(message));
         }
     }
 }

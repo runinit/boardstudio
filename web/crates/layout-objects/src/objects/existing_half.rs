@@ -5,8 +5,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -66,11 +65,6 @@ pub struct ExistingHalfMount {
     pub on_create: EventHandler<ExistingHalfCreateRequest>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ExistingHalfAction {
-    Create,
-}
-
 /// Resolve mirroring existing halves against the accepted document at execution time. The
 /// replacement document is built from the snapshot the resolver is handed; the identities
 /// it needs were allocated when the user submitted, so the resolver stays pure.
@@ -121,10 +115,9 @@ pub fn use_existing_half(
     let open_id = use_signal(|| 0_u64);
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
-    let pending = use_hook(PendingEditSignals::<ExistingHalfAction>::new);
-    let pending_create = use_signal(|| false);
-    pending.bind_one_shot(ExistingHalfAction::Create, pending_create);
-    let create_owner = use_signal(|| None::<ExistingHalfOwner>);
+    // The committed mirror is observed through its ticket; the waiting entry is the
+    // pending state. Availability derives from it, so no separate disabled flag is kept.
+    let waiting = use_signal(|| None::<(EditTicket, ExistingHalfOwner)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -132,18 +125,16 @@ pub fn use_existing_half(
             let runtime = runtime.clone();
             let mut open = open;
             let mut error = error;
-            let pending = pending.clone();
-            let mut create_owner = create_owner;
+            let mut waiting = waiting;
             move |(_, current_workspace, current_generation)| {
                 settle_pending(
                     &runtime,
                     (current_workspace, current_generation, editor_instance_id),
-                    &pending,
-                    &mut create_owner,
+                    &mut waiting,
                     &mut open,
                     &mut error,
                 );
-                if create_owner.read().is_none()
+                if waiting.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
                         current_workspace != "Layout"
                             || owner.scope_generation != current_generation
@@ -162,15 +153,16 @@ pub fn use_existing_half(
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
         .unwrap_or_default();
-    let can_open = !options.is_empty() && !pending_create();
+    let can_open = !options.is_empty() && waiting.read().is_none();
 
     let on_open = use_callback({
         let runtime = runtime.clone();
         let mut open = open;
         let mut open_id = open_id;
         let mut error = error;
+        let waiting = waiting;
         move |_| {
-            if pending_create() {
+            if waiting.read().is_some() {
                 return;
             }
             let Some((snapshot, scope)) = existing_half_source(&runtime, workspace()) else {
@@ -207,8 +199,9 @@ pub fn use_existing_half(
     let on_cancel = use_callback({
         let mut open = open;
         let mut error = error;
+        let waiting = waiting;
         move |owner: ExistingHalfOwner| {
-            if !pending_create() && open.read().as_ref() == Some(&owner) {
+            if waiting.read().is_none() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
                 super::focus_add_object();
@@ -218,11 +211,10 @@ pub fn use_existing_half(
 
     let on_create = use_callback({
         let runtime = runtime.clone();
-        let pending = pending.clone();
-        let mut create_owner = create_owner;
+        let mut waiting = waiting;
         let mut error = error;
         move |request: ExistingHalfCreateRequest| {
-            if pending_create()
+            if waiting.read().is_some()
                 || open.read().as_ref() != Some(&request.owner)
                 || request.owner.editor_instance_id != editor_instance_id
             {
@@ -302,9 +294,8 @@ pub fn use_existing_half(
                 error.set(Some(message));
                 return;
             }
-            pending.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                ExistingHalfAction::Create,
                 "layout-mirror-existing-half",
                 Some("mirror".into()),
                 mirror_existing_half_resolver(
@@ -314,13 +305,13 @@ pub fn use_existing_half(
                     id_pool,
                 ),
             );
-            create_owner.set(Some(request.owner.clone()));
+            waiting.set(Some((ticket, request.owner.clone())));
             error.set(None);
         }
     });
 
     let projection = open.read().as_ref().map(|owner| {
-        let is_pending = pending_create();
+        let is_pending = waiting.read().is_some();
         let editable =
             !is_pending && owner_is_current(&runtime, owner, workspace(), scope_generation());
         ExistingHalfProjection {
@@ -510,25 +501,28 @@ fn owner_is_current(
 fn settle_pending(
     runtime: &Rc<Runtime>,
     (workspace, scope_generation, editor_instance_id): (&'static str, u64, u64),
-    pending: &PendingEditSignals<ExistingHalfAction>,
-    create_owner: &mut Signal<Option<ExistingHalfOwner>>,
+    waiting: &mut Signal<Option<(EditTicket, ExistingHalfOwner)>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
 ) {
-    let Some(owner) = create_owner.read().clone() else {
+    let Some((ticket, owner)) = waiting.read().clone() else {
         return;
     };
     let model = runtime.model();
     let owner_is_live = owner.editor_instance_id == editor_instance_id
         && workspace == "Layout"
         && scope_generation == owner.scope_generation;
-    let results = pending.settle(owner_is_live, |_| String::new());
-    let Some(result) = results.into_iter().next() else {
-        return;
-    };
-    create_owner.set(None);
-    match result {
-        PendingEditResult::Landed { .. } => {
+    match ticket.settlement(owner_is_live) {
+        Settlement::Pending => return,
+        Settlement::Retired => {
+            waiting.set(None);
+            if open.read().as_ref() == Some(&owner) {
+                open.set(None);
+                error.set(None);
+            }
+        }
+        Settlement::Landed { .. } => {
+            waiting.set(None);
             let current_owner = workspace == "Layout"
                 && scope_generation == owner.scope_generation
                 && model.active_board_id == owner.scope.board_id
@@ -543,15 +537,10 @@ fn settle_pending(
                 });
             }
         }
-        PendingEditResult::Failed { message, .. } => {
+        Settlement::Failed { message } => {
+            waiting.set(None);
             if open.read().as_ref() == Some(&owner) {
                 error.set(Some(message));
-            }
-        }
-        PendingEditResult::Retired { .. } => {
-            if open.read().as_ref() == Some(&owner) {
-                open.set(None);
-                error.set(None);
             }
         }
     }

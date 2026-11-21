@@ -4,8 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{Board, EditOperation, Operation, OutlineFeature};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -22,11 +21,6 @@ pub struct BoardCreateOwner {
 pub struct BoardSetupMount {
     pub owner: Option<BoardCreateOwner>,
     pub on_add: EventHandler<BoardCreateOwner>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BoardAction {
-    Add,
 }
 
 /// Resolve adding a board against the accepted document at execution time. The board and
@@ -78,47 +72,48 @@ pub fn use_board_setup(
     generation: Signal<u64>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) -> BoardSetupMount {
-    let pending = use_hook(PendingEditSignals::<BoardAction>::new);
-    let pending_add = use_signal(|| false);
-    pending.bind_one_shot(BoardAction::Add, pending_add);
-    let mut pending_owner = use_signal(|| None::<(BoardCreateOwner, String)>);
+    // The committed add-board edit is observed through its ticket; the waiting entry
+    // (ticket plus the board it should navigate to) is the pending state. There is no
+    // separate disabled flag: the button derives its availability from this entry.
+    let mut waiting = use_signal(|| None::<(EditTicket, BoardCreateOwner, String)>);
     use_effect(use_reactive((&version(), &workspace(), &generation()), {
         let runtime = runtime.clone();
-        let pending = pending.clone();
+        let mut waiting = waiting;
         move |(_, current_workspace, current_generation)| {
-            let Some((owner, board_id)) = pending_owner.read().clone() else {
+            let Some((ticket, owner, board_id)) = waiting.read().clone() else {
                 return;
             };
             let owner_is_live = runtime.scope().as_ref() == Some(&owner.scope)
                 && current_workspace == owner.workspace
                 && current_generation == owner.generation;
-            for result in pending.settle(owner_is_live, |_| String::new()) {
-                match result {
-                    PendingEditResult::Landed { .. } => {
-                        let exists = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
-                            snapshot
-                                .document
-                                .boards
-                                .iter()
-                                .any(|board| board.id == board_id)
-                        });
-                        pending_owner.set(None);
-                        if exists {
-                            on_navigate.call((owner.scope.clone(), board_id.clone(), None));
-                        }
+            match ticket.settlement(owner_is_live) {
+                Settlement::Pending => {}
+                Settlement::Landed { .. } => {
+                    let exists = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                        snapshot
+                            .document
+                            .boards
+                            .iter()
+                            .any(|board| board.id == board_id)
+                    });
+                    waiting.set(None);
+                    if exists {
+                        on_navigate.call((owner.scope.clone(), board_id.clone(), None));
                     }
-                    PendingEditResult::Failed { .. } | PendingEditResult::Retired { .. } => {
-                        pending_owner.set(None);
-                    }
+                }
+                Settlement::Failed { .. } | Settlement::Retired => {
+                    waiting.set(None);
                 }
             }
         }
     }));
-    let owner = board_source(&runtime, workspace(), generation()).filter(|_| !pending_add());
+    let busy = waiting.read().is_some();
+    let owner = board_source(&runtime, workspace(), generation()).filter(|_| !busy);
     let on_add = use_callback({
         let runtime = runtime.clone();
+        let mut waiting = waiting;
         move |owner: BoardCreateOwner| {
-            if pending_add()
+            if waiting.peek().is_some()
                 || board_source(&runtime, workspace(), generation()).as_ref() != Some(&owner)
             {
                 return;
@@ -150,14 +145,13 @@ pub fn use_board_setup(
                 };
                 suffix = next;
             };
-            pending_owner.set(Some((owner.clone(), board_id.clone())));
-            pending.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                BoardAction::Add,
                 "layout-add-board",
                 Some("board".into()),
                 add_board_resolver(board_id.clone(), outline_id),
             );
+            waiting.set(Some((ticket, owner.clone(), board_id.clone())));
         }
     });
     BoardSetupMount { owner, on_add }

@@ -13,8 +13,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -25,11 +24,6 @@ struct PlacementFollowUp {
     matrix_id: String,
     selected_context: Option<ScopedTreeContext>,
     selected_part_ids: Vec<String>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PlacementAction {
-    Place,
 }
 
 /// Resolve placing a prepared matrix against the accepted document at execution time. Only
@@ -104,10 +98,10 @@ pub fn use_matrix_placement(
     let request_id = use_signal(|| 0u64);
     let preparing = use_signal(|| None::<MatrixPlacementOwner>);
     let placement = use_signal(|| None::<MatrixPlacementProjection>);
-    let pending = use_hook(PendingEditSignals::<PlacementAction>::new);
-    let pending_place = use_signal(|| false);
-    pending.bind_one_shot(PlacementAction::Place, pending_place);
-    let pending_follow_up = use_signal(|| None::<PlacementFollowUp>);
+    // The committed placement is observed through its ticket; the waiting entry (ticket
+    // plus the selection it should restore) is the pending state. Availability derives
+    // from it, so no separate disabled flag is kept.
+    let waiting = use_signal(|| None::<(EditTicket, PlacementFollowUp)>);
     let error = use_signal(|| None::<String>);
 
     use_effect(use_reactive(
@@ -117,64 +111,61 @@ pub fn use_matrix_placement(
             let canvas_interaction = canvas_interaction.clone();
             let mut preparing = preparing;
             let mut placement = placement;
-            let pending = pending.clone();
-            let mut pending_follow_up = pending_follow_up;
+            let mut waiting = waiting;
             let mut error = error;
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, current_workspace, current_generation)| {
-                let waiting = pending_follow_up.read().clone();
-                if let Some(waiting) = waiting {
-                    let owner_is_live = same_session_scope(&runtime, &waiting.owner);
+                if let Some((ticket, follow_up)) = waiting.read().clone() {
+                    let owner_is_live = same_session_scope(&runtime, &follow_up.owner);
                     let visible = current_workspace == "Layout"
-                        && current_generation == waiting.owner.scope_generation
-                        && runtime.model().selected_part_ids == waiting.selected_part_ids
-                        && selected_context.peek().as_ref() == waiting.selected_context.as_ref();
-                    let results = pending.settle(owner_is_live, |_| String::new());
-                    if results.is_empty() {
-                        return;
-                    }
-                    for result in results {
-                        pending_follow_up.set(None);
-                        match result {
-                            PendingEditResult::Retired { .. } => error.set(None),
-                            PendingEditResult::Landed { .. } => {
-                                let model = runtime.model();
-                                let created = model.accepted.as_ref().is_some_and(|snapshot| {
-                                    snapshot
-                                        .document
-                                        .matrices
-                                        .iter()
-                                        .any(|matrix| matrix.id == waiting.matrix_id)
-                                });
-                                if !created || !visible {
+                        && current_generation == follow_up.owner.scope_generation
+                        && runtime.model().selected_part_ids == follow_up.selected_part_ids
+                        && selected_context.peek().as_ref() == follow_up.selected_context.as_ref();
+                    match ticket.settlement(owner_is_live) {
+                        Settlement::Pending => return,
+                        Settlement::Retired => {
+                            waiting.set(None);
+                            error.set(None);
+                        }
+                        Settlement::Landed { .. } => {
+                            waiting.set(None);
+                            let model = runtime.model();
+                            let created = model.accepted.as_ref().is_some_and(|snapshot| {
+                                snapshot
+                                    .document
+                                    .matrices
+                                    .iter()
+                                    .any(|matrix| matrix.id == follow_up.matrix_id)
+                            });
+                            if !created || !visible {
+                                error.set(None);
+                            } else {
+                                let context = TreeContext::Matrix {
+                                    matrix_id: follow_up.matrix_id.clone(),
+                                };
+                                match super::resolve_selection(&model, &context) {
+                                None => error.set(Some("The matrix was saved, but its Layout selection could not be restored.".into())),
+                                Some(part_ids) => {
+                                    selected_context.set(Some(ScopedTreeContext {
+                                        scope: follow_up.owner.scope.clone(),
+                                        context,
+                                    }));
+                                    anchor_scope.set(None);
+                                    runtime.submit(Event::SelectParts {
+                                        operation_id: runtime.operation(),
+                                        part_ids,
+                                        range_part_ids: Vec::new(),
+                                        mode: boardstudio_application::SelectionMode::Replace,
+                                    });
                                     error.set(None);
-                                } else {
-                                    let context = TreeContext::Matrix {
-                                        matrix_id: waiting.matrix_id.clone(),
-                                    };
-                                    match super::resolve_selection(&model, &context) {
-                                    None => error.set(Some("The matrix was saved, but its Layout selection could not be restored.".into())),
-                                    Some(part_ids) => {
-                                        selected_context.set(Some(ScopedTreeContext {
-                                            scope: waiting.owner.scope.clone(),
-                                            context,
-                                        }));
-                                        anchor_scope.set(None);
-                                        runtime.submit(Event::SelectParts {
-                                            operation_id: runtime.operation(),
-                                            part_ids,
-                                            range_part_ids: Vec::new(),
-                                            mode: boardstudio_application::SelectionMode::Replace,
-                                        });
-                                        error.set(None);
-                                    }
-                                }
                                 }
                             }
-                            PendingEditResult::Failed { message, .. } => {
-                                error.set(visible.then_some(message));
                             }
+                        }
+                        Settlement::Failed { message } => {
+                            waiting.set(None);
+                            error.set(visible.then_some(message));
                         }
                     }
                 }
@@ -182,7 +173,7 @@ pub fn use_matrix_placement(
                     .read()
                     .clone()
                     .or_else(|| placement.read().as_ref().map(|active| active.owner.clone()));
-                if pending_follow_up.read().is_none()
+                if waiting.read().is_none()
                     && let Some(owner) = active_owner
                     && (current_workspace != "Layout"
                         || current_generation != owner.scope_generation
@@ -206,8 +197,10 @@ pub fn use_matrix_placement(
         let mut preparing = preparing;
         let mut error = error;
         let assembly_orientation = assembly_orientation.0;
+        let waiting = waiting;
         move |source: super::MatrixPlacementSource| {
-            if pending_place() || preparing.read().is_some() || placement.read().is_some() {
+            if waiting.read().is_some() || preparing.read().is_some() || placement.read().is_some()
+            {
                 return;
             }
             let Some((snapshot, scope, board_id)) = placement_source(&runtime) else {
@@ -416,8 +409,9 @@ pub fn use_matrix_placement(
         let mut placement = placement;
         let mut error = error;
         let canvas_interaction = canvas_interaction.clone();
+        let waiting = waiting;
         move |owner: MatrixPlacementOwner| {
-            if pending_place()
+            if waiting.read().is_some()
                 || !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
             {
                 return;
@@ -440,12 +434,11 @@ pub fn use_matrix_placement(
         let runtime = runtime.clone();
         let canvas_interaction = canvas_interaction.clone();
         let mut placement = placement;
-        let pending = pending.clone();
-        let mut pending_follow_up = pending_follow_up;
+        let mut waiting = waiting;
         let mut error = error;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
-                || pending_place()
+                || waiting.read().is_some()
                 || workspace() != "Layout"
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
@@ -480,14 +473,13 @@ pub fn use_matrix_placement(
                 selected_context: selected_context.peek().clone(),
                 selected_part_ids: model.selected_part_ids.clone(),
             };
-            pending_follow_up.set(Some(follow_up));
-            pending.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                PlacementAction::Place,
                 "layout-matrix-placement",
                 Some("matrix placement".into()),
                 place_matrix_resolver(active.matrix, active.definitions),
             );
+            waiting.set(Some((ticket, follow_up)));
             placement.set(None);
             error.set(None);
             canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
@@ -500,7 +492,7 @@ pub fn use_matrix_placement(
             .clone()
             .or_else(|| placement.read().as_ref().map(|active| active.owner.clone())),
         placement: placement.read().clone(),
-        busy: preparing.read().is_some() || pending_place(),
+        busy: preparing.read().is_some() || waiting.read().is_some(),
         error: error.read().clone(),
         on_place,
         on_move,

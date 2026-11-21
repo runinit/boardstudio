@@ -75,7 +75,7 @@ pub fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                 }
                 return;
             }
-            // PendingEditSignals restores the accepted value only while the current text
+            // Ticket settlement restores the accepted value only while the current text
             // still equals the submitted text. This effect handles unrelated accepted edits.
             if *baseline_effect.peek() != value && !(*dirty_effect.peek()) {
                 draft_effect.set(display(value));

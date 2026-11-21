@@ -1,5 +1,6 @@
 use super::projection::transform_fields;
 use super::*;
+use boardstudio_web_runtime::pending_edits::PendingEdits;
 
 pub(super) fn field_value(
     fields: &MatrixTransformFields,
@@ -177,12 +178,35 @@ pub(super) fn field_value(
 
 pub(super) fn settle_pending(
     runtime: &Runtime,
-    pending: &PendingEditSignals<TransformPendingKey>,
+    edits: &mut Signal<PendingEdits<TransformPendingKey, TransformSubmission>>,
     owner_is_live: bool,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
     change_status: &mut Signal<Option<TransformChangeAnnouncement>>,
 ) {
-    for result in pending.settle(owner_is_live, |key| accepted_field_text(runtime, key)) {
+    for (result, submission) in edits.write().settle_with(owner_is_live) {
+        let (PendingEditResult::Landed { key, .. }
+        | PendingEditResult::Failed { key, .. }
+        | PendingEditResult::Retired { key }) = &result;
+        // Restore the durable draft only while it still is the submitted value, so a
+        // newer draft is never overwritten by an older outcome.
+        if !key.one_shot {
+            let accepted = accepted_field_text(runtime, key);
+            if let Some(mut draft) = submission.draft
+                && draft.peek().clone() == submission.text
+                && draft.peek().clone() != accepted
+            {
+                draft.set(accepted);
+            }
+            if let Some(mut failure) = submission.failure {
+                match &result {
+                    PendingEditResult::Failed { message, .. } => {
+                        failure.set(Some(message.clone()));
+                    }
+                    _ if failure.peek().is_some() => failure.set(None),
+                    _ => {}
+                }
+            }
+        }
         match result {
             PendingEditResult::Landed { key, .. } => {
                 if key.failure.is_none() {

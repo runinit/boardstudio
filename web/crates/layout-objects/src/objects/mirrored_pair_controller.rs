@@ -14,8 +14,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, Layout};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -27,11 +26,6 @@ struct PairFollowUp {
     right_matrix_id: String,
     left_layout_id: String,
     right_layout_id: String,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PairAction {
-    Create,
 }
 
 /// Resolve creating a mirrored pair against the accepted document at execution time. The
@@ -118,10 +112,10 @@ pub fn use_mirrored_pair(
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
     let placement = use_signal(|| None::<ActivePair>);
-    let pending = use_hook(PendingEditSignals::<PairAction>::new);
-    let pending_create = use_signal(|| false);
-    pending.bind_one_shot(PairAction::Create, pending_create);
-    let pair_follow_up = use_signal(|| None::<PairFollowUp>);
+    // The committed pair is observed through its ticket; the waiting entry (ticket plus
+    // the identities the Landed follow-up needs) is the pending state. No separate
+    // disabled flag is kept: availability derives from it.
+    let waiting = use_signal(|| None::<(EditTicket, PairFollowUp)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -134,22 +128,20 @@ pub fn use_mirrored_pair(
             let mut error = error;
             let mut status = status;
             let mut placement = placement;
-            let pending = pending.clone();
-            let mut pair_follow_up = pair_follow_up;
+            let mut waiting = waiting;
             move |(_, workspace, scope_generation)| {
                 let owner_is_live = alive.get()
                     && workspace == "Layout"
-                    && pair_follow_up.read().as_ref().is_some_and(|pending| {
-                        pending.owner.editor_instance_id == editor_instance_id
-                            && pending.owner.scope_generation == scope_generation
+                    && waiting.read().as_ref().is_some_and(|(_, follow_up)| {
+                        follow_up.owner.editor_instance_id == editor_instance_id
+                            && follow_up.owner.scope_generation == scope_generation
                     });
                 settle_pending(
                     &runtime,
                     workspace,
                     scope_generation,
                     &mut PairSettlement {
-                        pending: &pending,
-                        pair_follow_up: &mut pair_follow_up,
+                        waiting: &mut waiting,
                         owner_is_live,
                         open: &mut open,
                         form_state: &mut form_state,
@@ -159,7 +151,8 @@ pub fn use_mirrored_pair(
                         on_created,
                     },
                 );
-                if !pending_create()
+                let create_pending = waiting.read().is_some();
+                if !create_pending
                     && open.read().as_ref().is_some_and(|owner| {
                         workspace != "Layout"
                             || owner.scope_generation != scope_generation
@@ -173,7 +166,7 @@ pub fn use_mirrored_pair(
                     status.set(None);
                     form_state.set(PairFormState::new(MirroredPairFormValues::default()));
                 }
-                if !pending_create()
+                if !create_pending
                     && open.read().as_ref().is_some_and(|owner| {
                         let model = runtime.model();
                         model.accepted.as_ref().is_none_or(|snapshot| {
@@ -202,8 +195,9 @@ pub fn use_mirrored_pair(
         let mut error = error;
         let mut status = status;
         let canvas_interaction = canvas_interaction.clone();
+        let waiting = waiting;
         move |_| {
-            if pending_create()
+            if waiting.read().is_some()
                 || preparing.read().is_some()
                 || placement.read().is_some()
                 || open.read().is_some()
@@ -252,6 +246,7 @@ pub fn use_mirrored_pair(
         let mut placement = placement;
         let mut error = error;
         let mut status = status;
+        let waiting = waiting;
         let canvas_interaction = canvas_interaction.clone();
         move |owner: MirroredPairOwner| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
@@ -262,7 +257,8 @@ pub fn use_mirrored_pair(
                     .read()
                     .as_ref()
                     .is_some_and(|pair| pair.owner == owner);
-            if crate::mirrored_pair_lifecycle::pair_cancel_is_allowed(active, pending_create()) {
+            let create_pending = waiting.read().is_some();
+            if crate::mirrored_pair_lifecycle::pair_cancel_is_allowed(active, create_pending) {
                 open.set(None);
                 preparing.set(None);
                 placement.set(None);
@@ -282,10 +278,11 @@ pub fn use_mirrored_pair(
         let mut error = error;
         let mut status = status;
         let canvas_interaction = canvas_interaction.clone();
+        let waiting = waiting;
         move |request: MirroredPairRequest| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 || open.read().as_ref() != Some(&request.owner)
-                || pending_create()
+                || waiting.read().is_some()
                 || preparing.read().is_some()
                 || placement.read().is_some()
                 || !form_state.read().setup_is_editable()
@@ -738,14 +735,13 @@ pub fn use_mirrored_pair(
     let on_commit = use_callback({
         let runtime = runtime.clone();
         let mut placement = placement;
-        let pending = pending.clone();
-        let mut pair_follow_up = pair_follow_up;
+        let mut waiting = waiting;
         let mut error = error;
         let canvas_interaction = canvas_interaction.clone();
         move |request: super::mirrored_pair::MirroredPairMove| {
             let owner = request.owner;
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                || pending_create()
+                || waiting.read().is_some()
                 || workspace() != "Layout"
                 || scope_generation() != owner.scope_generation
                 || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
@@ -781,9 +777,8 @@ pub fn use_mirrored_pair(
                 }
             };
             let left_matrix_id = matrix.id.clone();
-            pending.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                PairAction::Create,
                 "layout-mirrored-pair",
                 Some("mirrored pair".into()),
                 mirrored_pair_resolver(
@@ -795,23 +790,27 @@ pub fn use_mirrored_pair(
                     definitions,
                 ),
             );
-            pair_follow_up.set(Some(PairFollowUp {
-                owner: owner.clone(),
-                left_matrix_id,
-                right_matrix_id: active.ids.right_matrix_id.clone(),
-                left_layout_id: layout_left.id.clone(),
-                right_layout_id: layout_right.id.clone(),
-            }));
+            waiting.set(Some((
+                ticket,
+                PairFollowUp {
+                    owner: owner.clone(),
+                    left_matrix_id,
+                    right_matrix_id: active.ids.right_matrix_id.clone(),
+                    left_layout_id: layout_left.id.clone(),
+                    right_layout_id: layout_right.id.clone(),
+                },
+            )));
             placement.set(None);
             error.set(None);
         }
     });
 
+    let create_pending = waiting.read().is_some();
     let form_state_value = form_state.read().clone();
     let form = if form_state_value.setup_is_visible() {
         open.read().clone().map(|owner| {
             let editable = form_state_value.setup_is_editable()
-                && !pending_create()
+                && !create_pending
                 && preparing.read().is_none()
                 && pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open);
             MirroredPairFormProjection {
@@ -831,7 +830,7 @@ pub fn use_mirrored_pair(
         .map(|active| active.placement.clone());
     let model = runtime.model();
     let can_open = canvas_interaction.current().is_none()
-        && !pending_create()
+        && !create_pending
         && preparing.read().is_none()
         && placement.read().is_none()
         && open.read().is_none()
@@ -839,7 +838,7 @@ pub fn use_mirrored_pair(
     let owns_canvas = open.read().is_some()
         || preparing.read().is_some()
         || placement.read().is_some()
-        || pending_create();
+        || create_pending;
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation(), &owns_canvas),
         {
@@ -971,8 +970,7 @@ fn clear_preparing(
 }
 
 struct PairSettlement<'a> {
-    pending: &'a PendingEditSignals<PairAction>,
-    pair_follow_up: &'a mut Signal<Option<PairFollowUp>>,
+    waiting: &'a mut Signal<Option<(EditTicket, PairFollowUp)>>,
     owner_is_live: bool,
     open: &'a mut Signal<Option<MirroredPairOwner>>,
     form_state: &'a mut Signal<PairFormState<MirroredPairFormValues>>,
@@ -988,27 +986,26 @@ fn settle_pending(
     scope_generation: u64,
     signals: &mut PairSettlement<'_>,
 ) {
-    let Some(waiting) = signals.pair_follow_up.read().clone() else {
+    let Some((ticket, follow_up)) = signals.waiting.read().clone() else {
         return;
     };
     let model = runtime.model();
-    let results = signals
-        .pending
-        .settle(signals.owner_is_live, |_| String::new());
-    let Some(result) = results.into_iter().next() else {
+    let settlement = ticket.settlement(signals.owner_is_live);
+    if matches!(settlement, Settlement::Pending) {
         return;
-    };
+    }
     let owner_is_visible = workspace == "Layout"
-        && scope_generation == waiting.owner.scope_generation
-        && signals.open.read().as_ref() == Some(&waiting.owner);
-    match result {
-        PendingEditResult::Landed { revision, .. } => {
+        && scope_generation == follow_up.owner.scope_generation
+        && signals.open.read().as_ref() == Some(&follow_up.owner);
+    match settlement {
+        Settlement::Pending => return,
+        Settlement::Landed { revision } => {
             let token = model.accepted.as_ref().map(|snapshot| snapshot.token);
-            finish_pending(signals.pair_follow_up, signals.status);
+            finish_pending(signals.waiting, signals.status);
             signals.placement.set(None);
             let (Some(token), true) = (
                 token,
-                owner_is_visible && model.active_board_id == waiting.owner.board_id,
+                owner_is_visible && model.active_board_id == follow_up.owner.board_id,
             ) else {
                 signals.open.set(None);
                 return;
@@ -1019,26 +1016,26 @@ fn settle_pending(
                 .set(PairFormState::new(MirroredPairFormValues::default()));
             signals.error.set(None);
             signals.on_created.call(MirroredPairCreated {
-                owner: waiting.owner.clone(),
+                owner: follow_up.owner.clone(),
                 result_token: token,
                 result_revision: revision,
-                scope: waiting.owner.scope.clone(),
-                left_layout_id: waiting.left_layout_id.clone(),
-                right_layout_id: waiting.right_layout_id.clone(),
-                left_matrix_id: waiting.left_matrix_id,
-                right_matrix_id: waiting.right_matrix_id,
+                scope: follow_up.owner.scope.clone(),
+                left_layout_id: follow_up.left_layout_id.clone(),
+                right_layout_id: follow_up.right_layout_id.clone(),
+                left_matrix_id: follow_up.left_matrix_id,
+                right_matrix_id: follow_up.right_matrix_id,
             });
         }
-        PendingEditResult::Failed { message, .. } => {
-            finish_pending(signals.pair_follow_up, signals.status);
+        Settlement::Failed { message } => {
+            finish_pending(signals.waiting, signals.status);
             signals.form_state.write().stage = PairFormStage::Setup;
             if owner_is_visible {
-                signals.open.set(Some(waiting.owner));
+                signals.open.set(Some(follow_up.owner));
                 signals.error.set(Some(message));
             }
         }
-        PendingEditResult::Retired { .. } => {
-            finish_pending(signals.pair_follow_up, signals.status);
+        Settlement::Retired => {
+            finish_pending(signals.waiting, signals.status);
             signals.form_state.write().stage = PairFormStage::Setup;
             if owner_is_visible {
                 signals.open.set(None);
@@ -1051,7 +1048,10 @@ fn settle_pending(
     }
 }
 
-fn finish_pending(pending: &mut Signal<Option<PairFollowUp>>, status: &mut Signal<Option<String>>) {
-    pending.set(None);
+fn finish_pending(
+    waiting: &mut Signal<Option<(EditTicket, PairFollowUp)>>,
+    status: &mut Signal<Option<String>>,
+) {
+    waiting.set(None);
     status.set(None);
 }

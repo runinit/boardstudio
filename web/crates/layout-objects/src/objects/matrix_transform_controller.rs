@@ -17,8 +17,7 @@ use boardstudio_model::model::{
     AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
     convert_offset_available,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -37,6 +36,15 @@ impl PartialEq for TransformPendingKey {
     fn eq(&self, other: &Self) -> bool {
         self.field == other.field && self.one_shot == other.one_shot
     }
+}
+
+/// What a transform edit was submitted with, so settlement restores the durable draft
+/// only while it still is the submitted value. One-shot actions carry no draft.
+#[derive(Clone, Default)]
+struct TransformSubmission {
+    text: String,
+    draft: Option<Signal<String>>,
+    failure: Option<Signal<Option<String>>>,
 }
 
 /// Resolve one transform field edit against the accepted document at execution time. The
@@ -673,7 +681,11 @@ pub fn use_workspace_matrix_transform(
     });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_hook(PendingEditSignals::<TransformPendingKey>::new);
+    // Transform field edits and one-shot actions are observed through ticket
+    // observations keyed by field and kind. The payload carries the submitted text and
+    // the durable draft/failure signals so settlement restores them only while the draft
+    // still is the submitted value. No Signal mirrors the pending state.
+    let mut edits = use_signal(PendingEdits::<TransformPendingKey, TransformSubmission>::default);
     let one_shot_fields = use_hook(|| {
         [
             MatrixTransformField::RowOffsetReset,
@@ -700,10 +712,10 @@ pub fn use_workspace_matrix_transform(
     let canvas_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        let pending = pending.clone();
+        let mut edits = edits;
         move || {
             alive.set(false);
-            pending.settle(false, |_| String::new());
+            let _ = edits.write().settle_with(false);
         }
     });
     let switch_catalog = use_signal(Vec::<boardstudio_model::model::PartDefinition>::new);
@@ -888,7 +900,8 @@ pub fn use_workspace_matrix_transform(
             let runtime = runtime.clone();
             let mut feedback = feedback;
             let mut change_status = change_status;
-            let pending = pending.clone();
+            let mut edits = edits;
+            let one_shot_fields = one_shot_fields.clone();
             let alive = alive.clone();
             move |(_, current_workspace, _, _)| {
                 let owner_is_live = alive.get()
@@ -896,11 +909,22 @@ pub fn use_workspace_matrix_transform(
                     && workspace_route_matches(current_workspace, owner_workspace);
                 settle_pending(
                     &runtime,
-                    &pending,
+                    &mut edits,
                     owner_is_live,
                     &mut feedback,
                     &mut change_status,
                 );
+                // One-shot availability derives from the ticket observations: a control
+                // stays disabled while its field's one-shot edit is pending.
+                for (field, mut disabled) in one_shot_fields.iter().cloned() {
+                    let still_pending = edits
+                        .read()
+                        .pending_keys()
+                        .any(|key| key.field == field && key.one_shot);
+                    if disabled.peek() != still_pending {
+                        disabled.set(still_pending);
+                    }
+                }
             }
         },
     ));
@@ -908,7 +932,7 @@ pub fn use_workspace_matrix_transform(
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let pending = pending.clone();
+        let mut edits = edits;
         let one_shot_fields = one_shot_fields.clone();
         let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;
@@ -960,7 +984,7 @@ pub fn use_workspace_matrix_transform(
                 one_shot: request.one_shot,
                 failure: request.failure,
             };
-            if request.one_shot && pending.is_pending(&key) {
+            if request.one_shot && edits.read().is_pending(&key) {
                 return;
             }
             if !editable {
@@ -1148,34 +1172,38 @@ pub fn use_workspace_matrix_transform(
             } else {
                 resolver
             };
-            if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
-                pending.bind_field(key.clone(), draft, failure);
-            }
             // A newer submit retires the previous announcement before Core answers.
             change_status.set(None);
             if !request.one_shot {
-                pending.begin_field(
+                let submitted = request.submitted_text.clone().unwrap_or_default();
+                edits.write().begin_with(
                     &runtime,
                     key,
                     "layout-matrix-transform",
                     Some("transform".into()),
                     resolver,
-                    request.submitted_text.as_deref().unwrap_or_default(),
+                    TransformSubmission {
+                        text: submitted,
+                        draft: request.draft,
+                        failure: request.failure,
+                    },
                 );
             } else {
-                let Some((_, disabled)) = one_shot_fields
+                let Some((_, mut disabled)) = one_shot_fields
                     .iter()
+                    .cloned()
                     .find(|(field, _)| *field == request.field)
                 else {
                     return;
                 };
-                pending.bind_one_shot(key.clone(), *disabled);
-                pending.begin_one_shot(
+                disabled.set(true);
+                edits.write().begin_with(
                     &runtime,
                     key,
                     "layout-matrix-transform",
                     Some("transform".into()),
                     resolver,
+                    TransformSubmission::default(),
                 );
             }
         }

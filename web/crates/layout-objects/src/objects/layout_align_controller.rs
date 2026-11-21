@@ -12,10 +12,9 @@ use boardstudio_application::{
 #[cfg(test)]
 use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_model::model::{Part, ProjectDoc, Vec2};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -29,11 +28,6 @@ struct AlignFollowUp {
     moving_ids: Vec<String>,
     reference_id: String,
     command: AlignCommand,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum AlignActionKey {
-    Align,
 }
 
 #[derive(Clone)]
@@ -101,10 +95,9 @@ pub fn use_canvas_align(
     owner_workspace: &'static str,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
-    let pending = use_hook(PendingEditSignals::<AlignActionKey>::new);
-    let pending_align = use_signal(|| false);
-    pending.bind_one_shot(AlignActionKey::Align, pending_align);
-    let align_follow_up = use_signal(|| None::<AlignFollowUp>);
+    // The committed align is observed through its ticket; the waiting entry (ticket plus
+    // the context its feedback needs) is the pending state. No separate busy flag is kept.
+    let waiting = use_signal(|| None::<(EditTicket, AlignFollowUp)>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -167,16 +160,14 @@ pub fn use_canvas_align(
         {
             let runtime = runtime.clone();
             let selected_reference = selected_reference;
-            let pending = pending.clone();
-            let mut align_follow_up = align_follow_up;
+            let mut waiting = waiting;
             let mut feedback = feedback;
             move |(_, workspace, scope_generation, identity, _reference_id)| {
                 settle_pending(
                     &runtime,
                     selected_context,
                     &identity,
-                    &pending,
-                    &mut align_follow_up,
+                    &mut waiting,
                     &mut feedback,
                 );
                 clear_stale_feedback(
@@ -216,7 +207,7 @@ pub fn use_canvas_align(
             && projection.selected_reference.as_deref() == Some(state.reference_id.as_str()))
         .then_some(state.feedback)
     });
-    let busy = pending_align();
+    let busy = waiting.read().is_some();
 
     let on_reference = use_callback({
         let runtime = runtime.clone();
@@ -242,11 +233,10 @@ pub fn use_canvas_align(
 
     let on_align = use_callback({
         let runtime = runtime.clone();
-        let pending = pending.clone();
-        let mut align_follow_up = align_follow_up;
+        let mut waiting = waiting;
         let mut feedback = feedback;
         move |request: AlignAction| {
-            if pending_align() {
+            if waiting.peek().is_some() {
                 return;
             }
             let current_workspace = workspace();
@@ -300,9 +290,8 @@ pub fn use_canvas_align(
                 feedback.set(None);
                 return;
             }
-            pending.begin_one_shot(
+            let ticket = EditTicket::begin(
                 &runtime,
-                AlignActionKey::Align,
                 "layout-align",
                 Some("alignment".into()),
                 align_resolver(
@@ -312,15 +301,18 @@ pub fn use_canvas_align(
                     request.command,
                 ),
             );
-            align_follow_up.set(Some(AlignFollowUp {
-                workspace: request.workspace,
-                scope: selected.scope.clone(),
-                scope_generation: current_generation,
-                context: selected.context.clone(),
-                moving_ids: current.moving_ids.clone(),
-                reference_id: reference_id.clone(),
-                command: request.command,
-            }));
+            waiting.set(Some((
+                ticket,
+                AlignFollowUp {
+                    workspace: request.workspace,
+                    scope: selected.scope.clone(),
+                    scope_generation: current_generation,
+                    context: selected.context.clone(),
+                    moving_ids: current.moving_ids.clone(),
+                    reference_id: reference_id.clone(),
+                    command: request.command,
+                },
+            )));
             feedback.set(None);
         }
     });
@@ -752,55 +744,55 @@ fn settle_pending(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
     identity: &AlignIdentity,
-    pending: &PendingEditSignals<AlignActionKey>,
-    align_follow_up: &mut Signal<Option<AlignFollowUp>>,
+    waiting: &mut Signal<Option<(EditTicket, AlignFollowUp)>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
-    let Some(waiting) = align_follow_up.peek().clone() else {
+    let Some((ticket, follow_up)) = waiting.read().clone() else {
         return;
     };
     let model = runtime.model();
     let live_scope = runtime.scope();
-    let same_scope = live_scope.as_ref() == Some(&waiting.scope)
-        && identity.scope_generation == waiting.scope_generation;
-    let results = pending.settle(same_scope, |_| String::new());
-    let Some(result) = results.into_iter().next() else {
+    let same_scope = live_scope.as_ref() == Some(&follow_up.scope)
+        && identity.scope_generation == follow_up.scope_generation;
+    let settlement = ticket.settlement(same_scope);
+    if matches!(settlement, Settlement::Pending) {
         return;
-    };
-    align_follow_up.set(None);
-    let (message, succeeded) = match result {
-        PendingEditResult::Landed { .. } => (
+    }
+    waiting.set(None);
+    let (message, succeeded) = match settlement {
+        Settlement::Pending => return,
+        Settlement::Landed { .. } => (
             format!(
                 "Aligned selection to {}. Reference unchanged.",
-                reference_label(&model, &waiting.reference_id)
+                reference_label(&model, &follow_up.reference_id)
             ),
             true,
         ),
-        PendingEditResult::Failed { message, .. } => (message, false),
-        PendingEditResult::Retired { .. } => {
+        Settlement::Failed { message } => (message, false),
+        Settlement::Retired => {
             feedback.set(None);
             return;
         }
     };
-    let still_visible_target = identity.workspace == waiting.workspace
+    let still_visible_target = identity.workspace == follow_up.workspace
         && selected_context.peek().as_ref().is_some_and(|selected| {
-            selected.scope == waiting.scope && selected.context == waiting.context
+            selected.scope == follow_up.scope && selected.context == follow_up.context
         });
     if still_visible_target {
         feedback.set(Some(AlignFeedbackState {
-            scope: waiting.scope.clone(),
-            scope_generation: waiting.scope_generation,
-            context: waiting.context.clone(),
-            moving_ids: waiting.moving_ids.clone(),
-            reference_id: waiting.reference_id.clone(),
+            scope: follow_up.scope.clone(),
+            scope_generation: follow_up.scope_generation,
+            context: follow_up.context.clone(),
+            moving_ids: follow_up.moving_ids.clone(),
+            reference_id: follow_up.reference_id.clone(),
             feedback: AlignFeedback {
-                reference: reference_label(&model, &waiting.reference_id),
-                command: waiting.command,
+                reference: reference_label(&model, &follow_up.reference_id),
+                command: follow_up.command,
                 message,
                 succeeded,
             },
         }));
-    } else if identity.scope.as_ref() != Some(&waiting.scope) {
+    } else if identity.scope.as_ref() != Some(&follow_up.scope) {
         feedback.set(None);
     }
 }
