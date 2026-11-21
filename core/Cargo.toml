@@ -7,6 +7,9 @@ license = "MIT OR Apache-2.0"
 # Integration tests are listed below so the per-file tests link as one binary.
 autotests = false
 
+[features]
+test-support = ["boardstudio-core-engine/test-support"]
+
 [[example]]
 name = "dump_firmware"
 
