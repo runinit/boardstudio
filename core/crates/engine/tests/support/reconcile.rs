@@ -1016,26 +1016,6 @@ pub fn matrix(id: &str, board_id: &str, rows: u32, columns: u32, origin: Vec2) -
     }
 }
 
-/// Mirror identity map derived from one source identity map.
-///
-/// Every mirrored membership refusal test must translate the source operation
-/// into mirror slots the same way; deriving it here keeps the operation
-/// sequence sourced from the input instead of re-typed per test.
-pub fn mirror_map_from_source(
-    source_map: &BTreeMap<String, Option<String>>,
-) -> BTreeMap<String, Option<String>> {
-    source_map
-        .iter()
-        .map(|(old, new)| {
-            (
-                old.replace("matrix/source-matrix/", "matrix/mirror-matrix/"),
-                new.as_ref()
-                    .map(|id| id.replace("matrix/source-matrix/", "matrix/mirror-matrix/")),
-            )
-        })
-        .collect()
-}
-
 /// Identity mirror map derived from the source document's actual matrix members.
 ///
 /// Fresh-identity transitions keep every historical member, so the expected map
@@ -1078,6 +1058,11 @@ pub fn assert_exact_matrix_identities(document: &ProjectDoc, matrix_id: &str) {
         actual, expected,
         "{matrix_id}: member set is exactly the source-derived row/column universe"
     );
+    assert_eq!(
+        matrix.part_ids.len(),
+        actual.len(),
+        "duplicate matrix member"
+    );
     for id in &actual {
         let (row, column, _) = matrix_identity_slot(id, matrix_id)
             .unwrap_or_else(|| panic!("{id} parses as a {matrix_id} slot"));
@@ -1095,7 +1080,8 @@ pub fn assert_exact_matrix_identities(document: &ProjectDoc, matrix_id: &str) {
             document
                 .boards
                 .iter()
-                .filter(|board| board.part_ids.contains(id))
+                .flat_map(|board| &board.part_ids)
+                .filter(|registered| *registered == id)
                 .count(),
             1,
             "{id} is registered on exactly one board"
@@ -1117,41 +1103,16 @@ pub fn assert_membership_inputs_unchanged(
     );
 }
 
-/// Operation-sequence invariant: an exact repeat stages nothing new.
-pub fn assert_repeat_is_noop(
-    repeated_draft: &ProjectDoc,
-    draft: &ProjectDoc,
-    repeated_context: &MembershipContext,
-    context: &MembershipContext,
-    changed_ids: &[String],
-    changed_paths: &[String],
-    phase: &str,
-) {
-    assert_eq!(repeated_draft, draft, "{phase}: repeated draft is identical");
-    assert_eq!(
-        repeated_context, context,
-        "{phase}: repeated context is identical"
-    );
-    assert!(
-        changed_ids.is_empty(),
-        "{phase}: no changed document ids"
-    );
-    assert!(
-        changed_paths.is_empty(),
-        "{phase}: no changed field paths"
-    );
-}
-
 /// Run one fresh-identity refusal case: apply `mutate`, derive the mirror map
 /// from the mutated source, snapshot history, run the transition, assert the
-/// refusal and that history is preserved, and return the refusal message.
+/// refusal and that history is preserved, and check the refusal message.
 ///
 /// Centralizing the sequence keeps every row sourced from the same operation
 /// instead of duplicating fixture/mirror-map/snapshot assertions per refusal.
 pub fn run_fresh_identity_refusal(
     mutate: impl FnOnce(&mut ProjectDoc, &mut MembershipContext),
     expect: &str,
-) -> String {
+) {
     let (mut before, _, mut context, source_map, owners, _) =
         consolidated_fresh_identity_fixture().expect("the fresh identity fixture is valid");
     mutate(&mut before, &mut context);
@@ -1176,7 +1137,6 @@ pub fn run_fresh_identity_refusal(
         message.contains(expect),
         "expected refusal containing {expect:?}, got {message:?}"
     );
-    message
 }
 
 pub fn part(

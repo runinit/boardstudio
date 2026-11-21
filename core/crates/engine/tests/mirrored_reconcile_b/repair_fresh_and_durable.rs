@@ -160,133 +160,79 @@ fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
 
 #[test]
 fn consolidated_fresh_refusals_preserve_history_and_exact_identity() {
-    // Consolidated operation-sequence invariant: every row starts from the same
-    // fresh-identity source, derives the mirror map from that source, mutates one
-    // input, and must be refused while leaving caller history untouched. The
-    // shared runner sources the mirror map, snapshots, and history assertions so
-    // the rows only declare their mutation and expected refusal.
-    for (name, expect) in [
-        (
-            "missing historical constraint endpoint",
-            "must reference exactly one actual Part",
-        ),
-        (
-            "missing actual child parent context",
-            "parent identity",
-        ),
-        (
-            "phantom historical association",
-            "r99c99",
-        ),
-        (
-            "duplicate same-board registration",
-            "exactly one",
-        ),
-        (
-            "non-finite historical local pose",
-            "non-finite geometry",
-        ),
-    ] {
-        match name {
-            "missing historical constraint endpoint" => {
-                run_fresh_identity_refusal(
-                |before, _| {
-                    let Constraint::Offset { target_part_id, .. } = before
-                        .constraints
-                        .iter_mut()
-                        .find(|c| c.id() == "retained-second-key-offset")
-                        .unwrap()
-                    else {
-                        unreachable!()
-                    };
-                    *target_part_id = "missing-historical-endpoint".into();
-                    assert!(
-                        !before
-                            .parts
-                            .iter()
-                            .any(|p| p.id == "missing-historical-endpoint")
-                    );
-                    assert!(
-                        boardstudio_core_mechanical::mechanical::halves::validate_document(
-                            &before
-                        )
-                        .is_ok()
-                    );
-                },
-                expect,
+    type Mutation = fn(&mut ProjectDoc, &mut MembershipContext);
+    let cases: [(&str, Mutation); 5] = [
+        ("must reference exactly one actual Part", |before, _| {
+            let Constraint::Offset { target_part_id, .. } = before
+                .constraints
+                .iter_mut()
+                .find(|c| c.id() == "retained-second-key-offset")
+                .unwrap()
+            else {
+                unreachable!()
+            };
+            *target_part_id = "missing-historical-endpoint".into();
+            assert!(
+                !before
+                    .parts
+                    .iter()
+                    .any(|p| p.id == "missing-historical-endpoint")
             );
-            }
-            "missing actual child parent context" => {
-                run_fresh_identity_refusal(
-                |_, context| {
-                    let child = context
-                        .associations
-                        .iter_mut()
-                        .find(|a| a.source_id == "matrix/source-matrix/r1c3/diode")
-                        .unwrap();
-                    child.parent_source_id = None;
-                    child.parent_mirror_id = None;
-                },
-                expect,
+            assert!(
+                boardstudio_core_mechanical::mechanical::halves::validate_document(before).is_ok()
             );
-            }
-            "phantom historical association" => {
-                run_fresh_identity_refusal(
-                |before, context| {
-                    let mut phantom = context
-                        .associations
-                        .iter()
-                        .find(|a| a.source_id == "matrix/source-matrix/r0c0")
-                        .unwrap()
-                        .clone();
-                    phantom.source_id = "matrix/source-matrix/r99c99".into();
-                    phantom.mirror_id = "matrix/mirror-matrix/r99c99".into();
-                    assert!(
-                        !before
-                            .parts
-                            .iter()
-                            .any(|p| p.id == phantom.source_id || p.id == phantom.mirror_id)
-                    );
-                    context.associations.push(phantom);
-                },
-                expect,
+        }),
+        ("parent identity", |_, context| {
+            let child = context
+                .associations
+                .iter_mut()
+                .find(|a| a.source_id == "matrix/source-matrix/r1c3/diode")
+                .unwrap();
+            child.parent_source_id = None;
+            child.parent_mirror_id = None;
+        }),
+        ("r99c99", |before, context| {
+            let mut phantom = context
+                .associations
+                .iter()
+                .find(|a| a.source_id == "matrix/source-matrix/r0c0")
+                .unwrap()
+                .clone();
+            phantom.source_id = "matrix/source-matrix/r99c99".into();
+            phantom.mirror_id = "matrix/mirror-matrix/r99c99".into();
+            assert!(
+                !before
+                    .parts
+                    .iter()
+                    .any(|p| p.id == phantom.source_id || p.id == phantom.mirror_id)
             );
-            }
-            "duplicate same-board registration" => {
-                run_fresh_identity_refusal(
-                |before, _| {
-                    let id = "matrix/mirror-matrix/r1c1/diode";
-                    before
-                        .boards
-                        .iter_mut()
-                        .find(|b| b.id == "mirror-board")
-                        .unwrap()
-                        .part_ids
-                        .push(id.into());
-                },
-                expect,
-            );
-            }
-            "non-finite historical local pose" => {
-                run_fresh_identity_refusal(
-                |before, _| {
-                    before
-                        .parts
-                        .iter_mut()
-                        .find(|p| p.id == "matrix/mirror-matrix/r1c1/diode")
-                        .unwrap()
-                        .pose
-                        .at
-                        .x = f64::INFINITY;
-                },
-                expect,
-            );
-            }
-            _ => unreachable!("unknown fresh-identity refusal row {name}"),
-        }
+            context.associations.push(phantom);
+        }),
+        ("exactly one", |before, _| {
+            let id = "matrix/mirror-matrix/r1c1/diode";
+            before
+                .boards
+                .iter_mut()
+                .find(|b| b.id == "mirror-board")
+                .unwrap()
+                .part_ids
+                .push(id.into());
+        }),
+        ("non-finite geometry", |before, _| {
+            before
+                .parts
+                .iter_mut()
+                .find(|p| p.id == "matrix/mirror-matrix/r1c1/diode")
+                .unwrap()
+                .pose
+                .at
+                .x = f64::INFINITY;
+        }),
+    ];
+    for (expected, mutate) in cases {
+        run_fresh_identity_refusal(mutate, expected);
     }
 }
-
 
 /// The finite check is one `Constraint::is_finite`, so every kind a transition can meet
 /// must be refused by it with the message that names the constraint.
