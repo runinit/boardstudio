@@ -931,7 +931,7 @@ fn take_board_outline_scene(
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct BoardSceneGeometry {
     pub contours: Vec<BoardContours>,
     pub outlines: Vec<BoardOutlineScene>,
