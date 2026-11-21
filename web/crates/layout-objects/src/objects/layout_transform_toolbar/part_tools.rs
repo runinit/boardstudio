@@ -41,6 +41,19 @@ pub fn LayoutPartToolOverlay(
     let feedback = use_signal(FeedbackState::default);
     let popup_at = use_signal(|| None::<(f64, f64)>);
     let toast_gen = use_signal(|| 0_u64);
+    // Single-ticket part commits settle on the production `version` signal
+    // (durable toast on landing, `report` on failure, silent on retirement).
+    // No keyed map or polling loop is kept.
+    let pending = use_signal(Vec::<PendingTransformCommit>::new);
+    use_settled_transform_commits(
+        runtime.0.clone(),
+        workspace,
+        scope_generation,
+        selected_context,
+        pending,
+        feedback,
+        toast_gen,
+    );
     let runtime_inner = runtime.0.clone();
     let drag_for_drop = drag.clone();
     let arbiter_for_drop = arbiter.clone();
@@ -618,11 +631,13 @@ pub fn LayoutPartToolOverlay(
     let arbiter_for_end = arbiter.clone();
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
+    let pending_for_end = pending;
     let toast_gen_for_end = toast_gen;
     let handle_value_for_end = handle_value.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut feedback_for_end = feedback_for_end;
         let mut popup_at_for_end = popup_at_for_end;
+        let mut pending_for_end = pending_for_end;
         let mut toast_gen_for_end = toast_gen_for_end;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
@@ -769,8 +784,17 @@ pub fn LayoutPartToolOverlay(
                             },
                         ));
                     } else {
-                        commit_part_anchor_drag(&runtime_for_end, &active, delta);
-                        landed(feedback, value_text);
+                        let ticket = commit_part_anchor_drag(&runtime_for_end, &active, delta);
+                        pending_for_end.write().push(PendingTransformCommit {
+                            ticket,
+                            owner: active.owner.clone(),
+                            context: active.context.clone(),
+                            toast: Some(PendingTransformToast {
+                                tool_name: feedback_tool_name(tool),
+                                value: value_text,
+                                delta: feedback,
+                            }),
+                        });
                     }
                 } else if active.preview_submitted {
                     clear_part_preview(&runtime_for_end, &active);
@@ -889,8 +913,17 @@ pub fn LayoutPartToolOverlay(
                             },
                         ));
                     } else {
-                        commit_part_detached_rotate(&runtime_for_end, &active, delta);
-                        landed(feedback, value_text);
+                        let ticket = commit_part_detached_rotate(&runtime_for_end, &active, delta);
+                        pending_for_end.write().push(PendingTransformCommit {
+                            ticket,
+                            owner: active.owner.clone(),
+                            context: active.context.clone(),
+                            toast: Some(PendingTransformToast {
+                                tool_name: feedback_tool_name(tool),
+                                value: value_text,
+                                delta: feedback,
+                            }),
+                        });
                     }
                 } else if active.preview_submitted {
                     clear_part_preview(&runtime_for_end, &active);

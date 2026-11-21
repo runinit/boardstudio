@@ -514,6 +514,63 @@ fn legacy_mirror_adoption_preview_does_not_publish_copy_or_membership() {
 }
 
 #[test]
+fn stagger_shares_only_the_same_ordered_outline_composition() {
+    for (mut document, shares_composition) in [
+        (fixture(), true),
+        (stagger_profile_document(true), true),
+        (fixture(), false),
+    ] {
+        if !shares_composition {
+            // Applying the subtractions before the envelope changes the board
+            // but leaves the legacy project contour in its original order.
+            document.boards[0].outline_ids.rotate_left(1);
+        }
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let before = serde_json::to_vec(&engine.document).unwrap();
+        let accepted = engine.reusable_scene.as_ref().unwrap().clone();
+        let column = engine.document.matrices[0].columns - 1;
+        let mut preview = edit(0, stagger(column, 4.0));
+        let CoreRequest::Edit { command, .. } = &mut preview else {
+            unreachable!()
+        };
+        command.phase = EditPhase::Preview;
+        let board_projections = engine.independent_board_projections.get();
+        let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview) else {
+            panic!("expected a stagger preview");
+        };
+        assert_ne!(scene.contours, accepted.contours);
+        assert_eq!(
+            scene.contours == scene.board_contours[0].contours,
+            shares_composition
+        );
+        let expected_extra_projections = usize::from(!shares_composition);
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            expected_extra_projections
+        );
+        assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
+        assert_eq!(engine.reusable_scene.as_ref(), Some(&accepted));
+        assert!(engine.undo.is_empty() && engine.redo.is_empty());
+
+        let cold_projections = cold.independent_board_projections.get();
+        assert!(matches!(
+            compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
+            CoreReply::Scene { .. }
+        ));
+        assert_eq!(
+            engine.independent_board_projections.get() - board_projections,
+            2 * expected_extra_projections
+        );
+        // The independently projected cold reply and the fresh scene used by
+        // compare both went through separate board composition.
+        assert_eq!(
+            cold.independent_board_projections.get() - cold_projections,
+            2
+        );
+    }
+}
+
+#[test]
 fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     let mut engine = CoreEngine::new();
     let mut cold = CoreEngine::new();
@@ -644,11 +701,16 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         panic!("expected a saved fixed outline");
     };
     assert!(engine.reusable_scene.is_none());
+    let board_projections = engine.independent_board_projections.get();
     let CoreReply::Preview { scene: preview, .. } =
         compare(&mut engine, &mut cold, stagger(6, EditPhase::Preview, 7.25))
     else {
         panic!("expected a preview with a fixed outline");
     };
+    assert_eq!(
+        engine.independent_board_projections.get(),
+        board_projections + 1
+    );
     assert_eq!(preview.board_contours, fixed.board_contours);
     assert_eq!(
         serde_json::to_vec(&engine.document).unwrap(),
@@ -1042,4 +1104,143 @@ fn typed_rename_validates_and_preserves_scene_without_a_reusable_projection() {
     ));
     assert_eq!(engine.document.name, "  Renamed  ");
     assert_eq!(engine.undo.len(), 1);
+}
+
+#[test]
+#[ignore = "Local paired native preview/commit measurement"]
+fn stagger_preview_commit_profile() {
+    use std::{hint::black_box, time::Instant};
+
+    for large in [false, true] {
+        let document = stagger_profile_document(large);
+        for column in [0, document.matrices[0].columns - 1] {
+            let mut samples = [vec![], vec![], vec![]];
+            for i in 0..124 {
+                let mut engine = CoreEngine::new();
+                let CoreReply::Scene { .. } = engine.handle(CoreRequest::Open {
+                    id: "profile-open".into(),
+                    document: document.clone(),
+                }) else {
+                    panic!("could not open profile fixture");
+                };
+                let start_pair = Instant::now();
+                for value in [1.25, 2.75, 4.0] {
+                    let mut request = edit(0, stagger(column, value));
+                    let CoreRequest::Edit { command, .. } = &mut request else {
+                        unreachable!()
+                    };
+                    command.phase = EditPhase::Preview;
+                    let start = Instant::now();
+                    let reply = engine.handle(request);
+                    if i >= 24 {
+                        samples[0].push(start.elapsed().as_secs_f64() * 1e3);
+                    }
+                    assert!(matches!(black_box(reply), CoreReply::Preview { .. }));
+                }
+                let request = edit(0, stagger(column, 4.0));
+                let start = Instant::now();
+                let reply = engine.handle(request);
+                if i >= 24 {
+                    samples[1].push(start.elapsed().as_secs_f64() * 1e3);
+                    samples[2].push(start_pair.elapsed().as_secs_f64() * 1e3);
+                }
+                assert!(matches!(black_box(reply), CoreReply::Scene { .. }));
+            }
+            for (label, samples) in [
+                "changing previews",
+                "matching commit",
+                "3 previews + commit",
+            ]
+            .into_iter()
+            .zip(&mut samples)
+            {
+                samples.sort_by(f64::total_cmp);
+                let n = samples.len();
+                eprintln!(
+                    "{} keys column {column} / {label}: n={n} p50={:.3}ms p95={:.3}ms",
+                    document.matrices[0].part_ids.len(),
+                    samples[n / 2 - 1],
+                    samples[n * 95 / 100 - 1]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
+    for document in [fixture(), stagger_profile_document(true)] {
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let column = engine.document.matrices[0].columns - 1;
+        let preview = |value| {
+            let mut request = edit(0, stagger(column, value));
+            let CoreRequest::Edit { command, .. } = &mut request else {
+                unreachable!()
+            };
+            command.phase = EditPhase::Preview;
+            request
+        };
+        let mut runs = engine.stagger_outline_projections.get();
+        for (value, projected) in [(1.25, true), (1.25, false), (4.0, true)] {
+            let CoreReply::Preview { scene, .. } = compare(&mut engine, &mut cold, preview(value))
+            else {
+                panic!("expected a stagger preview");
+            };
+            assert!(!scene.contours.is_empty());
+            runs += usize::from(projected);
+            assert_eq!(engine.stagger_outline_projections.get(), runs);
+        }
+        assert!(engine.undo.is_empty() && engine.redo.is_empty());
+
+        // Reopening at the same revision with the same poses must retire the
+        // Preview even though only a geometry source has changed.
+        let mut reopened = engine.document.clone();
+        let OutlineFeature::PartEnvelope { margin, .. } = &mut reopened.outline[0] else {
+            panic!("expected a generated perimeter");
+        };
+        *margin += 1.0;
+        compare(
+            &mut engine,
+            &mut cold,
+            CoreRequest::Open {
+                id: "reopen".into(),
+                document: reopened,
+            },
+        );
+        assert!(engine.stagger_preview.is_none());
+        assert!(matches!(
+            compare(&mut engine, &mut cold, preview(4.0)),
+            CoreReply::Preview { .. }
+        ));
+        runs += 1;
+        assert_eq!(engine.stagger_outline_projections.get(), runs);
+        // A read between Preview and Commit may refresh the receipt but does
+        // not change the current projection's inputs.
+        compare(
+            &mut engine,
+            &mut cold,
+            CoreRequest::Snapshot {
+                id: "snapshot".into(),
+            },
+        );
+        assert!(matches!(
+            compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
+            CoreReply::Scene { scene, .. } if scene.revision == 1
+        ));
+        assert_eq!(engine.stagger_outline_projections.get(), runs);
+        assert!(engine.stagger_preview.is_none());
+        assert_eq!(engine.undo.len(), 1);
+
+        compare(
+            &mut engine,
+            &mut cold,
+            CoreRequest::Undo { id: "undo".into() },
+        );
+        compare(
+            &mut engine,
+            &mut cold,
+            CoreRequest::Redo { id: "redo".into() },
+        );
+        assert!(engine.stagger_preview.is_none());
+    }
 }

@@ -295,6 +295,36 @@ const path = require('node:path');
     }
   }
 
+  const diode = read(vendorDirectory + '/Diode_1N4148W.step');
+  const diodeSourceHash = crypto.createHash('sha256').update(diode).digest('hex');
+  const diodeCoarse = importModel(diode, 0.1);
+  try {
+    const diodeFine = importModel(diode, 0.001);
+    try {
+      for (const { vendorStep: asset, bounds } of [diodeCoarse, diodeFine]) {
+        assert.equal(asset.sourceSha256, diodeSourceHash);
+        assert.equal(asset.sourceFaces.length, 73);
+        assert.equal(asset.faceOccurrences.length, 73);
+        assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, 4);
+        assert.equal(asset.sourceFaces.filter(face => face.supportKind === 'SPHERICAL_SURFACE').length, 8);
+        // The vendor route reports mesh-derived bounds for this source.
+        assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
+        assert.equal(asset.accuracy.meshClosedOriented, true);
+        assert.equal(asset.sourceQualification.state, 'unknown');
+        const expected = [-1.825, -0.7075, -0.775, 1.825, 0.7425, 0.775];
+        assert([...bounds.min, ...bounds.max].every((x, i) => Math.abs(x - expected[i]) < 1e-10));
+      }
+      assert.deepEqual(diodeFine.vendorStep.faceOccurrences, diodeCoarse.vendorStep.faceOccurrences);
+      assert.deepEqual(diodeFine.bounds, diodeCoarse.bounds);
+      assert(diodeFine.mesh.positions.length > diodeCoarse.mesh.positions.length);
+    } finally {
+      diodeFine.vendorStep.analysisHandle.free();
+    }
+  } finally {
+    diodeCoarse.vendorStep.analysisHandle.free();
+  }
+  console.log('PASS packaged diode rational trims, spherical faces, and refinement');
+
   const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);

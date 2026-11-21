@@ -513,11 +513,53 @@ fn alternative_findings(doc: &ProjectDoc) -> Vec<Finding> {
     findings
 }
 
+pub type OutlineProjection = (OutlineCache, Vec<Contour>, Vec<Finding>);
+
 pub fn outlines(
     doc: &ProjectDoc,
     previous: Option<&OutlineCache>,
     moved: &[String],
-) -> (OutlineCache, Vec<Contour>, Vec<Finding>) {
+) -> OutlineProjection {
+    project_outlines(doc, previous, moved, false).0
+}
+
+/// Project the draft's outlines and share the composition with the board scene
+/// when the board consumes exactly the project's ordered feature list.
+pub fn outlines_with_board_reuse(
+    doc: &ProjectDoc,
+    previous: &OutlineCache,
+    moved: &[String],
+) -> (OutlineProjection, Option<BoardSceneGeometry>) {
+    project_outlines(doc, Some(previous), moved, true)
+}
+
+fn shared_outline_board<'a>(doc: &'a ProjectDoc, cache: &OutlineCache) -> Option<&'a Board> {
+    let [board] = doc.boards.as_slice() else {
+        return None;
+    };
+    // Saved outlines and protected gaps can select different sources or
+    // refresh recovery between composition and publication. Board lookup
+    // also takes the first feature for a duplicate ID.
+    (doc.board_outlines.is_empty()
+        && cache.paths.len() == doc.outline.len()
+        && board
+            .outline_ids
+            .iter()
+            .map(String::as_str)
+            .eq(doc.outline.iter().map(OutlineFeature::id))
+        && !doc.outline.iter().any(|feature| {
+            matches!(feature, OutlineFeature::PartEnvelope { settings, .. }
+                if settings.repair.as_ref().is_some_and(|repair| !repair.keep_gaps.is_empty()))
+        }))
+    .then_some(board)
+}
+
+fn project_outlines(
+    doc: &ProjectDoc,
+    previous: Option<&OutlineCache>,
+    moved: &[String],
+    share_board: bool,
+) -> (OutlineProjection, Option<BoardSceneGeometry>) {
     let mut cache = OutlineCache {
         layouts: doc.layouts.clone(),
         ..Default::default()
@@ -535,9 +577,14 @@ pub fn outlines(
             .filter(|(old_feature, _)| old_feature == &feature && !depends_on(&feature, moved))
             .map(|(_, paths)| paths.clone())
             .unwrap_or_else(|| feature_geometry(doc, &feature));
-        cache
-            .paths
-            .insert(feature.id().into(), (feature.clone(), paths));
+        cache.paths.insert(feature.id().into(), (feature, paths));
+    }
+    if share_board && let Some(board) = shared_outline_board(doc, &cache) {
+        let result = compose(doc.outline.iter(), &cache, None);
+        let project = (cache, result.contours.clone(), result.findings.clone());
+        let mut geometry = BoardSceneGeometry::default();
+        geometry.push_board(doc, board, result, None);
+        return (project, Some(geometry));
     }
     let (contours, mut findings) = if doc
         .boards
@@ -572,7 +619,7 @@ pub fn outlines(
         (result.contours, result.findings)
     };
     findings.extend(alternative_findings(doc));
-    (cache, contours, findings)
+    ((cache, contours, findings), None)
 }
 
 fn depends_on(feature: &OutlineFeature, moved: &[String]) -> bool {
@@ -884,7 +931,7 @@ fn take_board_outline_scene(
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct BoardSceneGeometry {
     pub contours: Vec<BoardContours>,
     pub outlines: Vec<BoardOutlineScene>,
@@ -892,21 +939,32 @@ pub struct BoardSceneGeometry {
     pub markers: Vec<FindingMarker>,
 }
 
+impl BoardSceneGeometry {
+    fn push_board(
+        &mut self,
+        doc: &ProjectDoc,
+        board: &Board,
+        mut result: ComposedOutline,
+        problem: Option<LinkedProblem>,
+    ) {
+        self.outlines
+            .push(take_board_outline_scene(doc, board, &mut result));
+        self.contours.push(finish_board_contours(
+            board,
+            result,
+            problem,
+            &mut self.findings,
+            &mut self.markers,
+        ));
+    }
+}
+
 /// Project the source and fabricated outlines from one composition per board.
 pub fn board_scene_geometry(doc: &ProjectDoc, cache: &OutlineCache) -> BoardSceneGeometry {
     let mut scene = BoardSceneGeometry::default();
     for board in &doc.boards {
-        let (mut result, problem) = board_composition(doc, cache, board);
-        scene
-            .outlines
-            .push(take_board_outline_scene(doc, board, &mut result));
-        scene.contours.push(finish_board_contours(
-            board,
-            result,
-            problem,
-            &mut scene.findings,
-            &mut scene.markers,
-        ));
+        let (result, problem) = board_composition(doc, cache, board);
+        scene.push_board(doc, board, result, problem);
     }
     scene
 }

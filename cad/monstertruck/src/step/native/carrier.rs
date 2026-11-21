@@ -202,6 +202,7 @@ fn lift_pcurve(
                 } => {
                     lift_revolved_line(surface, origin, direction, radius, slope, radians_per_unit)?
                 }
+                SurfaceKind::Sphere(_) => return Err("unsupported native spherical pcurve".into()),
             }
         }
         ("CIRCLE", SurfaceKind::Plane) => {

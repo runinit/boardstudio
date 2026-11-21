@@ -12,10 +12,13 @@ const root = path.resolve(__dirname, '../..');
 const binding = path.join(root, 'cad/wasm/pkg/boardstudio_cad_wasm.js');
 const providers = path.join(root, 'web/target/providers');
 const output = path.join(providers, 'bundled-step');
-// Keep the first wave to common switches, headers and small board components.
+// Wave 1 covers common switches, headers and small board components.
+// Wave 2 adds the deferred catalogue paths with value-dense previews:
+// whole vendor-fallback component assets plus small connectors and mounts.
 // The two Choc V1 sources also cover the byte-identical KiSwitch catalogue entries.
-const compressedBudget = 384 * 1024;
+const compressedBudget = 2.75 * 1024 * 1024;
 const sources = [
+  // Wave 1.
   'infused-kim/3d_models/Choc_V1_Hotswap.step',
   'infused-kim/3d_models/Choc_V1_Switch.step',
   'infused-kim/3d_models/Diode_1N4148W.step',
@@ -37,7 +40,43 @@ const sources = [
   'kicad/3d_models/PinSocket_1x05_P2.54mm_Vertical.step',
   'kicad/3d_models/PinSocket_1x12_P2.54mm_Vertical.step',
   'tsuki/3d_models/nrf52840.step',
+  // Wave 2: keycaps with fallback faces, larger headers and sockets, trackpoint caps
+  // and extensions, board connectors, knobs, trackball and trackpad mounts,
+  // whole-case vendor assets, display housings and display-adapter glass.
+  'infused-kim/3d_models/Choc_V1_Keycap_MBK_Black_1u.step',
+  'infused-kim/3d_models/Choc_V1_Keycap_MBK_Red_1u.step',
+  'infused-kim/3d_models/Choc_V1_Keycap_MBK_White_1u.step',
+  'infused-kim/3d_models/Molex_Ezmate_Pico_Cable_5pin.step',
+  'infused-kim/3d_models/PinHeader_2.54mm_2x-12.step',
+  'infused-kim/3d_models/PinSocket_2.54mm_5mm_2x-12.step',
+  'infused-kim/3d_models/trackpoint/TP_Cap_Green_T430.step',
+  'infused-kim/3d_models/trackpoint/TP_Cap_Red_T460S.step',
+  'infused-kim/3d_models/trackpoint/TP_Extension_Red_T460S_h10.5_md0.0_pcb1.6.step',
+  'infused-kim/3d_models/trackpoint/TP_Extension_Red_T460S_h10.5_md0.5_pcb1.6.step',
+  'infused-kim/3d_models/trackpoint/TP_Extension_Red_T460S_h10.5_md1.0_pcb1.6.step',
+  'infused-kim/3d_models/trackpoint/TP_Extension_Red_T460S_h10.5_md2.0_pcb1.6.step',
+  'kicad/3d_models/PinSocket_2x12_W15.24mm_Vertical.step',
+  'vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step',
+  'vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step',
+  'vik/3d_models/Ariamelon-Kiwano/3DP/Knob Base.step',
+  'vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Full.step',
+  'vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step',
+  'vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step',
+  'vik/3d_models/Ariamelon-Kiwano/3DP/Trackpad Mount.step',
+  'vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step',
+  'vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step',
+  'vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step',
+  'vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step',
+  'vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp',
+  'vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step',
+  'vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step',
+  'vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp',
 ];
+// Byte-identical catalogue entries share their canonical source's sidecar.
+const aliasSources = {
+  'kiswitch/3d_models/SW_Hotswap_Kailh_Choc_V1.stp': 'infused-kim/3d_models/Choc_V1_Hotswap.step',
+  'kiswitch/3d_models/SW_Kailh_Choc_V1.stp': 'infused-kim/3d_models/Choc_V1_Switch.step',
+};
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const shaPattern = /^[a-f0-9]{64}$/;
 
@@ -50,6 +89,15 @@ function stagedSources() {
     assert(models.has(file), `${file} is missing from the shipped STEP catalogue`);
     const bytes = readFileSync(path.join(destination, models.get(file)));
     selected.set(sha256(bytes), { file, bytes });
+  }
+  assert.equal(selected.size, sources.length, 'bundled STEP sources must not repeat source bytes');
+  for (const [alias, canonical] of Object.entries(aliasSources)) {
+    assert(models.has(alias), `${alias} is missing from the shipped STEP catalogue`);
+    assert(sources.includes(canonical), `${alias} names an unbaked canonical source`);
+    const aliasBytes = readFileSync(path.join(destination, models.get(alias)));
+    const canonicalSha = [...selected.entries()]
+      .find(([, source]) => source.file === canonical)?.[0];
+    assert.equal(sha256(aliasBytes), canonicalSha, `${alias} is no longer byte-identical to ${canonical}`);
   }
   return selected;
 }
@@ -86,7 +134,8 @@ function verify(cad, compressed, sourceSha256, { file, bytes }) {
   assert.deepEqual(baked, live, file);
   assert.throws(() => cad.read_baked_step_model(payload, '0'.repeat(64)), /Invalid baked STEP/);
   assert.throws(() => cad.read_baked_step_model(payload.subarray(0, -1), sourceSha256), /Invalid baked STEP/);
-  console.log(`cad: matched ${file} (${baked.vendorStep.triangleFaceOccurrenceIndices.length} triangles, ${compressed.length} bytes)`);
+  const fallbackFaces = baked.vendorStep.accuracy.fallbackMeshedFaces;
+  console.log(`cad: matched ${file} (${baked.vendorStep.triangleFaceOccurrenceIndices.length} triangles, ${compressed.length} bytes, ${fallbackFaces} fallback faces)`);
 }
 
 async function main() {

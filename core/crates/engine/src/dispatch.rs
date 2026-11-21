@@ -3,7 +3,10 @@ use super::apply::{
     uses_prepared_transaction, validate_project_name,
 };
 use super::preview::{changed_ids, preview_electrical_loss_findings};
-use super::scene_reuse::{is_column_stagger, replacement_keeps_scene, settled_outline_changes};
+use super::scene_reuse::{
+    StaggerPreview, ValidatedBoardScene, is_column_stagger, replacement_keeps_scene,
+    settled_outline_changes,
+};
 use super::*;
 
 #[cfg(test)]
@@ -85,7 +88,7 @@ impl CoreEngine {
                 self.recompute();
                 let cacheable = repaired_findings.is_empty();
                 self.findings.extend(repaired_findings);
-                self.project_committed_scene(id, "open", vec![], cacheable)
+                self.project_committed_scene(id, "open", vec![], cacheable, None)
             }
             CoreRequest::Edit { id, command } => self.edit(id, command),
             CoreRequest::Undo { id } => self.history(id, History::Undo),
@@ -246,6 +249,7 @@ impl CoreEngine {
                 }
                 config.protected_handoff = None;
                 self.reusable_scene = None;
+                self.stagger_preview = None;
                 self.document.revision = revision;
                 self.scene(
                     id,
@@ -304,6 +308,7 @@ impl CoreEngine {
                     .unwrap_or_default();
                 assignments.extend(electrical::handoff_assignments(&plan));
                 self.reusable_scene = None;
+                self.stagger_preview = None;
                 board.protected_handoff = Some(ElectricalHandoffBaseline {
                     fingerprint: plan.fingerprint.clone(),
                     revision: self.document.revision,
@@ -385,6 +390,7 @@ impl CoreEngine {
         }
         let mut next;
         let mut changed;
+        let mut layout_settled = false;
         if prepared_route {
             let accepted_contours;
             let board_contours: &[BoardContours] =
@@ -425,11 +431,12 @@ impl CoreEngine {
                 } else {
                     &[]
                 };
-            let (mut raw_changed, layout_settled) =
+            let (mut raw_changed, settled) =
                 match self.apply_layout_edit(&mut raw_next, board_contours, &command.operation) {
                     Ok(applied) => applied,
                     Err(message) => return self.error(id, &message),
                 };
+            layout_settled = settled;
             if let Some(map) = &raw_next.keymap
                 && let Err(message) = keymap::validate(map)
             {
@@ -540,12 +547,15 @@ impl CoreEngine {
             && self.reusable_scene.is_some()
             && matches!(command.operation, EditOperation::ReplaceDocument { .. })
             && replacement_keeps_scene(&self.document, &mut next);
-        let outline = if reuse_scene || (!prepared_route && !affects_outline(&command.operation)) {
-            None
+        let (outline, board_geometry) = if reuse_scene
+            || (!prepared_route && !affects_outline(&command.operation))
+        {
+            (None, None)
         } else if prepared_route {
-            Some(outlines(&next, None, &[]))
+            (Some(outlines(&next, None, &[])), None)
         } else {
-            Some(self.edited_outlines(&next, &command.operation))
+            let (outline, board_geometry) = self.edited_outlines(&next, &command, layout_settled);
+            (Some(outline), board_geometry)
         };
         if command.phase == EditPhase::Preview {
             let accepted = (&self.outline_cache, &self.contours, &self.findings);
@@ -554,7 +564,7 @@ impl CoreEngine {
                 .map_or(accepted, |(cache, contours, findings)| {
                     (cache, contours, findings)
                 });
-            return self.scene(
+            return self.scene_with_board_geometry(
                 id,
                 SceneInput {
                     transaction: &command.transaction_id,
@@ -565,6 +575,7 @@ impl CoreEngine {
                     cache,
                     kind: SceneKind::Preview,
                 },
+                board_geometry,
             );
         }
         self.publish_prepared_edit(
@@ -574,6 +585,7 @@ impl CoreEngine {
                 document: next,
                 changed,
                 outline,
+                board_geometry,
                 reuse_scene,
                 cacheable: !matches!(command.operation, EditOperation::MoveParts { .. }),
             },
@@ -651,6 +663,7 @@ impl CoreEngine {
     }
 
     fn record_undo(&mut self, previous: ProjectDoc) {
+        self.stagger_preview = None;
         // Keep the latest 100 committed edits without retaining an unbounded document history.
         if self.undo.len() == 100 {
             self.undo.remove(0);
@@ -665,6 +678,7 @@ impl CoreEngine {
             document: mut next,
             changed,
             outline,
+            board_geometry,
             reuse_scene,
             cacheable,
         } = prepared;
@@ -698,7 +712,13 @@ impl CoreEngine {
             self.contours = contours;
             self.findings = findings;
         }
-        self.project_committed_scene(id, &transaction, changed, cacheable && rebuilt)
+        self.project_committed_scene(
+            id,
+            &transaction,
+            changed,
+            cacheable && rebuilt,
+            board_geometry,
+        )
     }
 
     fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
@@ -774,7 +794,7 @@ impl CoreEngine {
             .map(|changed| (changed, false))
     }
 
-    fn preview_edit(&self, id: String, command: EditCommand) -> CoreReply {
+    fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         let accepted = generators::parameter_problems(&self.document);
         // Layout and constraint settlement may rewrite anchors, change
         // membership, and prune outline versions, even for a single drag.
@@ -808,14 +828,15 @@ impl CoreEngine {
                     &draft,
                     &command.operation,
                 )?;
-                Ok(changed)
+                Ok((changed, layout_settled))
             });
-        let changed = match result {
-            Ok(changed) => changed,
+        let (changed, layout_settled) = match result {
+            Ok(applied) => applied,
             Err(message) => return self.error(id, &message),
         };
-        let (cache, contours, findings) = self.edited_outlines(&draft, &command.operation);
-        self.scene(
+        let ((cache, contours, findings), board_geometry) =
+            self.edited_outlines(&draft, &command, layout_settled);
+        self.scene_with_board_geometry(
             id,
             SceneInput {
                 transaction: &command.transaction_id,
@@ -826,22 +847,58 @@ impl CoreEngine {
                 cache: &cache,
                 kind: SceneKind::Preview,
             },
+            board_geometry,
         )
     }
 
     fn edited_outlines(
-        &self,
+        &mut self,
         draft: &ProjectDoc,
-        operation: &EditOperation,
-    ) -> (OutlineCache, Vec<Contour>, Vec<Finding>) {
+        command: &EditCommand,
+        layout_settled: bool,
+    ) -> (geometry::OutlineProjection, Option<ValidatedBoardScene>) {
         if let Some(moved) = self
             .reusable_scene
             .as_ref()
-            .and_then(|_| settled_outline_changes(&self.document, draft, operation))
+            .and_then(|_| settled_outline_changes(&self.document, draft, &command.operation))
         {
-            return outlines(draft, Some(&self.outline_cache), &moved);
+            if layout_settled && is_column_stagger(&command.operation) {
+                return self.settled_stagger_projection(draft, &moved, command.phase);
+            }
+            return (outlines(draft, Some(&self.outline_cache), &moved), None);
         }
-        outlines(draft, None, &[])
+        (outlines(draft, None, &[]), None)
+    }
+
+    fn settled_stagger_projection(
+        &mut self,
+        draft: &ProjectDoc,
+        moved: &[String],
+        phase: EditPhase,
+    ) -> (geometry::OutlineProjection, Option<ValidatedBoardScene>) {
+        let preview = phase == EditPhase::Preview;
+        if let Some(previous) = self.stagger_preview.take()
+            && previous.matches(draft)
+        {
+            if !preview {
+                return previous.projection();
+            }
+            let projection = previous.clone_projection();
+            self.stagger_preview = Some(previous);
+            return projection;
+        }
+        #[cfg(test)]
+        self.stagger_outline_projections
+            .set(self.stagger_outline_projections.get() + 1);
+        let (outline, board) =
+            geometry::outlines_with_board_reuse(draft, &self.outline_cache, moved);
+        let board = board.map(|board| ValidatedBoardScene::new(draft, board));
+        // Shared board geometry rules out saved versions and generated
+        // recovery from Keep gap, which publication could otherwise refresh.
+        if preview && let Some(board) = &board {
+            self.stagger_preview = Some(StaggerPreview::new(draft, outline.clone(), board.clone()));
+        }
+        (outline, board)
     }
 
     fn history(&mut self, id: String, direction: History) -> CoreReply {
@@ -871,7 +928,7 @@ impl CoreEngine {
             History::Undo => "undo",
             History::Redo => "redo",
         };
-        self.project_committed_scene(id, transaction, changed, true)
+        self.project_committed_scene(id, transaction, changed, true, None)
     }
 
     fn project_committed_scene(
@@ -880,8 +937,9 @@ impl CoreEngine {
         transaction: &str,
         changed: Vec<String>,
         cacheable: bool,
+        board_geometry: Option<ValidatedBoardScene>,
     ) -> CoreReply {
-        let reply = self.scene(
+        let reply = self.scene_with_board_geometry(
             id,
             SceneInput {
                 transaction,
@@ -892,6 +950,7 @@ impl CoreEngine {
                 cache: &self.outline_cache,
                 kind: SceneKind::Committed,
             },
+            board_geometry,
         );
         // Recovery and linked alternatives can select snapshots that differ from
         // the inputs used to build the outline cache. Keep those on the full path.
@@ -907,11 +966,21 @@ impl CoreEngine {
     }
 
     fn recompute(&mut self) {
+        self.stagger_preview = None;
         (self.outline_cache, self.contours, self.findings) = outlines(&self.document, None, &[]);
         outline_versions::refresh_recovery(&mut self.document, &self.outline_cache);
     }
 
     fn scene(&self, id: String, input: SceneInput<'_>) -> CoreReply {
+        self.scene_with_board_geometry(id, input, None)
+    }
+
+    fn scene_with_board_geometry(
+        &self,
+        id: String,
+        input: SceneInput<'_>,
+        board_geometry: Option<ValidatedBoardScene>,
+    ) -> CoreReply {
         #[cfg(test)]
         self.full_scene_projections
             .set(self.full_scene_projections.get() + 1);
@@ -943,12 +1012,22 @@ impl CoreEngine {
             }
         }
         findings.extend(validate::validate(doc));
-        let geometry::BoardSceneGeometry {
-            contours: board_contours,
-            outlines: board_outline_scenes,
-            findings: board_findings,
-            markers: corner_markers,
-        } = geometry::board_scene_geometry(doc, cache);
+        let ValidatedBoardScene {
+            geometry:
+                geometry::BoardSceneGeometry {
+                    contours: board_contours,
+                    outlines: board_outline_scenes,
+                    findings: board_findings,
+                    markers: corner_markers,
+                },
+            findings: outline_findings,
+            markers: mut finding_markers,
+        } = board_geometry.unwrap_or_else(|| {
+            #[cfg(test)]
+            self.independent_board_projections
+                .set(self.independent_board_projections.get() + 1);
+            ValidatedBoardScene::new(doc, geometry::board_scene_geometry(doc, cache))
+        });
         let fitted_targets: BTreeSet<_> = board_findings
             .iter()
             .filter(|finding| finding.id.ends_with(":feature:outline:corners:fitted"))
@@ -970,8 +1049,6 @@ impl CoreEngine {
             doc,
             &board_contours,
         ));
-        let (outline_findings, mut finding_markers) =
-            outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
         finding_markers.extend(inputs::finding_markers(doc, &findings));
         finding_markers.extend(hardware::nominal_fit(doc).1);
@@ -1210,7 +1287,8 @@ struct PreparedEdit {
     transaction: String,
     document: ProjectDoc,
     changed: Vec<String>,
-    outline: Option<(OutlineCache, Vec<Contour>, Vec<Finding>)>,
+    outline: Option<geometry::OutlineProjection>,
+    board_geometry: Option<ValidatedBoardScene>,
     reuse_scene: bool,
     cacheable: bool,
 }
@@ -1273,6 +1351,7 @@ impl CoreEngine {
                 document,
                 changed,
                 outline: Some((cache, contours, findings)),
+                board_geometry: None,
                 reuse_scene: false,
                 cacheable: false,
             },

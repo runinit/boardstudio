@@ -1,5 +1,6 @@
 //! Preset-variant snapshots and history predicates for the Matrix Inspector.
 use super::*;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 
 pub(super) fn exact_variant_snapshot(
     runtime: &Runtime,
@@ -72,22 +73,21 @@ pub(super) async fn wait_for_variant_edit(
     alive: &Rc<Cell<bool>>,
     resolver: EditResolver,
 ) -> Result<VariantEditWait, String> {
-    let mut pending = PendingEdits::default();
-    pending.begin(
+    // Single-ticket variant edit: no keyed map. Settlement is observed here
+    // because this async flow has no parent `version` signal to settle on;
+    // dropping the ticket releases its observers without cancelling the edit.
+    let ticket = EditTicket::begin(
         runtime,
-        (),
         "layout-matrix-variant",
         Some("matrix variant".into()),
         resolver,
     );
     for _ in 0..1_200 {
-        let results = pending.settle(alive.get());
-        if let Some(result) = results.into_iter().next() {
-            return match result {
-                PendingEditResult::Landed { .. } => Ok(VariantEditWait::Landed),
-                PendingEditResult::Failed { message, .. } => Err(message),
-                PendingEditResult::Retired { .. } => Ok(VariantEditWait::Retired),
-            };
+        match ticket.settlement(alive.get()) {
+            Settlement::Landed { .. } => return Ok(VariantEditWait::Landed),
+            Settlement::Failed { message } => return Err(message),
+            Settlement::Retired => return Ok(VariantEditWait::Retired),
+            Settlement::Pending => {}
         }
         if !alive.get() {
             return Ok(VariantEditWait::Retired);

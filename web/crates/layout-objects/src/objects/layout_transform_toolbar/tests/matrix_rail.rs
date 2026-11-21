@@ -249,10 +249,8 @@ async fn real_pointer_events_with_stubbed_capture_latch_ctrl_at_pointer_down_and
  {
     let runtime = fixture::open_matrix_runtime().await;
     // The first edit syncs the fixture's unlaid poses.
-    let mut sync = boardstudio_web_runtime::pending_edits::PendingEdits::<()>::default();
-    sync.begin(
+    let sync = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
         &runtime,
-        (),
         "sync",
         Some("transform".into()),
         EditResolver::new("sync", |_: &AcceptedSnapshot| {
@@ -264,11 +262,7 @@ async fn real_pointer_events_with_stubbed_capture_latch_ctrl_at_pointer_down_and
             transform_commit(String::new(), fixture::MATRIX_ID, operation)
         }),
     );
-    let sync = RefCell::new(sync);
-    pump_until(&runtime, "the sync edit settles", || {
-        !sync.borrow_mut().settle(true).is_empty()
-    })
-    .await;
+    fixture::settle_ticket(&runtime, &sync).await;
     wait_until_editable(&runtime).await;
     let shifted = Vec2 {
         x: 9.525,
@@ -581,7 +575,17 @@ async fn value_popup_follows_the_drag_and_commit_toast_expires() {
         },
     )
     .await;
+    let (mut saving, release) = support::gate_next_persist(&runtime);
     dispatch_pointer(&handle, "pointerup", false, false, 0, (100, 40));
+    wait_until("stagger reaches persistence", || {
+        support::drive_pending(&runtime);
+        saving.try_recv().unwrap().is_some()
+    })
+    .await;
+    frame().await;
+    assert_eq!(revision(&runtime), before);
+    assert!(query(&rail.root, "[data-feedback-toast]").is_none());
+    release.send(()).expect("complete the stagger save");
     pump_past(&runtime, before).await;
     assert_eq!(revision(&runtime), before + 1, "one accepted edit");
     let toast = query(&rail.root, "[data-feedback-toast]").expect("the commit raises a toast");

@@ -64,6 +64,19 @@ pub fn LayoutTransformToolOverlay(
     let feedback = use_signal(FeedbackState::default);
     let popup_at = use_signal(|| None::<(f64, f64)>);
     let toast_gen = use_signal(|| 0_u64);
+    // Single-ticket commits: drags and nudges queue here and settle on the
+    // production `version` signal (durable toast on landing, `report` on
+    // failure, silent on retirement). No keyed map or polling loop is kept.
+    let pending = use_signal(Vec::<PendingTransformCommit>::new);
+    use_settled_transform_commits(
+        runtime.0.clone(),
+        workspace,
+        scope_generation,
+        selected_context,
+        pending,
+        feedback,
+        toast_gen,
+    );
     let preview = try_use_context::<FieldPreview>();
     let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
     let shown = use_hook(|| Rc::new(RefCell::new(Vec::<String>::new())));
@@ -683,13 +696,13 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_end = snap_guide;
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
-    let toast_gen_for_end = toast_gen;
+    let pending_for_end = pending;
     let svg_handle_for_end_outer = svg_handle.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_end = guide_for_end;
         let mut feedback_for_end = feedback_for_end;
         let mut popup_at_for_end = popup_at_for_end;
-        let mut toast_gen_for_end = toast_gen_for_end;
+        let mut pending_for_end = pending_for_end;
         let svg_handle_for_end = svg_handle_for_end_outer.clone();
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
@@ -767,25 +780,26 @@ pub fn LayoutTransformToolOverlay(
                 active.preview_submitted = true;
             }
             if !same_transform_as_start(&active, &operation) {
-                commit_transform_drag(&runtime_for_end, &active, &operation);
-                // Ticket 06: a committed placement drag raises the value
-                // toast as one Undo step. The toast writes nothing: it is a
-                // signal the 1.8 s timer clears.
-                if let Some(TransformDragResult::Placement { delta, .. }) =
-                    transform_drag_result(&active, &operation)
-                {
-                    feedback_for_end.set(advance_feedback(
-                        &feedback_for_end(),
-                        FeedbackEvent::Commit {
-                            value: format!("{} {live_value}", feedback_tool_name(tool)),
-                            delta: placement_feedback_delta(delta),
-                        },
-                    ));
-                    let seen = {
-                        toast_gen_for_end.set(toast_gen_for_end() + 1);
-                        toast_gen_for_end()
+                // Queue one composed commit as intent; the `version` effect
+                // raises the durable toast on landing and reports failures.
+                // Queued drags compose through the resolver (ADR-0005).
+                if let Some(ticket) = commit_transform_drag(&runtime_for_end, &active, &operation) {
+                    let toast = match transform_drag_result(&active, &operation) {
+                        Some(TransformDragResult::Placement { delta, .. }) => {
+                            Some(PendingTransformToast {
+                                tool_name: feedback_tool_name(tool),
+                                value: live_value.clone(),
+                                delta: placement_feedback_delta(delta),
+                            })
+                        }
+                        _ => None,
                     };
-                    arm_commit_toast_expiry(feedback_for_end, toast_gen_for_end, seen);
+                    pending_for_end.write().push(PendingTransformCommit {
+                        ticket,
+                        owner: active.owner.clone(),
+                        context: active.context.clone(),
+                        toast,
+                    });
                 }
             } else if active.preview_submitted {
                 clear_transform_preview(&runtime_for_end, &active);
@@ -867,11 +881,13 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_key = snap_guide;
     let feedback_for_key = feedback;
     let popup_at_for_key = popup_at;
+    let pending_for_key = pending;
     let svg_for_key_cancel = svg_handle.clone();
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
         let mut guide_for_key = guide_for_key;
         let mut feedback_for_key = feedback_for_key;
         let mut popup_at_for_key = popup_at_for_key;
+        let mut pending_for_key = pending_for_key;
         let Some(key) = event.data().try_as_web_event() else {
             return;
         };
@@ -1067,34 +1083,15 @@ pub fn LayoutTransformToolOverlay(
         key.prevent_default();
         key.stop_propagation();
         // A held key queues one step per repeat; each resolves against the matrix the
-        // previous steps produced.
+        // previous steps produced (ADR-0005). The ticket settles on `version`:
+        // failures report, retirement is silent, focus stays on the token.
         let resolver = transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta);
-        let mut edits = PendingEdits::default();
-        edits.begin(
-            &runtime_for_key,
-            (),
-            "layout-transform-nudge",
-            Some("transform".into()),
-            resolver,
-        );
-        let runtime = runtime_for_key.clone();
-        let owner = owner_for_key.clone();
-        let context = context_for_key.clone();
-        spawn_local(async move {
-            loop {
-                let is_live = transform_nudge_admitted(
-                    &runtime,
-                    workspace,
-                    scope_generation,
-                    selected_context,
-                    &owner,
-                    &context,
-                );
-                if !edits.settle(is_live).is_empty() {
-                    break;
-                }
-                gloo_timers::future::TimeoutFuture::new(16).await;
-            }
+        let ticket = begin_transform_ticket(&runtime_for_key, "layout-transform-nudge", resolver);
+        pending_for_key.write().push(PendingTransformCommit {
+            ticket,
+            owner: owner_for_key.clone(),
+            context: context_for_key.clone(),
+            toast: None,
         });
     });
 

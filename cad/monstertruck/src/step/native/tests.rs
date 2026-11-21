@@ -1,7 +1,9 @@
 use super::*;
 
+mod angular_tests;
 mod cone_tests;
 mod cylinder_band_tests;
+mod diode_tests;
 
 const MOLEX: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/infused-kim/3d_models/Molex_Ezmate_Pico_Socket_2pin.step"
@@ -185,6 +187,7 @@ fn eccentric_ellipse_refines_chord_turn_near_its_tip_and_refuses_excess_work() {
             forward: true,
         },
         carrier: None,
+        finite_ellipse: None,
     };
     let points = edge.sample(0.1, 1e-8).unwrap();
     assert_eq!([points[0], *points.last().unwrap()], edge.points);

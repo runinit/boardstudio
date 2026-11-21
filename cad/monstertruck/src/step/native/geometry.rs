@@ -1,5 +1,6 @@
 //! Analytic edge intervals and surface frames in authored length units.
 use super::carrier::Carrier;
+use super::rational_trim::{self, FiniteEllipse};
 use super::*;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -13,6 +14,7 @@ pub(super) struct Surface {
 pub(super) enum SurfaceKind {
     Plane,
     Cylinder(f64),
+    Sphere(f64),
     Cone {
         radius: f64,
         slope: f64,
@@ -31,6 +33,10 @@ impl Surface {
             "CYLINDRICAL_SURFACE" => {
                 let params = parameters(record, 3)?;
                 (params, SurfaceKind::Cylinder(positive(&params[2])?))
+            }
+            "SPHERICAL_SURFACE" => {
+                let params = parameters(record, 3)?;
+                (params, SurfaceKind::Sphere(positive(&params[2])?))
             }
             "CONICAL_SURFACE" => {
                 let params = parameters(record, 4)?;
@@ -78,6 +84,7 @@ pub(super) struct Edge {
     pub(super) points: [Point3; 2],
     pub(super) curve: Curve,
     pub(super) carrier: Option<Box<Carrier>>,
+    pub(super) finite_ellipse: Option<FiniteEllipse>,
 }
 
 pub(super) enum Curve {
@@ -117,6 +124,16 @@ impl Edge {
         let points = [point(vertices[0])?, point(vertices[1])?];
         let forward = flag(&edge[4])?;
         let id = reference(&edge[3])?;
+        if records.get(&id).is_some_and(|parts| parts.len() > 1) {
+            let (curve, interval) = rational_trim::read(records, scene, id, forward)?;
+            return Ok(Self {
+                vertices,
+                points,
+                curve,
+                carrier: None,
+                finite_ellipse: Some(interval),
+            });
+        }
         let mut kind = simple_record(records, id)?.name.as_str();
         let (curve_id, carrier) = if matches!(kind, "SURFACE_CURVE" | "SEAM_CURVE") {
             let (id, carrier) = Carrier::read(records, scene, cone_angles, id, kind)?;
@@ -168,6 +185,7 @@ impl Edge {
             points,
             curve,
             carrier,
+            finite_ellipse: None,
         })
     }
 
@@ -215,6 +233,22 @@ impl Edge {
             return Err("expected an elliptical trim".into());
         };
         let chart = frame * Matrix4::from_nonuniform_scale(major, minor, 1.0);
+        if let Some(trim) = &self.finite_ellipse {
+            let (start, sweep) = trim.interval;
+            let attachment = self
+                .points
+                .into_iter()
+                .zip([start, start + sweep])
+                .map(|(point, angle)| (point - conic_point(chart, angle)).magnitude())
+                .fold(0.0, f64::max);
+            let error = attachment + trim.residual;
+            if self.vertices[0] == self.vertices[1] || !error.is_finite() || error > epsilon {
+                return Err(
+                    "native rational ellipse does not match its oriented finite endpoints".into(),
+                );
+            }
+            return Ok((chart, major, start, sweep));
+        }
         let local = Surface {
             frame,
             kind: SurfaceKind::Plane,
@@ -374,10 +408,23 @@ impl Edge {
             }
         };
         let (lo, hi) = (start.min(start + sweep), start.max(start + sweep));
+        let reduction_margin = self.finite_ellipse.as_ref().map(|trim| {
+            Vector3::new(
+                Vector3::new(world.x.x, world.y.x, world.z.x).magnitude(),
+                Vector3::new(world.x.y, world.y.y, world.z.y).magnitude(),
+                Vector3::new(world.x.z, world.y.z, world.z.z).magnitude(),
+            ) * trim.residual
+        });
         let mut include = |angle| -> Result<(), String> {
             let point = conic_point(chart, angle);
             check_coordinate(point)?;
-            super::super::bounds::push(bounds, point)
+            if let Some(margin) = reduction_margin {
+                // Enclose the original rational span as well as its reduction.
+                super::super::bounds::push(bounds, point - margin)?;
+                super::super::bounds::push(bounds, point + margin)
+            } else {
+                super::super::bounds::push(bounds, point)
+            }
         };
         include(lo)?;
         include(hi)?;

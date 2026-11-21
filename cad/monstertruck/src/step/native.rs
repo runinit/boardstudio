@@ -4,8 +4,12 @@ mod assembly;
 mod carrier;
 mod cone;
 mod cylinder_band;
+mod facet;
 mod geometry;
 mod oblique;
+mod rational_trim;
+mod sphere;
+mod sphere_bounds;
 mod trim;
 
 use super::*;
@@ -246,11 +250,23 @@ pub(super) fn build(
             .min(deflection_mm * 1e-4)
             / source_to_world;
         let solid = &solids[&id];
+        let deflection = deflection_mm / source_to_world;
+        // Both faces sharing a spherical boundary must use the same samples.
+        // Reserve slack on the edges for the interior spherical facets.
+        let edge_deflection = if solid
+            .faces
+            .iter()
+            .any(|face| matches!(face.surface.kind, SurfaceKind::Sphere(_)))
+        {
+            deflection * 0.5
+        } else {
+            deflection
+        };
         let mut samples = HashMap::with_capacity(solid.edges.len());
         for (&edge_id, edge) in &solid.edges {
             samples.insert(
                 edge_id,
-                edge.sample(deflection_mm / source_to_world, epsilon)
+                edge.sample(edge_deflection, epsilon)
                     .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
             );
             // Along each admitted cylindrical or conical generator a world
@@ -264,7 +280,9 @@ pub(super) fn build(
                     &solid.edges,
                     &samples,
                     epsilon,
-                    deflection_mm / source_to_world,
+                    deflection,
+                    world,
+                    &mut asset.bounds,
                 )
                 .map_err(|error| {
                     format!(
@@ -326,11 +344,15 @@ impl Solid {
         let mut faces = Vec::new();
         let mut edges = HashMap::new();
         let mut uses = HashMap::<u64, Vec<(u64, bool)>>::new();
+        let mut spherical_supports = HashSet::new();
         for face_id in references(&shell[1])? {
             let face = named_parameters(records, face_id, "ADVANCED_FACE", 4)?;
             let support_id = reference(&face[2])?;
             let support = simple_record(records, support_id)?;
             let surface = Surface::read(support, scene, cone_angles.get(&support_id).copied())?;
+            if matches!(surface.kind, SurfaceKind::Sphere(_)) {
+                spherical_supports.insert(support_id);
+            }
             let same_sense = flag(&face[3])?;
             let mut loops = Vec::new();
             for bound_id in references(&face[1])? {
@@ -405,6 +427,27 @@ impl Solid {
             };
             if forward == reverse {
                 return Err("incomplete or nonmanifold native shell edge uses".into());
+            }
+            // The spherical slice covers fillets that meet cylindrical strips.
+            for (support, adjacent) in [(a, b), (b, a)] {
+                if spherical_supports.contains(&support)
+                    && named_record(records, adjacent, "CYLINDRICAL_SURFACE").is_err()
+                {
+                    return Err(format!(
+                        "native edge #{id}: spherical fillet requires a cylindrical neighbor"
+                    ));
+                }
+            }
+            // Both adjacent oblique strips must certify the reduced trim
+            // against their supports over the full finite interval.
+            if edges[&id].finite_ellipse.is_some()
+                && [a, b]
+                    .into_iter()
+                    .any(|support| named_record(records, support, "CYLINDRICAL_SURFACE").is_err())
+            {
+                return Err(format!(
+                    "native edge #{id}: rational elliptic trim requires two cylindrical face uses"
+                ));
             }
             if let Some(carrier) = &edges[&id].carrier
                 && carrier.supports != [a, b]

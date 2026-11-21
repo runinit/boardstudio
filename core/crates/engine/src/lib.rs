@@ -57,8 +57,13 @@ pub struct CoreEngine {
     outline_cache: OutlineCache,
     /// Accepted projection when safe to reuse. Reply metadata is set per request.
     reusable_scene: Option<SceneDelta>,
+    stagger_preview: Option<scene_reuse::StaggerPreview>,
+    #[cfg(test)]
+    stagger_outline_projections: std::cell::Cell<usize>,
     #[cfg(test)]
     full_scene_projections: std::cell::Cell<usize>,
+    #[cfg(test)]
+    independent_board_projections: std::cell::Cell<usize>,
     /// Session high-water marks; not part of any Undo snapshot or saved document.
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
@@ -127,8 +132,13 @@ impl CoreEngine {
             findings: vec![],
             outline_cache: OutlineCache::default(),
             reusable_scene: None,
+            stagger_preview: None,
+            #[cfg(test)]
+            stagger_outline_projections: std::cell::Cell::default(),
             #[cfg(test)]
             full_scene_projections: std::cell::Cell::default(),
+            #[cfg(test)]
+            independent_board_projections: std::cell::Cell::default(),
             identity_ledger: mechanical::edit::MechanicalIdentityLedger::default(),
         }
     }
