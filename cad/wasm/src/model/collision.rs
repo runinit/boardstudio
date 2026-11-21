@@ -6,14 +6,12 @@
 //! observations with asset-level error bounds to decide whether a source-level
 //! tolerance band is supported.
 
+use boardstudio_contracts::{is_sha256_hex, validate_affine_row_transform, CadStepImportOptions};
 use js_sys::{Float64Array, Uint32Array};
 use parry3d_f64::{
     math::{Pose, Vector},
     query::{ClosestPoints, DefaultQueryDispatcher, QueryDispatcher},
     shape::{SubShapeId, TriMesh, TriMeshFlags, Triangle},
-};
-use boardstudio_contracts::{
-    CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};

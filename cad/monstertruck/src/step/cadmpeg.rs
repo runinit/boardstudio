@@ -215,25 +215,37 @@ pub(super) fn build(
             ) && residual > allowance
             {
                 return Err(format!(
-                    "{id} support incidence exceeds {allowance} mm: sampled support residual {residual:.6} mm"
+                    "{id} support incidence exceeds {allowance} mm: sampled support residual {residual:.6e} mm"
                 ));
             }
             if !residual.is_finite() {
                 return Err(format!("{id} has nonfinite support residual"));
             }
+            let linear_plane = geometry.lines_on_plane(id, &surface);
             if !surface.coedges.is_empty() {
                 if let Some(declared) = owner.uncertainty_mm() {
                     relaxed |= residual > declared * scale;
                 }
-                if !geometry.lines_on_plane(id, &surface) {
+                if !linear_plane {
                     sampled += surface.coedges.len();
                     max_residual = Some(max_residual.unwrap_or(0.0).max(residual));
                 }
             }
-            let exact = (residual <= 1e-8)
+            let exact = (residual <= 1e-8 || (linear_plane && residual <= allowance))
                 .then(|| geometry.face_bounds(id, &surface, matrix))
                 .flatten();
-            if let Some(face_bounds) = exact {
+            if let Some(mut face_bounds) = exact {
+                if linear_plane && owner.uncertainty_mm().is_some() {
+                    // A fractional placement can round down even when the
+                    // extremal face itself has no measurable plane residual.
+                    let [low, high] = &mut face_bounds;
+                    for (axis, (low, high)) in low.iter_mut().zip(high).enumerate() {
+                        if matrix.w[axis].fract() != 0.0 {
+                            *low = low.next_down();
+                            *high = high.next_up();
+                        }
+                    }
+                }
                 include(&mut bounds, face_bounds[0]);
                 include(&mut bounds, face_bounds[1]);
             } else {
@@ -277,9 +289,6 @@ pub(super) fn build(
                 triangle_faces.push(tag);
                 for p in triangle {
                     let xyz = [p.x, p.y, p.z];
-                    if exact.is_none() {
-                        include(&mut bounds, xyz);
-                    }
                     positions.push(xyz);
                 }
             }
@@ -294,6 +303,13 @@ pub(super) fn build(
             .map(|[a, b, c]| (*a - origin).dot((*b - origin).cross(*c - origin)))
             .sum();
         closed &= volume6.is_finite() && volume6 > 0.0 && closed_oriented_mesh(&triangles);
+    }
+    if !bounds_from_source_geometry {
+        // A mixed asset reports preview bounds. Include the displayed points
+        // of every face, even when some faces also have analytic bounds.
+        for &point in &positions {
+            include(&mut bounds, point);
+        }
     }
     wireframe.include_bounds(&mut bounds);
     let mut asset = ImportedStep {

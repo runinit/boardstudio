@@ -1,10 +1,10 @@
-use boardstudio_contracts::{path_contains, path_signed_area};
 use super::{
     empty_mesh,
     mesh_template::{add_triangle, dish_sag},
     MeshData,
 };
 use boardstudio_contracts::KeycapSpec;
+use boardstudio_contracts::{path_contains, path_signed_area};
 use lyon_path::{math::point, Path};
 use lyon_tessellation::{
     BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex, VertexBuffers,
@@ -284,4 +284,3 @@ fn signed_area_f32(points: &[[f32; 2]]) -> f64 {
         .sum::<f64>()
         * 0.5
 }
-

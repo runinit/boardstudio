@@ -290,14 +290,25 @@ fn trimmed_cylinder_sector_excludes_the_full_circle_extrema() {
 }
 
 #[test]
-fn complete_vendor_sphere_can_display_without_exact_interior_bounds() {
-    let model = import_step(include_bytes!("fixtures/unsupported-non-ruled-sphere.step").to_vec())
-        .expect("complete vendor geometry can preview without an exact tight BRep bound");
-    assert_eq!(model.solid_count(), 1);
-    assert_eq!(model.occurrence_count(), 1);
-    assert!(!model.mesh().positions.is_empty());
-    assert!(!model.accuracy().bounds_from_source_geometry);
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+fn spherical_octant_has_source_bounds_at_both_deflections() {
+    let source = include_bytes!("fixtures/unsupported-non-ruled-sphere.step");
+    for deflection in [0.1, 0.001] {
+        let model = import_step_with_options(
+            source.to_vec(),
+            StepImportOptions {
+                target_deflection_mm: Some(deflection),
+                ..Default::default()
+            },
+        )
+        .expect("the directed great-circle trims bound the authored octant");
+        assert_eq!(model.solid_count(), 1);
+        assert_eq!(model.occurrence_count(), 1);
+        assert_eq!(model.source_faces().len(), 4);
+        assert!(model.accuracy().mesh_closed_oriented);
+        assert!(model.accuracy().bounds_from_source_geometry);
+        assert_bounds(model.bounds(), [[0., 0., 0.], [1., 1., 1.]]);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
 }
 
 #[test]
@@ -680,7 +691,8 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
     assert_eq!(model.source_faces().len(), 4);
     assert_eq!(model.face_occurrences().len(), 4);
     assert_eq!(model.triangle_faces().len(), 4);
-    assert!(!model.accuracy().bounds_from_source_geometry);
+    assert!(model.accuracy().bounds_from_source_geometry);
+    assert_bounds(model.bounds(), [[0., 0., 0.], [2., 3., 4.]]);
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     assert!(
         model
@@ -1103,7 +1115,10 @@ fn boundary_off_its_cylinder_beyond_the_allowance_refuses_with_the_measured_resi
         error.contains("support incidence"),
         "wrong refusal: {error}"
     );
-    assert!(error.contains("sampled support residual 0.001"), "{error}");
+    assert!(
+        error.contains("sampled support residual 1.000000e-3 mm"),
+        "{error}"
+    );
 }
 
 #[test]

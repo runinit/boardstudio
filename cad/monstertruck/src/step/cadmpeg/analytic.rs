@@ -1,4 +1,6 @@
 //! Exact facts read from the decoded source geometry rather than its mesh.
+mod rational;
+
 use super::*;
 use cadmpeg_ir::eval::{admission::EvaluationAdmission, model_curve_point_by_id};
 use cadmpeg_ir::geometry::{SolvedCurveGeometry, SolvedSurfaceGeometry};
@@ -157,47 +159,70 @@ impl<'ir> Geometry<'ir> {
         Some((&edge.id, endpoint_gap.min(start_gap.max(end_gap))))
     }
 
-    /// World bounds of a face whose extent is attained on its boundary
-    /// (planes, cylinders and cones), bounded by lines, circles and ellipses.
-    /// Conic extrema come from the closed form when the traversed boundary
-    /// passes them; every other boundary extreme is an exact traced curve point.
+    /// World bounds from trim extrema and any interior stationary points.
     pub(super) fn face_bounds(
         &self,
         face: &FaceId,
         mesh: &FaceMesh,
         matrix: Matrix4,
     ) -> Option<[[f64; 3]; 2]> {
-        if !matches!(
-            self.surface(face)?,
+        let support = self.surface(face)?;
+        let sphere = match support {
             SolvedSurfaceGeometry::Plane(_)
-                | SolvedSurfaceGeometry::Cylinder(_)
-                | SolvedSurfaceGeometry::Cone(_)
-        ) {
-            return None;
-        }
+            | SolvedSurfaceGeometry::Cylinder(_)
+            | SolvedSurfaceGeometry::Cone(_) => None,
+            SolvedSurfaceGeometry::Sphere(sphere) => {
+                let face = self.index.faces(face.as_str(), StandardIndex)?;
+                if sphere.radius().get() <= 0.0 || face.loops.len() != 1 || mesh.coedges.len() != 3
+                {
+                    return None;
+                }
+                let sense = if face.sense == cadmpeg_ir::topology::Sense::Reversed {
+                    -1.0
+                } else {
+                    1.0
+                };
+                Some((point3(sphere.center().get()), sphere.radius().get(), sense))
+            }
+            _ => return None,
+        };
+        let mut inward = Vec::new();
+        let mut corners = Vec::new();
         let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
         let mut include = |axis: usize, value: f64| {
             bounds[0][axis] = bounds[0][axis].min(value);
             bounds[1][axis] = bounds[1][axis].max(value);
         };
         for trace in &mesh.coedges {
-            for p in &trace.points {
-                let p = matrix.transform_point(point3(*p));
+            let include_point = |p, include: &mut dyn FnMut(usize, f64)| {
+                let p = matrix.transform_point(point3(p));
                 for (axis, value) in [p.x, p.y, p.z].into_iter().enumerate() {
                     include(axis, value);
                 }
-            }
-            let Some(edge) = self.edge(&trace.coedge) else {
-                return None;
             };
+            include_point(*trace.points.first()?, &mut include);
+            include_point(*trace.points.last()?, &mut include);
+            let edge = self.edge(&trace.coedge)?;
             let Some(curve) = edge.curve() else {
                 // A degenerate edge is the pole point already traced.
                 continue;
             };
-            let center = match self.curve(curve)? {
-                SolvedCurveGeometry::Line(_) => continue,
+            let shape = self.curve(curve)?;
+            let center = match shape {
+                SolvedCurveGeometry::Line(_) if sphere.is_none() => {
+                    for p in &trace.points {
+                        include_point(*p, &mut include);
+                    }
+                    continue;
+                }
                 SolvedCurveGeometry::Circle(circle) => point3(circle.center().get()),
-                SolvedCurveGeometry::Ellipse(ellipse) => point3(ellipse.center().get()),
+                SolvedCurveGeometry::Ellipse(ellipse) if sphere.is_none() => {
+                    point3(ellipse.center().get())
+                }
+                SolvedCurveGeometry::Nurbs(nurbs) if sphere.is_none() => {
+                    self.rational_bounds(edge, curve, nurbs, matrix, &mut include)?;
+                    continue;
+                }
                 _ => return None,
             };
             // p(t) = c + cos(t) X + sin(t) Y, read from the carrier itself.
@@ -215,6 +240,23 @@ impl<'ir> Geometry<'ir> {
                     (d.dot(y) / yy).atan2(d.dot(x) / xx)
                 })
                 .collect();
+            if let Some((origin, radius, sense)) = sphere {
+                // Authenticate the whole circle as a great circle using its
+                // authored parameters. The samples only select its directed arc.
+                let error = (origin - center).magnitude() + (radius - xx.sqrt()).abs();
+                let roundoff = 64.0
+                    * f64::EPSILON
+                    * radius
+                        .max(origin.x.abs())
+                        .max(origin.y.abs())
+                        .max(origin.z.abs());
+                let sweep: f64 = parameters.windows(2).map(|p| wrap(p[1] - p[0])).sum();
+                if error > roundoff || !(sweep.abs() > 0.0 && sweep.abs() < PI) {
+                    return None;
+                }
+                inward.push(x.cross(y).normalize() * (sense * sweep.signum()));
+                corners.push((point3(*trace.points.first()?) - origin) / radius);
+            }
             let world_center = matrix.transform_point(center);
             let world_x = matrix.transform_vector(x);
             let world_y = matrix.transform_vector(y);
@@ -241,6 +283,25 @@ impl<'ir> Geometry<'ir> {
                     });
                     if traversed {
                         include(axis, value);
+                    }
+                }
+            }
+        }
+        if let Some((center, radius, _)) = sphere {
+            // Three minor great-circle arcs with the third corner on the
+            // interior side bound the convex spherical triangle. Refuse a
+            // complementary region or a degenerate triangle.
+            if inward.len() != 3 || (0..3).any(|i| inward[i].dot(corners[(i + 2) % 3]) <= 1e-12) {
+                return None;
+            }
+            let world_center = matrix.transform_point(center);
+            for axis in 0..3 {
+                let row = Vector3::new(matrix.x[axis], matrix.y[axis], matrix.z[axis]);
+                let length = row.magnitude();
+                for sign in [-1.0, 1.0] {
+                    let pole = row * (sign / length);
+                    if inward.iter().all(|side| side.dot(pole) >= -1e-12) {
+                        include(axis, (sign * radius).mul_add(length, world_center[axis]));
                     }
                 }
             }

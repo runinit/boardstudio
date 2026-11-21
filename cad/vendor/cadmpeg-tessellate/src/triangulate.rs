@@ -128,12 +128,14 @@ fn bridge(
     Ok(outer)
 }
 
-fn inside(points: &[Uv], a: usize, b: usize, c: usize, p: usize) -> bool {
+fn inside(points: &[Uv], a: usize, b: usize, c: usize, p: usize, roundoff: f64) -> bool {
     let (pa, pb, pc, pp) = (points[a], points[b], points[c], points[p]);
     if pp == pa || pp == pb || pp == pc {
         return false;
     }
-    cross2(pa, pb, pp) >= 0.0 && cross2(pb, pc, pp) >= 0.0 && cross2(pc, pa, pp) >= 0.0
+    [cross2(pa, pb, pp), cross2(pb, pc, pp), cross2(pc, pa, pp)]
+        .into_iter()
+        .all(|turn| turn >= -roundoff)
 }
 
 /// The counterclockwise triangles of a region.
@@ -159,6 +161,19 @@ pub(crate) fn triangulate(rings: Rings<'_>) -> Result<Vec<[usize; 3]>, Refusal> 
     while ring.len() > 3 && points[ring[0]] == points[ring[ring.len() - 1]] {
         ring.pop();
     }
+    // Parameter inversion can move a collinear trim sample by a few ulps.
+    // Scale the roundoff area with the region so changing length units
+    // does not turn such a sample into an ear.
+    let span = |axis| {
+        let (low, high) = ring
+            .iter()
+            .map(|&i| points[i][axis])
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), x| {
+                (low.min(x), high.max(x))
+            });
+        high - low
+    };
+    let roundoff = 64.0 * f64::EPSILON * span(0) * span(1);
     let mut triangles = Vec::new();
     while ring.len() > 3 {
         let count = ring.len();
@@ -171,7 +186,7 @@ pub(crate) fn triangulate(rings: Rings<'_>) -> Result<Vec<[usize; 3]>, Refusal> 
                 ring[(at + 1) % count],
             );
             let turn = cross2(points[a], points[b], points[c]);
-            if turn <= 0.0 {
+            if turn <= roundoff {
                 continue;
             }
             if best.is_none_or(|(_, largest)| turn > largest) {
@@ -179,7 +194,7 @@ pub(crate) fn triangulate(rings: Rings<'_>) -> Result<Vec<[usize; 3]>, Refusal> 
             }
             if ring
                 .iter()
-                .all(|p| *p == a || *p == b || *p == c || !inside(points, a, b, c, *p))
+                .all(|p| *p == a || *p == b || *p == c || !inside(points, a, b, c, *p, roundoff))
             {
                 clipped = Some(at);
                 break;
