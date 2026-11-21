@@ -4,10 +4,10 @@
 //! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
 use super::changes::changed_document_ids;
-use super::document::reconcile_with_report;
+use super::document::reconcile_canonical;
 use super::{
-    HostedTransition, IndependentPartTransition, PartProjection, Projection,
-    is_omitted_matrix_link, omitted_mirror_matrix, unique_board_owner,
+    HostedTransition, IndependentPartTransition, Projection, is_omitted_matrix_link,
+    unique_board_owner,
 };
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
@@ -67,13 +67,13 @@ pub fn prepare_open(
         let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
         let mut matrices = pair_projection.matrix_links().peekable();
         if matrices.peek().is_none() {
-            let projection = super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
-            reconcile_with_report(&mut draft, &pair.pair_id, &projection, false)?;
+            let projection = super::projection_for_pair(&pair.halves, pair.mapping);
+            reconcile_canonical(&mut draft, &pair.pair_id, &projection)?;
         }
         for matrix_link in matrices {
             let projection =
                 projection_for(&draft, &draft, None, &pair_projection, matrix_link, false)?;
-            reconcile_with_report(&mut draft, &pair.pair_id, &projection, false)?;
+            reconcile_canonical(&mut draft, &pair.pair_id, &projection)?;
         }
     }
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);

@@ -1,8 +1,8 @@
 //! Staging of mirrored matrices and forward projection of matrices and parts.
 
 use super::{
-    Projection, build_fixed_membership_view, matrix_members_for_pair, omitted_mirror_matrix,
-    remove_omitted_matrix_parts,
+    Projection, matrix_members_for_pair, membership_view::fixed_membership_view,
+    omitted_mirror_matrix, remove_omitted_matrix_parts,
 };
 use crate::model::{Matrix, MirroredCorrespondence, MirroredItemKind, Part, Pose2, ProjectDoc};
 use std::collections::BTreeSet;
@@ -38,6 +38,7 @@ pub(super) fn stage_matrix(
     halves: &crate::model::MirroredHalves,
     projection: &Projection,
     mapping: Pose2,
+    explicit: bool,
 ) -> Result<MatrixStage, String> {
     let Some(matrix_link) = projection.matrix.as_ref() else {
         if !projection.parts.is_empty() || !projection.locally_protected_mirror_parts.is_empty() {
@@ -143,13 +144,14 @@ pub(super) fn stage_matrix(
         let projected_matrix =
             project_matrix(source_matrix, mirror_matrix, matrix_correspondence, mapping)?;
         crate::matrix::valid_matrix(&projected_matrix, document)?;
-        Some(build_fixed_membership_view(
+        Some(fixed_membership_view(
             document,
             halves,
             source_matrix,
             mirror_matrix,
             &projected_matrix,
-            projection,
+            projection.mapping,
+            explicit.then_some(projection),
         )?)
     } else {
         None

@@ -552,6 +552,28 @@ fn placement_repairs_stale_link_in_another_pair() {
         35.0
     );
     assert_eq!(rotated.parts[mirror_index], expected);
+
+    let mut stale = accepted.clone();
+    stale.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .retain(|link| link.source_id != "matrix/source-matrix-extra/r0c1");
+    let operation = serde_json::from_value(json!({
+        "kind":"set-matrix-placement","matrixId":"mirror-matrix",
+        "change":{"kind":"column-stagger","column":1,"value":4.0}
+    }))
+    .unwrap();
+    let before = serde_json::to_vec(&stale).unwrap();
+    let identities = crate::mechanical::edit::MechanicalIdentityLedger::seeded(&stale);
+    let error = prepare_transaction_with_ledger(&stale, &[], &operation, &identities, DISPATCH)
+        .unwrap_err();
+    assert_eq!(
+        error,
+        "Matrix part \"matrix/source-matrix-extra/r0c1\" has no correspondence"
+    );
+    assert_eq!(serde_json::to_vec(&stale).unwrap(), before);
 }
 
 #[test]
@@ -685,6 +707,16 @@ fn linked_placement_sequence_matches_full_preparation() {
     let (rejoined, _) = compare(&moved, local("linked"));
     let (omitted, _) = compare(&rejoined, local("omitted"));
     assert!(omitted.parts.iter().all(|row| row.id != key));
+    let (omitted, changed) = compare(
+        &omitted,
+        json!({
+            "kind":"move-parts","positions":[
+                {"id":"matrix/mirror-matrix/r0c0","at":{"x":6.0,"y":-19.0}}
+            ]
+        }),
+    );
+    assert!(omitted.parts.iter().all(|row| row.id != key));
+    assert!(!changed.iter().any(|id| id == key));
     let denied: EditOperation = serde_json::from_value(json!({
         "kind": "move-parts", "positions": [{"id":key,"at":{"x":5.0,"y":-18.0}}]
     }))

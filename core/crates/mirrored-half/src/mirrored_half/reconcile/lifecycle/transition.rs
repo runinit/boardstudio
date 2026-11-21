@@ -524,86 +524,17 @@ pub(super) fn prepare_lifecycle_projection(
         output,
     )?;
 
-    let projection = if context.matrix_pair.is_none() {
-        super::super::projection_for_matrixless_pair(&output.context.pair_right, context.mapping)
-    } else {
-        let matrix_pair = context
-            .matrix_pair
-            .as_ref()
-            .ok_or("The exact lifecycle Matrix correspondence is unavailable")?;
-        let source = output
-            .draft
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_pair.source_id);
-        let mirror = output
-            .draft
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == matrix_pair.mirror_id);
-        let key_ids: BTreeSet<_> = source
-            .iter()
-            .flat_map(|m| {
-                m.cells
-                    .iter()
-                    .map(|cell| format!("matrix/{}/r{}c{}", m.id, cell.row, cell.column))
-            })
-            .collect();
-        super::super::Projection {
-            matrix: Some(super::super::MatrixLink {
-                source_matrix_id: matrix_pair.source_id.clone(),
-                mirror_matrix_id: matrix_pair.mirror_id.clone(),
-            }),
-            preserve_matrix_geometry: true,
-            source_board_id: context.source_board_id.clone(),
-            mirror_board_id: context.mirror_board_id.clone(),
-            mapping: context.mapping,
-            parts: output
-                .context
-                .associations
-                .iter()
-                .filter(|a| {
-                    a.kind == MirroredItemKind::Part
-                        && key_ids.contains(&a.source_id)
-                        && a.state == TransitionState::Linked
-                })
-                .map(|a| super::super::PartProjection {
-                    source_id: a.source_id.clone(),
-                    mirror_id: a.mirror_id.clone(),
-                })
-                .collect(),
-            locally_protected_mirror_parts: output
-                .context
-                .associations
-                .iter()
-                .filter(|a| {
-                    a.kind == MirroredItemKind::Part
-                        && key_ids.contains(&a.source_id)
-                        && a.state == TransitionState::Local
-                })
-                .map(|a| a.mirror_id.clone())
-                .collect(),
-            final_owners: source
-                .iter()
-                .flat_map(|m| m.part_ids.iter())
-                .map(|id| (id.clone(), context.source_board_id.clone()))
-                .chain(
-                    mirror
-                        .iter()
-                        .flat_map(|matrix| matrix.part_ids.iter())
-                        .map(|id| (id.clone(), context.mirror_board_id.clone())),
-                )
-                .collect(),
-            independent_part_transitions: Vec::new(),
-            hosted_transitions: Vec::new(),
-            applied_independent_additions: Default::default(),
-            applied_hosted_operations: Default::default(),
-            applied_hosted_circuit_additions: Default::default(),
-            hosted_removal_baselines: Default::default(),
-            hosted_omission_baselines: Default::default(),
-            outline_removal_baselines: Default::default(),
-        }
-    };
+    // The lifecycle already staged matrix geometry. Pass only the matrix identity so
+    // reconciliation can validate it and project the other linked records.
+    let mut projection =
+        super::super::projection_for_pair(&output.context.pair_right, context.mapping);
+    projection.matrix = context
+        .matrix_pair
+        .as_ref()
+        .map(|pair| super::super::MatrixLink {
+            source_matrix_id: pair.source_id.clone(),
+            mirror_matrix_id: pair.mirror_id.clone(),
+        });
     // Inherited state is effective projection policy, not an additional stored exception: the
     // engine sees a transient overlay for each inherited child, and the stored halves return below.
     let engine_halves = output
@@ -646,12 +577,7 @@ pub(super) fn prepare_lifecycle_projection(
                 removed_copper: None,
             });
     }
-    super::super::document::reconcile_with_report(
-        &mut output.draft,
-        &context.pair_id,
-        &projection,
-        false,
-    )?;
+    super::super::document::reconcile_canonical(&mut output.draft, &context.pair_id, &projection)?;
     output
         .draft
         .hardware

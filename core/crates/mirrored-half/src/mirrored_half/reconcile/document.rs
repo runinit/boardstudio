@@ -26,14 +26,24 @@ pub fn reconcile(
     pair_id: &str,
     projection: &Projection,
 ) -> Result<Vec<String>, String> {
-    reconcile_with_report(document, pair_id, projection, true)
+    reconcile_projection(document, pair_id, projection, true)
 }
 
-pub(super) fn reconcile_with_report(
+pub(super) fn reconcile_canonical(
     document: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
-    report: bool,
+) -> Result<(), String> {
+    reconcile_projection(document, pair_id, projection, false).map(|_| ())
+}
+
+// The explicit entry point checks caller-supplied membership evidence and returns a report.
+// Prepared drafts derive the evidence from their authenticated pair and report at transaction end.
+fn reconcile_projection(
+    document: &mut ProjectDoc,
+    pair_id: &str,
+    projection: &Projection,
+    explicit: bool,
 ) -> Result<Vec<String>, String> {
     let hardware = document
         .hardware
@@ -67,7 +77,7 @@ pub(super) fn reconcile_with_report(
         mirror_members: mirror_matrix_members,
         omitted_parts,
         allow_absent: allow_absent_matrix,
-    } = stage_matrix(document, halves, projection, pair.mapping)?;
+    } = stage_matrix(document, halves, projection, pair.mapping, explicit)?;
     let planned_independent_additions: BTreeMap<_, _> = projection
         .independent_part_transitions
         .iter()
@@ -1248,7 +1258,7 @@ pub(super) fn reconcile_with_report(
         &hosted_omission_closure,
     )?;
 
-    let changed_ids = if report {
+    let changed_ids = if explicit {
         changed_document_ids(document, &staged, &[])?
     } else {
         Vec::new()

@@ -202,10 +202,7 @@ pub fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix
     }
 }
 
-fn projection_for_matrixless_pair(
-    halves: &crate::model::MirroredHalves,
-    mapping: Pose2,
-) -> Projection {
+fn projection_for_pair(halves: &crate::model::MirroredHalves, mapping: Pose2) -> Projection {
     Projection {
         matrix: None,
         preserve_matrix_geometry: true,

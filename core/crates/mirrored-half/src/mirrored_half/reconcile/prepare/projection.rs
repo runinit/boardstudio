@@ -152,8 +152,8 @@ pub(super) fn project_matrixless_placement(
         crate::matrix::deletion::remove_parts_by_id(draft, &omitted);
     }
 
-    let projection = super::super::projection_for_matrixless_pair(halves, pair.mapping);
-    reconcile_with_report(draft, &pair.id, &projection, false)?;
+    let projection = super::super::projection_for_pair(halves, pair.mapping);
+    reconcile_canonical(draft, &pair.id, &projection)?;
     Ok(true)
 }
 
@@ -172,8 +172,7 @@ pub(super) fn reconcile_pairs(
                 canonical.operation,
                 EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. }
             ) {
-                let mut projection =
-                    super::super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
+                let mut projection = super::super::projection_for_pair(&pair.halves, pair.mapping);
                 projection.independent_part_transitions = transitions_for(
                     accepted,
                     document,
@@ -187,7 +186,7 @@ pub(super) fn reconcile_pairs(
                 // Caller-owned draft: no per-pair report. The outer transaction guarantees
                 // rollback and owns the single final scoped report, so refusals still leave
                 // the accepted document intact while ledger updates stay atomic on success.
-                reconcile_with_report(document, &pair.pair_id, &projection, false)?;
+                reconcile_canonical(document, &pair.pair_id, &projection)?;
             }
             continue;
         }
@@ -205,7 +204,7 @@ pub(super) fn reconcile_pairs(
                 matrix_link,
                 index == 0,
             )?;
-            reconcile_with_report(document, &pair.pair_id, &projection, false)?;
+            reconcile_canonical(document, &pair.pair_id, &projection)?;
         }
     }
     Ok(())
@@ -297,19 +296,9 @@ pub(super) fn projection_for(
     let source_matrix_id = matrix_link.source_id.as_str();
     let mirror_matrix_id = matrix_link.mirror_id.as_str();
     let source_matrix = matrix_by_id(document, source_matrix_id)?;
-    let omitted_matrix = is_omitted_matrix_link(halves, source_matrix_id, mirror_matrix_id);
-    let absent_omitted_matrix;
     let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
-        Ok(matrix) => matrix,
-        Err(_) if omitted_matrix => {
-            absent_omitted_matrix = omitted_mirror_matrix(
-                source_matrix,
-                mirror_matrix_id,
-                &halves.mirror_board_id,
-                halves,
-            );
-            &absent_omitted_matrix
-        }
+        Ok(matrix) => Some(matrix),
+        Err(_) if is_omitted_matrix_link(halves, source_matrix_id, mirror_matrix_id) => None,
         Err(error) => return Err(error),
     };
     let source_board_id = source_matrix
@@ -317,11 +306,11 @@ pub(super) fn projection_for(
         .clone()
         .ok_or("The source matrix has no board owner")?;
     let mirror_board_id = mirror_matrix
-        .board_id
-        .clone()
+        .map_or(Some(&halves.mirror_board_id), |matrix| {
+            matrix.board_id.as_ref()
+        })
+        .cloned()
         .ok_or("The mirror matrix has no board owner")?;
-    let mut parts = Vec::new();
-    let mut locally_protected_mirror_parts = BTreeSet::new();
     // Members introduced under a detached matrix have no mirror target yet;
     // an explicit Rejoin adopts them. Any other missing correspondence stays
     // a refusal.
@@ -336,38 +325,18 @@ pub(super) fn projection_for(
         .iter()
         .filter(|cell| cell.enabled && !cell.deleted)
     {
-        let source_id = format!("matrix/{source_matrix_id}/r{}c{}", cell.row, cell.column);
+        let source_id = crate::matrix::member_id(source_matrix_id, cell.row, cell.column);
         let association = match pair.part_link(&source_id) {
             Ok(association) => association,
             Err(_) if matrix_detached => continue,
             Err(error) => return Err(error),
         };
         if association.mirror_id
-            != format!("matrix/{mirror_matrix_id}/r{}c{}", cell.row, cell.column)
+            != crate::matrix::member_id(mirror_matrix_id, cell.row, cell.column)
         {
             return Err(format!(
                 "Matrix part association for {source_id:?} has stale identity"
             ));
-        }
-        if halves
-            .overlay_of(association)
-            .is_some_and(|exception| exception.state == MirroredExceptionState::Local)
-        {
-            locally_protected_mirror_parts.insert(association.mirror_id.clone());
-        } else {
-            parts.push(PartProjection {
-                source_id,
-                mirror_id: association.mirror_id.clone(),
-            });
-        }
-    }
-    let mut final_owners = BTreeMap::new();
-    for (matrix, owner) in [
-        (source_matrix, source_board_id.clone()),
-        (mirror_matrix, mirror_board_id.clone()),
-    ] {
-        for id in &matrix.part_ids {
-            final_owners.insert(id.clone(), owner.clone());
         }
     }
     let (independent_part_transitions, hosted_transitions, hosted_removal_baselines) =
@@ -413,18 +382,11 @@ pub(super) fn projection_for(
         preserve_matrix_geometry: false,
         source_board_id,
         mirror_board_id,
-        mapping: pair.mapping,
-        parts,
         independent_part_transitions,
         hosted_transitions,
         applied_independent_additions: std::cell::RefCell::new(applied_independent_additions),
-        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
         hosted_removal_baselines: std::cell::RefCell::new(hosted_removal_baselines),
-        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        locally_protected_mirror_parts,
-        final_owners,
+        ..super::super::projection_for_pair(halves, pair.mapping)
     })
 }
 
