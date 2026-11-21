@@ -4,7 +4,9 @@ use crate::model::{
 };
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
+use i_overlay::float::overlay::FloatOverlay;
 use i_overlay::float::single::SingleFloatOverlay;
+use i_overlay::i_shape::source::float::resource::ShapeResource;
 use i_overlay::mesh::float::{
     outline::offset::OutlineOffset,
     style::{LineJoin, OutlineStyle},
@@ -85,13 +87,46 @@ pub fn overlay_shapes(
     subject.overlay(clip, rule.into(), FillRule::EvenOdd)
 }
 
-/// Even-odd boolean overlay of shapes against a contour collection.
-pub fn overlay_shapes_with_contours(
-    subject: &Vec<Vec<Vec<[f64; 2]>>>,
-    clip: &Vec<Vec<[f64; 2]>>,
-    rule: BooleanOverlayRule,
-) -> Vec<Vec<Vec<[f64; 2]>>> {
-    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+/// Working buffers for a sequence of outline operations.
+pub struct OutlineClipper(FloatOverlay<[f64; 2]>);
+
+impl Default for OutlineClipper {
+    fn default() -> Self {
+        Self(FloatOverlay::new_empty(
+            Default::default(),
+            Default::default(),
+            0,
+        ))
+    }
+}
+
+impl OutlineClipper {
+    fn overlay(
+        &mut self,
+        subject: &(impl ShapeResource<[f64; 2]> + ?Sized),
+        clip: &(impl ShapeResource<[f64; 2]> + ?Sized),
+        rule: OverlayRule,
+        fill: FillRule,
+    ) -> Shapes {
+        // Recompute the adapter from exactly these inputs, as SingleFloatOverlay
+        // does. Reusing the buffers preserves ordered clipping and rounding.
+        self.0.reinit_with_subj_and_clip(subject, clip);
+        self.0.overlay(rule, fill)
+    }
+
+    /// Even-odd difference from the current board's material contours.
+    pub fn difference(
+        &mut self,
+        required: &(impl ShapeResource<[f64; 2]> + ?Sized),
+        material: &[Path],
+    ) -> Shapes {
+        self.overlay(
+            required,
+            material,
+            OverlayRule::Difference,
+            FillRule::EvenOdd,
+        )
+    }
 }
 
 /// Offset one path on the shared micrometre grid with the bounded miter policy
@@ -670,6 +705,7 @@ fn compose<'a>(
     cache: &OutlineCache,
     settings: Option<&'a OutlineSettings>,
 ) -> ComposedOutline {
+    let mut clipper = OutlineClipper::default();
     let mut shapes: Shapes = vec![];
     let mut findings = vec![];
     let mut finishing = settings;
@@ -731,14 +767,18 @@ fn compose<'a>(
         } else {
             vec![]
         };
-        shapes = shapes.overlay(&result.shapes, rule, FillRule::EvenOdd);
+        shapes = clipper.overlay(&shapes, &result.shapes, rule, FillRule::EvenOdd);
         if addition {
             for shape in &mut shapes {
                 shape.truncate(1);
             }
             if !retained_holes.is_empty() {
-                shapes =
-                    shapes.overlay(&retained_holes, OverlayRule::Difference, FillRule::EvenOdd);
+                shapes = clipper.overlay(
+                    &shapes,
+                    &retained_holes,
+                    OverlayRule::Difference,
+                    FillRule::EvenOdd,
+                );
             }
         }
     }
@@ -1161,6 +1201,37 @@ mod tests {
             2,
             "split halves must retain separate outlines"
         );
+    }
+
+    #[test]
+    fn outline_clipper_matches_fresh_overlays_in_order_and_coordinate_bits() {
+        let mut clipper = OutlineClipper::default();
+        let exterior = [[-17.005, -9.0], [15.1, -9.0], [15.1, 10.0], [-17.005, 10.0]];
+        let hole = [[-2.0, -2.0], [-2.0, 2.0], [2.0, 2.0], [2.0, -2.0]];
+        let near_edge = [[15.0999, -5.0], [20.0, 2.25], [40.0, 4.5], [8.75, 5.0]];
+        let island = [[800.0, 1.0], [825.0, 1.0], [825.0, 2.0], [800.0, 2.0]];
+        let mut shapes = Shapes::new();
+        for (path, rule, fill) in [
+            (&exterior, OverlayRule::Union, FillRule::NonZero),
+            (&hole, OverlayRule::Difference, FillRule::EvenOdd),
+            (&near_edge, OverlayRule::Union, FillRule::NonZero),
+            (&island, OverlayRule::Union, FillRule::EvenOdd),
+            (&exterior, OverlayRule::Difference, FillRule::EvenOdd),
+        ] {
+            let fresh = shapes.overlay(path, rule, fill);
+            shapes = clipper.overlay(&shapes, path, rule, fill);
+            assert_eq!(shapes, fresh);
+            assert!(
+                shapes
+                    .iter()
+                    .flatten()
+                    .flatten()
+                    .zip(fresh.iter().flatten().flatten())
+                    .all(
+                        |(actual, expected)| actual.map(f64::to_bits) == expected.map(f64::to_bits)
+                    )
+            );
+        }
     }
 
     #[test]

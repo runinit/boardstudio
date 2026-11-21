@@ -164,26 +164,34 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
         path.reverse();
     }
     let n = path.len();
+    let corners: Vec<_> = (0..n)
+        .filter_map(|index| {
+            let point = path[index];
+            let incoming = sub(point, path[(index + n - 1) % n]);
+            let outgoing = sub(path[(index + 1) % n], point);
+            if cross(incoming, outgoing) <= 1e-8 {
+                return None;
+            }
+            Some((index, incoming, outgoing))
+        })
+        .collect();
     let mut result = vec![];
     // Evaluate original mouths once: repairs never grow across a wider valley.
-    for start in 0..n {
+    for (position, &(start, incoming, _)) in corners.iter().enumerate() {
         let a = path[start];
-        let incoming = sub(a, path[(start + n - 1) % n]);
-        let first = sub(path[(start + 1) % n], a);
-        if cross(incoming, first) <= 1e-8 {
-            continue;
-        }
-        for count in 2..n - 1 {
-            let end = (start + count) % n;
-            let b = path[end];
-            let chord = sub(b, a);
-            let span = chord[0].hypot(chord[1]);
-            if span < 0.001 || span > maximum + 1e-8 || dot(incoming, chord) <= 1e-8 {
+        // Visit eligible ends in the original cyclic order for equal-area repairs.
+        for &(end, _, outgoing) in corners[position + 1..].iter().chain(&corners[..position]) {
+            let count = (end + n - start) % n;
+            if count == 1 || count == n - 1 {
                 continue;
             }
-            let outgoing = sub(path[(end + 1) % n], b);
-            let last = sub(b, path[(end + n - 1) % n]);
-            if dot(outgoing, chord) <= 1e-8 || cross(last, outgoing) <= 1e-8 {
+            let b = path[end];
+            let chord = sub(b, a);
+            if dot(incoming, chord) <= 1e-8 || dot(outgoing, chord) <= 1e-8 {
+                continue;
+            }
+            let span = chord[0].hypot(chord[1]);
+            if span < 0.001 || span > maximum + 1e-8 {
                 continue;
             }
             let pocket: Path = (0..=count).map(|i| path[(start + i) % n]).collect();

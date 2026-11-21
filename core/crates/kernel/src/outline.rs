@@ -1,12 +1,12 @@
 //! Automatic perimeter construction in board coordinates. Authored cutouts are composed later.
 use super::{
-    FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
+    FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, OutlineClipper, Path, SCALE, Shapes,
+    cleanup, rect, snap,
 };
 use crate::model::{CornerStyle, OutlineSettings, PartKind, Pose2, ProjectDoc, Vec2};
 use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-    float::single::SingleFloatOverlay,
     mesh::float::{
         outline::offset::OutlineOffset,
         style::{LineJoin, OutlineStyle},
@@ -291,6 +291,7 @@ pub(super) fn envelope(
         return Err("An automatic outline cannot bridge separate boards".into());
     }
     let mut shapes: Shapes = vec![];
+    let mut clipper = OutlineClipper::default();
     let mut notices = vec![];
     let mut fallback_definitions = BTreeSet::new();
     let mut envelopes = vec![];
@@ -386,7 +387,7 @@ pub(super) fn envelope(
         } else {
             expand_envelope(&path, m)?
         };
-        shapes = shapes.overlay(&expanded, OverlayRule::Union, FillRule::NonZero);
+        shapes = clipper.overlay(&shapes, &expanded, OverlayRule::Union, FillRule::NonZero);
         envelopes.push((p.id.as_str(), expanded));
     }
     if shapes.is_empty() {
@@ -417,17 +418,8 @@ pub(super) fn envelope(
                 [b.x + ux * h + uy * h, b.y + uy * h - ux * h],
                 [a.x - ux * h + uy * h, a.y - uy * h - ux * h],
             ];
-            shapes = shapes.overlay(&vec![vec![path]], OverlayRule::Union, FillRule::NonZero);
-            corridors = corridors.overlay(
-                &vec![vec![vec![
-                    [a.x - ux * h - uy * h, a.y - uy * h + ux * h],
-                    [b.x + ux * h - uy * h, b.y + uy * h + ux * h],
-                    [b.x + ux * h + uy * h, b.y + uy * h - ux * h],
-                    [a.x - ux * h + uy * h, a.y - uy * h - ux * h],
-                ]]],
-                OverlayRule::Union,
-                FillRule::NonZero,
-            );
+            shapes = clipper.overlay(&shapes, &path, OverlayRule::Union, FillRule::NonZero);
+            corridors = clipper.overlay(&corridors, &path, OverlayRule::Union, FillRule::NonZero);
         }
         if let Some(path) = corridors.first().and_then(|shape| shape.first()) {
             bridges.push(cleanup::bridge_metadata(
@@ -458,7 +450,7 @@ pub(super) fn envelope(
             &envelopes,
         ));
         let count = shapes.len();
-        shapes = shapes.overlay(&web, OverlayRule::Union, FillRule::NonZero);
+        shapes = clipper.overlay(&shapes, &web, OverlayRule::Union, FillRule::NonZero);
         if shapes.len() >= count {
             return Err(
                 "Unable to connect outline groups; adjust bridge width or placement".into(),
@@ -483,7 +475,7 @@ pub(super) fn envelope(
             }
             let width = repair.minimum_connection_width + 0.01;
             let (web, ends) = bridge(&cores, width);
-            let widened = shapes.overlay(&web, OverlayRule::Union, FillRule::NonZero);
+            let widened = clipper.overlay(&shapes, &web, OverlayRule::Union, FillRule::NonZero);
             let after = widened
                 .outline_fixed_scale(&style, SCALE)
                 .map_err(|_| "Connection repair is outside supported coordinates")?;
