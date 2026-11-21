@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+use super::edit::{next_pad_number, parse_number};
 use super::*;
 use boardstudio_application::{SessionEpoch, SnapshotToken};
 use boardstudio_model::model::{ProjectDoc, SceneDelta};
