@@ -172,3 +172,41 @@ async fn page_core_profiles_rename_and_stagger_submission() {
         }
     }
 }
+
+#[wasm_bindgen_test]
+fn page_core_profiles_outline_rebuild_in_isolation() {
+    for (size, large) in [("2 keys", false), ("60 keys", true)] {
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let document = match engine.handle(CoreRequest::Open {
+            id: "outline-profile".into(),
+            document: fixture(large),
+        }) {
+            CoreReply::Scene { document, .. } => document,
+            reply => panic!("could not open outline profile fixture: {reply:?}"),
+        };
+        // Both edit routes rebuild the outline without a prior cache. Replay that
+        // work in isolation on the authored fixture to bound its share of Core time.
+        let mut samples = Vec::with_capacity(100);
+        for i in 0..124 {
+            let start = now();
+            let output = std::hint::black_box(boardstudio_core_kernel::geometry::outlines(
+                &document,
+                None,
+                &[],
+            ));
+            let elapsed = now() - start;
+            assert!(!output.1.is_empty());
+            if i >= 24 {
+                samples.push(elapsed);
+            }
+        }
+        samples.sort_by(f64::total_cmp);
+        web_sys::console::log_1(
+            &format!(
+                "{size} / isolated outline rebuild: n=100, p50={:.3} ms, p95={:.3} ms",
+                samples[49], samples[94],
+            )
+            .into(),
+        );
+    }
+}
