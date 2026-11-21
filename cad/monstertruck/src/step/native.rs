@@ -208,7 +208,9 @@ pub(super) fn build(
         deflection_mm,
         relaxed_beyond_declared_precision: false,
     };
-    for (index, (id, placement, representation)) in asset.occurrences.iter().copied().enumerate() {
+    let mut geometry = Vec::with_capacity(asset.occurrences.len());
+    let mut definition_epsilon = std::collections::BTreeMap::<u64, f64>::new();
+    for &(id, placement, representation) in &asset.occurrences {
         units::validate_placement_matrix(placement)?;
         let world = placement * Matrix4::from_scale(factors[&id]);
         let scale = placement
@@ -238,23 +240,59 @@ pub(super) fn build(
             owner.uncertainty_mm(),
             placement,
         );
-        let epsilon = 1e-8_f64
+        let world_epsilon = 1e-8_f64
             .min(allowance)
             .min(uncertainty.unwrap_or(f64::INFINITY))
-            .min(deflection_mm * 1e-4)
-            / source_to_world;
-        let solid = &solids[&id];
-        let repaired = solid.repair_planar_trims(
-            &records,
-            bytes,
-            planar_repair::RepairFrame {
+            .min(deflection_mm * 1e-4);
+        let epsilon = world_epsilon / source_to_world;
+        geometry.push((
+            source_to_world,
+            planar_repair::OccurrenceGeometry {
+                world,
                 epsilon,
+                world_epsilon,
                 allowance_mm: allowance,
-                mm_per_unit: factors[&id],
-                placement,
+                uncertainty_mm: uncertainty,
             },
-            &mut asset.bounds,
-        )?;
+        ));
+        // Every occurrence uses the same definition-level repaired vertices.
+        definition_epsilon
+            .entry(id)
+            .and_modify(|previous| *previous = previous.min(epsilon))
+            .or_insert(epsilon);
+    }
+    let repairs = planar_repair::Repairs::prepare(
+        &solids,
+        &definition_epsilon,
+        &asset.source_faces,
+        &records,
+        bytes,
+    )?;
+    if repairs.is_some() && records.len() != exchange.data[0].entities.len() {
+        return Err("native shared trim repair requires unique DATA entity IDs".into());
+    }
+    for (index, ((id, placement, representation), (source_to_world, frame))) in
+        asset.occurrences.iter().copied().zip(geometry).enumerate()
+    {
+        let planar_repair::OccurrenceGeometry {
+            world,
+            epsilon,
+            uncertainty_mm: uncertainty,
+            ..
+        } = frame;
+        let solid = &solids[&id];
+        let repaired = if let Some(repairs) = &repairs {
+            repairs.apply(
+                id,
+                solid,
+                placement,
+                factors[&id],
+                &frame,
+                &mut asset.bounds,
+            )?
+        } else {
+            None
+        };
         let edges = repaired
             .as_ref()
             .map_or(&solid.edges, |repair| &repair.edges);

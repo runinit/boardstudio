@@ -1,12 +1,14 @@
 //! Reconcile shared vertices with their fixed planes before rebuilding straight trims.
 use super::{geometry::Curve, *};
+use repair::finite_line::{self, ExactPlacement, NativeSources};
 use std::collections::BTreeMap;
 
-pub(super) struct RepairFrame {
+pub(super) struct OccurrenceGeometry {
+    pub world: Matrix4,
     pub epsilon: f64,
+    pub world_epsilon: f64,
     pub allowance_mm: f64,
-    pub mm_per_unit: f64,
-    pub placement: Matrix4,
+    pub uncertainty_mm: Option<f64>,
 }
 
 pub(super) struct SharedRepair {
@@ -14,77 +16,101 @@ pub(super) struct SharedRepair {
     pub movement_mm: HashMap<u64, f64>,
 }
 
-impl Solid {
-    pub(super) fn repair_planar_trims(
-        &self,
+struct Plan {
+    points: HashMap<u64, Point3>,
+    endpoints: HashMap<u64, (Point3, HashSet<u64>)>,
+    edges: HashSet<u64>,
+}
+
+pub(super) struct Repairs {
+    plans: HashMap<u64, Plan>,
+    source: NativeSources,
+}
+
+impl Repairs {
+    pub(super) fn prepare(
+        solids: &HashMap<u64, Solid>,
+        epsilon: &BTreeMap<u64, f64>,
+        faces: &[StepSourceFace],
         records: &SourceRecords<'_>,
         bytes: &[u8],
-        frame: RepairFrame,
+    ) -> Result<Option<Self>, String> {
+        let mut plans = HashMap::new();
+        let mut moved = HashMap::new();
+        let mut lines = HashMap::new();
+        let mut planes = HashMap::new();
+        for (&solid, &epsilon) in epsilon {
+            let Some(plan) = solids[&solid].plan_repair(epsilon, faces)? else {
+                continue;
+            };
+            for &vertex in plan.points.keys() {
+                if moved.insert(vertex, solid).is_some() {
+                    return Err(format!(
+                        "native repair vertex #{vertex} is shared between solids"
+                    ));
+                }
+            }
+            for &edge in &plan.edges {
+                lines.insert(edge, line_input(records, edge)?);
+            }
+            for support in plan.endpoints.values().flat_map(|(_, supports)| supports) {
+                if let std::collections::hash_map::Entry::Vacant(entry) = planes.entry(*support) {
+                    entry.insert(plane_input(records, *support)?);
+                }
+            }
+            plans.insert(solid, plan);
+        }
+        if plans.is_empty() {
+            return Ok(None);
+        }
+        for (&solid, definition) in solids {
+            for vertex in definition.edges.values().flat_map(|edge| edge.vertices) {
+                if moved.get(&vertex).is_some_and(|owner| *owner != solid) {
+                    return Err(format!(
+                        "native repair vertex #{vertex} is shared between solids"
+                    ));
+                }
+            }
+        }
+        let source = finite_line::capture_native(bytes, &lines, &planes)
+            .ok_or("shared trim repair requires original LINE and PLANE coefficients")?;
+        Ok(Some(Self { plans, source }))
+    }
+
+    pub(super) fn apply(
+        &self,
+        id: u64,
+        solid: &Solid,
+        placement: Matrix4,
+        mm_per_unit: f64,
+        frame: &OccurrenceGeometry,
         bounds: &mut [[f64; 3]; 2],
     ) -> Result<Option<SharedRepair>, String> {
-        // Curved supports and parameter curves need their own finite-domain
-        // correspondence. Keep them under the strict native attachment checks.
-        if self
-            .faces
-            .iter()
-            .any(|f| !matches!(f.surface.kind, SurfaceKind::Plane))
-            || self
-                .edges
-                .values()
-                .any(|e| !matches!(e.curve, Curve::Line { .. }) || e.carrier.is_some())
-        {
+        let Some(plan) = self.plans.get(&id) else {
             return Ok(None);
-        }
-        let incidences = || {
-            self.faces.iter().flat_map(|face| {
-                face.loops
-                    .iter()
-                    .flat_map(|ring| &ring.edges)
-                    .flat_map(|(id, _)| {
-                        let edge = &self.edges[id];
-                        edge.vertices
-                            .into_iter()
-                            .zip(edge.points)
-                            .map(|(id, point)| (id, point, face.surface))
-                    })
-            })
         };
-        let mut affected = BTreeMap::new();
-        for (id, point, plane) in incidences() {
-            if plane.local(point).z.abs() > frame.epsilon {
-                affected.entry(id).or_insert_with(|| (point, Vec::new()));
+        let exact = ExactPlacement::new(mm_per_unit, placement)
+            .ok_or("invalid exact shared trim placement")?;
+        for (&vertex, &(point, ref planes)) in &plan.endpoints {
+            let emitted = frame.world.transform_point(point);
+            for &support in planes {
+                if self.source.planes[&support].contains(
+                    point,
+                    emitted,
+                    &exact,
+                    frame.epsilon,
+                    frame.world_epsilon,
+                ) != Some(true)
+                {
+                    return Err(format!(
+                        "native vertex #{vertex}: emitted trim does not meet original PLANE #{support}"
+                    ));
+                }
             }
         }
-        if affected.is_empty() {
-            return Ok(None);
-        }
-        for (id, _, plane) in incidences() {
-            if let Some((_, planes)) = affected.get_mut(&id) {
-                planes.push(plane);
-            }
-        }
-        let points = affected
-            .into_iter()
-            .map(|(id, (point, planes))| {
-                intersect_planes(point, &planes, frame.epsilon)
-                    .map(|point| (id, point))
-                    .ok_or_else(|| {
-                        format!("native vertex #{id}: incompatible incident PLANE supports")
-                    })
-            })
-            .collect::<Result<HashMap<_, _>, _>>()?;
-        let inputs = self
-            .edges
-            .iter()
-            .filter(|(_, edge)| edge.vertices.iter().any(|id| points.contains_key(id)))
-            .map(|(&id, _)| line_input(records, id).map(|input| (id, input)))
-            .collect::<Result<HashMap<_, _>, _>>()?;
-        let source = repair::finite_line::capture_native(bytes, &inputs)
-            .ok_or("shared trim repair requires original LINE coefficients")?;
-        let world = frame.placement * Matrix4::from_scale(frame.mm_per_unit);
-        let mut movement_mm = HashMap::with_capacity(inputs.len());
-        let mut edges = HashMap::with_capacity(self.edges.len());
-        for (&id, edge) in &self.edges {
+        let mut movement_mm = HashMap::with_capacity(plan.edges.len());
+        let mut edges = HashMap::with_capacity(solid.edges.len());
+        for (&id, edge) in &solid.edges {
             let Curve::Line {
                 origin,
                 direction,
@@ -104,18 +130,15 @@ impl Solid {
                 carrier: None,
                 finite_ellipse: None,
             };
-            if let Some(line) = source.get(&id) {
-                for (vertex, point) in repaired.vertices.into_iter().zip(&mut repaired.points) {
-                    if let Some(replacement) = points.get(&vertex) {
-                        *point = *replacement;
-                    }
-                }
-                let (movement, projected) = line
+            if plan.edges.contains(&id) {
+                repaired.points = edge.vertices.map(|vertex| plan.endpoints[&vertex].0);
+                let movement = self.source.lines[&id]
                     .shared_repair_bound(
                         repaired.points,
-                        frame.mm_per_unit,
-                        frame.placement,
+                        frame.world,
+                        &exact,
                         frame.allowance_mm,
+                        bounds,
                     )
                     .map_err(|error| format!("native edge #{id} shared trim repair: {error}"))?;
                 let [a, b] = repaired.points;
@@ -129,18 +152,106 @@ impl Solid {
                     forward,
                 };
                 movement_mm.insert(id, movement);
-                // The caller includes the rebuilt edges. Keep the original
-                // vertex chord and projected source interval in the envelope too.
-                for point in edge.points.into_iter().chain(projected) {
-                    let point = world.transform_point(point);
-                    check_coordinate(point)?;
-                    super::super::bounds::push(bounds, point)?;
-                }
             }
             edges.insert(id, repaired);
         }
+        for point in *bounds {
+            check_coordinate(Point3::from(point))?;
+        }
         Ok(Some(SharedRepair { edges, movement_mm }))
     }
+}
+
+impl Solid {
+    fn plan_repair(&self, epsilon: f64, faces: &[StepSourceFace]) -> Result<Option<Plan>, String> {
+        // Curved supports and parameter curves need their own finite-domain
+        // correspondence. Keep them under the strict native attachment checks.
+        if self
+            .faces
+            .iter()
+            .any(|f| !matches!(f.surface.kind, SurfaceKind::Plane))
+            || self
+                .edges
+                .values()
+                .any(|e| !matches!(e.curve, Curve::Line { .. }) || e.carrier.is_some())
+        {
+            return Ok(None);
+        }
+        let incidences = || {
+            self.faces.iter().flat_map(|face| {
+                face.loops
+                    .iter()
+                    .flat_map(|ring| &ring.edges)
+                    .flat_map(move |(id, _)| {
+                        let edge = &self.edges[id];
+                        edge.vertices
+                            .into_iter()
+                            .zip(edge.points)
+                            .map(move |(id, point)| (id, point, face))
+                    })
+            })
+        };
+        let mut affected = BTreeMap::new();
+        for (id, point, face) in incidences() {
+            if face.surface.local(point).z.abs() > epsilon {
+                affected.entry(id).or_insert_with(|| (point, Vec::new()));
+            }
+        }
+        if affected.is_empty() {
+            return Ok(None);
+        }
+        for (id, _, face) in incidences() {
+            if let Some((_, planes)) = affected.get_mut(&id) {
+                planes.push(face.surface);
+            }
+        }
+        let points = affected
+            .into_iter()
+            .map(|(id, (point, planes))| {
+                intersect_planes(point, &planes, epsilon)
+                    .map(|point| (id, point))
+                    .ok_or_else(|| {
+                        format!("native vertex #{id}: incompatible incident PLANE supports")
+                    })
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
+        let mut edges = HashSet::new();
+        let mut endpoints = HashMap::new();
+        for (&id, edge) in &self.edges {
+            if edge.vertices.iter().any(|id| points.contains_key(id)) {
+                edges.insert(id);
+                for (vertex, point) in edge.vertices.into_iter().zip(edge.points) {
+                    endpoints.entry(vertex).or_insert_with(|| {
+                        (
+                            points.get(&vertex).copied().unwrap_or(point),
+                            HashSet::new(),
+                        )
+                    });
+                }
+            }
+        }
+        for (vertex, _, face) in incidences() {
+            if let Some((_, planes)) = endpoints.get_mut(&vertex) {
+                planes.insert(faces[face.source].support_id);
+            }
+        }
+        Ok(Some(Plan {
+            points,
+            endpoints,
+            edges,
+        }))
+    }
+}
+
+fn plane_input(records: &SourceRecords<'_>, id: u64) -> Result<[u64; 2], String> {
+    let plane = named_parameters(records, id, "PLANE", 2)?;
+    let frame = named_parameters(records, reference(&plane[1])?, "AXIS2_PLACEMENT_3D", 4)?;
+    let origin = reference(&frame[1])?;
+    let normal = reference(&frame[2])
+        .map_err(|_| format!("native repair requires explicit axis for PLANE #{id}"))?;
+    named_record(records, origin, "CARTESIAN_POINT")?;
+    named_record(records, normal, "DIRECTION")?;
+    Ok([origin, normal])
 }
 
 fn intersect_planes(point: Point3, planes: &[Surface], epsilon: f64) -> Option<Point3> {
