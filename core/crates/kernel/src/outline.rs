@@ -206,6 +206,12 @@ fn bridge(shapes: &Shapes, width: f64) -> (Path, [[f64; 2]; 2]) {
         [best.1, best.2],
     )
 }
+#[derive(PartialEq)]
+enum LocalEnvelope<'a> {
+    Keycap(Vec2),
+    Courtyard(&'a str),
+}
+
 pub(super) fn envelope(
     doc: &ProjectDoc,
     feature_id: &str,
@@ -262,6 +268,9 @@ pub(super) fn envelope(
             )
         })
         .collect();
+    let mut last_local = None;
+    let mut local_path = Vec::new();
+    let mut path = Vec::new();
     for p in &selected {
         let d = defs
             .get(&p.definition_id)
@@ -271,37 +280,50 @@ pub(super) fn envelope(
         } else {
             None
         };
-        let mut path = if let Some(size) = keycap_size {
-            if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
-                return Err("Keycap dimensions must be positive".into());
-            }
-            rect(Vec2::default(), size, 0.0)
-        } else {
-            if d.kind == PartKind::Switch && fallback_definitions.insert(&d.id) {
-                notices.push(format!(
-                    "{}: keycap dimensions are missing; using the courtyard",
-                    d.name
-                ));
-            }
-            check_persisted_path_size(d.courtyard.len())
-                .map_err(|error| format!("{}: {error}", p.reference))?;
-            d.courtyard.iter().map(|p| [p.x, p.y]).collect()
-        };
-        for point in &mut path {
-            point[0] = snap(point[0]);
-            point[1] = snap(point[1]);
-        }
-        if matches!(p.side, crate::model::Side::Back) {
-            for point in &mut path {
-                point[0] = -point[0];
-            }
-        }
-        if !persisted_simple(&path).map_err(|error| format!("{}: {error}", p.reference))? {
-            return Err(format!(
-                "{}: outline envelope must be a simple polygon",
-                p.reference
+        if keycap_size.is_none() && d.kind == PartKind::Switch && fallback_definitions.insert(&d.id)
+        {
+            notices.push(format!(
+                "{}: keycap dimensions are missing; using the courtyard",
+                d.name
             ));
         }
+        let source = (
+            keycap_size.map_or(LocalEnvelope::Courtyard(&d.id), LocalEnvelope::Keycap),
+            &p.side,
+        );
+        // Local validation depends only on the resolved dimensions or definition
+        // courtyard and the side. World rounding and offset still use each part's pose.
+        if last_local.as_ref() != Some(&source) {
+            local_path = if let Some(size) = keycap_size {
+                if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+                    return Err("Keycap dimensions must be positive".into());
+                }
+                rect(Vec2::default(), size, 0.0)
+            } else {
+                check_persisted_path_size(d.courtyard.len())
+                    .map_err(|error| format!("{}: {error}", p.reference))?;
+                d.courtyard.iter().map(|p| [p.x, p.y]).collect()
+            };
+            for point in &mut local_path {
+                point[0] = snap(point[0]);
+                point[1] = snap(point[1]);
+            }
+            if matches!(p.side, crate::model::Side::Back) {
+                for point in &mut local_path {
+                    point[0] = -point[0];
+                }
+            }
+            if !persisted_simple(&local_path)
+                .map_err(|error| format!("{}: {error}", p.reference))?
+            {
+                return Err(format!(
+                    "{}: outline envelope must be a simple polygon",
+                    p.reference
+                ));
+            }
+            last_local = Some(source);
+        }
+        path.clone_from(&local_path);
         let pose = poses.get(p.id.as_str()).copied().unwrap_or(p.pose);
         let (sin, cos) = pose.rotation.to_radians().sin_cos();
         for q in &mut path {
@@ -319,7 +341,7 @@ pub(super) fn envelope(
             return Err("Component margin must be nonnegative".into());
         }
         let expanded = if m == 0.0 {
-            vec![vec![path]]
+            vec![vec![std::mem::take(&mut path)]]
         } else {
             path.outline_fixed_scale(&OutlineStyle::new(m).line_join(LineJoin::Miter(0.1)), SCALE)
                 .map_err(|_| "Outline offset is outside supported coordinate range")?
