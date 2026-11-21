@@ -304,6 +304,160 @@ pub(crate) fn with_layer_id(binding: &KeyBinding, value: String) -> Option<KeyBi
     }
 }
 
+/// A binding field's accepted value, distinguishing typed variants that share a shape.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AcceptedFieldValue {
+    Behavior(&'static str),
+    Keycode(&'static str, String),
+    Tap(String),
+    HoldModifier(String),
+    Layer(String),
+    Macro(String),
+}
+
+pub(crate) fn field_value(binding: &KeyBinding, field: BindingField) -> Option<AcceptedFieldValue> {
+    Some(match (field, binding) {
+        (BindingField::Behavior, KeyBinding::KeyPress { .. }) => {
+            AcceptedFieldValue::Behavior("key-press")
+        }
+        (BindingField::Behavior, KeyBinding::ModTap { .. }) => {
+            AcceptedFieldValue::Behavior("mod-tap")
+        }
+        (BindingField::Behavior, KeyBinding::LayerTap { .. }) => {
+            AcceptedFieldValue::Behavior("layer-tap")
+        }
+        (BindingField::Behavior, KeyBinding::MomentaryLayer { .. }) => {
+            AcceptedFieldValue::Behavior("momentary-layer")
+        }
+        (BindingField::Behavior, KeyBinding::ToggleLayer { .. }) => {
+            AcceptedFieldValue::Behavior("toggle-layer")
+        }
+        (BindingField::Behavior, KeyBinding::ToLayer { .. }) => {
+            AcceptedFieldValue::Behavior("to-layer")
+        }
+        (BindingField::Behavior, KeyBinding::StickyLayer { .. }) => {
+            AcceptedFieldValue::Behavior("sticky-layer")
+        }
+        (BindingField::Behavior, KeyBinding::StickyKey { .. }) => {
+            AcceptedFieldValue::Behavior("sticky-key")
+        }
+        (BindingField::Behavior, KeyBinding::Macro { .. }) => AcceptedFieldValue::Behavior("macro"),
+        (BindingField::Behavior, KeyBinding::Transparent) => {
+            AcceptedFieldValue::Behavior("transparent")
+        }
+        (BindingField::Behavior, KeyBinding::None) => AcceptedFieldValue::Behavior("none"),
+        (BindingField::Keycode, KeyBinding::KeyPress { keycode }) => {
+            AcceptedFieldValue::Keycode("key-press", keycode.clone())
+        }
+        (BindingField::Keycode, KeyBinding::StickyKey { keycode }) => {
+            AcceptedFieldValue::Keycode("sticky-key", keycode.clone())
+        }
+        (BindingField::Tap, KeyBinding::ModTap { tap, .. })
+        | (BindingField::Tap, KeyBinding::LayerTap { tap, .. }) => {
+            AcceptedFieldValue::Tap(tap.clone())
+        }
+        (BindingField::HoldModifier, KeyBinding::ModTap { hold, .. }) => {
+            AcceptedFieldValue::HoldModifier(hold.clone())
+        }
+        (BindingField::Layer, KeyBinding::LayerTap { layer_id, .. })
+        | (BindingField::Layer, KeyBinding::MomentaryLayer { layer_id })
+        | (BindingField::Layer, KeyBinding::ToggleLayer { layer_id })
+        | (BindingField::Layer, KeyBinding::ToLayer { layer_id })
+        | (BindingField::Layer, KeyBinding::StickyLayer { layer_id }) => {
+            AcceptedFieldValue::Layer(layer_id.clone())
+        }
+        (BindingField::Macro, KeyBinding::Macro { macro_id }) => {
+            AcceptedFieldValue::Macro(macro_id.clone())
+        }
+        _ => return None,
+    })
+}
+
+/// Apply only the requested semantic field to the freshly admitted binding.
+pub(crate) fn apply_requested_field(
+    current: &KeyBinding,
+    requested: &KeyBinding,
+    field: BindingField,
+) -> Option<KeyBinding> {
+    Some(match (field, current, requested) {
+        (BindingField::Behavior, _, next) if field_value(next, field).is_some() => next.clone(),
+        (BindingField::Keycode, KeyBinding::KeyPress { .. }, KeyBinding::KeyPress { keycode }) => {
+            KeyBinding::KeyPress {
+                keycode: keycode.clone(),
+            }
+        }
+        (
+            BindingField::Keycode,
+            KeyBinding::StickyKey { .. },
+            KeyBinding::StickyKey { keycode },
+        ) => KeyBinding::StickyKey {
+            keycode: keycode.clone(),
+        },
+        (BindingField::Tap, KeyBinding::ModTap { hold, .. }, KeyBinding::ModTap { tap, .. }) => {
+            KeyBinding::ModTap {
+                hold: hold.clone(),
+                tap: tap.clone(),
+            }
+        }
+        (
+            BindingField::Tap,
+            KeyBinding::LayerTap { layer_id, .. },
+            KeyBinding::LayerTap { tap, .. },
+        ) => KeyBinding::LayerTap {
+            layer_id: layer_id.clone(),
+            tap: tap.clone(),
+        },
+        (
+            BindingField::HoldModifier,
+            KeyBinding::ModTap { tap, .. },
+            KeyBinding::ModTap { hold, .. },
+        ) => KeyBinding::ModTap {
+            hold: hold.clone(),
+            tap: tap.clone(),
+        },
+        (
+            BindingField::Layer,
+            KeyBinding::LayerTap { tap, .. },
+            KeyBinding::LayerTap { layer_id, .. },
+        ) => KeyBinding::LayerTap {
+            layer_id: layer_id.clone(),
+            tap: tap.clone(),
+        },
+        (
+            BindingField::Layer,
+            KeyBinding::MomentaryLayer { .. },
+            KeyBinding::MomentaryLayer { layer_id },
+        ) => KeyBinding::MomentaryLayer {
+            layer_id: layer_id.clone(),
+        },
+        (
+            BindingField::Layer,
+            KeyBinding::ToggleLayer { .. },
+            KeyBinding::ToggleLayer { layer_id },
+        ) => KeyBinding::ToggleLayer {
+            layer_id: layer_id.clone(),
+        },
+        (BindingField::Layer, KeyBinding::ToLayer { .. }, KeyBinding::ToLayer { layer_id }) => {
+            KeyBinding::ToLayer {
+                layer_id: layer_id.clone(),
+            }
+        }
+        (
+            BindingField::Layer,
+            KeyBinding::StickyLayer { .. },
+            KeyBinding::StickyLayer { layer_id },
+        ) => KeyBinding::StickyLayer {
+            layer_id: layer_id.clone(),
+        },
+        (BindingField::Macro, KeyBinding::Macro { .. }, KeyBinding::Macro { macro_id }) => {
+            KeyBinding::Macro {
+                macro_id: macro_id.clone(),
+            }
+        }
+        _ => return None,
+    })
+}
+
 pub(crate) const HOLD_MODIFIERS: [&str; 8] = [
     "LSHIFT", "RSHIFT", "LCTRL", "RCTRL", "LALT", "RALT", "LGUI", "RGUI",
 ];
@@ -467,5 +621,90 @@ mod tests {
             }
         );
         assert_ne!(KeyBinding::Transparent, KeyBinding::None);
+    }
+
+    #[test]
+    fn field_keys_cover_all_typed_variants_without_collapsing_empty_kinds() {
+        let layer_id = "nav-stable-id".to_owned();
+        let values = [
+            KeyBinding::KeyPress {
+                keycode: "A".into(),
+            },
+            KeyBinding::ModTap {
+                hold: "LSHIFT".into(),
+                tap: "A".into(),
+            },
+            KeyBinding::LayerTap {
+                layer_id: layer_id.clone(),
+                tap: "SPACE".into(),
+            },
+            KeyBinding::MomentaryLayer {
+                layer_id: layer_id.clone(),
+            },
+            KeyBinding::ToggleLayer {
+                layer_id: layer_id.clone(),
+            },
+            KeyBinding::ToLayer {
+                layer_id: layer_id.clone(),
+            },
+            KeyBinding::StickyLayer { layer_id },
+            KeyBinding::StickyKey {
+                keycode: "LC(A)".into(),
+            },
+            KeyBinding::Macro {
+                macro_id: "macro-stable-id".into(),
+            },
+            KeyBinding::Transparent,
+            KeyBinding::None,
+        ];
+
+        assert!(
+            values
+                .iter()
+                .all(|binding| field_value(binding, BindingField::Behavior).is_some())
+        );
+        assert!(field_value(&values[0], BindingField::Keycode).is_some());
+        assert!(field_value(&values[7], BindingField::Keycode).is_some());
+        assert!(field_value(&values[1], BindingField::Tap).is_some());
+        assert!(field_value(&values[2], BindingField::Tap).is_some());
+        assert!(field_value(&values[1], BindingField::HoldModifier).is_some());
+        for binding in &values[2..7] {
+            assert!(field_value(binding, BindingField::Layer).is_some());
+        }
+        assert!(field_value(&values[8], BindingField::Macro).is_some());
+        assert_ne!(
+            field_value(&KeyBinding::Transparent, BindingField::Behavior),
+            field_value(&KeyBinding::None, BindingField::Behavior)
+        );
+    }
+
+    #[test]
+    fn field_updates_preserve_sibling_values_from_fresh_binding() {
+        let current = KeyBinding::ModTap {
+            hold: "LCTRL".into(),
+            tap: "A".into(),
+        };
+        let stale_payload = KeyBinding::ModTap {
+            hold: "LSHIFT".into(),
+            tap: "B".into(),
+        };
+        assert_eq!(
+            apply_requested_field(&current, &stale_payload, BindingField::Tap),
+            Some(KeyBinding::ModTap {
+                hold: "LCTRL".into(),
+                tap: "B".into(),
+            })
+        );
+        assert_eq!(
+            apply_requested_field(&current, &stale_payload, BindingField::HoldModifier),
+            Some(KeyBinding::ModTap {
+                hold: "LSHIFT".into(),
+                tap: "A".into(),
+            })
+        );
+        assert_eq!(
+            apply_requested_field(&current, &KeyBinding::None, BindingField::Tap),
+            None
+        );
     }
 }
