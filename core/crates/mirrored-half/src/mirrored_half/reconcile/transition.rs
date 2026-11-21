@@ -45,8 +45,11 @@ pub fn prepare_membership_transition_kernel(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
     let mut output = project_membership(input, None)?;
-    (output.changed_document_ids, output.changed_field_paths) =
-        super::changed_document_fields(input.post_source, &output.draft)?;
+    output.changed_document_ids = crate::mirrored_half::reconcile::changed_document_ids(
+        input.post_source,
+        &output.draft,
+        &[],
+    )?;
     Ok(output)
 }
 
@@ -67,20 +70,8 @@ fn project_membership(
         // complete standalone matrix (spec §5): the mirror record, its
         // members, and their associations are all retained. A matrix-level
         // Omitted mirror is already absent and stays that way.
-        let matrix_retained_local = context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && association.state == TransitionState::Local
-                && association.explicit_state
-        });
-        let matrix_omitted = context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && association.state == TransitionState::Omitted
-                && association.explicit_state
-        });
+        let matrix_retained_local = context.matrix_state() == TransitionState::Local;
+        let matrix_omitted = context.matrix_state() == TransitionState::Omitted;
         let mirror_absent = draft
             .matrices
             .iter()
@@ -117,46 +108,21 @@ fn project_membership(
                 },
             )?
         };
-        let removed_sources: BTreeSet<_> = context
-            .associations
-            .iter()
-            .filter(|association| {
-                let retained_local = association.state == TransitionState::Local
-                    && input
-                        .mirror_identity_map
-                        .get(&association.mirror_id)
-                        .is_some_and(Option::is_some);
-                !retained_local
-                    && (association.kind == MirroredItemKind::Matrix
-                        || validated
-                            .before_source_members
-                            .contains(&association.source_id)
-                        || validated
-                            .before_mirror_members
-                            .contains(&association.mirror_id))
-            })
-            .map(|association| association.source_id.clone())
-            .collect();
-        let removed_mirrors: BTreeSet<_> = context
-            .associations
-            .iter()
-            .filter(|association| {
-                let retained_local = association.state == TransitionState::Local
-                    && input
-                        .mirror_identity_map
-                        .get(&association.mirror_id)
-                        .is_some_and(Option::is_some);
-                !retained_local
-                    && (association.kind == MirroredItemKind::Matrix
-                        || validated
-                            .before_source_members
-                            .contains(&association.source_id)
-                        || validated
-                            .before_mirror_members
-                            .contains(&association.mirror_id))
-            })
-            .map(|association| association.mirror_id.clone())
-            .collect();
+        let retires_member = |association: &TransitionAssociation| {
+            let retained_local = association.state == TransitionState::Local
+                && input
+                    .mirror_identity_map
+                    .get(&association.mirror_id)
+                    .is_some_and(Option::is_some);
+            !retained_local
+                && (association.kind == MirroredItemKind::Matrix
+                    || validated
+                        .before_source_members
+                        .contains(&association.source_id)
+                    || validated
+                        .before_mirror_members
+                        .contains(&association.mirror_id))
+        };
         let mut next_context = context.clone();
         // A source removal over a detached mirror retires every record of
         // the pair: with the source gone, the halves record cannot excuse
@@ -165,29 +131,13 @@ fn project_membership(
         // as a plain standalone matrix; an Omitted mirror stays absent
         // without resurrection. Only defunct links retire — the defunct
         // source-layout link already retired before the kernel.
-        let (retired, retained): (Vec<_>, Vec<_>) = if matrix_omitted || matrix_retained_local {
-            (next_context.associations.clone(), Vec::new())
-        } else {
-            let retired: Vec<_> = next_context
-                .associations
-                .iter()
-                .filter(|association| {
-                    removed_sources.contains(&association.source_id)
-                        && removed_mirrors.contains(&association.mirror_id)
-                })
-                .cloned()
-                .collect();
-            let retained: Vec<_> = next_context
-                .associations
-                .iter()
-                .filter(|association| {
-                    !removed_sources.contains(&association.source_id)
-                        || !removed_mirrors.contains(&association.mirror_id)
-                })
-                .cloned()
-                .collect();
-            (retired, retained)
-        };
+        let (retired, retained) = context
+            .associations
+            .iter()
+            .cloned()
+            .partition(|association| {
+                matrix_omitted || matrix_retained_local || retires_member(association)
+            });
         next_context.associations = retained;
         next_context.owners = input.final_owners.clone();
         let context_delta = MembershipContextDelta {
@@ -248,25 +198,18 @@ fn project_membership(
             },
             final_owners: input.final_owners.clone(),
             changed_document_ids: Vec::new(),
-            changed_field_paths: Vec::new(),
             notices: Vec::new(),
         });
     }
 
-    let detached_state = context
-        .associations
-        .iter()
-        .find(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id
-                && association.mirror_id == matrix_pair.mirror_id
-                && association.explicit_state
-                && context.pending_pair_transitions.is_empty()
-                && context.pending_rejoins.is_empty()
-        })
-        .map(|association| association.state);
-    let matrix_detached_local = detached_state == Some(TransitionState::Local);
-    let matrix_detached_omitted = detached_state == Some(TransitionState::Omitted);
+    let state = if context.pending_pair_transitions.is_empty() && context.pending_rejoins.is_empty()
+    {
+        context.matrix_state()
+    } else {
+        TransitionState::Linked
+    };
+    let matrix_detached_local = state == TransitionState::Local;
+    let matrix_detached_omitted = state == TransitionState::Omitted;
     let detached = matrix_detached_local || matrix_detached_omitted;
     if detached && !input.planned_additions.is_empty() {
         return Err("A detached mirror takes no projected additions".into());
@@ -792,8 +735,11 @@ pub fn prepare_membership_transition(
         return Err("Matrix membership transition requires an exact Matrix correspondence".into());
     }
     let mut output = prepare_membership_projection(input, None)?;
-    (output.changed_document_ids, output.changed_field_paths) =
-        super::changed_document_fields(input.post_source, &output.draft)?;
+    output.changed_document_ids = crate::mirrored_half::reconcile::changed_document_ids(
+        input.post_source,
+        &output.draft,
+        &[],
+    )?;
     Ok(output)
 }
 
@@ -801,36 +747,7 @@ pub(super) fn prepare_membership_projection(
     input: MembershipTransitionInput<'_>,
     axis: Option<RemovedAxis>,
 ) -> Result<MembershipTransitionOutput, String> {
-    let mut output = project_membership(input, axis)?;
-    // The membership kernel retains detached Local geometry. Once its source is explicitly
-    // deleted, the durable lifecycle also retires that geometry's former association.
-    let detached: Vec<_> = output
-        .context
-        .associations
-        .iter()
-        .filter(|association| {
-            association.kind == MirroredItemKind::Part
-                && association.state == TransitionState::Local
-                && input.source_identity_map.get(&association.source_id) == Some(&None)
-                && input
-                    .explicit_removal_closure
-                    .contains(&association.source_id)
-                && !output
-                    .draft
-                    .parts
-                    .iter()
-                    .any(|part| part.id == association.source_id)
-        })
-        .cloned()
-        .collect();
-    for association in detached {
-        output.context.associations.retain(|a| {
-            !(a.kind == association.kind
-                && a.source_id == association.source_id
-                && a.mirror_id == association.mirror_id)
-        });
-        output.context_delta.retired.push(association);
-    }
+    let output = project_membership(input, axis)?;
     lifecycle::apply_membership_context_delta(
         input.valid_before,
         input.post_source,

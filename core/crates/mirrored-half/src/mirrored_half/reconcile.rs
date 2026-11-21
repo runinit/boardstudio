@@ -1,22 +1,7 @@
 //! Forward reconciliation building blocks for already-corresponded mirrored values.
 //!
-//! Where things live (search the names; line numbers drift):
-//! - This file: projection types (`Projection`, `IndependentPartTransition`, `HostedTransition`),
-//!   membership-transition types (`MembershipContext`, `MembershipTransitionInput`, ...) and
-//!   shared pair/matrix helpers.
-//! - `membership_view`: `FixedMembershipView`, `build_fixed_membership_view`.
-//! - `document`: the `reconcile` body, in order: baseline validators and `stage_matrix`;
-//!   pair/halves lookup; independent part Add/Remove; `hosted::HostedTargets` and circuit pairs;
-//!   hosted `AddCircuit` (`hosted::stage_hosted_circuit_additions`); board/layout
-//!   correspondences; module targets; final validation, `outlines::reconcile_draft`.
-//! - `hosted`: hosted circuit staging and hosted removal/omission baseline validators.
-//! - `matrix_stage`: `MatrixStage`, `stage_matrix`, `project_matrix`, `project_part`.
-//! - `transition`: `prepare_membership_transition_kernel`, `prepare_membership_transition`;
-//!   its validators live in `transition_checks` and `transition_input`.
-//! - Child modules: `lifecycle` (reconcile/lifecycle.rs), `outlines` (reconcile/outlines.rs),
-//!   `prepare`, `settings`.
-//! - `mod tests` in reconcile/tests.rs; outline tests are included from
-//!   reconcile/outlines/tests.rs.
+//! Structural edits derive member identities before materializing their slots. Fixed membership
+//! projects an existing matrix from the durable correspondence and sparse exceptions.
 
 use crate::model::{
     Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind,
@@ -35,31 +20,29 @@ pub mod settings;
 
 mod changes;
 mod document;
-pub use changes::changed_document_fields;
+pub use changes::changed_document_ids;
 mod hosted;
 mod matrix_membership;
-mod matrix_stage;
 mod membership_view;
 mod transition;
 mod transition_checks;
 mod transition_input;
 
+pub use super::derive::{project_matrix, project_part};
 pub use document::reconcile;
 pub use hosted::{HostedCircuitAddProvenance, stage_hosted_correspondence};
 use hosted::{
     stage_hosted_circuit_additions, validate_hosted_omission_baselines,
     validate_hosted_removal_baselines,
 };
-use matrix_stage::{MatrixStage, RetainedCell, stage_matrix};
-pub use matrix_stage::{project_matrix, project_part};
 pub use membership_view::{FixedMembershipView, build_fixed_membership_view};
 use membership_view::{exact_omitted_matrix_companions, remove_omitted_matrix_parts};
 pub use transition::{prepare_membership_transition, prepare_membership_transition_kernel};
 use transition_checks::{
     board_owner, cell_offset_delta, emit_validated_transition, pair_right, source_members,
     transition_matrix_by_id, validate_association_settings, validate_constraints,
-    validate_context_owners, validate_matrix_association, validate_net_pad_ids,
-    validate_no_native_legacy_overlap, validate_transition_output,
+    validate_context_owners, validate_distinct_associations, validate_matrix_association,
+    validate_net_pad_ids, validate_no_native_legacy_overlap, validate_transition_output,
     validate_transition_part_geometry,
 };
 use transition_input::validate_transition_input;
@@ -258,14 +241,21 @@ fn selected_pair<'a>(
         .hardware
         .as_ref()
         .ok_or_else(|| format!("The {context} hardware is unavailable"))?;
-    let mut matches = hardware.pairs.iter().filter(|pair| pair.id == id);
-    let pair = matches
+    unique_row(
+        hardware.pairs.iter().filter(|pair| pair.id == id),
+        &format!("{context} pair"),
+        id,
+    )
+}
+
+fn unique_row<T>(mut rows: impl Iterator<Item = T>, role: &str, id: &str) -> Result<T, String> {
+    let row = rows
         .next()
-        .ok_or_else(|| format!("The {context} pair {id:?} is unavailable"))?;
-    if matches.next().is_some() {
-        return Err(format!("The {context} pair {id:?} is ambiguous"));
+        .ok_or_else(|| format!("The {role} {id:?} is unavailable"))?;
+    if rows.next().is_some() {
+        return Err(format!("The {role} {id:?} is ambiguous"));
     }
-    Ok(pair)
+    Ok(row)
 }
 
 fn same_pair_bytes(
@@ -657,6 +647,22 @@ pub struct MembershipContext {
     pub pending_pair_baseline: Option<crate::model::MirroredHalves>,
 }
 
+impl MembershipContext {
+    fn matrix_state(&self) -> TransitionState {
+        self.matrix_pair
+            .as_ref()
+            .and_then(|matrix| {
+                self.associations.iter().find(|association| {
+                    association.kind == MirroredItemKind::Matrix
+                        && association.source_id == matrix.source_id
+                        && association.mirror_id == matrix.mirror_id
+                        && association.explicit_state
+                })
+            })
+            .map_or(TransitionState::Linked, |association| association.state)
+    }
+}
+
 fn require_matrix_pair(context: &MembershipContext) -> Result<&MatrixPairContext, String> {
     context
         .matrix_pair
@@ -746,8 +752,6 @@ pub struct MembershipTransitionOutput {
     pub draft: ProjectDoc,
     #[doc(hidden)]
     pub changed_document_ids: Vec<String>,
-    #[doc(hidden)]
-    pub changed_field_paths: Vec<String>,
     #[doc(hidden)]
     pub context: MembershipContext,
     #[doc(hidden)]

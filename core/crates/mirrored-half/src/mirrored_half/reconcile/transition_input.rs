@@ -4,10 +4,10 @@ use super::{
     BaselineKind, FinalOwner, MembershipTransitionInput, TransitionState,
     ValidatedTransitionContext, board_owner, matrix_identity_slot, pair_right, require_matrix_pair,
     source_members, transition_matrix_by_id, validate_association_settings, validate_constraints,
-    validate_context_owners, validate_matrix_association, validate_net_pad_ids,
-    validate_no_native_legacy_overlap, validate_transition_part_geometry,
+    validate_context_owners, validate_distinct_associations, validate_matrix_association,
+    validate_net_pad_ids, validate_no_native_legacy_overlap, validate_transition_part_geometry,
 };
-use crate::model::{Matrix, MirroredItemKind};
+use crate::model::{MirroredItemKind, ProjectDoc};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn validate_transition_input<'a>(
@@ -79,17 +79,12 @@ pub(super) fn validate_transition_input<'a>(
         return Err("The transition pair record changed outside its private context".into());
     }
     validate_context_owners(input.valid_before, context)?;
-    validate_net_pad_ids(input.valid_before)?;
-    if !same_snapshot {
-        validate_net_pad_ids(input.post_source)?;
-    }
-    validate_constraints(input.valid_before)?;
-    if !same_snapshot {
-        validate_constraints(input.post_source)?;
-    }
-    validate_no_native_legacy_overlap(input.valid_before, context)?;
-    if !same_snapshot {
-        validate_no_native_legacy_overlap(input.post_source, context)?;
+    let snapshots = [input.valid_before, input.post_source];
+    let snapshots = &snapshots[..if same_snapshot { 1 } else { 2 }];
+    for document in snapshots {
+        validate_net_pad_ids(document)?;
+        validate_constraints(document)?;
+        validate_no_native_legacy_overlap(document, context)?;
     }
     let before_halves = before_pair;
     if before_halves.source_board_id != context.source_board_id
@@ -101,125 +96,47 @@ pub(super) fn validate_transition_input<'a>(
         crate::mechanical::halves::validate_document(input.valid_before)?;
     }
 
-    // A matrix-level Omitted mirror is record-absent by design
-    // (live-yet-absent, spec §5): member accounting treats the missing
-    // record as empty. Any other absent mirror stays a refusal.
-    let matrix_omitted = context.associations.iter().any(|association| {
-        association.kind == MirroredItemKind::Matrix
-            && association.source_id == matrix_pair.source_id.as_str()
-            && association.mirror_id == matrix_pair.mirror_id.as_str()
-            && association.state == TransitionState::Omitted
-            && association.explicit_state
-    });
-    let before_source =
-        transition_matrix_by_id(input.valid_before, matrix_pair.source_id.as_str())?;
-    let before_mirror_absent = matrix_omitted
-        && input
-            .valid_before
-            .matrices
-            .iter()
-            .all(|matrix| matrix.id != matrix_pair.mirror_id.as_str());
-    let before_mirror: Option<&Matrix> = if before_mirror_absent {
-        None
-    } else {
-        Some(transition_matrix_by_id(
-            input.valid_before,
-            matrix_pair.mirror_id.as_str(),
-        )?)
+    let members = |document: &ProjectDoc, id: &str, board: &str, absent_allowed| {
+        if absent_allowed && document.matrices.iter().all(|matrix| matrix.id != id) {
+            return Ok(BTreeSet::new());
+        }
+        if transition_matrix_by_id(document, id)?.board_id.as_deref() != Some(board) {
+            return Err("The transition matrices do not belong to the pair boards".into());
+        }
+        let members = source_members(document, id, context, true)?;
+        validate_transition_part_geometry(document, &members, context)?;
+        Ok::<_, String>(members)
     };
-    let post_source = input
+    let source = |document, absent_allowed| {
+        members(
+            document,
+            &matrix_pair.source_id,
+            &context.source_board_id,
+            absent_allowed,
+        )
+    };
+    let mirror = |document| {
+        members(
+            document,
+            &matrix_pair.mirror_id,
+            &context.mirror_board_id,
+            context.matrix_state() == TransitionState::Omitted,
+        )
+    };
+    let before_source_members = source(input.valid_before, false)?;
+    let before_mirror_members = mirror(input.valid_before)?;
+    let post_source_members = if same_snapshot {
+        before_source_members.clone()
+    } else {
+        mirror(input.post_source)?;
+        source(input.post_source, true)?
+    };
+    let removes_paired_matrices = input
         .post_source
         .matrices
         .iter()
-        .find(|matrix| matrix.id == matrix_pair.source_id.as_str());
-    let post_mirror_absent = matrix_omitted
-        && input
-            .post_source
-            .matrices
-            .iter()
-            .all(|matrix| matrix.id != matrix_pair.mirror_id.as_str());
-    let post_mirror: Option<&Matrix> = if post_mirror_absent {
-        None
-    } else {
-        Some(transition_matrix_by_id(
-            input.post_source,
-            matrix_pair.mirror_id.as_str(),
-        )?)
-    };
-    if before_source.board_id.as_deref() != Some(context.source_board_id.as_str())
-        || post_source.is_some_and(|matrix| {
-            matrix.board_id.as_deref() != Some(context.source_board_id.as_str())
-        })
-        || before_mirror.is_some_and(|matrix| {
-            matrix.board_id.as_deref() != Some(context.mirror_board_id.as_str())
-        })
-        || post_mirror.is_some_and(|matrix| {
-            matrix.board_id.as_deref() != Some(context.mirror_board_id.as_str())
-        })
-    {
-        return Err("The transition matrices do not belong to the pair boards".into());
-    }
-    if input.baseline_kind == BaselineKind::MaterializedCurrentSchema {
-        crate::matrix::valid_matrix(before_source, input.valid_before)?;
-        if let Some(before_mirror) = before_mirror {
-            crate::matrix::valid_matrix(before_mirror, input.valid_before)?;
-        }
-    }
-    let before_source_members = source_members(
-        input.valid_before,
-        matrix_pair.source_id.as_str(),
-        context,
-        true,
-    )?;
-    let before_mirror_members = if before_mirror_absent {
-        BTreeSet::new()
-    } else {
-        source_members(
-            input.valid_before,
-            matrix_pair.mirror_id.as_str(),
-            context,
-            true,
-        )?
-    };
-    let post_source_members = if same_snapshot {
-        before_source_members.clone()
-    } else if let Some(post_source) = post_source {
-        crate::matrix::valid_matrix(post_source, input.post_source)?;
-        source_members(
-            input.post_source,
-            matrix_pair.source_id.as_str(),
-            context,
-            true,
-        )?
-    } else {
-        BTreeSet::new()
-    };
-    if !same_snapshot && let Some(post_mirror) = post_mirror {
-        crate::matrix::valid_matrix(post_mirror, input.post_source)?;
-    }
-    let before_transition_members: BTreeSet<_> = before_source_members
-        .union(&before_mirror_members)
-        .cloned()
-        .collect();
-    let post_mirror_members = if post_mirror_absent || same_snapshot {
-        BTreeSet::new()
-    } else {
-        source_members(
-            input.post_source,
-            matrix_pair.mirror_id.as_str(),
-            context,
-            true,
-        )?
-    };
-    validate_transition_part_geometry(input.valid_before, &before_transition_members, context)?;
-    if !same_snapshot {
-        let post_transition_members = post_source_members
-            .union(&post_mirror_members)
-            .cloned()
-            .collect();
-        validate_transition_part_geometry(input.post_source, &post_transition_members, context)?;
-    }
-    if post_source.is_none() {
+        .all(|matrix| matrix.id != matrix_pair.source_id);
+    if removes_paired_matrices {
         let source_members_retired = before_source_members.iter().all(|id| {
             input.source_identity_map.get(id) == Some(&None)
                 && input.explicit_removal_closure.contains(id)
@@ -253,12 +170,6 @@ pub(super) fn validate_transition_input<'a>(
             );
         }
     }
-    let snapshots = [input.valid_before, input.post_source];
-    let snapshots = if same_snapshot {
-        &snapshots[..1]
-    } else {
-        &snapshots[..]
-    };
     for association in context
         .associations
         .iter()
@@ -284,40 +195,10 @@ pub(super) fn validate_transition_input<'a>(
             }
         }
     }
-    let mut expected_old_ids = before_source_members.clone();
-    let mut mapped_source_ids = BTreeSet::new();
-    for (old_id, new_id) in input.source_identity_map {
-        if !expected_old_ids.remove(old_id) {
-            return Err(format!(
-                "The source identity map has unknown old identity {old_id:?}"
-            ));
-        }
-        if let Some(new_id) = new_id
-            && !mapped_source_ids.insert(new_id.clone())
-        {
-            return Err("The source identity map is not injective".into());
-        }
-    }
-    if !expected_old_ids.is_empty() {
-        return Err("The source identity map does not cover every old matrix member".into());
-    }
-    let mut expected_old_mirror_ids = before_mirror_members.clone();
-    let mut mapped_mirror_ids = BTreeSet::new();
-    for (old_id, new_id) in input.mirror_identity_map {
-        if !expected_old_mirror_ids.remove(old_id) {
-            return Err(format!(
-                "The mirror identity map has unknown old identity {old_id:?}"
-            ));
-        }
-        if let Some(new_id) = new_id
-            && !mapped_mirror_ids.insert(new_id.clone())
-        {
-            return Err("The mirror identity map is not injective".into());
-        }
-    }
-    if !expected_old_mirror_ids.is_empty() {
-        return Err("The mirror identity map does not cover every old matrix member".into());
-    }
+    let mapped_source_ids =
+        validate_identity_map("source", input.source_identity_map, &before_source_members)?;
+    let mapped_mirror_ids =
+        validate_identity_map("mirror", input.mirror_identity_map, &before_mirror_members)?;
     let part_associations: Vec<_> = context
         .associations
         .iter()
@@ -559,16 +440,7 @@ pub(super) fn validate_transition_input<'a>(
         // A detached mirror takes no projected members (spec §5): the only
         // permitted gap is genuine source-side growth under it.
         let uncovered: Vec<_> = post_source_members.difference(&mapped_or_planned).collect();
-        let matrix_detached = context.associations.iter().any(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-                && matches!(
-                    association.state,
-                    TransitionState::Local | TransitionState::Omitted
-                )
-                && association.explicit_state
-        });
+        let matrix_detached = context.matrix_state() != TransitionState::Linked;
         let source_growth = matrix_detached
             && !uncovered.is_empty()
             && uncovered.iter().all(|id| {
@@ -582,30 +454,8 @@ pub(super) fn validate_transition_input<'a>(
         }
     }
 
-    let association_keys: BTreeSet<_> = context
-        .associations
-        .iter()
-        .map(|association| format!("{:?}\0{}", association.kind, association.source_id))
-        .collect();
-    let association_mirrors: BTreeSet<_> = context
-        .associations
-        .iter()
-        .map(|association| format!("{:?}\0{}", association.kind, association.mirror_id))
-        .collect();
-    if association_keys.len() != context.associations.len()
-        || association_mirrors.len() != context.associations.len()
-    {
-        return Err("The transition association context contains aliased identities".into());
-    }
+    validate_distinct_associations(context)?;
     for association in &context.associations {
-        if association.state == TransitionState::Linked
-            && (!association_keys.contains(&format!(
-                "{:?}\0{}",
-                association.kind, association.source_id
-            )) || association.explicit_state)
-        {
-            return Err("The linked transition association has invalid state provenance".into());
-        }
         match (
             association.parent_source_id.as_deref(),
             association.parent_mirror_id.as_deref(),
@@ -615,80 +465,44 @@ pub(super) fn validate_transition_input<'a>(
                     return Err("A Local or Omitted owner lacks explicit state provenance".into());
                 }
             }
-            (Some(parent_source), Some(parent_mirror)) => {
-                // A matrix-owned top-level key names its matrix pair (spec
-                // §5); a companion names its key. Either parent carries
-                // the inherited state.
-                let matrix_parent = context.associations.iter().find(|candidate| {
-                    candidate.kind == MirroredItemKind::Matrix
-                        && candidate.source_id == parent_source
-                        && candidate.mirror_id == parent_mirror
-                });
-                if let Some(matrix_parent) = matrix_parent {
-                    let source_suffix = association
-                        .source_id
-                        .strip_prefix(&format!("matrix/{parent_source}/"));
-                    let mirror_suffix = association
-                        .mirror_id
-                        .strip_prefix(&format!("matrix/{parent_mirror}/"));
-                    if source_suffix.is_none() || source_suffix != mirror_suffix {
-                        return Err(
-                            "The transition association has an invalid parent source".into()
-                        );
-                    }
-                    if !association.explicit_state && association.state != matrix_parent.state {
-                        return Err(
-                            "An inherited child state disagrees with its parent association".into(),
-                        );
-                    }
-                    if matrix_parent.state == TransitionState::Local
-                        && association.state == TransitionState::Omitted
-                        && !association.explicit_state
-                    {
-                        return Err(
-                            "An Omitted child of a Local owner must be an explicit child override"
-                                .into(),
-                        );
-                    }
+            (Some(source), Some(mirror)) => {
+                let parent = context
+                    .associations
+                    .iter()
+                    .filter(|parent| {
+                        parent.source_id == source
+                            && parent.mirror_id == mirror
+                            && (parent.kind == association.kind
+                                || parent.kind == MirroredItemKind::Matrix)
+                    })
+                    .max_by_key(|parent| parent.kind == MirroredItemKind::Matrix)
+                    .ok_or("The transition association has an unavailable parent")?;
+                let prefix = if parent.kind == MirroredItemKind::Matrix {
+                    "matrix/"
                 } else {
-                    let source_child = association
-                        .source_id
-                        .strip_prefix(&format!("{parent_source}/"));
-                    let mirror_child = association
-                        .mirror_id
-                        .strip_prefix(&format!("{parent_mirror}/"));
-                    if source_child.is_none() || source_child != mirror_child {
-                        return Err(
-                            "The transition association has an invalid parent source".into()
-                        );
-                    }
-                    let parent = context.associations.iter().find(|candidate| {
-                        candidate.kind == association.kind
-                            && candidate.source_id == parent_source
-                            && candidate.mirror_id == parent_mirror
-                    });
-                    let Some(parent) = parent else {
-                        return Err("The transition association has an unavailable parent".into());
-                    };
-                    if !association.explicit_state && association.state != parent.state {
-                        return Err(
-                            "An inherited child state disagrees with its parent association".into(),
-                        );
-                    }
-                    if parent.state == TransitionState::Local
-                        && association.state == TransitionState::Omitted
-                        && !association.explicit_state
-                    {
-                        return Err(
-                            "An Omitted child of a Local owner must be an explicit child override"
-                                .into(),
-                        );
-                    }
+                    ""
+                };
+                let source_suffix = association
+                    .source_id
+                    .strip_prefix(&format!("{prefix}{source}/"));
+                if source_suffix.is_none()
+                    || source_suffix
+                        != association
+                            .mirror_id
+                            .strip_prefix(&format!("{prefix}{mirror}/"))
+                {
+                    return Err("The transition association has an invalid parent source".into());
+                }
+                if !association.explicit_state && association.state != parent.state {
+                    return Err(
+                        "An inherited child state disagrees with its parent association".into(),
+                    );
                 }
             }
-            _ => {
-                return Err("The transition association has an incomplete parent closure".into());
-            }
+            _ => return Err("The transition association has an incomplete parent closure".into()),
+        }
+        if association.state == TransitionState::Linked && association.explicit_state {
+            return Err("The linked transition association has invalid state provenance".into());
         }
     }
     for old_id in input.explicit_removal_closure {
@@ -696,7 +510,7 @@ pub(super) fn validate_transition_input<'a>(
             association.mirror_id == *old_id && association.state == TransitionState::Omitted
         });
         if !before_source_members.contains(old_id)
-            && !before_mirror.is_some_and(|mirror| mirror.part_ids.contains(old_id))
+            && !before_mirror_members.contains(old_id)
             && !retained_omitted_identity
         {
             return Err(format!(
@@ -862,16 +676,12 @@ pub(super) fn validate_transition_input<'a>(
                     || part.reference == addition.source_reference
                     || part.reference == addition.mirror_reference
             })
-            || input.valid_before.parts.iter().any(|part| {
-                part.id == addition.mirror_id || part.reference == addition.mirror_reference
-            })
             || input.post_source.parts.iter().any(|part| {
                 part.id == addition.mirror_id
                     || (part.id != addition.source_id
                         && part.reference == addition.source_reference)
                     || part.reference == addition.mirror_reference
             })
-            || (source_slot.2.is_empty() && expected_parents != (None, None))
             || (!source_slot.2.is_empty()
                 && (!input
                     .post_source
@@ -892,7 +702,7 @@ pub(super) fn validate_transition_input<'a>(
     }
     Ok(ValidatedTransitionContext {
         input,
-        removes_paired_matrices: post_source.is_none(),
+        removes_paired_matrices,
         already_removed: false,
         before_source_members,
         before_mirror_members,
@@ -900,6 +710,28 @@ pub(super) fn validate_transition_input<'a>(
         mapped_source_ids,
         mapped_mirror_ids,
     })
+}
+
+fn validate_identity_map(
+    side: &str,
+    mapping: &BTreeMap<String, Option<String>>,
+    members: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    if let Some(unknown) = mapping.keys().find(|id| !members.contains(*id)) {
+        return Err(format!(
+            "The {side} identity map has unknown old identity {unknown:?}"
+        ));
+    }
+    if mapping.len() != members.len() {
+        return Err(format!(
+            "The {side} identity map does not cover every old matrix member"
+        ));
+    }
+    let targets: BTreeSet<_> = mapping.values().flatten().cloned().collect();
+    if targets.len() != mapping.values().flatten().count() {
+        return Err(format!("The {side} identity map is not injective"));
+    }
+    Ok(targets)
 }
 
 pub(super) fn validate_linked_placement(

@@ -14,17 +14,7 @@ pub fn lifecycle_context(
     use crate::model::{MirroredExceptionState, MirroredItemKind};
     use std::collections::BTreeMap;
 
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or("Lifecycle hardware is unavailable")?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or("The exact lifecycle pair is unavailable")?;
-    if pairs.next().is_some() {
-        return Err("The exact lifecycle pair is ambiguous".into());
-    }
+    let pair = super::super::selected_pair(document, pair_id, "lifecycle")?;
     let halves = pair
         .halves
         .as_ref()
@@ -147,54 +137,27 @@ pub fn lifecycle_context(
         let state = effective(&context, &context.associations[index], false, 0)?;
         context.associations[index].state = state;
     }
-    for association in &context.associations {
-        if association.kind != MirroredItemKind::Part {
-            continue;
-        }
-        let source_owner = super::super::super::board_for_part(document, &association.source_id)
-            .map(|board| board.id.clone())
-            .ok_or_else(|| {
-                format!(
-                    "Lifecycle source Part {:?} has no board owner",
-                    association.source_id
-                )
-            })?;
-        context.owners.insert(
-            association.source_id.clone(),
-            FinalOwner::Board(source_owner),
-        );
-        let target_owner = if association.state == TransitionState::Omitted {
-            FinalOwner::Absent
-        } else {
-            FinalOwner::Board(
-                super::super::super::board_for_part(document, &association.mirror_id)
-                    .map(|board| board.id.clone())
-                    .ok_or_else(|| {
-                        format!(
-                            "Lifecycle mirror Part {:?} has no board owner",
-                            association.mirror_id
-                        )
-                    })?,
-            )
-        };
-        context
-            .owners
-            .insert(association.mirror_id.clone(), target_owner);
-    }
-    // The membership kernel validates ownership for every materialized Part in the document,
-    // including independent Parts and associations filtered out of a selected-matrix view.
-    // Bind those historical owners too; association-specific absent mirror IDs above keep their
-    // stronger `Absent` value.
+    // Bind all historical board registrations. Sparse Omitted links supply the
+    // only identities without an actual Part registration.
     for part in &document.parts {
-        if context.owners.contains_key(&part.id) {
-            continue;
-        }
-        let board_id = super::super::super::board_for_part(document, &part.id)
-            .map(|board| board.id.clone())
+        let board = super::super::super::board_for_part(document, &part.id)
             .ok_or_else(|| format!("Lifecycle Part {:?} has no board owner", part.id))?;
         context
             .owners
-            .insert(part.id.clone(), FinalOwner::Board(board_id));
+            .insert(part.id.clone(), FinalOwner::Board(board.id.clone()));
+    }
+    for association in context
+        .associations
+        .iter()
+        .filter(|a| a.kind == MirroredItemKind::Part)
+    {
+        for id in [&association.source_id, &association.mirror_id] {
+            if id == &association.mirror_id && association.state == TransitionState::Omitted {
+                context.owners.insert(id.clone(), FinalOwner::Absent);
+            } else if !context.owners.contains_key(id) {
+                return Err(format!("Lifecycle Part {id:?} has no board owner"));
+            }
+        }
     }
     Ok(context)
 }
@@ -801,140 +764,95 @@ pub(super) fn classify_source_retirements(
 ) -> Result<Vec<super::super::TransitionAssociation>, String> {
     use crate::model::MirroredItemKind;
 
-    let mut retired = Vec::new();
-    for owner in context.associations.iter().filter(|association| {
+    let board_part_remains = |id: &str| {
+        post_source.parts.iter().any(|part| part.id == id)
+            || post_source
+                .boards
+                .iter()
+                .any(|board| board.part_ids.iter().any(|part| part == id))
+    };
+    let is_matrix = |association: &&super::super::TransitionAssociation| {
         association.kind == MirroredItemKind::Matrix
-            && (context.matrix_pair.as_ref().is_some_and(|matrix_pair| {
-                association.source_id == matrix_pair.source_id
-                    && association.mirror_id == matrix_pair.mirror_id
-            }) || (include_unselected_matrices && context.matrix_pair.is_none()))
-    }) {
-        if post_source
-            .matrices
-            .iter()
-            .any(|matrix| matrix.id == owner.source_id)
-        {
-            continue;
-        }
-        if context
-            .pending_pair_transitions
-            .contains_key(&owner.source_id)
-        {
-            return Err(
-                "A selected lifecycle Matrix source was removed before its transition".into(),
-            );
-        }
-        if before
-            .matrices
-            .iter()
-            .filter(|matrix| matrix.id == owner.source_id)
-            .flat_map(|matrix| matrix.part_ids.iter())
-            .any(|id| {
-                post_source.parts.iter().any(|part| part.id == *id)
-                    || post_source
-                        .boards
-                        .iter()
-                        .any(|board| board.part_ids.contains(id))
-            })
-        {
-            return Err("Source Matrix removal has an incomplete ownership closure".into());
-        }
-        retired.push(owner.clone());
-    }
-    for association in context
-        .associations
+            && context
+                .matrix_pair
+                .as_ref()
+                .map_or(include_unselected_matrices, |pair| {
+                    association.source_id == pair.source_id
+                        && association.mirror_id == pair.mirror_id
+                })
+    };
+    let mut retired = Vec::new();
+    let associations = &context.associations;
+    let rows = associations
         .iter()
-        .filter(|association| association.kind == MirroredItemKind::Part)
-    {
-        if post_source
-            .parts
-            .iter()
-            .any(|part| part.id == association.source_id)
-        {
-            continue;
-        }
-        if context
-            .pending_pair_transitions
-            .contains_key(&association.source_id)
-        {
-            return Err("A selected lifecycle source was removed before its transition".into());
-        }
-        if post_source.boards.iter().any(|board| {
-            board
-                .part_ids
+        .filter(is_matrix)
+        .chain(
+            associations
                 .iter()
-                .any(|part_id| part_id == &association.source_id)
-        }) || post_source.matrices.iter().any(|matrix| {
-            matrix
-                .part_ids
-                .iter()
-                .any(|part_id| part_id == &association.source_id)
-        }) || post_source.embedded_circuits.iter().any(|circuit| {
-            circuit
-                .part_ids
-                .iter()
-                .any(|part_id| part_id == &association.source_id)
-        }) {
-            return Err(format!(
-                "Source Part removal for {:?} has an incomplete ownership closure",
-                association.source_id
-            ));
-        }
-        retired.push(association.clone());
-    }
-    for association in context.associations.iter().filter(|association| {
-        matches!(
-            association.kind,
-            MirroredItemKind::EmbeddedCircuit | MirroredItemKind::Net | MirroredItemKind::Layout
+                .filter(|a| a.kind == MirroredItemKind::Part),
         )
-    }) {
+        .chain(associations.iter().filter(|a| {
+            matches!(
+                a.kind,
+                MirroredItemKind::EmbeddedCircuit
+                    | MirroredItemKind::Net
+                    | MirroredItemKind::Layout
+            )
+        }));
+    for association in rows {
+        let id = &association.source_id;
         let present = match association.kind {
+            MirroredItemKind::Matrix => post_source.matrices.iter().any(|row| row.id == *id),
+            MirroredItemKind::Part => post_source.parts.iter().any(|row| row.id == *id),
             MirroredItemKind::EmbeddedCircuit => post_source
                 .embedded_circuits
                 .iter()
-                .any(|circuit| circuit.id == association.source_id),
-            MirroredItemKind::Net => post_source
-                .nets
-                .iter()
-                .any(|net| net.id == association.source_id),
-            MirroredItemKind::Layout => post_source
-                .layouts
-                .iter()
-                .any(|layout| layout.id == association.source_id),
+                .any(|row| row.id == *id),
+            MirroredItemKind::Net => post_source.nets.iter().any(|row| row.id == *id),
+            MirroredItemKind::Layout => post_source.layouts.iter().any(|row| row.id == *id),
             _ => unreachable!(),
         };
         if present {
             continue;
         }
-        if context
-            .pending_pair_transitions
-            .contains_key(&association.source_id)
-        {
+        if context.pending_pair_transitions.contains_key(id) {
             return Err("A selected lifecycle source was removed before its transition".into());
         }
-        if association.kind == MirroredItemKind::EmbeddedCircuit
-            && before
+        let stale = match association.kind {
+            MirroredItemKind::Matrix => before
+                .matrices
+                .iter()
+                .filter(|row| row.id == *id)
+                .flat_map(|row| &row.part_ids)
+                .any(|member| board_part_remains(member)),
+            MirroredItemKind::EmbeddedCircuit => before
                 .embedded_circuits
                 .iter()
-                .filter(|circuit| circuit.id == association.source_id)
-                .flat_map(|circuit| circuit.part_ids.iter())
-                .any(|id| {
-                    post_source.parts.iter().any(|part| part.id == *id)
-                        || post_source
-                            .boards
-                            .iter()
-                            .any(|board| board.part_ids.contains(id))
-                })
-        {
-            return Err("Source circuit removal has an incomplete ownership closure".into());
-        }
-        if association.kind == MirroredItemKind::Net
-            && post_source
+                .filter(|row| row.id == *id)
+                .flat_map(|row| &row.part_ids)
+                .any(|member| board_part_remains(member)),
+            MirroredItemKind::Part => {
+                board_part_remains(id)
+                    || post_source
+                        .matrices
+                        .iter()
+                        .any(|row| row.part_ids.contains(id))
+                    || post_source
+                        .embedded_circuits
+                        .iter()
+                        .any(|row| row.part_ids.contains(id))
+            }
+            MirroredItemKind::Net => post_source
                 .boards
                 .iter()
-                .any(|board| board.net_ids.contains(&association.source_id))
-        {
-            return Err("A removed source net retains a board registration".into());
+                .any(|board| board.net_ids.contains(id)),
+            _ => false,
+        };
+        if stale {
+            return Err(format!(
+                "Source {:?} removal for {id:?} has an incomplete ownership closure",
+                association.kind
+            ));
         }
         retired.push(association.clone());
     }

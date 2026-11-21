@@ -3,11 +3,10 @@
 use super::changes::changed_document_ids;
 use super::hosted::HostedOmissionClosure;
 use super::{
-    HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, MatrixStage,
-    Projection, circuit_links, outlines, project_part, settings, stage_hosted_circuit_additions,
-    stage_hosted_correspondence, stage_matrix, unique_board_owner,
-    validate_hosted_omission_baselines, validate_hosted_removal_baselines,
-    validate_local_circuit_targets,
+    HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, Projection,
+    circuit_links, outlines, project_part, settings, stage_hosted_circuit_additions,
+    stage_hosted_correspondence, unique_board_owner, validate_hosted_omission_baselines,
+    validate_hosted_removal_baselines, validate_local_circuit_targets,
 };
 use crate::model::{
     MirroredCorrespondence, MirroredHalves, MirroredItemKind, OutlineFeature, Pose2, ProjectDoc,
@@ -61,13 +60,16 @@ fn reconcile_projection(
     let hosted_omission_closure =
         validate_hosted_omission_baselines(document, pair_id, projection)?;
 
-    let MatrixStage {
-        draft: mut staged,
-        source_members: source_matrix_members,
-        mirror_members: mirror_matrix_members,
-        omitted_parts,
-        allow_absent: allow_absent_matrix,
-    } = stage_matrix(document, halves, projection, pair.mapping, explicit)?;
+    let mut staged = document.clone();
+    let (omitted_parts, allow_absent_matrix) = super::membership_view::materialize_fixed_matrix(
+        document,
+        halves,
+        projection,
+        &mut staged,
+        explicit,
+    )?;
+    let (source_matrix_members, mirror_matrix_members) =
+        super::matrix_members_for_pair(document, halves);
     let planned_independent_additions: BTreeMap<_, _> = projection
         .independent_part_transitions
         .iter()
@@ -225,38 +227,22 @@ fn reconcile_projection(
         {
             return Err("An independent part correspondence has stale board ownership".into());
         }
-        let mut sources = document
-            .parts
-            .iter()
-            .filter(|part| part.id == correspondence.source_id);
-        let source = sources.next().ok_or_else(|| {
-            format!(
-                "The source part {:?} is unavailable",
-                correspondence.source_id
-            )
-        })?;
-        if sources.next().is_some() {
-            return Err(format!(
-                "The source part {:?} is ambiguous",
-                correspondence.source_id
-            ));
-        }
-        let mut mirrors = document
-            .parts
-            .iter()
-            .filter(|part| part.id == correspondence.mirror_id);
-        let mirror = mirrors.next().ok_or_else(|| {
-            format!(
-                "The mirror part {:?} is unavailable",
-                correspondence.mirror_id
-            )
-        })?;
-        if mirrors.next().is_some() {
-            return Err(format!(
-                "The mirror part {:?} is ambiguous",
-                correspondence.mirror_id
-            ));
-        }
+        let source = super::unique_row(
+            document
+                .parts
+                .iter()
+                .filter(|part| part.id == correspondence.source_id),
+            "source part",
+            &correspondence.source_id,
+        )?;
+        let mirror = super::unique_row(
+            document
+                .parts
+                .iter()
+                .filter(|part| part.id == correspondence.mirror_id),
+            "mirror part",
+            &correspondence.mirror_id,
+        )?;
         let projected = project_part(
             source,
             mirror,
@@ -264,23 +250,14 @@ fn reconcile_projection(
             pair.mapping,
             super::super::derive::is_controller(&document.definitions, &source.definition_id),
         )?;
-        let mut staged_mirrors = staged
-            .parts
-            .iter_mut()
-            .filter(|part| part.id == correspondence.mirror_id);
-        let staged_mirror = staged_mirrors.next().ok_or_else(|| {
-            format!(
-                "The staged mirror part {:?} is unavailable",
-                correspondence.mirror_id
-            )
-        })?;
-        if staged_mirrors.next().is_some() {
-            return Err(format!(
-                "The staged mirror part {:?} is ambiguous",
-                correspondence.mirror_id
-            ));
-        }
-        *staged_mirror = projected;
+        *super::unique_row(
+            staged
+                .parts
+                .iter_mut()
+                .filter(|part| part.id == correspondence.mirror_id),
+            "staged mirror part",
+            &correspondence.mirror_id,
+        )? = projected;
         independent_part_targets.insert(
             correspondence.source_id.clone(),
             correspondence.mirror_id.clone(),
@@ -721,38 +698,22 @@ fn reconcile_projection(
         }) {
             continue;
         }
-        let mut sources = document
-            .layouts
-            .iter()
-            .filter(|layout| layout.id == correspondence.source_id);
-        let source = sources.next().ok_or_else(|| {
-            format!(
-                "The source layout {:?} is unavailable",
-                correspondence.source_id
-            )
-        })?;
-        if sources.next().is_some() {
-            return Err(format!(
-                "The source layout {:?} is ambiguous",
-                correspondence.source_id
-            ));
-        }
-        let mut mirrors = document
-            .layouts
-            .iter()
-            .filter(|layout| layout.id == correspondence.mirror_id);
-        let mirror = mirrors.next().ok_or_else(|| {
-            format!(
-                "The mirror layout {:?} is unavailable",
-                correspondence.mirror_id
-            )
-        })?;
-        if mirrors.next().is_some() {
-            return Err(format!(
-                "The mirror layout {:?} is ambiguous",
-                correspondence.mirror_id
-            ));
-        }
+        let source = super::unique_row(
+            document
+                .layouts
+                .iter()
+                .filter(|layout| layout.id == correspondence.source_id),
+            "source layout",
+            &correspondence.source_id,
+        )?;
+        let mirror = super::unique_row(
+            document
+                .layouts
+                .iter()
+                .filter(|layout| layout.id == correspondence.mirror_id),
+            "mirror layout",
+            &correspondence.mirror_id,
+        )?;
         let (source_is_current, mirror_is_current) = projection
             .matrix
             .as_ref()

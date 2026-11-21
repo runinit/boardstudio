@@ -411,17 +411,43 @@ pub(crate) fn expected_closure_ids(board_id: &str) -> BTreeSet<String> {
 }
 
 pub(crate) fn unlink_diff_ids(before: &ProjectDoc, after: &ProjectDoc) -> BTreeSet<String> {
-    let (mut ids, fields) =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::changed_document_fields(
-            before, after,
-        )
-        .unwrap();
-    assert!(
-        fields.iter().all(|path| {
-            path == "$.hardware.pairs" || path.starts_with("$.hardware.instances[")
-        }),
-        "Unlink changes only identified hardware pairs/instances: {fields:?}"
-    );
+    let mut ids = boardstudio_core_mirrored_half::mirrored_half::reconcile::changed_document_ids(
+        before,
+        after,
+        &[],
+    )
+    .unwrap();
+
+    let mut expected = before.clone();
+    let hardware = expected.hardware.as_mut().unwrap();
+    let updated = after.hardware.as_ref().unwrap();
+    hardware.pairs.clone_from(&updated.pairs);
+    hardware.instances.clone_from(&updated.instances);
+    // Identified rows may change (for example, newly materialized closure mounts).
+    // The returned IDs below account for those changes and for the changed instances.
+    expected.parts.clone_from(&after.parts);
+    expected.definitions.clone_from(&after.definitions);
+    expected.boards.clone_from(&after.boards);
+    expected.matrices.clone_from(&after.matrices);
+    expected.nets.clone_from(&after.nets);
+    expected.constraints.clone_from(&after.constraints);
+    expected.outline.clone_from(&after.outline);
+    for (before_empty, after_empty) in [
+        (before.layouts.is_empty(), after.layouts.is_empty()),
+        (before.modules.is_empty(), after.modules.is_empty()),
+        (
+            before.embedded_circuits.is_empty(),
+            after.embedded_circuits.is_empty(),
+        ),
+    ] {
+        assert_eq!(before_empty, after_empty);
+    }
+    expected.layouts.clone_from(&after.layouts);
+    expected.modules.clone_from(&after.modules);
+    expected
+        .embedded_circuits
+        .clone_from(&after.embedded_circuits);
+    assert!(expected == *after, "Unlink changes only identified rows");
 
     let before_hardware = before.hardware.as_ref().unwrap();
     let after_hardware = after.hardware.as_ref().unwrap();
