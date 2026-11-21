@@ -199,3 +199,45 @@ fn facet_angle_is_checked_after_placement_and_respects_mirrors() {
     assert!(fits(Matrix4::from_nonuniform_scale(-1.0, 1.0, 1.0)));
     assert!(!fits(Matrix4::from_nonuniform_scale(1.0, 0.05, 1.0)));
 }
+
+#[test]
+fn translated_spherical_pole_retains_sub_ulp_source_radius() {
+    let shift = 2.0_f64.powi(46);
+    let center = Point3::new(shift, 0.0, 0.0);
+    let radius = 1.0_f64 + 2.0_f64.powi(-9);
+    let x = 63.0 / 64.0;
+    let ring_radius = (radius * radius - x * x).sqrt();
+    let offsets = [0.0, 1.0, 2.0].map(|step| {
+        let angle = step * std::f64::consts::TAU / 3.0;
+        Vector3::new(x, ring_radius * angle.cos(), ring_radius * angle.sin())
+    });
+    let mut edges = HashMap::new();
+    for (id, (a, b)) in [(0, 1), (1, 2), (2, 0)].into_iter().enumerate() {
+        let radial = offsets[a].normalize();
+        let normal = radial.cross(offsets[b]).normalize();
+        edges.insert(
+            id as u64,
+            edge(
+                [a as u64, b as u64],
+                [center + offsets[a], center + offsets[b]],
+                geometry::Curve::Circle {
+                    frame: frame(center, radial, normal.cross(radial)),
+                    radius,
+                    forward: true,
+                },
+            ),
+        );
+    }
+    let mut face = face(
+        SurfaceKind::Sphere(radius),
+        &[(0, true), (1, true), (2, true)],
+    );
+    face.surface.frame = Matrix4::from_translation(Vector3::unit_x() * shift);
+    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+    let world = Matrix4::from_translation(Vector3::unit_x() * -shift);
+    face.spherical_trim(radius, &edges, EPSILON)
+        .unwrap()
+        .include_bounds(&edges, world, EPSILON, &mut bounds)
+        .unwrap();
+    assert!(bounds[1][0] >= radius, "{bounds:?} omits pole at {radius}");
+}

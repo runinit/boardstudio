@@ -141,15 +141,37 @@ impl SphericalTrim {
             // A coordinate has only two stationary points away from the
             // boundary. Exclude a pole only if an enclosing plane excludes it.
             let axis = row / length;
-            for pole in [axis, -axis] {
+            for (pole, sign) in [(axis, 1.0), (-axis, -1.0)] {
                 if self
                     .bounds_planes
                     .iter()
                     .all(|side| side.dot(pole) >= -8.0 * f64::EPSILON * side.magnitude())
                 {
-                    let point = world.transform_point(self.center + pole * self.radius);
-                    check_coordinate(point)?;
-                    super::super::bounds::push(bounds, point)?;
+                    // Place the center first. Adding the radius in source coordinates
+                    // can erase it before a large translation cancels the center.
+                    // Bound the signed coordinate outward at each affine operation.
+                    let mut center = sign * world.w[i];
+                    let mut norm2 = 0.0;
+                    for (coefficient, origin) in [
+                        (row.x, self.center.x),
+                        (row.y, self.center.y),
+                        (row.z, self.center.z),
+                    ] {
+                        if coefficient != 0.0 {
+                            center = (sign * coefficient).mul_add(origin, center).next_up();
+                            norm2 = coefficient.mul_add(coefficient, norm2).next_up();
+                        }
+                    }
+                    let extent = self
+                        .radius
+                        .mul_add(norm2.sqrt().next_up(), center)
+                        .next_up();
+                    check_coordinate(Point3::new(extent, 0.0, 0.0))?;
+                    if sign > 0.0 {
+                        bounds[1][i] = bounds[1][i].max(extent);
+                    } else {
+                        bounds[0][i] = bounds[0][i].min(-extent);
+                    }
                 }
             }
         }
