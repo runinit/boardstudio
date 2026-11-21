@@ -351,7 +351,7 @@ fn page_core_profiles_outline_rebuild_in_isolation() {
         let findings = validate_document_for_test(&document);
         profile_isolated(
             size,
-            "document validation",
+            "scene diagnostics including matrix projections",
             32,
             || validate_document_for_test(black_box(&document)),
             |output| assert_eq!(output, &findings),
