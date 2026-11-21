@@ -1,11 +1,9 @@
 //! Internal operation accounting. A support translation is not whole-asset movement.
 mod conic;
-mod cuboid;
 mod finite_curve;
 mod finite_line;
-mod spelling;
+pub(in crate::step) mod spelling;
 use super::*;
-pub(super) use cuboid::Cuboid;
 use monstertruck_io::step::load::step_geometry::{Conic3D, Curve3D};
 use monstertruck_io::step::load::step_p21::tables::{IntoOwned, PlaceHolder};
 

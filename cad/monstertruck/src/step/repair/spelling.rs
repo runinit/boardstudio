@@ -1,6 +1,6 @@
 //! Borrow numeric spellings from already parsed STEP bytes; never rebuild entity ASTs.
 
-pub(super) fn separators(mut input: &[u8]) -> Option<&[u8]> {
+pub(in crate::step) fn separators(mut input: &[u8]) -> Option<&[u8]> {
     loop {
         input = input.trim_ascii_start();
         if !input.starts_with(b"/*") {
@@ -11,7 +11,7 @@ pub(super) fn separators(mut input: &[u8]) -> Option<&[u8]> {
     }
 }
 
-pub(super) fn string(input: &[u8]) -> Option<&[u8]> {
+pub(in crate::step) fn string(input: &[u8]) -> Option<&[u8]> {
     let mut offset = 1;
     if input.first() != Some(&b'\'') {
         return None;
@@ -28,7 +28,7 @@ pub(super) fn string(input: &[u8]) -> Option<&[u8]> {
     None
 }
 
-pub(super) fn reference(input: &[u8]) -> Option<(&[u8], u64)> {
+pub(in crate::step) fn reference(input: &[u8]) -> Option<(&[u8], u64)> {
     let input = input.strip_prefix(b"#")?;
     let length = input
         .iter()
@@ -38,7 +38,7 @@ pub(super) fn reference(input: &[u8]) -> Option<(&[u8], u64)> {
     Some((&input[length..], id))
 }
 
-pub(super) fn number(input: &[u8]) -> Option<(&[u8], &str)> {
+pub(in crate::step) fn number(input: &[u8]) -> Option<(&[u8], &str)> {
     let mut offset = usize::from(matches!(input.first(), Some(b'+' | b'-')));
     let start = offset;
     while input.get(offset).is_some_and(u8::is_ascii_digit) {
@@ -70,7 +70,7 @@ pub(super) fn number(input: &[u8]) -> Option<(&[u8], &str)> {
     ))
 }
 
-pub(super) struct Instance<'a> {
+pub(in crate::step) struct Instance<'a> {
     pub id: u64,
     pub kind: &'a [u8],
     pub parameters: &'a [u8],
@@ -117,7 +117,7 @@ fn instance(input: &[u8]) -> Option<(&[u8], Instance<'_>)> {
     }
 }
 
-pub(super) fn instances(mut input: &[u8]) -> impl Iterator<Item = Option<Instance<'_>>> {
+pub(in crate::step) fn instances(mut input: &[u8]) -> impl Iterator<Item = Option<Instance<'_>>> {
     std::iter::from_fn(move || {
         while !input.is_empty() {
             let Some(next) = separators(input) else {

@@ -1,5 +1,5 @@
 //! Integer authority for the narrow cuboid proof, borrowed from original spellings.
-use super::*;
+use crate::step::repair::spelling;
 
 pub(super) struct Scalars {
     values: [f64; 3],

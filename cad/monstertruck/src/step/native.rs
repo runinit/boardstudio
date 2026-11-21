@@ -3,6 +3,7 @@
 mod assembly;
 mod carrier;
 mod cone;
+mod cuboid;
 mod cylinder_band;
 mod facet;
 mod geometry;
@@ -45,6 +46,8 @@ pub(super) struct Asset {
     face_occurrences: Vec<StepFaceOccurrence>,
     triangle_faces: Vec<usize>,
     deflection_mm: f64,
+    /// Set only by the source-decimal cuboid certificate over this emitted asset.
+    zero_repair: bool,
 }
 
 impl Asset {
@@ -82,8 +85,9 @@ impl Asset {
                     .preview_repair_budget_mm
                     .map_or(PREVIEW_DECLARED_MULTIPLIER, |_| 0.0),
                 selected_repair_budget_mm: options.preview_repair_budget_mm,
-                // Native preview uses decoded f64 source. It carries no decimal movement proof.
-                max_repair_displacement_mm: None,
+                // Decoded f64 source carries no decimal movement proof of its own;
+                // only the complete cuboid certificate establishes exact zero.
+                max_repair_displacement_mm: self.zero_repair.then_some(0.0),
                 relaxed_beyond_declared_precision: false,
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
@@ -100,6 +104,7 @@ impl Asset {
 }
 
 pub(super) fn build(
+    bytes: &[u8],
     exchange: &Exchange,
     items: &HashMap<u64, Vec<u64>>,
     units: &HashMap<u64, f64>,
@@ -181,28 +186,23 @@ pub(super) fn build(
     retained.extend(source_faces.iter().map(|f| f.face_id));
     retained.extend(occurrences.iter().map(|(_, _, owner)| *owner));
     scene.require_complete_presentations(&retained)?;
-    if let [(id, placement, _)] = occurrences.as_slice() {
-        let solid = &solids[id];
-        // Keep the existing source-decimal cuboid producer and its proof admission.
-        if *placement == Matrix4::identity()
-            && factors[id] == 1.0
-            && solid.faces.len() == 6
-            && solid.edges.len() == 12
-            && solid
-                .faces
-                .iter()
-                .all(|face| matches!(face.surface.kind, SurfaceKind::Plane))
-            && solid
-                .edges
-                .values()
-                .flat_map(|edge| edge.vertices)
-                .collect::<HashSet<_>>()
-                .len()
-                == 8
+    // Cheap admission for the cuboid certificate. The certificate re-derives
+    // the whole box from original decimal spellings; this filter grants nothing.
+    let cuboid_candidate = match occurrences.as_slice() {
+        [(id, placement, representation)]
+            if *placement == Matrix4::identity()
+                && factors[id] == 1.0
+                && solids[id].faces.len() == 6
+                && solids[id].edges.len() == 12
+                && solids[id]
+                    .faces
+                    .iter()
+                    .all(|face| matches!(face.surface.kind, SurfaceKind::Plane)) =>
         {
-            return Err("source-decimal cuboid proof candidate".into());
+            Some((*id, *representation))
         }
-    }
+        _ => None,
+    };
     let mut asset = Asset {
         solid_count: solids.len(),
         occurrences,
@@ -213,6 +213,7 @@ pub(super) fn build(
         face_occurrences: Vec::new(),
         triangle_faces: Vec::new(),
         deflection_mm,
+        zero_repair: false,
     };
     for (index, (id, placement, representation)) in asset.occurrences.iter().copied().enumerate() {
         units::validate_placement_matrix(placement)?;
@@ -328,6 +329,10 @@ pub(super) fn build(
             return Err("native preview is not a positively oriented closed mesh".into());
         }
     }
+    asset.zero_repair = cuboid_candidate.is_some_and(|(solid, representation)| {
+        cuboid::Cuboid::from_original(bytes, exchange, solid, representation)
+            .is_some_and(|cuboid| cuboid.proves(&asset))
+    });
     Ok(asset)
 }
 
