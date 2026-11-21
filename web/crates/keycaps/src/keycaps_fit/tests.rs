@@ -4,10 +4,10 @@ use boardstudio_model::model::{
     Board, BoardContours, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness,
     SceneDelta, Side, Transform, Vec2,
 };
+#[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
 
 fn source(revision: u64) -> KeycapsFitSource {
     KeycapsFitSource {
@@ -23,7 +23,7 @@ fn source(revision: u64) -> KeycapsFitSource {
     }
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn same_source_retry_and_failure_keep_retained_result_stale() {
     let mut accepted = KeycapsFitState::begin(source(1), None);
     accepted.finish(Ok(KeycapResolution {
@@ -45,7 +45,7 @@ fn same_source_retry_and_failure_keep_retained_result_stale() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn layout_fit_basis_keeps_react_padding_and_source_surface_aspect() {
     let mut document = ProjectDoc::empty("doc", "Project");
     document.boards.push(Board {
@@ -101,7 +101,7 @@ fn layout_fit_basis_keeps_react_padding_and_source_surface_aspect() {
 /// view grows and shrinks with the spacing after commits. Matrix cells 5
 /// mm further out on each side widen the basis by exactly 10 mm; the
 /// member-less cells here keep the bounds on the keys alone.
-#[wasm_bindgen_test]
+#[test]
 fn layout_bounds_follow_spacing_widening_and_narrowing() {
     use boardstudio_model::model::{MatrixScene, MatrixSceneCell};
     let mut document = ProjectDoc::empty("doc", "Project");
@@ -205,7 +205,7 @@ fn layout_bounds_follow_spacing_widening_and_narrowing() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
     let mut document = ProjectDoc::empty("doc", "Project");
     document.boards.push(Board {
@@ -249,7 +249,7 @@ fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn actionable_board_target_has_react_label_and_targetless_finding_has_no_action() {
     let mut document = ProjectDoc::empty("doc", "Project");
     document.boards.push(Board {
@@ -287,7 +287,7 @@ fn actionable_board_target_has_react_label_and_targetless_finding_has_no_action(
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn current_case_stack_target_precedes_companion_part_target() {
     let mut document = ProjectDoc::empty("doc", "Project");
     document.boards.push(Board {
@@ -337,7 +337,7 @@ fn current_case_stack_target_precedes_companion_part_target() {
     ));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn production_navigation_admission_rejects_stale_results_and_removed_targets() {
     let mut document = ProjectDoc::empty("document", "Project");
     document.boards.push(Board {
@@ -459,7 +459,7 @@ fn production_navigation_admission_rejects_stale_results_and_removed_targets() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn layout_target_bounds_include_non_keycap_matrix_companions() {
     let mut document = ProjectDoc::empty("doc", "Project");
     document.boards.push(Board {
@@ -580,7 +580,7 @@ fn layout_target_bounds_include_non_keycap_matrix_companions() {
     );
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn finding_marker_bounds_include_every_contour_of_the_current_board_finding() {
     let mut scene = SceneDelta {
         module_scenes: vec![],
@@ -653,6 +653,7 @@ fn finding_marker_bounds_include_every_contour_of_the_current_board_finding() {
     );
 }
 
+#[cfg(target_arch = "wasm32")]
 fn mounted_action() -> Element {
     let mut navigated = use_signal(|| false);
     let accepted_source = source(1);
@@ -702,6 +703,7 @@ fn mounted_action() -> Element {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen_test]
 async fn mounted_finding_action_uses_react_label_and_emits_current_target() {
     let document = web_sys::window().unwrap().document().unwrap();

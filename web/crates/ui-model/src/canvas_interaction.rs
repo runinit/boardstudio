@@ -141,7 +141,7 @@ impl Drop for LayoutSpacePanWindowListener {
 mod tests {
     use super::*;
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn either_start_order_admits_only_the_first_canvas_owner() {
         for (first, second) in [
             (
@@ -172,7 +172,7 @@ mod tests {
         }
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn pending_part_drag_requires_real_client_motion() {
         let start = (100.0, 200.0);
 
@@ -185,13 +185,17 @@ mod tests {
         assert!(!pending_part_drag_threshold_reached(start, start));
     }
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn layout_space_pan_uses_global_space_key_without_a_focus_precondition() {
         assert!(layout_space_pan_keydown(" ", "Space", false));
         assert!(layout_space_pan_keydown("Space", "Space", false));
         assert!(!layout_space_pan_keydown(" ", "Space", true));
         assert!(!layout_space_pan_keydown("x", "KeyX", false));
+    }
 
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn layout_space_pan_window_listener_handles_keyboard_events() {
         let space_down = Rc::new(Cell::new(false));
         let is_layout = Rc::new(Cell::new(true));
         let listener = LayoutSpacePanWindowListener::install(

@@ -2,8 +2,6 @@ use super::{Grouping, TreeContext, TreeKind, build_tree};
 use boardstudio_application::ReadModel;
 use boardstudio_model::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
 use std::collections::BTreeSet;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::wasm_bindgen_test;
 
 fn synthetic_outline_document() -> ProjectDoc {
     serde_json::from_str(include_str!(
@@ -117,8 +115,7 @@ fn part_context_model() -> ReadModel {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn part_context_preserves_exact_primary_and_assembly_membership() {
     let model = part_context_model();
     assert_eq!(
@@ -200,8 +197,7 @@ fn part_context_preserves_exact_primary_and_assembly_membership() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn bulk_eligibility_preserves_context_rules_without_per_part_lookups() {
     for variant in 0..6 {
         let mut model = part_context_model();
@@ -241,8 +237,7 @@ fn bulk_eligibility_preserves_context_rules_without_per_part_lookups() {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn column_selection_visits_cell_configuration_once() {
     let mut model = part_context_model();
     let snapshot = model.accepted.as_mut().unwrap();
@@ -284,8 +279,7 @@ fn column_selection_visits_cell_configuration_once() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn matrix_context_validation_skips_member_projection_and_preserves_empty_contexts() {
     for variant in 0..6 {
         let mut model = part_context_model();
@@ -352,8 +346,7 @@ fn matrix_context_validation_skips_member_projection_and_preserves_empty_context
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
     let document = ProjectDoc::empty("tree-deletion", "Tree deletion");
     let matrix = serde_json::from_value(serde_json::json!({
@@ -399,8 +392,7 @@ fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[test]
 fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_context() {
     let ordinary_key = TreeContext::Key {
         matrix_id: "synthetic-matrix".into(),
