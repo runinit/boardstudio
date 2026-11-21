@@ -106,8 +106,7 @@ headless browser tests. Name steps (`python3 scripts/check.py --list`) to run on
 and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
 Running the `browser` step by itself first rebuilds the checked page so its real-page drag smoke
-cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small
-drag preflight by itself before a longer browser or performance run.
+uses current frontend assets.
 
 **Old-CSS count.** The `repo` step reports how many `.board-*` and `.m1-*` selectors and `--wb-*` variables
 remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`

@@ -235,8 +235,8 @@ def observation(step, command, output, *, exit_code=0, elapsed=1.0):
 
 
 class ReceiptBoundaryTests(unittest.TestCase):
-    def test_face_regression_is_reported_as_smoke(self):
-        self.assertEqual(receipt.scope_of([check.PY, 'cad/scripts/face-completeness-gate.py']), receipt.SMOKE)
+    def test_packaged_regressions_are_reported_as_smoke(self):
+        self.assertEqual(receipt.scope_of([check.PY, 'scripts/run-drag-browser.py']), receipt.SMOKE)
         self.assertEqual(receipt.scope_of([check.PY, 'cad/scripts/test-cad-provider.py']), receipt.SMOKE)
 
     def test_wasm_crate_launches_keep_separate_full_names_and_group_counts(self):
@@ -568,10 +568,11 @@ class CheckCliTests(unittest.TestCase):
                                     side_effect=lambda command, registry, **kwargs: check.subprocess.run(command, **kwargs))
         patcher.start()
         self.addCleanup(patcher.stop)
-        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
-        driver.start()
-        self.addCleanup(driver.stop)
-        locate = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
+        locate_driver = check.browser_tools.locate_chromedriver
+        self.enterContext(mock.patch.object(
+            check.browser_tools, "locate_chromedriver",
+            side_effect=lambda env=None: "/bin/true" if env is None else locate_driver(env)))
+        locate = mock.patch.object(check.browser_tools, "locate_chrome", return_value="/bin/true")
         self.locate = locate.start()
         self.addCleanup(locate.stop)
         for patcher in (
@@ -1335,7 +1336,7 @@ class BuildBindingTests(unittest.TestCase):
             c.observe("browser", command, 0, 1, attempt_id=attempt)
             self.assertFalse(c.finish(0)["commands"][0]["complete"])
 
-    def test_subpath_observation_ignores_stale_root_and_compares_drag(self):
+    def test_subpath_observation_ignores_stale_root(self):
         with tempfile.TemporaryDirectory() as directory:
             site = Path(directory)
             subpath = site / "site-subpath/boardstudio"
@@ -1349,11 +1350,6 @@ class BuildBindingTests(unittest.TestCase):
             root.mkdir()
             (root / "index.html").write_text("stale")
             self.assertEqual(receipt.site_identity(site)[0], output)
-            observed = {"run_id": "run", "attempt_id": "drag", "receipt_path": "/receipt", "site": receipt.site_identity(site)[0]}
-            self.assertEqual(receipt.drag_binding("run", "drag", observed, [binding])["site_comparison"], "equal")
-            (subpath / "index.html").write_text("changed")
-            observed["site"] = receipt.site_identity(site)[0]
-            self.assertEqual(receipt.drag_binding("run", "drag", observed, [binding])["site_comparison"], "different")
 
     def test_build_capture_respects_output_and_providers_only(self):
         identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
@@ -1417,71 +1413,6 @@ class BuildBindingTests(unittest.TestCase):
             record = receipt.build_binding("run", attempt, before, after, code, site, fresh)
             self.assertEqual(record["status"], expected)
             self.assertEqual((record["run_id"], record["attempt_id"]), ("run", attempt))
-
-class DragBindingTests(unittest.TestCase):
-    def test_binding_requires_matching_ids_build_and_site(self):
-        site = {"path": "/site", "sha256": "a" * 64}
-        build = {"run_id": "run", "attempt_id": "build", "output": site}
-        observed = {"run_id": "run", "attempt_id": "browser", "receipt_path": "/receipt", "site": site}
-        result = receipt.drag_binding("run", "browser", observed, [build])
-        self.assertEqual(result["site_comparison"], "equal")
-        self.assertEqual(result["build_attempt_id"], "build")
-        self.assertEqual(result["served_content"], "unknown")
-        for changed in (dict(observed, run_id="wrong"), dict(observed, attempt_id=None)):
-            self.assertEqual(receipt.drag_binding("run", "browser", changed, [build])["site_comparison"], "unknown")
-        self.assertEqual(receipt.drag_binding("run", "browser", observed, [])["site_comparison"], "unknown")
-        self.assertEqual(receipt.drag_binding("run", "browser", dict(observed, site=dict(site, sha256="b" * 64)), [build])["site_comparison"], "different")
-
-
-    def test_collector_links_only_successful_unique_observation(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            collector = receipt.Collector(path=Path(tmp) / "result.json", source={})
-            build_cmd = ["python3", "scripts/build-web.py"]
-            drag_cmd = ["python3", "scripts/run-drag-browser.py"]
-            build_id = collector.prepare(build_cmd, step="build")
-            collector.observe("build", build_cmd, 0, 1, attempt_id=build_id)
-            site = {"path": "/site", "sha256": "a" * 64}
-            collector.build_bindings.append({"run_id": collector.run_id, "attempt_id": build_id, "output": site})
-            drag_id = collector.prepare(drag_cmd, step="browser")
-            marker = "BOARDSTUDIO_DRAG_BINDING " + json.dumps({"run_id": collector.run_id,
-                "attempt_id": drag_id, "receipt_path": "/receipt", "site": site})
-            collector.observe("browser", drag_cmd, 0, 1, marker, attempt_id=drag_id)
-            binding = collector.finish(0)["drag_bindings"][0]
-            self.assertEqual((binding["build_attempt_id"], binding["site_comparison"]), (build_id, "equal"))
-            collector.observations[-1].output += "\n" + marker
-            self.assertEqual(collector.finish(0)["drag_bindings"][0]["site_comparison"], "unknown")
-
-    def test_collector_links_two_concurrent_suite_observations_independently(self):
-        # Two `--suite drag` / `--suite collision` commands in one receipt run
-        # each bind to their own attempt id, receipt path and suite marker.
-        with tempfile.TemporaryDirectory() as tmp:
-            collector = receipt.Collector(path=Path(tmp) / "result.json", source={})
-            build_cmd = ["python3", "scripts/build-web.py"]
-            build_id = collector.prepare(build_cmd, step="build")
-            collector.observe("build", build_cmd, 0, 1, attempt_id=build_id)
-            site = {"path": "/site", "sha256": "a" * 64}
-            collector.build_bindings.append({"run_id": collector.run_id, "attempt_id": build_id, "output": site})
-            suites = {}
-            for suite in ("drag", "collision"):
-                command = ["python3", "scripts/run-drag-browser.py", "--suite", suite]
-                attempt = collector.prepare(command, step="browser")
-                marker = "BOARDSTUDIO_DRAG_BINDING " + json.dumps({"run_id": collector.run_id,
-                    "attempt_id": attempt, "suite": suite,
-                    "receipt_path": f"/{suite}-receipt", "site": site})
-                # Observe out of order: the collision output lands first.
-                suites[suite] = (command, attempt, marker)
-            for suite in ("collision", "drag"):
-                command, attempt, marker = suites[suite]
-                collector.observe("browser", command, 0, 1, marker, attempt_id=attempt)
-            bindings = collector.finish(0)["drag_bindings"]
-            self.assertEqual(len(bindings), 2)
-            by_receipt = {binding["receipt_path"]: binding for binding in bindings}
-            self.assertEqual(set(by_receipt), {"/drag-receipt", "/collision-receipt"})
-            for binding in bindings:
-                self.assertEqual((binding["build_attempt_id"], binding["site_comparison"]),
-                                 (build_id, "equal"))
-            self.assertEqual(by_receipt["/drag-receipt"]["attempt_id"], suites["drag"][1])
-            self.assertEqual(by_receipt["/collision-receipt"]["attempt_id"], suites["collision"][1])
 
 if __name__ == "__main__":
     unittest.main()

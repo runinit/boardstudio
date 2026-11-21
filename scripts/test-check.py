@@ -8,13 +8,11 @@ import json
 import os
 import re
 import shlex
-import signal
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
 from unittest import mock
 
@@ -34,10 +32,11 @@ class CheckTests(unittest.TestCase):
         target = mock.patch.object(check, "cargo_target", return_value=ROOT / "target")
         target.start()
         self.addCleanup(target.stop)
-        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
-        driver.start()
-        self.addCleanup(driver.stop)
-        chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
+        locate_driver = check.browser_tools.locate_chromedriver
+        self.driver = self.enterContext(mock.patch.object(
+            check.browser_tools, "locate_chromedriver",
+            side_effect=lambda env=None: "/bin/true" if env is None else locate_driver(env)))
+        chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="/bin/true")
         self.chrome = chrome.start()
         self.addCleanup(chrome.stop)
         # Plans never probe the machine's Tailwind CLI; a test that does restores the real lookup.
@@ -161,42 +160,12 @@ class CheckTests(unittest.TestCase):
                 self.assertTrue(check.run_commands("test", commands, os.environ.copy())[1])
                 self.assertEqual(launch.call_count, 2)
 
-    def test_scheduler_passes_real_inherited_lock_to_model_lookup(self):
-        import fcntl
-        with tempfile.TemporaryDirectory() as directory:
-            lock = Path(directory) / ".cache/tmp/boardstudio-build.lock"
-            lock.parent.mkdir(parents=True)
-            with lock.open("w") as held:
-                fcntl.flock(held, fcntl.LOCK_EX)
-                code = ("import sys, json, subprocess; sys.path.insert(0, %r); import browser_tools; "
-                        "root=browser_tools.Path(browser_tools.__file__).resolve().parents[1]; "
-                        "artifact={'reason':'compiler-artifact','package_id':'path+'+(root/'tools/browser-harness').as_uri()+'#boardstudio-browser-harness', 'target':{'name':'cad-provider-pages','kind':['bin']},'executable':'/tmp/fake-driver'}; "
-                        "def_run=lambda args, **kw: (args[0]=='cargo' or (_ for _ in ()).throw(AssertionError('lock reacquired'))) and subprocess.CompletedProcess(args,0,json.dumps(artifact),''); "
-                        "browser_tools.subprocess.run=def_run; assert str(browser_tools._build_harness('cad-provider-pages')) == '/tmp/fake-driver'" % str(ROOT / "scripts"))
-                command = [sys.executable, "-c", code, "scripts/model-lookup-pilot.py", "--gate"]
-                with mock.patch.dict(os.environ, {"HOME": directory, "BOARDSTUDIO_BUILD_LOCK_FD": str(held.fileno())}):
-                    _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None)
-                self.assertTrue(passed)
-
     def test_serial_missing_executable_reports_startup_error(self):
         output = io.StringIO()
         with contextlib.redirect_stderr(output), contextlib.redirect_stdout(io.StringIO()):
             _, code, _, _ = check.run_serial(["/nonexistent/boardstudio-check-command"], os.environ.copy())
         self.assertEqual(code, 127)
         self.assertIn("startup failed", output.getvalue())
-
-    def test_scheduler_relays_drag_output_to_collector(self):
-        marker = 'BOARDSTUDIO_DRAG_BINDING {"proof":true}'
-        command = [sys.executable, "-c", "print(%r)" % marker, "scripts/run-drag-browser.py"]
-        receipt = mock.Mock()
-        receipt.run_id = "run"
-        receipt.prepare.return_value = "attempt"
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None, receipt=receipt)
-        self.assertTrue(passed)
-        self.assertIn(marker, output.getvalue())
-        self.assertIn(marker, receipt.observe.call_args.args[4])
 
     def test_invalid_driver_fails_before_build(self):
         plan = [("build", [["build"]]), ("browser", [["wasm-pack", "test", "--chrome", "web/crates/keymap"]])]
@@ -290,11 +259,6 @@ class CheckTests(unittest.TestCase):
             "scripts/test-parts-review-fixes.py": "ticket 020 agent-browser Parts review regressions",
             "scripts/test-keymap-layer-tabs.py": "trusted keyboard activation against a checked server",
             "scripts/test-library-export.py": "ticket 023 role/name workflow against a checked server with a coarse pointer",
-            "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
-            "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
-            "scripts/test-drag-browser-deep-home-timeout.py": "Linux CI process cleanup control",
-            "scripts/test-drag-browser-deep-home.py": "Linux CI deep HOME browser controls",
-            "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
             "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls",
             "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
             "scripts/test-ergogen-parity.cjs": "maintainer Node parity contract retained for comparison",
@@ -417,9 +381,8 @@ class CheckTests(unittest.TestCase):
         self.assertIn([check.PY, "scripts/model-lookup-pilot.py", "--gate"], check.STEPS["browser"][1])
         self.assertIn([check.PY, "-B", "scripts/test-build-patched-wasm-bindgen.py"], check.STEPS["tooling"][1])
 
-    def test_measurement_protocols_run_in_tooling_and_the_worker_protocol_in_the_provider_gate(self):
+    def test_measurement_worker_protocol_runs_in_the_provider_gate(self):
         commands = check.STEPS["tooling"][1]
-        self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
         self.assertNotIn(["node", "cad/scripts/test-measure-cad-worker.cjs"], commands)
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
     def test_ci_web_tools_do_not_install_playwright(self):
@@ -430,114 +393,6 @@ class CheckTests(unittest.TestCase):
         action = (ROOT / ".github/actions/web-tools/action.yml").read_text()
         self.assertNotIn("playwright", action.lower())
         self.assertNotIn("NODE_PATH", action)
-
-    def test_parts_inspector_launcher_requires_running_site_url(self):
-        env = os.environ.copy()
-        env.pop("BOARDSTUDIO_PREVIEW_URL", None)
-        result = subprocess.run([sys.executable, "scripts/run-parts-inspector-scroll.py"], cwd=ROOT,
-                                env=env, capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("BOARDSTUDIO_PREVIEW_URL", result.stderr)
-
-    def test_parts_inspector_discovers_chrome_before_build_and_preserves_environment(self):
-        runner = """
-import json, os, runpy, sys
-from pathlib import Path
-sys.path.insert(0, 'scripts')
-import browser_tools
-def build(name):
-    print('BUILD', name)
-    return Path('/fake/parts-inspector-scroll')
-def launch(binary, args):
-    print('LAUNCH', json.dumps([binary, args, os.environ['CHROME_BIN'], os.environ['KEEP_ME'], os.environ['BOARDSTUDIO_PREVIEW_URL']]))
-browser_tools._build_harness = build
-os.execv = launch
-runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
-"""
-        with tempfile.TemporaryDirectory() as directory:
-            chrome = Path(directory) / "chromium"
-            chrome.write_text("#!/bin/sh\nexit 0\n")
-            chrome.chmod(0o755)
-            env = dict(os.environ, PATH=directory, BOARDSTUDIO_PREVIEW_URL="http://example.test/", KEEP_ME="kept")
-            env.pop("CHROME_BIN", None)
-            env.pop("BOARDSTUDIO_DRAG_CHROME_BIN", None)
-            for override in (None, "/chosen/chrome"):
-                with self.subTest(override=override):
-                    selected = dict(env)
-                    if override:
-                        selected["CHROME_BIN"] = override
-                    result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=selected,
-                                            capture_output=True, text=True)
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    lines = result.stdout.splitlines()
-                    self.assertEqual(lines[0], "BUILD parts-inspector-scroll")
-                    binary, args, actual, kept, url = json.loads(lines[1].removeprefix("LAUNCH "))
-                    self.assertEqual((binary, args), ("/fake/parts-inspector-scroll", ["/fake/parts-inspector-scroll"]))
-                    self.assertEqual((actual, kept, url), (override or str(chrome), "kept", "http://example.test/"))
-            chrome.unlink()
-            result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=env,
-                                    capture_output=True, text=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("CHROME_BIN", result.stderr)
-            self.assertNotIn("Traceback", result.stderr)
-            self.assertNotIn("BUILD", result.stdout)
-            self.assertNotIn("LAUNCH", result.stdout)
-
-    def test_parts_inspector_missing_build_prerequisites_exit_cleanly_before_launch(self):
-        runner = """
-import os, runpy, subprocess, sys
-sys.path.insert(0, 'scripts')
-def forbidden(*args, **kwargs):
-    raise AssertionError('build or browser launched')
-subprocess.run = forbidden
-os.execv = forbidden
-runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
-"""
-        with tempfile.TemporaryDirectory() as directory:
-            env = dict(os.environ, PATH=directory, HOME=directory,
-                       BOARDSTUDIO_PREVIEW_URL="http://example.test/", CHROME_BIN="/chosen/chrome")
-            env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-            for missing in ("flock", "cargo"):
-                with self.subTest(missing=missing):
-                    if missing == "cargo":
-                        (Path(directory) / "flock").symlink_to("/usr/bin/flock")
-                    result = subprocess.run([sys.executable, "-c", runner], cwd=ROOT, env=env,
-                                            capture_output=True, text=True)
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(missing, result.stderr.lower())
-                    self.assertIn("install", result.stderr.lower())
-                    self.assertNotIn("Traceback", result.stderr)
-                    self.assertNotIn("build or browser launched", result.stderr)
-
-    def test_cad_capture_controls_have_a_human_runnable_entry_point(self):
-        result = subprocess.run([sys.executable, "cad/scripts/test-cad-capture-controls.py", "--help"],
-                                cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("output", result.stdout.lower())
-
-    def test_graphite_manual_runners_are_rust_with_historical_source_archived(self):
-        for name in ("feedback", "usability"):
-            self.assertTrue((ROOT / f"scripts/run-graphite-{name}.py").is_file())
-            self.assertFalse((ROOT / f"scripts/test-graphite-{name}.cjs").exists())
-            self.assertTrue((ROOT / f"docs/archive/graphite/test-graphite-{name}.cjs").is_file())
-
-    def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
-        spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")
-        drag = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(drag)
-        for value in ("node", "other", ""):
-            with self.subTest(value=value), mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": value}), \
-                    mock.patch.object(check, "run_plan") as run_plan, \
-                    mock.patch.object(drag.browser_tools, "build_drag_harness") as build:
-                for steps in (["drag-smoke"], ["browser"], list(check.DEFAULT), ["build", "browser"]):
-                    with contextlib.redirect_stderr(io.StringIO()) as error:
-                        self.assertEqual(check.run(steps), 1)
-                    self.assertIn("BOARDSTUDIO_DRAG_DRIVER", error.getvalue())
-                with self.assertRaises(SystemExit) as raised:
-                    drag.main()
-                self.assertIn("BOARDSTUDIO_DRAG_DRIVER", str(raised.exception))
-                run_plan.assert_not_called()
-                build.assert_not_called()
 
     def test_stylesheet_uses_the_pinned_then_path_then_dx_installed_cli_before_the_page_build(self):
         def tool(path):
@@ -612,25 +467,10 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
-        self.assertIn([check.PY, "cad/scripts/face-completeness-gate.py"], check.STEPS["browser"][1])
-        self.assertIn([check.PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
-                      check.STEPS["tooling"][1])
         self.assertIn([check.PY, "-B", "cad/scripts/test-provider-pages.py", "--hermetic"],
                       check.STEPS["tooling"][1])
         self.assertIn([check.PY, "-B", "cad/scripts/test-cad-provider-gate.py"],
                       check.STEPS["tooling"][1])
-
-    def test_browser_gate_runs_cad_capture_controls_with_the_shared_lock(self):
-        for script in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
-                       "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py"):
-            command = [check.PY, script]
-            self.assertIn(command, check.STEPS["browser"][1])
-            with mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=9), \
-                    mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)) as run, \
-                    contextlib.redirect_stdout(io.StringIO()):
-                check.run_serial(command, {"BOARDSTUDIO_BUILD_LOCK_FD": "9"})
-            self.assertEqual(run.call_args.kwargs["env"]["BOARDSTUDIO_BUILD_LOCK_FD"], "9")
-            self.assertEqual(run.call_args.kwargs["pass_fds"], (9,))
 
     def test_full_check_runs_the_documented_steps_in_order(self):
         self.assertEqual(check.DEFAULT, ("repo", "tooling", "build", "lint", "test", "browser"))
@@ -659,7 +499,6 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         for command in check.LINT[1:3]:
             self.assertEqual(command[command.index("--profile") + 1], "lint")
             self.assertEqual(command[-3:], ["--", "-D", "warnings"])
-        self.assertNotIn("--profile", check.LINT[4])
 
     def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
         # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
@@ -768,7 +607,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(check.run(["drag-smoke"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
-        self.assertEqual(captured["plan"][0][1][1:], [check.HARNESS_BUILD])
+        self.assertEqual(captured["plan"][0][1][1:], [])
 
     def test_browser_prebuild_failure_stops_before_other_artifacts(self):
         commands = check.STEPS["build"][1]
@@ -788,7 +627,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
         self.assertIsNotNone(combined)
         stage = [check.PY, "scripts/build-web.py", "--fast", "--phase", "stage"]
-        barrier = threading.Barrier(3, timeout=5)
+        barrier = threading.Barrier(2, timeout=5)
         seen = []
         output = io.StringIO()
 
@@ -801,8 +640,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(kwargs["env"]["CARGO_PROFILE_DEV_DEBUG"], "false")
             seen.append(command)
             barrier.wait()
-            label = {tuple(stage): "stage", tuple(combined): "combined",
-                     tuple(check.HARNESS_BUILD): "harness"}[tuple(command)]
+            label = {tuple(stage): "stage", tuple(combined): "combined"}[tuple(command)]
             return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
 
         def fake_artifacts(text, _cwd, _crates, *, stream=None):
@@ -818,16 +656,15 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
              contextlib.redirect_stdout(output):
             self.assertTrue(check.run_commands("build", commands, {})[1])
         self.assertEqual(seen[0], "cargo")
-        self.assertCountEqual(seen[1:], [stage, combined, check.HARNESS_BUILD])
+        self.assertCountEqual(seen[1:], [stage, combined])
         self.assertNotIn(check.PAGE_TEST_BUILD, seen)
         self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
-                         ["payload stage", "payload combined", "payload harness"])
+                         ["payload stage", "payload combined"])
 
     def test_build_without_plain_page_tools_combines_prebuilds_after_a_serial_page(self):
         commands = check.STEPS["build"][1]
         combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
         self.assertIsNotNone(combined)
-        barrier = threading.Barrier(2, timeout=5)
         seen = []
         output = io.StringIO()
 
@@ -839,8 +676,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         def launch(command, **kwargs):
             self.assertEqual(kwargs["env"]["CARGO_PROFILE_DEV_DEBUG"], "false")
             seen.append(command)
-            barrier.wait()
-            label = {tuple(combined): "combined", tuple(check.HARNESS_BUILD): "harness"}[tuple(command)]
+            self.assertEqual(command, combined)
+            label = "combined"
             return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
 
         def fake_artifacts(text, _cwd, _crates, *, stream=None):
@@ -856,15 +693,18 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
              contextlib.redirect_stdout(output):
             self.assertTrue(check.run_commands("build", commands, {})[1])
         self.assertEqual(seen[0], "page")
-        self.assertCountEqual(seen[1:], [combined, check.HARNESS_BUILD])
+        self.assertCountEqual(seen[1:], [combined])
         self.assertNotIn(check.PAGE_TEST_BUILD, seen)
         self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
-                         ["payload combined", "payload harness"])
+                         ["payload combined"])
 
     def test_build_keeps_serial_wasm_prebuilds_when_combining_rejects_drift(self):
+        self.mock_wasm_dir()
+        page = self.wasm_dir / "page.wasm"
+        page.touch()
         commands = check.STEPS["build"][1]
         stage = [check.PY, "scripts/build-web.py", "--fast", "--phase", "stage"]
-        barrier = threading.Barrier(3, timeout=5)
+        barrier = threading.Barrier(2, timeout=5)
         seen = []
         output = io.StringIO()
 
@@ -875,10 +715,11 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         def launch(command, **kwargs):
             seen.append(command)
-            if command in (stage, check.BROWSER_CRATE_BUILD, check.HARNESS_BUILD):
+            if command in (stage, check.BROWSER_CRATE_BUILD):
                 barrier.wait()
             if command == check.PAGE_TEST_BUILD:
                 self.assertIn(check.BROWSER_CRATE_BUILD, seen)
+                return subprocess.CompletedProcess(command, 0, stdout=f"payload 2\n{page}\n")
             label = "stage" if command == stage else commands.index(command)
             return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
 
@@ -897,7 +738,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(seen[0], "cargo")
         self.assertCountEqual(seen[1:], [stage, *commands[1:]])
         self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
-                         ["payload stage", "payload 1", "payload 2", "payload 3"])
+                         ["payload stage", "payload 1", "payload 2"])
 
     def test_build_overlap_renders_diagnostics_without_raw_artifact_json(self):
         self.mock_wasm_dir()
@@ -917,8 +758,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                         command, code,
                         stdout=f"Compiling boardstudio-web-layout\n{diag_json}\n{artifact_json}\n",
                     )
-                label = "stage" if command[-1] == "stage" else "harness"
-                return subprocess.CompletedProcess(command, 0, stdout=f"ok {label}\n")
+                self.assertEqual(command[-1], "stage")
+                return subprocess.CompletedProcess(command, 0, stdout="ok stage\n")
 
             output = io.StringIO()
             errors = io.StringIO()
@@ -935,7 +776,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertTrue(passed, err)
         self.assertNotIn("compiler-artifact", out)
         self.assertIn("Compiling boardstudio-web-layout\nwarning: unused variable\n", out)
-        self.assertLess(out.index("warning: unused variable"), out.index("ok harness"))
+        self.assertLess(out.index("ok stage"), out.index("warning: unused variable"))
         self.assertEqual(check._PAGE_TEST_ARTIFACT, self.wasm_dir / "page.wasm")
 
         passed, out, err = run_case(101)
@@ -960,7 +801,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
              contextlib.redirect_stdout(io.StringIO()) as output, \
              contextlib.redirect_stderr(io.StringIO()) as errors:
             self.assertFalse(check.run_commands("build", commands, {})[1])
-        self.assertIn(check.HARNESS_BUILD, seen)
+        self.assertIn(check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD), seen)
         self.assertNotIn(check.PAGE_TEST_BUILD, seen)
         self.assertIn("missing artifacts", output.getvalue())
         self.assertIn("command failed", errors.getvalue())
@@ -976,7 +817,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                  mock.patch.object(check, "check_jobs", return_value=jobs), \
                  mock.patch.object(check, "run_parallel") as parallel, \
                  mock.patch.object(check, "run_serial", side_effect=serial_run) as serial, \
-                 mock.patch.object(check, "crate_test_artifacts", return_value={}):
+                 mock.patch.object(check, "crate_test_artifacts", return_value={}), \
+                 mock.patch.object(check, "prebuilt_page_path", return_value=Path("/fake/page.wasm")):
                 self.assertTrue(check.run_commands("build", commands, {}, receipt=receipt)[1])
             parallel.assert_not_called()
             self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
@@ -1118,6 +960,28 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(run_plan([("browser", [check.PAGE_SUITE])]), 0)
         self.assertNotIn(check.PAGE_TEST_ARTIFACT_ENV, seen_env["browser"])
 
+    def test_browser_reuses_cargos_page_artifact_without_an_in_process_build(self):
+        self.mock_wasm_dir()
+        combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
+        cargo_output = self.fake_wasm_build(combined)
+        launch = check.crate_launch("layout")
+        seen = []
+
+        def run(argv, **kwargs):
+            seen.append(argv)
+            return cargo_output if argv == combined else mock.Mock(returncode=0, stdout="")
+
+        with mock.patch.object(check, "launch_command", side_effect=run), \
+                mock.patch.object(check, "check_jobs", return_value=1), contextlib.redirect_stdout(io.StringIO()):
+            _, passed = check.run_commands("browser", [check.BROWSER_CRATE_BUILD, launch, check.PAGE_SUITE],
+                                           {check.wasm_bindgen_tools.DIRECTORY_ENV: str(self.wasm_dir)},
+                                           crate_configs={"layout": {}})
+        self.assertTrue(passed)
+        self.assertEqual(seen[0], combined)
+        self.assertEqual(Path(seen[1][0]).name, launch[0])
+        self.assertEqual(seen[2], [*check.PAGE_SUITE, "--test-binary", str(self.wasm_dir / "page.wasm")])
+        self.assertEqual(len(seen), 3)
+
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
         for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
@@ -1130,12 +994,12 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             launch.assert_not_called()
             self.assertIn("check: missing browser tool", error.getvalue())
 
-    def test_default_drag_driver_uses_rust_and_chrome_only(self):
-        with mock.patch.dict(os.environ):
-            os.environ.pop("BOARDSTUDIO_DRAG_DRIVER", None)
-            with mock.patch.object(check, "run_plan", return_value=0):
-                self.assertEqual(check.run(["drag-smoke"]), 0)
-            self.chrome.assert_called_once_with()
+    def test_drag_smoke_checks_the_driver_before_build(self):
+        self.driver.side_effect = check.browser_tools.MissingBrowserTool("missing chromedriver")
+        with mock.patch.object(check, "run_plan") as plan, contextlib.redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(check.run(["drag-smoke"]), 1)
+        self.assertIn("missing chromedriver", error.getvalue())
+        plan.assert_not_called()
 
     def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
         calls = []
@@ -1151,7 +1015,12 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.chrome.assert_called_once_with()
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
-        self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")
+        def scoped_chrome(env=None):
+            if env is None:
+                self.fail("scoped browser run invoked the packaged-site preflight")
+            return "/bin/true"
+
+        self.chrome.side_effect = scoped_chrome
         self.mock_wasm_dir()
 
         def fake(command, **kwargs):
@@ -1161,7 +1030,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case"]), 0)
-        self.chrome.assert_not_called()
+        self.assertTrue(all(call.args and call.args[0] is not None for call in self.chrome.call_args_list))
 
     def test_browser_gate_selects_page_and_worker_host_suites_without_test_filters(self):
         launches = check.select_browser_crate_launches(["host", "worker-host"])
@@ -1321,29 +1190,6 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 self.assertEqual(check.check_jobs(), 4)
             with mock.patch.object(check.os, "cpu_count", return_value=None):
                 self.assertEqual(check.check_jobs(), 4)
-
-    def test_harness_clippy_overlaps_root_clippys_after_formats(self):
-        import threading
-        started = threading.Barrier(2, timeout=5)
-        seen = []
-
-        def run(command, *args, **kwargs):
-            seen.append(command)
-            if command[:2] == ["cargo", "clippy"] and "--target" not in command:
-                started.wait()
-            if check.is_harness_clippy(command):
-                kwargs["outputs"].append((command, "harness diagnostics"))
-                return 0.0, 1, "", ""
-            return 0.0, 0, "", ""
-
-        with mock.patch.object(check, "run_serial", side_effect=run), \
-             mock.patch.object(check, "check_jobs", return_value=2), \
-             contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(io.StringIO()):
-            self.assertFalse(check.run_commands("lint", check.LINT, {})[1])
-        self.assertEqual(seen[:2], [command for command in check.LINT if command[:2] == ["cargo", "fmt"]])
-        self.assertEqual([command for command in seen if "--all-targets" in command
-                          and not check.is_harness_clippy(command)], check.LINT[1:3])
-        self.assertIn("harness diagnostics", stdout.getvalue())
 
     def test_overlap_requires_complete_step_commands_cpu_budget_and_no_receipt_or_ci(self):
         plan = [(name, check.STEPS[name][1]) for name in check.DEFAULT]
@@ -1575,32 +1421,32 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         with mock.patch.object(check, "check_jobs", return_value=6), \
                 mock.patch.object(check, "launch_command", side_effect=launch), \
                 contextlib.redirect_stdout(io.StringIO()) as output, contextlib.redirect_stderr(io.StringIO()) as errors:
-            passed = check.run_commands("browser", commands, {}, keep_going=keep_going)[1]
+            passed = check.run_commands("browser", commands, {"BOARDSTUDIO_WASM_TEST_COMMAND": "fake"}, keep_going=keep_going)[1]
         return passed, events, configs, output.getvalue(), errors.getvalue()
 
-    def test_packaged_checks_run_beside_crate_launches_and_harness_builds_never_overlap(self):
+    def test_packaged_checks_run_beside_crate_launches(self):
         commands = [command for command in check.STEPS["browser"][1] if not check.is_crate_build(command)]
         passed, events, configs, output, _ = self.browser_batch(commands)
         self.assertTrue(passed)
         self.assertCountEqual([command for kind, command in events if kind == "start"], commands)
         self.assertEqual(configs[tuple(check.PAGE_SUITE)]["BOARDSTUDIO_CHECK_JOBS"], "2")
-        # The CAD browser check heads one lane, and each harness check starts after the previous ends.
-        lane = [check.CAD_BROWSER, *check.HARNESS_CHECKS]
+        # The CAD browser check heads one lane, and each provider check starts after the previous ends.
+        lane = [check.CAD_BROWSER, *check.PROVIDER_CHECKS]
         for before, after in zip(lane, lane[1:]):
             self.assertLess(events.index(("end", before)), events.index(("start", after)))
         for command in commands:
             self.assertIn("$ " + shlex.join(command) + f"\nran {command[-1]}\n", output)
 
-    def test_packaged_lane_failures_stop_the_harness_chain_unless_keep_going(self):
+    def test_provider_lane_stops_on_failure_unless_keep_going(self):
         commands = check.STEPS["browser-packaged"][1]
-        self.assertEqual(commands, [check.DRAG_SMOKE, check.CAD_BROWSER, *check.HARNESS_CHECKS, check.PAGE_SUITE])
-        broken = check.HARNESS_CHECKS[1]
-        for keep_going, ran in ((False, check.HARNESS_CHECKS[:2]), (True, check.HARNESS_CHECKS)):
+        self.assertEqual(commands, [check.DRAG_SMOKE, check.CAD_BROWSER, *check.PROVIDER_CHECKS, check.PAGE_SUITE])
+        broken = check.PROVIDER_CHECKS[1]
+        for keep_going, ran in ((False, check.PROVIDER_CHECKS[:2]), (True, check.PROVIDER_CHECKS)):
             with self.subTest(keep_going=keep_going):
                 passed, events, _, _, errors = self.browser_batch(commands, keep_going=keep_going, fail=[broken])
                 self.assertFalse(passed)
                 started = [command for kind, command in events if kind == "start"]
-                self.assertEqual([command for command in started if command in check.HARNESS_CHECKS], ran)
+                self.assertEqual([command for command in started if command in check.PROVIDER_CHECKS], ran)
                 self.assertIn(check.DRAG_SMOKE, started)
                 self.assertIn(check.PAGE_SUITE, started)
                 self.assertIn("check: command failed: " + shlex.join(broken), errors)
@@ -1935,111 +1781,6 @@ driver status: signal: 9 (SIGKILL)
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "library"]), 1)
         self.assertIn("first failure [raw WASM trap]", error.getvalue())
-
-
-class CadCaptureControlsCleanupTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "cad_capture_controls", ROOT / "cad/scripts/test-cad-capture-controls.py")
-        cls.controls = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.controls)
-
-    def test_sigterm_handler_exits_143(self):
-        with self.assertRaises(SystemExit) as exited:
-            self.controls._sigterm_exit(signal.SIGTERM, None)
-        self.assertEqual(exited.exception.code, 143)
-
-    def test_descendant_pids_finds_children_recursively(self):
-        parent = subprocess.Popen(
-            [sys.executable, "-c", "import subprocess, time; subprocess.Popen(['sleep', '120']); time.sleep(120)"])
-        grandchildren = set()
-        try:
-            for _ in range(200):
-                grandchildren = self.controls._descendant_pids(parent.pid)
-                if grandchildren:
-                    break
-                time.sleep(0.05)
-            self.assertEqual(len(grandchildren), 1)
-            mine = self.controls._descendant_pids(os.getpid())
-            self.assertIn(parent.pid, mine)
-            self.assertTrue(grandchildren <= mine)
-        finally:
-            for pid in {parent.pid, *grandchildren}:
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            parent.wait()
-
-    def test_reap_capture_kills_a_shared_group_member_without_killpg(self):
-        # Under the scheduler the capture shares this runner's group; a killpg here
-        # would kill this test itself, so only the capture's tree may die.
-        parent = subprocess.Popen(
-            [sys.executable, "-c", "import subprocess, time; subprocess.Popen(['sleep', '120']); time.sleep(120)"])
-        grandchildren = set()
-        for _ in range(200):
-            grandchildren = self.controls._descendant_pids(parent.pid)
-            if grandchildren:
-                break
-            time.sleep(0.05)
-        self.assertEqual(len(grandchildren), 1)
-        self.controls._reap_capture(parent, detached=False)
-        self.assertEqual(parent.returncode, -signal.SIGKILL)
-        for pid in grandchildren:
-            for _ in range(200):
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    break
-                time.sleep(0.01)
-            else:
-                self.fail(f"capture descendant {pid} survived the reap")
-
-    def test_reap_capture_killpgs_a_detached_group(self):
-        parent = subprocess.Popen(["sleep", "120"], start_new_session=True)
-        self.controls._reap_capture(parent, detached=True)
-        self.assertEqual(parent.returncode, -signal.SIGKILL)
-
-
-class CadBrowserSessionCleanupTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "cad_browser", ROOT / "cad/scripts/test-cad-browser.py")
-        cls.page = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.page)
-
-    def test_session_delete_timeout_warns_without_failing_a_green_page(self):
-        def timeout(*args, **kwargs):
-            raise TimeoutError("timed out")
-
-        errors = []
-        with contextlib.redirect_stderr(io.StringIO()) as warning:
-            self.page._delete_session(timeout, 9515, "session", None, errors)
-        self.assertEqual(errors, [])
-        self.assertIn("session deletion timed out", warning.getvalue())
-
-    def test_session_delete_timeout_annotates_a_page_failure(self):
-        def timeout(*args, **kwargs):
-            raise TimeoutError("timed out")
-
-        failed = RuntimeError("smoke page never finished")
-        with contextlib.redirect_stderr(io.StringIO()) as warning:
-            self.page._delete_session(timeout, 9515, "session", failed, [])
-        self.assertEqual(warning.getvalue(), "")
-        self.assertTrue(any("session deletion timed out" in note
-                            for note in getattr(failed, "__notes__", [])))
-
-    def test_session_delete_error_still_fails_a_green_page(self):
-        def refused(*args, **kwargs):
-            raise RuntimeError("ChromeDriver DELETE /session/session failed: gone")
-
-        errors = []
-        with contextlib.redirect_stderr(io.StringIO()):
-            self.page._delete_session(refused, 9515, "session", None, errors)
-        self.assertEqual(errors, ["session deletion failed: "
-                                  "ChromeDriver DELETE /session/session failed: gone"])
 
 
 if __name__ == "__main__":

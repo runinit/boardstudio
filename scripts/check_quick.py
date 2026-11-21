@@ -104,7 +104,7 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
         elif path.startswith(TOOLING):
             selection.tooling = True
             selection.kicad_parts = True
-            if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
+            if path in ("cad/scripts/provider_pages.py", "scripts/run-drag-browser.py",
                         "cad/scripts/measure-cad-worker.cjs", "scripts/model-lookup.js",
                         "scripts/model-lookup-pilot.py", "scripts/model-lookup-pilot.mjs",
                         "scripts/model-lookup-pilot-worker.js", "scripts/ergogen-parity/cases.cjs",

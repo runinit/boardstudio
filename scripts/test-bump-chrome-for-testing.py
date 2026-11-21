@@ -15,6 +15,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -48,6 +49,19 @@ class BumpChromeForTestingTests(unittest.TestCase):
         # Real pin file untouched by the hermetic rewrite.
         live = json.loads(PIN_JSON.read_text())
         self.assertNotEqual(live["version"], "999.0.0.0")
+
+    def test_smoke_uses_both_installed_binaries(self):
+        module = load_bump()
+        base = Path("/new-install")
+        with patch.object(module.browser_tools, "WebDriverSession") as session:
+            browser = session.return_value.__enter__.return_value
+            browser.execute_sync.return_value = "BoardStudio"
+            module.smoke(base)
+        session.assert_called_once_with(chrome=base / "chrome-linux64/chrome",
+                                        driver=base / "chromedriver-linux64/chromedriver", timeout=30)
+        browser.get.assert_called_once()
+        browser.check_page_errors.assert_called_once()
+
 
     def test_ci_provisions_chrome_from_pin(self):
         text = WORKFLOW.read_text()

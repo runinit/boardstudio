@@ -28,6 +28,9 @@ class ColdRefusalTests(unittest.TestCase):
         reasons = COLD.refusal_reasons({}, lambda p: p == "target", 0.5)
         self.assertTrue(any("symlink" in r for r in reasons))
 
+    def test_cold_targets_include_active_workspaces(self):
+        self.assertEqual(COLD.TARGETS, ["target", "web/target", "cad/wasm/target", "cad/target"])
+
     def test_refuses_under_load(self):
         reasons = COLD.refusal_reasons({}, lambda p: False, 6.5)
         self.assertTrue(any("load" in r for r in reasons))

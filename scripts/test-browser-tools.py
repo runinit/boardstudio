@@ -11,10 +11,6 @@ browser_tools = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(browser_tools)
 
 
-def which(*available):
-    return lambda name: f"/usr/bin/{name}" if name in available else None
-
-
 class BrowserToolsTests(unittest.TestCase):
     def test_shallow_browser_tmpdir_uses_short_home_and_falls_back_for_deep_home(self):
         with mock.patch.object(browser_tools.Path, "home", return_value=Path("/tmp/bs-home")), \
@@ -47,35 +43,6 @@ class BrowserToolsTests(unittest.TestCase):
             self.assertEqual(env["TMPDIR"], "/tmp/nested")
             self.assertEqual(env["CHROME_BIN"], "/chosen")
 
-    def test_missing_cargo_is_reported_before_launch_with_or_without_inherited_lock(self):
-        for inherited in (None, 9):
-            with self.subTest(inherited=inherited), \
-                    mock.patch.object(browser_tools, "_inherited_build_lock", return_value=inherited), \
-                    mock.patch.object(browser_tools.shutil, "which", side_effect=which("flock")), \
-                    mock.patch.object(browser_tools.subprocess, "run") as run:
-                with self.assertRaises(browser_tools.MissingBrowserTool) as error:
-                    browser_tools.build_drag_harness()
-                self.assertIn("cargo", str(error.exception).lower())
-                self.assertIn("install", str(error.exception).lower())
-                run.assert_not_called()
-
-    def test_cargo_disappearing_before_launch_is_actionable(self):
-        for inherited, executable in ((9, "cargo"), (None, "flock")):
-            with self.subTest(executable=executable), \
-                    mock.patch.object(browser_tools, "_inherited_build_lock", return_value=inherited), \
-                    mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo", "flock")), \
-                    mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", executable)):
-                with self.assertRaises(browser_tools.MissingBrowserTool) as error:
-                    browser_tools.build_drag_harness()
-                self.assertIn(executable, str(error.exception).lower())
-
-    def test_unrelated_launch_error_is_not_relabelled(self):
-        with mock.patch.object(browser_tools, "_inherited_build_lock", return_value=9), \
-                mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo")), \
-                mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", "/other")):
-            with self.assertRaises(FileNotFoundError):
-                browser_tools.build_drag_harness()
-
     def test_cancelled_launcher_keeps_build_lock_until_child_exits(self):
         import os
         import select
@@ -106,21 +73,16 @@ class BrowserToolsTests(unittest.TestCase):
             env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
             env.pop("BOARDSTUDIO_WASM_TEST_COMMAND", None)
             env["CHROMEDRIVER"] = "/bin/true"
-            (home / "scripts").mkdir()
-            (home / "scripts/run-drag-browser.py").write_text("import browser_tools; browser_tools.build_drag_harness()\n")
             ready_fd = os.open(ready, os.O_RDWR | os.O_NONBLOCK)
             release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
             try:
-                for mode in ("harness", "standalone", "nested", "serial", "shared-wasm-build", "parallel", "web", "cad", "wasm", "grandchild"):
+                for mode in ("serial", "shared-wasm-build", "parallel", "web", "cad", "wasm", "grandchild"):
                     with self.subTest(mode=mode):
                         setup = ("import fcntl, os, sys\n"
                                  "f = open(os.path.expanduser('~/.cache/tmp/boardstudio-build.lock'), 'w')\n"
                                  "fcntl.flock(f, fcntl.LOCK_EX)\n"
                                  "os.environ['BOARDSTUDIO_BUILD_LOCK_FD'] = str(f.fileno())\n")
                         calls = {
-                            "harness": "import browser_tools; browser_tools.build_drag_harness()",
-                            "standalone": "import browser_tools; browser_tools.build_drag_harness()",
-                            "nested": "import check; from pathlib import Path; check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))",
                             "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
                             "shared-wasm-build": "import check; check.run_serial(check.WASM_CRATE_BUILD, dict(os.environ), outputs=[])",
                             "parallel": "import check; check.run_parallel([['cargo']], dict(os.environ))",
@@ -129,8 +91,7 @@ class BrowserToolsTests(unittest.TestCase):
                             "cad": "sys.path.insert(0, os.environ['CAD']); import cad_build; cad_build.run(['cargo'])",
                             "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.build_page_test(m.ROOT, dict(os.environ))",
                         }
-                        # Standalone uses flock's own process; the others inherit a validated descriptor.
-                        source = ("import os, sys\n" if mode == "standalone" else setup) + calls[mode]
+                        source = setup + calls[mode]
                         error_log = tempfile.TemporaryFile(mode="w+")
                         process = subprocess.Popen([sys.executable, "-c", source],
                                                    env=dict(env, CAD=str(root / "cad/scripts"),
@@ -144,7 +105,7 @@ class BrowserToolsTests(unittest.TestCase):
                             build_parent = int(os.read(ready_fd, 32).strip())
                             process.kill()
                             process.wait(timeout=5)
-                            if mode in ("standalone", "nested", "grandchild"):
+                            if mode == "grandchild":
                                 os.kill(build_parent, 9)
                             contender = ["flock", "-n", str(lock), "true"]
                             self.assertNotEqual(subprocess.run(contender).returncode, 0,
@@ -162,171 +123,36 @@ class BrowserToolsTests(unittest.TestCase):
                 os.close(ready_fd)
                 os.close(release_fd)
 
-    def test_harness_build_uses_cargo_artifact_and_reports_redacted_error(self):
-        import json
-        package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()
-        def artifact(package_id, executable):
-            return json.dumps({"reason": "compiler-artifact", "package_id": package_id,
-                               "target": {"name": "drag-smoke", "kind": ["bin"]},
-                               "executable": executable}) + "\n"
-        artifacts = (artifact("path+file:///elsewhere#other@1.0.0", "/wrong") +
-                     artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "/target/triple/debug/drag-smoke.exe"))
-        with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                returncode=0, stdout=artifacts, stderr="")):
-            self.assertEqual(str(browser_tools.build_drag_harness()), "/target/triple/debug/drag-smoke.exe")
-        with mock.patch.dict(browser_tools.os.environ, {"CARGO_REGISTRY_TOKEN": "secret-value"}), \
-                mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                    returncode=101, stdout="", stderr="error: failed to compile; token secret-value")):
-            with self.assertRaises(SystemExit) as error:
-                browser_tools.build_drag_harness()
-            self.assertIn("failed to compile", str(error.exception))
-            self.assertNotIn("secret-value", str(error.exception))
-
-    def test_face_harness_selects_current_package_artifact_only(self):
-        import json
-        package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()
-        def artifact(package_id, name, executable):
-            return json.dumps({"reason": "compiler-artifact", "package_id": package_id,
-                               "target": {"name": name, "kind": ["bin"]},
-                               "executable": executable}) + "\n"
-        correct = artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "face-completeness-web", "/built/face")
-        wrong = artifact("path+file:///elsewhere#boardstudio-browser-harness@0.1.0", "face-completeness-web", "/spoof")
-        with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                returncode=0, stdout=wrong + correct, stderr="")) as run:
-            self.assertEqual(browser_tools._build_harness("face-completeness-web"), Path("/built/face"))
-            self.assertIn("--locked", run.call_args.args[0])
-            self.assertIn("face-completeness-web", run.call_args.args[0])
-        for output in (wrong, correct + correct):
-            with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                    returncode=0, stdout=output, stderr="")):
-                with self.assertRaisesRegex(SystemExit, "cannot identify"):
-                    browser_tools._build_harness("face-completeness-web")
-
-    def test_build_diagnostics_hide_non_environment_secrets(self):
-        import json
-        cases = (
-            ('ssh://alice:synthetic-ssh-credential@example.invalid/path?session=synthetic-query#synthetic-fragment',
-             ("alice", "synthetic-ssh-credential", "synthetic-query", "synthetic-fragment")),
-            ('HTTPS://bob:synthetic-upper-credential@example.invalid/path#synthetic-anchor',
-             ("bob", "synthetic-upper-credential", "synthetic-anchor")),
-            ('git+ssh://carol:synthetic-git-credential@example.invalid/repo',
-             ("carol", "synthetic-git-credential")),
-            ('{"outer": {"token": "quoted-secret", "nested": {"password": "nested-secret"}}}',
-             ("quoted-secret", "nested-secret")),
-            ('Authorization: Bearer bearer-secret', ("bearer-secret",)),
-            ('{"Authorization": "Bearer quoted-bearer"}', ("quoted-bearer",)),
-            ('Bearer standalone-bearer', ("standalone-bearer",)),
-            ('{"token": {\n  "value": "multiline-secret"\n}}', ("multiline-secret",)),
-        )
-        for diagnostic, secrets in cases:
-            for rendered in (False, True):
-                with self.subTest(rendered=rendered, case=cases.index((diagnostic, secrets))):
-                    message = json.dumps({"reason": "compiler-message", "message": {
-                        "rendered": "error: registry request failed\n" + diagnostic}})
-                    with mock.patch.dict(browser_tools.os.environ, {}, clear=True), \
-                            mock.patch.object(browser_tools.shutil, "which", side_effect=which("flock", "cargo")), \
-                            mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
-                                returncode=101, stdout=message if rendered else "",
-                                stderr="" if rendered else "error: registry request failed\n" + diagnostic)):
-                        with self.assertRaises(SystemExit) as error:
-                            browser_tools.build_drag_harness()
-                    output = str(error.exception)
-                    self.assertIn("registry request failed", output)
-                    for secret in secrets:
-                        self.assertFalse(secret in output, "sensitive value reached build diagnostics")
-
-    def test_build_lock_across_scheduler_and_standalone(self):
-        import fcntl
-        import os
-        import subprocess
-        import sys
+    def test_lookup_prefers_matching_pin_and_explicit_override(self):
         import tempfile
 
-        root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as temp:
-            home = Path(temp)
-            lock = home / ".cache/tmp/boardstudio-build.lock"
-            lock.parent.mkdir(parents=True)
-            cargo = home / "cargo"
-            cargo.write_text("#!/usr/bin/python3\n" +
-                "import json, os, subprocess\n" +
-                "assert subprocess.run(['flock', '-n', os.environ['LOCK'], 'true']).returncode != 0\n" +
-                "print(json.dumps(" + repr({"reason": "compiler-artifact",
-                    "package_id": f"path+{(root / 'tools/browser-harness').as_uri()}#boardstudio-browser-harness@0.1.0",
-                    "target": {"name": "drag-smoke", "kind": ["bin"]}, "executable": "/fake/drag-smoke"}) + "))\n")
-            cargo.chmod(0o755)
-            env = dict(os.environ, HOME=temp, LOCK=str(lock), PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
-            env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-            direct = "import browser_tools; print(browser_tools.build_drag_harness())"
-            standalone = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts", env=env,
-                                        capture_output=True, text=True, timeout=5)
-            self.assertEqual(standalone.returncode, 0, standalone.stderr)
-            with lock.open("w") as held:
-                fcntl.flock(held, fcntl.LOCK_EX)
-                env["BOARDSTUDIO_BUILD_LOCK_FD"] = str(held.fileno())
-                # Use the scheduler's actual drag command path and descriptor handling.
-                (home / "scripts").mkdir()
-                (home / "scripts/run-drag-browser.py").write_text(direct)
-                nested = "import check, os, sys; from pathlib import Path; sys.exit(check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))[1])"
-                result = subprocess.run([sys.executable, "-c", nested], cwd=root / "scripts", env=env,
-                                        pass_fds=(held.fileno(),), capture_output=True, text=True, timeout=5)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("/fake/drag-smoke", result.stdout)
-                with (home / "wrong").open("w") as wrong, lock.open("w") as unowned:
-                    for fd in (wrong.fileno(), unowned.fileno()):
-                        invalid_env = dict(env, BOARDSTUDIO_BUILD_LOCK_FD=str(fd))
-                        invalid = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts",
-                                                 env=invalid_env, pass_fds=(fd,), capture_output=True, text=True,
-                                                 timeout=5)
-                        self.assertNotEqual(invalid.returncode, 0)
-                        self.assertIn("invalid BOARDSTUDIO_BUILD_LOCK_FD", invalid.stderr)
-                standalone_env = dict(env)
-                standalone_env.pop("BOARDSTUDIO_BUILD_LOCK_FD")
-                blocked = subprocess.Popen([sys.executable, "-c", direct], cwd=root / "scripts",
-                                           env=standalone_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                           text=True)
-                try:
-                    with self.assertRaises(subprocess.TimeoutExpired):
-                        blocked.communicate(timeout=0.5)
-                    fcntl.flock(held, fcntl.LOCK_UN)
-                    stdout, stderr = blocked.communicate(timeout=5)
-                    self.assertEqual(blocked.returncode, 0, stderr)
-                    self.assertIn("/fake/drag-smoke", stdout)
-                finally:
-                    if blocked.poll() is None:
-                        blocked.kill()
-                        blocked.communicate()
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            for kind in ("chrome", "chromedriver"):
+                pinned = base / f"{kind}-linux64" / kind
+                pinned.parent.mkdir()
+                pinned.touch()
+                pinned.chmod(0o700)
+                locate = getattr(browser_tools, f"locate_{kind}")
+                variable = "CHROME_BIN" if kind == "chrome" else "CHROMEDRIVER"
+                env = {"BOARDSTUDIO_CFT_DIR": str(base), "PATH": ""}
+                self.assertEqual(locate(env), str(pinned))
+                self.assertEqual(locate(dict(env, **{variable: "/bin/true"})), str(Path("/bin/true").resolve()))
+                with self.assertRaisesRegex(browser_tools.MissingBrowserTool, variable):
+                    locate(dict(env, **{variable: "/missing"}))
 
-    def test_missing_flock_is_actionable(self):
-        import subprocess
-        import sys
-        result = subprocess.run([sys.executable, "-c", "import browser_tools; browser_tools.build_drag_harness()"],
-                                cwd=Path(__file__).parent, env={"PATH": ""}, capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("flock", result.stderr)
-        self.assertNotIn("FileNotFoundError", result.stderr)
-        self.assertIn("install", result.stderr.lower())
+    def test_async_and_action_commands_use_the_session_endpoints(self):
+        session = browser_tools.WebDriverSession(chrome="/chrome", driver="/chromedriver")
+        session.session_id = "control"
+        with mock.patch.object(session, "_request") as request:
+            session.execute_async("return", "arg", timeout=2)
+            session.actions({"actions": [{"id": "mouse"}]})
+        self.assertEqual(request.call_args_list, [
+            mock.call("POST", "/session/control/timeouts", {"script": 2000}),
+            mock.call("POST", "/session/control/execute/async", {"script": "return", "args": ["arg"]}),
+            mock.call("POST", "/session/control/actions", {"actions": [{"id": "mouse"}]}),
+        ])
 
-    def locate_chrome(self, *available, env=None):
-        with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
-                mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
-            return browser_tools.locate_chrome()
-
-    def test_chrome_only_probe_needs_no_node(self):
-        self.assertEqual(self.locate_chrome("chromium"), "/usr/bin/chromium")
-
-    def test_chrome_only_probe_honours_chrome_bin(self):
-        self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
-
-    def test_drag_browser_override_and_chrome_bin_precedence(self):
-        self.assertEqual(self.locate_chrome(env={"BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/drag/chrome")
-        self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/chosen/chrome",
-                                                 "BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/chosen/chrome")
-
-    def test_chrome_only_probe_names_chrome_bin(self):
-        with self.assertRaises(browser_tools.MissingBrowserTool) as raised:
-            self.locate_chrome()
-        self.assertIn("CHROME_BIN", str(raised.exception))
 
 if __name__ == "__main__":
     unittest.main()

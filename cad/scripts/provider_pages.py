@@ -1,17 +1,13 @@
 """Serve packaged CAD provider suites to a single isolated-page browser driver."""
 import hashlib
 import http.server
-import importlib.util
-import json
-import os
 from pathlib import Path
 import sys
-import threading
-from unittest.mock import patch
 from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 import browser_tools  # noqa: E402
+import cad_build
 
 CAD = Path(__file__).resolve().parents[1]
 ROOT = CAD.parent
@@ -19,6 +15,7 @@ TESTS = CAD / 'wasm/tests'
 SUITES = {
     'provider-support-controls': ['truth', 'equal', 'deepEqual', 'match', 'throws', 'rejects'],
     'collision-analysis': ['main'],
+    'step-face-completeness': ['sliver'],
     'step-repair-accounting': ['main'],
     'step-zero-repair': [
         'actual WASM integer cuboid reports complete zero and unchanged default/provenance',
@@ -82,15 +79,34 @@ export async function run(suite) {
 '''
 
 
-def load_module(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def preflight(cad=CAD):
+    package = cad / "wasm/pkg/boardstudio_cad_wasm.js"
+    wasm = package.with_name("boardstudio_cad_wasm_bg.wasm")
+    stamp = cad / ".cache/cad/wasm-build.sha256"
+    if not all(path.is_file() for path in (package, wasm, stamp)):
+        raise RuntimeError("CAD WEB package or freshness stamp is missing")
+    if stamp.read_text().strip() not in (cad_build.wasm_inputs_digest(no_opt=True), cad_build.wasm_inputs_digest()):
+        raise RuntimeError("CAD WEB package is stale")
+    return package, wasm
 
 
-def preflight():
-    return load_module('face_web', CAD / 'scripts/face-completeness-web.py').preflight()
+def sliver_module():
+    # Share the regression body with the existing standalone test.
+    suite = 'step-face-completeness'
+    source = (TESTS / (suite + '.cjs')).read_text()
+    start = '// Display mesh must be the f32 image'
+    end = '\n\n})().catch('
+    if source.count(start) != 1 or source.count(end) != 1:
+        raise ValueError('sliver regression source boundary changed')
+    body = source[source.index(start):source.index(end)]
+    return f'''import {{assert, readBytes, sha256Hex}} from '/tests/provider-support.mjs';
+export async function run(cad) {{
+  const bytes = await readBytes('cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step');
+  const result = cad.read_step_model(new Uint8Array(bytes), {{sourceSha256: await sha256Hex(bytes)}});
+{body}
+  return [{{suite: '{suite}', case: 'sliver', ok: true}}];
+}}
+'''.encode()
 
 
 def validate_results(results, suites):
@@ -111,29 +127,19 @@ def validate_results(results, suites):
             raise RuntimeError(f'invalid case inventory for {suite}: {names!r}')
 
 
-def unique_object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f'duplicate result key: {key}')
-        result[key] = value
-    return result
-
-
-def run(suites=None, driver=None):
+def run(suites=None):
     suites = list(SUITES if suites is None else suites)
     if not suites or len(set(suites)) != len(suites) or any(s not in SUITES for s in suites):
         raise ValueError('unknown, empty, or duplicate suite selection')
     package, wasm = preflight()
-    binary = driver or os.environ.get('CAD_PROVIDER_PAGES_DRIVER')
-    if not binary:
-        raise RuntimeError('set CAD_PROVIDER_PAGES_DRIVER to the built cad-provider-pages driver')
     routes = {
         '/pkg/boardstudio_cad_wasm.js': ('text/javascript', package.read_bytes()),
         '/pkg/boardstudio_cad_wasm_bg.wasm': ('application/wasm', wasm.read_bytes()),
         '/run.js': ('text/javascript', RUN_JS),
     }
     modules = {'provider-support', *SUITES}
+    if 'step-face-completeness' in suites:
+        routes['/tests/step-face-completeness.mjs'] = ('text/javascript', sliver_module())
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def end_headers(self):
@@ -151,10 +157,10 @@ def run(suites=None, driver=None):
                     content_type, data = 'text/html', b'<!doctype html><title>CAD provider suites</title>'
                 elif key in FIXTURES:
                     content_type, data = 'application/octet-stream', FIXTURES[key].read_bytes()
-                elif path.startswith('/tests/') and path.endswith('.mjs') and path[7:-4] in modules:
-                    content_type, data = 'text/javascript', (TESTS / (path[7:-4] + '.mjs')).read_bytes()
                 elif path in routes:
                     content_type, data = routes[path]
+                elif path.startswith('/tests/') and path.endswith('.mjs') and path[7:-4] in modules:
+                    content_type, data = 'text/javascript', (TESTS / (path[7:-4] + '.mjs')).read_bytes()
                 else:
                     self.send_error(404)
                     return
@@ -186,22 +192,9 @@ def run(suites=None, driver=None):
         def log_message(self, *_args):
             pass
 
-    probe = load_module('cad_response_runner', ROOT / 'tools/browser-harness/test-cad-target-responses.py')
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
-    thread.start()
-    try:
-        with patch.dict(os.environ, {"TMPDIR": str(browser_tools.shallow_browser_tmpdir())}):
-            result = probe.run_probe([str(binary), f'http://127.0.0.1:{server.server_port}/', *suites], timeout=900)
-        if result.stderr:
-            sys.stderr.write(result.stderr)
-        if result.returncode:
-            raise RuntimeError(f'provider pages failed ({result.returncode}): {result.stderr}\nstdout: {result.stdout}')
-        validate_results(json.loads(result.stdout, object_pairs_hook=unique_object), suites)
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with browser_tools.serve(Handler) as url:
+        results = browser_tools.run_provider_page(url + '/', suites, timeout=900)
+    validate_results(results, suites)
 
 
 if __name__ == '__main__':

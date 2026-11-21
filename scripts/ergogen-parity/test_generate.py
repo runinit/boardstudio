@@ -2,7 +2,7 @@
 """Node-free contract checks for generate.py, the replacement of scripts/test-ergogen-parity.cjs.
 
 --hermetic: offline groups, no upstream checkout, browser, npm or Cargo.
---source:   evaluates cases.cjs in Chrome (driver built from this checkout) and rebuilds the
+--source:   evaluates cases.cjs in Chrome via ChromeDriver and rebuilds the
             committed fixture byte-for-byte from its recorded upstream poses; no upstream code.
 --upstream: opt-in real pinned parser; set ERGOGEN_CHECKOUT (and optionally ERGOGEN_NPM_CACHE).
 """
@@ -155,17 +155,17 @@ class GeneratorContractTests(unittest.TestCase):
             generate.bootstrap(generate.ROOT / 'not-a-checkout')
         run.assert_not_called()
         with self.assertRaisesRegex(ValueError, '(?i)outside.*repository'):
-            generate.generate(generate.ROOT, driver=mock.Mock(side_effect=AssertionError('driver built')))
+            generate.generate(generate.ROOT)
 
     def test_cli_rejects_invalid_checkout_before_writing_or_building(self):
         run = cli('--cache', str(self.checkout), '--output', str(self.output))
         self.assertNotEqual(run.returncode, 0)
         self.assertRegex(run.stderr, '(?i)pinned|checkout|git')
         self.assertFalse(self.output.exists())
-        with mock.patch.object(generate, 'build_driver', side_effect=AssertionError('driver built')) as build, \
+        with mock.patch.object(host_probe.browser_tools, 'run_provider_page') as launch, \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
             self.assertEqual(generate.main(['--cache', str(self.checkout), '--output', str(self.output)]), 1)
-        build.assert_not_called()
+        launch.assert_not_called()
         self.assertIn('Ergogen fixture generation failed', stderr.getvalue())
         self.assertEqual(sorted(self.root.iterdir()), [self.checkout])
         help_run = cli('--help')
@@ -288,12 +288,13 @@ class GeneratorContractTests(unittest.TestCase):
         with mock.patch.object(sandbox_generate, 'verified_chrome', return_value=Path('/chrome')), \
                 mock.patch.object(sandbox_generate, 'locked_archives'), \
                 mock.patch.object(sandbox_generate.verified_runtime, 'verified_runtime', side_effect=ValueError('corrupt')), \
-                mock.patch.object(generate, 'build_driver') as build, \
+                mock.patch.object(sandbox_generate, 'verified_chromedriver', return_value=Path('/d')), \
+                mock.patch.object(subprocess, 'run') as launch, \
                 mock.patch.object(sys, 'argv', ['sandbox_generate.py', '--cache', str(self.checkout),
                                                '--temp-parent', str(self.root), '--check']), \
                 contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(sandbox_generate.main(), 1)
-        build.assert_not_called()
+        launch.assert_not_called()
 
     def test_sandbox_never_binds_destination_writable(self):
         import sandbox_generate
@@ -335,6 +336,7 @@ class GeneratorContractTests(unittest.TestCase):
         self.assertNotIn('--share-net', argv)
         self.assertEqual(argv[argv.index('/usr/bin/node') - 2:argv.index('/usr/bin/node')], ['--ro-bind', '/dev/null'])
         self.assertEqual(argv[argv.index(str(self.root / 'output')) - 1], '--bind')  # private staging only
+        self.assertEqual(argv[argv.index('CHROMEDRIVER') + 1], '/d')
         self.assertNotIn('--check', argv)
 
 
@@ -345,12 +347,8 @@ def divergence_of(value):
 class SourceConsistencyTests(unittest.TestCase):
     """cases.cjs plus recorded poses reproduce the committed fixture exactly (no upstream code)."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls.driver = generate.build_driver()
-
     def source(self):
-        return host_probe.run(None, None, self.driver, 'source')
+        return host_probe.run(None, None, 'source')
 
     def test_source_reproduces_committed_fixture_bytes(self):
         value, source = fixture(), self.source()
@@ -387,11 +385,10 @@ class UpstreamTests(unittest.TestCase):
     def setUpClass(cls):
         cls.checkout = os.environ['ERGOGEN_CHECKOUT']
         cls.cache = os.environ.get('ERGOGEN_NPM_CACHE', str(generate.NPM_CACHE))
-        cls.driver = str(generate.build_driver())
 
     def main(self, *args):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as stderr:
-            status = generate.main(['--cache', self.checkout, '--npm-cache', self.cache, '--driver', self.driver, *args])
+            status = generate.main(['--cache', self.checkout, '--npm-cache', self.cache, *args])
         return status, stderr.getvalue()
 
     def test_check_generate_and_mismatch(self):
@@ -419,7 +416,7 @@ class UpstreamTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as empty, \
                 mock.patch.object(host_probe, 'serve', side_effect=AssertionError('browser served')):
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
-                status = generate.main(['--cache', self.checkout, '--npm-cache', empty, '--driver', self.driver, '--check'])
+                status = generate.main(['--cache', self.checkout, '--npm-cache', empty, '--check'])
         self.assertEqual(status, 1)
         self.assertIn('No such file', stderr.getvalue())
 
