@@ -162,11 +162,6 @@ async fn wait_for_list_error(root: &web_sys::Element) -> web_sys::Element {
     list_alert(root).expect("the list alert rendered")
 }
 
-/// Quota-recovery RED: an unreadable record with no comparable token must
-/// stay deletable behind the explicit "permanently delete what we cannot
-/// read" confirm, and the delete must use the token-independent by-key
-/// path instead of the guarded delete that refuses tokenless records.
-
 async fn clean_saved_projects(runtime: &Runtime, ids: &[&str]) {
     for id in ids {
         let _ = runtime.store.delete_project((*id).into()).await;

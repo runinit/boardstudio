@@ -647,10 +647,6 @@ fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
         .push("selected-part-mirror".into());
 }
 
-/// Ticket 12: the "Mirror on both halves" toggle dispatches SetMirroredPart
-/// each way — off removes the partner, on recreates it — with one Undo entry
-/// per flip.
-
 /// Whether the mounted Inspector has settled on the latest accepted revision.
 fn accept_pending_ready(probe: &MountedProbe) -> bool {
     probe.pending_edits.borrow().as_ref().is_none_or(|edits| {
