@@ -1,6 +1,4 @@
 use crate::ExactModel;
-#[cfg(test)]
-use monstertruck_modeling::{Shell, Solid};
 use std::fmt::{self, Display, Write};
 
 mod generated;
@@ -96,10 +94,6 @@ impl Writer {
         for (topology, shell) in body.model.shells() {
             items.push(self.generated_solid(topology, shell));
         }
-        #[cfg(test)]
-        for solid in body.model.test_override().into_iter().flatten() {
-            items.push(self.solid(solid)?);
-        }
         let representation = self.entity(format_args!(
             "SHAPE_REPRESENTATION('', {}, #2)",
             List(&items)
@@ -108,110 +102,6 @@ impl Writer {
             "SHAPE_DEFINITION_REPRESENTATION({shape}, {representation})"
         ));
         Ok(())
-    }
-
-    #[cfg(test)]
-    fn solid(&mut self, solid: &Solid) -> StepResult<Ref> {
-        let (outer, inner) = solid
-            .boundaries()
-            .split_first()
-            .ok_or("solid has no shell")?;
-        let outer = self.shell(outer)?;
-        if inner.is_empty() {
-            return Ok(self.entity(format_args!("MANIFOLD_SOLID_BREP('', {outer})")));
-        }
-        let voids = inner
-            .iter()
-            .map(|shell| {
-                let shell = self.shell(shell)?;
-                Ok(self.entity(format_args!("ORIENTED_CLOSED_SHELL('', *, {shell}, .T.)")))
-            })
-            .collect::<StepResult<Vec<_>>>()?;
-        Ok(self.entity(format_args!(
-            "BREP_WITH_VOIDS('', {outer}, {})",
-            List(&voids)
-        )))
-    }
-
-    #[cfg(test)]
-    fn shell(&mut self, source: &Shell) -> StepResult<Ref> {
-        let shell = source.compress();
-        let vertices = shell
-            .vertices
-            .iter()
-            .map(|&p| {
-                let point = self.point(p);
-                self.entity(format_args!("VERTEX_POINT('', {point})"))
-            })
-            .collect::<Vec<_>>();
-        let surfaces = shell
-            .faces
-            .iter()
-            .map(|face| self.surface(&face.surface))
-            .collect::<StepResult<Vec<_>>>()?;
-        let mut supports = vec![Vec::new(); shell.edges.len()];
-        for (face, &(surface, _)) in shell.faces.iter().zip(&surfaces) {
-            for edge in face.boundaries.iter().flatten() {
-                supports[edge.index].push(surface);
-            }
-        }
-        let edges = shell
-            .edges
-            .iter()
-            .zip(supports)
-            .map(|(edge, supports)| {
-                let (a, b) = edge.vertices;
-                let mut curve = self.curve(&edge.curve)?;
-                if !supports.is_empty() {
-                    curve = self.entity(format_args!(
-                        "SURFACE_CURVE('', {curve}, {}, .CURVE_3D.)",
-                        List(&supports)
-                    ));
-                }
-                Ok(self.entity(format_args!(
-                    "EDGE_CURVE('', {}, {}, {curve}, .T.)",
-                    vertices[a], vertices[b]
-                )))
-            })
-            .collect::<StepResult<Vec<_>>>()?;
-        let faces = shell
-            .faces
-            .iter()
-            .zip(surfaces)
-            .map(|(face, (surface, same_sense))| {
-                // Compressed loops use the support orientation. FACE_BOUND reverses
-                // them when needed to follow the topological face normal.
-                let sense = logical(face.orientation);
-                let mut bounds = Vec::new();
-                for wire in &face.boundaries {
-                    let uses = wire
-                        .iter()
-                        .map(|edge| {
-                            let edge_ref = edges[edge.index];
-                            let orientation = logical(edge.orientation);
-                            self.entity(format_args!(
-                                "ORIENTED_EDGE('', *, *, {edge_ref}, {orientation})"
-                            ))
-                        })
-                        .collect::<Vec<_>>();
-                    let edge_loop = self.entity(format_args!("EDGE_LOOP('', {})", List(&uses)));
-                    bounds.push(self.entity(format_args!("FACE_BOUND('', {edge_loop}, {sense})")));
-                }
-                if bounds.is_empty() {
-                    let point =
-                        self.entity(format_args!("POINT_ON_SURFACE('', {surface}, 0.0, 0.0)"));
-                    let vertex = self.entity(format_args!("VERTEX_POINT('', {point})"));
-                    let vertex_loop = self.entity(format_args!("VERTEX_LOOP('', {vertex})"));
-                    bounds.push(self.entity(format_args!("FACE_BOUND('', {vertex_loop}, .T.)")));
-                }
-                let sense = logical(face.orientation == same_sense);
-                self.entity(format_args!(
-                    "ADVANCED_FACE('', {}, {surface}, {sense})",
-                    List(&bounds)
-                ))
-            })
-            .collect::<Vec<_>>();
-        Ok(self.entity(format_args!("CLOSED_SHELL('', {})", List(&faces))))
     }
 }
 

@@ -16,15 +16,8 @@ OUT_NAME = "boardstudio_cad_wasm"
 WASM_BUILD_TARGET = "wasm/target"
 NATIVE_TEST_TARGETS = ("target",)
 VENDOR_CRATES = (
+    "cadmpeg-tessellate",
     "inflector",
-    "monstertruck-core",
-    "monstertruck-derive",
-    "monstertruck-geometry",
-    "monstertruck-io",
-    "monstertruck-mesh",
-    "monstertruck-meshing",
-    "monstertruck-modeling",
-    "monstertruck-traits",
 )
 WASM_TEST_ONLY_SOURCES = frozenset({
     "src/model/source_validation_tests.rs",

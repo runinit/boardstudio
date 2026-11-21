@@ -349,8 +349,31 @@ mod tests {
     };
     use boardstudio_contracts::{CaseFeature, MountKind, PreparedCaseIR, Vec2};
 
+    fn prepared_plate() -> PreparedCaseIR {
+        serde_json::from_str(include_str!("../../../../tests/fixtures/layered/pcb-simple.json"))
+            .unwrap()
+    }
+
+    fn circular_drilled_input(thickness: f64, elevation: f64) -> PreparedCaseIR {
+        let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/pcb-source/circle-tracer.json"
+        ))
+        .unwrap();
+        input.body.thickness = thickness;
+        input.body.z = Some(elevation);
+        input.body.mounts = Some(vec![boardstudio_contracts::Mount {
+            id: "authored-drill".into(),
+            kind: MountKind::Hole,
+            at: Vec2 { x: 10., y: 8. },
+            hole_diameter: 1.,
+            boss_diameter: None,
+            height: None,
+        }]);
+        input
+    }
+
     fn drilled_plate() -> PreparedCaseIR {
-        let mut input = super::super::super::prepared_plate();
+        let mut input = prepared_plate();
         input.body.thickness = 2.;
         let drill = &mut input.regions[0].mounts[0];
         drill.kind = MountKind::Hole;
@@ -437,7 +460,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn native_pcb_circular_exterior_and_drill_preserve_authored_elevation() {
-        let input = super::super::tests::circular_drilled_input(1.6, 7.);
+        let input = circular_drilled_input(1.6, 7.);
         let model = crate::build_case(&input).unwrap();
         let mesh = mesh_profile_for_analysis(&model, None).unwrap();
         assert_eq!([mesh.bounds[0][2], mesh.bounds[1][2]], [7., 7. + 1.6]);

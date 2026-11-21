@@ -1,7 +1,6 @@
-use crate::layered::brep::{Point3, Vector3};
+pub type Point3 = cgmath::Point3<f64>;
+pub type Vector3 = cgmath::Vector3<f64>;
 use cgmath::InnerSpace;
-#[cfg(test)]
-use monstertruck_meshing::rexport_polymesh::PolygonMesh;
 
 /// Triangle-soup render buffers in millimeters, matching the CAD worker protocol.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -37,23 +36,6 @@ pub(crate) fn closed_oriented_edges<K: Copy + Ord + std::hash::Hash>(
             .all(|&(count, orientation)| count == 2 && orientation == 0)
 }
 
-#[cfg(test)]
-pub(crate) fn mesh_buffers(
-    meshes: impl IntoIterator<Item = PolygonMesh>,
-) -> Result<MeshBuffers, String> {
-    let mut buffers = MeshBuffers::default();
-    for mesh in meshes {
-        for triangle in mesh.faces().triangle_iter() {
-            let points = triangle.map(|vertex| mesh.positions()[vertex.pos]);
-            push_triangle(&mut buffers, points)?;
-        }
-    }
-    if buffers.positions.is_empty() {
-        return Err("Monstertruck produced an empty mesh".into());
-    }
-    Ok(buffers)
-}
-
 pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> Result<(), String> {
     let normal = triangle_normal(points)?;
     for point in points {
@@ -66,7 +48,7 @@ pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> R
     Ok(())
 }
 
-pub(crate) fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
+pub fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
     let normal = (points[1] - points[0]).cross(points[2] - points[0]);
     let length = normal.x.hypot(normal.y).hypot(normal.z);
     if !length.is_finite() || length == 0.0 {
@@ -92,6 +74,21 @@ pub(crate) fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
         );
     }
     Ok(normal / length)
+}
+
+/// Computes the exact f64 unit normal for a positive-area triangle even when its f32 projection
+/// collapses or reverses, matching `push_render_degraded_triangle`.
+pub fn degraded_triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
+    let normal = (points[1] - points[0]).cross(points[2] - points[0]);
+    let length = normal.x.hypot(normal.y).hypot(normal.z);
+    if !length.is_finite() || length == 0.0 {
+        return Err("fallback triangle lost its f64 area".into());
+    }
+    let unit = Vector3::new(normal.x / length, normal.y / length, normal.z / length);
+    if !unit.x.is_finite() || !unit.y.is_finite() || !unit.z.is_finite() {
+        return Err("fallback triangle lost its f64 area".into());
+    }
+    Ok(unit)
 }
 
 pub(crate) fn append_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {

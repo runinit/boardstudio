@@ -105,14 +105,6 @@ impl CircularCertificate {
     }
 }
 
-pub(super) fn certify_annular_extrusion(
-    text: &str,
-    expected: CircularExtrusion,
-    inner_radius: f64,
-) -> Result<CircularCertificate> {
-    circular::certify_annulus(text, expected, inner_radius)
-}
-
 pub(super) fn certify_circular_extrusion(
     text: &str,
     expected: CircularExtrusion,

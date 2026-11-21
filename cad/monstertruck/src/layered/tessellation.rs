@@ -1,8 +1,6 @@
 //! Tessellate the validated layer boundaries in model coordinates.
 use super::brep::{EdgeUse, Face, Point3, Strip, Support, Topology};
 use crate::profile::closed_oriented_shell_triangles;
-#[cfg(test)]
-type Vector2 = cgmath::Vector2<f64>;
 use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
 use std::{
     borrow::Cow,
@@ -14,8 +12,6 @@ const MAX_ARC_STEPS: usize = 4096;
 
 pub(crate) struct FaceMesh {
     pub positions: Vec<Point3>,
-    #[cfg(test)]
-    pub uv: Vec<Vector2>,
     pub triangles: Vec<[usize; 3]>,
 }
 
@@ -253,8 +249,6 @@ impl EdgeSamples {
 
 fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
     let mut positions = Vec::new();
-    #[cfg(test)]
-    let mut uv = Vec::new();
     let mut triangles = Vec::new();
     for strip in strips {
         let lower = samples.directed(strip.lower)?;
@@ -265,13 +259,6 @@ fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
         }
         let base = positions.len();
         for (low, high) in lower.zip(upper) {
-            #[cfg(test)]
-            {
-                // Fixture polygons retain the strip-local chart at a seam.
-                let index = (positions.len() - base) / 2;
-                let t = index as f64 / (count - 1) as f64;
-                uv.extend([Vector2::new(t, low.z), Vector2::new(t, high.z)]);
-            }
             positions.extend([low, high]);
         }
         for i in (base..base + 2 * (count - 1)).step_by(2) {
@@ -280,8 +267,6 @@ fn walls(strips: &[Strip], samples: &EdgeSamples) -> Result<FaceMesh> {
     }
     Ok(FaceMesh {
         positions,
-        #[cfg(test)]
-        uv,
         triangles,
     })
 }
@@ -348,8 +333,6 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
         }
     }
 
-    #[cfg(test)]
-    let uv = positions.iter().map(|p| Vector2::new(p.x, p.y)).collect();
     let triangles = cdt
         .inner_faces()
         .filter(|face| material[face.index()] == Some(true))
@@ -360,8 +343,6 @@ fn cap(face: &Face, samples: &EdgeSamples) -> Result<FaceMesh> {
         .collect();
     Ok(FaceMesh {
         positions,
-        #[cfg(test)]
-        uv,
         triangles,
     })
 }

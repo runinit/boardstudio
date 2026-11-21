@@ -80,6 +80,8 @@ struct SourceFaceDto {
     face_id: String,
     support_id: String,
     support_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    color: Option<[f32; 4]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -140,6 +142,8 @@ struct AccuracyDto {
     sampled_support_checks: u32,
     max_sampled_support_residual_mm: Option<f64>,
     fallback_meshed_faces: u32,
+    #[serde(default)]
+    discarded_display_triangles: u32,
 }
 
 impl ReadStepAsset {
@@ -467,6 +471,7 @@ fn source_face_dto(face: &StepSourceFace) -> Result<SourceFaceDto, String> {
         face_id: face.face_id.to_string(),
         support_id: face.support_id.to_string(),
         support_kind: face.support_kind.clone(),
+        color: face.color,
     })
 }
 
@@ -538,6 +543,10 @@ fn accuracy_dto(accuracy: &StepAccuracy) -> Result<AccuracyDto, String> {
             "sampled support check",
         )?,
         max_sampled_support_residual_mm: accuracy.max_sampled_support_residual_mm,
+        discarded_display_triangles: index_u32(
+            accuracy.discarded_display_triangles,
+            "discarded display triangle",
+        )?,
         fallback_meshed_faces: index_u32(accuracy.fallback_meshed_faces, "fallback meshed face")?,
     })
 }

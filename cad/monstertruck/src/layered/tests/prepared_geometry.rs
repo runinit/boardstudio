@@ -52,7 +52,8 @@ fn pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact() {
         3,
         0,
     );
-    let shell = &model.test_solids()[0].boundaries()[0];
+    let solids = model.test_solids();
+    let shell = &solids[0].boundaries()[0];
     assert_eq!(
         shell
             .iter()
@@ -227,8 +228,8 @@ fn prepared_internal_gasket_inventory() {
                                 "{name}/{} volume {volume} != independent {target}",
                                 input.body.id
                             );
-                            let points = model
-                                .test_solids()
+                            let solids = model.test_solids();
+                            let points = solids
                                 .iter()
                                 .flat_map(Solid::boundaries)
                                 .flat_map(|shell| shell.vertex_iter())

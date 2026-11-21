@@ -1,13 +1,10 @@
 //! Finite source LINE presentation, kept separate from surface triangles.
 use super::*;
-use monstertruck_io::step::load::step_p21::tables::IntoOwned;
-use monstertruck_modeling::Vector3;
 
 // The original typed point/vector frame and scalar trim are retained. An
 // endpoint-pair line would lose that frame when q - p cancels at a large origin.
 struct SourceLine {
     _basis_id: u64,
-    _source_line: monstertruck_io::step::load::LineHolder,
     _interval: (f64, f64),
     _sense_agreement: bool,
     endpoints: [Point3; 2],
@@ -113,15 +110,15 @@ impl Wireframe {
 
     pub(super) fn build(
         exchange: &Exchange,
-        table: &Table,
         occurrences: &[(u64, Matrix4, u64)],
         units: &HashMap<u64, f64>,
         precision: &[StepPrecision],
     ) -> Result<Self, String> {
-        if table.geometric_curve_set.is_empty() && occurrences.is_empty() {
+        let records = source_records(exchange);
+        let curve_sets = assembly::curve_sets(&records);
+        if curve_sets.is_empty() && occurrences.is_empty() {
             return Ok(Self::default());
         }
-        let records = source_records(exchange);
         let mut result = Self::default();
         for (set_id, placement, representation_id) in occurrences {
             super::units::validate_placement_matrix(*placement)?;
@@ -150,7 +147,7 @@ impl Wireframe {
                     if let std::collections::hash_map::Entry::Vacant(entry) =
                         result._definitions.entry(curve_id)
                     {
-                        let line = source_line(&records, table, curve_id)
+                        let line = source_line(&records, curve_id)
                             .map_err(|error| format!("source curve #{curve_id}: {error}"))?;
                         entry.insert(line);
                     }
@@ -187,10 +184,7 @@ impl Wireframe {
                 result._segment_occurrences.push(index);
             }
         }
-        if table
-            .geometric_curve_set
-            .keys()
-            .any(|id| !result._sets.contains_key(id))
+        if curve_sets.iter().any(|id| !result._sets.contains_key(id))
         {
             return Err("unreferenced source curve set was not traversed".into());
         }
@@ -217,7 +211,7 @@ impl Wireframe {
     }
 }
 
-fn source_line(records: &SourceRecords<'_>, table: &Table, id: u64) -> Result<SourceLine, String> {
+fn source_line(records: &SourceRecords<'_>, id: u64) -> Result<SourceLine, String> {
     let parameters = parameters(named_record(records, id, "TRIMMED_CURVE")?, 6)?;
     if !matches!(&parameters[0], Parameter::String(_))
         || !matches!(&parameters[5], Parameter::Enumeration(kind) if kind == "PARAMETER")
@@ -225,34 +219,42 @@ fn source_line(records: &SourceRecords<'_>, table: &Table, id: u64) -> Result<So
         return Err("only authored finite PARAMETER line trims are supported".into());
     }
     let basis_id = reference(&parameters[1])?;
-    named_record(records, basis_id, "LINE")?;
-    let holder = table
-        .line
-        .get(&basis_id)
-        .ok_or("typed LINE basis is missing")?
-        .clone();
-    let line = holder
-        .clone()
-        .into_owned(table)
-        .map_err(|error| error.to_string())?;
-    if line.pnt.coordinates.len() != 3
-        || line.dir.orientation.direction_ratios.len() != 3
-        || !line
-            .pnt
-            .coordinates
-            .iter()
-            .chain(&line.dir.orientation.direction_ratios)
-            .all(|x| x.is_finite())
-        || !line.dir.magnitude.is_finite()
-        || line.dir.magnitude <= 0.
+    let line = super::parameters(named_record(records, basis_id, "LINE")?, 3)?;
+    let point = |id: u64, kind: &str| -> Result<Vector3, String> {
+        let values = super::parameters(named_record(records, id, kind)?, 2)?;
+        let Parameter::List(values) = &values[1] else {
+            return Err(format!("{kind} #{id} lacks values"));
+        };
+        let [x, y, z] = values.as_slice() else {
+            return Err("invalid finite three-dimensional source LINE frame".into());
+        };
+        let value = |p: &Parameter| match p {
+            Parameter::Real(v) => Ok(*v),
+            Parameter::Integer(v) => Ok(*v as f64),
+            _ => Err("invalid finite three-dimensional source LINE frame".to_string()),
+        };
+        Ok(Vector3::new(value(x)?, value(y)?, value(z)?))
+    };
+    let origin = point(reference(&line[1])?, "CARTESIAN_POINT")?;
+    let vector_record = super::parameters(named_record(records, reference(&line[2])?, "VECTOR")?, 3)?;
+    let direction = point(reference(&vector_record[1])?, "DIRECTION")?;
+    let magnitude = match &vector_record[2] {
+        Parameter::Real(v) => *v,
+        Parameter::Integer(v) => *v as f64,
+        _ => return Err("invalid finite three-dimensional source LINE frame".into()),
+    };
+    if ![origin.x, origin.y, origin.z, direction.x, direction.y, direction.z]
+        .iter()
+        .all(|x| x.is_finite())
+        || !magnitude.is_finite()
+        || magnitude <= 0.
     {
         return Err("invalid finite three-dimensional source LINE frame".into());
     }
-    let direction = Vector3::from(&line.dir.orientation);
     if !direction.magnitude2().is_finite() || direction.magnitude2() == 0. {
         return Err("invalid source LINE direction".into());
     }
-    let vector = direction.normalize() * line.dir.magnitude;
+    let vector = direction.normalize() * magnitude;
     let interval = (
         trim_parameter(&parameters[2])?,
         trim_parameter(&parameters[3])?,
@@ -265,7 +267,7 @@ fn source_line(records: &SourceRecords<'_>, table: &Table, id: u64) -> Result<So
         Parameter::Enumeration(value) if value == "F" => false,
         _ => return Err("invalid source curve sense agreement".into()),
     };
-    let origin = Point3::from(&line.pnt);
+    let origin = Point3::new(origin.x, origin.y, origin.z);
     let mut endpoints = [origin + vector * interval.0, origin + vector * interval.1];
     if !sense {
         endpoints.swap(0, 1);
@@ -279,7 +281,6 @@ fn source_line(records: &SourceRecords<'_>, table: &Table, id: u64) -> Result<So
     }
     Ok(SourceLine {
         _basis_id: basis_id,
-        _source_line: holder,
         _interval: interval,
         _sense_agreement: sense,
         endpoints,

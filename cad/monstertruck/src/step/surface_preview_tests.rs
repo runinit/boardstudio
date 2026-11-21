@@ -280,13 +280,8 @@ fn original_panasonic_preserves_every_face_and_boundary_line() {
     let original = parser::parse(std::str::from_utf8(PANASONIC).unwrap()).unwrap();
     let records = source_records(&original);
     let retained = source_records(&model._original_source);
-    assert_eq!(
-        model.solids[&15].source[&10].shells()[0]
-            .shell()
-            .edges
-            .len(),
-        429
-    );
+    // Every authored edge of the one shell is retained: 425 two-use and 4 four-use.
+    assert_eq!(uses.len(), 429);
     let expected: BTreeSet<_> = records
         .iter()
         .filter(|(_, records)| records.iter().any(|record| record.name == "ADVANCED_FACE"))

@@ -1,11 +1,16 @@
 use super::*;
 use crate::export_tests::{StepRecords, assert_step_round_trip, id, list, num, step_text};
 use boardstudio_contracts::*;
-use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
-use monstertruck_modeling::*;
+pub(super) use super::brep::{Point3, Vector3};
+pub(super) use cgmath::prelude::*;
+pub(super) use oracle::*;
+
+mod oracle;
+
+pub(super) type Vector2 = cgmath::Vector2<f64>;
 
 pub(super) fn material(
-    mesh: &monstertruck_meshing::prelude::PolygonMesh,
+    mesh: &PolygonMesh,
     point: [f64; 3],
     inside: bool,
 ) {
@@ -48,8 +53,9 @@ pub(super) fn point_bounds(points: impl IntoIterator<Item = Point3>) -> [[f64; 3
     bounds
 }
 
-pub(super) fn check_solid(solid: &Solid) {
-    Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented topology");
+pub(super) fn check_solid<'a>(solid: impl std::borrow::Borrow<Solid<'a>>) {
+    let solid = solid.borrow();
+    Solid::try_new(solid.boundaries()).expect("closed consistently oriented topology");
     assert!(solid.is_geometric_consistent());
 }
 
@@ -86,7 +92,7 @@ pub(super) fn direct_analysis(model: &ExactModel, target: Option<f64>) -> Vec<Ve
         )
         .expect("analytic fixture must use direct tessellation")
         .into_iter()
-        .map(crate::qualification::proof_geometry::polygon)
+        .map(|mesh| PolygonMesh::from_triangles(mesh.triangle_points()))
         .collect::<Vec<_>>();
         for (face_index, (poly, face)) in faces.iter().zip(shell).enumerate() {
             let (occurrence, source) = occurrences.next().unwrap();
@@ -168,7 +174,7 @@ fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
     let model = build_layered_case(&plate()).expect("layered through-hole");
     assert_eq!(model.test_solids().len(), 1);
     let solid = &model.test_solids()[0];
-    Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented shell");
+    Solid::try_new(solid.boundaries()).expect("closed consistently oriented shell");
     assert!(solid.is_geometric_consistent());
     assert_eq!(
         solid
@@ -417,7 +423,8 @@ fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
             let expected = if inside { 1. } else { 0. };
             assert!((mesh_winding(fine, Point3::from(p)) - expected).abs() < 1e-8);
         }
-        let shell = &model.test_solids()[0].boundaries()[0];
+        let solids = model.test_solids();
+        let shell = &solids[0].boundaries()[0];
         for (mesh, deflection) in [(coarse, 0.1), (fine, tolerance)] {
             for (native, face) in shell.face_iter().zip(mesh) {
                 if !matches!(native.surface(), Surface::RevolutionSurface(_)) {
@@ -709,7 +716,7 @@ fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
     assert_eq!(model.test_solids().len(), 1);
     let solid = &model.test_solids()[0];
     assert_eq!(solid.boundaries().len(), 1);
-    Solid::try_new(solid.boundaries().clone())
+    Solid::try_new(solid.boundaries())
         .expect("closed consistently oriented native topology");
     assert!(solid.is_geometric_consistent());
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
@@ -814,7 +821,7 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
     let mut volumes = Vec::new();
     for solid in model.test_solids() {
         assert_eq!(solid.boundaries().len(), 1);
-        Solid::try_new(solid.boundaries().clone()).unwrap();
+        Solid::try_new(solid.boundaries()).unwrap();
         assert!(solid.is_geometric_consistent());
         volumes.push(
             shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
@@ -1200,7 +1207,7 @@ fn outward_material_split_by_opening_remains_two_valid_solids() {
     }
     assert_eq!(model.test_solids().len(), 2);
     for solid in model.test_solids() {
-        Solid::try_new(solid.boundaries().clone()).unwrap();
+        Solid::try_new(solid.boundaries()).unwrap();
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 512.).abs() < 1e-8);
     }

@@ -834,11 +834,3 @@ fn certify_rings(
         inner_radius,
     })
 }
-
-pub(super) fn certify_annulus(
-    text: &str,
-    shape: CircularExtrusion,
-    inner_radius: f64,
-) -> Result<CircularCertificate> {
-    certify_rings(text, shape, Some(inner_radius))
-}

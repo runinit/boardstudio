@@ -3,7 +3,7 @@
 mod export;
 pub use export::{StepBody, export_step, export_step_bodies};
 
-mod mesh;
+pub mod mesh;
 mod profile;
 
 pub use mesh::MeshBuffers;
