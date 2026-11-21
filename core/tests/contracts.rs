@@ -12,6 +12,17 @@ fn project_document_serialization_keeps_format_and_numeric_revision() {
 }
 
 #[test]
+fn rename_project_wire_payload_contains_only_the_name() {
+    let wire = json!({"kind": "rename-project", "name": "A new name"});
+    let operation: EditOperation = serde_json::from_value(wire.clone()).unwrap();
+    assert!(matches!(
+        &operation,
+        EditOperation::RenameProject { name } if name == "A new name"
+    ));
+    assert_eq!(serde_json::to_value(operation).unwrap(), wire);
+}
+
+#[test]
 fn boxed_public_payloads_keep_their_existing_json_shape() {
     let document = ProjectDoc::empty("boxed-contract", "Box compatibility");
     let operation = serde_json::to_value(EditOperation::ReplaceDocument {

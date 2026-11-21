@@ -1078,6 +1078,10 @@ pub enum EditOperation {
     RemoveConstraint {
         id: String,
     },
+    /// Changes only the project name. The name must contain a non-whitespace character.
+    RenameProject {
+        name: String,
+    },
     ReplaceDocument {
         document: Box<ProjectDoc>,
     },

@@ -50,16 +50,7 @@ fn rename(runtime: &Rc<Runtime>, name: &'static str) -> EditTicket {
         runtime,
         "project name",
         None,
-        EditResolver::new("rename", move |accepted| {
-            let mut document = (*accepted.document).clone();
-            document.name = name.into();
-            Resolution::submit(
-                vec![document.id.clone()],
-                EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-            )
-        }),
+        EditResolver::rename_project("rename", name.into()),
     )
 }
 

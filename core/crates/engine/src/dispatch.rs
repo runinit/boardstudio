@@ -1,4 +1,7 @@
-use super::apply::{affects_outline, apply_with_ledger, edit_dispatch, uses_prepared_transaction};
+use super::apply::{
+    affects_outline, apply_with_ledger, edit_dispatch, has_native_mirror_pair,
+    uses_prepared_transaction, validate_project_name,
+};
 use super::preview::{changed_ids, preview_electrical_loss_findings};
 use super::scene_reuse::{replacement_keeps_scene, stagger_outline_changes};
 use super::*;
@@ -335,6 +338,9 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
+        if let EditOperation::RenameProject { name } = command.operation {
+            return self.rename_project(id, command.transaction_id, command.phase, name);
+        }
         // A wholesale replacement is validated before layout can normalize
         // the incoming identities; publication validates its generated result again.
         if let EditOperation::ReplaceDocument { document } = &command.operation
@@ -604,6 +610,85 @@ impl CoreEngine {
         )
     }
 
+    fn rename_project(
+        &mut self,
+        id: String,
+        transaction: String,
+        phase: EditPhase,
+        name: String,
+    ) -> CoreReply {
+        if let Err(message) = validate_project_name(&name) {
+            return self.error(id, &message);
+        }
+        let name_changed = self.document.name != name;
+        let changed = if name_changed && !has_native_mirror_pair(&self.document) {
+            // Non-prepared replacements report every Part and Outline ID. The
+            // native-pair path diffs individual entities, so a rename reports none.
+            changed_ids(&self.document, &self.document)
+        } else {
+            vec![]
+        };
+        let kind = match phase {
+            EditPhase::Preview => SceneKind::Preview,
+            EditPhase::Commit => {
+                if name_changed {
+                    let Some(revision) = self.document.revision.checked_add(1) else {
+                        return self.error(id, "Document revision is exhausted");
+                    };
+                    self.record_undo(self.document.clone());
+                    self.document.name = name;
+                    self.document.revision = revision;
+                }
+                SceneKind::Committed
+            }
+        };
+        // The accepted geometry, findings and identity ledger have no project-name dependency.
+        self.scene_with_unchanged_geometry(id, transaction, changed, kind)
+    }
+
+    fn scene_with_unchanged_geometry(
+        &self,
+        id: String,
+        transaction: String,
+        changed: Vec<String>,
+        kind: SceneKind,
+    ) -> CoreReply {
+        if let Some(mut scene) = self.reusable_scene.clone() {
+            scene.revision = self.document.revision;
+            scene.transaction_id = transaction;
+            scene.changed_ids = changed;
+            return match kind {
+                SceneKind::Preview => CoreReply::Preview { id, scene },
+                SceneKind::Committed => CoreReply::Scene {
+                    id,
+                    scene,
+                    document: Box::new(self.document.clone()),
+                },
+            };
+        }
+        self.scene(
+            id,
+            SceneInput {
+                transaction: &transaction,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind,
+            },
+        )
+    }
+
+    fn record_undo(&mut self, previous: ProjectDoc) {
+        // Keep the latest 100 committed edits without retaining an unbounded document history.
+        if self.undo.len() == 100 {
+            self.undo.remove(0);
+        }
+        self.undo.push(previous);
+        self.redo.clear();
+    }
+
     fn publish_prepared_edit(&mut self, id: String, prepared: PreparedEdit) -> CoreReply {
         let PreparedEdit {
             transaction,
@@ -626,27 +711,16 @@ impl CoreEngine {
                 .map_or(&self.outline_cache, |(cache, _, _)| cache);
             outline_versions::refresh_recovery(&mut next, cache);
         }
-        // Keep the latest 100 committed edits without retaining an unbounded document history.
-        if self.undo.len() == 100 {
-            self.undo.remove(0);
-        }
-        self.undo.push(std::mem::replace(&mut self.document, next));
-        self.redo.clear();
+        let previous = std::mem::replace(&mut self.document, next);
+        self.record_undo(previous);
         self.identity_ledger.capture(&self.document);
         if reuse_scene {
-            let mut scene = self
-                .reusable_scene
-                .as_ref()
-                .expect("checked before publication")
-                .clone();
-            scene.revision = revision;
-            scene.transaction_id = transaction;
-            scene.changed_ids = changed;
-            return CoreReply::Scene {
+            return self.scene_with_unchanged_geometry(
                 id,
-                scene,
-                document: Box::new(self.document.clone()),
-            };
+                transaction,
+                changed,
+                SceneKind::Committed,
+            );
         }
         let rebuilt = outline.is_some();
         if let Some((cache, contours, findings)) = outline {

@@ -242,6 +242,20 @@ impl EditResolver {
         }
     }
 
+    /// Rebase a project rename onto the accepted snapshot when the edit runs.
+    /// The caller admits and trims the field value before creating this resolver.
+    pub fn rename_project(label: impl Into<String>, name: String) -> Self {
+        Self::new(label, move |accepted| {
+            if accepted.document.name == name {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![accepted.document.id.clone()],
+                EditOperation::RenameProject { name: name.clone() },
+            )
+        })
+    }
+
     /// Run the resolver against an accepted snapshot. Session calls this at execution;
     /// presentation tests with a fake runtime call it to stand in for Session.
     pub fn resolve(&self, accepted: &AcceptedSnapshot) -> Resolution {

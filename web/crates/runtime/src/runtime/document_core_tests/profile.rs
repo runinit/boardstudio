@@ -94,82 +94,132 @@ fn fixture(large: bool) -> ProjectDoc {
     document
 }
 
+async fn profile_runtime(mut document: ProjectDoc, suffix: &str) -> Rc<Runtime> {
+    document.id.push_str(suffix);
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let runtime = runtime_with_core(Box::new(move |request| {
+        let _timer = Timer::start(Phase::Core);
+        engine.handle(request)
+    }));
+    let opened = submit(&runtime, |operation_id| Event::Open {
+        operation_id,
+        document,
+    });
+    assert_eq!(wait_for_outcome(&opened).await, TerminalOutcome::Completed);
+    runtime
+}
+
+fn legacy_rename(runtime: &Rc<Runtime>, name: &'static str) -> EditTicket {
+    EditTicket::begin(
+        runtime,
+        "project name",
+        None,
+        EditResolver::new("rename", move |accepted| {
+            let mut document = (*accepted.document).clone();
+            document.name = name.into();
+            Resolution::submit(
+                vec![document.id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            )
+        }),
+    )
+}
+
+async fn profile_ticket(
+    runtime: &Rc<Runtime>,
+    submit: impl FnOnce() -> EditTicket,
+) -> (AcceptedSnapshot, [f64; 5]) {
+    let initial = runtime.model().accepted.unwrap();
+    let revision = initial.document.revision + 1;
+    SAMPLE.set(Some([None; 4]));
+    let start = now();
+    let ticket = submit();
+    let elapsed = now() - start;
+    assert_eq!(runtime.model().durability, Durability::Saving { revision });
+    assert_eq!(runtime.model().accepted.unwrap().token, initial.token);
+    let outcome = runtime.observe_operation(ticket.operation());
+    assert_eq!(wait_for_outcome(&outcome).await, TerminalOutcome::Completed);
+    assert_eq!(ticket.settlement(true), Settlement::Landed { revision });
+    let accepted = runtime.model().accepted.unwrap();
+    assert_ne!(accepted.token, initial.token);
+    assert_eq!(accepted.session_epoch, initial.session_epoch);
+    assert_eq!(accepted.scene.revision, revision);
+    let [core, save, publish, settlement] = SAMPLE.take().unwrap().map(Option::unwrap);
+    (accepted, [elapsed, core, save, publish, settlement])
+}
+
+fn report(size: &str, label: &str, samples: &[[f64; 5]]) {
+    for (index, phase) in [
+        "ticket submit",
+        "Core handle",
+        "prepare save + notify",
+        "publish snapshot + notify",
+        "deliver settlement",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut values: Vec<_> = samples.iter().map(|sample| sample[index]).collect();
+        values.sort_by(f64::total_cmp);
+        web_sys::console::log_1(
+            &format!(
+                "{size} / {label} / {phase}: n=100, p50={:.3} ms, p95={:.3} ms",
+                values[49], values[94],
+            )
+            .into(),
+        );
+    }
+}
+
 #[wasm_bindgen_test]
 async fn page_core_profiles_rename_and_stagger_submission() {
     for (size, large) in [("2 keys", false), ("60 keys", true)] {
-        let mut engine = boardstudio_core::CoreEngine::new();
-        let runtime = runtime_with_core(Box::new(move |request| {
-            let _timer = Timer::start(Phase::Core);
-            engine.handle(request)
-        }));
         let document = fixture(large);
-        let opened = submit(&runtime, |operation_id| Event::Open {
-            operation_id,
-            document,
-        });
-        assert_eq!(wait_for_outcome(&opened).await, TerminalOutcome::Completed);
-
-        for label in ["rename", "column stagger"] {
-            let mut samples: [Vec<f64>; 5] = std::array::from_fn(|_| Vec::with_capacity(100));
-            for i in 0..124 {
-                let initial = runtime.model().accepted.unwrap();
-                let revision = initial.document.revision + 1;
-                let name = ["First name", "Second name"][i % 2];
-                let value = [2.0, 4.0][i % 2];
-                SAMPLE.set(Some([None; 4]));
-                let start = now();
-                let ticket = if label == "rename" {
-                    rename(&runtime, name)
+        let legacy = profile_runtime(document.clone(), "-legacy-rename").await;
+        let typed = profile_runtime(document.clone(), "-typed-rename").await;
+        let mut rename_samples = [Vec::with_capacity(100), Vec::with_capacity(100)];
+        for i in 0..124 {
+            let name = ["First name", "Second name"][i % 2];
+            // Give both operations the same sequence of names and alternate which
+            // runs first, within the same release build and browser process.
+            for lane in [i % 2, 1 - i % 2] {
+                let (accepted, sample) = if lane == 0 {
+                    profile_ticket(&legacy, || legacy_rename(&legacy, name)).await
                 } else {
-                    stagger(&runtime, "matrix", value)
+                    profile_ticket(&typed, || rename(&typed, name)).await
                 };
-                let elapsed = now() - start;
-                assert_eq!(runtime.model().durability, Durability::Saving { revision });
-                assert_eq!(runtime.model().accepted.unwrap().token, initial.token);
-                let outcome = runtime.observe_operation(ticket.operation());
-                assert_eq!(wait_for_outcome(&outcome).await, TerminalOutcome::Completed);
-                assert_eq!(ticket.settlement(true), Settlement::Landed { revision });
-                let accepted = runtime.model().accepted.unwrap();
-                assert_ne!(accepted.token, initial.token);
-                assert_eq!(accepted.session_epoch, initial.session_epoch);
-                assert_eq!(accepted.scene.revision, revision);
-                if label == "rename" {
-                    assert_eq!(accepted.document.name, name);
-                } else {
-                    assert_eq!(
-                        accepted.document.matrices[0].column_layout[0].stagger,
-                        value
-                    );
-                }
-                let stages = SAMPLE.take().unwrap().map(Option::unwrap);
+                assert_eq!(accepted.document.name, name);
                 if i >= 24 {
-                    for (sample, value) in
-                        samples.iter_mut().zip([elapsed].into_iter().chain(stages))
-                    {
-                        sample.push(value);
-                    }
+                    rename_samples[lane].push(sample);
                 }
-            }
-            for (phase, samples) in [
-                "ticket submit",
-                "Core handle",
-                "prepare save + notify",
-                "publish snapshot + notify",
-                "deliver settlement",
-            ]
-            .into_iter()
-            .zip(&mut samples)
-            {
-                samples.sort_by(f64::total_cmp);
-                web_sys::console::log_1(
-                    &format!(
-                        "{size} / {label} / {phase}: n=100, p50={:.3} ms, p95={:.3} ms",
-                        samples[49], samples[94],
-                    )
-                    .into(),
-                );
             }
         }
+        let legacy_snapshot = legacy.model().accepted.unwrap();
+        let typed_snapshot = typed.model().accepted.unwrap();
+        assert_eq!(legacy_snapshot.scene, typed_snapshot.scene);
+        let mut expected = (*legacy_snapshot.document).clone();
+        expected.id.clone_from(&typed_snapshot.document.id);
+        assert_eq!(&expected, typed_snapshot.document.as_ref());
+        report(size, "legacy rename", &rename_samples[0]);
+        report(size, "typed rename", &rename_samples[1]);
+
+        let runtime = profile_runtime(document, "-column-stagger").await;
+        let mut samples = Vec::with_capacity(100);
+        for i in 0..124 {
+            let value = [2.0, 4.0][i % 2];
+            let (accepted, sample) =
+                profile_ticket(&runtime, || stagger(&runtime, "matrix", value)).await;
+            assert_eq!(
+                accepted.document.matrices[0].column_layout[0].stagger,
+                value
+            );
+            if i >= 24 {
+                samples.push(sample);
+            }
+        }
+        report(size, "column stagger", &samples);
     }
 }
 

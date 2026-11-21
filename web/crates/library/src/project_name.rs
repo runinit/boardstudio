@@ -2,8 +2,7 @@
 //! drive the real Session and Core through the native Runtime; the Library panel binds
 //! the resulting resolver to its name field through `PendingEditSignals`.
 
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
-use boardstudio_model::model::{EditOperation, ProjectDoc};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, SessionEpoch};
 use boardstudio_web_runtime::runtime::Runtime;
 use std::cell::Cell;
 
@@ -42,16 +41,6 @@ pub(crate) enum ProjectNameRejection {
     Empty,
 }
 
-fn renamed_document(document: &ProjectDoc, value: &str) -> Option<ProjectDoc> {
-    let name = value.trim();
-    if name.is_empty() || name == document.name {
-        return None;
-    }
-    let mut renamed = document.clone();
-    renamed.name = name.to_owned();
-    Some(renamed)
-}
-
 /// Admit a rename commit for `owner` and build the resolver that applies it to whatever
 /// document is accepted when the edit runs.
 pub(crate) fn project_name_resolver(
@@ -74,26 +63,14 @@ pub(crate) fn project_name_resolver(
     if name.is_empty() {
         return Err(ProjectNameRejection::Empty);
     }
-    Ok(EditResolver::new(
-        "project-name",
-        move |accepted: &AcceptedSnapshot| {
-            let Some(document) = renamed_document(&accepted.document, &name) else {
-                return Resolution::Unchanged;
-            };
-            Resolution::submit(
-                vec![document.id.clone()],
-                EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-            )
-        },
-    ))
+    Ok(EditResolver::rename_project("project-name", name))
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use boardstudio_application::Event;
+    use boardstudio_model::model::{EditOperation, ProjectDoc};
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use std::rc::Rc;
 
@@ -151,6 +128,15 @@ mod tests {
     fn rename_lands_trimmed_and_same_name_changes_nothing() {
         let runtime = open("rename-lands", "Original");
         let current = owner(&runtime);
+        let accepted = runtime.model().accepted.unwrap();
+        let resolver = project_name_resolver(&runtime, &current, &Cell::new(true), "  Renamed  ")
+            .expect("rename admitted");
+        assert!(matches!(
+            resolver.resolve(&accepted),
+            boardstudio_application::Resolution::Submit(command)
+                if command.target_ids == [accepted.document.id.clone()]
+                    && command.operation == (EditOperation::RenameProject { name: "Renamed".into() })
+        ));
         let mut edits = PendingEdits::default();
 
         rename(&runtime, &mut edits, &current, "  Renamed  ");

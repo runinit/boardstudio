@@ -406,6 +406,10 @@ pub fn canonicalize_with_dispatch(
         Op::ReplaceDocument { .. } => {
             canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
         }
+        Op::RenameProject { .. } => {
+            canonical.coverage =
+                Coverage::DeliberatelyUnchanged("project name is document metadata");
+        }
         // Ticket 33: the key-size planner pre-computes both halves of a linked
         // pair, so the typed resize travels exactly as written.
         Op::SetKeycapSize { .. } => {

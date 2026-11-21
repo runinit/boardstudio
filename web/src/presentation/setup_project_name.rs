@@ -99,22 +99,8 @@ pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEd
             draft.set(Some((id.clone(), current.document.name.clone())));
             return;
         }
-        let resolver = boardstudio_application::EditResolver::new(
-            "setup-project-name",
-            move |accepted: &boardstudio_application::AcceptedSnapshot| {
-                if accepted.document.name == proposed {
-                    return boardstudio_application::Resolution::Unchanged;
-                }
-                let mut document = accepted.document.as_ref().clone();
-                document.name = proposed.clone();
-                boardstudio_application::Resolution::submit(
-                    vec![document.id.clone()],
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                )
-            },
-        );
+        let resolver =
+            boardstudio_application::EditResolver::rename_project("setup-project-name", proposed);
         let ticket = EditTicket::begin(
             &runtime,
             "setup-project-name",
@@ -130,5 +116,75 @@ pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEd
         failure,
         on_change,
         on_commit,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::{
+        test_mount::MountedFixture, test_role::by_role_name, test_wait::wait_until,
+    };
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn host() -> Element {
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let edit = use_setup_project_name(use_context::<Rc<Runtime>>());
+        rsx! {
+            button {
+                onclick: move |_| {
+                    edit.on_change.call("  ".into());
+                    edit.on_commit.call(());
+                },
+                "Commit blank"
+            }
+            button {
+                onclick: move |_| {
+                    edit.on_change.call("  Setup name  ".into());
+                    edit.on_commit.call(());
+                },
+                "Commit name"
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_project_name_trims_and_preserves_undo() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, ProjectDoc::empty("setup-name", "Original")).await;
+        let initial = runtime.model().accepted.unwrap();
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        let _mounted = MountedFixture::new(root.clone(), dom);
+        wait_until("setup name controls mount", || {
+            by_role_name(&root, "button", "Commit blank").is_some()
+        })
+        .await;
+        let click = |name| by_role_name(&root, "button", name).unwrap().click();
+        click("Commit blank");
+        support::run_pending(&runtime).await;
+        assert_eq!(runtime.model().accepted.unwrap().token, initial.token);
+
+        click("Commit name");
+        support::run_pending(&runtime).await;
+        let renamed = runtime.model().accepted.unwrap();
+        assert_eq!(renamed.document.name, "Setup name");
+        assert_eq!(renamed.document.revision, initial.document.revision + 1);
+
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let undone = runtime.model().accepted.unwrap();
+        assert_eq!(undone.document.name, "Original");
+        assert_eq!(undone.document.revision, renamed.document.revision + 1);
     }
 }
