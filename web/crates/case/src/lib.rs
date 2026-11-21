@@ -47,6 +47,7 @@ pub(crate) mod parts {
     pub use boardstudio_web_catalogue::bundled::load_mounting_hole_definition;
 }
 
+mod case_assembly_projection;
 pub mod case_display;
 pub mod case_generation_admission;
 pub mod case_gesture_math;
