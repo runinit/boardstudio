@@ -1,6 +1,6 @@
 //! Public Core acceptance edges for ticket 111's activated mirrored-half routes.
+use super::parent_acceptance::{assert_history_document, commit_operation};
 use super::*;
-use std::collections::BTreeMap;
 
 fn electrical_notice_id(kind: &str, identities: &[&str]) -> String {
     let mut id = format!("preview:electrical:{kind}");
@@ -51,24 +51,6 @@ fn exception_operation_for(pair_id: &str, item_kind: &str, mirror_id: &str, stat
     })
 }
 
-fn commit_exception(
-    engine: &mut CoreEngine,
-    document: &Value,
-    pair_id: &str,
-    state: &str,
-) -> Value {
-    request(
-        engine,
-        json!({"id":format!("activation-{state}"),"kind":"edit","command":{
-            "baseRevision":document["revision"],
-            "transactionId":format!("activation-{state}"),
-            "phase":"commit",
-            "targetIds":["right/RST"],
-            "operation":exception_operation(pair_id, state)
-        }}),
-    )
-}
-
 fn net<'a>(document: &'a Value, id: &str) -> &'a Value {
     document["nets"]
         .as_array()
@@ -88,126 +70,115 @@ fn net_correspondence<'a>(document: &'a Value, pair_id: &str, source_id: &str) -
         .unwrap_or_else(|| panic!("plain net correspondence for {source_id} is missing"))
 }
 
-/// Local/Omit/Rejoin and Unlink use the activated public Core path with materialized closure
-/// geometry. The synthetic fixture's one authored closure mount is the source of expected IDs;
-/// this test does not introduce new closure geometry.
+/// Exercise Unlink both with a live Local exception and after Omit/Rejoin. The second
+/// case adds the fixture's authored closure mount and checks its materialization.
 #[test]
-fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
-    let source = synthetic_half::with_construction_features(runtime_supported_document());
-    let (mut engine, seed) = seed(&source, "left");
-    let created = create(
-        &mut engine,
-        &seed,
-        "activation-closure-pair",
-        "left",
-        new_board("right", "right"),
-        mapping(200.0),
-    )
-    .unwrap();
-    let pair_id = "activation-closure-pair";
-    let linked = created["document"].clone();
-    let expected_closures: BTreeSet<_> = ["left", "right"]
-        .into_iter()
-        .flat_map(|board| closure_holes(&linked, board))
-        .collect();
-    assert!(
-        !expected_closures.is_empty(),
-        "fixture must have a linked closure"
-    );
-    let expected_configurations: BTreeMap<_, _> = ["left", "right"]
-        .into_iter()
-        .map(|instance_id| {
-            let mut configuration = effective(&linked, instance_id);
-            // Unlink persists the identity reservations required by materialization.
-            // This legacy fixture has no reserved pair-owned opening or vertex IDs, so
-            // the documented zero-means-unset floor initializes each counter to one.
+fn public_exception_lifecycle_sequences_preserve_state_through_unlink() {
+    let source = runtime_supported_document();
+    for (pair_id, source, states, authored_mount) in [
+        (
+            "runtime-lifecycle-pair",
+            source.clone(),
+            &["local"][..],
+            None,
+        ),
+        (
+            "activation-closure-pair",
+            synthetic_half::with_construction_features(source),
+            &["local", "omitted", "linked"][..],
+            Some("synthetic-center-hole"),
+        ),
+    ] {
+        let (mut engine, seed) = seed(&source, "left");
+        let created = create(
+            &mut engine,
+            &seed,
+            pair_id,
+            "left",
+            new_board("right", "right"),
+            mapping(200.0),
+        )
+        .unwrap();
+        let linked = &created["document"];
+        let closure_ids = |document| ["left", "right"].map(|board| closure_holes(document, board));
+        let expected_closures = closure_ids(linked);
+        let expected_configurations = ["left", "right"].map(|instance_id| {
+            let mut configuration = effective(linked, instance_id);
+            // Unlink initializes the legacy zero-means-unset identity reservations.
             configuration["nextOpeningIdentity"] = json!(1);
             for opening in configuration["openings"].as_array_mut().unwrap() {
                 opening["nextVertexIdentity"] = json!(1);
             }
-            (instance_id, configuration)
-        })
-        .collect();
-    let expected_mount_ids = BTreeSet::from(["synthetic-center-hole"]);
-    for configuration in expected_configurations.values() {
-        let mount_ids: BTreeSet<_> = configuration["closureMounts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|mount| mount["id"].as_str().unwrap())
-            .collect();
-        assert_eq!(
-            mount_ids, expected_mount_ids,
-            "exact authored closure configuration ID"
+            configuration
+        });
+        if let Some(mount_id) = authored_mount {
+            assert!(expected_closures.iter().any(|ids| !ids.is_empty()));
+            for configuration in &expected_configurations {
+                let mount_ids: BTreeSet<_> = configuration["closureMounts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|mount| mount["id"].as_str().unwrap())
+                    .collect();
+                assert_eq!(mount_ids, BTreeSet::from([mount_id]));
+            }
+        }
+
+        let mut before_unlink = linked.clone();
+        for &state in states {
+            let reply = commit_operation(
+                &mut engine,
+                &before_unlink,
+                &format!("{pair_id}-{state}"),
+                &["right/RST"],
+                exception_operation(pair_id, state),
+            );
+            assert_eq!(reply["kind"], "scene", "{pair_id} {state}: {reply}");
+            before_unlink = reply["document"].clone();
+            let exceptions = pair(&before_unlink, pair_id)["halves"]["exceptions"]
+                .as_array()
+                .map_or(&[][..], Vec::as_slice);
+            let expected_target = (state != "omitted").then(|| part(linked, "right/RST"));
+            assert_eq!(
+                find_part(&before_unlink, "right/RST"),
+                expected_target,
+                "{pair_id} {state}"
+            );
+            if state == "linked" {
+                assert!(exceptions.is_empty(), "{pair_id} Rejoin: {exceptions:?}");
+            } else {
+                assert_eq!(exceptions.len(), 1, "{pair_id} {state}");
+                assert_eq!(exceptions[0]["kind"], "part");
+                assert_eq!(exceptions[0]["mirrorId"], "right/RST");
+                assert_eq!(exceptions[0]["state"], state);
+            }
+        }
+
+        let unlinked = commit_operation(
+            &mut engine,
+            &before_unlink,
+            &format!("{pair_id}-unlink"),
+            &[],
+            json!({"kind":"unlink-halves","pairId":pair_id}),
         );
-    }
-
-    let localized = commit_exception(&mut engine, &linked, pair_id, "local");
-    assert_eq!(localized["kind"], "scene", "{localized}");
-    assert_eq!(
-        pair(&localized["document"], pair_id)["halves"]["exceptions"][0]["state"],
-        "local"
-    );
-    assert!(find_part(&localized["document"], "right/RST").is_some());
-
-    let omitted = commit_exception(&mut engine, &localized["document"], pair_id, "omitted");
-    assert_eq!(omitted["kind"], "scene", "{omitted}");
-    assert!(find_part(&omitted["document"], "right/RST").is_none());
-    assert_eq!(
-        pair(&omitted["document"], pair_id)["halves"]["exceptions"][0]["state"],
-        "omitted"
-    );
-
-    let rejoined = commit_exception(&mut engine, &omitted["document"], pair_id, "linked");
-    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
-    assert!(find_part(&rejoined["document"], "right/RST").is_some());
-    assert!(
-        pair(&rejoined["document"], pair_id)["halves"]["exceptions"]
-            .as_array()
-            .is_none_or(|exceptions| exceptions.is_empty()),
-        "Rejoin should clear the exception; absent and empty are both valid: {}",
-        pair(&rejoined["document"], pair_id)["halves"]["exceptions"]
-    );
-    let before_unlink = rejoined["document"].clone();
-
-    let unlinked = request(
-        &mut engine,
-        json!({"id":"activation-unlink","kind":"edit","command":{
-            "baseRevision":before_unlink["revision"],
-            "transactionId":"activation-unlink",
-            "phase":"commit",
-            "targetIds":[],
-            "operation":{"kind":"unlink-halves","pairId":pair_id}
-        }}),
-    );
-    assert_eq!(unlinked["kind"], "scene", "{unlinked}");
-    let unlinked_document = &unlinked["document"];
-    assert!(
-        unlinked_document["hardware"]["pairs"]
-            .as_array()
-            .is_none_or(|pairs| pairs.iter().all(|record| record["id"] != pair_id))
-    );
-    assert_eq!(
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| effective(unlinked_document, instance_id))
-            .collect::<Vec<_>>(),
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| expected_configurations[instance_id].clone())
-            .collect::<Vec<_>>(),
-        "Unlink materializes each linked effective configuration unchanged"
-    );
-    let actual_closures: BTreeSet<_> = ["left", "right"]
-        .into_iter()
-        .flat_map(|board| closure_holes(unlinked_document, board))
-        .collect();
-    assert_eq!(
-        actual_closures, expected_closures,
-        "exact materialized closure IDs"
-    );
-    for board_id in ["left", "right"] {
-        for closure_id in closure_holes(unlinked_document, board_id) {
+        assert_eq!(unlinked["kind"], "scene", "{pair_id}: {unlinked}");
+        let unlinked_document = &unlinked["document"];
+        assert!(
+            unlinked_document["hardware"]["pairs"]
+                .as_array()
+                .is_none_or(|pairs| pairs.iter().all(|record| record["id"] != pair_id))
+        );
+        assert_eq!(
+            unlinked_document["hardware"]["instances"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|instance| ["left", "right"].contains(&instance["id"].as_str().unwrap()))
+                .map(|instance| instance["constructionOwnership"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["local", "local"]
+        );
+        for closure_id in closure_ids(unlinked_document).into_iter().flatten() {
             let memberships = unlinked_document["boards"]
                 .as_array()
                 .unwrap()
@@ -221,73 +192,37 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
                 .count();
             assert_eq!(memberships, 1, "{closure_id} has one board membership");
         }
+
+        for (action, expected) in [("undo", &before_unlink), ("redo", unlinked_document)] {
+            let reply = request(
+                &mut engine,
+                json!({"id":format!("{pair_id}-unlink-{action}"),"kind":action}),
+            );
+            assert_eq!(reply["kind"], "scene", "{pair_id} {action}: {reply}");
+            assert_history_document(&reply["document"], expected, action);
+        }
+
+        let redone = snapshot(&mut engine);
+        // Core's persistence boundary is serialized project data handed to Open.
+        let saved: Value = serde_json::from_str(&redone.to_string()).unwrap();
+        let (_, reopened) = open(&saved);
+        for (stage, document) in [
+            ("unlink", unlinked_document),
+            ("redo", &redone),
+            ("open", &reopened),
+        ] {
+            assert_eq!(
+                ["left", "right"].map(|instance_id| effective(document, instance_id)),
+                expected_configurations,
+                "{pair_id} {stage} materializes the effective configurations"
+            );
+            assert_eq!(
+                closure_ids(document),
+                expected_closures,
+                "{pair_id} {stage} closure IDs"
+            );
+        }
     }
-    assert_eq!(
-        unlinked_document["hardware"]["instances"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|instance| ["left", "right"].contains(&instance["id"].as_str().unwrap()))
-            .map(|instance| instance["constructionOwnership"].as_str().unwrap())
-            .collect::<Vec<_>>(),
-        ["local", "local"]
-    );
-
-    let undone = request(
-        &mut engine,
-        json!({"id":"activation-unlink-undo","kind":"undo"}),
-    );
-    assert_eq!(undone["kind"], "scene", "{undone}");
-    assert!(
-        pair(&undone["document"], pair_id)["halves"]["exceptions"]
-            .as_array()
-            .is_none_or(|exceptions| exceptions.is_empty())
-    );
-    assert!(find_part(&undone["document"], "right/RST").is_some());
-    let redone = request(
-        &mut engine,
-        json!({"id":"activation-unlink-redo","kind":"redo"}),
-    );
-    assert_eq!(redone["kind"], "scene", "{redone}");
-    assert_eq!(
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| effective(&redone["document"], instance_id))
-            .collect::<Vec<_>>(),
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| expected_configurations[instance_id].clone())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        ["left", "right"]
-            .into_iter()
-            .flat_map(|board| closure_holes(&redone["document"], board))
-            .collect::<BTreeSet<_>>(),
-        expected_closures
-    );
-
-    // Core has no Save request: this is its public persisted-document handoff through serde/Open.
-    let saved: Value =
-        serde_json::from_str(&serde_json::to_string(&redone["document"]).unwrap()).unwrap();
-    let (_reopened_engine, reopened_document) = open(&saved);
-    assert_eq!(
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| effective(&reopened_document, instance_id))
-            .collect::<Vec<_>>(),
-        ["left", "right"]
-            .into_iter()
-            .map(|instance_id| expected_configurations[instance_id].clone())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        ["left", "right"]
-            .into_iter()
-            .flat_map(|board| closure_holes(&reopened_document, board))
-            .collect::<BTreeSet<_>>(),
-        expected_closures
-    );
 }
 
 /// A Local controller may own a mirror-authored pin on a private net. Rejoining it to its source
