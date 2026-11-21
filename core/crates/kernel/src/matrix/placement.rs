@@ -4,10 +4,11 @@
 use super::splay::rotate;
 use super::{OVERRIDE, member_id, valid_projection_matrix};
 use crate::model::{
-    EditOperation, Matrix, MatrixCell, MatrixPlacementChange, Mirror, MirroredExceptionState,
-    MirroredItemKind, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
+    ColumnLayout, EditOperation, Matrix, MatrixCell, MatrixPlacementChange, Mirror,
+    MirroredExceptionState, MirroredItemKind, OutlineFeature, Part, Pose2, ProjectDoc, Side, Vec2,
+    convert_offset_available,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn grow<T: Clone + Default>(values: &mut Vec<T>, index: usize) {
     if values.len() <= index {
@@ -17,6 +18,168 @@ fn grow<T: Clone + Default>(values: &mut Vec<T>, index: usize) {
 
 fn finite(value: Vec2) -> bool {
     value.x.is_finite() && value.y.is_finite()
+}
+
+fn set_stagger(
+    layout: &mut Vec<ColumnLayout>,
+    columns: u32,
+    column: u32,
+    value: f64,
+) -> Result<bool, &'static str> {
+    if column >= columns {
+        return Err("Matrix placement column is out of bounds");
+    }
+    if !value.is_finite() {
+        return Err("Matrix placement value is not finite");
+    }
+    let index = column as usize;
+    // Equal signed zeros are a no-op, retaining the stored value (or absent record).
+    if layout.get(index).map_or(0.0, |record| record.stagger) == value {
+        return Ok(false);
+    }
+    grow(layout, index);
+    layout[index].stagger = value;
+    Ok(true)
+}
+
+/// Update a clone of a settled document whose target passed full scene validation.
+/// The accepted parts, in draft order, supply the existing change-report oracle.
+/// Returning None leaves the draft untouched for the general placement path.
+pub fn try_settled_column_stagger(
+    doc: &mut ProjectDoc,
+    accepted_parts: &[Part],
+    matrix_id: &str,
+    column: u32,
+    value: f64,
+) -> Option<Vec<String>> {
+    if !doc.constraints.is_empty()
+        || doc
+            .layouts
+            .iter()
+            .any(|layout| layout.mirror_link.is_some())
+        || doc
+            .hardware
+            .iter()
+            .flat_map(|hw| &hw.pairs)
+            .any(|pair| pair.halves.is_some())
+        || doc.parts.iter().any(|part| part.anchor.is_some())
+        || doc.matrices.iter().any(|matrix| {
+            matrix.anchor.is_some() || matrix.cells.iter().any(|cell| !cell.assemblies.is_empty())
+        })
+    {
+        return None;
+    }
+    let matrix = doc
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == matrix_id)?;
+    let mut input = super::evaluation::input(matrix);
+    if !set_stagger(&mut input.column_layout, matrix.columns, column, value).ok()? {
+        return Some(vec![]);
+    }
+
+    // A valid saved matrix may still need SetMatrix to repair its generated
+    // parts or registrations. Only take the pose-only path if those writes
+    // would leave membership, order, and attributes intact.
+    let board = doc
+        .boards
+        .iter()
+        .find(|board| Some(&board.id) == matrix.board_id.as_ref())?;
+    let members: BTreeSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
+    let registration_matches = |ids: &[String], owns_matrix: bool| {
+        let registered = ids.iter().map(String::as_str).collect();
+        if owns_matrix {
+            members.is_subset(&registered)
+        } else {
+            members.is_disjoint(&registered)
+        }
+    };
+    if doc
+        .boards
+        .iter()
+        .any(|candidate| !registration_matches(&candidate.part_ids, candidate.id == board.id))
+        || doc.outline.iter().any(|feature| {
+            matches!(feature, OutlineFeature::PartEnvelope { id, part_ids, .. }
+            if !registration_matches(part_ids, board.outline_ids.contains(id)))
+        })
+    {
+        return None;
+    }
+    let parts: BTreeMap<_, _> = doc
+        .parts
+        .iter()
+        .enumerate()
+        .map(|(index, part)| (part.id.as_str(), index))
+        .collect();
+    if parts.contains_key(matrix_id) {
+        // The general change report also compares a part that shares the matrix ID.
+        return None;
+    }
+    let cells: BTreeMap<_, _> = matrix
+        .cells
+        .iter()
+        .map(|cell| ((cell.row, cell.column), cell))
+        .collect();
+    let mut owned = matrix.part_ids.iter();
+    let mut slots = Vec::with_capacity(matrix.part_ids.len());
+    for row in 0..matrix.rows {
+        for col in 0..matrix.columns {
+            let id = member_id(matrix_id, row, col);
+            let index = parts.get(id.as_str()).copied();
+            let cell = cells.get(&(row, col)).copied();
+            if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
+                if index.is_some() {
+                    return None;
+                }
+                continue;
+            }
+            let index = index?;
+            let part = &doc.parts[index];
+            let definition = cell
+                .and_then(|cell| cell.definition_id.as_ref())
+                .unwrap_or(&matrix.definition_id);
+            let variant = part
+                .properties
+                .as_ref()
+                .and_then(|props| props.get("variant"));
+            let variant_matches = match (variant, cell.and_then(|cell| cell.variant.as_ref())) {
+                (None, None) => true,
+                (Some(serde_json::Value::String(stored)), Some(authored)) => stored == authored,
+                _ => false,
+            };
+            if owned.next() != Some(&id)
+                || &part.definition_id != definition
+                || part.side != Side::Front
+                || !variant_matches
+            {
+                return None;
+            }
+            slots.push((index, row as usize, col as usize));
+        }
+    }
+    if owned.next().is_some() {
+        return None;
+    }
+
+    let first_column = column as usize;
+    let evaluated = super::kernel::evaluate_column_suffix(&input, first_column).ok()?;
+    matrix.column_layout = input.column_layout;
+    matrix.edge_gap.get_or_insert(Vec2 {
+        x: super::DEFAULT_EDGE_GAP_MM,
+        y: super::DEFAULT_EDGE_GAP_MM,
+    });
+    let mut changed = vec![matrix.id.clone()];
+    for (index, row, column) in slots {
+        let part = &mut doc.parts[index];
+        if column >= first_column && !super::overridden(part) {
+            // The legacy receipt tests equality, but the saved pose keeps its bits.
+            part.pose = evaluated[(column - first_column) * input.rows + row].pose;
+        }
+        if *part != accepted_parts[index] {
+            changed.push(part.id.clone());
+        }
+    }
+    Some(changed)
 }
 
 /// Apply one named placement change, changing only the entry it names. Existing
@@ -192,23 +355,9 @@ pub fn update(
             }
         }
         MatrixPlacementChange::ColumnStagger { column, value } => {
-            if *column >= matrix.columns {
-                return Err("Matrix placement column is out of bounds".into());
+            if !set_stagger(&mut after.column_layout, matrix.columns, *column, *value)? {
+                return Ok(after);
             }
-            if !value.is_finite() {
-                return Err("Matrix placement value is not finite".into());
-            }
-            if after
-                .column_layout
-                .get(*column as usize)
-                .map(|record| record.stagger)
-                .unwrap_or(0.0)
-                == *value
-            {
-                return Ok(matrix.clone());
-            }
-            grow(&mut after.column_layout, *column as usize);
-            after.column_layout[*column as usize].stagger = *value;
         }
         MatrixPlacementChange::ColumnOffset { column, value } => {
             if *column >= matrix.columns {

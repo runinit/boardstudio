@@ -154,9 +154,26 @@ pub fn evaluate(
     input: &LayoutInput,
     anchor: RawAnchorContext,
 ) -> Result<MatrixLayout, &'static str> {
+    evaluate_from_column(input, anchor, 0)
+}
+
+/// Earlier cells of an accepted world layout keep their geometry. The column
+/// frame walk still starts at zero because Stagger and Splay carry forward.
+pub(super) fn evaluate_column_suffix(
+    input: &LayoutInput,
+    first_column: usize,
+) -> Result<Vec<CellLayout>, &'static str> {
+    Ok(evaluate_from_column(input, RawAnchorContext::World, first_column)?.cells)
+}
+
+fn evaluate_from_column(
+    input: &LayoutInput,
+    anchor: RawAnchorContext,
+    first_column: usize,
+) -> Result<MatrixLayout, &'static str> {
     validate(input, anchor)?;
     let matrix_frame = compose_matrix_frame(input, anchor)?;
-    let mut cells = Vec::with_capacity(input.rows * input.columns);
+    let mut cells = Vec::with_capacity(input.rows * (input.columns - first_column));
     let mut columns = Vec::with_capacity(input.columns);
     let mut base = Vec2::default();
     let mut prefix = Pose2 {
@@ -232,6 +249,9 @@ pub fn evaluate(
         finite_pose(pose)?;
         finite_vec(base)?;
         finite_vec(origin)?;
+        if column < first_column {
+            continue;
+        }
         let mut cumulative_shift = Vec2::default();
         let mut cumulative_bend = 0.0;
         for row in 0..input.rows {
