@@ -13,7 +13,7 @@ pub use generated::{
     analyze_generated_body, build_assembly, build_case, export_cached_assembly, preview_body,
 };
 pub use keycaps::build_keycaps;
-pub use vendor_step::read_step_model;
+pub use vendor_step::{bake_bundled_step_model, read_baked_step_model, read_step_model};
 
 use js_sys::{Float32Array, Object, Reflect, Uint8Array};
 use metrics::Stage;

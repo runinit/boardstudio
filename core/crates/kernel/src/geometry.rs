@@ -1077,6 +1077,46 @@ mod tests {
     }
 
     #[test]
+    fn repeated_envelopes_still_resolve_each_side_and_keycap_override() {
+        let mut doc = fixture(5);
+        doc.definitions[0].courtyard = vec![
+            Vec2 { x: -1.0, y: -2.0 },
+            Vec2 { x: 4.0, y: -2.0 },
+            Vec2 { x: 4.0, y: 2.0 },
+            Vec2 { x: -1.0, y: 2.0 },
+        ];
+        for (part, x) in doc.parts.iter_mut().zip([0.0, 1.0, 2.0, 3.0, 4.0]) {
+            part.pose.at.x = x;
+        }
+        doc.parts[2].side = Side::Back;
+        doc.parts[3].keycap = Some(Vec2 { x: 2.0, y: 4.0 });
+        doc.parts[4].keycap = Some(Vec2 { x: 4.0, y: 4.0 });
+        doc.outline.truncate(1);
+        let OutlineFeature::PartEnvelope {
+            part_ids, margin, ..
+        } = &mut doc.outline[0]
+        else {
+            unreachable!();
+        };
+        *part_ids = doc.parts.iter().map(|part| part.id.clone()).collect();
+        *margin = 0.0;
+
+        let (_, contours, _) = outlines(&doc, None, &[]);
+        assert_eq!(contours.len(), 1);
+        let x: Vec<_> = contours[0].points.iter().map(|point| point.x).collect();
+        assert_eq!(x.iter().copied().reduce(f64::min), Some(-2.0));
+        assert_eq!(x.into_iter().reduce(f64::max), Some(6.0));
+
+        doc.parts[4].keycap.as_mut().unwrap().x = 0.0;
+        let (_, contours, findings) = outlines(&doc, None, &[]);
+        assert!(contours.is_empty());
+        assert!(findings.iter().any(|finding| {
+            finding.id == "outline:edge-0:invalid"
+                && finding.message == "Keycap dimensions must be positive"
+        }));
+    }
+
+    #[test]
     fn oversized_authored_outline_stays_saved_and_reports_a_finding() {
         let mut doc = fixture(1);
         let points = (0..=automatic::MAX_PERSISTED_OUTLINE_POINTS)

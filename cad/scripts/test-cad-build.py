@@ -269,7 +269,9 @@ class CadBuildTests(unittest.TestCase):
             "keycap-print-legends.cjs": "separate printable keycap export regression",
             "step-native-analytic.cjs": "standalone packaged-provider STEP refinement and face identity regression",
         }
-        mapped = {"step-face-completeness.cjs": "source for the required browser regression"}
+        mapped = {
+            "step-face-completeness.cjs": "source for the required browser regression",
+        }
         self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
         self.assertTrue(all(opt_in.values()) and all(mapped.values()))
 

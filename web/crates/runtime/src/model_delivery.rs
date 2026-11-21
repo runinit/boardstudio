@@ -296,6 +296,8 @@ pub fn select_model_asset(
 pub struct VerifiedModelBytes {
     bytes: Rc<[u8]>,
     sha256: String,
+    #[cfg(target_arch = "wasm32")]
+    packaged: bool,
 }
 
 impl VerifiedModelBytes {
@@ -310,7 +312,20 @@ impl VerifiedModelBytes {
         Ok(Self {
             bytes: Rc::from(bytes),
             sha256: actual,
+            #[cfg(target_arch = "wasm32")]
+            packaged: false,
         })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn with_packaged_source(mut self) -> Self {
+        self.packaged = true;
+        self
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn is_packaged(&self) -> bool {
+        self.packaged
     }
 
     pub fn bytes(&self) -> &[u8] {

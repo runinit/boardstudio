@@ -668,8 +668,9 @@ fn prepare_transaction(
     } else {
         ChangeScope::Full
     };
+    // Lifecycle projects matrixless pairs and supplies the poses used to retune constraints.
     changed.extend(prepare_lifecycle_pairs(
-        accepted, &mut draft, &canonical, dispatch, report,
+        accepted, &mut draft, &canonical, dispatch,
     )?);
 
     for addition in &canonical.matrix_additions {
@@ -696,7 +697,10 @@ fn prepare_transaction(
         &mut draft,
         operation_positions(&canonical.operation),
     )?);
-    changed.extend(reconcile_pairs(accepted, &mut draft, &canonical, report)?);
+    // Caller-owned draft: reconcile each pair in place without per-pair full reports. The
+    // outer transaction guarantees rollback and the single final scoped report below owns
+    // the ordered changed IDs.
+    reconcile_pairs(accepted, &mut draft, &canonical)?;
     // Ticket 29: a plain detach that moved its linked native partner
     // refuses with the ticket-23 confirmation proposal instead of silently
     // jumping geometry; the draft is discarded unchanged.

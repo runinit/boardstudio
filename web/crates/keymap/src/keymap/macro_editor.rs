@@ -1,6 +1,7 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -538,29 +539,17 @@ fn TextDraft(props: TextDraftProps) -> Element {
     let trim = props.trim_on_commit;
     let commit_if_unchanged = props.commit_if_unchanged;
     let id = format!("macro-text-{}", dioxus::core::current_scope_id().0);
-    let error_id = format!("{id}-error");
-    let message = failure();
     rsx! {
-        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
-            FieldLabel { html_for: id.clone(), "{props.label}" }
-            InputGroup { InputGroupInput {
-                id, aria_label: props.aria_label, value: "{draft}", disabled: !props.enabled,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
-                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
-                attributes: {
-                    let mut attributes = vec![dioxus::events::onblur(move |_| {
-                    let raw = draft();
-                    let value = if trim { raw.trim().to_owned() } else { raw };
-                    if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
-                    })];
-                    if let Some(max) = props.max_length { attributes.push(Attribute::new("maxlength", max.to_string(), None, false)); }
-                    attributes
-                }
-            } }
-            if let Some(message) = message.as_deref() {
-                div { id: error_id, FieldError { "{message}" } }
-            }
+        TextField {
+            id, label: props.label, aria_label: Some(props.aria_label), value: draft(),
+            disabled: !props.enabled, error: failure(),
+            maxlength: props.max_length.map(|max| max.to_string()),
+            oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+            onblur: move |_| {
+                let raw = draft();
+                let value = if trim { raw.trim().to_owned() } else { raw };
+                if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
+            },
         }
     }
 }

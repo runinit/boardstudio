@@ -16,6 +16,10 @@ pub use boardstudio_model::model;
 mod outline_validation;
 mod validate;
 
+#[cfg(feature = "test-support")]
+#[doc(hidden)]
+pub use validate::validate as validate_document_for_test;
+
 use boardstudio_core_kernel::{
     case, constraints, geometry, hardware, inputs, matrix, outline_controls, outline_versions,
 };

@@ -297,11 +297,29 @@ pub(super) async fn run_request(
                 Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
                     .map_err(|error| (request.clone(), js_message(error), false))?;
             }
-            let result = invoke(
-                "read_step_model",
-                &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
-            )
-            .map_err(|error| (request.clone(), error, false))?;
+            let loader = queue.borrow().load_baked_step.clone();
+            let baked = if request.packaged_step && step_options == CadStepImportOptions::default()
+            {
+                match loader {
+                    Some(loader) => load_baked_step(&loader, expected).await,
+                    None => None,
+                }
+            } else {
+                None
+            };
+            if canceled() {
+                return Err((request, "CAD job cancelled".into(), true));
+            }
+            let baked = baked
+                .and_then(|data| invoke("read_baked_step_model", &[data, expected.into()]).ok());
+            let result = match baked {
+                Some(result) => result,
+                None => invoke(
+                    "read_step_model",
+                    &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
+                )
+                .map_err(|error| (request.clone(), error, false))?,
+            };
             let vendor = Reflect::get(&result, &"vendorStep".into())
                 .map_err(|e| (request.clone(), js_message(e), false))?;
             staged = Some(
@@ -567,4 +585,12 @@ pub(super) async fn yield_to_worker() {
     {
         let _ = JsFuture::from(promise).await;
     }
+}
+
+async fn load_baked_step(loader: &Function, sha256: &str) -> Option<JsValue> {
+    let pending = loader.call1(&JsValue::NULL, &sha256.into()).ok()?;
+    let bytes = JsFuture::from(pending.dyn_into::<Promise>().ok()?)
+        .await
+        .ok()?;
+    bytes.dyn_into::<Uint8Array>().ok().map(Into::into)
 }

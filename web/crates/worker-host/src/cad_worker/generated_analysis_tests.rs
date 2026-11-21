@@ -235,6 +235,7 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
         collision_meshes: None,
         keycaps: None,
         input_bytes: vec![],
+        packaged_step: false,
     };
     let queue = Rc::new(RefCell::new(WorkerQueue::default()));
     let module = super::qualification_tests::controlled_provider(true);

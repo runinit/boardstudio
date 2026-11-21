@@ -8,6 +8,10 @@ use js_sys::{Float32Array, Float64Array, Object, Uint32Array, Uint8Array};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 
+mod baked;
+
+pub use baked::{bake_bundled_step_model, read_baked_step_model};
+
 const MAX_STEP_BYTES: u32 = 32 * 1024 * 1024;
 
 #[derive(Clone, Deserialize)]
@@ -18,7 +22,7 @@ struct ReadStepOptions {
     target_deflection_mm: Option<f64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ImportOptionsDto {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -27,31 +31,25 @@ struct ImportOptionsDto {
     target_deflection_mm: Option<f64>,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 struct ReadStepAsset {
-    #[serde(skip)]
     analysis: boardstudio_cad::qualification::PreparedAnalysisMesh,
     mesh: MeshDto,
     bounds: BoundsDto,
     vendor_step: VendorStepDto,
 }
 
-#[derive(Serialize)]
 struct MeshDto {
-    #[serde(skip)]
     positions: Vec<f32>,
-    #[serde(skip)]
     normals: Vec<f32>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct BoundsDto {
     min: [f64; 3],
     max: [f64; 3],
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VendorStepDto {
     source_sha256: String,
@@ -74,7 +72,7 @@ struct VendorStepDto {
     segment_line_occurrence_indices: Vec<u32>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceFaceDto {
     solid_id: String,
@@ -84,7 +82,7 @@ struct SourceFaceDto {
     support_kind: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FaceOccurrenceDto {
     source_face_index: u32,
@@ -108,7 +106,7 @@ struct LineOccurrenceDto {
     declared_uncertainty_mm: Option<f64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PrecisionDto {
     representation_id: String,
@@ -117,7 +115,7 @@ struct PrecisionDto {
     declarations: Vec<UncertaintyDto>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UncertaintyDto {
     entity_id: String,
@@ -125,7 +123,7 @@ struct UncertaintyDto {
     millimetres: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AccuracyDto {
     preview_deflection_mm: f64,

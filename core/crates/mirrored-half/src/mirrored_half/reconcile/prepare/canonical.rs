@@ -8,7 +8,6 @@ pub(super) fn prepare_lifecycle_pairs(
     document: &mut ProjectDoc,
     canonical: &Canonical,
     dispatch: crate::mirrored_half::EditDispatch,
-    report: ChangeScope,
 ) -> Result<Vec<String>, String> {
     if matches!(
         canonical.operation,
@@ -59,7 +58,6 @@ pub(super) fn prepare_lifecycle_pairs(
             &pair_id,
             &canonical.operation,
             dispatch,
-            report,
         )? {
             changed.extend(prepared.changed_document_ids);
             *document = prepared.draft;
