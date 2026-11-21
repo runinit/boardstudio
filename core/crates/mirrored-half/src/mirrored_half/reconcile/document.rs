@@ -1,6 +1,6 @@
 //! Forward reconciliation of the mirror half from a validated projection.
 
-use super::changes::ChangeScope;
+use super::changes::changed_document_ids;
 use super::hosted::HostedOmissionClosure;
 use super::{
     HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, MatrixStage,
@@ -26,14 +26,14 @@ pub fn reconcile(
     pair_id: &str,
     projection: &Projection,
 ) -> Result<Vec<String>, String> {
-    reconcile_with_report(document, pair_id, projection, Some(ChangeScope::Full))
+    reconcile_with_report(document, pair_id, projection, true)
 }
 
 pub(super) fn reconcile_with_report(
     document: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
-    report: Option<ChangeScope>,
+    report: bool,
 ) -> Result<Vec<String>, String> {
     let hardware = document
         .hardware
@@ -1252,9 +1252,10 @@ pub(super) fn reconcile_with_report(
     crate::mechanical::halves::validate_document(validated_draft)
         .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
 
-    let changed_ids = match report {
-        Some(scope) => scope.ids(document, &staged, &[])?,
-        None => Vec::new(),
+    let changed_ids = if report {
+        changed_document_ids(document, &staged, &[])?
+    } else {
+        Vec::new()
     };
     *document = staged;
     {

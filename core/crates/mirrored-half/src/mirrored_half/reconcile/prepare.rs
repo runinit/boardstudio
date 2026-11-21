@@ -3,7 +3,7 @@
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
 //! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
-use super::changes::ChangeScope;
+use super::changes::changed_document_ids;
 use super::document::reconcile_with_report;
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
@@ -68,12 +68,12 @@ pub fn prepare_open(
         let mut matrices = pair_projection.matrix_links().peekable();
         if matrices.peek().is_none() {
             let projection = super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
-            reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
+            reconcile_with_report(&mut draft, &pair.pair_id, &projection, false)?;
         }
         for matrix_link in matrices {
             let projection =
                 projection_for(&draft, &draft, None, &pair_projection, matrix_link, false)?;
-            reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
+            reconcile_with_report(&mut draft, &pair.pair_id, &projection, false)?;
         }
     }
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
@@ -663,11 +663,6 @@ fn prepare_transaction(
         validate_prepared_draft(accepted, &draft, &canonical.operation)?;
         return Ok((draft, changed));
     }
-    let report = if directed && stable_placement(accepted, &draft, &canonical.operation) {
-        ChangeScope::Placement
-    } else {
-        ChangeScope::Full
-    };
     // Project pairs before binding deferred retunes, which read the projected poses.
     changed.extend(prepare_lifecycle_pairs(
         accepted, &mut draft, &canonical, dispatch, directed,
@@ -728,7 +723,12 @@ fn prepare_transaction(
 
     validate_prepared_draft(accepted, &draft, &canonical.operation)?;
 
-    let changed = report.ids(accepted, &draft, &changed)?;
+    #[cfg(test)]
+    if !directed {
+        let changed = super::changes::legacy_changed_document_ids(accepted, &draft, &changed)?;
+        return Ok((draft, changed));
+    }
+    let changed = changed_document_ids(accepted, &draft, &changed)?;
     Ok((draft, changed))
 }
 
