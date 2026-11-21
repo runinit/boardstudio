@@ -4,6 +4,41 @@ use crate::independent_exceptions::{independent_lifecycle_fixture, local_transit
 use crate::multi_matrix_and_replacement::prepare_exception_intent;
 
 #[test]
+fn local_matrix_without_part_links_rejects_stale_lifecycle_board_ids() {
+    let (mut doc, original) = local_transition_fixture().unwrap();
+    let pair = &mut doc.hardware.as_mut().unwrap().pairs[0];
+    let halves = pair.halves.as_mut().unwrap();
+    halves
+        .correspondences
+        .retain(|row| row.kind == MirroredItemKind::Matrix);
+    halves.exceptions = vec![MirroredException {
+        kind: MirroredItemKind::Matrix,
+        mirror_id: "mirror-matrix".into(),
+        state: MirroredExceptionState::Local,
+        companion_mode: None,
+        companion_tweak: None,
+        removed_copper: None,
+    }];
+    let context = lifecycle_context(&doc, &original.pair_id, original.matrix_pair).unwrap();
+    let prepare = |context: &MembershipContext| {
+        prepare_lifecycle_transition(&doc, &doc, context, crate::support::test_dispatch())
+    };
+    prepare(&context).expect("canonical matrix-only context is valid");
+    for source in [true, false] {
+        let mut stale = context.clone();
+        if source {
+            stale.source_board_id = "stale-source".into();
+        } else {
+            stale.mirror_board_id = "stale-mirror".into();
+        }
+        assert_eq!(
+            prepare(&stale).err().as_deref(),
+            Some("The reconciliation input does not match its canonical pair")
+        );
+    }
+}
+
+#[test]
 fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     let (before, mut context) = independent_lifecycle_fixture();
     for association in context.associations.iter_mut().filter(|a| {

@@ -528,13 +528,19 @@ pub(super) fn prepare_lifecycle_projection(
     // reconciliation can validate it and project the other linked records.
     let mut projection =
         super::super::projection_for_pair(&output.context.pair_right, context.mapping);
-    projection.matrix = context
-        .matrix_pair
-        .as_ref()
-        .map(|pair| super::super::MatrixLink {
+    if let Some(pair) = &context.matrix_pair {
+        // Reconciliation authenticates the caller's board IDs against the stored pair.
+        projection
+            .source_board_id
+            .clone_from(&context.source_board_id);
+        projection
+            .mirror_board_id
+            .clone_from(&context.mirror_board_id);
+        projection.matrix = Some(super::super::MatrixLink {
             source_matrix_id: pair.source_id.clone(),
             mirror_matrix_id: pair.mirror_id.clone(),
         });
+    }
     // Inherited state is effective projection policy, not an additional stored exception: the
     // engine sees a transient overlay for each inherited child, and the stored halves return below.
     let engine_halves = output
