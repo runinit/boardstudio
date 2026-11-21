@@ -1,9 +1,11 @@
 use super::*;
-use boardstudio_core::validate_document_for_test;
-use boardstudio_core_kernel::geometry;
+use boardstudio_core::{apply_for_test, validate_document_for_test};
+use boardstudio_core_kernel::{geometry, matrix::layout};
 use boardstudio_model::model::{
     EditCommand, EditPhase, MatrixPlacementChange, OutlineFeature, RowLayout,
 };
+use boardstudio_model::wire::encode_core_reply;
+use sha2::{Digest, Sha256};
 use std::hint::black_box;
 
 #[derive(Clone, Copy)]
@@ -268,6 +270,14 @@ fn profile_isolated<T>(
     });
 }
 
+fn report_wire_hash(size: &str, label: &str, reply: &CoreReply) {
+    let digest: String = Sha256::digest(encode_core_reply(reply))
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    web_sys::console::log_1(&format!("{size} / {label} wire SHA-256 = {digest}").into());
+}
+
 #[wasm_bindgen_test]
 fn page_core_profiles_stagger_preview() {
     for (size, large) in [("2 keys", false), ("60 keys", true)] {
@@ -302,8 +312,11 @@ fn page_core_profiles_stagger_preview() {
                 let start = now();
                 let reply = black_box(engine.handle(request));
                 let elapsed = now() - start;
-                assert!(matches!(reply, CoreReply::Preview { scene, .. }
+                assert!(matches!(&reply, CoreReply::Preview { scene, .. }
                     if scene.revision == 0 && !scene.changed_ids.is_empty()));
+                if i == 24 {
+                    report_wire_hash(size, label, &reply);
+                }
                 elapsed
             });
         }
@@ -385,5 +398,75 @@ fn page_core_profiles_outline_rebuild_in_isolation() {
             assert_eq!(scene, snapshot_scene);
             elapsed
         });
+        let operation = EditOperation::SetMatrixPlacement {
+            matrix_id: "matrix".into(),
+            change: MatrixPlacementChange::ColumnStagger {
+                column: document.matrices[0].columns - 1,
+                value: 4.0,
+            },
+        };
+        let reply = engine.handle(CoreRequest::Edit {
+            id: "stagger-for-outline-profile".into(),
+            command: EditCommand {
+                base_revision: document.revision,
+                transaction_id: "stagger-for-outline-profile".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["matrix".into()],
+                operation: operation.clone(),
+            },
+        });
+        report_wire_hash(size, "last column Commit", &reply);
+        let CoreReply::Scene {
+            document: staggered,
+            ..
+        } = reply
+        else {
+            panic!("could not settle the outline profile stagger");
+        };
+        let moved: Vec<_> = document
+            .parts
+            .iter()
+            .zip(&staggered.parts)
+            .filter(|(before, after)| before != after)
+            .map(|(_, part)| part.id.clone())
+            .collect();
+        assert_eq!(moved.len(), document.matrices[0].rows as usize);
+        assert_eq!(document.layouts, staggered.layouts);
+        assert_eq!(document.boards, staggered.boards);
+        assert_eq!(document.outline, staggered.outline);
+        profile_samples(size, "last-column edit apply + layout resolve", 1, |_| {
+            let mut draft = document.clone();
+            let start = now();
+            let changed = apply_for_test(&mut draft, &[], &operation);
+            let resolved = layout::resolve(&mut draft);
+            let elapsed = now() - start;
+            assert!(!changed.unwrap().is_empty());
+            resolved.unwrap();
+            assert_eq!(draft.parts, staggered.parts);
+            assert_eq!(draft.matrices, staggered.matrices);
+            elapsed
+        });
+        let (_, expected_contours, expected_findings) = geometry::outlines(&staggered, None, &[]);
+        profile_isolated(
+            size,
+            "settled last-column outline / envelope cache miss",
+            1,
+            || geometry::outlines(black_box(&staggered), Some(&cache), &moved),
+            |(_, contours, findings)| {
+                assert_eq!(contours, &expected_contours);
+                assert_eq!(findings, &expected_findings);
+            },
+        );
+        let (_, expected_contours, expected_findings) = geometry::outlines(&document, None, &[]);
+        profile_isolated(
+            size,
+            "accepted outline / envelope cache hit",
+            8,
+            || geometry::outlines(black_box(&document), Some(&cache), &[]),
+            |(_, contours, findings)| {
+                assert_eq!(contours, &expected_contours);
+                assert_eq!(findings, &expected_findings);
+            },
+        );
     }
 }
