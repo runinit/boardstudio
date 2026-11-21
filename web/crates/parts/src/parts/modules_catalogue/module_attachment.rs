@@ -117,39 +117,37 @@ pub fn ModuleAttachment(
             preparing.set(false);
             match settlement {
                 Settlement::Landed { .. } => {
-                        let model = runtime.model();
-                        let Some(accepted) = model.accepted.as_ref() else {
-                            return;
-                        };
-                        let Some(mounted) =
-                            accepted.document.modules.iter().rev().find(|mounted| {
-                                mounted.id == module_id
-                                    || mounted
-                                        .id
-                                        .strip_prefix(&format!("{module_id}-"))
-                                        .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
-                            })
-                        else {
-                            return;
-                        };
-                        let Some(attach_scope) = attach_scope.clone() else {
-                            return;
-                        };
-                        let navigation = AttachedModuleNavigation {
-                            scope: attach_scope,
-                            snapshot_token: accepted.token,
-                            revision: accepted.document.revision,
-                            module_id: mounted.id.clone(),
-                            definition_id: definition.id.clone(),
-                            selection_generation: initial_generation,
-                        };
-                        toasts.success("Module attached.".into(), ToastOptions::new());
-                        feedback.set(String::new());
-                        on_attached.call(navigation);
-                    }
-                    Settlement::Failed { message } => feedback.set(message),
-                    Settlement::Retired | Settlement::Pending => {}
+                    let model = runtime.model();
+                    let Some(accepted) = model.accepted.as_ref() else {
+                        return;
+                    };
+                    let Some(mounted) = accepted.document.modules.iter().rev().find(|mounted| {
+                        mounted.id == module_id
+                            || mounted
+                                .id
+                                .strip_prefix(&format!("{module_id}-"))
+                                .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
+                    }) else {
+                        return;
+                    };
+                    let Some(attach_scope) = attach_scope.clone() else {
+                        return;
+                    };
+                    let navigation = AttachedModuleNavigation {
+                        scope: attach_scope,
+                        snapshot_token: accepted.token,
+                        revision: accepted.document.revision,
+                        module_id: mounted.id.clone(),
+                        definition_id: definition.id.clone(),
+                        selection_generation: initial_generation,
+                    };
+                    toasts.success("Module attached.".into(), ToastOptions::new());
+                    feedback.set(String::new());
+                    on_attached.call(navigation);
                 }
+                Settlement::Failed { message } => feedback.set(message),
+                Settlement::Retired | Settlement::Pending => {}
+            }
         }
     }));
     let can_attach = scope.as_ref().is_some_and(|scope| {
@@ -174,7 +172,12 @@ pub fn ModuleAttachment(
     let attachment_port_id = module_port_id.clone();
     let attach = move |_| {
         let module_port_id = &attachment_port_id;
-        if preparing() || waiting.peek().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) {
+        if preparing()
+            || waiting
+                .peek()
+                .as_ref()
+                .is_some_and(|(ticket, _)| ticket.is_pending())
+        {
             return;
         }
         let Some(scope) = owner_scope.clone() else {
