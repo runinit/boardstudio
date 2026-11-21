@@ -159,6 +159,86 @@ pub fn LayoutAnchorPickOverlay(
     // corner; otherwise it docks above the rail like every other token.
     let feedback = use_signal(FeedbackState::default);
     let toast_gen = use_signal(|| 0_u64);
+    // Parent `version` via context drives settlement (see matrix overlay).
+    let parent_version = try_use_context::<Signal<u64>>();
+    let local_version = use_signal(|| 0_u64);
+    let version = parent_version.unwrap_or(local_version);
+    // Single-ticket Anchor commit: one waiting entry (ticket plus the toast
+    // its landing needs) settles on `version`. No keyed map or polling.
+    // `Landed` raises the carried toast only if the live anchor names the
+    // target; `Failed` reports (save failures included); `Retired` is silent.
+    // Dropping the entry releases its observers without cancelling the edit.
+    #[derive(Clone)]
+    struct AnchorPickFollowUp {
+        owner: LayoutOwnerIdentity,
+        context: TreeContext,
+        target: PickTarget,
+        item_label: String,
+        old_anchor_label: String,
+        new_anchor_label: String,
+    }
+    let waiting = use_signal(|| None::<(EditTicket, AnchorPickFollowUp)>);
+    use_effect(use_reactive((&version(),), {
+        let runtime = runtime.0.clone();
+        let mut waiting = waiting;
+        let mut feedback = feedback;
+        let mut toast_gen = toast_gen;
+        move |_| {
+            let Some((ticket, follow_up)) = waiting.read().clone() else {
+                return;
+            };
+            let live = transform_commit_is_live(
+                &runtime,
+                workspace,
+                scope_generation,
+                selected_context,
+                &follow_up.owner,
+                &follow_up.context,
+            );
+            match ticket.settlement(live) {
+                Settlement::Pending => {}
+                Settlement::Landed { .. } => {
+                    waiting.set(None);
+                    let landed = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                        anchor_pick_landed(
+                            &snapshot.document,
+                            &follow_up.context,
+                            &follow_up.target,
+                        )
+                    });
+                    if !landed {
+                        runtime.report("The anchor target is no longer available.");
+                        return;
+                    }
+                    feedback.set(advance_feedback(
+                        &feedback(),
+                        FeedbackEvent::Commit {
+                            value: format!(
+                                "{} anchored to {}",
+                                follow_up.item_label, follow_up.new_anchor_label
+                            ),
+                            delta: FeedbackDelta::Text(format!(
+                                "was {}",
+                                follow_up.old_anchor_label
+                            )),
+                        },
+                    ));
+                    let seen = {
+                        toast_gen.set(toast_gen() + 1);
+                        toast_gen()
+                    };
+                    arm_commit_toast_expiry(feedback, toast_gen, seen);
+                }
+                Settlement::Failed { message } => {
+                    waiting.set(None);
+                    runtime.report(message);
+                }
+                Settlement::Retired => {
+                    waiting.set(None);
+                }
+            }
+        }
+    }));
 
     // Leaving pick mode clears the armed peer, the hover preview and the
     // popup. The selection and focus stay put: nothing here writes them.
@@ -395,13 +475,13 @@ pub fn LayoutAnchorPickOverlay(
     // The selection and focus stay put; a stale pick reports and disarms.
     let commit_pick = {
         let runtime_for_commit = runtime.0.clone();
-        let feedback_for_commit = feedback;
-        let toast_gen_for_commit = toast_gen;
+        let waiting_for_commit = waiting;
         let disarm = disarm.clone();
         let context = context.clone();
         let owner_for_commit = owner.clone();
         let arbiter_for_commit = arbiter.clone();
         Rc::new(move |target: PickTarget| {
+            let mut waiting = waiting_for_commit;
             if arbiter_for_commit.current().is_some()
                 || runtime_for_commit.model().gesture.is_some()
             {
@@ -425,64 +505,32 @@ pub fn LayoutAnchorPickOverlay(
             let Some(commit) = pick_commit(&accepted.document, &context, &target) else {
                 return;
             };
-            let (item_label, old_anchor_label, new_anchor_label) = (
-                commit.item_label.clone(),
-                commit.old_anchor_label.clone(),
-                commit.new_anchor_label.clone(),
-            );
-            let mut edits = PendingEdits::default();
-            edits.begin(
+            // Queue one Anchor commit as intent; the `version` effect settles
+            // it (durable toast on landing, `report` on failure). Queued
+            // picks compose through the resolver; unmounting releases the
+            // observer without cancelling the edit.
+            if waiting.read().is_some() {
+                return;
+            }
+            let ticket = begin_transform_ticket(
                 &runtime_for_commit,
-                (),
                 "layout-anchor-pick",
-                Some("transform".into()),
                 anchor_pick_resolver(context.clone(), target.clone()),
             );
+            waiting.set(Some((
+                ticket,
+                AnchorPickFollowUp {
+                    owner: owner_for_commit.clone(),
+                    context: context.clone(),
+                    target: target.clone(),
+                    item_label: commit.item_label.clone(),
+                    old_anchor_label: commit.old_anchor_label.clone(),
+                    new_anchor_label: commit.new_anchor_label.clone(),
+                },
+            )));
             // Leave pick mode at the click: the rings go, and a second click
             // cannot queue a second commit while this one settles.
             disarm();
-            let runtime_for_settle = runtime_for_commit.clone();
-            let context_for_settle = context.clone();
-            let target_for_settle = target.clone();
-            let mut feedback_for_commit = feedback_for_commit;
-            let mut toast_gen_for_commit = toast_gen_for_commit;
-            spawn_local(async move {
-                loop {
-                    if !edits.settle(true).is_empty() {
-                        break;
-                    }
-                    gloo_timers::future::TimeoutFuture::new(16).await;
-                }
-                let landed = runtime_for_settle
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .is_some_and(|snapshot| {
-                        anchor_pick_landed(
-                            &snapshot.document,
-                            &context_for_settle,
-                            &target_for_settle,
-                        )
-                    });
-                if !landed {
-                    runtime_for_settle.report("The anchor target is no longer available.");
-                    return;
-                }
-                feedback_for_commit.set(advance_feedback(
-                    &feedback_for_commit(),
-                    FeedbackEvent::Commit {
-                        value: format!("{item_label} anchored to {new_anchor_label}"),
-                        delta: FeedbackDelta::Text(format!("was {old_anchor_label}")),
-                    },
-                ));
-                let seen = {
-                    toast_gen_for_commit.set(toast_gen_for_commit() + 1);
-                    toast_gen_for_commit()
-                };
-                // The overlay may unmount before the toast expires; a
-                // dropped owner has no toast left to retire.
-                arm_commit_toast_expiry(feedback_for_commit, toast_gen_for_commit, seen);
-            });
         })
     };
     // The live poses behind the amber comparison: the owner's own scene
@@ -512,7 +560,18 @@ pub fn LayoutAnchorPickOverlay(
     let face = token_face(token_fill, glyph, Some("Pick anchor"));
     let feedback_state = feedback();
     let layout_id = anchor_pick_layout(&document, &context);
+    // Named mounted control for parent integration: present while the Anchor
+    // commit is queued.
+    let pick_pending = waiting.read().is_some();
     rsx! {
+        if pick_pending {
+            g {
+                "data-transform-pending": "true",
+                "data-transform-tool": "Anchor",
+                style: "display:none",
+                "aria-hidden": "true",
+            }
+        }
         if rail_index == Some(0) {
             {rail_backdrop(&rail_layout, rail_tools.len(), px)}
         }

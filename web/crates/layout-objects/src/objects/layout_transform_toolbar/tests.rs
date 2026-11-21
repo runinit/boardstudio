@@ -213,6 +213,25 @@ fn matrix_rail_host(props: MatrixRailHostProps) -> Element {
     props.show.0.borrow_mut().get_or_insert(show);
     let preview_state = provide_preview_contexts(&props.runtime.0);
     props.preview.0.borrow_mut().get_or_insert(preview_state);
+    // Named mounted control for parent integration: the parent `version`
+    // drives single-ticket settlement in the overlays. The host subscribes
+    // the runtime to bump it, mirroring production.
+    let version = use_signal(|| 0_u64);
+    use_hook({
+        let runtime = props.runtime.0.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = props.runtime.0.clone();
+        move || runtime.unsubscribe()
+    });
+    use_context_provider(|| version);
+    let _ = version();
     let selected_context = use_signal(|| scoped(&props.owner, props.context.clone()));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");
@@ -352,6 +371,22 @@ struct PartRailHostProps {
 
 #[component]
 fn part_rail_host(props: PartRailHostProps) -> Element {
+    let version = use_signal(|| 0_u64);
+    use_hook({
+        let runtime = props.runtime.0.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = props.runtime.0.clone();
+        move || runtime.unsubscribe()
+    });
+    use_context_provider(|| version);
+    let _ = version();
     let selected_context = use_signal(|| scoped(&props.owner, part_context(&props.part_id)));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");
@@ -467,6 +502,22 @@ struct PickHostProps {
 
 #[component]
 fn pick_host(props: PickHostProps) -> Element {
+    let version = use_signal(|| 0_u64);
+    use_hook({
+        let runtime = props.runtime.0.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = props.runtime.0.clone();
+        move || runtime.unsubscribe()
+    });
+    use_context_provider(|| version);
+    let _ = version();
     let selected_context = use_signal(|| scoped(&props.owner, props.pick_owner.context()));
     let scope_generation = use_signal(|| props.owner.generation);
     let workspace = use_signal(|| "Layout");

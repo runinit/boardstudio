@@ -2,27 +2,21 @@
 use super::*;
 use crate::matrix_transform_operation::placement_operation;
 use boardstudio_model::model::{MatrixPlacementChange, Mirror};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use fixture::{matrix_named, redo, undo};
 
 const TRANSACTION: &str = "layout-transform-test";
 
-fn begin_edit(
-    runtime: &Rc<Runtime>,
-    label: &'static str,
-    resolver: EditResolver,
-) -> PendingEdits<()> {
-    let mut edits = PendingEdits::default();
-    edits.begin(runtime, (), label, Some("transform".into()), resolver);
-    edits
+fn begin_edit(runtime: &Rc<Runtime>, label: &'static str, resolver: EditResolver) -> EditTicket {
+    EditTicket::begin(runtime, label, Some("transform".into()), resolver)
 }
 
-fn nudge_with(runtime: &Rc<Runtime>, nudge: TransformNudge) -> PendingEdits<()> {
+fn nudge_with(runtime: &Rc<Runtime>, nudge: TransformNudge) -> EditTicket {
     let resolver = transform_nudge_resolver(fixture::MATRIX_ID.into(), nudge, Vec2::default());
     begin_edit(runtime, "layout-transform-nudge", resolver)
 }
 
-fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> PendingEdits<()> {
+fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> EditTicket {
     nudge_with(
         runtime,
         TransformNudge::Stagger {
@@ -33,11 +27,7 @@ fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> PendingEdit
     )
 }
 
-fn drag_edit(
-    runtime: &Rc<Runtime>,
-    matrix_id: &str,
-    result: TransformDragResult,
-) -> PendingEdits<()> {
+fn drag_edit(runtime: &Rc<Runtime>, matrix_id: &str, result: TransformDragResult) -> EditTicket {
     let resolver = transform_drag_resolver(matrix_id.into(), TRANSACTION.into(), result);
     begin_edit(runtime, "layout-transform-drag", resolver)
 }
@@ -54,7 +44,7 @@ fn placement_edit(
     runtime: &Rc<Runtime>,
     parameter: PlacementParameter,
     value: PlacementValue,
-) -> PendingEdits<()> {
+) -> EditTicket {
     let resolver = EditResolver::new("inspector-placement", move |_: &AcceptedSnapshot| {
         let operation = placement_operation(fixture::MATRIX_ID, parameter, value);
         transform_commit(String::new(), fixture::MATRIX_ID, operation)
@@ -62,27 +52,19 @@ fn placement_edit(
     begin_edit(runtime, "inspector-placement", resolver)
 }
 
-/// The first terminal result of an edit.
-async fn settle_edit(runtime: &Rc<Runtime>, edits: &mut PendingEdits<()>) -> PendingEditResult<()> {
-    for _ in 0..100 {
-        support::run_pending(runtime).await;
-        if let Some(result) = edits.settle(true).into_iter().find(|result| {
-            matches!(
-                result,
-                PendingEditResult::Landed { .. }
-                    | PendingEditResult::Failed { .. }
-                    | PendingEditResult::Retired { .. }
-            )
-        }) {
-            return result;
-        }
-        gloo_timers::future::TimeoutFuture::new(10).await;
-    }
-    panic!("transform edit did not settle");
+/// Drive the runtime until `ticket` settles, then return its settlement.
+async fn settle_edit(runtime: &Rc<Runtime>, ticket: &EditTicket) -> Settlement {
+    fixture::settle_ticket(runtime, ticket).await;
+    let settlement = ticket.settlement(true);
+    assert!(
+        !matches!(settlement, Settlement::Pending),
+        "transform edit did not settle"
+    );
+    settlement
 }
 
-async fn run(runtime: &Rc<Runtime>, mut edits: PendingEdits<()>) {
-    settle_edit(runtime, &mut edits).await;
+async fn run(runtime: &Rc<Runtime>, ticket: EditTicket) {
+    settle_edit(runtime, &ticket).await;
 }
 
 /// The fixture document with `edit` applied, opened through the real Session and Core.
@@ -273,13 +255,13 @@ async fn column_angle_drag_delta_composes_with_the_latest_rotation() {
     );
     assert!(same_transform_as_start(&drag, &angle(10.0)));
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let mut other = nudge_with(&runtime, angle_nudge(MatrixSplayAffect::Column));
+    let other = nudge_with(&runtime, angle_nudge(MatrixSplayAffect::Column));
     support::drive_pending(&runtime);
     entered.await.expect("the nudge reached Core");
-    let mut queued = drag_edit(&runtime, fixture::MATRIX_ID, result);
+    let queued = drag_edit(&runtime, fixture::MATRIX_ID, result);
     release.send(()).unwrap();
-    settle_edit(&runtime, &mut other).await;
-    settle_edit(&runtime, &mut queued).await;
+    settle_edit(&runtime, &other).await;
+    settle_edit(&runtime, &queued).await;
     let rotation =
         |runtime: &Rc<Runtime>| fixture::accepted_matrix(runtime).column_layout[0].rotation;
     assert_eq!(rotation(&runtime), 13.0);
@@ -398,15 +380,12 @@ async fn a_drag_for_a_column_or_row_that_has_gone_is_refused_before_core() {
             _ => PlacementDelta::Offset(Vec2 { x: 1.0, y: 0.0 }),
         };
         let result = TransformDragResult::Placement { parameter, delta };
-        let outcome = settle_edit(
-            &runtime,
-            &mut drag_edit(&runtime, fixture::MATRIX_ID, result),
-        )
-        .await;
+        let ticket = drag_edit(&runtime, fixture::MATRIX_ID, result);
+        let outcome = settle_edit(&runtime, &ticket).await;
         assert!(
             matches!(
                 &outcome,
-                PendingEditResult::Failed { message, .. } if message.contains("no longer exists")
+                Settlement::Failed { message } if message.contains("no longer exists")
             ),
             "{parameter:?} must be refused by the resolver, got {outcome:?}"
         );
@@ -452,14 +431,14 @@ async fn a_stagger_snaps_to_the_grid_step_of_its_axis_dominant_component() {
 async fn three_handle_nudges_queued_behind_a_gated_reply_move_the_matrix_three_steps() {
     let runtime = fixture::open_matrix_runtime().await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let mut first = stagger_nudge(&runtime, ArrowKey::Up, false);
+    let first = stagger_nudge(&runtime, ArrowKey::Up, false);
     support::drive_pending(&runtime);
     entered.await.expect("the first nudge reached Core");
-    let mut second = stagger_nudge(&runtime, ArrowKey::Up, false);
-    let mut third = stagger_nudge(&runtime, ArrowKey::Up, false);
+    let second = stagger_nudge(&runtime, ArrowKey::Up, false);
+    let third = stagger_nudge(&runtime, ArrowKey::Up, false);
     support::drive_pending(&runtime);
     release.send(()).expect("release the held reply");
-    for edits in [&mut third, &mut first, &mut second] {
+    for edits in [&third, &first, &second] {
         settle_edit(&runtime, edits).await;
     }
     let matrix = fixture::accepted_matrix(&runtime);
@@ -551,18 +530,18 @@ async fn one_drag_is_one_undo_step_and_redo_restores_it() {
 async fn a_drag_composes_with_an_unrelated_edit_held_in_flight() {
     let runtime = fixture::open_matrix_runtime().await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let mut unrelated = placement_edit(
+    let unrelated = placement_edit(
         &runtime,
         PlacementParameter::ColumnOffset { column: 2 },
         PlacementValue::Offset(Vec2 { x: 1.0, y: 0.0 }),
     );
     support::drive_pending(&runtime);
     entered.await.expect("the unrelated edit reached Core");
-    let mut drag = drag_edit(&runtime, fixture::MATRIX_ID, stagger_result(1, 2.0));
+    let drag = drag_edit(&runtime, fixture::MATRIX_ID, stagger_result(1, 2.0));
     support::drive_pending(&runtime);
     release.send(()).expect("release the held reply");
-    settle_edit(&runtime, &mut drag).await;
-    settle_edit(&runtime, &mut unrelated).await;
+    settle_edit(&runtime, &drag).await;
+    settle_edit(&runtime, &unrelated).await;
     let matrix = fixture::accepted_matrix(&runtime);
     assert_eq!(matrix.column_layout[1].stagger, 2.0);
     assert_eq!(matrix.column_layout[2].offset, Vec2 { x: 1.0, y: 0.0 });

@@ -637,30 +637,22 @@ pub(super) fn transform_drag_resolver(
     )
 }
 
+/// Begin one composed drag commit as intent: the resolver re-solves the drag's
+/// net transform against whatever is accepted when the edit runs, so drags
+/// queued behind other edits compose. The caller queues the ticket in its
+/// `pending` signal; settlement happens on the parent `version` signal with
+/// durable toast on landing and `Runtime::report` on failure.
 pub(super) fn commit_transform_drag(
     runtime: &Rc<Runtime>,
     drag: &TransformDrag,
     operation: &EditOperation,
-) {
-    let Some(result) = transform_drag_result(drag, operation) else {
-        return;
-    };
-    let mut edits = PendingEdits::default();
-    edits.begin(
+) -> Option<EditTicket> {
+    let result = transform_drag_result(drag, operation)?;
+    Some(begin_transform_ticket(
         runtime,
-        (),
         "layout-transform-drag",
-        Some("transform".into()),
         transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result),
-    );
-    spawn_local(async move {
-        loop {
-            if !edits.settle(true).is_empty() {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(16).await;
-        }
-    });
+    ))
 }
 
 /// A handle key press is a delta intent, so it stays admitted while earlier presses are

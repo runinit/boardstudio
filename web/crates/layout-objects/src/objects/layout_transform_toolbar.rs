@@ -34,7 +34,7 @@ use boardstudio_model::model::{
     PartAnchorValueChange, Pose2, Position, ProjectDoc, Vec2,
 };
 use boardstudio_web_layout_core::rail_state::RailState;
-use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_model::transform_feedback::{
     FeedbackDelta, FeedbackEvent, FeedbackState, advance_feedback,
@@ -55,6 +55,7 @@ use web_sys::SvgElement;
 
 mod anchor_pick;
 mod chrome;
+mod commit;
 mod feedback;
 mod matrix_gesture;
 mod matrix_tools;
@@ -67,6 +68,10 @@ mod tool;
 
 pub use anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 use chrome::*;
+use commit::{
+    PendingTransformCommit, PendingTransformToast, begin_transform_ticket,
+    settle_transform_commits, transform_commit_is_live,
+};
 use feedback::*;
 use matrix_gesture::*;
 pub use matrix_tools::LayoutTransformToolOverlay;

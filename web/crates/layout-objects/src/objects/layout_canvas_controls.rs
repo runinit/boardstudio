@@ -106,7 +106,7 @@ pub fn LayoutCanvasControls(
 }
 
 // Separate drafts let typing on the canvas coexist with an unfinished Inspector edit.
-// Requests still share the controller's sequence, owner checks and PendingEdits.
+// Requests still share the controller's sequence, owner checks and ticket settlement.
 #[component]
 fn CanvasDimension(
     mount: MatrixTransformInspectorMount,
