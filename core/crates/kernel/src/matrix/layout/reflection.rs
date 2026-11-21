@@ -481,7 +481,11 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     validate(doc)?;
     for matrix in &doc.matrices {
         matrix::valid_projection_matrix(matrix)?;
-        matrix::evaluated(matrix, doc)?;
+        // World evaluation repeats the validated projection unless the document
+        // contributes an anchor context or a half-frame offset.
+        if matrix.anchor.is_some() || super::half_offset(doc, &matrix.id).is_some() {
+            matrix::evaluated(matrix, doc)?;
+        }
     }
     let sources: Vec<_> = doc
         .layouts
@@ -503,47 +507,58 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
 }
 
 pub fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
-    matrix::placement::carrying_authored_companions(
-        doc,
-        matrix::placement::Reported::PreserveEditReport,
-        |doc| {
-            for index in matrix::evaluation::order(doc)? {
-                let matrix = &doc.matrices[index];
-                let evaluated = matrix::evaluated(matrix, doc)?;
-                let mut poses = BTreeMap::new();
-                for geometry in &evaluated.cells {
-                    let id =
-                        matrix::member_id(&matrix.id, geometry.row as u32, geometry.column as u32);
-                    if exception_state(doc, MirroredItemKind::Part, &id)
-                        == Some(MirroredExceptionState::Local)
-                    {
-                        continue;
-                    }
-                    poses.insert(id.clone(), geometry.pose);
-                    if let Some(cell) = matrix.cells.iter().find(|cell| {
-                        cell.row == geometry.row as u32 && cell.column == geometry.column as u32
-                    }) {
-                        for assembly in &cell.assemblies {
-                            let id = matrix::companion_id(&id, &assembly.id);
-                            if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
-                                poses.insert(id, matrix::companion_pose(geometry.pose, assembly));
-                            }
+    let refresh = |doc: &mut ProjectDoc| {
+        for index in matrix::evaluation::order(doc)? {
+            let matrix = &doc.matrices[index];
+            let evaluated = matrix::evaluated(matrix, doc)?;
+            let mut poses = BTreeMap::new();
+            for geometry in &evaluated.cells {
+                let id = matrix::member_id(&matrix.id, geometry.row as u32, geometry.column as u32);
+                if exception_state(doc, MirroredItemKind::Part, &id)
+                    == Some(MirroredExceptionState::Local)
+                {
+                    continue;
+                }
+                poses.insert(id.clone(), geometry.pose);
+                if let Some(cell) = matrix.cells.iter().find(|cell| {
+                    cell.row == geometry.row as u32 && cell.column == geometry.column as u32
+                }) {
+                    for assembly in &cell.assemblies {
+                        let id = matrix::companion_id(&id, &assembly.id);
+                        if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
+                            poses.insert(id, matrix::companion_pose(geometry.pose, assembly));
                         }
                     }
                 }
-                for part in &mut doc.parts {
-                    if let Some(pose) = poses.get(&part.id)
-                        && !part.properties.as_ref().is_some_and(|properties| {
-                            properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
-                        })
-                    {
-                        part.pose = *pose;
-                    }
+            }
+            for part in &mut doc.parts {
+                if let Some(pose) = poses.get(&part.id)
+                    && !part.properties.as_ref().is_some_and(|properties| {
+                        properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+                    })
+                {
+                    part.pose = *pose;
                 }
             }
-            Ok(vec![])
-        },
-    )
+        }
+        Ok(vec![])
+    };
+    if doc
+        .matrices
+        .iter()
+        .flat_map(|matrix| &matrix.cells)
+        .any(|cell| !cell.assemblies.is_empty())
+    {
+        matrix::placement::carrying_authored_companions(
+            doc,
+            matrix::placement::Reported::PreserveEditReport,
+            refresh,
+        )
+    } else {
+        // Refresh only writes poses. Without assembly declarations it cannot
+        // introduce a companion that needs the pre-refresh snapshot.
+        refresh(doc)
+    }
 }
 
 pub fn exception_state(

@@ -41,6 +41,7 @@ mod dispatch;
 mod edit_tests;
 #[path = "preview.rs"]
 mod preview;
+mod scene_reuse;
 
 pub use self::apply::{apply_for_test, apply_unscripted_for_test, apply_with_ledger_for_test};
 pub struct CoreEngine {
@@ -50,6 +51,7 @@ pub struct CoreEngine {
     contours: Vec<Contour>,
     findings: Vec<Finding>,
     outline_cache: OutlineCache,
+    reusable_scene: Option<SceneDelta>,
     /// Session high-water marks; not part of any Undo snapshot or saved document.
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
@@ -117,6 +119,7 @@ impl CoreEngine {
             contours: vec![],
             findings: vec![],
             outline_cache: OutlineCache::default(),
+            reusable_scene: None,
             identity_ledger: mechanical::edit::MechanicalIdentityLedger::default(),
         }
     }
