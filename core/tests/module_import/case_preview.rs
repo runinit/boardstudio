@@ -109,7 +109,7 @@ fn source_backed_preview_retains_legacy_voids_without_duplicate_mount_cuts() {
         assert_eq!(
             body["body"]["mounts"].as_array().map_or(0, Vec::len),
             expected_drills,
-            "Monstertruck still needs all exact round drill definitions"
+            "CAD kernel still needs all exact round drill definitions"
         );
         assert!(body["body"]["pcb_source"].is_object());
         if expected_drills == 0 {

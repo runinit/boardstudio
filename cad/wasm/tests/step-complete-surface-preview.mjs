@@ -78,7 +78,7 @@ assert.equal(panasonic.length, 123401);
 assert.equal(await sha(panasonic), 'c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c');
 assert.equal([...decodeText(panasonic).matchAll(/=LINE\(/g)].length, 353);
 await check(panasonic, [[-3.2,-1.75,-0.5],[3.2,2.75,1.65]], 155, 15);
-const boxes = await readBytes('cad/monstertruck/tests/fixtures/touching-unit-boxes.step');
+const boxes = await readBytes('cad/core/tests/fixtures/touching-unit-boxes.step');
 await check(boxes, [[0,0,0],[2,2,1]], 12, 2001, 1, true);
 console.log('PASS Panasonic V1 untimed functional preview admission; no triangle-count or performance oracle');
 }]]);

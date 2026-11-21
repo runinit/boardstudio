@@ -293,7 +293,7 @@ const path = require('node:path');
   for (const [file, faces, occurrences, triangles, bounds] of [
     [vendorDirectory + '/Switch_Power.step', 143, 5, 838, [-3.8608, -0.508, -2.1844, 3.8608, 1.397, 2.794]],
     ...[['occt-cone-apex', 2, 2406], ['occt-frustum-pcurves', 3, 1740], ['freecad-notched-frustum', 7, 1684]].map(
-      ([name, count, triangles]) => ['cad/monstertruck/tests/fixtures/' + name + '.step', count, 1, triangles, [-1, -6, 7, 7, 2, 12]]),
+      ([name, count, triangles]) => ['cad/core/tests/fixtures/' + name + '.step', count, 1, triangles, [-1, -6, 7, 7, 2, 12]]),
   ]) {
     const source = read(file);
     const result = importModel(source, 0.01);
@@ -327,7 +327,7 @@ const path = require('node:path');
   }
   console.log('PASS packaged conical switch, apex, seamed and notched frustums, and Panasonic fallback');
 
-  const bands = read('cad/monstertruck/tests/fixtures/vik-connector-bands.step');
+  const bands = read('cad/core/tests/fixtures/vik-connector-bands.step');
   // Pin the cadmpeg mesh at both deflections to check refinement.
   for (const [deflection, triangles] of [[0.1, 152], [0.001, 1712]]) {
     const { vendorStep: asset, bounds } = importModel(bands, deflection);
@@ -373,7 +373,7 @@ const path = require('node:path');
   }
   console.log('PASS packaged diode rational trims, spherical faces, and refinement');
 
-  const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
+  const sector = read('cad/core/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);
   assert.throws(() => importModel(Buffer.from(invalid), 0.1));

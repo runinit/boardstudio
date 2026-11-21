@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-boardstudio-cad = { path = "../monstertruck" }
+boardstudio-cad = { path = "../core" }
 boardstudio-contracts = { path = "../../contracts/rust" }
 js-sys = "=0.3.106"
 lyon_path = "=1.0.19"

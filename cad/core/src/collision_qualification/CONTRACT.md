@@ -7,7 +7,7 @@ The single [shared fixture](../../../wasm/tests/fixtures/generated-analysis-cont
 holds its `qualificationV2` examples. Active v1 payloads remain unchanged.
 
 This implementation stays private to the crate. Production access runs through
-the qualification facade in `cad/monstertruck/src/qualification.rs`, which owns
+the qualification facade in `cad/core/src/qualification.rs`, which owns
 the sealed evidence and the only public preparation and query entry points; it
 uses the `num-rational`/`num-traits` dependencies of `boardstudio-cad`. It
 publishes no certificate on its own and measures no repair ledger. It does not

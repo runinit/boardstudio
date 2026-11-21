@@ -25,7 +25,7 @@ members = [
   "web/crates/library",
   "web/crates/keycaps",
 ]
-# The CAD workspace owns the lockfile and patched Monstertruck dependency graph.
+# The CAD workspace owns the lockfile and patched cadmpeg dependency graph.
 exclude = [
   "cad",
   "renderer/vendor/cgmath-next-0.18.1",

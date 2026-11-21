@@ -52,7 +52,7 @@ pub fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
     let normal = (points[1] - points[0]).cross(points[2] - points[0]);
     let length = normal.x.hypot(normal.y).hypot(normal.z);
     if !length.is_finite() || length == 0.0 {
-        return Err("Monstertruck produced a degenerate mesh triangle".into());
+        return Err("CAD kernel produced a degenerate mesh triangle".into());
     }
     let rendered = points.map(|point| {
         Point3::new(
@@ -65,13 +65,11 @@ pub fn triangle_normal(points: [Point3; 3]) -> Result<Vector3, String> {
         .iter()
         .any(|point| !point.x.is_finite() || !point.y.is_finite() || !point.z.is_finite())
     {
-        return Err("Monstertruck mesh contains a coordinate outside the render range".into());
+        return Err("CAD mesh contains a coordinate outside the render range".into());
     }
     let rendered_normal = (rendered[1] - rendered[0]).cross(rendered[2] - rendered[0]);
     if rendered_normal.dot(normal) <= 0.0 {
-        return Err(
-            "Monstertruck mesh triangle loses its orientation at f32 render precision".into(),
-        );
+        return Err("CAD mesh triangle loses its orientation at f32 render precision".into());
     }
     Ok(normal / length)
 }
@@ -104,7 +102,7 @@ pub(crate) fn append_point(output: &mut Vec<f32>, point: Point3) -> Result<(), S
 
 fn push_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {
     append_point(output, point)
-        .map_err(|_| "Monstertruck mesh contains a coordinate outside the render range".into())
+        .map_err(|_| "CAD mesh contains a coordinate outside the render range".into())
 }
 
 #[cfg(test)]

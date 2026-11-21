@@ -1,4 +1,4 @@
 .cache/
 wasm/pkg/
 wasm/target/
-monstertruck/target/
+core/target/

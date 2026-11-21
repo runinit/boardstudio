@@ -59,14 +59,14 @@ async function check(text, options, expectedBounds, occurrences, sourceBounds = 
   return result;
 }
 
-const tetra = await fixture('cad/monstertruck/tests/fixtures/tetra-mm.step');
+const tetra = await fixture('cad/core/tests/fixtures/tetra-mm.step');
 const tetraBounds = [[0, 0, 0], [2, 3, 4]];
 await check(tetra, {}, tetraBounds, 1);
 const line = "#22=LINE('',#1,#21);";
 const shiftedLine = "#310=CARTESIAN_POINT('',(0.,0.001953125,0.));#22=LINE('',#310,#21);";
 await check(replaceOnce(tetra, line, shiftedLine), {previewRepairBudgetMm: 0.02}, tetraBounds, 1);
 const metreAssembly = replaceOnce(
-  replaceOnce(await fixture('cad/monstertruck/tests/fixtures/two-occurrences-mm.step'), line, shiftedLine),
+  replaceOnce(await fixture('cad/core/tests/fixtures/two-occurrences-mm.step'), line, shiftedLine),
   'SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT($,.METRE.)');
 // Independently authored placements: (10-y,20+x,30+z) and (x-5,y+7,z+11), in metres.
 const metreBytes = encodeText(metreAssembly);
@@ -75,7 +75,7 @@ assert.throws(() => cad.read_step_model(new Uint8Array(metreBytes),
   {sourceSha256: metreDigest}), error =>
     typeof error === 'string' && error.includes('support incidence exceeds'));
 await check(metreAssembly, {previewRepairBudgetMm: 2}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
-const finite = await fixture('cad/monstertruck/tests/fixtures/repair-finite-domain.step');
+const finite = await fixture('cad/core/tests/fixtures/repair-finite-domain.step');
 const finiteBytes = new Uint8Array(encodeText(finite));
 const finiteDigest = await sha(encodeText(finite));
 function refusesFinite(options) {
@@ -125,11 +125,11 @@ const admitted = await check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1,
 assert.equal(admitted.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
-const curved = await check(await fixture('cad/monstertruck/tests/fixtures/unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, true);
+const curved = await check(await fixture('cad/core/tests/fixtures/unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, true);
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
 // The same literal producer fixture exercises actual native spline restriction
 // and the concrete whole-domain certifier inside the rebuilt WASM importer.
-const partialBytes = await readBytes('cad/monstertruck/tests/fixtures/solid32377-source.step');
+const partialBytes = await readBytes('cad/core/tests/fixtures/solid32377-source.step');
 const partialDigest = await sha(partialBytes);
 const partialInput = new Uint8Array(partialBytes);
 const partial = cad.read_step_model(partialInput, {sourceSha256: partialDigest});

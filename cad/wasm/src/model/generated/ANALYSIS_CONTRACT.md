@@ -335,7 +335,7 @@ containment are all unknown with `evidence-unavailable`. Other malformed source/
 mesh/descriptor/row/cap assertions are errors. There is no transparent rebuild
 inside a pair query and no repeat refinement loop hidden in basic checks.
 
-The narrow backend API is implemented in `cad/monstertruck/src/qualification.rs`
+The narrow backend API is implemented in `cad/core/src/qualification.rs`
 as `boardstudio_cad::qualification`, without widening existing declarations.
 Signatures (Rust-owned fields private):
 
@@ -378,7 +378,7 @@ sealed selected settings and effective source limits. `QueryEvidence` is the
 typed numeric/source/contact/containment report; the provider adds the
 worker-supplied `Binding`. Errors use the existing textual error boundary.
 
-These are read-only declarations in `cad/monstertruck/src/qualification.rs`; no
+These are read-only declarations in `cad/core/src/qualification.rs`; no
 existing member visibility changes. `GeneratedAnalysisMesh`,
 `StepSourceFace` and `StepFaceOccurrence` are already public. A returned view
 borrows the prepared owner immutably; it cannot outlive that owner. Constructing

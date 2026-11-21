@@ -52,14 +52,14 @@ FIXTURE_NAMES = [
     'cad/test/fixtures/performance/C1plate.json',
     'cad/test/fixtures/followup-manifest.json',
     'cad/scripts/measure-cad-worker.cjs',
-    'cad/monstertruck/tests/fixtures/pcb-source/circle-tracer.json',
-    *('cad/monstertruck/tests/fixtures/' + name for name in (
+    'cad/core/tests/fixtures/pcb-source/circle-tracer.json',
+    *('cad/core/tests/fixtures/' + name for name in (
         'tetra-mm.step', 'two-occurrences-mm.step', 'repair-finite-domain.step',
         'unsupported-non-ruled-sphere.step', 'zero-repair-cuboid-mm.step',
         'zero-repair-cuboid-offset-mm.step', 'source-pcurve-cube.step',
         'circular-segment-sliver-prism.step', 'tetra-and-finite-wires.step',
         'repair-projected-line.step', 'repair-planar-seam.step', 'touching-unit-boxes.step')),
-    'cad/monstertruck/tests/fixtures/solid32377-source.step',
+    'cad/core/tests/fixtures/solid32377-source.step',
     'ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step',
     'ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step',
 ]
@@ -101,7 +101,7 @@ def sliver_module():
     body = source[source.index(start):source.index(end)]
     return f'''import {{assert, readBytes, sha256Hex}} from '/tests/provider-support.mjs';
 export async function run(cad) {{
-  const bytes = await readBytes('cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step');
+  const bytes = await readBytes('cad/core/tests/fixtures/circular-segment-sliver-prism.step');
   const result = cad.read_step_model(new Uint8Array(bytes), {{sourceSha256: await sha256Hex(bytes)}});
 {body}
   return [{{suite: '{suite}', case: 'sliver', ok: true}}];

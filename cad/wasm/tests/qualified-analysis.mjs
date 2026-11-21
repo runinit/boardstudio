@@ -164,7 +164,7 @@ assert(accuracy(vendorPair)<=0.1 && accuracy(vendorPair)>0.01);
 const wrongDerivation=clone(vendorQuery);wrongDerivation.left.analysisRef.derivationIdentity+='x';assert.throws(()=>invoke(vendor,vendor,wrongDerivation));
 const tight=clone(vendorQuery); tight.requestedAccuracyMm=0.01;
 assert(accuracy(checked(vendor,vendor,tight).queryQualification)>0.01,'tight budget remains Unknown in assessment');
-const unsupportedBytes=await readBytes('cad/monstertruck/tests/fixtures/touching-unit-boxes.step');
+const unsupportedBytes=await readBytes('cad/core/tests/fixtures/touching-unit-boxes.step');
 const unsupportedSha=await sha256Hex(unsupportedBytes);
 const unsupported=cad.read_step_model(new Uint8Array(unsupportedBytes),{sourceSha256:unsupportedSha}).vendorStep;
 assert.equal(unsupported.sourceQualification.state,'unknown');

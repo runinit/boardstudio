@@ -42,7 +42,7 @@ export async function run(cad, memory) {
 
   return await runCases('step-zero-repair', [
     ['actual WASM integer cuboid reports complete zero and unchanged default/provenance', async () => {
-      const result = await imported(await readBytes('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step'));
+      const result = await imported(await readBytes('cad/core/tests/fixtures/zero-repair-cuboid-mm.step'));
       assert.deepEqual(result.bounds, { min: [0, 0, 0], max: [2, 4, 8] });
       const { accuracy, sourceFaces, faceOccurrences } = result.vendorStep;
       assert.equal(sourceFaces.length, 6);
@@ -55,7 +55,7 @@ export async function run(cad, memory) {
       assert.equal(accuracy.previewFloorMm, 0.02);
       assert.equal(accuracy.previewDeclaredMultiplier, 2);
       assert.equal(accuracy.selectedRepairBudgetMm, undefined);
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
       const withContext = box.replace('ENDSEC;END-ISO-10303-21;',
         "#900=(REPRESENTATION_CONTEXT('3D','MODEL'));\nENDSEC;END-ISO-10303-21;");
       assert.notEqual(withContext, box);
@@ -70,12 +70,12 @@ export async function run(cad, memory) {
       }
     }],
     ['independently authored shifted cuboid and reversed native senses qualify', async () => {
-      const result = await imported(await readBytes('cad/monstertruck/tests/fixtures/zero-repair-cuboid-offset-mm.step'));
+      const result = await imported(await readBytes('cad/core/tests/fixtures/zero-repair-cuboid-offset-mm.step'));
       assert.deepEqual(result.bounds, { min: [-3, 2, -4], max: [5, 8, 2] });
       assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, 0);
     }],
     ['explicit precision, budget and refinement remain separate from zero movement', async () => {
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
       const declared = box.replace(
         "#303=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#302)));",
         "#303=(GEOMETRIC_REPRESENTATION_CONTEXT(3)REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#302))GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#900)));")
@@ -93,10 +93,10 @@ export async function run(cad, memory) {
       assert(result.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
     }],
     ['rounded source lexemes, inconsistent native LINE and selected PCurves stay null', async () => {
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
       const rounded = box.replace("#2=CARTESIAN_POINT('',(2.,0.,0.));", "#2=CARTESIAN_POINT('',(2.0000000000000001,0.,0.));");
       const offLine = box.replace("#32=LINE('',#1,#31);", "#900=CARTESIAN_POINT('',(0.,1.,0.));#32=LINE('',#900,#31);");
-      const selected = await readBytes('cad/monstertruck/tests/fixtures/source-pcurve-cube.step');
+      const selected = await readBytes('cad/core/tests/fixtures/source-pcurve-cube.step');
       for (const bytes of [rounded, selected]) {
         assert.equal((await imported(bytes)).vendorStep.accuracy.maxRepairDisplacementMm, null);
       }
@@ -104,13 +104,13 @@ export async function run(cad, memory) {
       await assert.rejects(() => imported(offLine), error =>
         typeof error === 'string' && error.includes('support incidence exceeds') && error.includes('sampled support residual 1.000000e0 mm'));
       assert.equal((await imported(offLine, {previewRepairBudgetMm: 1})).vendorStep.accuracy.maxRepairDisplacementMm, null);
-      const sliver = await imported(await readBytes('cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step'));
+      const sliver = await imported(await readBytes('cad/core/tests/fixtures/circular-segment-sliver-prism.step'));
       assert.equal(sliver.vendorStep.accuracy.maxRepairDisplacementMm, null);
       assert(sliver.vendorStep.accuracy.fallbackMeshedFaces > 0);
     }],
     ['mixed asset cannot borrow a supported cuboid proof', async () => {
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
-      const offset = decodeText(await readBytes('cad/monstertruck/tests/fixtures/zero-repair-cuboid-offset-mm.step'));
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
+      const offset = decodeText(await readBytes('cad/core/tests/fixtures/zero-repair-cuboid-offset-mm.step'));
       const second = offset.split('ENDSEC;DATA;')[1].replace('ENDSEC;END-ISO-10303-21;', '');
       const mixed = box.replace('ENDSEC;END-ISO-10303-21;', `${second}ENDSEC;END-ISO-10303-21;`);
       const result = await imported(mixed);
@@ -118,7 +118,7 @@ export async function run(cad, memory) {
       assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, null);
     }],
     ['existing tetra plane-gap default and explicit budget policy stays unchanged', async () => {
-      const source = (await readText('cad/monstertruck/tests/fixtures/tetra-mm.step'))
+      const source = (await readText('cad/core/tests/fixtures/tetra-mm.step'))
         .replace("#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));", "#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3)REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300)));")
         .replace("#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);", "#310=CARTESIAN_POINT('',(0.,0.,0.025));#57=AXIS2_PLACEMENT_3D('',#310,#55,#56);")
         .replace('ENDSEC;END-ISO-10303-21;', "#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#102,'distance_accuracy_value',$);ENDSEC;END-ISO-10303-21;");
@@ -130,7 +130,7 @@ export async function run(cad, memory) {
       assert(result.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
     }],
     ['unretained styled finite curve and alternate presentation roots explicitly refuse', async () => {
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
       // #32 has unit +X direction through the origin: [10,11] is outside [0,2].
       const styled = box.replace('ENDSEC;END-ISO-10303-21;',
         "#901=TRIMMED_CURVE('outside-body',#32,(PARAMETER_VALUE(10.)),(PARAMETER_VALUE(11.)),.T.,.PARAMETER.);" +
@@ -150,8 +150,8 @@ export async function run(cad, memory) {
       }
     }],
     ['styles of retained finite geometry preserve complete mixed and surface assets', async () => {
-      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
-      const wires = await readText('cad/monstertruck/tests/fixtures/tetra-and-finite-wires.step');
+      const box = await readText('cad/core/tests/fixtures/zero-repair-cuboid-mm.step');
+      const wires = await readText('cad/core/tests/fixtures/tetra-and-finite-wires.step');
       for (const [source, context, targets] of [[box, 303, [301, 110, 33, 304]], [wires, 103, [414, 420]]]) {
         for (const target of targets) {
           const styled = source.replace('ENDSEC;END-ISO-10303-21;',

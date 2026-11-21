@@ -308,7 +308,7 @@ It proves the witness is inside the deformed source hole; exact radial and
 plane inequalities exclude every other source face. This oracle is a continuous
 enclosure, not a sampled maximum or floating tolerance.
 
-The focused command is `cargo test --manifest-path cad/monstertruck/Cargo.toml
+The focused command is `cargo test --manifest-path cad/core/Cargo.toml
 --lib p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound --
 --nocapture`. At the preserved RED checkpoint only the regression was added to
 the frozen proof; no proof implementation was changed to manufacture failure.
@@ -423,7 +423,7 @@ The height extension's retained evidence is `.evidence/cylinder-height-profile-t
 51 profile tests, including all 24 proof controls) and
 `.evidence/cylinder-height-integration.log` (all 6 tests across `layered_case`,
 `native_revolution_frame`, `profile_validation`). Commands were
-`cargo test --manifest-path cad/monstertruck/Cargo.toml --lib profile:: -- --nocapture`
+`cargo test --manifest-path cad/core/Cargo.toml --lib profile:: -- --nocapture`
 and the same manifest with `--test layered_case --test native_revolution_frame
 --test profile_validation`. Formatting and production strict Clippy pass;
 test Clippy passes with only the two existing baseline lint classes allowed.

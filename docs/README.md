@@ -40,7 +40,7 @@ proposes six module deepenings; the [module deepening](plans/module-deepening/ma
 effort plans all of them.
 
 The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
-2026-10-20 review of case generation and the Monstertruck CAD kernel.
+2026-10-20 review of case generation and the CAD kernel.
 
 The [application workflow verification spec](plans/application-workflow-verification/map.md)
 defines six bounded recovery, offline, renderer, keyboard, assembly and package-notice

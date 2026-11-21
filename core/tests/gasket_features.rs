@@ -459,7 +459,7 @@ fn check_authored_opening_reachability(id: &str, original: &str, removed_volume:
 fn adoption_reachability_authored_sealed_opening_survives_real_tray_preparation() {
     check_authored_opening_reachability(
         "sealed-opening",
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/sealed-opening.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/sealed-opening.json"),
         16.,
     );
 }
@@ -468,7 +468,7 @@ fn adoption_reachability_authored_sealed_opening_survives_real_tray_preparation(
 fn adoption_reachability_authored_ring_island_survives_real_tray_preparation() {
     check_authored_opening_reachability(
         "opening-ring-island",
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/opening-ring-island.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/opening-ring-island.json"),
         164.,
     );
 }

@@ -75,7 +75,7 @@ const body = {
   }],
 };
 const result = cad.analyze_generated_body(body, {});
-const pcb = JSON.parse(await readText('cad/monstertruck/tests/fixtures/pcb-source/circle-tracer.json'));
+const pcb = JSON.parse(await readText('cad/core/tests/fixtures/pcb-source/circle-tracer.json'));
 const pcbDefault = cad.analyze_generated_body(pcb, {});
 const pcbRefined = cad.analyze_generated_body(pcb, {targetDeflectionMm: 0.01});
 assert.equal(pcbRefined.bodyId, pcb.body.id);
@@ -148,7 +148,7 @@ for (const positions of [new Float64Array(9), new Float64Array([0,0,0,1,1,1,2,2,
 const open = {positions: unit.positions.slice(18), tags: unit.tags.slice(2)};
 assert.equal(pair(open, cube([3,0,0], [5,2,2])).surfaceDistanceMm, 1);
 
-const tetra = await readBytes('cad/monstertruck/tests/fixtures/tetra-mm.step');
+const tetra = await readBytes('cad/core/tests/fixtures/tetra-mm.step');
 const imported = cad.read_step_model(new Uint8Array(tetra), {sourceSha256: 'a'.repeat(64), previewRepairBudgetMm: 0.03, targetDeflectionMm: 0.01});
 assert.equal(imported.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(imported.vendorStep.accuracy.maxRepairDisplacementMm, null);

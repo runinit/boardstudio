@@ -1214,7 +1214,7 @@
             "preparedCaseProducerInput": false,
             "immutableRecipe": {
               "commit": "b03cc0951dfe4c91f7c8fb395e8dc218a656d452",
-              "path": "cad/monstertruck/src/profile/final_trace/cylinder_proof.rs",
+              "path": "cad/core/src/profile/final_trace/cylinder_proof.rs",
               "helper": "asymmetric_shared_trim",
               "helperDelegate": "asymmetric_shared_trim_with_left(0.0)",
               "regression": "p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound",
@@ -1547,7 +1547,7 @@
         "cases": [
           {
             "id": "complete-integer-cuboid-zero-movement",
-            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "originalAsset": "cad/core/tests/fixtures/zero-repair-cuboid-mm.step",
             "expectedImport": "success",
             "expectedBoundsMm": [
               [0, 0, 0],
@@ -1558,7 +1558,7 @@
           },
           {
             "id": "complete-cuboid-budget-and-refinement",
-            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "originalAsset": "cad/core/tests/fixtures/zero-repair-cuboid-mm.step",
             "sourceMutation": "existing step_zero_repair::explicit_precision_budget_and_refinement_do_not_change_zero_or_analysis_distinctions",
             "importOptions": {
               "previewRepairBudgetMm": 0.03,
@@ -1570,7 +1570,7 @@
           },
           {
             "id": "complete-unsupported-finite-wires",
-            "originalAsset": "cad/monstertruck/tests/fixtures/tetra-and-finite-wires.step",
+            "originalAsset": "cad/core/tests/fixtures/tetra-and-finite-wires.step",
             "expectedImport": "success",
             "expectedMaxRepairDisplacementMm": null,
             "expectedAnalysisErrorBoundMm": null,
@@ -1578,7 +1578,7 @@
           },
           {
             "id": "styled-unretained-curve",
-            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "originalAsset": "cad/core/tests/fixtures/zero-repair-cuboid-mm.step",
             "sourceMutation": "existing step_zero_repair::styled_finite_curve_in_presentation_root_requires_source_completeness",
             "expectedImport": "error",
             "expectedSourceQualification": "no asset returned"

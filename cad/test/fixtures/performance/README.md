@@ -6,14 +6,14 @@ The historical input/result/QA evidence remains read-only under
 `/home/chris/.t3/worktrees/ts-boardstudio2/t3-2088b1aa/.evidence/011-historical-baseline/`.
 Use its `c1/REPORT.md`, `c2/REPORT.md`, `v2/REPORT.md`, `*/admission-receipt.json`
 and independent results for their original scopes and bindings. Those old
-Monstertruck bindings are not acceptance of new post-007 artifacts.
+old bindings are not acceptance of new post-007 artifacts.
 
 | ID | Frozen input origin | Independent admission gates to retain |
 | --- | --- | --- |
 | C1plate | `c1/step-request.json`, from `cad/test/fixtures/holed-plate.json` | 120×80×2, 24 holes, 14400 mm³; topology, 126 material probes and independent STEP |
 | C2trayboss | `c2/step-request.json`, historical Core `prepare_case` output for `cad/test/fixtures/boss-tray.json` | 12 bosses/bores, six windows, `28080 + 456π` mm³; 114 probes and analytic cylindrical STEP supports |
-| C3gasket | `c3/step-request.json`, wrapping `cad/monstertruck/tests/fixtures/layered/gasketed-pair.prepared.json` | Two bodies, 9122 mm³ each; cavity, groove, inner/outer lip and planar STEP |
-| P1analyticPCB | `pcb/step-request.json`, wrapping `cad/monstertruck/tests/fixtures/layered/pcb-simple.json` | 20×16×1.6, radius-1 drill, `(320−π)×1.6` mm³; cylindrical STEP, chord-support preview controls |
+| C3gasket | `c3/step-request.json`, wrapping `cad/core/tests/fixtures/layered/gasketed-pair.prepared.json` | Two bodies, 9122 mm³ each; cavity, groove, inner/outer lip and planar STEP |
+| P1analyticPCB | `pcb/step-request.json`, wrapping `cad/core/tests/fixtures/layered/pcb-simple.json` | 20×16×1.6, radius-1 drill, `(320−π)×1.6` mm³; cylindrical STEP, chord-support preview controls |
 | K1keycap | `k1/request.json`, expanded literal spec from `cad/scripts/browser-smoke/smoke.html` | 25 DSA/MX caps, spherical 0.65 dish, O legend, 19.05 pitch, 15° local rotation; all placement/dish/socket/material checks |
 
 C1/C2 requests preserve the historical Core preparation; C3/P1 preserve their

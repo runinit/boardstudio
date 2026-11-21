@@ -7,7 +7,7 @@ const path = require('node:path');
 (async () => {
 const cad = await require('./load-provider.cjs')(process.argv[2]);
 const repoRoot = path.resolve(__dirname, '../../..');
-const fixturePath = path.join(repoRoot, 'cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step');
+const fixturePath = path.join(repoRoot, 'cad/core/tests/fixtures/circular-segment-sliver-prism.step');
 
 const bytes = fs.readFileSync(fixturePath);
 const digest = crypto.createHash('sha256').update(bytes).digest('hex');

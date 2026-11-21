@@ -67,7 +67,7 @@ def wasm_inputs_digest(*, no_opt=False):
         (CAD_ROOT.parent, ("Cargo.toml", "rust-toolchain.toml")),
         (CAD_ROOT, ("Cargo.toml", "Cargo.lock")),
         (CAD_ROOT / "wasm", ("Cargo.toml", "src", "assets")),
-        (CAD_ROOT / "monstertruck", ("Cargo.toml", "src")),
+        (CAD_ROOT / "core", ("Cargo.toml", "src")),
         (contracts, ("Cargo.toml", "src")),
         (CAD_ROOT.parent / "renderer/vendor/cgmath-next-0.18.1", ("Cargo.toml", "src")),
     ]
@@ -78,7 +78,7 @@ def wasm_inputs_digest(*, no_opt=False):
             rel_to_base = file.relative_to(base).as_posix()
             if base == CAD_ROOT / "wasm" and rel_to_base in WASM_TEST_ONLY_SOURCES:
                 continue
-            if base == CAD_ROOT / "monstertruck" and (
+            if base == CAD_ROOT / "core" and (
                 rel_to_base in LIBRARY_TEST_ONLY_SOURCES
                 or rel_to_base.startswith("src/step_accuracy/")
             ):

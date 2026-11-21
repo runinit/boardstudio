@@ -3,7 +3,7 @@ import { assert, readText, sha256Hex, toBytes, runCases } from './provider-suppo
 
 export async function run(cad, memory) {
 return await runCases('step-projected-line-repair', [['main', async () => {
-const base = await readText('cad/monstertruck/tests/fixtures/repair-projected-line.step');
+const base = await readText('cad/core/tests/fixtures/repair-projected-line.step');
 const sha = bytes => sha256Hex(bytes);
 
 function replaceOnce(text, before, after) {
@@ -79,7 +79,7 @@ for (const padded of [false, true]) for (const before of [false, true]) {
     await read(mutate(sense(projected('0.015625'))));
   }
 }
-const assembly = await readText('cad/monstertruck/tests/fixtures/two-occurrences-mm.step');
+const assembly = await readText('cad/core/tests/fixtures/two-occurrences-mm.step');
 const tail = assembly.slice(assembly.indexOf('#200='), assembly.indexOf('ENDSEC;END-ISO-10303-21;'));
 for (const metre of [false, true]) {
   let text = replaceOnce(projected(metre ? '0.000015625' : '0.015625'),

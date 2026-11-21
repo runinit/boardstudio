@@ -1,6 +1,6 @@
 //! Test views of the native exact solids, meshed by the production tessellator.
 //!
-//! These replace the former Monstertruck proof-solid oracle with the same small
+//! These replace the former proof-solid oracle with the same small
 //! surface the layered tests read: shells, faces, supports, vertices and meshes.
 use super::super::brep::{self, Support};
 use super::super::tessellation;

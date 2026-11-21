@@ -45,7 +45,7 @@ fn generated_analysis_keeps_body_geometry_and_face_tags_without_certification() 
 #[test]
 fn generated_pcb_analysis_uses_authored_circle_and_refines_only_when_requested() {
     let input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../../../monstertruck/tests/fixtures/pcb-source/circle-tracer.json"
+        "../../../../core/tests/fixtures/pcb-source/circle-tracer.json"
     ))
     .unwrap();
     let ordinary =
@@ -193,7 +193,7 @@ fn preview_reuses_geometry_across_revisions_and_body_identity() {
 #[test]
 fn generated_assembly_keeps_body_order_names_revision_and_combined_material() {
     let mut ir: PreparedCaseAssemblyIR = serde_json::from_str(include_str!(
-        "../../../../monstertruck/tests/fixtures/layered/gasketed-pair.prepared.json"
+        "../../../../core/tests/fixtures/layered/gasketed-pair.prepared.json"
     ))
     .unwrap();
     ir.revision = 42;
@@ -505,7 +505,7 @@ fn geometry_key_storage_counts_against_the_64_mib_retention_limit() {
 #[test]
 fn pcb_source_preview_changes_cannot_reuse_a_polygon_only_cache_entry() {
     let input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../../../monstertruck/tests/fixtures/pcb-source/circle-tracer.json"
+        "../../../../core/tests/fixtures/pcb-source/circle-tracer.json"
     ))
     .unwrap();
     let first = preview_body_data(&input, "source-pcb", |_| Ok(())).unwrap();

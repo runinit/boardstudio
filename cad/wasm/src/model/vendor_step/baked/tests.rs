@@ -11,7 +11,7 @@ const PIN_SOCKET_2X12: &[u8] = include_bytes!(
     "../../../../../../ergogen/library/vendor/infused-kim/3d_models/PinSocket_2.54mm_5mm_2x-12.step"
 );
 const LEGACY_PROJECTED_LINE: &[u8] =
-    include_bytes!("../../../../../monstertruck/tests/fixtures/repair-projected-line.step");
+    include_bytes!("../../../../../core/tests/fixtures/repair-projected-line.step");
 const CHOC_HOTSWAP: &[u8] = include_bytes!(
     "../../../../../../ergogen/library/vendor/infused-kim/3d_models/Choc_V1_Hotswap.step"
 );

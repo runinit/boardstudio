@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "monstertruck",
+    "core",
     "wasm",
 ]
 exclude = [
@@ -19,9 +19,6 @@ incremental = false
 opt-level = 2
 
 [profile.cad-test.package.parry3d-f64]
-opt-level = 2
-
-[profile.cad-test.package.cavalier_contours]
 opt-level = 2
 
 [profile.cad-test.package.spade]

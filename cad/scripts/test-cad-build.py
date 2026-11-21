@@ -20,7 +20,7 @@ browser = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(browser)
 
 REPO_ROOT = build.CAD_ROOT.parent
-CAD_CRATES = ("monstertruck", "wasm")
+CAD_CRATES = ("core", "wasm")
 
 
 class CadBuildTests(unittest.TestCase):
@@ -43,12 +43,12 @@ class CadBuildTests(unittest.TestCase):
         (self.root / "wasm/src/lib.rs").write_text("// provider")
         (self.root / "wasm/src/model/source_validation_tests.rs").write_text("// test only")
         (self.root / "wasm/Cargo.toml").write_text('[package]\nname = "boardstudio-cad-wasm"\nversion = "0.1.0"\n')
-        (self.root / "monstertruck/src").mkdir(parents=True)
-        (self.root / "monstertruck/src/lib.rs").write_text("// library")
-        (self.root / "monstertruck/src/tests.rs").write_text("// library test only")
-        (self.root / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["monstertruck", "wasm"]\n')
+        (self.root / "core/src").mkdir(parents=True)
+        (self.root / "core/src/lib.rs").write_text("// library")
+        (self.root / "core/src/tests.rs").write_text("// library test only")
+        (self.root / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["core", "wasm"]\n')
         (self.root / "Cargo.lock").write_text("version = 4\n")
-        (self.root / "monstertruck/Cargo.toml").write_text('[package]\nname = "boardstudio-cad"\nversion = "0.1.0"\n')
+        (self.root / "core/Cargo.toml").write_text('[package]\nname = "boardstudio-cad"\nversion = "0.1.0"\n')
         for crate in build.VENDOR_CRATES:
             vendor_dir = self.root / "vendor" / crate / "src"
             vendor_dir.mkdir(parents=True)
@@ -91,7 +91,7 @@ class CadBuildTests(unittest.TestCase):
                 self.root / "Cargo.toml",
                 self.root / "Cargo.lock",
                 self.root / "wasm/src/lib.rs",
-                self.root / "monstertruck/src/lib.rs",
+                self.root / "core/src/lib.rs",
                 self.root / "vendor/cadmpeg-tessellate/src/lib.rs",
                 self.project / "contracts/rust/src/lib.rs",
             ):
@@ -102,7 +102,7 @@ class CadBuildTests(unittest.TestCase):
 
             for test_only in (
                 self.root / "wasm/src/model/source_validation_tests.rs",
-                self.root / "monstertruck/src/tests.rs",
+                self.root / "core/src/tests.rs",
             ):
                 with self.subTest(test_only=test_only):
                     previous = build.wasm_inputs_digest()
@@ -128,9 +128,9 @@ class CadBuildTests(unittest.TestCase):
 
     def production_targets(self):
         return [
-            ("boardstudio-cad", "lib", "boardstudio_cad", self.root / "monstertruck"),
-            ("boardstudio-cad", "test", "step_import", self.root / "monstertruck"),
-            ("boardstudio-cad", "example", "step_replay", self.root / "monstertruck"),
+            ("boardstudio-cad", "lib", "boardstudio_cad", self.root / "core"),
+            ("boardstudio-cad", "test", "step_import", self.root / "core"),
+            ("boardstudio-cad", "example", "step_replay", self.root / "core"),
             ("boardstudio-cad-wasm", "lib", "boardstudio_cad_wasm", self.root / "wasm"),
         ]
 
@@ -278,7 +278,7 @@ class CadWorkspaceTests(unittest.TestCase):
         root = tomllib.loads((build.CAD_ROOT / "Cargo.toml").read_text())
         self.assertEqual(root["workspace"]["resolver"], "3")
         self.assertEqual(root["workspace"]["members"], [
-            "monstertruck",
+            "core",
             "wasm",
         ])
         for crate in CAD_CRATES:

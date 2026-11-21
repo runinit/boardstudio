@@ -3,7 +3,7 @@ import { assert, readText, toBytes, sha256Hex, runCases } from './provider-suppo
 
 export async function run(cad, memory) {
 return await runCases('step-planar-seam-repair', [['main', async () => {
-const source = await readText('cad/monstertruck/tests/fixtures/repair-planar-seam.step');
+const source = await readText('cad/core/tests/fixtures/repair-planar-seam.step');
 
 function replace(text, before, after) {
   assert.equal(text.split(before).length - 1, 1);

@@ -230,14 +230,12 @@ fn prepared_case_schema_roundtrips_through_the_existing_model_path() {
 #[test]
 fn adoption_inventory_preserves_authorable_case_features_through_public_preparation() {
     for source in [
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/cone-clipped-height.json"),
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/cone-wall.json"),
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/sealed-round-seat.json"),
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/sealed-opening.json"),
-        include_str!("../../cad/monstertruck/tests/fixtures/adoption/opening-ring-island.json"),
-        include_str!(
-            "../../cad/monstertruck/tests/fixtures/adoption/overlapping-openings-lineage.json"
-        ),
+        include_str!("../../cad/core/tests/fixtures/adoption/cone-clipped-height.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/cone-wall.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/sealed-round-seat.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/sealed-opening.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/opening-ring-island.json"),
+        include_str!("../../cad/core/tests/fixtures/adoption/overlapping-openings-lineage.json"),
     ] {
         let expected: PreparedCaseIR = serde_json::from_str(source).unwrap();
         let reply = CoreEngine::new().handle(CoreRequest::PrepareCase {
@@ -265,22 +263,16 @@ fn adoption_inventory_preserves_authorable_case_features_through_public_preparat
 fn adoption_inventory_keeps_all_source_drills_slots_and_outline_segments() {
     for (source, literal) in [
         (
-            include_str!("../../cad/monstertruck/tests/fixtures/adoption/pcb-edge-drill.kicad_pcb"),
-            include_str!("../../cad/monstertruck/tests/fixtures/adoption/pcb-edge-drill.json"),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-edge-drill.kicad_pcb"),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-edge-drill.json"),
         ),
         (
-            include_str!(
-                "../../cad/monstertruck/tests/fixtures/adoption/pcb-overlapping-drills.kicad_pcb"
-            ),
-            include_str!(
-                "../../cad/monstertruck/tests/fixtures/adoption/pcb-overlapping-drills.json"
-            ),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-overlapping-drills.kicad_pcb"),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-overlapping-drills.json"),
         ),
         (
-            include_str!(
-                "../../cad/monstertruck/tests/fixtures/adoption/pcb-drill-in-slot.kicad_pcb"
-            ),
-            include_str!("../../cad/monstertruck/tests/fixtures/adoption/pcb-drill-in-slot.json"),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-drill-in-slot.kicad_pcb"),
+            include_str!("../../cad/core/tests/fixtures/adoption/pcb-drill-in-slot.json"),
         ),
     ] {
         let reply: serde_json::Value = serde_json::from_str(&boardstudio_core::artifact::request(
