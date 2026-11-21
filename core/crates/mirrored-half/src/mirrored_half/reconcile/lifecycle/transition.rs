@@ -16,12 +16,14 @@ pub fn prepare_lifecycle_transition(
     context: &MembershipContext,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
+    crate::mechanical::halves::validate_document(before)?;
     let mut output = prepare_lifecycle_projection(before, post_source, context, dispatch)?;
     (output.changed_document_ids, output.changed_field_paths) =
         super::super::changed_document_fields(post_source, &output.draft)?;
     Ok(output)
 }
 
+/// The transaction and standalone transition entry points validate the accepted document.
 pub(super) fn prepare_lifecycle_projection(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -57,7 +59,6 @@ pub(super) fn prepare_lifecycle_projection(
         Ok(pair)
     }
 
-    crate::mechanical::halves::validate_document(before)?;
     if selected_pair(before, context)? != selected_pair(post_source, context)? {
         return Err("The source operation changed the selected lifecycle pair".into());
     }

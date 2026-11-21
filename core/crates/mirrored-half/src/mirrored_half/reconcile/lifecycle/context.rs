@@ -589,20 +589,23 @@ pub(super) fn project_lifecycle_matrix(
         .find(|p| p.id == context.pair_id)
         .unwrap()
         .halves = Some(matrix_context.pair_right.clone());
-    let output = super::super::transition::project_membership(MembershipTransitionInput {
-        dispatch,
-        valid_before: &draft,
-        post_source: &draft,
-        context: &matrix_context,
-        baseline_kind: super::super::BaselineKind::ChainedPrivateDraft,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &matrix_context.owners,
-        explicit_removal_closure: &closure,
-    })?;
-    let mut projected = output.draft;
-    projected
+    let output =
+        super::super::transition::project_membership_if_changed(MembershipTransitionInput {
+            dispatch,
+            valid_before: &draft,
+            post_source: &draft,
+            context: &matrix_context,
+            baseline_kind: super::super::BaselineKind::ChainedPrivateDraft,
+            source_identity_map: &source_map,
+            mirror_identity_map: &mirror_map,
+            planned_additions: &[],
+            final_owners: &matrix_context.owners,
+            explicit_removal_closure: &closure,
+        })?;
+    if let Some(output) = output {
+        draft = output.draft;
+    }
+    draft
         .hardware
         .as_mut()
         .unwrap()
@@ -611,5 +614,5 @@ pub(super) fn project_lifecycle_matrix(
         .find(|p| p.id == context.pair_id)
         .unwrap()
         .halves = Some(context.pair_right.clone());
-    Ok(projected)
+    Ok(draft)
 }

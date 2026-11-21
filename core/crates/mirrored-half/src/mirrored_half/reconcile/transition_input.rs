@@ -1,7 +1,7 @@
 //! Validation of one membership-transition input against the accepted and staged documents.
 
 use super::{
-    BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, TransitionState,
+    BaselineKind, FinalOwner, MembershipTransitionInput, TransitionState,
     ValidatedTransitionContext, board_owner, matrix_identity_slot, pair_right, require_matrix_pair,
     source_members, transition_matrix_by_id, validate_association_settings, validate_constraints,
     validate_context_owners, validate_matrix_association, validate_net_pad_ids,
@@ -15,25 +15,9 @@ pub(super) fn validate_transition_input<'a>(
 ) -> Result<ValidatedTransitionContext<'a>, String> {
     let matrix_pair = require_matrix_pair(input.context)?;
 
-    fn durable_pair_before_pending_transitions(
-        context: &MembershipContext,
-        persisted: &crate::model::MirroredHalves,
-    ) -> Result<crate::model::MirroredHalves, String> {
-        match (
-            &context.pending_pair_baseline,
-            context.pending_pair_transitions.is_empty(),
-        ) {
-            (None, true) if context.pair_right == *persisted => Ok(persisted.clone()),
-            (Some(baseline), false)
-                if baseline == persisted && context.pair_right == *persisted =>
-            {
-                Ok(baseline.clone())
-            }
-            _ => Err("The private pending pair baseline is stale or incomplete".into()),
-        }
-    }
-
     let context = input.context;
+    // The lifecycle's chained matrix view can reuse the same document on both sides.
+    let same_snapshot = std::ptr::eq(input.valid_before, input.post_source);
     let matrices_already_removed = input.valid_before.matrices.iter().all(|matrix| {
         matrix.id != matrix_pair.source_id.as_str() && matrix.id != matrix_pair.mirror_id.as_str()
     });
@@ -79,10 +63,16 @@ pub(super) fn validate_transition_input<'a>(
     validate_association_settings(context)?;
     let (before_pair, before_mapping) = pair_right(input.valid_before, &context.pair_id)?;
     let (post_pair, post_mapping) = pair_right(input.post_source, &context.pair_id)?;
-    let expected_durable_pair = durable_pair_before_pending_transitions(context, before_pair)?;
+    match (
+        &context.pending_pair_baseline,
+        context.pending_pair_transitions.is_empty(),
+    ) {
+        (None, true) if context.pair_right == *before_pair => {}
+        (Some(baseline), false)
+            if baseline == before_pair && context.pair_right == *before_pair => {}
+        _ => return Err("The private pending pair baseline is stale or incomplete".into()),
+    }
     if before_pair != post_pair
-        || before_pair != &expected_durable_pair
-        || post_pair != &expected_durable_pair
         || before_mapping != context.mapping
         || post_mapping != context.mapping
     {
@@ -90,11 +80,17 @@ pub(super) fn validate_transition_input<'a>(
     }
     validate_context_owners(input.valid_before, context)?;
     validate_net_pad_ids(input.valid_before)?;
-    validate_net_pad_ids(input.post_source)?;
+    if !same_snapshot {
+        validate_net_pad_ids(input.post_source)?;
+    }
     validate_constraints(input.valid_before)?;
-    validate_constraints(input.post_source)?;
+    if !same_snapshot {
+        validate_constraints(input.post_source)?;
+    }
     validate_no_native_legacy_overlap(input.valid_before, context)?;
-    validate_no_native_legacy_overlap(input.post_source, context)?;
+    if !same_snapshot {
+        validate_no_native_legacy_overlap(input.post_source, context)?;
+    }
     let before_halves = before_pair;
     if before_halves.source_board_id != context.source_board_id
         || before_halves.mirror_board_id != context.mirror_board_id
@@ -168,21 +164,6 @@ pub(super) fn validate_transition_input<'a>(
         if let Some(before_mirror) = before_mirror {
             crate::matrix::valid_matrix(before_mirror, input.valid_before)?;
         }
-    } else {
-        source_members(
-            input.valid_before,
-            matrix_pair.source_id.as_str(),
-            context,
-            true,
-        )?;
-        if !before_mirror_absent {
-            source_members(
-                input.valid_before,
-                matrix_pair.mirror_id.as_str(),
-                context,
-                true,
-            )?;
-        }
     }
     let before_source_members = source_members(
         input.valid_before,
@@ -200,7 +181,9 @@ pub(super) fn validate_transition_input<'a>(
             true,
         )?
     };
-    let post_source_members = if let Some(post_source) = post_source {
+    let post_source_members = if same_snapshot {
+        before_source_members.clone()
+    } else if let Some(post_source) = post_source {
         crate::matrix::valid_matrix(post_source, input.post_source)?;
         source_members(
             input.post_source,
@@ -211,14 +194,14 @@ pub(super) fn validate_transition_input<'a>(
     } else {
         BTreeSet::new()
     };
-    if let Some(post_mirror) = post_mirror {
+    if !same_snapshot && let Some(post_mirror) = post_mirror {
         crate::matrix::valid_matrix(post_mirror, input.post_source)?;
     }
     let before_transition_members: BTreeSet<_> = before_source_members
         .union(&before_mirror_members)
         .cloned()
         .collect();
-    let post_mirror_members = if post_mirror_absent {
+    let post_mirror_members = if post_mirror_absent || same_snapshot {
         BTreeSet::new()
     } else {
         source_members(
@@ -228,12 +211,14 @@ pub(super) fn validate_transition_input<'a>(
             true,
         )?
     };
-    let post_transition_members: BTreeSet<_> = post_source_members
-        .union(&post_mirror_members)
-        .cloned()
-        .collect();
     validate_transition_part_geometry(input.valid_before, &before_transition_members, context)?;
-    validate_transition_part_geometry(input.post_source, &post_transition_members, context)?;
+    if !same_snapshot {
+        let post_transition_members = post_source_members
+            .union(&post_mirror_members)
+            .cloned()
+            .collect();
+        validate_transition_part_geometry(input.post_source, &post_transition_members, context)?;
+    }
     if post_source.is_none() {
         let source_members_retired = before_source_members.iter().all(|id| {
             input.source_identity_map.get(id) == Some(&None)
@@ -268,17 +253,23 @@ pub(super) fn validate_transition_input<'a>(
             );
         }
     }
+    let snapshots = [input.valid_before, input.post_source];
+    let snapshots = if same_snapshot {
+        &snapshots[..1]
+    } else {
+        &snapshots[..]
+    };
     for association in context
         .associations
         .iter()
         .filter(|association| association.kind == MirroredItemKind::Part)
     {
-        for (document, id) in [
-            (input.valid_before, association.source_id.as_str()),
-            (input.valid_before, association.mirror_id.as_str()),
-            (input.post_source, association.source_id.as_str()),
-            (input.post_source, association.mirror_id.as_str()),
-        ] {
+        for (document, id) in snapshots.iter().flat_map(|&document| {
+            [
+                (document, association.source_id.as_str()),
+                (document, association.mirror_id.as_str()),
+            ]
+        }) {
             let mut parts = document.parts.iter().filter(|part| part.id == id);
             if let Some(part) = parts.next()
                 && (parts.next().is_some()
@@ -785,9 +776,10 @@ pub(super) fn validate_transition_input<'a>(
         }
     }
 
-    let mut required_owners = BTreeSet::new();
-    required_owners.extend(input.valid_before.parts.iter().map(|part| part.id.clone()));
-    required_owners.extend(input.post_source.parts.iter().map(|part| part.id.clone()));
+    let mut required_owners: BTreeSet<_> = snapshots
+        .iter()
+        .flat_map(|snapshot| snapshot.parts.iter().map(|part| part.id.clone()))
+        .collect();
     required_owners.extend(
         input
             .planned_additions

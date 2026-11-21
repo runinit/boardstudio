@@ -76,6 +76,7 @@ pub(in crate::mirrored_half::reconcile) fn native_detach_proposal(
     None
 }
 
+/// Uses the accepted document already validated by transaction preparation.
 pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -316,17 +317,21 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
     let Some(halves) = &pair.halves else {
         return Ok(None);
     };
-    let matrix_pairs: Vec<_> = halves
+    let mut matrix_pairs = halves
         .correspondences
         .iter()
-        .filter(|record| record.kind == crate::model::MirroredItemKind::Matrix)
-        .map(|record| (record.source_id.clone(), record.mirror_id.clone()))
-        .collect();
+        .filter(|record| record.kind == crate::model::MirroredItemKind::Matrix);
     let changed_matrices: Vec<_> = matrix_pairs
-        .iter()
-        .filter(|(source, _)| super::super::matrix_membership_changed(before, post_source, source))
-        .cloned()
+        .clone()
+        .filter(|record| {
+            super::super::matrix_membership_changed(before, post_source, &record.source_id)
+        })
         .collect();
+    let matrix_context =
+        |record: &crate::model::MirroredCorrespondence| super::super::MatrixPairContext {
+            source_id: record.source_id.clone(),
+            mirror_id: record.mirror_id.clone(),
+        };
     if !changed_matrices.is_empty() {
         // A single RemoveSelectedMatrixCells request can change membership in several matrix
         // pairs. Prepare each against the accepted baseline while carrying the prior private
@@ -334,15 +339,8 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
         // Compose the matrices before applying constraint retirements to the individual outputs.
         let mut outputs: Vec<super::super::MembershipTransitionOutput> =
             Vec::with_capacity(changed_matrices.len());
-        for (source_matrix_id, mirror_matrix_id) in changed_matrices {
-            let context = lifecycle_context(
-                before,
-                pair_id,
-                Some(super::super::MatrixPairContext {
-                    source_id: source_matrix_id.clone(),
-                    mirror_id: mirror_matrix_id.clone(),
-                }),
-            )?;
+        for record in changed_matrices {
+            let context = lifecycle_context(before, pair_id, Some(matrix_context(record)))?;
             let draft = outputs.last().map_or(post_source, |output| &output.draft);
             outputs.push(prepare_matrix_membership_edit(
                 before, draft, operation, &context, dispatch,
@@ -365,13 +363,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             changed_document_ids,
         }));
     }
-    let matrix_pair = matrix_pairs
-        .into_iter()
-        .next()
-        .map(|(source_id, mirror_id)| super::super::MatrixPairContext {
-            source_id,
-            mirror_id,
-        });
+    let matrix_pair = matrix_pairs.next().map(matrix_context);
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
     let output = prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
     // Caller-owned draft: no per-pair full report. The outer transaction guarantees rollback
