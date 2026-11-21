@@ -454,6 +454,20 @@ impl Source {
         sqrt_upper(&squared, "shared LINE movement range")
     }
 
+    pub(in crate::step) fn include_placed_bounds(
+        &self,
+        placement: &ExactPlacement,
+        bounds: &mut [[f64; 3]; 2],
+    ) -> Result<(), &'static str> {
+        if dot(&self.direction, &self.direction).is_zero() {
+            return Err("zero authored LINE direction");
+        }
+        for point in self.points.iter().chain(&self.projected_controls()) {
+            include_exact(bounds, &placement.point(point)).ok_or("nonfinite placed LINE bounds")?;
+        }
+        Ok(())
+    }
+
     fn projected_controls(&self) -> [Point; 2] {
         let project = |point: &Point| {
             let parameter = dot(&sub(point, &self.origin), &self.direction)

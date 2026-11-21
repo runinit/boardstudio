@@ -50,7 +50,8 @@ impl Repairs {
                     ));
                 }
             }
-            for &edge in &plan.edges {
+            // Every authored trim can set an extremum of the repaired solid.
+            for &edge in solids[&solid].edges.keys() {
                 lines.insert(edge, line_input(records, edge)?);
             }
             for support in plan.endpoints.values().flat_map(|(_, supports)| supports) {
@@ -152,6 +153,10 @@ impl Repairs {
                     forward,
                 };
                 movement_mm.insert(id, movement);
+            } else {
+                self.source.lines[&id]
+                    .include_placed_bounds(&exact, bounds)
+                    .map_err(|error| format!("native edge #{id}: {error}"))?;
             }
             edges.insert(id, repaired);
         }

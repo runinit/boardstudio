@@ -54,6 +54,11 @@ fn pin_socket_keeps_all_faces_and_source_bounds_after_shared_repair() {
         crate::qualification::SourceQualification::Unknown { .. }
     ));
     assert_bounds(&model, [-25.6500003814697, -14.9900010681152], 1.25, 24.13);
+    // Unmodified point #3676 also contributes to the placed source envelope.
+    let source_x =
+        num_rational::BigRational::new((-149900010681152_i64).into(), 10000000000000_i64.into());
+    let placed_x = source_x + num_rational::BigRational::from_float(24.13).unwrap();
+    assert!(num_rational::BigRational::from_float(model.bounds()[1][0]).unwrap() >= placed_x);
 
     // #1502 originally lies at x=-25.6500003814697. Both uses must emit the
     // same repaired segment at plane #2520, with opposite orientations.
