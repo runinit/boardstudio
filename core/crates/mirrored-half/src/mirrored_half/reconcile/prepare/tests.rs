@@ -53,6 +53,27 @@ fn apply(document: &mut ProjectDoc, operation: &EditOperation) -> Result<Vec<Str
             matrix,
             definitions: None,
         } => crate::matrix::set_matrix(document, matrix),
+        EditOperation::MoveParts { positions } => {
+            let (changed, handled) = crate::matrix::layout::move_keys(document, positions)?;
+            assert!(
+                positions
+                    .iter()
+                    .all(|position| handled.contains(&position.id))
+            );
+            Ok(changed)
+        }
+        EditOperation::SetLayout { layout } => {
+            let current = document
+                .layouts
+                .iter_mut()
+                .find(|row| row.id == layout.id)
+                .unwrap();
+            assert_eq!(current.matrix_ids, layout.matrix_ids);
+            assert_eq!(current.board_id, layout.board_id);
+            *current = layout.clone();
+            crate::matrix::layout::resolve(document)?;
+            Ok(vec![layout.id.clone()])
+        }
         _ => panic!("unexpected dispatch: {operation:?}"),
     }
 }
@@ -89,8 +110,8 @@ fn compare(accepted: &ProjectDoc, operation: serde_json::Value) -> (ProjectDoc, 
         prepare_transaction_with_ledger(accepted, &[], &operation, &identities, DISPATCH)
             .unwrap_or_else(|error| panic!("directed {operation:?}: {error}"));
     assert_eq!(
-        serde_json::to_value(&directed.0).unwrap(),
-        serde_json::to_value(&full.0).unwrap(),
+        serde_json::to_vec(&directed.0).unwrap(),
+        serde_json::to_vec(&full.0).unwrap(),
         "{operation:?}"
     );
     assert_eq!(directed.1, full.1, "{operation:?}");
@@ -165,4 +186,123 @@ fn matrixless_pair_retains_wiring_refresh_on_ordinary_edits() {
     assert_eq!(boards[0].board_id, "source-board");
     assert_eq!(boards[1].board_id, "mirror-board");
     assert_eq!(boards[1].mode, crate::electrical::ElectricalMode::Matrix);
+}
+
+#[test]
+fn linked_placement_sequence_matches_full_preparation() {
+    let mut accepted = document();
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.push(
+        serde_json::from_value(json!({
+            "kind":"layout","sourceId":"source-layout","mirrorId":"mirror-layout"
+        }))
+        .unwrap(),
+    );
+    accepted.layouts = serde_json::from_value(json!([
+        {"id":"source-layout","name":"Source","boardId":"source-board","matrixIds":["source-matrix"],"partIds":[]},
+        {"id":"mirror-layout","name":"Mirror","boardId":"mirror-board","matrixIds":["mirror-matrix"],"partIds":[]}
+    ])).unwrap();
+
+    let mut other = serde_json::to_string(&accepted).unwrap();
+    for identity in [
+        "source-board",
+        "mirror-board",
+        "source-matrix",
+        "mirror-matrix",
+        "source-layout",
+        "mirror-layout",
+        "pair-source-mirror",
+        "\"left\"",
+        "\"right\"",
+    ] {
+        let suffix = identity.trim_matches('"');
+        let replacement = if identity.starts_with('"') {
+            format!("\"other-{suffix}\"")
+        } else {
+            format!("other-{suffix}")
+        };
+        other = other.replace(identity, &replacement);
+    }
+    let other: ProjectDoc = serde_json::from_str(&other).unwrap();
+    accepted.boards.extend(other.boards);
+    accepted.parts.extend(other.parts);
+    accepted.matrices.extend(other.matrices);
+    accepted.layouts.extend(other.layouts);
+    let hardware = accepted.hardware.as_mut().unwrap();
+    let other_hardware = other.hardware.unwrap();
+    hardware.instances.extend(other_hardware.instances);
+    hardware.boards.extend(other_hardware.boards);
+    hardware.pairs.extend(other_hardware.pairs);
+    accepted = prepare_open(&accepted, &[]).unwrap().0;
+
+    let mut layout = accepted.layouts[1].clone();
+    layout.name = "Mirror placement".into();
+    let layout_edit = json!({"kind":"set-layout","layout":layout});
+    let (renamed, changed) = compare(&accepted, layout_edit.clone());
+    assert_eq!(changed, ["mirror-layout"]);
+    assert_eq!(renamed.layouts[1].name, layout.name);
+    assert!(stable_placement(
+        &accepted,
+        &renamed,
+        &serde_json::from_value(layout_edit.clone()).unwrap()
+    ));
+    let (same, unchanged) = compare(&renamed, layout_edit);
+    assert_eq!(same, renamed);
+    assert!(unchanged.is_empty());
+
+    let matrix = same
+        .matrices
+        .iter()
+        .find(|row| row.id == "mirror-matrix")
+        .unwrap();
+    let mut placed = matrix.clone();
+    placed.origin.y += 7.0;
+    let placement = json!({"kind":"set-matrix","matrix":placed});
+    let (placed, changed) = compare(&same, placement.clone());
+    assert!(stable_placement(
+        &same,
+        &placed,
+        &serde_json::from_value(placement).unwrap()
+    ));
+    assert!(changed.iter().any(|id| id == "source-matrix"));
+    assert!(changed.iter().any(|id| id == "mirror-matrix"));
+    assert!(!changed.iter().any(|id| id.contains("other-")));
+
+    let key = "matrix/mirror-matrix/r0c1";
+    let other_key = "matrix/other-mirror-matrix/r0c0";
+    let local = |state| {
+        json!({
+            "kind":"set-half-exception","pairId":"pair-source-mirror",
+            "itemKind":"part","mirrorId":key,"state":state
+        })
+    };
+    let (local_draft, _) = compare(&placed, local("local"));
+    let (moved, changed) = compare(
+        &local_draft,
+        json!({
+            "kind":"move-parts","positions":[
+                {"id": key,"at":{"x":5.0,"y":-18.0}},
+                {"id": other_key,"at":{"x":60.0,"y":-27.0}}
+            ]
+        }),
+    );
+    assert!(changed.iter().any(|id| id == key));
+    assert!(
+        changed
+            .iter()
+            .any(|id| id == "matrix/other-source-matrix/r0c0")
+    );
+    let (rejoined, _) = compare(&moved, local("linked"));
+    let (omitted, _) = compare(&rejoined, local("omitted"));
+    assert!(omitted.parts.iter().all(|row| row.id != key));
+    let (restored, _) = compare(&omitted, local("linked"));
+    assert!(restored.parts.iter().any(|row| row.id == key));
+    assert_eq!(
+        restored.hardware.as_ref().unwrap().pairs,
+        same.hardware.as_ref().unwrap().pairs,
+        "lifecycle changes kept the original pair identities"
+    );
 }

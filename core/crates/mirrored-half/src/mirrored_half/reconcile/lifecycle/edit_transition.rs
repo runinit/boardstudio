@@ -81,6 +81,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
     pair_id: &str,
     operation: &crate::model::EditOperation,
     dispatch: crate::mirrored_half::EditDispatch,
+    report: super::super::changes::ChangeScope,
 ) -> Result<Option<super::super::PreparedLifecycleDraft>, String> {
     use crate::model::EditOperation;
 
@@ -369,7 +370,9 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             mirror_id,
         });
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let output = prepare_lifecycle_transition(before, post_source, &context, dispatch)?;
+    let mut output =
+        super::transition::prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
+    output.changed_document_ids = report.ids(post_source, &output.draft, &[])?;
     let removed = removed_part_ids(before, &output.draft);
     prepare_lifecycle_output(
         before,

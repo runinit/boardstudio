@@ -180,3 +180,86 @@ fn prepared_global_only_definition_change_is_committed_and_undoable() {
     expected_redo["revision"] = redone["document"]["revision"].clone();
     assert_eq!(redone["document"], expected_redo);
 }
+
+#[test]
+fn linked_matrix_placement_preview_and_history_keep_serialized_identities() {
+    let (mut engine, linked) =
+        super::open_acceptance::open_two_pairs("placement-history", "placement-history-other");
+    let companion = "matrix/right-synthetic-keys/r0c0/diode";
+    let tweak = json!({"x":1.25,"y":-0.5,"rotation":4.0});
+    let set_tweak = json!({"kind":"set-companion-placement","pairId":"placement-history",
+        "mode":"literal-mirror-with-tweak","tweak":tweak,
+        "targets":[{"kind":"item","itemKind":"part","mirrorId":companion}]});
+    let before = commit(
+        &mut engine,
+        &linked,
+        "placement-tweak",
+        &[companion],
+        set_tweak.clone(),
+    )["document"]
+        .clone();
+    let link = pair(&before, "placement-history")["halves"]["correspondences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|link| link["mirrorId"] == companion)
+        .unwrap();
+    assert_eq!(link["companionTweak"], tweak);
+    let matrix_id = "right-synthetic-keys";
+    let placement = json!({"kind":"set-matrix-placement","matrixId":matrix_id,
+        "change":{"kind":"column-stagger","column":1,"value":4.0}});
+    let preview = request(
+        &mut engine,
+        json!({"id":"placement-preview","kind":"edit","command":{
+            "baseRevision":before["revision"],"transactionId":"placement","phase":"preview",
+            "targetIds":[matrix_id],"operation":placement
+        }}),
+    );
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(snapshot(&mut engine), before);
+
+    let committed = commit(&mut engine, &before, "placement", &[matrix_id], placement);
+    for field in ["transforms", "matrixScenes", "changedIds"] {
+        assert!(
+            preview["scene"][field].is_array(),
+            "missing Preview {field}"
+        );
+        assert_eq!(
+            preview["scene"][field], committed["scene"][field],
+            "{field}"
+        );
+    }
+    let changed = committed["scene"]["changedIds"].as_array().unwrap();
+    for id in ["left-synthetic-keys", matrix_id] {
+        assert!(changed.contains(&json!(id)), "missing {id}: {changed:?}");
+    }
+    assert!(
+        changed
+            .iter()
+            .all(|id| !id.as_str().unwrap().contains("other-"))
+    );
+    let committed_document = committed["document"].clone();
+    assert_eq!(
+        committed_document["hardware"]["pairs"],
+        before["hardware"]["pairs"]
+    );
+
+    let undone = request(&mut engine, json!({"kind":"undo","id":"placement-undo"}));
+    let mut expected = before;
+    expected["revision"] = undone["document"]["revision"].clone();
+    assert_eq!(undone["document"], expected);
+    let noop = commit(
+        &mut engine,
+        &expected,
+        "placement-noop",
+        &[companion],
+        set_tweak,
+    );
+    assert_eq!(noop["document"], expected);
+    assert_eq!(noop["scene"]["changedIds"], json!([]));
+
+    let redone = request(&mut engine, json!({"kind":"redo","id":"placement-redo"}));
+    let mut expected = committed_document;
+    expected["revision"] = redone["document"]["revision"].clone();
+    assert_eq!(redone["document"], expected);
+}
