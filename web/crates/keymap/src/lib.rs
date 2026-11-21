@@ -25,6 +25,7 @@ pub(crate) mod pcb_wiring {
     };
 }
 
+pub mod binding;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod layer_edit;
 pub mod macro_accessible_names;
