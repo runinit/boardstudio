@@ -177,6 +177,14 @@ pub(super) struct FeatureShape {
 }
 type FeatureGeometry = Result<FeatureShape, String>;
 fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeometry {
+    feature_geometry_with_offsets(doc, feature, None)
+}
+
+fn feature_geometry_with_offsets(
+    doc: &ProjectDoc,
+    feature: &OutlineFeature,
+    reuse: Option<&mut automatic::OffsetReuse<'_>>,
+) -> FeatureGeometry {
     if let OutlineFeature::Polygon { points, .. } = feature {
         automatic::check_persisted_path_size(points.len())?;
     }
@@ -243,6 +251,7 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                     *margin,
                     settings,
                     connections,
+                    reuse,
                 );
             }
             // Build each physical half independently so automatic bridges never cross a split.
@@ -295,8 +304,15 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                     .get(group)
                     .map(Vec::as_slice)
                     .unwrap_or_default();
-                let half =
-                    automatic::envelope(doc, feature.id(), ids, *margin, settings, connections)?;
+                let half = automatic::envelope(
+                    doc,
+                    feature.id(),
+                    ids,
+                    *margin,
+                    settings,
+                    connections,
+                    None,
+                )?;
                 shapes.extend(half.shapes);
                 warnings.extend(half.notices);
                 bridges.extend(half.bridges);
@@ -520,28 +536,33 @@ pub fn outlines(
     previous: Option<&OutlineCache>,
     moved: &[String],
 ) -> OutlineProjection {
-    project_outlines(doc, previous, moved, false).0
+    project_outlines(doc, previous, moved, None).0
 }
 
 /// Project the draft's outlines and share the composition with the board scene
 /// when the board consumes exactly the project's ordered feature list.
+///
+/// Keep the offset cache within one accepted document. Parts outside `moved`
+/// must have stationary envelope inputs so the cache stays bounded.
 pub fn outlines_with_board_reuse(
     doc: &ProjectDoc,
     previous: &OutlineCache,
     moved: &[String],
+    offsets: &mut EnvelopeOffsets,
 ) -> (OutlineProjection, Option<BoardSceneGeometry>) {
-    project_outlines(doc, Some(previous), moved, true)
+    project_outlines(doc, Some(previous), moved, Some(offsets))
 }
 
-fn shared_outline_board<'a>(doc: &'a ProjectDoc, cache: &OutlineCache) -> Option<&'a Board> {
+#[derive(Default)]
+pub struct EnvelopeOffsets(automatic::EnvelopeOffsets);
+
+fn shared_outline_board(doc: &ProjectDoc) -> Option<&Board> {
     let [board] = doc.boards.as_slice() else {
         return None;
     };
     // Saved outlines and protected gaps can select different sources or
-    // refresh recovery between composition and publication. Board lookup
-    // also takes the first feature for a duplicate ID.
+    // refresh recovery between composition and publication.
     (doc.board_outlines.is_empty()
-        && cache.paths.len() == doc.outline.len()
         && board
             .outline_ids
             .iter()
@@ -558,7 +579,7 @@ fn project_outlines(
     doc: &ProjectDoc,
     previous: Option<&OutlineCache>,
     moved: &[String],
-    share_board: bool,
+    offsets: Option<&mut EnvelopeOffsets>,
 ) -> (OutlineProjection, Option<BoardSceneGeometry>) {
     let mut cache = OutlineCache {
         layouts: doc.layouts.clone(),
@@ -570,16 +591,24 @@ fn project_outlines(
             features.extend(crate::outline_versions::features(doc, board));
         }
     }
+    let shared_board = offsets.as_ref().and_then(|_| shared_outline_board(doc));
+    let mut reuse = offsets.and_then(|offsets| {
+        shared_board.map(|_| automatic::OffsetReuse {
+            moved: moved.iter().map(String::as_str).collect(),
+            offsets: &mut offsets.0,
+        })
+    });
     for feature in features {
         let paths = previous
             .filter(|old| old.layouts == doc.layouts)
             .and_then(|old| old.paths.get(feature.id()))
             .filter(|(old_feature, _)| old_feature == &feature && !depends_on(&feature, moved))
             .map(|(_, paths)| paths.clone())
-            .unwrap_or_else(|| feature_geometry(doc, &feature));
+            .unwrap_or_else(|| feature_geometry_with_offsets(doc, &feature, reuse.as_mut()));
         cache.paths.insert(feature.id().into(), (feature, paths));
     }
-    if share_board && let Some(board) = shared_outline_board(doc, &cache) {
+    // Independent board composition takes the first feature for a duplicate ID.
+    if let Some(board) = shared_board.filter(|_| cache.paths.len() == doc.outline.len()) {
         let result = compose(doc.outline.iter(), &cache, None);
         let project = (cache, result.contours.clone(), result.findings.clone());
         let mut geometry = BoardSceneGeometry::default();
@@ -1315,6 +1344,44 @@ mod tests {
         assert_ne!(cached.paths["edge-0"].1, old.paths["edge-0"].1);
         assert_eq!(cached.paths["edge-1"].1, old.paths["edge-1"].1);
         assert_eq!(cached.paths["edge-0"].1, full.paths["edge-0"].1);
+    }
+
+    #[test]
+    fn stagger_offset_cache_keeps_only_stationary_envelopes() {
+        let mut doc = fixture(3);
+        doc.outline.truncate(1);
+        let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] else {
+            unreachable!();
+        };
+        *part_ids = doc.parts.iter().map(|part| part.id.clone()).collect();
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec!["edge-0".into()],
+            part_ids: part_ids.clone(),
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        doc.parts[0].pose.rotation = 7.0;
+        doc.parts[1].side = Side::Back;
+        let (accepted, _, _) = outlines(&doc, None, &[]);
+        let mut offsets = EnvelopeOffsets::default();
+        let moved = ["key-2".into()];
+        for value in [0.125, -4.0, 27.123] {
+            doc.parts[2].pose.at.y = value;
+            let ((cache, contours, findings), board) =
+                outlines_with_board_reuse(&doc, &accepted, &moved, &mut offsets);
+            let (expected, cold_contours, cold_findings) = outlines(&doc, None, &[]);
+            assert_eq!(cache.paths, expected.paths);
+            let board = board.unwrap();
+            assert_eq!(board.contours, board_contours(&doc, &expected).0);
+            assert_eq!(board.outlines, board_outline_scenes(&doc, &expected));
+            assert_eq!(contours, cold_contours);
+            assert_eq!(findings, cold_findings);
+            assert_eq!(offsets.0.len(), 2);
+        }
     }
 
     fn percentile(samples: &mut [u128], percent: usize) -> u128 {

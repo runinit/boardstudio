@@ -249,14 +249,14 @@ pub fn LayoutAnchorPickOverlay(
             set_rail_active(rail, &svg_for_disarm, None);
         })
     };
-    use_document_escape({
+    use_canvas_escape(&svg_handle, {
         let disarm = disarm.clone();
-        move |event| {
-            if !armed() {
-                return;
+        move |_| {
+            let claims = armed();
+            if claims {
+                disarm();
             }
-            event.prevent_default();
-            disarm();
+            claims
         }
     });
     // A stale arm (owner, selection or scope moved on) drops without writing.

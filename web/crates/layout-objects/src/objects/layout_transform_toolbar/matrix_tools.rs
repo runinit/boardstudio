@@ -3,7 +3,7 @@ use super::*;
 
 mod helpers;
 mod token;
-use helpers::{CtrlModifierListener, angle_handle_point, splay_arc};
+use helpers::{angle_handle_point, splay_arc};
 use token::{MatrixTokenView, matrix_token_chrome};
 
 #[component]
@@ -29,25 +29,18 @@ pub fn LayoutTransformToolOverlay(
     height: f64,
     on_finish: EventHandler<()>,
 ) -> Element {
-    let control = use_signal(|| false);
-    let _control_listener = use_hook(move || {
-        Rc::new(
-            if matches!(
-                tool,
-                LayoutTransformTool::Stagger
-                    | LayoutTransformTool::Splay
-                    | LayoutTransformTool::Origin
-            ) {
-                CtrlModifierListener::install(control)
-            } else {
-                None
-            },
-        )
-    });
-    let _ = surface_size.map(|size| size());
     // W3-C: the rail peers share one canvas-owned svg handle. Every overlay of
     // one selection clones the same handle, so all read the same mount set
-    // however the mounts interleave; a second canvas owns a second handle.
+    // and key listener however the mounts interleave; a second canvas owns a
+    // second handle.
+    let control = use_canvas_control(
+        &svg,
+        matches!(
+            tool,
+            LayoutTransformTool::Stagger | LayoutTransformTool::Splay | LayoutTransformTool::Origin
+        ),
+    );
+    let _ = surface_size.map(|size| size());
     let svg_handle = svg.clone();
     use_rail_mount(Rail::Matrix, svg_handle.clone(), tool);
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
@@ -144,7 +137,7 @@ pub fn LayoutTransformToolOverlay(
         );
     });
     let svg_for_escape = svg_handle.clone();
-    use_document_escape({
+    use_canvas_escape(&svg_handle, {
         let runtime = runtime.0.clone();
         let drag = drag.clone();
         let arbiter = arbiter.clone();
@@ -153,13 +146,9 @@ pub fn LayoutTransformToolOverlay(
         let mut guide = snap_guide;
         let svg_for_escape = svg_for_escape.clone();
         move |event| {
-            // Another visible handle may own the live gesture. Its listener cancels it.
-            if escape_targets_text_entry(event)
-                || (drag.borrow().is_none() && arbiter.current().is_some())
-            {
-                return;
+            if !rail_escape_claims(event, drag.borrow().is_some(), &arbiter) {
+                return false;
             }
-            event.prevent_default();
             // Ticket 06: Escape clears the chosen tool and its popup.
             feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
             popup_at.set(None);
@@ -173,6 +162,7 @@ pub fn LayoutTransformToolOverlay(
                 &svg_for_escape,
             );
             on_finish.call(());
+            true
         }
     });
     use_stale_drag_cancel(

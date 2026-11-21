@@ -877,26 +877,35 @@ impl CoreEngine {
         phase: EditPhase,
     ) -> (geometry::OutlineProjection, Option<ValidatedBoardScene>) {
         let preview = phase == EditPhase::Preview;
-        if let Some(previous) = self.stagger_preview.take()
-            && previous.matches(draft)
-        {
-            if !preview {
-                return previous.projection();
+        let previous = match self.stagger_preview.take() {
+            Some(previous) if previous.matches(draft) => {
+                if !preview {
+                    return previous.projection();
+                }
+                let projection = previous.clone_projection();
+                self.stagger_preview = Some(previous);
+                return projection;
             }
-            let projection = previous.clone_projection();
-            self.stagger_preview = Some(previous);
-            return projection;
-        }
+            other => other,
+        };
         #[cfg(test)]
         self.stagger_outline_projections
             .set(self.stagger_outline_projections.get() + 1);
+        let mut offsets = previous
+            .map(|previous| previous.offsets)
+            .unwrap_or_default();
         let (outline, board) =
-            geometry::outlines_with_board_reuse(draft, &self.outline_cache, moved);
+            geometry::outlines_with_board_reuse(draft, &self.outline_cache, moved, &mut offsets);
         let board = board.map(|board| ValidatedBoardScene::new(draft, board));
         // Shared board geometry rules out saved versions and generated
         // recovery from Keep gap, which publication could otherwise refresh.
         if preview && let Some(board) = &board {
-            self.stagger_preview = Some(StaggerPreview::new(draft, outline.clone(), board.clone()));
+            self.stagger_preview = Some(StaggerPreview::new(
+                draft,
+                outline.clone(),
+                board.clone(),
+                offsets,
+            ));
         }
         (outline, board)
     }

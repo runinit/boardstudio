@@ -212,6 +212,42 @@ enum LocalEnvelope<'a> {
     Courtyard(&'a str),
 }
 
+type OffsetKey = (u64, Vec<[u64; 2]>);
+pub(super) type EnvelopeOffsets = BTreeMap<OffsetKey, Shapes>;
+
+pub(super) struct OffsetReuse<'a> {
+    pub moved: BTreeSet<&'a str>,
+    pub offsets: &'a mut EnvelopeOffsets,
+}
+
+impl OffsetReuse<'_> {
+    fn expand(&mut self, path: &Path, margin: f64) -> Result<Shapes, String> {
+        // Offset depends only on the ordered world vertices and the margin.
+        // Key after orientation and rounding to preserve the original offset
+        // inputs even when a part moves by less than one grid point.
+        let key = (
+            margin.to_bits(),
+            path.iter().map(|p| p.map(f64::to_bits)).collect(),
+        );
+        match self.offsets.entry(key) {
+            std::collections::btree_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                let expanded = expand_envelope(path, margin)?;
+                entry.insert(expanded.clone());
+                Ok(expanded)
+            }
+        }
+    }
+}
+
+fn expand_envelope(path: &Path, margin: f64) -> Result<Shapes, String> {
+    path.outline_fixed_scale(
+        &OutlineStyle::new(margin).line_join(LineJoin::Miter(0.1)),
+        SCALE,
+    )
+    .map_err(|_| "Outline offset is outside supported coordinate range".into())
+}
+
 pub(super) fn envelope(
     doc: &ProjectDoc,
     feature_id: &str,
@@ -219,6 +255,7 @@ pub(super) fn envelope(
     margin: f64,
     settings: &OutlineSettings,
     connections: &[crate::model::OutlineConnection],
+    mut reuse: Option<&mut OffsetReuse<'_>>,
 ) -> Result<FeatureShape, String> {
     let repair = settings.repair.clone().unwrap_or_default();
     cleanup::validate(&repair)?;
@@ -342,9 +379,12 @@ pub(super) fn envelope(
         }
         let expanded = if m == 0.0 {
             vec![vec![std::mem::take(&mut path)]]
+        } else if let Some(reuse) = reuse.as_deref_mut()
+            && !reuse.moved.contains(p.id.as_str())
+        {
+            reuse.expand(&path, m)?
         } else {
-            path.outline_fixed_scale(&OutlineStyle::new(m).line_join(LineJoin::Miter(0.1)), SCALE)
-                .map_err(|_| "Outline offset is outside supported coordinate range")?
+            expand_envelope(&path, m)?
         };
         shapes = shapes.overlay(&expanded, OverlayRule::Union, FillRule::NonZero);
         envelopes.push((p.id.as_str(), expanded));

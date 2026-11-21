@@ -27,6 +27,7 @@ pub(super) struct StaggerPreview {
     poses: Vec<[u64; 3]>,
     outline: geometry::OutlineProjection,
     board: ValidatedBoardScene,
+    pub offsets: geometry::EnvelopeOffsets,
 }
 
 impl StaggerPreview {
@@ -34,11 +35,13 @@ impl StaggerPreview {
         draft: &ProjectDoc,
         outline: geometry::OutlineProjection,
         board: ValidatedBoardScene,
+        offsets: geometry::EnvelopeOffsets,
     ) -> Self {
         Self {
             poses: draft.parts.iter().map(pose_bits).collect(),
             outline,
             board,
+            offsets,
         }
     }
 
