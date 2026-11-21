@@ -331,8 +331,9 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
         // A single RemoveSelectedMatrixCells request can change membership in several matrix
         // pairs. Prepare each against the accepted baseline while carrying the prior private
         // draft forward, so each transition preserves the already-composed mirror membership.
-        let mut draft = post_source.clone();
-        let mut outputs = Vec::with_capacity(changed_matrices.len());
+        // Compose the matrices before applying constraint retirements to the individual outputs.
+        let mut outputs: Vec<super::super::MembershipTransitionOutput> =
+            Vec::with_capacity(changed_matrices.len());
         for (source_matrix_id, mirror_matrix_id) in changed_matrices {
             let context = lifecycle_context(
                 before,
@@ -342,12 +343,12 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
                     mirror_id: mirror_matrix_id.clone(),
                 }),
             )?;
-            let output =
-                prepare_matrix_membership_edit(before, &draft, operation, &context, dispatch)?;
-            draft = output.draft.clone();
-            outputs.push(output);
+            let draft = outputs.last().map_or(post_source, |output| &output.draft);
+            outputs.push(prepare_matrix_membership_edit(
+                before, draft, operation, &context, dispatch,
+            )?);
         }
-        let mut draft = post_source.clone();
+        let mut draft = None;
         let mut changed_document_ids = Vec::new();
         for output in outputs {
             let removed = removed_part_ids(before, &output.draft);
@@ -357,10 +358,10 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
                 &[ConstraintLifecycleEffect::RemoveVisibleParts { part_ids: removed }],
             )?;
             changed_document_ids.extend(prepared.changed_document_ids);
-            draft = prepared.draft;
+            draft = Some(prepared.draft);
         }
         return Ok(Some(super::super::PreparedLifecycleDraft {
-            draft,
+            draft: draft.expect("at least one matrix membership changed"),
             changed_document_ids,
         }));
     }

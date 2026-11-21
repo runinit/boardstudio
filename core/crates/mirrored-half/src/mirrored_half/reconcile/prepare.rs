@@ -669,10 +669,11 @@ fn prepare_transaction(
     )?);
 
     for addition in &canonical.matrix_additions {
-        let mirrored =
-            crate::mirrored_half::matrix_addition::mirror_added_matrix(&draft, addition)?;
-        draft = mirrored.draft;
-        changed.extend(mirrored.changed_ids);
+        changed.extend(
+            crate::mirrored_half::matrix_addition::mirror_added_matrix_in_draft(
+                &mut draft, addition,
+            )?,
+        );
     }
 
     framed = bind_deferred_constraints(&draft, &canonical, &framed)?;

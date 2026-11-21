@@ -194,7 +194,7 @@ fn removal_associations(
     Ok(retired)
 }
 
-/// Remove only authenticated retired-outline associations from a validation copy.
+/// Remove only authenticated retired-outline associations before validating the draft.
 pub(super) fn prepare_validation(
     document: &mut ProjectDoc,
     pair_id: &str,

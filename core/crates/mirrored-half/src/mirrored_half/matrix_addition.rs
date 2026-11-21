@@ -32,8 +32,8 @@ use super::{
 };
 use crate::matrix::layout;
 use crate::model::{
-    Layout, Matrix, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence,
-    MirroredHalves, MirroredItemKind, Net, Pin, Pose2, ProjectDoc,
+    ElectricalBoardConfiguration, Layout, Matrix, MirroredCompanionMode, MirroredCompanionTweak,
+    MirroredCorrespondence, MirroredHalves, MirroredItemKind, Net, Pin, Pose2, ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -125,16 +125,26 @@ pub fn mirror_added_matrix(
     document: &ProjectDoc,
     addition: &MatrixAddition,
 ) -> Result<MirroredMatrix, String> {
-    let facts = pair_facts(document, addition)?;
+    let mut draft = document.clone();
+    let changed_ids = mirror_added_matrix_in_draft(&mut draft, addition)?;
+    Ok(MirroredMatrix { draft, changed_ids })
+}
+
+/// Materialize the addition in the transaction's disposable draft.
+pub(super) fn mirror_added_matrix_in_draft(
+    draft: &mut ProjectDoc,
+    addition: &MatrixAddition,
+) -> Result<Vec<String>, String> {
+    let facts = pair_facts(draft, addition)?;
     for id in [&addition.source_id, &addition.mirror_id] {
-        if layout::has_link(document, id) {
+        if layout::has_link(draft, id) {
             return Err(format!(
                 "The matrix {id:?} is linked by a legacy layout mirror link; unlink it before \
                  the matrix is mirrored by the native pair"
             ));
         }
     }
-    let mut source = document
+    let mut source = draft
         .matrices
         .iter()
         .find(|matrix| matrix.id == addition.source_id)
@@ -161,8 +171,8 @@ pub fn mirror_added_matrix(
             addition.source_id
         ));
     }
-    let mut draft = document.clone();
-    if have.len() != (source.rows as usize) * (source.columns as usize) {
+    let densify = have.len() != (source.rows as usize) * (source.columns as usize);
+    if densify {
         for row in 0..source.rows {
             for column in 0..source.columns {
                 if have.contains(&(row, column)) {
@@ -184,6 +194,19 @@ pub fn mirror_added_matrix(
                 });
             }
         }
+    }
+    let plan = plan_identities(draft, addition, &source, &facts.halves)?;
+    let companion = companion_defaults(&facts.halves)?;
+    let reflected = reflected_matrix(draft, &source, addition, &facts, companion)?;
+    // Electrical inheritance reads the post-source configuration, before materialization.
+    let source_electrical = draft.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|board| board.board_id == addition.source_board_id)
+            .cloned()
+    });
+    if densify {
         let stored = draft
             .matrices
             .iter_mut()
@@ -191,9 +214,6 @@ pub fn mirror_added_matrix(
             .ok_or_else(|| format!("The source matrix {:?} is unavailable", addition.source_id))?;
         stored.cells = source.cells.clone();
     }
-    let plan = plan_identities(document, addition, &source, &facts.halves)?;
-    let companion = companion_defaults(&facts.halves)?;
-    let reflected = reflected_matrix(document, &source, addition, &facts, companion)?;
 
     // Correspondences: the matrix, then each member pair in plan order.
     let mut added = vec![corresponds(
@@ -213,27 +233,33 @@ pub fn mirror_added_matrix(
     changed.insert(addition.mirror_board_id.clone());
     changed.extend(plan.pairs.iter().map(|(_, mirror)| mirror.clone()));
 
-    let mut taken = taken_ids(&draft);
+    let mut taken = taken_ids(draft);
     let follow = Follow::new(&facts, addition, &plan);
     // An anchored mirror evaluates its anchor at placement, so its layout
     // must exist before `set_matrix`. The layout step skips recorded layouts,
     // so running it early is a no-op for the unanchored path below.
     if reflected.anchor.is_some() {
-        follow.layouts(&mut draft, &mut taken, &mut added, &mut changed)?;
+        follow.layouts(draft, &mut taken, &mut added, &mut changed)?;
     }
-    crate::matrix::set_matrix(&mut draft, &reflected)?;
+    crate::matrix::set_matrix(draft, &reflected)?;
     // The early layout step ran before placement; refresh the taken set with
     // the placed mirror identities, as the original post-placement
     // computation saw them.
-    taken.extend(taken_ids(&draft));
-    check_generated_members(&draft, addition, &source, &plan)?;
-    copy_member_attributes(&mut draft, &plan.pairs)?;
-    extend_electrical_configuration(&mut draft, document, addition, &facts.halves, &plan.pairs)?;
+    taken.extend(taken_ids(draft));
+    check_generated_members(draft, addition, &source, &plan)?;
+    copy_member_attributes(draft, &plan.pairs)?;
+    extend_electrical_configuration(
+        draft,
+        source_electrical.as_ref(),
+        addition,
+        &facts.halves,
+        &plan.pairs,
+    )?;
 
-    follow.layouts(&mut draft, &mut taken, &mut added, &mut changed)?;
-    follow.nets(&mut draft, &mut taken, &mut added, &mut changed)?;
-    follow.modules(&mut draft, &mut taken, &mut added, &mut changed)?;
-    follow.keycaps(&mut draft, &mut changed)?;
+    follow.layouts(draft, &mut taken, &mut added, &mut changed)?;
+    follow.nets(draft, &mut taken, &mut added, &mut changed)?;
+    follow.modules(draft, &mut taken, &mut added, &mut changed)?;
+    follow.keycaps(draft, &mut changed)?;
 
     let halves = draft
         .hardware
@@ -245,12 +271,9 @@ pub fn mirror_added_matrix(
         .expect("the pair was read with halves");
     halves.correspondences.extend(added);
 
-    layout::validate(&draft)?;
-    crate::mechanical::halves::validate_document(&draft)?;
-    Ok(MirroredMatrix {
-        draft,
-        changed_ids: changed.into_iter().collect(),
-    })
+    layout::validate(draft)?;
+    crate::mechanical::halves::validate_document(draft)?;
+    Ok(changed.into_iter().collect())
 }
 
 /// Adds only the electrical functions that name this matrix's new members. Electrical-board
@@ -258,7 +281,7 @@ pub fn mirror_added_matrix(
 /// and an Omitted board receives no source-derived setup.
 fn extend_electrical_configuration(
     draft: &mut ProjectDoc,
-    source_document: &ProjectDoc,
+    source: Option<&ElectricalBoardConfiguration>,
     addition: &MatrixAddition,
     halves: &MirroredHalves,
     member_pairs: &[(String, String)],
@@ -273,12 +296,6 @@ fn extend_electrical_configuration(
     if halves.overlay_of(board_link).is_some() {
         return Ok(());
     }
-    let source = source_document.hardware.as_ref().and_then(|hardware| {
-        hardware
-            .boards
-            .iter()
-            .find(|board| board.board_id == addition.source_board_id)
-    });
     let Some(source) = source else {
         return Ok(());
     };

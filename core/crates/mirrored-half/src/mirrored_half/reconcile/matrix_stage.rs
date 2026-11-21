@@ -1,8 +1,8 @@
 //! Staging of mirrored matrices and forward projection of matrices and parts.
 
 use super::{
-    FixedMembershipView, Projection, build_fixed_membership_view, matrix_members_for_pair,
-    omitted_mirror_matrix, remove_omitted_matrix_parts,
+    Projection, build_fixed_membership_view, matrix_members_for_pair, omitted_mirror_matrix,
+    remove_omitted_matrix_parts,
 };
 use crate::model::{Matrix, MirroredCorrespondence, MirroredItemKind, Part, Pose2, ProjectDoc};
 use std::collections::BTreeSet;
@@ -13,6 +13,8 @@ pub(super) struct RetainedCell {
 }
 
 pub(super) struct MatrixStage {
+    // Reconciliation reads pre-projection parts, nets, and ownership from the
+    // baseline while the destructive matrix setter and later projectors update this draft.
     pub(super) draft: ProjectDoc,
     pub(super) source_members: BTreeSet<String>,
     pub(super) mirror_members: BTreeSet<String>,
@@ -137,35 +139,27 @@ pub(super) fn stage_matrix(
         return Err("The reconciliation mapping contains non-finite geometry".into());
     }
 
-    let view = if exact_matrix_exception.is_some() || projection.preserve_matrix_geometry {
-        FixedMembershipView {
-            normalized_source_matrix: source_matrix.clone(),
-            incoming_matrix: mirror_matrix.clone(),
-            retained_cells: Vec::new(),
-            retained_companion_parts: Vec::new(),
-            omitted_parts: BTreeSet::new(),
-            omitted_matrix_companions: BTreeSet::new(),
-        }
-    } else {
+    let view = if exact_matrix_exception.is_none() && !projection.preserve_matrix_geometry {
         let projected_matrix =
             project_matrix(source_matrix, mirror_matrix, matrix_correspondence, mapping)?;
         crate::matrix::valid_matrix(&projected_matrix, document)?;
-        build_fixed_membership_view(
+        Some(build_fixed_membership_view(
             document,
             halves,
             source_matrix,
             mirror_matrix,
             &projected_matrix,
             projection,
-        )?
+        )?)
+    } else {
+        None
     };
 
-    // Keep both retained parts out of the incoming pass and the previous ownership
-    // view, so the destructive setter cannot remove their parts or references.
-    let normalized_source_matrix = view.normalized_source_matrix;
-    let incoming_matrix = view.incoming_matrix;
     let mut staged = document.clone();
-    if exact_matrix_exception.is_none() && !projection.preserve_matrix_geometry {
+    let mut omitted_parts = BTreeSet::new();
+    if let Some(view) = view {
+        // Keep retained parts out of the incoming pass and the previous ownership
+        // view, so the destructive setter cannot remove their parts or references.
         let staged_old_matrix = staged
             .matrices
             .iter_mut()
@@ -179,10 +173,10 @@ pub(super) fn stage_matrix(
         staged_old_matrix
             .part_ids
             .retain(|id| !retained_ids.contains(id));
-        if normalized_source_matrix.cells.len() != source_matrix.cells.len() {
-            crate::matrix::set_matrix(&mut staged, &normalized_source_matrix)?;
+        if view.normalized_source_matrix.cells.len() != source_matrix.cells.len() {
+            crate::matrix::set_matrix(&mut staged, &view.normalized_source_matrix)?;
         }
-        crate::matrix::set_matrix(&mut staged, &incoming_matrix)?;
+        crate::matrix::set_matrix(&mut staged, &view.incoming_matrix)?;
         for retained in &view.retained_companion_parts {
             let target = staged
                 .parts
@@ -235,6 +229,7 @@ pub(super) fn stage_matrix(
             &mirror_matrix.id,
             &view.omitted_matrix_companions,
         );
+        omitted_parts = view.omitted_parts;
     }
 
     let (source_matrix_members, mirror_matrix_members) = matrix_members_for_pair(document, halves);
@@ -242,7 +237,7 @@ pub(super) fn stage_matrix(
         draft: staged,
         source_members: source_matrix_members,
         mirror_members: mirror_matrix_members,
-        omitted_parts: view.omitted_parts,
+        omitted_parts,
         allow_absent: exact_matrix_exception
             .is_some_and(|e| e.state == crate::model::MirroredExceptionState::Omitted),
     })

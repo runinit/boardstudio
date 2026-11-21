@@ -1240,17 +1240,13 @@ pub(super) fn reconcile_with_report(
         }
     }
 
-    let validation_copy = projection_validation_copy(
-        &staged,
+    validate_projection_draft(
+        &mut staged,
         pair_id,
         projection,
         &planned_hosted_operations,
         &hosted_omission_closure,
     )?;
-    let validated_draft = validation_copy.as_ref().unwrap_or(&staged);
-    crate::mechanical::features::validate(validated_draft)?;
-    crate::mechanical::halves::validate_document(validated_draft)
-        .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
 
     let changed_ids = if report {
         changed_document_ids(document, &staged, &[])?
@@ -1304,13 +1300,19 @@ pub(super) fn reconcile_with_report(
     Ok(changed_ids)
 }
 
-fn projection_validation_copy(
-    staged: &ProjectDoc,
+fn validate_projection_draft(
+    staged: &mut ProjectDoc,
     pair_id: &str,
     projection: &Projection,
     planned_hosted_operations: &BTreeSet<(String, String, String)>,
     hosted_omission_closure: &HostedOmissionClosure,
-) -> Result<Option<ProjectDoc>, String> {
+) -> Result<(), String> {
+    fn validate(document: &ProjectDoc) -> Result<(), String> {
+        crate::mechanical::features::validate(document)?;
+        crate::mechanical::halves::validate_document(document)
+            .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))
+    }
+
     // Removal evidence can prune pair records for validation before the lifecycle
     // layer retires them. Ordinary projection validates the staged draft directly.
     if planned_hosted_operations.is_empty()
@@ -1318,11 +1320,10 @@ fn projection_validation_copy(
         && hosted_omission_closure.nets.is_empty()
         && projection.outline_removal_baselines.borrow().is_empty()
     {
-        return Ok(None);
+        return validate(staged);
     }
 
-    let mut validated_draft = staged.clone();
-    let pair = validated_draft
+    let pair = staged
         .hardware
         .as_mut()
         .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
@@ -1331,6 +1332,7 @@ fn projection_validation_copy(
         .halves
         .as_mut()
         .ok_or_else(|| format!("The validated pair {pair_id:?} has no halves context"))?;
+    let original_halves = validated_halves.clone();
     for (operation, source_id, mirror_id) in planned_hosted_operations {
         match operation.as_str() {
             "remove-module" => {
@@ -1393,6 +1395,15 @@ fn projection_validation_copy(
             || (exception.kind == MirroredItemKind::Net
                 && hosted_omission_closure.nets.contains(&exception.mirror_id)))
     });
-    outlines::prepare_validation(&mut validated_draft, pair_id, projection)?;
-    Ok(Some(validated_draft))
+    let result =
+        outlines::prepare_validation(staged, pair_id, projection).and_then(|()| validate(staged));
+    // Validation only prunes this pair's halves. Restore the durable rows before
+    // reporting changes or publishing the draft, including when validation refuses.
+    staged
+        .hardware
+        .as_mut()
+        .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
+        .expect("projection validation only modifies the pair's halves")
+        .halves = Some(original_halves);
+    result
 }
