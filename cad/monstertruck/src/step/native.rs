@@ -228,12 +228,19 @@ pub(super) fn build(
                 edge_id,
                 edge.sample(deflection_mm / source_to_world, epsilon)?,
             );
+            // Along each admitted cylindrical generator, a world coordinate is
+            // affine in height. Extremes occur at its authored trim endpoints.
             edge.include_bounds(world, epsilon, &mut asset.bounds)?;
         }
         let mut triangles = Vec::new();
         for face in &solid.faces {
             let face_mesh = face
-                .mesh(&solid.edges, &samples, epsilon)
+                .mesh(
+                    &solid.edges,
+                    &samples,
+                    epsilon,
+                    deflection_mm / source_to_world,
+                )
                 .map_err(|error| {
                     format!(
                         "native face #{}: {error}",
