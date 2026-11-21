@@ -74,7 +74,6 @@ pub use boardstudio_web_layout_objects::objects;
 pub mod outline_lifecycle;
 #[cfg(target_arch = "wasm32")]
 pub use boardstudio_web_layout_core::outline_snapping;
-#[cfg(target_arch = "wasm32")]
 pub mod part_placement;
 #[cfg(target_arch = "wasm32")]
 pub mod setup_guide;
