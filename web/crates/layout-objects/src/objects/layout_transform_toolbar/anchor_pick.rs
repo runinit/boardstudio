@@ -159,10 +159,10 @@ pub fn LayoutAnchorPickOverlay(
     // corner; otherwise it docks above the rail like every other token.
     let feedback = use_signal(FeedbackState::default);
     let toast_gen = use_signal(|| 0_u64);
-    // Parent `version` via context drives settlement (see matrix overlay).
-    let parent_version = try_use_context::<Signal<u64>>();
-    let local_version = use_signal(|| 0_u64);
-    let version = parent_version.unwrap_or(local_version);
+    // Production `version` drives settlement (workbench root provides it;
+    // browser test hosts provide it the same way). No local fallback: without
+    // a publisher settlement would silently never run.
+    let version = transform_version();
     // Single-ticket Anchor commit: one waiting entry (ticket plus the toast
     // its landing needs) settles on `version`. No keyed map or polling.
     // `Landed` raises the carried toast only if the live anchor names the
@@ -560,18 +560,7 @@ pub fn LayoutAnchorPickOverlay(
     let face = token_face(token_fill, glyph, Some("Pick anchor"));
     let feedback_state = feedback();
     let layout_id = anchor_pick_layout(&document, &context);
-    // Named mounted control for parent integration: present while the Anchor
-    // commit is queued.
-    let pick_pending = waiting.read().is_some();
     rsx! {
-        if pick_pending {
-            g {
-                "data-transform-pending": "true",
-                "data-transform-tool": "Anchor",
-                style: "display:none",
-                "aria-hidden": "true",
-            }
-        }
         if rail_index == Some(0) {
             {rail_backdrop(&rail_layout, rail_tools.len(), px)}
         }

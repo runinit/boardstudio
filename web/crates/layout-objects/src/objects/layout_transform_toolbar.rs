@@ -70,7 +70,7 @@ pub use anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 use chrome::*;
 use commit::{
     PendingTransformCommit, PendingTransformToast, begin_transform_ticket,
-    settle_transform_commits, transform_commit_is_live,
+    transform_commit_is_live, transform_version, use_settled_transform_commits,
 };
 use feedback::*;
 use matrix_gesture::*;

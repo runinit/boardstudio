@@ -41,30 +41,19 @@ pub fn LayoutPartToolOverlay(
     let feedback = use_signal(FeedbackState::default);
     let popup_at = use_signal(|| None::<(f64, f64)>);
     let toast_gen = use_signal(|| 0_u64);
-    // Parent `version` via context drives settlement (see matrix overlay).
-    let parent_version = try_use_context::<Signal<u64>>();
-    let local_version = use_signal(|| 0_u64);
-    let version = parent_version.unwrap_or(local_version);
-    // Single-ticket part commits settle on `version` (durable toast on
-    // landing, `report` on failure, silent on retirement). No keyed map.
-    let mut pending = use_signal(Vec::<PendingTransformCommit>::new);
-    use_effect(use_reactive((&version(),), {
-        let runtime = runtime.0.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
-        let mut toast_gen = toast_gen;
-        move |_| {
-            settle_transform_commits(
-                &runtime,
-                workspace,
-                scope_generation,
-                selected_context,
-                &mut pending,
-                &mut feedback,
-                &mut toast_gen,
-            );
-        }
-    }));
+    // Single-ticket part commits settle on the production `version` signal
+    // (durable toast on landing, `report` on failure, silent on retirement).
+    // No keyed map or polling loop is kept.
+    let pending = use_signal(Vec::<PendingTransformCommit>::new);
+    use_settled_transform_commits(
+        runtime.0.clone(),
+        workspace,
+        scope_generation,
+        selected_context,
+        pending,
+        feedback,
+        toast_gen,
+    );
     let runtime_inner = runtime.0.clone();
     let drag_for_drop = drag.clone();
     let arbiter_for_drop = arbiter.clone();
@@ -642,8 +631,8 @@ pub fn LayoutPartToolOverlay(
     let arbiter_for_end = arbiter.clone();
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
-    let mut pending_for_end = pending;
-    let mut toast_gen_for_end = toast_gen;
+    let pending_for_end = pending;
+    let toast_gen_for_end = toast_gen;
     let handle_value_for_end = handle_value.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut feedback_for_end = feedback_for_end;
@@ -1013,18 +1002,7 @@ pub fn LayoutPartToolOverlay(
     let show_hover_value = handle_value.clone();
     let show_focus_name = feedback_tool_name(tool).to_owned();
     let show_focus_value = handle_value.clone();
-    // Named mounted control for parent integration: present while a part
-    // commit is queued.
-    let pending_commits = pending.read().len();
     rsx! {
-        if pending_commits > 0 {
-            g {
-                "data-transform-pending": "true",
-                "data-transform-tool": "{tool:?}",
-                style: "display:none",
-                "aria-hidden": "true",
-            }
-        }
         if token_lit
             && matches!(
                 tool,

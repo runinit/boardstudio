@@ -64,32 +64,19 @@ pub fn LayoutTransformToolOverlay(
     let feedback = use_signal(FeedbackState::default);
     let popup_at = use_signal(|| None::<(f64, f64)>);
     let toast_gen = use_signal(|| 0_u64);
-    // Parent `version` (provided via context in production, via the test host
-    // in browser tests) drives settlement. No keyed map or polling loop.
-    let parent_version = try_use_context::<Signal<u64>>();
-    let local_version = use_signal(|| 0_u64);
-    let version = parent_version.unwrap_or(local_version);
-    // Single-ticket commits: drags and nudges queue here and settle on
-    // `version` (durable toast on landing, `report` on failure, silent on
-    // retirement). No keyed map or polling loop is kept.
-    let mut pending = use_signal(Vec::<PendingTransformCommit>::new);
-    use_effect(use_reactive((&version(),), {
-        let runtime = runtime.0.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
-        let mut toast_gen = toast_gen;
-        move |_| {
-            settle_transform_commits(
-                &runtime,
-                workspace,
-                scope_generation,
-                selected_context,
-                &mut pending,
-                &mut feedback,
-                &mut toast_gen,
-            );
-        }
-    }));
+    // Single-ticket commits: drags and nudges queue here and settle on the
+    // production `version` signal (durable toast on landing, `report` on
+    // failure, silent on retirement). No keyed map or polling loop is kept.
+    let pending = use_signal(Vec::<PendingTransformCommit>::new);
+    use_settled_transform_commits(
+        runtime.0.clone(),
+        workspace,
+        scope_generation,
+        selected_context,
+        pending,
+        feedback,
+        toast_gen,
+    );
     let preview = try_use_context::<FieldPreview>();
     let preview_source = try_use_context::<Option<FieldPreviewSource>>().flatten();
     let shown = use_hook(|| Rc::new(RefCell::new(Vec::<String>::new())));
@@ -709,7 +696,7 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_end = snap_guide;
     let feedback_for_end = feedback;
     let popup_at_for_end = popup_at;
-    let mut pending_for_end = pending;
+    let pending_for_end = pending;
     let svg_handle_for_end_outer = svg_handle.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
         let mut guide_for_end = guide_for_end;
@@ -894,7 +881,7 @@ pub fn LayoutTransformToolOverlay(
     let guide_for_key = snap_guide;
     let feedback_for_key = feedback;
     let popup_at_for_key = popup_at;
-    let mut pending_for_key = pending;
+    let pending_for_key = pending;
     let svg_for_key_cancel = svg_handle.clone();
     let on_key_down = Rc::new(move |event: KeyboardEvent| {
         let mut guide_for_key = guide_for_key;
@@ -1144,60 +1131,47 @@ pub fn LayoutTransformToolOverlay(
         // pick overlay owns it), so no gesture starts here.
         LayoutTransformTool::Anchor => TransformGesture::MatrixMove { anchor: None },
     };
-    // Named mounted control for parent integration: present while a drag or
-    // nudge commit is queued, so the canvas can observe pending work.
-    let pending_commits = pending.read().len();
-    rsx! {
-        if pending_commits > 0 {
-            g {
-                "data-transform-pending": "true",
-                "data-transform-tool": "{tool:?}",
-                style: "display:none",
-                "aria-hidden": "true",
-            }
-        }
-        {matrix_token_chrome(MatrixTokenView {
-            tool,
-            context: context.clone(),
-            projection: projection.clone(),
-            matrix: matrix.clone(),
-            selected_column,
-            matrix_rotation_followed,
-            offset_now,
-            shift_now,
-            bend_now,
-            stagger_now,
-            control,
-            quick_glyph,
-            swing_glyph,
-            hovered,
-            focused,
-            feedback,
-            popup_at,
-            snap_guide,
-            drag: drag.clone(),
-            svg: svg_handle.clone(),
-            rail_index,
-            rail_layout,
-            rail_tools,
-            world_per_screen,
-            angle_degrees,
-            origin_point,
-            arc,
-            angle_point,
-            shift_parameter,
-            bend_parameter,
-            gesture,
-            start_drag,
-            move_drag,
-            end_drag,
-            cancel_drag,
-            on_key_down,
-            show_preview,
-            release_preview,
-            view_x,
-            view_y,
-            width,
-        })}
-    }
+    matrix_token_chrome(MatrixTokenView {
+        tool,
+        context: context.clone(),
+        projection: projection.clone(),
+        matrix: matrix.clone(),
+        selected_column,
+        matrix_rotation_followed,
+        offset_now,
+        shift_now,
+        bend_now,
+        stagger_now,
+        control,
+        quick_glyph,
+        swing_glyph,
+        hovered,
+        focused,
+        feedback,
+        popup_at,
+        snap_guide,
+        drag: drag.clone(),
+        svg: svg_handle.clone(),
+        rail_index,
+        rail_layout,
+        rail_tools,
+        world_per_screen,
+        angle_degrees,
+        origin_point,
+        arc,
+        angle_point,
+        shift_parameter,
+        bend_parameter,
+        gesture,
+        start_drag,
+        move_drag,
+        end_drag,
+        cancel_drag,
+        on_key_down,
+        show_preview,
+        release_preview,
+        view_x,
+        view_y,
+        width,
+    })
 }

@@ -14,7 +14,7 @@ use boardstudio_application::{
 use boardstudio_model::model::{
     DiodeDirection, EditOperation, Matrix, PartDefinition, ProjectDoc, Side, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
