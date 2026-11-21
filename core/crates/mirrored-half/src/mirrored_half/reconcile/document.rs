@@ -1123,7 +1123,7 @@ pub(super) fn reconcile_with_report(
         return Err("The final mirror matrix is unavailable".into());
     }
     settings::project(document, &mut staged, halves)?;
-    outlines::reconcile(&mut staged, pair_id, projection)?;
+    outlines::reconcile_draft(&mut staged, pair_id, projection)?;
     let target_outline_ids = staged
         .boards
         .iter()
