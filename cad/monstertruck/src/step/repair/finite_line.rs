@@ -453,6 +453,23 @@ fn world_square(
 }
 
 impl Source {
+    pub(in crate::step) fn has_detached_endpoint(&self, epsilon: f64) -> bool {
+        let Some(epsilon) = Q::from_float(epsilon) else {
+            return false;
+        };
+        let direction_sq = dot(&self.direction, &self.direction);
+        if direction_sq.is_zero() {
+            return false;
+        }
+        // Compare squared perpendicular distance without normalizing the LINE.
+        let threshold = &epsilon * &epsilon * &direction_sq;
+        self.points.iter().any(|point| {
+            let delta = sub(point, &self.origin);
+            let along = dot(&delta, &self.direction);
+            dot(&delta, &delta) * &direction_sq - &along * &along > threshold
+        })
+    }
+
     /// Bound the original endpoint chord, its projected LINE interval, and the
     /// repaired chord against one another. Affine correspondence places each
     /// maximum at an endpoint, in either direction after instance placement.

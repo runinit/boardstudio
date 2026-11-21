@@ -393,6 +393,21 @@ fn a_source_boundary_off_its_plane_cannot_be_accepted_as_the_same_tetrahedron() 
 }
 
 #[test]
+fn a_remote_origin_on_the_same_line_keeps_the_plane_only_refusal() {
+    let source = std::str::from_utf8(TETRA)
+        .unwrap()
+        .replace(
+            "#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);",
+            "#300=CARTESIAN_POINT('',(0.,0.,0.001));#57=AXIS2_PLACEMENT_3D('',#300,#55,#56);",
+        )
+        .replace(
+            "#34=LINE('',#2,#33);",
+            "#301=CARTESIAN_POINT('',(-1999999998.34,3000000000.51,0.));#34=LINE('',#301,#33);",
+        );
+    assert!(import_step(source.into_bytes()).is_err());
+}
+
+#[test]
 fn mapped_uniform_scale_keeps_the_absolute_world_mesh_deflection() {
     let source=std::str::from_utf8(include_bytes!("fixtures/source-closed-cylinder-mm.step")).unwrap()
         .replace("ENDSEC;END-ISO-10303-21;","#300=AXIS2_PLACEMENT_3D('',#40,$,$);#303=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,$,#40,20.,$);#304=REPRESENTATION_MAP(#300,#84);#305=MAPPED_ITEM('',#304,#303);#306=SHAPE_REPRESENTATION('',(#305),#83);ENDSEC;END-ISO-10303-21;");

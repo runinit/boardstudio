@@ -90,6 +90,33 @@ impl Repairs {
         }
         let source = finite_line::capture_native(bytes, &lines, &planes, &placement_inputs.values)
             .ok_or("shared trim repair requires original LINE, PLANE and placement coefficients")?;
+        // A plane-only discrepancy must retain the ordinary support-incidence
+        // route. A distant origin on a valid LINE can lose incidence in f64.
+        for id in plans.keys() {
+            let solid = &solids[id];
+            let epsilon = epsilon[id];
+            for face in &solid.faces {
+                for ring in &face.loops {
+                    let off_plane = ring.edges.iter().any(|(edge, _)| {
+                        solid.edges[edge]
+                            .points
+                            .iter()
+                            .any(|&point| face.surface.local(point).z.abs() > epsilon)
+                    });
+                    if off_plane
+                        && !ring
+                            .edges
+                            .iter()
+                            .any(|(edge, _)| source.lines[edge].has_detached_endpoint(epsilon))
+                    {
+                        return Err(
+                            "native plane-only discrepancy requires support incidence validation"
+                                .into(),
+                        );
+                    }
+                }
+            }
+        }
         let mut steps = HashMap::new();
         let placements = placed
             .into_iter()
@@ -265,31 +292,6 @@ impl Solid {
         for (vertex, _, face) in incidences() {
             if let Some((_, planes)) = endpoints.get_mut(&vertex) {
                 planes.insert(faces[face.source].support_id);
-            }
-        }
-        // A plane displaced from an otherwise intact trim loop uses the
-        // existing support-incidence route. Shared repair addresses loops
-        // whose original LINE and vertex attachments also disagree.
-        for face in &self.faces {
-            for ring in &face.loops {
-                let mut off_plane = false;
-                let mut off_line = false;
-                for (id, _) in &ring.edges {
-                    let edge = &self.edges[id];
-                    let Curve::Line {
-                        origin, direction, ..
-                    } = edge.curve
-                    else {
-                        unreachable!("only plain LINE edges are eligible for planar repair");
-                    };
-                    for point in edge.points {
-                        off_plane |= face.surface.local(point).z.abs() > epsilon;
-                        off_line |= (point - origin).cross(direction).magnitude() > epsilon;
-                    }
-                }
-                if off_plane && !off_line {
-                    return Ok(None);
-                }
             }
         }
         Ok(Some(Plan {
