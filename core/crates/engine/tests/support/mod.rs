@@ -40,6 +40,42 @@ pub fn prepare_transaction(
     )
 }
 
+/// A linked-mirror constraint endpoint for `pair_id` naming both halves' parts.
+/// Shared by the lifecycle and prepare suites, which previously defined
+/// the same constructor (the prepare copy hard-coded `pair_id`).
+pub fn linked_endpoint(
+    pair_id: &str,
+    source_part_id: &str,
+    mirror_part_id: &str,
+) -> boardstudio_model::model::ConstraintEndpoint {
+    boardstudio_model::model::ConstraintEndpoint::LinkedMirror {
+        pair_id: pair_id.into(),
+        source_part_id: source_part_id.into(),
+        mirror_part_id: mirror_part_id.into(),
+    }
+}
+
+/// Finds a part by id, panicking with the id absent (test-fixture lookup).
+pub fn part_by_id<'a>(document: &'a ProjectDoc, id: &str) -> &'a boardstudio_model::model::Part {
+    document
+        .parts
+        .iter()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+}
+
+/// Mutable counterpart of [`part_by_id`].
+pub fn part_by_id_mut<'a>(
+    document: &'a mut ProjectDoc,
+    id: &str,
+) -> &'a mut boardstudio_model::model::Part {
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+}
+
 pub fn canonicalize(
     document: &ProjectDoc,
     operation: &EditOperation,
