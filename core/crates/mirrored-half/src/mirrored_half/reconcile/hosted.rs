@@ -86,12 +86,8 @@ pub(super) fn stage_hosted_circuit_additions(
             .find(|circuit| circuit.id == *source_id)
             .ok_or_else(|| format!("The source embedded circuit {source_id:?} is unavailable"))?;
         let provenance_key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
-        let prior_provenance = projection
-            .applied_hosted_circuit_additions
-            .borrow()
-            .get(&provenance_key)
-            .cloned();
-        let has_provenance = if let Some(prior) = &prior_provenance {
+        let circuit_additions = projection.applied_hosted_circuit_additions.borrow();
+        let has_provenance = if let Some(prior) = circuit_additions.get(&provenance_key) {
             if prior.member_ids != *member_ids
                 || prior.member_references != *member_references
                 || prior.definition_ids != *definition_ids
@@ -370,6 +366,7 @@ pub(super) fn validate_hosted_removal_baselines(
     document: &ProjectDoc,
     pair_id: &str,
     projection: &Projection,
+    accepted: Option<&ProjectDoc>,
 ) -> Result<(), String> {
     fn pair_bytes(document: &ProjectDoc, pair_id: &str) -> Result<Vec<u8>, String> {
         let hardware = document
@@ -399,45 +396,23 @@ pub(super) fn validate_hosted_removal_baselines(
             _ => continue,
         };
         let key = (operation.to_owned(), source_id.clone(), mirror_id.clone());
-        let baseline = projection
-            .hosted_removal_baselines
-            .borrow()
-            .get(&key)
-            .cloned()
-            .ok_or_else(|| {
+        // Transaction preparation already validated the document that owned the operation.
+        // Standalone callers supply their own historical evidence, including on replay.
+        let baselines = projection.hosted_removal_baselines.borrow();
+        let baseline = if let Some(accepted) = accepted {
+            accepted
+        } else {
+            let baseline = baselines.get(&key).ok_or_else(|| {
                 format!("Hosted removal {source_id:?} has no private pre-source baseline")
             })?;
-        crate::mechanical::halves::validate_document(&baseline).map_err(|error| {
-            format!("Hosted removal {source_id:?} has an invalid pre-source baseline: {error}")
-        })?;
-        if pair_bytes(&baseline, pair_id)? != pair_bytes(document, pair_id)? {
+            crate::mechanical::halves::validate_document(baseline).map_err(|error| {
+                format!("Hosted removal {source_id:?} has an invalid pre-source baseline: {error}")
+            })?;
+            baseline
+        };
+        if pair_bytes(baseline, pair_id)? != pair_bytes(document, pair_id)? {
             return Err(format!(
                 "Hosted removal {source_id:?} changed its durable pair record before reconciliation"
-            ));
-        }
-        let source_exists = match operation {
-            "remove-module" => baseline
-                .modules
-                .iter()
-                .any(|module| module.id == *source_id),
-            _ => baseline
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == *source_id),
-        };
-        let target_exists = match operation {
-            "remove-module" => baseline
-                .modules
-                .iter()
-                .any(|module| module.id == *mirror_id),
-            _ => baseline
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == *mirror_id),
-        };
-        if !source_exists || !target_exists {
-            return Err(format!(
-                "Hosted removal {source_id:?} is not owned by its complete pre-source baseline"
             ));
         }
         let baseline_pair = baseline
@@ -448,64 +423,58 @@ pub(super) fn validate_hosted_removal_baselines(
         let baseline_halves = baseline_pair.halves.as_ref().ok_or_else(|| {
             format!("Hosted removal {source_id:?} has no baseline halves context")
         })?;
-        match operation {
-            "remove-module" => {
-                let source = baseline
-                    .modules
-                    .iter()
-                    .find(|module| module.id == *source_id)
-                    .unwrap();
-                let target = baseline
-                    .modules
-                    .iter()
-                    .find(|module| module.id == *mirror_id)
-                    .unwrap();
-                let pair_associations: Vec<_> = baseline_halves
-                    .correspondences
-                    .iter()
-                    .filter(|association| {
-                        association.kind == MirroredItemKind::Module
-                            && association.source_id == *source_id
-                            && association.mirror_id == *mirror_id
-                    })
-                    .collect();
-                if pair_associations.len() != 1
-                    || source.host_board_id != baseline_halves.source_board_id
-                    || target.host_board_id != baseline_halves.mirror_board_id
-                {
-                    return Err(format!(
-                        "Hosted module removal {source_id:?} does not match one exact pair correspondence and its board owners"
-                    ));
-                }
+        let missing_owner = || {
+            format!("Hosted removal {source_id:?} is not owned by its complete pre-source baseline")
+        };
+        let validate_owners = |kind, item: &str, source_board: &str, mirror_board: &str| {
+            let exact = baseline_halves
+                .correspondences
+                .iter()
+                .filter(|link| {
+                    link.kind == kind
+                        && link.source_id == *source_id
+                        && link.mirror_id == *mirror_id
+                })
+                .count();
+            if exact != 1
+                || source_board != baseline_halves.source_board_id
+                || mirror_board != baseline_halves.mirror_board_id
+            {
+                return Err(format!(
+                    "Hosted {item} removal {source_id:?} does not match one exact pair correspondence and its board owners"
+                ));
             }
-            "remove-circuit" => {
-                let source = baseline
-                    .embedded_circuits
+            Ok(())
+        };
+        let source_still_exists = match transition {
+            HostedTransition::RemoveModule { .. } => {
+                let module = |id: &str| baseline.modules.iter().find(|module| module.id == id);
+                let (source, mirror) = module(source_id)
+                    .zip(module(mirror_id))
+                    .ok_or_else(missing_owner)?;
+                validate_owners(
+                    MirroredItemKind::Module,
+                    "module",
+                    &source.host_board_id,
+                    &mirror.host_board_id,
+                )?;
+                document
+                    .modules
                     .iter()
-                    .find(|circuit| circuit.id == *source_id)
-                    .unwrap();
-                let target = baseline
-                    .embedded_circuits
-                    .iter()
-                    .find(|circuit| circuit.id == *mirror_id)
-                    .unwrap();
-                let pair_associations: Vec<_> = baseline_halves
-                    .correspondences
-                    .iter()
-                    .filter(|association| {
-                        association.kind == MirroredItemKind::EmbeddedCircuit
-                            && association.source_id == *source_id
-                            && association.mirror_id == *mirror_id
-                    })
-                    .collect();
-                if pair_associations.len() != 1
-                    || source.host_board_id != baseline_halves.source_board_id
-                    || target.host_board_id != baseline_halves.mirror_board_id
-                {
-                    return Err(format!(
-                        "Hosted circuit removal {source_id:?} does not match one exact pair correspondence and its board owners"
-                    ));
-                }
+                    .any(|module| module.id == *source_id)
+            }
+            HostedTransition::RemoveCircuit { .. } => {
+                let circuit =
+                    |id: &str| baseline.embedded_circuits.iter().find(|item| item.id == id);
+                let (source, target) = circuit(source_id)
+                    .zip(circuit(mirror_id))
+                    .ok_or_else(missing_owner)?;
+                validate_owners(
+                    MirroredItemKind::EmbeddedCircuit,
+                    "circuit",
+                    &source.host_board_id,
+                    &target.host_board_id,
+                )?;
                 let source_parts: BTreeSet<_> = source.part_ids.iter().cloned().collect();
                 let target_parts: BTreeSet<_> = target.part_ids.iter().cloned().collect();
                 let source_nets: BTreeSet<_> = source.net_ids.iter().cloned().collect();
@@ -530,18 +499,12 @@ pub(super) fn validate_hosted_removal_baselines(
                         ));
                     }
                 }
+                document
+                    .embedded_circuits
+                    .iter()
+                    .any(|circuit| circuit.id == *source_id)
             }
             _ => unreachable!(),
-        }
-        let source_still_exists = match operation {
-            "remove-module" => document
-                .modules
-                .iter()
-                .any(|module| module.id == *source_id),
-            _ => document
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == *source_id),
         };
         if source_still_exists {
             return Err(format!(

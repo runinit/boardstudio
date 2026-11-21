@@ -67,7 +67,9 @@ fn reconcile_projection(
         return Err("The reconciliation input does not match its canonical pair".into());
     }
     validate_local_circuit_targets(document, halves)?;
-    validate_hosted_removal_baselines(document, pair_id, projection)?;
+    if explicit {
+        validate_hosted_removal_baselines(document, pair_id, projection, None)?;
+    }
     let hosted_omission_closure =
         validate_hosted_omission_baselines(document, pair_id, projection)?;
 
@@ -361,49 +363,23 @@ fn reconcile_projection(
             .embedded_circuits
             .iter()
             .find(|circuit| circuit.id == source_id);
-        if omitted || source.is_none() {
-            let removal_requested = !omitted && projection.hosted_transitions.iter().any(|transition| {
+        // Remove the operation's owned circuit before projecting board wiring. Joined host
+        // nets survive through the ordinary circuit removal kernel.
+        if !omitted
+            && projection.hosted_transitions.iter().any(|transition| {
                 matches!(transition, HostedTransition::RemoveCircuit { source_id: s, mirror_id: m }
-                    if s == &source_id && m == &mirror_id)
-            });
-            if removal_requested {
-                let mut removed_parts: BTreeSet<_> = halves
-                    .exceptions
-                    .iter()
-                    .filter(|exception| {
-                        exception.kind == MirroredItemKind::Part
-                            && exception.state == crate::model::MirroredExceptionState::Omitted
-                            && exception
-                                .mirror_id
-                                .starts_with(&format!("embedded/{mirror_id}/"))
-                    })
-                    .map(|exception| exception.mirror_id.clone())
-                    .collect();
-                let mut removed_nets: BTreeSet<_> = halves
-                    .exceptions
-                    .iter()
-                    .filter(|exception| {
-                        exception.kind == MirroredItemKind::Net
-                            && exception.state == crate::model::MirroredExceptionState::Omitted
-                            && exception
-                                .mirror_id
-                                .starts_with(&format!("embedded/{mirror_id}/"))
-                    })
-                    .map(|exception| exception.mirror_id.clone())
-                    .collect();
-                if let Some(target_circuit) = staged
-                    .embedded_circuits
-                    .iter()
-                    .find(|circuit| circuit.id == mirror_id)
-                {
-                    removed_parts.extend(target_circuit.part_ids.iter().cloned());
-                    removed_nets.extend(target_circuit.net_ids.iter().cloned());
-                    crate::modules::remove_circuit(&mut staged, &mirror_id)?;
-                }
-            }
-            continue;
+                if s == &source_id && m == &mirror_id)
+            })
+            && staged
+                .embedded_circuits
+                .iter()
+                .any(|circuit| circuit.id == mirror_id)
+        {
+            crate::modules::remove_circuit(&mut staged, &mirror_id)?;
         }
-        let source = source.unwrap();
+        let Some(source) = source.filter(|_| !omitted) else {
+            continue;
+        };
         let target = staged
             .embedded_circuits
             .iter_mut()
@@ -973,27 +949,13 @@ fn reconcile_projection(
             .modules
             .iter()
             .find(|module| module.id == *source_id);
-        let target_exists = staged.modules.iter().any(|module| module.id == *mirror_id);
-        match source {
-            Some(source) if target_exists => {
-                let projected = super::super::mirror_module(source, &module_context)?;
-                let target = staged
-                    .modules
-                    .iter_mut()
-                    .find(|module| module.id == *mirror_id)
-                    .unwrap();
-                *target = projected;
-            }
-            None if target_exists
-                && projection.hosted_transitions.iter().any(|transition| {
-                    matches!(transition,
-                HostedTransition::RemoveModule { source_id: removed, mirror_id: removed_mirror }
-                    if removed == source_id && removed_mirror == mirror_id)
-                }) =>
-            {
-                staged.modules.retain(|module| module.id != *mirror_id);
-            }
-            _ => {}
+        if let Some(source) = source
+            && let Some(target) = staged
+                .modules
+                .iter_mut()
+                .find(|module| module.id == *mirror_id)
+        {
+            *target = super::super::mirror_module(source, &module_context)?;
         }
     }
 
@@ -1255,11 +1217,13 @@ fn reconcile_projection(
         &hosted_omission_closure,
     )?;
 
-    let changed_ids = if explicit {
-        changed_document_ids(document, &staged, &[])?
-    } else {
-        Vec::new()
-    };
+    // Prepared projections are single-use. Only the standalone entry point can replay
+    // an operation and needs to bind its evidence to the complete first output.
+    if !explicit {
+        *document = staged;
+        return Ok(Vec::new());
+    }
+    let changed_ids = changed_document_ids(document, &staged, &[])?;
     *document = staged;
     {
         let mut applied_additions = projection.applied_independent_additions.borrow_mut();

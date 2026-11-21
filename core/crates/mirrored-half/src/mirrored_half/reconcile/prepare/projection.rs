@@ -179,9 +179,8 @@ pub(super) fn reconcile_pairs(
                     canonical,
                     &pair.halves,
                     &pair.halves.source_board_id,
-                    &pair.halves.mirror_board_id,
                     false,
-                )?
+                )
                 .0;
                 // Caller-owned draft: no per-pair report. The outer transaction guarantees
                 // rollback and owns the single final scoped report, so refusals still leave
@@ -203,6 +202,12 @@ pub(super) fn reconcile_pairs(
                 &pair_projection,
                 matrix_link,
                 index == 0,
+            )?;
+            super::super::validate_hosted_removal_baselines(
+                document,
+                &pair.pair_id,
+                &projection,
+                Some(accepted),
             )?;
             reconcile_canonical(document, &pair.pair_id, &projection)?;
         }
@@ -339,20 +344,18 @@ pub(super) fn projection_for(
             ));
         }
     }
-    let (independent_part_transitions, hosted_transitions, hosted_removal_baselines) =
-        match canonical {
-            Some(canonical) => transitions_for(
-                accepted,
-                document,
-                canonical,
-                halves,
-                &source_board_id,
-                &mirror_board_id,
-                include_transitions,
-            )?,
-            None if !include_transitions => (Vec::new(), Vec::new(), BTreeMap::new()),
-            None => return Err("Edit projection requires canonical intent".into()),
-        };
+    let (independent_part_transitions, hosted_transitions) = match canonical {
+        Some(canonical) => transitions_for(
+            accepted,
+            document,
+            canonical,
+            halves,
+            &source_board_id,
+            include_transitions,
+        ),
+        None if !include_transitions => (Vec::new(), Vec::new()),
+        None => return Err("Edit projection requires canonical intent".into()),
+    };
     let applied_independent_additions = if include_transitions {
         BTreeSet::new()
     } else {
@@ -385,7 +388,6 @@ pub(super) fn projection_for(
         independent_part_transitions,
         hosted_transitions,
         applied_independent_additions: std::cell::RefCell::new(applied_independent_additions),
-        hosted_removal_baselines: std::cell::RefCell::new(hosted_removal_baselines),
         ..super::super::projection_for_pair(halves, pair.mapping)
     })
 }
@@ -401,24 +403,14 @@ pub(super) fn matrix_by_id<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a
     Ok(matrix)
 }
 
-pub(super) type RemovalBaselines = BTreeMap<(String, String, String), ProjectDoc>;
-
 pub(super) fn transitions_for(
     accepted: &ProjectDoc,
     document: &ProjectDoc,
     canonical: &Canonical,
     halves: &crate::model::MirroredHalves,
     source_board_id: &str,
-    mirror_board_id: &str,
     include_removals_and_hosted: bool,
-) -> Result<
-    (
-        Vec<IndependentPartTransition>,
-        Vec<HostedTransition>,
-        RemovalBaselines,
-    ),
-    String,
-> {
+) -> (Vec<IndependentPartTransition>, Vec<HostedTransition>) {
     let mut parts = Vec::new();
     for addition in &canonical.additions {
         if super::super::super::board_for_part(document, &addition.source_id)
@@ -447,9 +439,8 @@ pub(super) fn transitions_for(
     }
 
     let mut hosted = Vec::new();
-    let mut removal_baselines = BTreeMap::new();
     if !include_removals_and_hosted {
-        return Ok((parts, hosted, removal_baselines));
+        return (parts, hosted);
     }
 
     for addition in &canonical.hosted.modules {
@@ -492,14 +483,6 @@ pub(super) fn transitions_for(
                     source_id: id.clone(),
                     mirror_id: association.mirror_id.clone(),
                 });
-                removal_baselines.insert(
-                    (
-                        "remove-module".into(),
-                        id.clone(),
-                        association.mirror_id.clone(),
-                    ),
-                    accepted.clone(),
-                );
             }
         }
         EditOperation::RemoveEmbeddedCircuit { id } => {
@@ -511,20 +494,11 @@ pub(super) fn transitions_for(
                     source_id: id.clone(),
                     mirror_id: association.mirror_id.clone(),
                 });
-                removal_baselines.insert(
-                    (
-                        "remove-circuit".into(),
-                        id.clone(),
-                        association.mirror_id.clone(),
-                    ),
-                    accepted.clone(),
-                );
             }
         }
         _ => {}
     }
-    let _ = mirror_board_id;
-    Ok((parts, hosted, removal_baselines))
+    (parts, hosted)
 }
 
 pub(super) fn hosted_association<'a>(

@@ -94,7 +94,6 @@ pub(super) fn translate(
     links: &Links<'_>,
     operation: &EditOperation,
     canonical: &mut Canonical,
-    apply: crate::matrix::deletion::ApplyUnscripted,
 ) -> Result<(), String> {
     use EditOperation as Op;
     match operation {
@@ -133,7 +132,6 @@ pub(super) fn translate(
             side,
             joins,
             canonical,
-            apply,
         )?,
         Op::RemoveEmbeddedCircuit { id } => remove_circuit(links, id, canonical)?,
         Op::SetInputScanMode { part_id, mode } => {
@@ -675,7 +673,6 @@ fn embed_circuit(
     side: &Side,
     joins: &BTreeMap<String, String>,
     canonical: &mut Canonical,
-    apply: crate::matrix::deletion::ApplyUnscripted,
 ) -> Result<(), String> {
     // Hosted additions need a plan from either authoring half. A board may participate in
     // several pairs, so select one unambiguous pair before deriving any counterpart identity.
@@ -833,50 +830,31 @@ fn embed_circuit(
     } else {
         pose
     };
-    // Stage the source embed through its ordinary board-local allocator, then reserve those
-    // exact references before selecting mirror references for the document-wide validator.
-    let source_operation = EditOperation::EmbedModuleCircuit {
-        id: source_id.clone(),
-        definition: definition.clone(),
-        host_board_id: pair.halves.source_board_id.clone(),
-        pose: source_embed_pose,
-        side: side.clone(),
-        joins: source_joins,
-    };
-    let mut staged_source = links.document.clone();
-    apply(&mut staged_source, &source_operation)?;
+    if mirror_authored {
+        canonical.operation = EditOperation::EmbedModuleCircuit {
+            id: source_id.clone(),
+            definition: definition.clone(),
+            host_board_id: pair.halves.source_board_id.clone(),
+            pose: source_embed_pose,
+            side: side.clone(),
+            joins: source_joins,
+        };
+    }
 
     let (source_prefix, mirror_prefix) = (
         format!("embedded/{source_id}/"),
         format!("embedded/{mirror_id}/"),
     );
-    let mut member_ids = BTreeMap::new();
-    let mut member_references = BTreeMap::new();
-    let mut used_references: BTreeSet<String> = links
-        .document
+    let member_ids = circuit
         .parts
         .iter()
-        .map(|part| part.reference.clone())
+        .map(|member| {
+            (
+                format!("{source_prefix}{}", member.id),
+                format!("{mirror_prefix}{}", member.id),
+            )
+        })
         .collect();
-    for member in &circuit.parts {
-        let source_member = format!("{source_prefix}{}", member.id);
-        let staged_reference = staged_source
-            .parts
-            .iter()
-            .find(|part| part.id == source_member)
-            .ok_or_else(|| format!("the source circuit is missing member {source_member:?}"))?
-            .reference
-            .clone();
-        used_references.insert(staged_reference);
-    }
-    for member in &circuit.parts {
-        let source_member = format!("{source_prefix}{}", member.id);
-        member_references.insert(
-            source_member.clone(),
-            crate::modules::allocate_reference(&member.reference, &mut used_references),
-        );
-        member_ids.insert(source_member, format!("{mirror_prefix}{}", member.id));
-    }
     let definition_ids = circuit
         .definitions
         .iter()
@@ -940,19 +918,51 @@ fn embed_circuit(
         BTreeMap::new()
     };
 
-    if mirror_authored {
-        canonical.operation = source_operation;
-    }
     canonical.hosted.circuits.push(CircuitAddition {
         source_id,
         mirror_id,
         member_ids,
-        member_references,
+        member_references: BTreeMap::new(),
         definition_ids,
         net_ids,
         member_poses,
     });
     Ok(())
+}
+
+impl Canonical {
+    /// Allocate mirror references in definition order after the board-local source allocator
+    /// has committed its references to the draft. Both halves share the resulting namespace.
+    pub(in crate::mirrored_half) fn reserve_circuit_references(
+        &mut self,
+        draft: &crate::model::ProjectDoc,
+    ) -> Result<(), String> {
+        let EditOperation::EmbedModuleCircuit { definition, .. } = &self.operation else {
+            return Ok(());
+        };
+        for addition in &mut self.hosted.circuits {
+            let circuit = definition
+                .circuit
+                .as_ref()
+                .expect("a paired embed has circuit members");
+            let mut used = draft
+                .parts
+                .iter()
+                .map(|part| part.reference.clone())
+                .collect();
+            for member in &circuit.parts {
+                let id = format!("embedded/{}/{}", addition.source_id, member.id);
+                if !draft.parts.iter().any(|part| part.id == id) {
+                    return Err(format!("the source circuit is missing member {id:?}"));
+                }
+                addition.member_references.insert(
+                    id,
+                    crate::modules::allocate_reference(&member.reference, &mut used),
+                );
+            }
+        }
+        Ok(())
+    }
 }
 
 fn remove_circuit(links: &Links<'_>, id: &str, canonical: &mut Canonical) -> Result<(), String> {

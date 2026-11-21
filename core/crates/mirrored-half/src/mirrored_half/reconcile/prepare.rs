@@ -628,8 +628,8 @@ fn prepare_transaction(
     directed: bool,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
-    let mut canonical = inverse::canonicalize_with_dispatch(accepted, operation, dispatch)
-        .map_err(|refusal| refusal.to_string())?;
+    let mut canonical =
+        inverse::canonical_request(accepted, operation).map_err(|refusal| refusal.to_string())?;
     if let EditOperation::ReplaceDocument { document } = &mut canonical.operation {
         super::lifecycle::retire_replacement_records(accepted, document)?;
     }
@@ -642,6 +642,7 @@ fn prepare_transaction(
         identities,
         dispatch,
     )?;
+    canonical.reserve_circuit_references(&draft)?;
 
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
