@@ -19,6 +19,101 @@ fn ring_area(points: &[Uv], ring: &[usize]) -> f64 {
     signed_area(&ring.iter().map(|at| points[*at]).collect::<Vec<_>>())
 }
 
+fn two_diff(a: f64, b: f64) -> (f64, f64) {
+    let diff = a - b;
+    let virtual_b = diff - a;
+    let err = (a - (diff - virtual_b)) - (b + virtual_b);
+    (diff, err)
+}
+
+/// Kahan's FMA 2x2 determinant `a * d - b * c` combined with Knuth `two_diff`
+/// shifts, avoiding catastrophic cancellation on thin diagonal rings.
+fn accurate_shifted_det2(p: Uv, q: Uv, origin: Uv) -> f64 {
+    let (px, px_err) = two_diff(p[0], origin[0]);
+    let (py, py_err) = two_diff(p[1], origin[1]);
+    let (qx, qx_err) = two_diff(q[0], origin[0]);
+    let (qy, qy_err) = two_diff(q[1], origin[1]);
+    let bc = py * qx;
+    let err = (-py).mul_add(qx, bc);
+    (px.mul_add(qy, -bc) + err) + px * qy_err + px_err * qy - py * qx_err - py_err * qx
+}
+
+fn accurate_cross2(a: Uv, b: Uv, c: Uv) -> f64 {
+    accurate_shifted_det2(b, c, a)
+}
+
+fn shifted_ring_area(points: &[Uv], ring: &[usize], origin: Uv) -> f64 {
+    if ring.len() < 3 {
+        return 0.0;
+    }
+    let mut twice = 0.0;
+    for at in 0..ring.len() {
+        twice += accurate_shifted_det2(
+            points[ring[at]],
+            points[ring[(at + 1) % ring.len()]],
+            origin,
+        );
+    }
+    twice
+}
+
+enum EarStep {
+    Clip(usize, [usize; 3]),
+    DropCollinear(usize, f64),
+}
+
+fn has_inside_vertex(
+    points: &[Uv],
+    ring: &[usize],
+    a: usize,
+    b: usize,
+    c: usize,
+    roundoff: f64,
+) -> bool {
+    ring.iter()
+        .any(|p| *p != a && *p != b && *p != c && inside(points, a, b, c, *p, roundoff))
+}
+
+fn select_ear_step(points: &[Uv], ring: &[usize], roundoff: f64) -> Result<EarStep, Refusal> {
+    let count = ring.len();
+    let corners = |at: usize| {
+        (
+            ring[(at + count - 1) % count],
+            ring[at],
+            ring[(at + 1) % count],
+        )
+    };
+    let mut best_exact: Option<(usize, [usize; 3], f64)> = None;
+    let mut collinear: Option<(usize, f64)> = None;
+
+    for at in 0..count {
+        let (a, b, c) = corners(at);
+        let turn = cross2(points[a], points[b], points[c]);
+        if turn > roundoff && !has_inside_vertex(points, ring, a, b, c, roundoff) {
+            return Ok(EarStep::Clip(at, [a, b, c]));
+        }
+        let exact_turn = accurate_cross2(points[a], points[b], points[c]);
+        if exact_turn > 0.0
+            && !has_inside_vertex(points, ring, a, b, c, 0.0)
+            && best_exact.is_none_or(|(_, _, largest)| exact_turn > largest)
+        {
+            best_exact = Some((at, [a, b, c], exact_turn));
+        }
+        let abs_turn = turn.abs();
+        if abs_turn <= roundoff && collinear.is_none_or(|(_, smallest)| abs_turn < smallest) {
+            collinear = Some((at, abs_turn));
+        }
+    }
+
+    if let Some((at, tri, _)) = best_exact {
+        return Ok(EarStep::Clip(at, tri));
+    }
+    if let Some((at, area_error)) = collinear {
+        return Ok(EarStep::DropCollinear(at, area_error));
+    }
+    Err(Refusal::new("polygon ring has no valid ear"))
+}
+
 /// Whether the segments `a`–`b` and `c`–`d` cross at a point interior to
 /// both.
 fn segments_cross(a: Uv, b: Uv, c: Uv, d: Uv) -> bool {
@@ -72,7 +167,9 @@ fn matches_corner(points: &[Uv], ring: &[usize], at: usize, from: usize) -> bool
     } else {
         left_of_incoming || left_of_outgoing
     };
-    enters_wedge || (!ring[..at].contains(&ring[at]) && !ring[at + 1..].contains(&ring[at]))
+    enters_wedge
+        || (!ring[..at].iter().any(|&i| points[i] == target)
+            && !ring[at + 1..].iter().any(|&i| points[i] == target))
 }
 
 /// Joins each hole to `outer` with a bridge.
@@ -133,9 +230,140 @@ fn inside(points: &[Uv], a: usize, b: usize, c: usize, p: usize, roundoff: f64) 
     if pp == pa || pp == pb || pp == pc {
         return false;
     }
-    [cross2(pa, pb, pp), cross2(pb, pc, pp), cross2(pc, pa, pp)]
+    let turn = |u, v, w| {
+        if roundoff == 0.0 {
+            accurate_cross2(u, v, w)
+        } else {
+            cross2(u, v, w)
+        }
+    };
+    [turn(pa, pb, pp), turn(pb, pc, pp), turn(pc, pa, pp)]
         .into_iter()
-        .all(|turn| turn >= -roundoff)
+        .all(|t| t >= -roundoff)
+}
+
+fn has_crossing_edges(points: &[Uv], ring: &[usize]) -> bool {
+    let count = ring.len();
+    if count < 4 {
+        return false;
+    }
+    for i in 0..count {
+        let a = points[ring[i]];
+        let b = points[ring[(i + 1) % count]];
+        for j in (i + 2)..count {
+            if i == 0 && j + 1 == count {
+                continue;
+            }
+            let c = points[ring[j]];
+            let d = points[ring[(j + 1) % count]];
+            if segments_cross(a, b, c, d) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn triangulate_simple(
+    points: &[Uv],
+    mut ring: Vec<usize>,
+    expected_area: f64,
+    roundoff: f64,
+) -> Result<Vec<[usize; 3]>, Refusal> {
+    let mut triangles = Vec::new();
+    let mut dropped_area = 0.0;
+    while ring.len() > 3 {
+        match select_ear_step(points, &ring, roundoff)? {
+            EarStep::Clip(at, tri) => {
+                triangles.push(tri);
+                ring.remove(at);
+            }
+            EarStep::DropCollinear(at, area_error) => {
+                dropped_area += area_error;
+                ring.remove(at);
+            }
+        }
+    }
+    if ring.len() == 3 && cross2(points[ring[0]], points[ring[1]], points[ring[2]]) > 0.0 {
+        triangles.push([ring[0], ring[1], ring[2]]);
+    }
+    if triangles.is_empty() {
+        return Err(Refusal::new("polygon ring produced no triangles"));
+    }
+    if expected_area > 0.0 {
+        let emitted_area: f64 = triangles
+            .iter()
+            .map(|[a, b, c]| accurate_cross2(points[*a], points[*b], points[*c]))
+            .sum();
+        let tolerance = 1e-4 * expected_area + dropped_area;
+        if (emitted_area - expected_area).abs() > tolerance {
+            return Err(Refusal::new("triangulation failed to cover polygon area"));
+        }
+    }
+    Ok(triangles)
+}
+
+fn triangulate_crossing_ring(
+    points: &[Uv],
+    mut ring: Vec<usize>,
+    roundoff: f64,
+) -> Result<Vec<[usize; 3]>, Refusal> {
+    let mut triangles = Vec::new();
+    while ring.len() > 3 {
+        let count = ring.len();
+        let mut best: Option<(usize, f64)> = None;
+        let mut clipped = None;
+        for at in 0..count {
+            let (a, b, c) = (
+                ring[(at + count - 1) % count],
+                ring[at],
+                ring[(at + 1) % count],
+            );
+            let turn = cross2(points[a], points[b], points[c]);
+            if turn <= roundoff {
+                continue;
+            }
+            if best.is_none_or(|(_, largest)| turn > largest) {
+                best = Some((at, turn));
+            }
+            if !has_inside_vertex(points, &ring, a, b, c, roundoff) {
+                clipped = Some(at);
+                break;
+            }
+        }
+        if clipped.is_none() && best.is_none() {
+            for at in 0..count {
+                let (a, b, c) = (
+                    ring[(at + count - 1) % count],
+                    ring[at],
+                    ring[(at + 1) % count],
+                );
+                let turn = cross2(points[a], points[b], points[c]);
+                if turn > 0.0 && best.is_none_or(|(_, largest)| turn > largest) {
+                    best = Some((at, turn));
+                }
+            }
+        }
+        let at = clipped.or(best.map(|(at, _)| at)).unwrap_or(0);
+        let (a, b, c) = (
+            ring[(at + count - 1) % count],
+            ring[at],
+            ring[(at + 1) % count],
+        );
+        if cross2(points[a], points[b], points[c]) > 0.0 {
+            triangles.push([a, b, c]);
+        }
+        ring.remove(at);
+    }
+    if ring.len() == 3 && cross2(points[ring[0]], points[ring[1]], points[ring[2]]) > 0.0 {
+        triangles.push([ring[0], ring[1], ring[2]]);
+    }
+    if triangles.is_empty() {
+        return Err(Refusal::new(
+            "degenerate crossing ring produced no triangles",
+        ));
+    }
+    Ok(triangles)
 }
 
 /// The counterclockwise triangles of a region.
@@ -156,6 +384,14 @@ pub(crate) fn triangulate(rings: Rings<'_>) -> Result<Vec<[usize; 3]>, Refusal> 
             hole
         })
         .collect();
+    let expected_area = outer.first().map_or(0.0, |&first| {
+        let origin = points[first];
+        shifted_ring_area(points, &outer, origin)
+            + holes
+                .iter()
+                .map(|hole| shifted_ring_area(points, hole, origin))
+                .sum::<f64>()
+    });
     let mut ring = bridge(points, outer, holes)?;
     ring.dedup_by(|a, b| points[*a] == points[*b]);
     while ring.len() > 3 && points[ring[0]] == points[ring[ring.len() - 1]] {
@@ -174,49 +410,16 @@ pub(crate) fn triangulate(rings: Rings<'_>) -> Result<Vec<[usize; 3]>, Refusal> 
         high - low
     };
     let roundoff = 64.0 * f64::EPSILON * span(0) * span(1);
-    let mut triangles = Vec::new();
-    while ring.len() > 3 {
-        let count = ring.len();
-        let mut best: Option<(usize, f64)> = None;
-        let mut clipped = None;
-        for at in 0..count {
-            let (a, b, c) = (
-                ring[(at + count - 1) % count],
-                ring[at],
-                ring[(at + 1) % count],
-            );
-            let turn = cross2(points[a], points[b], points[c]);
-            if turn <= roundoff {
-                continue;
-            }
-            if best.is_none_or(|(_, largest)| turn > largest) {
-                best = Some((at, turn));
-            }
-            if ring
-                .iter()
-                .all(|p| *p == a || *p == b || *p == c || !inside(points, a, b, c, *p, roundoff))
-            {
-                clipped = Some(at);
-                break;
+    match triangulate_simple(points, ring.clone(), expected_area, roundoff) {
+        Ok(triangles) => Ok(triangles),
+        Err(refusal) => {
+            if has_crossing_edges(points, &ring) {
+                triangulate_crossing_ring(points, ring, roundoff)
+            } else {
+                Err(refusal)
             }
         }
-        // A ring with no clean ear is degenerate: clip its widest convex
-        // corner, or its first corner, so that clipping ends.
-        let at = clipped.or(best.map(|(at, _)| at)).unwrap_or(0);
-        let (a, b, c) = (
-            ring[(at + count - 1) % count],
-            ring[at],
-            ring[(at + 1) % count],
-        );
-        if cross2(points[a], points[b], points[c]) > 0.0 {
-            triangles.push([a, b, c]);
-        }
-        ring.remove(at);
     }
-    if ring.len() == 3 && cross2(points[ring[0]], points[ring[1]], points[ring[2]]) > 0.0 {
-        triangles.push([ring[0], ring[1], ring[2]]);
-    }
-    Ok(triangles)
 }
 
 #[cfg(test)]

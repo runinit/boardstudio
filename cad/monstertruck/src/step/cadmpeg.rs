@@ -194,10 +194,13 @@ pub(super) fn build(
                 if let Some((edge, gap)) =
                     geometry.bspline_endpoint_gap(&trace.coedge, &mut checked_edges)
                 {
-                    if !(gap * scale <= allowance) {
+                    let gap_mm = gap * scale;
+                    if gap_mm
+                        .partial_cmp(&allowance)
+                        .is_none_or(std::cmp::Ordering::is_gt)
+                    {
                         return Err(format!(
-                            "{edge} B-spline endpoint is {:.6} mm from its authored vertex, beyond the {allowance} mm allowance",
-                            gap * scale
+                            "{edge} B-spline endpoint is {gap_mm:.6} mm from its authored vertex, beyond the {allowance} mm allowance"
                         ));
                     }
                     if let Some(declared) = owner.uncertainty_mm() {

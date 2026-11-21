@@ -71,10 +71,10 @@ fn collect(records: &SourceRecords<'_>, id: u64, depth: usize, colors: &mut Vec<
             reference(style).ok().map(|id| vec![id])
         }
         (6, "COLOUR_RGB", [_, r, g, b]) => {
-            if let [Ok(r), Ok(g), Ok(b)] = [r, g, b].map(scene::real) {
-                if [r, g, b].iter().all(|x| (0.0..=1.0).contains(x)) {
-                    colors.push([r as f32, g as f32, b as f32, 1.0]);
-                }
+            if let [Ok(r), Ok(g), Ok(b)] = [r, g, b].map(scene::real)
+                && [r, g, b].iter().all(|x| (0.0..=1.0).contains(x))
+            {
+                colors.push([r as f32, g as f32, b as f32, 1.0]);
             }
             None
         }

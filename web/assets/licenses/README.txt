@@ -1,11 +1,11 @@
-Third-party notices for the Monstertruck CAD WebAssembly module
+Third-party notices for the CAD WebAssembly module
 
 The CAD module is built from Rust sources only. The following components are
 distributed under the Apache License 2.0, whose text is in Apache-2.0.txt:
 
-- Monstertruck 0.4.1 crates (monstertruck-core, -derive, -geometry, -io,
-  -mesh, -meshing, -modeling, -traits), vendored with local modifications
-  recorded in each crate's SOURCE.md. Source: https://github.com/virtualritz/monstertruck
+- cadmpeg 0.6.12 crates (cadmpeg-core, cadmpeg-ir, cadmpeg-codec-step,
+  cadmpeg-tessellate), with cadmpeg-tessellate vendored with local patches
+  under cad/vendor/cadmpeg-tessellate. Source: https://github.com/cadmpeg/cadmpeg
 - parry3d-f64 0.31.1. Source: https://github.com/dimforge/parry
 - manifold-rust 0.16.0. Source: https://crates.io/crates/manifold-rust/0.16.0
 
