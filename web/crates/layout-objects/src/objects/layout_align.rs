@@ -159,9 +159,9 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_cfg(
-            align_host,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
+        let _mounted = boardstudio_web_ui_shared::test_mount::MountedFixture::new(
+            root.clone(),
+            VirtualDom::new(align_host),
         );
         wait_until("align renders", || {
             by_role_name(&root, "button", "Alignment complete").is_some()
@@ -186,7 +186,6 @@ mod tests {
             })
             .await;
         }
-        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -195,9 +194,9 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_cfg(
-            align_host,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
+        let _mounted = boardstudio_web_ui_shared::test_mount::MountedFixture::new(
+            root.clone(),
+            VirtualDom::new(align_host),
         );
         wait_until("alignment dialog appears", || {
             by_role_name(&root, "dialog", "Align").is_some()
@@ -239,6 +238,5 @@ mod tests {
         })
         .await;
         assert!(by_role_name(&root, "dialog", "Align").is_some());
-        root.remove();
     }
 }
