@@ -760,10 +760,12 @@ impl Runtime {
         };
         let this = self.clone();
         spawn_local(async move {
-            let core = this.core.borrow().clone();
-            if let Err(error) = core.ready().await {
-                this.report(format!("Recovery executor unavailable: {error}"));
-                return;
+            if this.document_core.is_none() {
+                let core = this.core.borrow().clone();
+                if let Err(error) = core.ready().await {
+                    this.report(format!("Recovery executor unavailable: {error}"));
+                    return;
+                }
             }
             match this.store.load_document_with_token(project_id).await {
                 Ok(Some(saved))

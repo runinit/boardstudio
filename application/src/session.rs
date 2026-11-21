@@ -680,6 +680,19 @@ impl Session {
     pub fn core_executor_epoch(&self) -> ExecutorEpoch {
         self.core_epoch
     }
+
+    /// Check before executing a deferred Core effect. A rejected stale reply alone
+    /// cannot protect an in-process engine from a stale request mutating it.
+    pub fn core_request_is_current(
+        &self,
+        request_id: RequestId,
+        executor_epoch: ExecutorEpoch,
+    ) -> bool {
+        self.core_epoch == executor_epoch
+            && self.active_core.as_ref().is_some_and(|active| {
+                active.request_id == request_id && active.executor_epoch == executor_epoch
+            })
+    }
     pub fn scope(&self) -> Option<Scope> {
         let accepted = self.model.accepted.as_ref()?;
         Some(Scope {

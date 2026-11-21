@@ -1,5 +1,7 @@
 //! Session event submission and effect execution.
 use super::*;
+use boardstudio_application::{ExecutorEpoch, RequestId};
+use boardstudio_model::model::EditPhase;
 
 impl Runtime {
     pub fn submit(self: &Rc<Self>, event: Event) {
@@ -142,6 +144,31 @@ impl Runtime {
     }
     pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
+        let mut effects = VecDeque::from(effects);
+        // An unblocked commit can finish its Core request on the submit stack.
+        // Honor preceding effects, including pointer release and job cancellation,
+        // and leave persistence and terminal delivery with the effect driver.
+        if let Some(document_core) = &self.document_core
+            && matches!(
+                effects.front(),
+                Some(Effect::Core { request, .. })
+                    if matches!(request.as_ref(), CoreRequest::Edit { command, .. }
+                        if command.phase == EditPhase::Commit)
+            )
+            && let Some(Effect::Core {
+                request_id,
+                executor_epoch,
+                request,
+                ..
+            }) = effects.pop_front()
+        {
+            effects.extend(self.run_document_core(
+                document_core,
+                request_id,
+                executor_epoch,
+                *request,
+            ));
+        }
         #[cfg(any(test, feature = "test-support"))]
         let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
             let (finished, receive) = futures_channel::oneshot::channel();
@@ -149,7 +176,6 @@ impl Runtime {
             finished
         });
         spawn_local(async move {
-            let mut effects = VecDeque::from(effects);
             while let Some(effect) = effects.pop_front() {
                 effects.extend(this.run(effect).await);
             }
@@ -170,6 +196,29 @@ impl Runtime {
             }
         });
     }
+
+    fn run_document_core(
+        self: &Rc<Self>,
+        document_core: &RefCell<DocumentCore>,
+        request_id: RequestId,
+        executor_epoch: ExecutorEpoch,
+        request: CoreRequest,
+    ) -> Vec<Effect> {
+        if !self
+            .session
+            .borrow()
+            .core_request_is_current(request_id, executor_epoch)
+        {
+            return vec![];
+        }
+        let reply = (document_core.borrow_mut())(request);
+        self.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(reply),
+        })
+    }
+
     pub(super) async fn run(self: &Rc<Self>, effect: Effect) -> Vec<Effect> {
         match effect {
             Effect::Core {
@@ -178,6 +227,14 @@ impl Runtime {
                 request,
                 ..
             } => {
+                if let Some(document_core) = &self.document_core {
+                    return self.run_document_core(
+                        document_core,
+                        request_id,
+                        executor_epoch,
+                        *request,
+                    );
+                }
                 let core = self.core.borrow().clone();
                 match core
                     .request(

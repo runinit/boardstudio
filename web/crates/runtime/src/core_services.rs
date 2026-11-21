@@ -1,15 +1,15 @@
 //! The synchronous Core entry points the hosting crate injects into Runtime.
 //!
-//! The page owns the document engine; everything below it reaches Core through these function
-//! pointers (or the asynchronous `CoreExecutor`), so the web crates compile without waiting
-//! for the engine. This is the same injection the engine uses for its `ScriptRunner` and
-//! Session uses for its `OpenValidator`.
+//! The page injects typed handlers so the web crates can compile independently of the engine.
 use boardstudio_application::OpenValidator;
 use boardstudio_model::model::{CoreReply, CoreRequest};
 
+/// The page-owned engine for Session's document and history.
+pub type DocumentCore = Box<dyn FnMut(CoreRequest) -> CoreReply>;
+
 /// A throwaway Core engine: requests run in order against its own document and never reach
 /// the Session or the worker executor.
-pub type ScratchCore = Box<dyn FnMut(CoreRequest) -> CoreReply>;
+pub type ScratchCore = DocumentCore;
 
 /// Opens a fresh [`ScratchCore`] for a read-only probe (a reviewed link's two-half result or
 /// an anchor pick's post-commit poses).

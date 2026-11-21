@@ -1,6 +1,7 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 pub use crate::core_services::CoreServices;
+use crate::core_services::DocumentCore;
 use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
@@ -324,6 +325,7 @@ fn generated_analysis_cache_key(
 pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
+    document_core: Option<RefCell<DocumentCore>>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
     core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
@@ -405,6 +407,8 @@ impl Drop for ProjectDeletionLease {
 }
 
 mod collision;
+#[cfg(test)]
+mod document_core_tests;
 mod effects;
 mod export_bytes;
 mod exports;
@@ -418,12 +422,22 @@ use mechanical_export::authored_case_filename;
 
 impl Runtime {
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
-        Self::new_with_restoration(true, core_services)
+        Self::new_with_restoration(true, core_services, None)
+    }
+
+    /// Host Session's document and history in the page's injected Core. The worker
+    /// continues to run requests that carry their own inputs, archives and artifacts.
+    pub fn new_with_document_core(
+        core_services: CoreServices,
+        document_core: DocumentCore,
+    ) -> Result<Rc<Self>, String> {
+        Self::new_with_restoration(true, core_services, Some(document_core))
     }
 
     fn new_with_restoration(
         restore_active_project: bool,
         core_services: CoreServices,
+        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let store = if restore_active_project {
@@ -432,13 +446,14 @@ impl Runtime {
             BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
         }
         .map_err(|e| e.to_string())?;
-        Self::new_with_store(restore_active_project, store, core_services)
+        Self::new_with_store(restore_active_project, store, core_services, document_core)
     }
 
     fn new_with_store(
         restore_active_project: bool,
         store: BrowserStore,
         core_services: CoreServices,
+        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
@@ -450,6 +465,7 @@ impl Runtime {
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
             core_services,
+            document_core: document_core.map(RefCell::new),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core_executor_factory.clone()()?),
             core_executor_factory: RefCell::new(core_executor_factory),
@@ -760,7 +776,7 @@ impl Runtime {
         }
     }
 
-    /// Ask the existing Core worker to project candidate matrices with its authoritative
+    /// Ask the document Core to project candidate matrices with its authoritative
     /// layout geometry. This is a private preview path; candidates are never installed in Session.
     pub async fn project_matrices(
         &self,
@@ -776,10 +792,16 @@ impl Runtime {
             base_revision,
             matrices,
         };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Matrix preview failed: {error}"))?;
+        let reply = if let Some(document_core) = &self.document_core {
+            if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
+                return Err("Matrix preview failed: editor is closed".into());
+            }
+            (document_core.borrow_mut())(request)
+        } else {
+            core.request(&request_id, &executor_epoch.0.to_string(), &request)
+                .await
+                .map_err(|error| format!("Matrix preview failed: {error}"))?
+        };
         if self.session.borrow().core_executor_epoch() != executor_epoch
             || !Rc::ptr_eq(&core, &self.core.borrow())
         {

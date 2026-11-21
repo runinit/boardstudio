@@ -19,7 +19,7 @@ async fn conflicting_runtime_preserves_pending_document_and_assets_for_download(
     });
     project_name_test_support::run_pending(&first).await;
     let second =
-        Runtime::new_with_store(false, first.store.clone(), CoreServices::engine()).unwrap();
+        Runtime::new_with_store(false, first.store.clone(), CoreServices::engine(), None).unwrap();
     project_name_test_support::install(
         &second,
         Session::new(boardstudio_core::CoreEngine::validate_open),
