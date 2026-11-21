@@ -1,4 +1,4 @@
-use super::{binding_schema, project};
+use super::super::part_input_projection::{binding_schema, project, validate_parameter_value};
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
@@ -551,52 +551,5 @@ fn input_resolver(
     })
 }
 
-fn validate_parameter_value(
-    kind: &str,
-    value: Option<&Value>,
-    projection: &super::PartInputProjection,
-) -> Result<(), String> {
-    match (kind, value) {
-        ("net", None) => Ok(()),
-        ("net", Some(Value::String(value)))
-            if projection.nets.iter().any(|net| net.name == *value) =>
-        {
-            Ok(())
-        }
-        ("anchor", None) => Ok(()),
-        ("anchor", Some(Value::Object(values)))
-            if ["x", "y"].into_iter().all(|axis| {
-                values
-                    .get(axis)
-                    .is_none_or(|value| value.as_f64().is_some_and(f64::is_finite))
-            }) =>
-        {
-            Ok(())
-        }
-        ("net", _) => Err("Choose a net on the selected board.".into()),
-        ("anchor", _) => Err("Anchor coordinates must be finite numbers.".into()),
-        _ => Err("Unsupported generator binding type.".into()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[wasm_bindgen_test]
-    fn parameter_values_are_limited_to_board_nets_and_finite_anchor_coordinates() {
-        let projection = super::super::tests::projection_for_validation();
-        assert!(validate_parameter_value("net", Some(&json!("VCC")), &projection).is_ok());
-        assert!(
-            validate_parameter_value("net", Some(&json!("Other board only")), &projection).is_err()
-        );
-        assert!(validate_parameter_value("anchor", Some(&json!({"x": 2.5})), &projection).is_ok());
-        assert!(
-            validate_parameter_value("anchor", Some(&json!({"x": f64::INFINITY})), &projection)
-                .is_err()
-        );
-        assert!(validate_parameter_value("anchor", Some(&json!([])), &projection).is_err());
-    }
-}
+// Parameter validation lives in the host-compatible projection module so the same
+// predicate runs under `cargo test` without a browser (`part_input_projection` tests).

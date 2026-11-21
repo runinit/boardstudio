@@ -22,6 +22,7 @@ mod controller;
 pub(crate) use controller::pending_binding;
 mod mode;
 mod part_connections;
+mod part_input_projection;
 mod part_input_settings;
 mod part_net_admission;
 mod part_net_identity;
