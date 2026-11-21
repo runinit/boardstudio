@@ -66,6 +66,18 @@ mod objects {
     #[cfg(test)]
     #[path = "layout_align_geometry.rs"]
     mod layout_align_geometry_tests;
+
+    #[cfg(test)]
+    mod layout_selection_kind;
+
+    // The transform tools' plain logic (activation, rail registry, placement deltas and
+    // feedback text) runs its unit tests natively; the overlays stay WASM-only.
+    #[cfg(test)]
+    mod layout_transform_toolbar {
+        mod placement;
+        mod rail;
+        mod tool;
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

@@ -14,7 +14,7 @@ fn host() -> Element {
     let generation = use_signal(|| 0);
     use_context_provider(|| crate::SelectionAdapter::new(selected, anchor, generation));
     rsx! {
-        button { id: "refresh-tree", onclick: move |_| version += 1, "Refresh" }
+        Button { id: "refresh-tree", onclick: move |_| version += 1, "Refresh" }
         output { id: "tree-version", "{version()}" }
         Objects {
             selected_context: selected,

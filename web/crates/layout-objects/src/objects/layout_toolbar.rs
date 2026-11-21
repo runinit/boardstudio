@@ -19,7 +19,6 @@ use boardstudio_web_ui_shared::ui::{
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
-use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -27,29 +26,7 @@ use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
 
 const DEFAULT_PITCH_MM: f64 = 19.05;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LayoutSelectionKind {
-    Matrix,
-    Row,
-    Column,
-    #[default]
-    Key,
-    Part,
-}
-
-impl LayoutSelectionKind {
-    const ALL: [Self; 5] = [Self::Matrix, Self::Row, Self::Column, Self::Key, Self::Part];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Matrix => "Matrix",
-            Self::Row => "Row",
-            Self::Column => "Column",
-            Self::Key => "Key",
-            Self::Part => "Part",
-        }
-    }
-}
+pub use super::layout_selection_kind::LayoutSelectionKind;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutSnapIntent {
@@ -423,7 +400,7 @@ mod tests {
         };
         rsx! {
           boardstudio_web_ui_shared::ui::toast::ToastProvider {
-            button {
+            Button {
                 id: "pill-probe-open",
                 onclick: move |_| open_menu.set(target),
                 "Open probe menu"
@@ -575,7 +552,7 @@ mod tests {
             }
         });
         rsx! {
-            button {
+            Button {
                 id: "scope-probe-select-column",
                 onclick: move |_| {
                     has_selection.set(true);
@@ -992,14 +969,12 @@ pub fn LayoutCommandMenuHeader(
         div { class: "layout-popup-heading",
             strong { "{label}" }
             Tooltip {
-                TooltipTrigger { r#as: move |attributes: Vec<Attribute>| {
-                    let attributes = merge_attributes(vec![attributes, attributes!(button {
-                        r#type: "button", class: "layout-popup-close", aria_label: trigger_label.clone(),
+                TooltipTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
+                    Button { attributes, variant: ButtonVariant::Ghost, class: "layout-popup-close",
+                        aria_label: trigger_label.clone(),
                         onclick: move |_| close_layout_command_menu(open_menu, menu),
-                    })]);
-                    rsx! { button { ..attributes,
                         span { aria_hidden: true, "×" }
-                    } }
+                    }
                 } }
                 TooltipContent { "{close_label}" }
             }
@@ -1249,18 +1224,15 @@ pub fn LayoutCommandPill(
                         LayoutSnapMenu { open_menu, settings: snap_settings, on_snap_intent, show_layout_state: pointer_tools_visible }
                         if pointer_tools_visible {
                             Tooltip {
-                                TooltipTrigger { r#as: move |attributes: Vec<Attribute>| {
-                                    let attributes = merge_attributes(vec![attributes, attributes!(button {
-                                        r#type: "button",
+                                TooltipTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
+                                    Button { attributes, variant: ButtonVariant::Ghost,
                                         class: "layout-geometry-control",
                                         aria_label: "Geometry snap", aria_pressed: geometry_snap_enabled,
                                         onclick: move |_| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled)),
-                                    })]);
-                                    rsx! { button { ..attributes,
                                         svg { view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" }
                                         }
-                                    } }
+                                    }
                                 } }
                                 TooltipContent { "Geometry snap" }
                             }
