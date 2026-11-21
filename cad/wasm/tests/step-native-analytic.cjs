@@ -115,9 +115,70 @@ const path = require('node:path');
     nrfCoarse.vendorStep.analysisHandle.free();
   }
 
+  const cirque = read('ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step');
+  const cirqueCoarse = importModel(cirque, 0.1);
+  const cirqueFine = importModel(cirque, 0.001);
+  try {
+    for (const result of [cirqueCoarse, cirqueFine]) {
+      const asset = result.vendorStep;
+      assert.equal(asset.sourceSha256, crypto.createHash('sha256').update(cirque).digest('hex'));
+      assert.equal(asset.sourceFaces.length, 36);
+      assert.equal(asset.faceOccurrences.length, 36);
+      assert(asset.faceOccurrences.every(f => f.solidOccurrenceIndex === 0 && f.representationId === '25'));
+      assert.equal(asset.accuracy.meshClosedOriented, true);
+      assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
+      assert.equal(asset.accuracy.fallbackMeshedFaces, 0);
+      assert.equal(asset.accuracy.maxRepairDisplacementMm, null);
+      assert.equal(asset.accuracy.analysisErrorBoundMm, null);
+      assert.equal(asset.sourceQualification.state, 'unknown');
+      const { surfacePositionsMmF64: points, triangleFaceOccurrenceIndices: tags } = asset;
+      assert.equal(new Set(tags).size, 36);
+      const faceTag = (faceId, supportId) => {
+        const source = asset.sourceFaces.findIndex(f => f.faceId === faceId && f.supportId === supportId);
+        assert(source >= 0);
+        const tag = asset.faceOccurrences.findIndex(f => f.sourceFaceIndex === source);
+        assert(tag >= 0);
+        return tag;
+      };
+      const top = faceTag('1219', '84');
+      const hole = faceTag('2106', '459');
+      // Hole axis from support #459 and shared oriented seam #2111.
+      const center = [146.05, -148.59];
+      const near = (a, b) => Math.abs(a - b) < 1e-9;
+      const seam = [];
+      for (let i = 0; i < tags.length; i++) {
+        if (tags[i] !== top && tags[i] !== hole) continue;
+        const triangle = [0, 1, 2].map(j => points.subarray(9 * i + 3 * j, 9 * i + 3 * j + 3));
+        const edges = triangle.map((a, j) => [a, triangle[(j + 1) % 3]]);
+        if (tags[i] === top) {
+          const sides = edges.map(([a, b]) =>
+            (b[0] - a[0]) * (center[1] - a[1]) - (b[1] - a[1]) * (center[0] - a[0]));
+          assert(sides.some(v => v > 0) && sides.some(v => v < 0), 'PCB through-hole stays open');
+        } else {
+          for (const [x, y] of triangle) {
+            assert(near(Math.hypot(x - center[0], y - center[1]), 1.1));
+          }
+          for (const [a, b] of edges) {
+            if ([a, b].every(([x, y]) => near(x, 147.15) && near(y, -148.59))) {
+              seam.push(b[2] - a[2]);
+            }
+          }
+        }
+      }
+      assert.deepEqual(seam.sort((a, b) => a - b), [-1.6, 1.6]);
+    }
+    assert.deepEqual(cirqueFine.bounds, cirqueCoarse.bounds);
+    assert.deepEqual(cirqueFine.vendorStep.sourceFaces, cirqueCoarse.vendorStep.sourceFaces);
+    assert.deepEqual(cirqueFine.vendorStep.faceOccurrences, cirqueCoarse.vendorStep.faceOccurrences);
+    assert(cirqueFine.mesh.positions.length > cirqueCoarse.mesh.positions.length);
+  } finally {
+    cirqueFine.vendorStep.analysisHandle.free();
+    cirqueCoarse.vendorStep.analysisHandle.free();
+  }
+
   const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);
   assert.throws(() => importModel(Buffer.from(invalid), 0.1));
-  console.log('PASS packaged STEP analytic preview, split cylinder trims, seam winding, hole and off-support refusal');
+  console.log('PASS packaged STEP analytic preview, surface curves, split cylinder trims, seam winding, holes and off-support refusal');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,6 +1,7 @@
 //! Source-authored AP214 analytic BReps. Every occurrence must be supported before
 //! the importer can publish native preview data for the asset.
 mod assembly;
+mod carrier;
 mod geometry;
 mod trim;
 
@@ -226,7 +227,8 @@ pub(super) fn build(
         for (&edge_id, edge) in &solid.edges {
             samples.insert(
                 edge_id,
-                edge.sample(deflection_mm / source_to_world, epsilon)?,
+                edge.sample(deflection_mm / source_to_world, epsilon)
+                    .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
             );
             // Along each admitted cylindrical generator, a world coordinate is
             // affine in height. Extremes occur at its authored trim endpoints.
@@ -299,7 +301,7 @@ impl Solid {
         let shell = named_parameters(records, reference(&solid[1])?, "CLOSED_SHELL", 2)?;
         let mut faces = Vec::new();
         let mut edges = HashMap::new();
-        let mut uses = HashMap::<u64, Vec<bool>>::new();
+        let mut uses = HashMap::<u64, Vec<(u64, bool)>>::new();
         for face_id in references(&shell[1])? {
             let face = named_parameters(records, face_id, "ADVANCED_FACE", 4)?;
             let support_id = reference(&face[2])?;
@@ -327,7 +329,10 @@ impl Solid {
                     }
                     let edge_id = reference(&item[3])?;
                     if let std::collections::hash_map::Entry::Vacant(entry) = edges.entry(edge_id) {
-                        entry.insert(Edge::read(edge_id, records, scene)?);
+                        entry.insert(
+                            Edge::read(edge_id, records, scene)
+                                .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
+                        );
                     }
                     boundary.push((edge_id, flag(&item[4])?));
                 }
@@ -349,7 +354,7 @@ impl Solid {
                             "source face #{face_id} has a disconnected boundary"
                         ));
                     }
-                    uses.entry(id).or_default().push(forward);
+                    uses.entry(id).or_default().push((support_id, forward));
                 }
                 loops.push(Boundary {
                     explicit_outer,
@@ -370,11 +375,21 @@ impl Solid {
                 support_kind: support.name.clone(),
             });
         }
-        if uses
-            .values()
-            .any(|directions| !matches!(directions.as_slice(), [a,b] if a != b))
-        {
-            return Err("incomplete or nonmanifold native shell edge uses".into());
+        for (id, uses) in uses {
+            let [(a, forward), (b, reverse)] = uses[..] else {
+                return Err("incomplete or nonmanifold native shell edge uses".into());
+            };
+            if forward == reverse {
+                return Err("incomplete or nonmanifold native shell edge uses".into());
+            }
+            if let Some(carrier) = &edges[&id].carrier
+                && carrier.supports != [a, b]
+                && carrier.supports != [b, a]
+            {
+                return Err(format!(
+                    "native edge #{id}: pcurve supports differ from face uses"
+                ));
+            }
         }
         Ok(Self { edges, faces })
     }

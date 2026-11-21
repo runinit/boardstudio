@@ -1,4 +1,5 @@
 //! Analytic edge intervals and surface frames in authored length units.
+use super::carrier::Carrier;
 use super::*;
 use std::f64::consts::TAU;
 
@@ -38,6 +39,7 @@ pub(super) struct Edge {
     pub(super) vertices: [u64; 2],
     pub(super) points: [Point3; 2],
     pub(super) curve: Curve,
+    pub(super) carrier: Option<Box<Carrier>>,
 }
 
 pub(super) enum Curve {
@@ -69,8 +71,15 @@ impl Edge {
         };
         let points = [point(vertices[0])?, point(vertices[1])?];
         let forward = flag(&edge[4])?;
-        let curve_id = reference(&edge[3])?;
-        let kind = simple_record(records, curve_id)?.name.as_str();
+        let id = reference(&edge[3])?;
+        let mut kind = simple_record(records, id)?.name.as_str();
+        let (curve_id, carrier) = if matches!(kind, "SURFACE_CURVE" | "SEAM_CURVE") {
+            let (id, carrier) = Carrier::read(records, scene, id, kind)?;
+            kind = simple_record(records, id)?.name.as_str();
+            (id, Some(Box::new(carrier)))
+        } else {
+            (id, None)
+        };
         let params = named_parameters(records, curve_id, kind, 3)?;
         let curve = match kind {
             "LINE" => {
@@ -95,10 +104,11 @@ impl Edge {
             vertices,
             points,
             curve,
+            carrier,
         })
     }
 
-    fn interval(
+    pub(super) fn interval(
         &self,
         frame: Matrix4,
         radius: f64,
@@ -154,6 +164,9 @@ impl Edge {
     }
 
     pub(super) fn sample(&self, deflection: f64, epsilon: f64) -> Result<Vec<Point3>, String> {
+        if let Some(carrier) = &self.carrier {
+            carrier.validate(self, epsilon)?;
+        }
         match self.curve {
             Curve::Line {
                 origin,
@@ -237,7 +250,7 @@ fn point_from_vector(v: Vector3<f64>) -> Point3 {
     Point3::new(v.x, v.y, v.z)
 }
 
-fn positive(parameter: &Parameter) -> Result<f64, String> {
+pub(super) fn positive(parameter: &Parameter) -> Result<f64, String> {
     let value = scene::real(parameter)?;
     if value <= 0.0 {
         return Err("expected positive analytic geometry dimension".into());

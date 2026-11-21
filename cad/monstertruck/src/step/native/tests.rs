@@ -13,6 +13,9 @@ const RESISTOR: &[u8] = include_bytes!(
 );
 const NRF: &[u8] =
     include_bytes!("../../../../../ergogen/library/vendor/tsuki/3d_models/nrf52840.step");
+const CIRQUE_LEDS: &[u8] = include_bytes!(
+    "../../../../../ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step"
+);
 const FH12_12: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step"
 );
@@ -135,6 +138,95 @@ fn split_cylinder_trim_refuses_an_off_support_arc() {
             .as_deref(),
         Some("native face #2101: source circular boundary is off its CYLINDRICAL_SURFACE")
     );
+}
+
+#[test]
+fn cirque_led_pcb_imports_authored_surface_curves_and_seams() {
+    let coarse = native_model(CIRQUE_LEDS, StepImportOptions::default());
+    let fine = native_model(
+        CIRQUE_LEDS,
+        StepImportOptions {
+            target_deflection_mm: Some(0.001),
+            ..Default::default()
+        },
+    );
+    assert_eq!(coarse.solid_count(), 1);
+    assert_eq!(coarse.occurrence_count(), 1);
+    assert_eq!(coarse.source_faces.len(), 36);
+    assert_eq!(coarse.face_occurrences.len(), 36);
+    assert_eq!(fine.source_faces, coarse.source_faces);
+    assert_eq!(fine.face_occurrences, coarse.face_occurrences);
+    assert_eq!(fine.bounds, coarse.bounds);
+    // FreeCAD Part.Shape.optimalBoundingBox on the original AP214 BRep.
+    for (actual, expected) in coarse
+        .bounds
+        .into_iter()
+        .flatten()
+        .zip([142.24, -152.4, 0.0, 207.01, -88.9, 1.6])
+    {
+        assert!((actual - expected).abs() < 1e-9);
+    }
+    assert!(fine.triangle_faces.len() > coarse.triangle_faces.len());
+
+    let source = units::decode_step_bytes(CIRQUE_LEDS);
+    let origin = "#16 = CARTESIAN_POINT('',(0.,0.,0.));";
+    assert_eq!(source.matches(origin).count(), 1);
+    let placed = source.replace(origin, "#16 = CARTESIAN_POINT('',(10.,-20.,30.));");
+    let placed = native_model(placed.as_bytes(), StepImportOptions::default());
+    assert_eq!(placed.source_faces, coarse.source_faces);
+    assert_eq!(placed.face_occurrences, coarse.face_occurrences);
+    for (original, moved) in coarse.bounds.into_iter().zip(placed.bounds) {
+        for ((actual, original), shift) in moved.into_iter().zip(original).zip([10.0, -20.0, 30.0])
+        {
+            assert!((actual - original - shift).abs() < 1e-9);
+        }
+    }
+}
+
+#[test]
+fn native_carrier_refuses_contradictory_pcurve_geometry_and_seam_branches() {
+    let source = units::decode_step_bytes(CIRQUE_LEDS);
+    for (authored, changed, error) in [
+        (
+            "#50 = CARTESIAN_POINT('',(-1.570796326795,0.));",
+            "#50 = CARTESIAN_POINT('',(-1.570796326795,0.1));",
+            None, // Moving the origin along the unbounded pcurve does not change the trim.
+        ),
+        (
+            "#50 = CARTESIAN_POINT('',(-1.570796326795,0.));",
+            "#50 = CARTESIAN_POINT('',(-1.55,0.));",
+            Some("native edge #32: native pcurve disagrees with its 3D carrier"),
+        ),
+        (
+            "#52 = DIRECTION('',(-0.,-1.));",
+            "#52 = DIRECTION('',(-0.,1.));",
+            Some("native edge #32: native pcurve and 3D carrier have incompatible geometry"),
+        ),
+        (
+            "#90 = CIRCLE('',#91,2.54);",
+            "#90 = CIRCLE('',#91,2.55);",
+            Some("native edge #67: native pcurve disagrees with its 3D carrier"),
+        ),
+        (
+            "#2120 = CARTESIAN_POINT('',(6.28318530718,-0.));",
+            "#2120 = CARTESIAN_POINT('',(0.,-0.));",
+            Some("native edge #2111: native seam pcurves are not one period apart"),
+        ),
+        (
+            "#54 = PCURVE('',#55,#60);",
+            "#54 = PCURVE('',#84,#60);",
+            Some("native edge #32: pcurve supports differ from face uses"),
+        ),
+    ] {
+        assert_eq!(source.matches(authored).count(), 1);
+        let modified = source.replace(authored, changed);
+        assert_eq!(
+            native_candidate(modified.as_bytes(), StepImportOptions::default())
+                .err()
+                .as_deref(),
+            error
+        );
+    }
 }
 
 #[test]
