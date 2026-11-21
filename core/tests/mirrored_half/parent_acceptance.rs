@@ -3,7 +3,7 @@ use super::*;
 
 const PAIR_ID: &str = "parent19-lifecycle-pair";
 
-fn commit_operation(
+pub(super) fn commit_operation(
     engine: &mut CoreEngine,
     document: &Value,
     transaction: &str,
@@ -67,13 +67,13 @@ fn correspondence<'a>(document: &'a Value, mirror_id: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("part correspondence for {mirror_id} is missing"))
 }
 
-fn assert_history_document(actual: &Value, expected: &Value, label: &str) {
+pub(super) fn assert_history_document(actual: &Value, expected: &Value, label: &str) {
     let mut expected = expected.clone();
     expected["revision"] = actual["revision"].clone();
     assert_eq!(actual, &expected, "{label} must restore the exact document");
 }
 
-fn save_archive_and_open(document: &Value) -> (CoreEngine, Value) {
+pub(super) fn save_archive_and_open(document: &Value) -> (CoreEngine, Value) {
     let (packed_reply, packed_buffers) = boardstudio_core::archive::request(
         &json!({
             "kind":"pack-project",
@@ -126,88 +126,68 @@ fn accepted_pair() -> (CoreEngine, Value) {
 /// reopen. Rejoin uses that edited source, and one Undo/Redo restores the complete pair state.
 #[test]
 fn parent19_independent_local_and_omitted_survive_edit_reopen_and_rejoin() {
+    const TARGET: &str = "right/RST";
+    const SOURCE: &str = "left/RST";
     for state in ["local", "omitted"] {
         let (mut engine, linked) = accepted_pair();
-        let target_id = "right/RST";
-        let original_target = find_part(&linked, target_id).unwrap().clone();
-        let localized = set_exception(&mut engine, &linked, target_id, state);
+        let expected_target = (state == "local").then(|| part(&linked, TARGET));
+        let localized = set_exception(&mut engine, &linked, TARGET, state);
         assert_eq!(localized["kind"], "scene", "{localized}");
-        let after_exception = localized["document"].clone();
-        assert_eq!(
-            exception(&after_exception, target_id).unwrap()["state"],
-            state
-        );
+        let after_exception = &localized["document"];
+        assert_eq!(exception(after_exception, TARGET).unwrap()["state"], state);
 
-        let moved = move_part(&mut engine, &after_exception, "left/RST", -18.0, 35.0);
+        let moved = move_part(&mut engine, after_exception, SOURCE, -18.0, 35.0);
         assert_eq!(moved["kind"], "scene", "{moved}");
-        let edited = moved["document"].clone();
+        let edited = &moved["document"];
         assert_eq!(
-            part(&edited, "left/RST")["pose"]["at"],
+            part(edited, SOURCE)["pose"]["at"],
             json!({"x":-18.0,"y":35.0})
         );
         assert_eq!(
-            pair(&edited, PAIR_ID)["halves"]["correspondences"],
-            pair(&linked, PAIR_ID)["halves"]["correspondences"],
-            "the durable association remains while the selected exception is active"
+            pair(edited, PAIR_ID)["halves"]["correspondences"],
+            pair(&linked, PAIR_ID)["halves"]["correspondences"]
         );
 
-        if state == "local" {
-            assert_eq!(find_part(&edited, target_id).unwrap(), &original_target);
-        } else {
-            assert!(
-                find_part(&edited, target_id).is_none(),
-                "Omitted geometry must stay absent"
+        let (mut reopened_engine, reopened) = save_archive_and_open(edited);
+        let before_rejoin = snapshot(&mut reopened_engine);
+        let rejoined = set_exception(&mut reopened_engine, &before_rejoin, TARGET, "linked");
+        assert_eq!(rejoined["kind"], "scene", "{rejoined}");
+        let after_rejoin = &rejoined["document"];
+
+        let [undone, redone] =
+            [("undo", &before_rejoin), ("redo", after_rejoin)].map(|(action, expected)| {
+                let reply = request(
+                    &mut reopened_engine,
+                    json!({"id":format!("rejoin-{action}"),"kind":action}),
+                );
+                assert_eq!(reply["kind"], "scene", "{reply}");
+                assert_history_document(&reply["document"], expected, action);
+                reply["document"].clone()
+            });
+        for (stage, document) in [("edit", edited), ("open", &reopened), ("undo", &undone)] {
+            assert_eq!(
+                exception(document, TARGET).unwrap()["state"],
+                state,
+                "{stage}"
+            );
+            assert_eq!(
+                correspondence(document, TARGET)["sourceId"],
+                SOURCE,
+                "{stage}"
+            );
+            assert_eq!(
+                find_part(document, TARGET),
+                expected_target,
+                "{state} after {stage}"
             );
         }
-
-        // Use the actual project archive Save/Open path before Core's public Open request.
-        let (mut reopened_engine, reopened) = save_archive_and_open(&edited);
-        assert_eq!(exception(&reopened, target_id).unwrap()["state"], state);
-        assert_eq!(
-            correspondence(&reopened, target_id)["sourceId"],
-            "left/RST",
-            "the source association must survive when omitted geometry is absent"
-        );
-        if state == "local" {
-            assert_eq!(find_part(&reopened, target_id).unwrap(), &original_target);
-        } else {
-            assert!(find_part(&reopened, target_id).is_none());
+        for document in [after_rejoin, &redone] {
+            assert_eq!(
+                part(document, TARGET)["pose"]["at"],
+                json!({"x":218.0,"y":35.0})
+            );
+            assert!(exception(document, TARGET).is_none());
         }
-
-        let before_rejoin = snapshot(&mut reopened_engine);
-        let rejoined = set_exception(&mut reopened_engine, &before_rejoin, target_id, "linked");
-        assert_eq!(rejoined["kind"], "scene", "{rejoined}");
-        let rejoined_document = rejoined["document"].clone();
-        assert_eq!(
-            part(&rejoined_document, target_id)["pose"]["at"],
-            json!({"x":218.0,"y":35.0})
-        );
-        assert!(
-            exception(&rejoined_document, target_id).is_none(),
-            "Rejoin clears only this exception"
-        );
-
-        let undone = request(
-            &mut reopened_engine,
-            json!({"id":"parent19-rejoin-undo","kind":"undo"}),
-        );
-        assert_eq!(undone["kind"], "scene", "{undone}");
-        assert_history_document(&undone["document"], &before_rejoin, "Rejoin Undo");
-        assert_eq!(
-            exception(&undone["document"], target_id).unwrap()["state"],
-            state
-        );
-        if state == "omitted" {
-            assert!(find_part(&undone["document"], target_id).is_none());
-        }
-
-        let redone = request(
-            &mut reopened_engine,
-            json!({"id":"parent19-rejoin-redo","kind":"redo"}),
-        );
-        assert_eq!(redone["kind"], "scene", "{redone}");
-        assert_history_document(&redone["document"], &rejoined_document, "Rejoin Redo");
-        assert!(exception(&redone["document"], target_id).is_none());
     }
 }
 

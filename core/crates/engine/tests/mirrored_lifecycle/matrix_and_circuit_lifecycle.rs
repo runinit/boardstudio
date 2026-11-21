@@ -458,8 +458,25 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
 
 #[test]
 fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_net() {
+    use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
+        MembershipTransitionOutput,
+        lifecycle::{prepare_lifecycle_transition, transition_exception_context},
+    };
+
+    let dispatch = crate::support::test_dispatch();
+    let set_owner = |context: &MembershipContext, state| {
+        transition_exception_context(
+            context,
+            MirroredItemKind::EmbeddedCircuit,
+            "source-circuit",
+            "mirror-circuit",
+            state,
+        )
+        .unwrap()
+    };
+
     let (before, context) = circuit_lifecycle_fixture();
-    let child_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
+    let child_context = transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "embedded/source-circuit/U2",
@@ -467,13 +484,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Local,
     )
     .unwrap();
-    let child = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &before,
-        &before,
-        &child_context,
-        crate::support::test_dispatch(),
-    )
-    .unwrap();
+    let child = prepare_lifecycle_transition(&before, &before, &child_context, dispatch).unwrap();
     let retained = child
         .draft
         .parts
@@ -496,21 +507,9 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .find(|p| p.id == "embedded/mirror-circuit/U1")
         .unwrap()
         .clone();
-    let owner_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &child.context,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Local,
-    )
-    .unwrap();
-    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &child.draft,
-        &child.draft,
-        &owner_context,
-        crate::support::test_dispatch(),
-    )
-    .unwrap();
+    let pending = set_owner(&child.context, TransitionState::Local);
+    let local =
+        prepare_lifecycle_transition(&child.draft, &child.draft, &pending, dispatch).unwrap();
     let mut post = local.draft.clone();
     let source = post
         .parts
@@ -519,32 +518,17 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .unwrap();
     source.pose.at.x += 19.0;
     source.properties = Some(BTreeMap::from([("revision".into(), json!(3))]));
-    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &local.draft,
-        &post,
-        &local.context,
-        crate::support::test_dispatch(),
-    )
-    .unwrap();
+    let edited =
+        prepare_lifecycle_transition(&local.draft, &post, &local.context, dispatch).unwrap();
     assert_eq!(
         edited.draft.parts.iter().find(|p| p.id == inherited.id),
         Some(&inherited)
     );
-    let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &edited.context,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Omitted,
-    )
-    .unwrap();
-    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &edited.draft,
-        &edited.draft,
-        &omitted_context,
-        crate::support::test_dispatch(),
-    )
-    .expect("a circuit Omit removes its inherited closure through the existing domain deletion");
+    let pending = set_owner(&edited.context, TransitionState::Omitted);
+    let omitted = prepare_lifecycle_transition(&edited.draft, &edited.draft, &pending, dispatch)
+        .expect(
+            "a circuit Omit removes its inherited closure through the existing domain deletion",
+        );
     assert!(
         omitted
             .draft
@@ -588,30 +572,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
     boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &decoded,
-        &decoded,
-        &omitted.context,
-        crate::support::test_dispatch(),
-    )
-    .unwrap();
+    let repeat =
+        prepare_lifecycle_transition(&decoded, &decoded, &omitted.context, dispatch).unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
-    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &repeat.context,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Linked,
-    )
-    .unwrap();
-    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
-        &repeat.draft,
-        &repeat.draft,
-        &rejoin_context,
-        crate::support::test_dispatch(),
-    )
-    .unwrap();
+    let pending = set_owner(&repeat.context, TransitionState::Linked);
+    let rejoined =
+        prepare_lifecycle_transition(&repeat.draft, &repeat.draft, &pending, dispatch).unwrap();
     assert_eq!(
         rejoined.draft.parts.iter().find(|p| p.id == retained.id),
         Some(&retained)
@@ -641,11 +608,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
             .any(|c| c.id == "mirror-circuit")
     );
     boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
+    let repeat = prepare_lifecycle_transition(
         &rejoined.draft,
         &rejoined.draft,
         &rejoined.context,
-        crate::support::test_dispatch(),
+        dispatch,
     )
     .unwrap();
     assert_eq!(repeat.draft, rejoined.draft);
@@ -657,58 +624,49 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     remove_matrix_correspondence(&mut matrixless);
     boardstudio_core_mechanical::mechanical::halves::validate_document(&matrixless).unwrap();
     let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let child = prepare_exception_intent(
-        &matrixless,
-        &matrixless,
-        &pair_id,
-        MirroredItemKind::Part,
-        "embedded/source-circuit/U2",
-        "embedded/mirror-circuit/U2",
-        TransitionState::Local,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let child_geometry = child
-        .draft
+    let child_id = "embedded/mirror-circuit/U2";
+    let child_geometry = matrixless
         .parts
         .iter()
-        .find(|p| p.id == "embedded/mirror-circuit/U2")
+        .find(|p| p.id == child_id)
         .unwrap()
         .clone();
-    let owner = prepare_exception_intent(
-        &child.draft,
-        &child.draft,
-        &pair_id,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Local,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let rejoined = prepare_exception_intent(
-        &owner.draft,
-        &owner.draft,
-        &pair_id,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Linked,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    assert_eq!(
-        rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|p| p.id == "embedded/mirror-circuit/U2"),
-        Some(&child_geometry),
-        "matrixless Rejoin keeps the explicit child's Local geometry"
-    );
+    let mut rejoined: Option<MembershipTransitionOutput> = None;
+    for (kind, source, mirror, state) in [
+        (
+            MirroredItemKind::Part,
+            "embedded/source-circuit/U2",
+            child_id,
+            TransitionState::Local,
+        ),
+        (
+            MirroredItemKind::EmbeddedCircuit,
+            "source-circuit",
+            "mirror-circuit",
+            TransitionState::Local,
+        ),
+        (
+            MirroredItemKind::EmbeddedCircuit,
+            "source-circuit",
+            "mirror-circuit",
+            TransitionState::Linked,
+        ),
+    ] {
+        let before = rejoined
+            .as_ref()
+            .map_or(&matrixless, |output| &output.draft);
+        let step = prepare_exception_intent(before, before, &pair_id, kind, source, mirror, state)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(
+            step.draft.parts.iter().find(|p| p.id == child_id),
+            Some(&child_geometry),
+            "matrixless {mirror} {state:?} keeps the explicit child's Local geometry"
+        );
+        rejoined = Some(step);
+    }
+    let rejoined = rejoined.unwrap();
     assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
     boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 }

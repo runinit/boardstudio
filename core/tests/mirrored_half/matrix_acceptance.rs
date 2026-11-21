@@ -3,6 +3,7 @@
 //! The shared synthetic fixture contains one matrix per pair. These cases exercise source and
 //! mirror authorship, Preview isolation, exact paired effects, and one-step document history.
 
+use super::parent_acceptance::{assert_history_document, save_archive_and_open};
 use super::*;
 
 const SOURCE_MATRIX: &str = "left-synthetic-keys";
@@ -296,21 +297,11 @@ fn assert_document_history(
 ) {
     let undone = request(engine, json!({"id":format!("{label}-undo"),"kind":"undo"}));
     assert_eq!(undone["kind"], "scene", "{label} Undo: {undone}");
-    let mut expected_before = before.clone();
-    expected_before["revision"] = undone["document"]["revision"].clone();
-    assert_eq!(
-        undone["document"], expected_before,
-        "{label} Undo restores the full document"
-    );
+    assert_history_document(&undone["document"], before, &format!("{label} Undo"));
 
     let redone = request(engine, json!({"id":format!("{label}-redo"),"kind":"redo"}));
     assert_eq!(redone["kind"], "scene", "{label} Redo: {redone}");
-    let mut expected_after = committed.clone();
-    expected_after["revision"] = redone["document"]["revision"].clone();
-    assert_eq!(
-        redone["document"], expected_after,
-        "{label} Redo restores the full document"
-    );
+    assert_history_document(&redone["document"], committed, &format!("{label} Redo"));
 }
 
 fn assert_projected_key_pose(document: &Value, source_id: &str, mirror_id: &str, x: f64, y: f64) {
@@ -546,22 +537,6 @@ fn verify_matrix_sequence(kind: MatrixSequenceKind, author: &str, before: &Value
         }
     }
 }
-fn archive_reopen(document: &Value) -> (CoreEngine, Value) {
-    let (packed_reply, packed_buffers) = boardstudio_core::archive::request(
-        &json!({"kind":"pack-project","projectJson":document.to_string(),"assets":[]}).to_string(),
-        &[],
-    );
-    let packed: Value = serde_json::from_str(&packed_reply).unwrap();
-    assert_eq!(packed["kind"], "packed", "{packed}");
-    let (unpacked_reply, buffers) =
-        boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed_buffers);
-    let unpacked: Value = serde_json::from_str(&unpacked_reply).unwrap();
-    assert_eq!(unpacked["kind"], "unpacked", "{unpacked}");
-    assert!(buffers.is_empty());
-    let saved: Value = serde_json::from_str(unpacked["projectJson"].as_str().unwrap()).unwrap();
-    assert_eq!(saved, *document);
-    open(&saved)
-}
 #[test]
 fn parent19_matrix_operation_sequences_cover_linked_local_omitted_reverse_matrixless_noop_preview_commit_reopen_history()
  {
@@ -698,7 +673,7 @@ fn parent19_matrix_operation_sequences_cover_linked_local_omitted_reverse_matrix
                     assert_eq!(noop["kind"], "scene", "{label}: {noop}");
                     assert_eq!(noop["document"], after, "{label}: no-op preserves document");
                 }
-                let (_, reopened) = archive_reopen(&after);
+                let (_, reopened) = save_archive_and_open(&after);
                 assert_eq!(
                     pair(&reopened, &pair_id)["halves"]["correspondences"],
                     pair(&after, &pair_id)["halves"]["correspondences"],

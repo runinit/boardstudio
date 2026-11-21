@@ -566,75 +566,75 @@ fn handed_off_grid_footprint_warning_is_unique_located_and_pair_scoped() {
 
 #[test]
 fn companion_placement_updates_local_and_omitted_records_for_rejoin() {
+    const PAIR: &str = "placement-exception";
+    const MIRROR: &str = "matrix/right-synthetic-keys/r0c0/diode";
+    let set_state = |state| {
+        json!({"kind":"set-half-exception","pairId":PAIR,
+        "itemKind":"part","mirrorId":MIRROR,"state":state})
+    };
+    let tweak = json!({"x":1.0,"y":2.0,"rotation":3.0});
+    let placement = json!({"kind":"set-companion-placement","pairId":PAIR,
+        "targets":[{"kind":"item","itemKind":"part","mirrorId":MIRROR}],
+        "mode":"literal-mirror-with-tweak","tweak":tweak});
     for state in ["local", "omitted"] {
         let (mut engine, source) = seed(&runtime_supported_document(), "left");
-        let made = create_with(
+        let made = create(
             &mut engine,
             &source,
-            "commit",
-            operation(
-                "placement-exception",
-                "left",
-                new_board("right", "right"),
-                mapping(300.0),
-            ),
+            PAIR,
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
         )
-        .unwrap()["document"]
-            .clone();
-        let mirror_id = "matrix/right-synthetic-keys/r0c0/diode";
-        let exceptional = create_with(
-            &mut engine,
-            &made,
-            "commit",
-            json!({"kind":"set-half-exception", "pairId":"placement-exception",
-                "itemKind":"part", "mirrorId":mirror_id, "state":state}),
-        )
-        .unwrap()["document"]
-            .clone();
-        let before_pose = (state == "local").then(|| part(&exceptional, mirror_id)["pose"].clone());
-        let edited = create_with(
-            &mut engine,
-            &exceptional,
-            "commit",
-            json!({"kind":"set-companion-placement", "pairId":"placement-exception",
-                "targets":[{"kind":"item","itemKind":"part","mirrorId":mirror_id}],
-                "mode":"literal-mirror-with-tweak", "tweak":{"x":1.0,"y":2.0,"rotation":3.0}}),
-        )
-        .unwrap()["document"]
-            .clone();
-        let link = pair(&edited, "placement-exception")["halves"]["correspondences"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|link| link["mirrorId"] == mirror_id)
-            .unwrap();
-        assert_eq!(link["companionMode"], "literal-mirror-with-tweak");
-        assert_eq!(
-            link["companionTweak"],
-            json!({"x":1.0,"y":2.0,"rotation":3.0})
-        );
-        if state == "local" {
-            assert_eq!(part(&edited, mirror_id)["pose"], before_pose.unwrap());
-        }
+        .unwrap();
+        let exceptional =
+            create_with(&mut engine, &made["document"], "commit", set_state(state)).unwrap();
+        let before = &exceptional["document"];
+        let edited = create_with(&mut engine, before, "commit", placement.clone()).unwrap();
         let rejoined = create_with(
             &mut engine,
-            &edited,
+            &edited["document"],
             "commit",
-            json!({"kind":"set-half-exception", "pairId":"placement-exception",
-                "itemKind":"part", "mirrorId":mirror_id, "state":"linked"}),
+            set_state("linked"),
         )
-        .unwrap()["document"]
-            .clone();
-        let rejoined_link = pair(&rejoined, "placement-exception")["halves"]["correspondences"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|link| link["mirrorId"] == mirror_id)
-            .unwrap();
-        assert_eq!(rejoined_link["companionMode"], "literal-mirror-with-tweak");
-        assert_eq!(
-            rejoined_link["companionTweak"],
-            json!({"x":1.0,"y":2.0,"rotation":3.0})
+        .unwrap();
+        for (stage, document) in [
+            ("edited", &edited["document"]),
+            ("rejoined", &rejoined["document"]),
+        ] {
+            let halves = &pair(document, PAIR)["halves"];
+            let link = halves["correspondences"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|link| link["mirrorId"] == MIRROR)
+                .unwrap();
+            assert_eq!(
+                link["sourceId"], "matrix/left-synthetic-keys/r0c0/diode",
+                "{state} {stage}"
+            );
+            assert_eq!(
+                link["companionMode"], "literal-mirror-with-tweak",
+                "{state} {stage}"
+            );
+            assert_eq!(link["companionTweak"], tweak, "{state} {stage}");
+        }
+        if state == "local" {
+            assert_eq!(
+                part(&edited["document"], MIRROR)["pose"],
+                part(before, MIRROR)["pose"]
+            );
+        } else {
+            assert!(find_part(&edited["document"], MIRROR).is_none());
+        }
+        let mirror_key = part(&rejoined["document"], "matrix/right-synthetic-keys/r0c0");
+        let source_key = part(&made["document"], "matrix/left-synthetic-keys/r0c0");
+        let source_diode = part(&made["document"], "matrix/left-synthetic-keys/r0c0/diode");
+        let (x, y) = in_switch_frame(source_diode, source_key);
+        assert_close_pair(
+            in_switch_frame(part(&rejoined["document"], MIRROR), mirror_key),
+            (1.0 - x, 2.0 + y),
+            state,
         );
     }
 }

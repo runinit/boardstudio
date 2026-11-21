@@ -1162,176 +1162,52 @@ pub(crate) fn root_exception_context(
 }
 
 #[test]
-fn owner_rejoin_clears_only_its_exception_and_keeps_explicit_child_state_and_modes() {
-    let context = root_exception_context(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted,
-    );
-    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &context,
-        boardstudio_model::model::MirroredItemKind::Matrix,
-        "source-matrix",
-        "mirror-matrix",
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked,
-    )
-    .expect("the exact owner can rejoin");
+fn matrix_owner_transitions_retain_explicit_child_and_durable_baseline() {
+    use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
+        TransitionState::{Linked, Local, Omitted},
+        lifecycle::transition_exception_context,
+    };
+    use boardstudio_model::model::MirroredItemKind;
 
-    assert_eq!(
-        rejoined.associations[0].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
-    );
-    assert!(!rejoined.associations[0].explicit_state);
-    assert_eq!(
-        rejoined.associations[1].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
-    );
-    assert!(!rejoined.associations[1].explicit_state);
-    assert_eq!(
-        rejoined.associations[2].effective_mode,
-        boardstudio_model::model::MirroredCompanionMode::DuplicatePosition
-    );
-    assert_eq!(
-        rejoined.associations[1].effective_tweak.as_ref().unwrap().x,
-        0.25
-    );
-    assert_eq!(
-        rejoined.associations[3].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(rejoined.associations[3].explicit_state);
-    assert_eq!(rejoined.pair_right, context.pair_right);
-    assert_eq!(
-        rejoined.pending_pair_baseline.as_ref(),
-        Some(&context.pair_right),
-        "the helper retains the exact ordered durable baseline until the kernel succeeds"
-    );
-    assert_eq!(
-        rejoined.pending_pair_transitions.get("source-matrix"),
-        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted)
-    );
-}
+    let linked = exception_context();
+    for (before, after) in [
+        (Linked, Local),
+        (Linked, Omitted),
+        (Local, Linked),
+        (Omitted, Linked),
+    ] {
+        let input = if before == Linked {
+            linked.clone()
+        } else {
+            root_exception_context(before)
+        };
+        let actual = transition_exception_context(
+            &input,
+            MirroredItemKind::Matrix,
+            "source-matrix",
+            "mirror-matrix",
+            after,
+        )
+        .unwrap_or_else(|error| panic!("{before:?} -> {after:?}: {error}"));
 
-#[test]
-fn owner_rejoin_from_local_restores_inherited_children_only() {
-    let context = root_exception_context(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
-    );
-    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &context,
-        boardstudio_model::model::MirroredItemKind::Matrix,
-        "source-matrix",
-        "mirror-matrix",
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked,
-    )
-    .expect("the exact Local owner can rejoin");
-
-    assert_eq!(
-        rejoined.associations[0].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
-    );
-    assert!(!rejoined.associations[0].explicit_state);
-    assert_eq!(
-        rejoined.associations[1].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
-    );
-    assert!(!rejoined.associations[1].explicit_state);
-    assert_eq!(
-        rejoined.associations[2].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
-    );
-    assert!(!rejoined.associations[2].explicit_state);
-    assert_eq!(
-        rejoined.associations[3].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(rejoined.associations[3].explicit_state);
-    assert_eq!(rejoined.pair_right, context.pair_right);
-    assert!(rejoined.pending_pair_baseline.is_some());
-}
-
-#[test]
-fn owner_localization_protects_only_inherited_children_and_preserves_child_exceptions() {
-    let context = exception_context();
-    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &context,
-        boardstudio_model::model::MirroredItemKind::Matrix,
-        "source-matrix",
-        "mirror-matrix",
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
-    )
-    .expect("the exact linked owner can become local");
-
-    assert_eq!(
-        localized.associations[0].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
-    );
-    assert!(localized.associations[0].explicit_state);
-    assert_eq!(
-        localized.associations[1].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
-    );
-    assert!(!localized.associations[1].explicit_state);
-    assert_eq!(
-        localized.associations[2].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
-    );
-    assert!(!localized.associations[2].explicit_state);
-    assert_eq!(
-        localized.associations[3].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(localized.associations[3].explicit_state);
-    assert_eq!(localized.pair_right, context.pair_right);
-    assert_eq!(
-        localized.pending_pair_transitions.get("source-matrix"),
-        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked)
-    );
-}
-
-#[test]
-fn owner_omission_removes_only_inherited_children_and_keeps_explicit_child_state() {
-    let context = exception_context();
-    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &context,
-        boardstudio_model::model::MirroredItemKind::Matrix,
-        "source-matrix",
-        "mirror-matrix",
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted,
-    )
-    .expect("the exact linked owner can be omitted");
-
-    assert_eq!(
-        omitted.associations[0].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(omitted.associations[0].explicit_state);
-    assert_eq!(
-        omitted.associations[1].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(!omitted.associations[1].explicit_state);
-    assert_eq!(
-        omitted.associations[2].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(!omitted.associations[2].explicit_state);
-    assert_eq!(
-        omitted.associations[1].effective_tweak.as_ref().unwrap().x,
-        0.25
-    );
-    assert_eq!(
-        omitted.associations[2].effective_mode,
-        boardstudio_model::model::MirroredCompanionMode::DuplicatePosition
-    );
-    assert_eq!(
-        omitted.associations[3].state,
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
-    );
-    assert!(omitted.associations[3].explicit_state);
-    assert_eq!(omitted.pair_right, context.pair_right);
-    assert_eq!(
-        omitted.pending_pair_transitions.get("source-matrix"),
-        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked)
-    );
+        // Model only the inherited state change. The explicit Layout and every identity and
+        // companion setting stay exactly as in the ordered fixture.
+        let mut associations = linked.associations.clone();
+        for association in &mut associations[..3] {
+            association.state = after;
+        }
+        associations[0].explicit_state = after != Linked;
+        assert_eq!(actual.associations, associations, "{before:?} -> {after:?}");
+        assert_eq!(actual.pair_right, input.pair_right);
+        assert_eq!(
+            actual.pending_pair_baseline.as_ref(),
+            Some(&input.pair_right)
+        );
+        assert_eq!(
+            actual.pending_pair_transitions,
+            [("source-matrix".into(), before)].into()
+        );
+    }
 }
 
 #[test]
