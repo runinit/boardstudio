@@ -401,7 +401,7 @@ fn surface_support_box(surface: &Surface, world: Matrix4) -> Option<Bounds> {
         .then_some(bounds)
 }
 
-fn push(bounds: &mut Bounds, point: Point3) -> Result<(), String> {
+pub(super) fn push(bounds: &mut Bounds, point: Point3) -> Result<(), String> {
     for (axis, value) in [point.x, point.y, point.z].into_iter().enumerate() {
         if !value.is_finite() {
             return Err("nonfinite exact source bound".into());
@@ -502,6 +502,14 @@ fn selected_affine_endpoints(curve: &SurfaceCurve3D) -> Result<[Point3; 2], Stri
     Ok(points)
 }
 
+pub(super) fn ellipse_extrema(a: f64, b: f64, low: f64, high: f64) -> impl Iterator<Item = f64> {
+    let phase = b.atan2(a);
+    let first = phase + ((low - phase) / std::f64::consts::PI).ceil() * std::f64::consts::PI;
+    [first, first + std::f64::consts::PI]
+        .into_iter()
+        .filter(move |&angle| angle >= low && angle <= high)
+}
+
 fn conic_bounds(curve: &Conic3D, world: Matrix4, bounds: &mut Bounds) -> Result<(), String> {
     let (range, matrix) = match curve {
         Conic3D::Ellipse(c) => (c.entity().range(), world * c.transform()),
@@ -517,14 +525,7 @@ fn conic_bounds(curve: &Conic3D, world: Matrix4, bounds: &mut Bounds) -> Result<
         let (a, b) = (matrix.x[axis], matrix.y[axis]);
         match curve {
             Conic3D::Ellipse(_) => {
-                let phase = b.atan2(a);
-                let first =
-                    phase + ((low - phase) / std::f64::consts::PI).ceil() * std::f64::consts::PI;
-                for t in [first, first + std::f64::consts::PI] {
-                    if t >= low && t <= high {
-                        parameters.push(t);
-                    }
-                }
+                parameters.extend(ellipse_extrema(a, b, low, high));
             }
             Conic3D::Hyperbola(_) if a != 0. && (-b / a).abs() < 1. => {
                 let t = (-b / a).atanh();

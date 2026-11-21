@@ -1,5 +1,6 @@
 //! Complete vendor STEP assets with retained source and derived preview data.
 mod bounds;
+mod native;
 mod repair;
 mod scene;
 mod tessellation;
@@ -9,14 +10,14 @@ pub use units::precision::{StepPrecision, StepUncertainty};
 pub use wireframe::{StepLineOccurrence, StepLinePresentation};
 
 use crate::MeshBuffers;
-use monstertruck_io::step::load::step_p21::{
-    ast::{EntityInstance, Exchange, Name, Parameter, Record},
-    parser,
-};
 use monstertruck_io::step::load::{convert::*, *};
 use monstertruck_meshing::prelude::*;
 use monstertruck_modeling::{InnerSpace, Matrix4, Point3, SquareMatrix, Transform};
 use std::collections::{HashMap, HashSet};
+use step_p21::{
+    ast::{EntityInstance, Exchange, Name, Parameter, Record},
+    parser,
+};
 
 const MAX_STEP_BYTES: usize = 32 * 1024 * 1024;
 const TOLERANCE_MM: f64 = 0.1;
@@ -113,7 +114,9 @@ pub struct ImportedStep {
     analysis_options: StepImportOptions,
     _original_source: Exchange,
     _repair_ledger: repair::Ledger,
+    #[cfg(test)]
     solids: HashMap<u64, SourceSolid>,
+    solid_count: usize,
     occurrences: Vec<(u64, Matrix4, u64)>,
     bounds: [[f64; 3]; 2],
     mesh: MeshBuffers,
@@ -138,7 +141,7 @@ impl ImportedStep {
         self.bounds
     }
     pub fn solid_count(&self) -> usize {
-        self.solids.len()
+        self.solid_count
     }
     pub fn occurrence_count(&self) -> usize {
         self.occurrences.len()
@@ -277,11 +280,47 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         }
         None => TOLERANCE_MM,
     };
+    let exchange = parser::parse(&units::decode_step_bytes(&bytes))
+        .map_err(|error| format!("source AST: {error}"))?;
+    if exchange.data.len() != 1 {
+        return Err("STEP input requires exactly one DATA section".into());
+    }
+    let precision = units::precision::resolve(&exchange)?;
+    let representation_units = units::length_factors(&exchange)?;
+    let shape_items = units::representation_items(&exchange)?;
+    if let Ok(asset) = native::build(
+        &exchange,
+        &shape_items,
+        &representation_units,
+        &precision,
+        options,
+        deflection_mm,
+    ) {
+        return asset.finish(bytes, exchange, precision, options);
+    }
+    // The repair producer still owns its byte-bound parse and typed table.
+    drop(exchange);
+    import_legacy(
+        bytes,
+        options,
+        deflection_mm,
+        precision,
+        representation_units,
+        shape_items,
+    )
+}
+
+fn import_legacy(
+    bytes: Vec<u8>,
+    options: StepImportOptions,
+    deflection_mm: f64,
+    precision: Vec<StepPrecision>,
+    representation_units: HashMap<u64, f64>,
+    shape_items: HashMap<u64, Vec<u64>>,
+) -> Result<ImportedStep, String> {
     let input = StepRepairInput::parse(bytes).map_err(|error| format!("source AST: {error}"))?;
     let bytes = input.bytes();
-    let text = units::decode_step_bytes(bytes);
     let original_source = input.exchange();
-    let precision = units::precision::resolve(original_source)?;
     // The reviewed contextual producer currently supports simple declarations.
     // Other authenticated metadata remains diagnostic; strict construction must
     // bypass discovery entirely rather than borrowing an unrelated owner.
@@ -298,9 +337,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             _ => None,
         })
         .collect();
-    let source_occurrence_ids = source_occurrence_ids(&text)?;
-    let representation_units = units::resolve_mm_per_unit_by_representation(&text)?;
-    let shape_items = units::shape_representation_items(&text)?;
+    let source_occurrence_ids = source_occurrence_ids(original_source);
     let preview_tolerance = match options.preview_repair_budget_mm {
         Some(budget) => PreviewTolerance {
             floor_mm: budget,
@@ -730,6 +767,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         analysis_options: options,
         _original_source: original_source,
         _repair_ledger: repair_ledger,
+        solid_count: solids.len(),
+        #[cfg(test)]
         solids,
         occurrences,
         bounds,
@@ -1176,9 +1215,8 @@ fn validate_pds_definition_targets(table: &Table) -> Result<(), String> {
     Ok(())
 }
 
-fn source_occurrence_ids(text: &str) -> Result<HashSet<u64>, String> {
-    let exchange = parser::parse(text).map_err(|error| format!("STEP AST: {error}"))?;
-    Ok(exchange
+fn source_occurrence_ids(exchange: &Exchange) -> HashSet<u64> {
+    exchange
         .data
         .iter()
         .flat_map(|section| &section.entities)
@@ -1192,7 +1230,7 @@ fn source_occurrence_ids(text: &str) -> Result<HashSet<u64>, String> {
                 .any(|record: &Record| record.name == "NEXT_ASSEMBLY_USAGE_OCCURRENCE")
                 .then_some(*id),
         })
-        .collect())
+        .collect()
 }
 
 fn occurrence_product_definition_shape_ids(table: &Table) -> HashMap<u64, Vec<u64>> {
