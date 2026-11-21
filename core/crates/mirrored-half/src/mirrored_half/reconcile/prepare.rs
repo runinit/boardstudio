@@ -3,7 +3,6 @@
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
 //! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
-use super::settings::KeycapEdit;
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
     is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
@@ -19,6 +18,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod canonical;
 mod projection;
+mod settings_edit;
+#[cfg(test)]
+mod tests;
 pub use canonical::apply_canonical;
 use canonical::{
     bind_deferred_constraints, initial_framed_constraints, operation_positions,
@@ -619,6 +621,24 @@ pub fn prepare_transaction_with_ledger(
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
+    prepare_transaction(
+        accepted,
+        board_contours,
+        operation,
+        identities,
+        dispatch,
+        true,
+    )
+}
+
+fn prepare_transaction(
+    accepted: &ProjectDoc,
+    board_contours: &[BoardContours],
+    operation: &EditOperation,
+    identities: &crate::mechanical::edit::MechanicalIdentityLedger,
+    dispatch: crate::mirrored_half::EditDispatch,
+    project_settings: bool,
+) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
     let mut canonical = inverse::canonicalize_with_dispatch(accepted, operation, dispatch)
         .map_err(|refusal| refusal.to_string())?;
@@ -649,28 +669,11 @@ pub fn prepare_transaction_with_ledger(
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    if let Some(edit) = KeycapEdit::for_operation(&canonical.operation) {
-        // Both lifecycle and fixed-membership reconciliation can refresh other families.
-        // Keep those passes when resolving a settings edit also changed document structure.
-        let edited_keycaps = std::mem::replace(&mut draft.keycaps, accepted.keycaps.clone());
-        let settings_only = draft == *accepted;
-        draft.keycaps = edited_keycaps;
-        if settings_only
-            && let Some(settings) = &mut draft.keycaps
-            && crate::mechanical::features::validate(accepted).is_ok()
-            && !accepted
-                .hardware
-                .iter()
-                .flat_map(|hardware| &hardware.pairs)
-                .filter_map(|pair| pair.halves.as_ref())
-                .any(|halves| halves.source_board_id == halves.mirror_board_id)
-        {
-            edit.project(accepted, settings)?;
-            validate_prepared_draft(accepted, &draft, &canonical.operation)?;
-            // Settings are document-level fields. The prepared route publishes them via
-            // document equality, with no geometry entity IDs in the change report.
-            return Ok((draft, Vec::new()));
-        }
+    if project_settings
+        && let Some(changed) = settings_edit::project(accepted, &mut draft, &canonical.operation)?
+    {
+        validate_prepared_draft(accepted, &draft, &canonical.operation)?;
+        return Ok((draft, changed));
     }
     // Topology, placement, hosted content, outlines, nets, lifecycle edits and document
     // replacement still use full reconciliation. Open also projects all linked settings

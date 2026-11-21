@@ -1307,8 +1307,6 @@ pub fn reconcile(
         .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
 
     let (changed_ids, _) = changed_document_fields(document, &staged)?;
-    let first_output = staged.clone();
-
     *document = staged;
     {
         let mut applied_additions = projection.applied_independent_additions.borrow_mut();
@@ -1350,7 +1348,7 @@ pub fn reconcile(
                 definition_ids: definition_ids.clone(),
                 net_ids: net_ids.clone(),
                 member_poses: member_poses.clone(),
-                first_output: first_output.clone(),
+                first_output: document.clone(),
             });
     }
     Ok(changed_ids)
