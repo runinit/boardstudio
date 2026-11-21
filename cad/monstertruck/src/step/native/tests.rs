@@ -2,6 +2,7 @@ use super::*;
 
 mod angular_tests;
 mod cone_tests;
+mod cuboid_tests;
 mod cylinder_band_tests;
 mod diode_tests;
 
@@ -678,7 +679,7 @@ fn mirrored_map_reverses_winding_and_preserves_each_face_occurrence() {
 }
 
 #[test]
-fn wireframes_unsupported_surfaces_and_proof_candidates_keep_legacy_delivery() {
+fn wireframes_and_unsupported_surfaces_keep_legacy_delivery() {
     let wires = include_bytes!("../../../tests/fixtures/tetra-and-finite-wires.step");
     let model = import_step(wires.to_vec()).unwrap();
     assert!(!model.solids.is_empty());
@@ -688,11 +689,5 @@ fn wireframes_unsupported_surfaces_and_proof_candidates_keep_legacy_delivery() {
     let model = import_step(sphere.to_vec()).unwrap();
     assert!(!model.solids.is_empty());
     assert!(!model.accuracy.bounds_from_source_geometry);
-    assert_eq!(model.accuracy.analysis_error_bound_mm, None);
-
-    let cuboid = include_bytes!("../../../tests/fixtures/zero-repair-cuboid-mm.step");
-    let model = import_step(cuboid.to_vec()).unwrap();
-    assert!(!model.solids.is_empty());
-    assert_eq!(model.accuracy.max_repair_displacement_mm, Some(0.0));
     assert_eq!(model.accuracy.analysis_error_bound_mm, None);
 }

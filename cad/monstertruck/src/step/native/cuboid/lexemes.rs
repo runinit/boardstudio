@@ -1,5 +1,6 @@
 //! Integer authority for the narrow cuboid proof, borrowed from original spellings.
-use super::*;
+use super::{EntityInstance, parts};
+use crate::step::repair::spelling;
 
 pub(super) struct Scalars {
     values: [f64; 3],
@@ -11,23 +12,39 @@ impl Scalars {
     }
 }
 
-pub(super) fn validate(bytes: &[u8]) -> Option<()> {
+/// Every DATA spelling binds to exactly one parsed record of the same kind and
+/// every parsed record has exactly one spelling. `records` is sorted by ID.
+pub(super) fn validate<'a>(bytes: &'a [u8], records: &[&EntityInstance]) -> Option<&'a [u8]> {
     if !bytes.is_ascii() {
         return None;
     }
-    for instance in spelling::instances(bytes) {
+    let mut seen = Vec::new();
+    seen.try_reserve_exact(records.len()).ok()?;
+    seen.resize(records.len(), false);
+    let data = spelling::data_body(bytes)?;
+    for instance in spelling::data_instances(Some(data)) {
         let instance = instance?;
+        let index = records
+            .binary_search_by_key(&instance.id, |record| parts(record).0)
+            .ok()?;
+        let kind = match records[index] {
+            EntityInstance::Simple { record, .. } => record.name.as_bytes(),
+            EntityInstance::Complex { .. } => b"",
+        };
+        if std::mem::replace(&mut seen[index], true) || instance.kind != kind {
+            return None;
+        }
         if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR") {
             geometry_numbers(instance.parameters)?;
         }
     }
-    Some(())
+    seen.iter().all(|seen| *seen).then_some(data)
 }
 
-pub(super) fn values(bytes: &[u8], id: u64) -> Option<Scalars> {
-    // Document checked every parsed ID for uniqueness and every numeric record
-    // before these lookups; retain no per-entity numeric map or label copies.
-    for instance in spelling::instances(bytes) {
+pub(super) fn values(data: &[u8], id: u64) -> Option<Scalars> {
+    // Document bound every DATA spelling one-to-one to its parsed record before
+    // these lookups; retain no per-entity numeric map or label copies.
+    for instance in spelling::data_instances(Some(data)) {
         let instance = instance?;
         if instance.id == id {
             return geometry_numbers(instance.parameters);

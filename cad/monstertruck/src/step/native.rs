@@ -3,6 +3,7 @@
 mod assembly;
 mod carrier;
 mod cone;
+mod cuboid;
 mod cylinder_band;
 mod facet;
 mod geometry;
@@ -55,7 +56,7 @@ impl Asset {
         precision: Vec<StepPrecision>,
         options: StepImportOptions,
     ) -> Result<ImportedStep, String> {
-        let imported = ImportedStep {
+        let mut imported = ImportedStep {
             original_bytes: bytes,
             analysis_options: options,
             _original_source: exchange,
@@ -82,7 +83,7 @@ impl Asset {
                     .preview_repair_budget_mm
                     .map_or(PREVIEW_DECLARED_MULTIPLIER, |_| 0.0),
                 selected_repair_budget_mm: options.preview_repair_budget_mm,
-                // Native preview uses decoded f64 source. It carries no decimal movement proof.
+                // Decoded f64 source carries no decimal movement proof of its own.
                 max_repair_displacement_mm: None,
                 relaxed_beyond_declared_precision: false,
                 sampled_support_checks: 0,
@@ -92,10 +93,21 @@ impl Asset {
             },
             wireframe: wireframe::Wireframe::default(),
         };
+        certify_cuboid(&mut imported);
         imported
             .validate_invariants()
             .map_err(|errors| format!("import invariants failed: {}", errors.join("; ")))?;
         Ok(imported)
+    }
+}
+
+/// The one exact-zero repair producer, for whichever route delivered the asset.
+/// It re-derives an integer box from the original decimal spellings and then
+/// requires the delivered mesh to tile exactly that box; the route's own repair
+/// accounting is never consulted.
+pub(super) fn certify_cuboid(model: &mut ImportedStep) {
+    if cuboid::certify(model) {
+        model.accuracy.max_repair_displacement_mm = Some(0.0);
     }
 }
 
@@ -181,28 +193,6 @@ pub(super) fn build(
     retained.extend(source_faces.iter().map(|f| f.face_id));
     retained.extend(occurrences.iter().map(|(_, _, owner)| *owner));
     scene.require_complete_presentations(&retained)?;
-    if let [(id, placement, _)] = occurrences.as_slice() {
-        let solid = &solids[id];
-        // Keep the existing source-decimal cuboid producer and its proof admission.
-        if *placement == Matrix4::identity()
-            && factors[id] == 1.0
-            && solid.faces.len() == 6
-            && solid.edges.len() == 12
-            && solid
-                .faces
-                .iter()
-                .all(|face| matches!(face.surface.kind, SurfaceKind::Plane))
-            && solid
-                .edges
-                .values()
-                .flat_map(|edge| edge.vertices)
-                .collect::<HashSet<_>>()
-                .len()
-                == 8
-        {
-            return Err("source-decimal cuboid proof candidate".into());
-        }
-    }
     let mut asset = Asset {
         solid_count: solids.len(),
         occurrences,

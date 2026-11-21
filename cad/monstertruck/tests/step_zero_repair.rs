@@ -237,8 +237,18 @@ fn additional_representation_roots_cannot_drop_unbounded_geometry() {
 }
 
 #[test]
-fn product_definition_metadata_does_not_add_a_geometry_root() {
-    let text = replace_once(
+fn single_component_complex_metadata_preserves_cuboid_certification() {
+    let source = replace_once(
+        std::str::from_utf8(BOX).unwrap(),
+        "ENDSEC;END-ISO-10303-21;",
+        "#900=(REPRESENTATION_CONTEXT('3D','MODEL'));\nENDSEC;END-ISO-10303-21;",
+    );
+    let model = import_step(source.into_bytes()).unwrap();
+    assert_eq!(model.accuracy().max_repair_displacement_mm, Some(0.0));
+}
+
+fn product_metadata() -> String {
+    replace_once(
         std::str::from_utf8(BOX).unwrap(),
         "ENDSEC;END-ISO-10303-21;",
         "#910=APPLICATION_CONTEXT('mechanical design');\n\
@@ -250,7 +260,12 @@ fn product_definition_metadata_does_not_add_a_geometry_root() {
          #916=PRODUCT_DEFINITION_SHAPE('','',#915);\n\
          #917=SHAPE_DEFINITION_REPRESENTATION(#916,#304);\n\
          ENDSEC;END-ISO-10303-21;",
-    );
+    )
+}
+
+#[test]
+fn product_definition_metadata_does_not_add_a_geometry_root() {
+    let text = product_metadata();
     let model = import_step(text.clone().into_bytes()).unwrap();
     assert_eq!(model.original_bytes(), text.as_bytes());
     assert_eq!(model.accuracy().max_repair_displacement_mm, Some(0.0));
@@ -334,4 +349,191 @@ fn presentation_graph_cannot_hide_unretained_supports_or_cycles() {
             .expect("unretained presentation must refuse");
         assert!(error.contains("source completeness"), "{error}");
     }
+}
+
+/// Certified cuboids the native exchange gate refuses. The decimal certificate
+/// does not depend on the header schema or on the product graph's nesting, so
+/// these keep the exact zero they had before the native path took cuboids.
+fn outside_native_gate() -> Vec<(&'static str, String)> {
+    let text = std::str::from_utf8(BOX).unwrap();
+    let header = "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));";
+    let schema = |replacement: &str| replace_once(text, header, replacement);
+    vec![
+        (
+            "ap242-schema",
+            schema(
+                "FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }'));",
+            ),
+        ),
+        (
+            "ap203e2-schema",
+            schema(
+                "FILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF'));",
+            ),
+        ),
+        (
+            "two-schemas",
+            schema("FILE_SCHEMA(('AUTOMOTIVE_DESIGN','CONFIG_CONTROL_DESIGN'));"),
+        ),
+        ("no-file-schema", schema("")),
+        ("repeated-file-schema", schema(&format!("{header}{header}"))),
+        (
+            // Native rejects the nested definition target even under AUTOMOTIVE_DESIGN.
+            "nested-product-definition-shape",
+            replace_once(
+                &product_metadata(),
+                "ENDSEC;END-ISO-10303-21;",
+                "#918=PRODUCT_DEFINITION_SHAPE('','',#916);\nENDSEC;END-ISO-10303-21;",
+            ),
+        ),
+    ]
+}
+
+#[test]
+fn certified_cuboids_outside_the_native_gate_keep_complete_zero_repair() {
+    let uncertified: Vec<_> = outside_native_gate()
+        .into_iter()
+        .filter(|(_, text)| {
+            import_step(text.clone().into_bytes()).map_or(true, |model| {
+                model.accuracy().max_repair_displacement_mm != Some(0.0)
+            })
+        })
+        .map(|(name, _)| name)
+        .collect();
+    assert!(
+        uncertified.is_empty(),
+        "lost certification: {uncertified:?}"
+    );
+    for (name, text) in outside_native_gate() {
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), text.as_bytes(), "{name}");
+        assert_eq!(model.bounds(), [[0., 0., 0.], [2., 4., 8.]], "{name}");
+        assert_eq!(model.source_faces().len(), 6, "{name}");
+        assert_eq!(model.face_occurrences().len(), 6, "{name}");
+        assert_eq!(
+            model.accuracy().max_repair_displacement_mm,
+            Some(0.0),
+            "{name}"
+        );
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None, "{name}");
+    }
+}
+
+#[test]
+fn gate_refused_near_cuboids_still_need_the_decimal_certificate() {
+    for (name, text) in outside_native_gate() {
+        // Same box and same delivery route; only the original spelling changes.
+        let rounded = replace_once(
+            &text,
+            "#2=CARTESIAN_POINT('',(2.,0.,0.));",
+            "#2=CARTESIAN_POINT('',(2.0000000000000001,0.,0.));",
+        );
+        let model = import_step(rounded.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), rounded.as_bytes(), "{name}");
+        assert_eq!(model.bounds(), [[0., 0., 0.], [2., 4., 8.]], "{name}");
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None, "{name}");
+
+        let corner = replace_once(
+            &text,
+            "#7=CARTESIAN_POINT('',(2.,4.,8.));",
+            "#7=CARTESIAN_POINT('',(2.000000001,4.,8.));",
+        );
+        remains_unknown_or_refuses(corner);
+
+        let styled = styled_target(&text, 301, 303);
+        let model = import_step(styled.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), styled.as_bytes(), "{name}");
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None, "{name}");
+    }
+}
+
+fn with_section(text: &str, section: &str) -> String {
+    replace_once(text, "ENDSEC;DATA;", &format!("ENDSEC;{section}DATA;"))
+}
+
+fn off_vertex_line() -> String {
+    replace_once(
+        std::str::from_utf8(BOX).unwrap(),
+        "#32=LINE('',#1,#31);",
+        "#900=CARTESIAN_POINT('',(0.,1.,0.));#32=LINE('',#900,#31);",
+    )
+}
+
+#[test]
+fn benign_exchange_sections_keep_the_certificate() {
+    let text = std::str::from_utf8(BOX).unwrap();
+    let smuggle = "#2=CARTESIAN_POINT('',(2.,0.,0.));";
+    for (name, text) in [
+        (
+            "anchor-omitted-item",
+            with_section(text, "ANCHOR;<origin>=$;ENDSEC;"),
+        ),
+        (
+            "anchor-names-data",
+            with_section(text, "ANCHOR;<origin>=#1;ENDSEC;"),
+        ),
+        (
+            "external-reference",
+            with_section(text, "REFERENCE;#900=<other.stp#x>;ENDSEC;"),
+        ),
+        (
+            "header-comment",
+            replace_once(
+                text,
+                "ENDSEC;DATA;",
+                &format!("/* {smuggle} */ENDSEC;DATA;"),
+            ),
+        ),
+        (
+            "signature",
+            replace_once(
+                text,
+                "END-ISO-10303-21;",
+                "END-ISO-10303-21;SIGNATURE abc= ENDSEC;",
+            ),
+        ),
+    ] {
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), text.as_bytes(), "{name}");
+        assert_eq!(model.bounds(), [[0., 0., 0.], [2., 4., 8.]], "{name}");
+        assert_eq!(
+            model.accuracy().max_repair_displacement_mm,
+            Some(0.0),
+            "{name}"
+        );
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None, "{name}");
+    }
+}
+
+#[test]
+fn spellings_outside_data_never_supply_numeric_authority() {
+    let origin = "#900=CARTESIAN_POINT('',(0.,0.,0.));";
+    // Without the smuggled spelling the finite LINE authority refuses the
+    // vendor's 1 mm support substitution.
+    let refusal = import_step(off_vertex_line().into_bytes()).err().unwrap();
+    assert!(refusal.contains("finite LINE repair edge #33"), "{refusal}");
+    for section in [
+        format!("ANCHOR;<{origin}>=$;ENDSEC;"),
+        format!("ANCHOR;<o>=#1;<{origin}>=(#1,$);ENDSEC;"),
+        format!("REFERENCE;#901=<{origin}>;ENDSEC;"),
+    ] {
+        let text = with_section(&off_vertex_line(), &section);
+        assert_eq!(
+            import_step(text.into_bytes()).err().as_ref(),
+            Some(&refusal),
+            "{section}"
+        );
+    }
+    let text = std::str::from_utf8(BOX).unwrap();
+    let plane = replace_once(
+        text,
+        "#108=AXIS2_PLACEMENT_3D('',#1,#106,#107);",
+        "#900=CARTESIAN_POINT('',(0.,0.,1.));#108=AXIS2_PLACEMENT_3D('',#900,#106,#107);",
+    );
+    remains_unknown_or_refuses(with_section(
+        &plane,
+        &format!("ANCHOR;<{origin}>=$;ENDSEC;"),
+    ));
+    // An external entity reusing a DATA ID makes that ID ambiguous.
+    remains_unknown_or_refuses(with_section(text, "REFERENCE;#2=<other.stp#x>;ENDSEC;"));
 }

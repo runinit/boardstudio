@@ -1,18 +1,18 @@
 //! Complete zero-repair proof for one integer-authored native LINE/plane cuboid.
 //! Dimensions and entity numbers are data; no fixture or file identity is recognized.
+//! The original decimal spellings establish the box; the delivered asset's
+//! actual triangles must then tile exactly that box. Mesh agreement alone never
+//! establishes the proof, and neither does either route's repair accounting.
 mod lexemes;
 
 use super::*;
-use crate::step::tessellation::StepMesh;
-use monstertruck_io::step::load::step_geometry::{ElementarySurface, Surface};
-use monstertruck_modeling::Vector3;
 
 type Point = [f64; 3];
 type FaceLoop = (u64, bool, [(u64, bool); 4]);
 
 struct Document<'a> {
     records: Vec<&'a EntityInstance>,
-    bytes: &'a [u8],
+    data: &'a [u8],
 }
 
 impl<'a> Document<'a> {
@@ -38,8 +38,16 @@ impl<'a> Document<'a> {
         {
             return None;
         }
-        lexemes::validate(bytes)?;
-        Some(Self { records, bytes })
+        // A REFERENCE entry naming a DATA ID makes that ID ambiguous.
+        if original.reference.iter().any(|entry| {
+            matches!(entry.name, Name::Entity(id) if records
+                .binary_search_by_key(&id, |instance| parts(instance).0)
+                .is_ok())
+        }) {
+            return None;
+        }
+        let data = lexemes::validate(bytes, &records)?;
+        Some(Self { records, data })
     }
 
     fn parts(&self, id: u64) -> Option<&[Record]> {
@@ -65,7 +73,7 @@ impl<'a> Document<'a> {
         if list(&params[1])?.len() != 3 {
             return None;
         }
-        lexemes::values(self.bytes, id)?.as_slice().try_into().ok()
+        lexemes::values(self.data, id)?.as_slice().try_into().ok()
     }
 
     fn vertex(&self, id: u64) -> Option<Point> {
@@ -202,42 +210,50 @@ fn signed_axis(v: Point) -> Option<usize> {
     };
     (v[axis].abs() == 1.0).then_some(axis)
 }
-fn point(p: Point3) -> Point {
-    [p.x, p.y, p.z]
-}
-fn vector(v: Vector3) -> Point {
-    [v.x, v.y, v.z]
-}
-
 struct Edge {
     vertices: [u64; 2],
-    points: [Point; 2],
-    axis: usize,
 }
 
 struct Face {
+    plane: u64,
     origin: Point,
-    u: Point,
-    v: Point,
     normal: Point,
     axis: usize,
     sense: bool,
     edges: [u64; 4],
 }
 
-pub(in crate::step) struct Cuboid<'a> {
-    original: &'a OriginalGeometry,
+pub(super) struct Cuboid {
+    solid: u64,
+    representation: u64,
     vertices: [(u64, Point); 8],
     edges: [(u64, Edge); 12],
     faces: [(u64, Face); 6],
     bounds: [Point; 2],
 }
 
-impl<'a> Cuboid<'a> {
-    pub(in crate::step) fn from_original(
+/// The census admits no curve presentation, and an exact tiling of every face
+/// is a closed outward mesh. Fallback meshing stays outside the class even when
+/// its triangles happen to agree with the box.
+pub(super) fn certify(model: &ImportedStep) -> bool {
+    let [(solid, _, representation)] = model.occurrences.as_slice() else {
+        return false;
+    };
+    model.source_faces.len() == 6
+        && model.accuracy.fallback_meshed_faces == 0
+        && Cuboid::from_original(
+            &model.original_bytes,
+            &model._original_source,
+            *solid,
+            *representation,
+        )
+        .is_some_and(|cuboid| cuboid.proves(model))
+}
+
+impl Cuboid {
+    fn from_original(
         bytes: &[u8],
         exchange: &Exchange,
-        original: &'a OriginalGeometry,
         solid: u64,
         representation: u64,
     ) -> Option<Self> {
@@ -287,7 +303,7 @@ impl<'a> Cuboid<'a> {
                     let origin = doc.triple(reference(&line[1])?, "CARTESIAN_POINT")?;
                     let vector_id = reference(&line[2])?;
                     let vec = doc.params(vector_id, "VECTOR", 3)?;
-                    if lexemes::values(doc.bytes, vector_id)?.as_slice() != [1.0] {
+                    if lexemes::values(doc.data, vector_id)?.as_slice() != [1.0] {
                         return None;
                     }
                     let direction = doc.triple(reference(&vec[1])?, "DIRECTION")?;
@@ -314,14 +330,13 @@ impl<'a> Cuboid<'a> {
                         id,
                         Edge {
                             vertices: vertex_ids,
-                            points,
-                            axis,
                         },
                     ));
                 }
                 oriented[use_index] = (id, logical(&params[4])?);
             }
-            let plane = doc.params(reference(&params[2])?, "PLANE", 2)?;
+            let plane_id = reference(&params[2])?;
+            let plane = doc.params(plane_id, "PLANE", 2)?;
             let frame = doc.params(reference(&plane[1])?, "AXIS2_PLACEMENT_3D", 4)?;
             let origin = doc.triple(reference(&frame[1])?, "CARTESIAN_POINT")?;
             let normal = doc.triple(reference(&frame[2])?, "DIRECTION")?;
@@ -330,11 +345,9 @@ impl<'a> Cuboid<'a> {
             if axis == signed_axis(u)? {
                 return None;
             }
-            let v = vector(Vector3::from(normal).cross(Vector3::from(u)));
             let face = Face {
+                plane: plane_id,
                 origin,
-                u,
-                v,
                 normal,
                 axis,
                 sense: logical(&params[3])?,
@@ -350,7 +363,8 @@ impl<'a> Cuboid<'a> {
             return None;
         }
         let mut result = Self {
-            original,
+            solid,
+            representation,
             vertices: vertices.map(Option::unwrap),
             edges: edges.map(Option::unwrap),
             faces: faces.map(Option::unwrap),
@@ -474,239 +488,144 @@ impl<'a> Cuboid<'a> {
         Some(())
     }
 
-    pub(in crate::step) fn proves_output(
-        &self,
-        source: &SourceBoundStepShell,
-        normalized: &StepCompressedShell,
-        mesh: &StepMesh,
-        fallback: &[usize],
-    ) -> bool {
-        self.check_output(source, normalized, mesh, fallback)
-            .is_some()
+    /// Binds the source proof to the asset that was actually delivered: this
+    /// one identity occurrence, the authored faces in shell order, the f32
+    /// render image, and per face an exact outward tiling of its rectangle.
+    fn proves(&self, asset: &ImportedStep) -> bool {
+        self.check_asset(asset).is_some()
     }
 
-    fn check_output(
-        &self,
-        source: &SourceBoundStepShell,
-        normalized: &StepCompressedShell,
-        mesh: &StepMesh,
-        fallback: &[usize],
-    ) -> Option<()> {
-        let shell = source.shell();
-        // Unit factor 1 and signed Cartesian frames must leave the actual normalized
-        // shell unchanged. No re-created proxy is accepted as the normalized image.
-        if normalized != shell
-            || !fallback.is_empty()
-            || shell.vertices.len() != 8
-            || shell.edges.len() != 12
-            || shell.faces.len() != 6
-            || mesh.vertices != shell.vertices
-            || mesh.edges.len() != 12
-            || mesh.faces.len() != 6
+    fn check_asset(&self, asset: &ImportedStep) -> Option<()> {
+        let [(solid, placement, representation)] = asset.occurrences.as_slice() else {
+            return None;
+        };
+        if asset.solid_count != 1
+            || *solid != self.solid
+            || *representation != self.representation
+            || *placement != Matrix4::identity()
+            || asset.bounds != self.bounds
+            || asset.source_faces.len() != 6
+            || asset.face_occurrences.len() != 6
+            || Some(asset.preview_positions_f64.len()) != asset.triangle_faces.len().checked_mul(3)
+            || Some(asset.mesh.positions.len()) != asset.preview_positions_f64.len().checked_mul(3)
+            || asset.mesh.normals.len() != asset.mesh.positions.len()
         {
             return None;
         }
-        let ids = self.original.bind_edges(source)?;
-        let mut vertices = [None; 8];
-        for (index, id) in ids.iter().enumerate() {
-            let raw = self.edge(*id)?;
-            let edge = &shell.edges[index];
-            let Curve3D::Line(line) = &edge.curve else {
-                return None;
-            };
-            if [point(line.0), point(line.1)] != raw.points {
-                return None;
-            }
-            for (index, id) in [edge.vertices.0, edge.vertices.1]
-                .into_iter()
-                .zip(raw.vertices)
-            {
-                let slot = vertices.get_mut(index)?;
-                if point(*shell.vertices.as_slice().get(index)?) != *self.vertex(id)?
-                    || slot.is_some_and(|previous| previous != id)
-                {
-                    return None;
-                }
-                *slot = Some(id);
-            }
-            let emitted = &mesh.edges[index];
-            if emitted.vertices != edge.vertices || !raw.proves_polyline(&emitted.curve) {
-                return None;
-            }
-        }
-        if vertices
+        for (index, ((id, face), (source, occurrence))) in self
+            .faces
             .iter()
+            .zip(asset.source_faces.iter().zip(&asset.face_occurrences))
             .enumerate()
-            .any(|(index, id)| id.is_none() || vertices[..index].contains(id))
         {
-            return None;
-        }
-        for (index, id) in source.source_face_ids().iter().enumerate() {
-            let raw = self.face(*id)?;
-            let face = &shell.faces[index];
-            let Surface::ElementarySurface(ElementarySurface::Plane(plane)) = &face.surface else {
-                return None;
-            };
-            if face.orientation != raw.sense
-                || point(plane.origin()) != raw.origin
-                || vector(plane.axis_u()) != raw.u
-                || vector(plane.axis_v()) != raw.v
-                || vector(plane.normal()) != raw.normal
+            if source.solid_id != self.solid
+                || source.shell_index != 0
+                || source.face_id != *id
+                || source.support_id != face.plane
+                || source.support_kind != "PLANE"
+                || occurrence.source_face != index
+                || occurrence.occurrence != 0
+                || occurrence.representation_id != self.representation
+                || occurrence.repair_displacement_mm != 0.0
             {
                 return None;
             }
-            let emitted = &mesh.faces[index];
-            if emitted.orientation != face.orientation || emitted.boundaries != face.boundaries {
-                return None;
-            }
-            self.check_face_mesh(raw, emitted.surface.as_ref()?)?;
         }
-        Some(())
-    }
-
-    fn check_face_mesh(&self, face: &Face, mesh: &PolygonMesh) -> Option<()> {
-        let positions = mesh.positions();
-        if positions.iter().any(|p| {
-            let p = point(*p);
-            p[face.axis] != face.origin[face.axis]
-                || (0..3).any(|i| {
-                    !p[i].is_finite() || p[i] < self.bounds[0][i] || p[i] > self.bounds[1][i]
-                })
-        }) {
-            return None;
-        }
-        struct Segment {
-            key: [[u64; 3]; 2],
-            edge: Option<usize>,
-            interval: [f64; 2],
-        }
-        let count = mesh.face_iter().try_fold(0_usize, |count, polygon| {
-            (polygon.len() >= 3).then_some(())?;
-            count.checked_add(polygon.len())
-        })?;
-        if count > 1_000_000 || count.checked_mul(size_of::<Segment>())? > 256 * 1024 * 1024 {
-            return None;
-        }
-        let mut segments = Vec::new();
-        segments.try_reserve_exact(count).ok()?;
-        if segments.capacity() > count {
-            return None;
-        }
-        for polygon in mesh.face_iter() {
-            for i in 0..polygon.len() {
-                let a = point(*positions.as_slice().get(polygon[i].pos)?);
-                let b = point(
-                    *positions
-                        .as_slice()
-                        .get(polygon[(i + 1) % polygon.len()].pos)?,
-                );
-                if a == b {
-                    return None;
-                }
-                let mut key = [a.map(key_component), b.map(key_component)];
-                key.sort_unstable();
-                segments.push(Segment {
-                    key,
-                    edge: None,
-                    interval: [0.0; 2],
-                });
-            }
-        }
-        segments.sort_unstable_by_key(|segment| segment.key);
-        let mut index = 0;
-        while index < segments.len() {
-            let key = segments[index].key;
-            let end = index
-                + segments[index..]
-                    .iter()
-                    .take_while(|segment| segment.key == key)
-                    .count();
-            if end - index > 2 {
-                return None;
-            }
-            if end - index == 1 {
-                let [a, b] = key.map(|p| p.map(f64::from_bits));
-                let (edge, raw) = face.edges.iter().enumerate().find_map(|(index, id)| {
-                    self.edge(*id)
-                        .filter(|edge| edge.contains_segment(a, b))
-                        .map(|edge| (index, edge))
-                })?;
-                segments[index].edge = Some(edge);
-                segments[index].interval =
-                    [a[raw.axis].min(b[raw.axis]), a[raw.axis].max(b[raw.axis])];
-            }
-            index = end;
-        }
-        segments.sort_unstable_by(|a, b| {
-            a.edge
-                .cmp(&b.edge)
-                .then_with(|| a.interval[0].total_cmp(&b.interval[0]))
-        });
-        for (index, id) in face.edges.iter().enumerate() {
-            let raw = self.edge(*id)?;
-            let mut end = raw.points[0][raw.axis].min(raw.points[1][raw.axis]);
-            for segment in segments
-                .iter()
-                .filter(|segment| segment.edge == Some(index))
-            {
-                let [a, b] = segment.interval;
-                if a != end || b <= a {
-                    return None;
-                }
-                end = b;
-            }
-            if end != raw.points[0][raw.axis].max(raw.points[1][raw.axis]) {
-                return None;
-            }
-        }
-        Some(())
-    }
-}
-
-fn key_component(value: f64) -> u64 {
-    if value == 0.0 { 0 } else { value.to_bits() }
-}
-
-impl Edge {
-    fn contains_segment(&self, a: Point, b: Point) -> bool {
-        let low = self.points[0][self.axis].min(self.points[1][self.axis]);
-        let high = self.points[0][self.axis].max(self.points[1][self.axis]);
-        [a, b].iter().all(|p| {
-            (0..3).all(|i| {
-                p[i].is_finite()
-                    && if i == self.axis {
-                        low <= p[i] && p[i] <= high
-                    } else {
-                        p[i] == self.points[0][i]
-                    }
-            })
-        })
-    }
-
-    fn proves_polyline(&self, points: &[Point3]) -> bool {
-        if points.len() < 2
-            || point(points[0]) != self.points[0]
-            || point(points[points.len() - 1]) != self.points[1]
+        let mut faces: [Vec<[usize; 3]>; 6] = Default::default();
+        for (index, (&tag, points)) in asset
+            .triangle_faces
+            .iter()
+            .zip(asset.preview_positions_f64.as_chunks::<3>().0)
+            .enumerate()
         {
-            return false;
-        }
-        let forward = self.points[1][self.axis] > self.points[0][self.axis];
-        points.windows(2).all(|pair| {
-            let [a, b] = [point(pair[0]), point(pair[1])];
-            self.contains_segment(a, b)
-                && if forward {
-                    a[self.axis] <= b[self.axis]
+            let face = &self.faces.get(tag)?.1;
+            let normal = std::array::from_fn::<f64, 3, _>(|axis| {
+                if axis == face.axis {
+                    self.outward(face)
                 } else {
-                    a[self.axis] >= b[self.axis]
+                    0.0
                 }
-        })
+            });
+            let rendered = <[f32]>::get(&asset.mesh.positions, index * 9..index * 9 + 9)?;
+            let normals = <[f32]>::get(&asset.mesh.normals, index * 9..index * 9 + 9)?;
+            let mut corners = [0; 3];
+            for (k, p) in points.iter().enumerate() {
+                if (0..3).any(|i| {
+                    f64::from(rendered[k * 3 + i]) != p[i]
+                        || f64::from(normals[k * 3 + i]) != normal[i]
+                }) {
+                    return None;
+                }
+                corners[k] = self.vertices.iter().position(|(_, q)| q == p)?;
+            }
+            faces[tag].push(corners);
+        }
+        for ((_, face), triangles) in self.faces.iter().zip(&faces) {
+            self.check_tiling(face, triangles)?;
+        }
+        Some(())
+    }
+
+    fn outward(&self, face: &Face) -> f64 {
+        // check_box placed every face on the low or high side of its axis.
+        if face.origin[face.axis] == self.bounds[1][face.axis] {
+            1.0
+        } else {
+            -1.0
+        }
+    }
+
+    /// Every vertex is a proven corner with integer coordinates of magnitude at
+    /// most 2^20, so each orientation product below is exact. The unpaired
+    /// directed segments of positive triangles form a cycle; when it uses each
+    /// rectangle side exactly once it is the outward rectangle boundary, so the
+    /// triangles cover the rectangle once and nothing else. Over four corners
+    /// no positive triangle traverses a side inward, so every side use counts;
+    /// a repeated diagonal repeats its triangle and therefore that triangle's sides.
+    fn check_tiling(&self, face: &Face, triangles: &[[usize; 3]]) -> Option<()> {
+        let outward = self.outward(face);
+        let (u, v) = ((face.axis + 1) % 3, (face.axis + 2) % 3);
+        let p = |corner: usize| self.vertices[corner].1;
+        let turn = |a: Point, b: Point, c: Point| {
+            ((b[u] - a[u]) * (c[v] - a[v]) - (b[v] - a[v]) * (c[u] - a[u])) * outward
+        };
+        let mut segments = Vec::with_capacity(triangles.len() * 3);
+        for &[a, b, c] in triangles {
+            if [a, b, c]
+                .iter()
+                .any(|&q| p(q)[face.axis] != face.origin[face.axis])
+                || turn(p(a), p(b), p(c)) <= 0.0
+            {
+                return None;
+            }
+            segments.extend([(a, b), (b, c), (c, a)]);
+        }
+        segments.sort_unstable();
+        let mut boundary = [false; 4];
+        for &(a, b) in &segments {
+            if segments.binary_search(&(b, a)).is_ok() {
+                continue;
+            }
+            let side = face.edges.iter().position(|id| {
+                self.edge(*id).is_some_and(|edge| {
+                    let ends = edge
+                        .vertices
+                        .map(|id| self.vertices.iter().position(|(key, _)| *key == id));
+                    ends == [Some(a), Some(b)] || ends == [Some(b), Some(a)]
+                })
+            })?;
+            if boundary[side] {
+                return None;
+            }
+            boundary[side] = true;
+        }
+        boundary.iter().all(|side| *side).then_some(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use monstertruck_meshing::tessellation::TessellationOptions;
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
@@ -744,66 +663,230 @@ mod tests {
         assert!(Document::new(duplicate.as_bytes(), &exchange).is_none());
     }
 
+    const BOX: &[u8] = include_bytes!("../../../tests/fixtures/zero-repair-cuboid-mm.step");
+
+    /// The same box outside the native exchange gate is delivered by legacy.
+    fn ap242() -> Vec<u8> {
+        std::str::from_utf8(BOX)
+            .unwrap()
+            .replace(
+                "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));",
+                "FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }'));",
+            )
+            .into_bytes()
+    }
+
+    fn delivered(bytes: &[u8], options: StepImportOptions, native: bool) -> ImportedStep {
+        let model = import_step_with_options(bytes.to_vec(), options).unwrap();
+        assert_eq!(model.solids.is_empty(), native, "unexpected import route");
+        model
+    }
+
+    fn set_point(asset: &mut ImportedStep, vertex: usize, p: Point) {
+        asset.preview_positions_f64[vertex] = p;
+        for (i, value) in p.into_iter().enumerate() {
+            asset.mesh.positions[vertex * 3 + i] = value as f32;
+        }
+    }
+
     #[test]
-    fn real_tessellation_requires_whole_boundaries_and_unchanged_normalization() {
-        let bytes = include_bytes!("../../../tests/fixtures/zero-repair-cuboid-mm.step");
-        let model = import_step(bytes.to_vec()).unwrap();
-        let exchange = parser::parse(std::str::from_utf8(bytes).unwrap()).unwrap();
-        let original =
-            OriginalGeometry::capture(&Table::from_data_section(&exchange.data[0]), bytes);
-        let candidate = Cuboid::from_original(bytes, &exchange, &original, 301, 304).unwrap();
-        let source = &model.solids[&301].source[&304].shells()[0];
-        let mut normalized = source.shell().clone();
-        units::normalize_shell_to_mm(&mut normalized, 1.0).unwrap();
-        let (mesh, fallback) = tessellation::triangulate_source_bound_shell_report(
-            source,
-            1.0,
-            TessellationOptions {
-                tolerance: 0.1,
-                preview_fallback: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert!(candidate.proves_output(source, &normalized, &mesh, &fallback));
+    fn delivered_triangles_must_tile_each_proven_face_outward_on_either_route() {
+        for (bytes, native) in [(BOX.to_vec(), true), (ap242(), false)] {
+            delivered_tampering_is_refused(&bytes, native);
+        }
+    }
+
+    fn delivered_tampering_is_refused(bytes: &[u8], native: bool) {
+        let fresh = || delivered(bytes, StepImportOptions::default(), native);
+        let asset = fresh();
+        assert_eq!(asset.accuracy.max_repair_displacement_mm, Some(0.0));
+        assert!(certify(&asset));
+        let cuboid =
+            Cuboid::from_original(&asset.original_bytes, &asset._original_source, 301, 304)
+                .unwrap();
+        assert!(cuboid.proves(&asset));
+        assert_eq!(
+            asset.triangle_faces,
+            [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5],
+            "two corner triangles per face"
+        );
+        let refuses = |asset: &ImportedStep, why: &str| {
+            assert!(!cuboid.proves(asset), "{why}");
+            assert!(!certify(asset), "{why}");
+        };
+
+        // The other diagonal is an equally exact tiling: no triangulation is recognized.
+        let mut flipped = fresh();
+        let [a, b, c] = [0, 1, 2].map(|i| asset.preview_positions_f64[i]);
+        let [d, e, f] = [3, 4, 5].map(|i| asset.preview_positions_f64[i]);
+        let quad: Vec<_> = [a, b, c, d, e, f]
+            .into_iter()
+            .fold(Vec::new(), |mut unique, p| {
+                if !unique.contains(&p) {
+                    unique.push(p);
+                }
+                unique
+            });
+        assert_eq!(quad.len(), 4);
+        let shared: Vec<_> = [a, b, c]
+            .into_iter()
+            .filter(|p| [d, e, f].contains(p))
+            .collect();
+        let lone = [a, b, c].into_iter().find(|p| !shared.contains(p)).unwrap();
+        let other = [d, e, f].into_iter().find(|p| !shared.contains(p)).unwrap();
+        // The other diagonal splits the same rectangle; keep the authored winding.
+        let turn = |[a, b, c]: [Point; 3]| {
+            (Vector3::from(b) - Vector3::from(a)).cross(Vector3::from(c) - Vector3::from(a))
+                [cuboid.faces[asset.triangle_faces[0]].1.axis]
+        };
+        let orient = |[p, q, r]: [Point; 3]| {
+            if (turn([p, q, r]) > 0.0) == (turn([a, b, c]) > 0.0) {
+                [p, q, r]
+            } else {
+                [p, r, q]
+            }
+        };
+        assert_eq!(asset.triangle_faces[..2], [asset.triangle_faces[0]; 2]);
+        let first = orient([lone, other, shared[0]]);
+        let second = orient([lone, other, shared[1]]);
+        for (vertex, p) in first.into_iter().chain(second).enumerate() {
+            set_point(&mut flipped, vertex, p);
+        }
         assert!(
-            !candidate.proves_output(source, &normalized, &mesh, &[0]),
-            "fallback execution is outside this class even if its boundary happens to agree"
+            cuboid.proves(&flipped),
+            "a different exact tiling still proves"
         );
 
-        let mut changed = mesh.clone();
-        let points = &mut changed.edges[0].curve.0;
-        let mut midpoint = points[0] + (points[points.len() - 1] - points[0]) * 0.5;
-        midpoint[(candidate
-            .edge(original.bind_edges(source).unwrap()[0])
-            .unwrap()
-            .axis
-            + 1)
-            % 3] += 0.001;
-        points.insert(1, midpoint);
-        assert!(
-            !candidate.proves_output(source, &normalized, &changed, &[]),
-            "unchanged endpoints do not certify the intermediate boundary set"
+        let mut reversed = fresh();
+        let (one, two) = (
+            reversed.preview_positions_f64[1],
+            reversed.preview_positions_f64[2],
         );
+        set_point(&mut reversed, 1, two);
+        set_point(&mut reversed, 2, one);
+        refuses(&reversed, "an inward triangle is not the outward face");
 
-        let mut changed = mesh.clone();
-        let face = candidate.face(source.source_face_ids()[0]).unwrap();
-        let vertex = changed.faces[0]
-            .surface
-            .as_mut()
-            .unwrap()
-            .positions_mut()
-            .iter_mut()
-            .find(|p| point(**p) == face.origin)
-            .unwrap();
+        let mut interior = fresh();
+        let mut moved = interior.preview_positions_f64[0];
+        let tag = interior.triangle_faces[0];
+        let face = &cuboid.faces[tag].1;
         let axis = (face.axis + 1) % 3;
-        vertex[axis] = (candidate.bounds[0][axis] + candidate.bounds[1][axis]) * 0.5;
-        assert!(
-            !candidate.proves_output(source, &normalized, &changed, &[]),
-            "actual face boundary reconciliation is checked even when shared edge polylines and counters are unchanged"
+        moved[axis] = (cuboid.bounds[0][axis] + cuboid.bounds[1][axis]) * 0.5;
+        set_point(&mut interior, 0, moved);
+        refuses(
+            &interior,
+            "a vertex inside the rectangle is not a proven corner",
         );
 
-        normalized.vertices[0].x += 1.0;
-        assert!(!candidate.proves_output(source, &normalized, &mesh, &[]));
+        let mut missing = fresh();
+        missing.preview_positions_f64.drain(0..3);
+        missing.mesh.positions.drain(0..9);
+        missing.mesh.normals.drain(0..9);
+        missing.triangle_faces.remove(0);
+        refuses(&missing, "half a face is not the face");
+
+        let mut doubled = fresh();
+        let copy: Vec<_> = doubled.preview_positions_f64[0..3].to_vec();
+        doubled.preview_positions_f64.extend(copy);
+        let render: Vec<_> = doubled.mesh.positions[0..9].to_vec();
+        doubled.mesh.positions.extend(render);
+        let normals: Vec<_> = doubled.mesh.normals[0..9].to_vec();
+        doubled.mesh.normals.extend(normals);
+        doubled.triangle_faces.push(doubled.triangle_faces[0]);
+        refuses(&doubled, "covering part of a face twice is not a tiling");
+
+        // Every boundary side is present and the diagonal pairs, but the
+        // whole face points into the box. The render normals stay outward.
+        let mut inward = fresh();
+        for triangle in 0..2 {
+            let (one, two) = (
+                inward.preview_positions_f64[triangle * 3 + 1],
+                inward.preview_positions_f64[triangle * 3 + 2],
+            );
+            set_point(&mut inward, triangle * 3 + 1, two);
+            set_point(&mut inward, triangle * 3 + 2, one);
+        }
+        refuses(&inward, "an inward face is not the outward face");
+
+        let mut empty = fresh();
+        empty.preview_positions_f64.drain(0..6);
+        empty.mesh.positions.drain(0..18);
+        empty.mesh.normals.drain(0..18);
+        empty.triangle_faces.drain(0..2);
+        refuses(&empty, "a face with no triangles covers no side");
+
+        let mut retagged = fresh();
+        let other_face = retagged
+            .triangle_faces
+            .iter()
+            .position(|tag| *tag != retagged.triangle_faces[0])
+            .unwrap();
+        retagged.triangle_faces.swap(0, other_face);
+        refuses(&retagged, "triangles belong to their own source face");
+
+        let mut rendered = fresh();
+        rendered.mesh.positions[0] = f32::from_bits(rendered.mesh.positions[0].to_bits() + 1);
+        refuses(
+            &rendered,
+            "the f32 render image is part of the emitted mesh",
+        );
+
+        let mut normal = fresh();
+        normal.mesh.normals[0] = -normal.mesh.normals[0] + 0.5;
+        refuses(&normal, "render normals are outward axis normals");
+
+        let mut bounds = fresh();
+        bounds.bounds[1][0] += 1.0;
+        refuses(&bounds, "asset bounds are the proven box");
+
+        let mut moved = fresh();
+        moved.face_occurrences[0].repair_displacement_mm = 0.5;
+        refuses(&moved, "a recorded face movement is not zero repair");
+
+        let mut representation = fresh();
+        representation.occurrences[0].2 = 303;
+        refuses(
+            &representation,
+            "occurrence identity is the proven representation",
+        );
+
+        let mut support = fresh();
+        support.source_faces[0].support_id = support.source_faces[1].support_id;
+        refuses(&support, "source faces keep their authored supports");
+
+        let mut placed = fresh();
+        placed.occurrences[0].1 = Matrix4::from_nonuniform_scale(1.0, 1.0, 1.0 + f64::EPSILON);
+        refuses(&placed, "only the identity occurrence is proven");
+
+        let mut fallback = fresh();
+        fallback.accuracy.fallback_meshed_faces = 1;
+        assert!(cuboid.proves(&fallback));
+        assert!(
+            !certify(&fallback),
+            "a fallback-meshed face is outside the class"
+        );
+    }
+
+    #[test]
+    fn refinement_and_budgets_keep_the_same_exact_asset_on_either_route() {
+        for (bytes, native) in [(BOX.to_vec(), true), (ap242(), false)] {
+            let coarse = delivered(&bytes, StepImportOptions::default(), native);
+            for options in [
+                StepImportOptions {
+                    target_deflection_mm: Some(1e-6),
+                    ..Default::default()
+                },
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(0.5),
+                    target_deflection_mm: Some(0.01),
+                },
+            ] {
+                let fine = delivered(&bytes, options, native);
+                assert_eq!(fine.accuracy.max_repair_displacement_mm, Some(0.0));
+                assert_eq!(fine.preview_positions_f64, coarse.preview_positions_f64);
+                assert_eq!(fine.triangle_faces, coarse.triangle_faces);
+                assert_eq!(fine.bounds, coarse.bounds);
+            }
+        }
     }
 }

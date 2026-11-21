@@ -55,6 +55,19 @@ export async function run(cad, memory) {
       assert.equal(accuracy.previewFloorMm, 0.02);
       assert.equal(accuracy.previewDeclaredMultiplier, 2);
       assert.equal(accuracy.selectedRepairBudgetMm, undefined);
+      const box = await readText('cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step');
+      const withContext = box.replace('ENDSEC;END-ISO-10303-21;',
+        "#900=(REPRESENTATION_CONTEXT('3D','MODEL'));\nENDSEC;END-ISO-10303-21;");
+      assert.notEqual(withContext, box);
+      const ap242 = withContext.replace('AUTOMOTIVE_DESIGN', 'AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF');
+      assert.notEqual(ap242, withContext);
+      for (const source of [withContext, ap242]) {
+        const delivered = await imported(source);
+        assert.deepEqual(delivered.bounds, result.bounds);
+        assert.deepEqual(delivered.vendorStep.sourceFaces, sourceFaces);
+        assert.equal(delivered.vendorStep.accuracy.maxRepairDisplacementMm, 0);
+        assert.equal(delivered.vendorStep.accuracy.analysisErrorBoundMm, null);
+      }
     }],
     ['independently authored shifted cuboid and reversed native senses qualify', async () => {
       const result = await imported(await readBytes('cad/monstertruck/tests/fixtures/zero-repair-cuboid-offset-mm.step'));
