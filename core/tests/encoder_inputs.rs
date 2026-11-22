@@ -1,5 +1,4 @@
-use crate::support::fixture::{self, scene_and_document as scene};
-use crate::support::session::Session;
+use crate::support::fixture::{self, request, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -577,20 +576,20 @@ fn press_only_profiles_obey_matrix_direct_and_unassigned_modes() {
         }))
         .unwrap(),
     );
-    let mut session = Session::default();
-    scene(session.open(doc));
-    for (revision, mode, assignments) in [
-        (0, PressScanMode::Unassigned, 0),
-        (1, PressScanMode::Direct, 0),
-        (2, PressScanMode::Matrix, 1),
-    ] {
-        let (_, document) = scene(session.commit(
-            revision,
-            EditOperation::SetInputScanMode {
-                part_id: "matrix/main/r0c0".into(),
-                mode,
-            },
-        ));
+    let mut engine = CoreEngine::new();
+    scene(engine.handle(fixture::open(doc)));
+    let key = "matrix/main/r0c0";
+    for (revision, mode, assignments) in [(0, "unassigned", 0), (1, "direct", 0), (2, "matrix", 1)]
+    {
+        let reply = request(
+            &mut engine,
+            json!({"kind":"edit","id":"mode","command":{
+                "baseRevision":revision,"transactionId":"mode","phase":"commit","targetIds":[key],
+                "operation":{"kind":"set-input-scan-mode","partId":key,"mode":mode}
+            }}),
+        );
+        let document = &reply["document"];
+        assert_eq!(reply["kind"], "scene", "{reply}");
         let plan = boardstudio_core::electrical::resolve(
             serde_json::from_value(json!({"document":document,"boardId":"board","mode":"matrix"}))
                 .unwrap(),
@@ -601,11 +600,11 @@ fn press_only_profiles_obey_matrix_direct_and_unassigned_modes() {
             "{mode:?}: {:?}",
             plan.assignments
         );
-        if mode == PressScanMode::Direct {
+        if mode == "direct" {
             let press = plan
                 .peripherals
                 .iter()
-                .find(|p| p.part_id == "matrix/main/r0c0")
+                .find(|p| p.part_id == key)
                 .expect("Direct press needs a GPIO requirement");
             assert_eq!(
                 press.gpio_terminals,

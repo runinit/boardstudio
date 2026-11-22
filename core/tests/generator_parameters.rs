@@ -186,12 +186,14 @@ fn generator_parameter_writes_are_refused_atomically_in_preview_and_commit() {
 
 #[test]
 fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
-    for (id, definition, parameters) in [
-        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0})),
+    for (id, definition, parameters, preview) in [
+        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0}), false),
+        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0}), true),
         (
             "mcu1",
             MCU_DEFINITION,
             json!({"mcu_3dmodel_xyz_offset": "[1,2,3]"}),
+            false,
         ),
     ] {
         let mut session = Session::default();
@@ -202,7 +204,7 @@ fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
             ),
             "{id}"
         );
-        if id == "h1" {
+        if preview {
             let movement = EditOperation::MoveParts {
                 positions: vec![Position {
                     id: id.into(),
@@ -213,17 +215,18 @@ fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
                 session.preview(0, movement),
                 CoreReply::Preview { .. }
             ));
-        }
-        let other = part("h2", HOLE_DEFINITION, json!({"hole_size": 2.0}));
-        let findings = scene_findings(session.commit(0, add_part(other)));
-        if id == "h1" {
-            let found = generator_findings(&findings);
-            assert_eq!(
-                found.len(),
-                1,
-                "the legacy warning stays, the edit is accepted"
-            );
-            assert_eq!(found[0].target_ids, vec!["h1"]);
+        } else {
+            let other = part("h2", HOLE_DEFINITION, json!({"hole_size": 2.0}));
+            let findings = scene_findings(session.commit(0, add_part(other)));
+            if id == "h1" {
+                let found = generator_findings(&findings);
+                assert_eq!(
+                    found.len(),
+                    1,
+                    "the legacy warning stays, the edit is accepted"
+                );
+                assert_eq!(found[0].target_ids, vec!["h1"]);
+            }
         }
     }
 }

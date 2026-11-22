@@ -836,10 +836,10 @@ fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
         &mut document,
         json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
     );
-    let mut engine = Session::default();
+    let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "legacy-single", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let stored = engine.snapshot();
+    let stored = fixture::outline_snapshot(&mut engine);
     let stored_anchor = stored
         .matrices
         .iter()

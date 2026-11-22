@@ -475,9 +475,8 @@ fn internal_case_has_nominal_plate_stable_exterior_and_independent_insert_closur
     );
     assert_eq!(original["generatedHardware"], moved["generatedHardware"]);
     assert_eq!(original["pcbReference"], moved["pcbReference"]);
-    let bottom = |bs: &Vec<Value>| {
-        bs.iter().find(|b| b["body"]["id"] == "bottom").unwrap()["contours"].clone()
-    };
+    let bottom =
+        |bs: &[Value]| bs.iter().find(|b| b["body"]["id"] == "bottom").unwrap()["contours"].clone();
     assert_eq!(bottom(bodies), bottom(changed));
 }
 
