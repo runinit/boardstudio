@@ -4,7 +4,7 @@ use crate::{
     model_delivery::*,
     runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
-use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},
@@ -39,7 +39,7 @@ pub(crate) fn CaseCollisionChecks(
     let _ = use_context::<Signal<u64>>()();
     let input = CollisionCheckInput::new(scene, preview, model_rows);
     let mut state = use_signal(CheckState::default);
-    let mut clearance = use_signal(|| "0".to_owned());
+    let mut clearance = use_signal(|| 0.0_f64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let latest = use_hook(|| Rc::new(RefCell::new(input.clone())));
@@ -62,10 +62,7 @@ pub(crate) fn CaseCollisionChecks(
         }
     });
     let ready = runtime.collision_check_ready(&input);
-    let threshold = clearance()
-        .parse::<f64>()
-        .ok()
-        .filter(|value| value.is_finite() && *value >= 0.0);
+    let threshold = Some(clearance());
     let mut start = {
         let runtime = runtime.clone();
         let input = input.clone();
@@ -133,26 +130,20 @@ pub(crate) fn CaseCollisionChecks(
     let clearance_change = {
         let sequence = sequence.clone();
         let runtime = runtime.clone();
-        move |event: FormEvent| {
+        move |value: f64| {
             sequence.set(sequence.get().wrapping_add(1));
             runtime.cancel_collision_checks();
-            clearance.set(event.value());
+            clearance.set(value);
             state.set(CheckState::default());
         }
     };
-    let clearance_id = format!("case-clearance-{}", dioxus::core::current_scope_id().0);
     rsx! {
         Collapsible { class: "flex-none max-h-[30%] overflow-auto", keep_mounted: true, default_open: true,
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Collision check", "Collision check" }
             CollapsibleContent { class: "data-[open=false]:hidden",
                 NumericField {
-                    id: clearance_id.clone(),
-                    label: "Required clearance (mm)",
-                    aria_label: Some("Required clearance (mm)".to_owned()),
-                    min: Some("0".to_owned()),
-                    step: "0.01",
-                    value: (clearance()).to_string(),
-                    oninput: clearance_change,
+                    label: "Required clearance (mm)", min: 0.0, step: 0.01, value: clearance(),
+                    on_commit: clearance_change,
                 }
                 Button { variant: ButtonVariant::Secondary, button_type: "button",
                     class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
