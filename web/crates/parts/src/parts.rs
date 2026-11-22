@@ -587,17 +587,12 @@ pub fn PartsInspectorPanel(
                 }
             }
             if let Some(definition) = editable_definition {
-                crate::parts_definition_name::DefinitionNameEditor {
+                crate::parts_custom_definition::CustomDefinitionFields {
+                    key: "{definition.id}",
                     snapshot: snapshot.clone(),
                     scope: scope.clone(),
                     selection: selected,
-                    definition: definition.clone(),
-                    crate::parts_custom_definition::CustomDefinitionFields {
-                        snapshot: snapshot.clone(),
-                        scope: scope.clone(),
-                        selection: selected,
-                        definition,
-                    }
+                    definition,
                 }
             }
             if let Some(entry) = entry.as_ref().filter(|entry| entry.definition.generator.is_some()) {

@@ -8,6 +8,7 @@ pub enum Axis {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DefinitionEdit {
+    Name(String),
     Kind(PartKind),
     CourtyardWidth(String),
     CourtyardHeight(String),
@@ -48,6 +49,8 @@ pub enum DefinitionEdit {
 /// existence, eligibility, uniqueness) belong to the resolver.
 pub fn validate_definition_edit(edit: &DefinitionEdit) -> Result<(), String> {
     match edit {
+        DefinitionEdit::Name(name) if name.trim().is_empty() => Err("Name is required.".into()),
+        DefinitionEdit::Name(_) => Ok(()),
         DefinitionEdit::Kind(_)
         | DefinitionEdit::AddPad
         | DefinitionEdit::PadShape { .. }
@@ -94,6 +97,9 @@ pub fn definition_field_resolver(
     EditResolver::new(
         "parts-definition-field",
         move |accepted: &AcceptedSnapshot| {
+            if let Err(reason) = validate_definition_edit(&edit) {
+                return Resolution::Retire(reason);
+            }
             let document = &accepted.document;
             if !document
                 .definitions
@@ -152,6 +158,7 @@ fn apply_definition_edit(
         return Err(DEFINITION_GONE.into());
     };
     match edit {
+        DefinitionEdit::Name(name) => definition.name = name.trim().to_owned(),
         DefinitionEdit::Kind(kind) => definition.kind = kind.clone(),
         DefinitionEdit::CourtyardWidth(value) => {
             let width = parse_number(value, true, COURTYARD_NUMBERS)?;

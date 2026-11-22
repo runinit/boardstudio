@@ -1,11 +1,13 @@
 //! Scoped controls and file-backed editing for routed-board references.
-use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
+use crate::pcb_controls::PcbFile;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, ToggleField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
@@ -753,7 +755,7 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        PcbSection { class: "grid gap-2 py-2.5 border-b border-border [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-xs [&>p]:leading-normal", label: "Routed PCB reference",
+        InspectorSection { title: "Routed PCB reference", default_open: false,
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
             PcbFile {
                     label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
@@ -770,24 +772,20 @@ pub fn Editor(
                     }
             }
             if let Some(reference) = reference.as_ref() {
-                PcbCheck { label: "Use routed PCB in assembly", checked: reference.enabled, disabled,
-                    on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
+                ToggleField { label: "Use routed PCB in assembly", checked: reference.enabled,
+                    disabled_reason: disabled.then(|| "Routed PCB reference is read-only".to_owned()),
+                    on_commit: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
                 div {
                     for (label, value, make, step) in [
-                        ("X (mm)", reference.pose.at.x.to_string(), Action::SetPositionX as fn(f64) -> Action, Some("0.1")),
-                        ("Y (mm)", reference.pose.at.y.to_string(), Action::SetPositionY as fn(f64) -> Action, Some("0.1")),
-                        ("Z (mm)", reference.elevation.to_string(), Action::SetElevation as fn(f64) -> Action, Some("0.1")),
-                        ("Rotation (°)", reference.pose.rotation.to_string(), Action::SetRotation as fn(f64) -> Action, None),
+                        ("X (mm)", reference.pose.at.x, Action::SetPositionX as fn(f64) -> Action, 0.1),
+                        ("Y (mm)", reference.pose.at.y, Action::SetPositionY as fn(f64) -> Action, 0.1),
+                        ("Z (mm)", reference.elevation, Action::SetElevation as fn(f64) -> Action, 0.1),
+                        ("Rotation (°)", reference.pose.rotation, Action::SetRotation as fn(f64) -> Action, 1.0),
                     ] {
-                        PcbInput { key: "{label}", label: label.to_string(), aria_label: label.to_string(),
-                                r#type: InputType::Number, step: step.map(str::to_string), value,
-                                disabled,
-                                oninput: move |event: FormEvent| {
-                                    if let Ok(value) = event.value().parse::<f64>()
-                                        && value.is_finite()
-                                    { on_action.call(make(value)); }
-                                }
+                        NumericField { key: "{label}", label: label.to_owned(), value, step: Some(step),
+                            disabled_reason: disabled.then(|| "Routed PCB reference is read-only".to_owned()),
+                            on_commit: move |value| on_action.call(make(value)),
                         }
                     }
                 }
@@ -820,18 +818,18 @@ pub fn Editor(
                         let path_for_file = path.clone();
                         rsx! {
                             div { key: "{path}", class: "grid gap-2",
-                                PcbChoice {
-                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(), searchable: true,
+                                SelectField::<String> {
+                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(),
                                     disabled,
-                                    on_change: move |selected: String| {
+                                    on_commit: move |selected: String| {
                                         on_action.call(Action::SetModelAsset {
                                             path: path_for_select.clone(),
                                             asset_id: if selected.is_empty() { None } else { Some(selected) },
                                         });
                                     },
-                                    options: std::iter::once((String::new(), "Resolve bundled model".into(), false))
-                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into(), false)))
-                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone(), false))).collect(),
+                                    options: std::iter::once((String::new(), "Resolve bundled model".into()))
+                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into())))
+                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone()))).collect(),
                                 }
                                 PcbFile { label: format!("Attach model for {path}"), accept: Some(".step,.stp,.stl,.wrl".into()),
                                     disabled: disabled || busy,

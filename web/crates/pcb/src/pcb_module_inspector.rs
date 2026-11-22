@@ -1,6 +1,6 @@
 //! Private editor for the placement of one accepted mounted-module instance.
 //! Module source definitions and their footprint/circuit ownership remain untouched.
-use crate::pcb_controls::{PcbCheck, PcbChoice, PcbInput};
+use crate::pcb_controls::{PcbChoice, PcbInput};
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
@@ -9,6 +9,7 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -459,66 +460,48 @@ fn PcbMountedModuleInspector(
                     },
                 options: std::iter::once((String::new(), "Board-wide".into(), false)).chain(options.iter().map(|(id, name)| (id.clone(), name.clone(), false))).collect(),
             }
-            PcbChoice {
+            SelectField::<Side> {
                 label: "Mounted face",
                 aria_label: "Module host face",
-                value: (if draft().host_face == Side::Front { "front" } else { "back" }).to_string(),
+                value: draft().host_face,
                 disabled: !editable,
-                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.host_face = side(&next)),
-                options: vec![("front".into(), "Front".into(), false), ("back".into(), "Back".into(), false)],
+                on_commit: move |next| edit_module_draft(draft, draft_dirty, |value| value.host_face = next),
+                options: vec![(Side::Front, "Front".into()), (Side::Back, "Back".into())],
             }
-            PcbChoice {
+            SelectField::<Side> {
                 label: "Facing face",
                 aria_label: "Module facing face",
-                value: (if draft().facing_face == Side::Front { "front" } else { "back" }).to_string(),
+                value: draft().facing_face,
                 disabled: !editable,
-                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.facing_face = side(&next)),
-                options: vec![("front".into(), "Front".into(), false), ("back".into(), "Back".into(), false)],
+                on_commit: move |next| edit_module_draft(draft, draft_dirty, |value| value.facing_face = next),
+                options: vec![(Side::Front, "Front".into()), (Side::Back, "Back".into())],
             }
             for (label, value, minimum, field) in [
-                ("X (mm)", draft().at.x.to_string(), None, 0u8),
-                ("Y (mm)", draft().at.y.to_string(), None, 1u8),
-                ("Yaw (degrees)", draft().rotation.to_string(), None, 2u8),
-                ("Gap (mm)", draft().gap.to_string(), Some(0.0), 3u8),
+                ("X (mm)", draft().at.x, None, 0u8),
+                ("Y (mm)", draft().at.y, None, 1u8),
+                ("Yaw (degrees)", draft().rotation, None, 2u8),
+                ("Gap (mm)", draft().gap, Some(0.0), 3u8),
             ] {
-                PcbInput { key: "{label}",
-                    label: label.to_string(), aria_label: label.to_string(), r#type: InputType::Number,
-                    step: Some("any".into()),
-                    min: minimum.map(|_| "0".to_string()),
-                    value,
-                    disabled: !editable,
-                    oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && minimum.is_none_or(|floor| number >= floor) {
-                        edit_module_draft(draft, draft_dirty, |value| match field {
-                            0 => value.at.x = number,
-                            1 => value.at.y = number,
-                            2 => value.rotation = number,
-                            _ => value.gap = number,
-                        });
-                    },
+                NumericField { key: "{label}", label, value, min: minimum,
+                    disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                    on_commit: move |number| edit_module_draft(draft, draft_dirty, |value| match field {
+                        0 => value.at.x = number,
+                        1 => value.at.y = number,
+                        2 => value.rotation = number,
+                        _ => value.gap = number,
+                    }),
                 }
             }
-            PcbChoice {
-                label: "Attachment",
-                aria_label: "Module attachment",
-                value: (if draft().attachment == ModuleAttachment::Board { "board" } else { "case" }).to_string(),
-                disabled: !editable,
-                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.attachment = if next == "case" { ModuleAttachment::Case } else { ModuleAttachment::Board }),
-                options: vec![("board".into(), "Board".into(), false), ("case".into(), "Case".into(), false)],
+            SelectField::<ModuleAttachment> {
+                label: "Attachment", aria_label: "Module attachment", value: draft().attachment, disabled: !editable,
+                on_commit: move |next| edit_module_draft(draft, draft_dirty, |value| value.attachment = next),
+                options: vec![(ModuleAttachment::Board, "Board".into()), (ModuleAttachment::Case, "Case".into())],
             }
-            PcbInput {
-                label: "Extra service clearance (mm)",
-                r#type: InputType::Number, min: Some("0".into()),
-                step: Some("0.1".into()),
-                aria_label: "Module service clearance",
-                value: "{draft().service_clearance}",
-                disabled: !editable,
-                oninput: move |event: FormEvent| {
-                        let raw = event.value();
-                        let number = if raw.trim().is_empty() { Some(0.0) } else { raw.parse::<f64>().ok() };
-                        if let Some(number) = number.filter(|number| number.is_finite() && *number >= 0.0) {
-                            edit_module_draft(draft, draft_dirty, |value| value.service_clearance = number);
-                        }
-                    },
+            NumericField {
+                label: "Extra service clearance (mm)", aria_label: "Module service clearance",
+                value: draft().service_clearance, min: Some(0.0), step: Some(0.1),
+                disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                on_commit: move |number| edit_module_draft(draft, draft_dirty, |value| value.service_clearance = number),
             }
             section { class: "grid gap-2 min-w-0 p-2.5 border border-border rounded-md bg-card [&_h3]:m-0 [&_h3]:text-xs [&_h3]:text-foreground", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
@@ -614,15 +597,16 @@ fn PcbMountedModuleInspector(
                 }, "Add specified {support_kind}" }
                 if !has_source_mounts { p { "This module snapshot has no source mounting holes for support placement." } }
             }
-            PcbCheck { label: "Detached", checked: draft().detached, disabled: !editable,
-                on_change: move |checked| edit_module_draft(draft, draft_dirty, |value| value.detached = checked)
+            ToggleField { label: "Detached", checked: draft().detached,
+                disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                on_commit: move |checked| edit_module_draft(draft, draft_dirty, |value| value.detached = checked)
             }
             section { "aria-label": "VIK connection",
                 h3 { "VIK connection" }
-                PcbCheck { label: "Assign host connection",
+                ToggleField { label: "Assign host connection",
                     checked: draft().connection.is_some(),
-                    disabled: !editable,
-                    on_change: move |checked| {
+                    disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                    on_commit: move |checked| {
                         if checked {
                             edit_module_draft(draft, draft_dirty, |value| value.connection = Some(ModuleConnection {
                                 host_connector_part_id: if available_connectors.is_empty() && create_automatic_connector_on_toggle { automatic_connector_id_for_toggle.clone() } else { String::new() },
@@ -807,14 +791,6 @@ fn edit_module_draft(
     draft.with_mut(edit);
     if *draft.peek() != before {
         dirty.set(true);
-    }
-}
-
-fn side(value: &str) -> Side {
-    if value == "back" {
-        Side::Back
-    } else {
-        Side::Front
     }
 }
 

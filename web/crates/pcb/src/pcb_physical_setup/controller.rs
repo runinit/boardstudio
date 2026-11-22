@@ -1,13 +1,12 @@
 use super::reassignment_owner::expected_case_reassignment_owner;
 pub use super::reassignment_owner::{OwnerContext, OwnerIdentity};
-use crate::pcb_controls::PcbCheck;
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution,
 };
 use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
-use boardstudio_web_runtime::operation_outcomes::Settlement;
+use boardstudio_web_ui_shared::inspector_fields::ToggleField;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
@@ -105,41 +104,6 @@ struct OperationFeedback {
     owner: OwnerIdentity,
     message: String,
 }
-#[derive(Clone)]
-struct OperationUi {
-    feedback: Signal<Option<OperationFeedback>>,
-    busy: Signal<Option<OperationId>>,
-    alive: Rc<Cell<bool>>,
-}
-impl OperationUi {
-    fn publish(
-        &mut self,
-        operation_id: OperationId,
-        owner: &OwnerIdentity,
-        message: String,
-        terminal: bool,
-    ) {
-        if !self.alive.get() || *self.busy.peek() != Some(operation_id) {
-            return;
-        }
-        self.feedback.set(Some(OperationFeedback {
-            operation_id,
-            owner: owner.clone(),
-            message,
-        }));
-        if terminal {
-            self.busy.set(None);
-        }
-    }
-
-    /// A landed setup shows no status: the accepted document is the confirmation.
-    fn settle_silently(&mut self, operation_id: OperationId) {
-        if !self.alive.get() || *self.busy.peek() != Some(operation_id) {
-            return;
-        }
-        self.busy.set(None);
-    }
-}
 pub fn use_controller(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -151,8 +115,8 @@ pub fn use_controller(
 ) -> PhysicalSetupMount {
     let _version = version();
     let current_generation = generation();
-    let feedback = use_signal(|| None::<OperationFeedback>);
-    let busy = use_signal(|| None::<OperationId>);
+    let mut feedback = use_signal(|| None::<OperationFeedback>);
+    let mut busy = use_signal(|| None::<OperationId>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
@@ -188,13 +152,8 @@ pub fn use_controller(
     );
     let on_intent = use_callback({
         let runtime = runtime.clone();
-        let ui = OperationUi {
-            feedback,
-            busy,
-            alive,
-        };
         move |request: PhysicalSetupRequest| {
-            if ui.busy.peek().is_some() {
+            if busy.peek().is_some() {
                 return;
             }
             let identity = request.owner;
@@ -213,70 +172,44 @@ pub fn use_controller(
                 setup_intent.map(|intent| prepare((*accepted.document).clone(), intent));
             let runtime = runtime.clone();
             let activity = activity.clone();
-            let mut ui = ui.clone();
-            ui.busy.set(Some(OperationId(seed)));
-            ui.feedback.set(None);
+            let alive = alive.clone();
+            busy.set(Some(OperationId(seed)));
+            feedback.set(None);
             spawn_local(async move {
                 let prepared = match preparation {
                     Some(future) => future.await,
-                    // A non-project intent (Case assembly setup) resolves from the accepted
-                    // snapshot alone and prepares no catalogue resource.
                     None => Ok(PreparedSetup {
                         mounting_hole: None,
                     }),
                 };
-                if !ui.alive.get() {
+                if !alive.get() {
                     return;
                 }
+                busy.set(None);
                 if !activity.matches(&identity, false) {
-                    ui.busy.set(None);
                     return;
                 }
-                let outcome = runtime.resolve_edit(
+                match runtime.commit(
                     "physical-setup",
-                    Some("physical setup".into()),
                     setup_resolver(identity.clone(), intent.clone(), seed, prepared),
-                );
-                let operation = outcome.operation();
-                ui.busy.set(Some(operation));
-                loop {
-                    if !ui.alive.get() {
-                        return;
+                ) {
+                    Ok(accepted) => navigate_after_setup(
+                        &runtime,
+                        &accepted,
+                        &identity,
+                        &intent,
+                        instance_selection,
+                        &activity,
+                        *generation.peek(),
+                    ),
+                    Err(message) if activity.matches(&identity, false) => {
+                        feedback.set(Some(OperationFeedback {
+                            operation_id: OperationId(seed),
+                            owner: identity,
+                            message,
+                        }));
                     }
-                    let model = runtime.model();
-                    let same_session = model.accepted.as_ref().is_some_and(|accepted| {
-                        accepted.session_epoch == identity.session_epoch
-                            && accepted.document.id == identity.document_id
-                    });
-                    let reassigned = match &intent {
-                        PhysicalSetupIntent::CasePcbDesign(board_id) => model
-                            .accepted
-                            .as_ref()
-                            .and_then(|accepted| {
-                                expected_case_reassignment_owner(
-                                    &identity,
-                                    board_id,
-                                    accepted.token,
-                                    generation(),
-                                )
-                            })
-                            .is_some_and(|owner| activity.matches(&owner, false)),
-                        _ => false,
-                    };
-                    let live = same_session && (activity.matches(&identity, false) || reassigned);
-                    let settlement = outcome.settlement(live);
-                    if settlement != Settlement::Pending {
-                        finish_operation(
-                            &runtime,
-                            &identity,
-                            &intent,
-                            operation,
-                            settlement,
-                            (&activity, instance_selection, generation, &mut ui),
-                        );
-                        break;
-                    }
-                    gloo_timers::future::TimeoutFuture::new(16).await;
+                    Err(_) => {}
                 }
             });
         }
@@ -311,8 +244,9 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                 }))}
                 p { class: "m-0 text-muted-foreground text-sm leading-normal", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            PcbCheck { label: "Reversible layout", checked: projection.reversible, disabled: projection.busy,
-                on_change: move |checked| reversible_mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(checked))
+            ToggleField { label: "Reversible layout", checked: projection.reversible,
+                disabled_reason: projection.busy.then(|| "Physical setup is updating".to_owned()),
+                on_commit: move |checked| reversible_mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(checked))
             }
             if let Some(feedback) = projection.project_feedback {
                 p { role: "status", "{feedback}" }
@@ -776,32 +710,24 @@ fn setup_resolver(
     })
 }
 
-fn finish_operation(
+fn navigate_after_setup(
     runtime: &Rc<Runtime>,
+    accepted: &AcceptedSnapshot,
     identity: &OwnerIdentity,
     intent: &PhysicalSetupIntent,
-    operation_id: OperationId,
-    settlement: Settlement,
-    (activity, instance_selection, generation, ui): (
-        &OwnerActivity,
-        super::super::InstanceSelection,
-        Signal<u64>,
-        &mut OperationUi,
-    ),
+    instance_selection: super::super::InstanceSelection,
+    activity: &OwnerActivity,
+    generation: u64,
 ) {
-    if !ui.alive.get() {
-        return;
-    }
-    let landed = matches!(settlement, Settlement::Landed { .. });
-    let model = runtime.model();
-    let accepted = model.accepted.as_ref();
-    let navigate_to = match intent {
+    let destination = match intent {
         PhysicalSetupIntent::CasePcbDesign(board_id) => identity
             .instance_id
             .as_ref()
             .map(|id| (board_id.clone(), id.clone())),
         PhysicalSetupIntent::ProjectTopology(_) => accepted
-            .and_then(|accepted| accepted.document.hardware.as_ref())
+            .document
+            .hardware
+            .as_ref()
             .and_then(|hardware| {
                 hardware
                     .instances
@@ -811,70 +737,25 @@ fn finish_operation(
             .map(|instance| (instance.board_id.clone(), instance.id.clone())),
         _ => None,
     };
-    let reassignment_owner = if landed {
-        navigate_to.as_ref().and_then(|(board_id, _)| {
-            expected_case_reassignment_owner(
-                identity,
-                board_id,
-                accepted.map(|snapshot| snapshot.token)?,
-                *generation.peek(),
-            )
-        })
-    } else {
-        None
+    let Some((board_id, instance_id)) = destination else {
+        return;
     };
-    let current = activity.matches(identity, false)
-        || reassignment_owner
-            .as_ref()
-            .is_some_and(|owner| activity.matches(owner, false));
-    let mut owner = identity.clone();
-    if !current {
-        ui.feedback.set(None);
-        ui.busy.set(None);
+    let reassigned =
+        expected_case_reassignment_owner(identity, &board_id, accepted.token, generation)
+            .is_some_and(|owner| activity.matches(&owner, false));
+    if !activity.matches(identity, false) && !reassigned {
         return;
     }
-    let message = match settlement {
-        Settlement::Landed { .. } => {
-            if let Some(accepted) = accepted {
-                owner.token = accepted.token;
-                owner.revision = accepted.document.revision;
-                if let Some((board_id, instance_id)) = navigate_to {
-                    owner.board_id = board_id.clone();
-                    owner.instance_id = Some(instance_id.clone());
-                    owner.scope_transition = None;
-                    let scope = Scope {
-                        session_epoch: owner.session_epoch,
-                        document_id: owner.document_id.clone(),
-                        board_id: board_id.clone(),
-                        instance_id: Some(instance_id.clone()),
-                    };
-                    owner.generation = generation()
-                        .saturating_add(u64::from(runtime.scope().as_ref() != Some(&scope)));
-                    instance_selection.reconcile(
-                        accepted.session_epoch,
-                        accepted.document.id.clone(),
-                        instance_id.clone(),
-                    );
-                    runtime.submit(Event::Navigate {
-                        operation_id: runtime.operation(),
-                        board_id,
-                        instance_id: Some(instance_id),
-                    });
-                }
-            }
-            // The accepted document is the confirmation; landing shows no status.
-            ui.settle_silently(operation_id);
-            return;
-        }
-        Settlement::Failed { message, .. } => message,
-        Settlement::Pending => unreachable!(),
-        Settlement::Retired => {
-            ui.feedback.set(None);
-            ui.busy.set(None);
-            return;
-        }
-    };
-    ui.publish(operation_id, &owner, message, true);
+    instance_selection.reconcile(
+        accepted.session_epoch,
+        accepted.document.id.clone(),
+        instance_id.clone(),
+    );
+    runtime.submit(Event::Navigate {
+        operation_id: runtime.operation(),
+        board_id,
+        instance_id: Some(instance_id),
+    });
 }
 
 fn fresh_id(document: &ProjectDoc, prefix: &str, operation: u64) -> String {

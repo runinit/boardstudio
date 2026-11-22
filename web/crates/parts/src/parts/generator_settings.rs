@@ -285,22 +285,6 @@ pub async fn prepare_generator_candidate(
     Ok(normalized)
 }
 
-#[cfg(test)]
-type GeneratorCandidateFuture =
-    std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>;
-#[cfg(test)]
-type GeneratorCandidateCallback = dyn Fn(
-    PartDefinition,
-    BTreeMap<String, Value>,
-    BTreeMap<String, Value>,
-) -> GeneratorCandidateFuture;
-
-/// Per-mounted-editor boundary for deterministic completion ordering in browser tests.
-/// The production path still calls `prepare_generator_candidate` directly.
-#[cfg(test)]
-#[derive(Clone)]
-struct GeneratorCandidateTestProvider(Rc<GeneratorCandidateCallback>);
-
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
 #[component]
@@ -390,8 +374,6 @@ pub fn GeneratorSettingsEditor(
     let callback_runtime = runtime.clone();
     let callback_schema = schema.clone();
     let preview_alive = alive.clone();
-    #[cfg(test)]
-    let candidate_provider = try_consume_context::<GeneratorCandidateTestProvider>();
     let preview_sequence = sequence.clone();
     let request_preview = use_callback(move |next: BTreeMap<String, Value>| {
         changed.set(next.clone());
@@ -415,16 +397,7 @@ pub fn GeneratorSettingsEditor(
         let alive = preview_alive.clone();
         let ticket = task.get().wrapping_add(1);
         task.set(ticket);
-        #[cfg(test)]
-        let candidate_provider = candidate_provider.clone();
         spawn_local(async move {
-            #[cfg(test)]
-            let result = if let Some(provider) = candidate_provider {
-                (provider.0)(base, schema, next).await
-            } else {
-                prepare_generator_candidate(base, schema, next).await
-            };
-            #[cfg(not(test))]
             let result = prepare_generator_candidate(base, schema, next).await;
             if !alive.get()
                 || task.get() != ticket
@@ -936,6 +909,3 @@ fn GeneratorParameterField(
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

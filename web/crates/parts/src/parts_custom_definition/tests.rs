@@ -43,55 +43,6 @@ fn pad(id: &str, number: &str) -> serde_json::Value {
 }
 
 #[test]
-fn accepted_pad_rename_preserves_the_row_through_scalar_refresh() {
-    let mut pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
-    let mut rows = PadRowKeys::default();
-    let before = rows.for_pads("owner", &pads);
-    pads[0].id = "renamed".into();
-    pads[0].at.y = 4.0;
-    assert_eq!(rows.for_pads("owner", &pads), before);
-}
-
-#[test]
-fn pad_list_edits_preserve_survivors_and_retire_deleted_rows() {
-    let mut pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
-    let mut rows = PadRowKeys::default();
-    let before = rows.for_pads("owner", &pads);
-    let removed = pads.remove(0);
-    assert_eq!(rows.for_pads("owner", &pads), vec![before[1]]);
-    pads.push(removed);
-    let restored = rows.for_pads("owner", &pads);
-    assert_eq!(restored[0], before[1]);
-    assert_ne!(restored[1], before[0]);
-    pads.swap(0, 1);
-    assert_eq!(
-        rows.for_pads("owner", &pads),
-        vec![restored[1], restored[0]]
-    );
-}
-
-#[test]
-fn ambiguous_replacements_and_owner_switches_retire_pad_rows() {
-    let pads = definition(serde_json::json!([pad("a", "1"), pad("b", "2")])).pads;
-    let replacement = definition(serde_json::json!([pad("c", "1"), pad("d", "2")])).pads;
-    let mut rows = PadRowKeys::default();
-    let before = rows.for_pads("owner", &pads);
-    let replaced = rows.for_pads("owner", &replacement);
-    assert!(replaced.iter().all(|key| !before.contains(key)));
-    let next_owner = rows.for_pads("other-owner", &replacement);
-    assert!(next_owner.iter().all(|key| !replaced.contains(key)));
-}
-
-#[test]
-fn duplicate_pad_ids_never_share_or_transfer_a_row_lifetime() {
-    let pads = definition(serde_json::json!([pad("a", "1"), pad("a", "2")])).pads;
-    let mut rows = PadRowKeys::default();
-    let before = rows.for_pads("owner", &pads);
-    assert_ne!(before[0], before[1]);
-    let refreshed = rows.for_pads("owner", &pads);
-    assert!(refreshed.iter().all(|key| !before.contains(key)));
-}
-#[test]
 fn field_admission_ignores_departed_owners_but_not_newer_revisions() {
     let current = snapshot(definition(serde_json::json!([pad("a", "1")])));
     let owner_scope = scope();

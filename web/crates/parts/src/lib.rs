@@ -52,7 +52,6 @@ pub(crate) mod part_placement {
 
 pub mod parts_assembly_preset_draft;
 pub mod parts_custom_definition;
-pub mod parts_definition_name;
 pub mod parts_generator_input;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod parts_import_footprint;

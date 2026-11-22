@@ -1,9 +1,6 @@
 //! Private compositions of the shared controls for PCB inspectors.
-use boardstudio_web_ui_shared::inspector_fields::{
-    CheckboxField, DraftNumericField as NumericField, TextField,
-};
+use boardstudio_web_ui_shared::inspector_fields::{DraftNumericField as NumericField, TextField};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
@@ -91,26 +88,6 @@ pub(crate) fn PcbInput(
             NumericField { id, label, value, aria_label, placeholder, disabled, min, step: step.unwrap_or_else(|| "1".to_owned()), oninput }
         } else {
             TextField { id, label, value, r#type, aria_label, placeholder, disabled, oninput }
-        }
-    }
-}
-
-#[component]
-pub(crate) fn PcbCheck(
-    label: String,
-    checked: bool,
-    #[props(default)] disabled: bool,
-    on_change: EventHandler<bool>,
-) -> Element {
-    let id = format!("pcb-check-{}", dioxus::core::current_scope_id().0);
-    rsx! {
-        CheckboxField {
-            id,
-            aria_label: Some(label.clone()),
-            label,
-            checked: if checked { CheckboxState::Checked } else { CheckboxState::Unchecked },
-            disabled,
-            on_checked_change: move |value| on_change.call(value == CheckboxState::Checked),
         }
     }
 }
