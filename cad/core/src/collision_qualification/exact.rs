@@ -131,7 +131,9 @@ fn segment_hit(p: &Point, q: &Point, t: &Triangle, n: &Point) -> bool {
 pub(super) fn distance2(a: &Triangle, b: &Triangle) -> Check<Q> {
     let na = normal(a);
     let nb = normal(b);
-    if norm2(&na).is_zero() || norm2(&nb).is_zero() {
+    let na2 = norm2(&na);
+    let nb2 = norm2(&nb);
+    if na2.is_zero() || nb2.is_zero() {
         return Err("degenerate triangle");
     }
     if edges(a).any(|(p, q)| segment_hit(p, q, b, &nb))
@@ -139,35 +141,54 @@ pub(super) fn distance2(a: &Triangle, b: &Triangle) -> Check<Q> {
     {
         return Ok(Q::zero());
     }
+
+    // Every edge of a nondegenerate triangle has positive squared length.
+    let edge_data = |t: &Triangle| -> [_; 3] {
+        std::array::from_fn(|i| {
+            let d = sub(&t[(i + 1) % 3], &t[i]);
+            let length2 = norm2(&d);
+            (d, length2)
+        })
+    };
+    let ea = edge_data(a);
+    let eb = edge_data(b);
     let mut best = norm2(&sub(&a[0], &b[0]));
-    for (points, face, n) in [(a, b, &nb), (b, a, &na)] {
+    for (points, face, n, n2, sides) in [(a, b, &nb, &nb2, &eb), (b, a, &na, &na2, &ea)] {
         for p in points {
-            let u = dot(&sub(p, &face[0]), n) / norm2(n);
-            let h = sub(p, &mul(n, &u));
-            if in_triangle(&h, face, n) {
-                best = best.min(norm2(&sub(p, &h)));
+            // Sliding p along n leaves every oriented edge test unchanged.
+            if in_triangle(p, face, n) {
+                let height = dot(&sub(p, &face[0]), n);
+                best = best.min(&height * &height / n2);
             }
-            for (x, y) in edges(face) {
-                best = best.min(norm2(&sub(p, &closest_segment(p, x, y))));
+            for (i, (edge, length2)) in sides.iter().enumerate() {
+                let offset = sub(p, &face[i]);
+                let vertex2 = norm2(&offset);
+                let along = dot(&offset, edge);
+                // Each endpoint is visited as an edge start; only interior
+                // projections improve on the vertex candidates.
+                best = best.min(if along.is_positive() && &along < length2 {
+                    vertex2 - &along * &along / length2
+                } else {
+                    vertex2
+                });
             }
         }
     }
-    for (p, q) in edges(a) {
-        for (r, s) in edges(b) {
-            let u = sub(q, p);
-            let v = sub(s, r);
-            let w = sub(p, r);
-            let aa = norm2(&u);
-            let bb = dot(&u, &v);
-            let cc = norm2(&v);
-            let dd = dot(&u, &w);
-            let ee = dot(&v, &w);
-            let det = &aa * &cc - &bb * &bb;
-            if !det.is_zero() {
-                let x = (&bb * &ee - &cc * &dd) / &det;
-                let y = (&aa * &ee - &bb * &dd) / det;
-                if x >= Q::zero() && x <= Q::one() && y >= Q::zero() && y <= Q::one() {
-                    best = best.min(norm2(&sub(&add(p, &mul(&u, &x)), &add(r, &mul(&v, &y)))));
+    for (i, (u, aa)) in ea.iter().enumerate() {
+        for (j, (v, cc)) in eb.iter().enumerate() {
+            let w = sub(&a[i], &b[j]);
+            let bb = dot(u, v);
+            let dd = dot(u, &w);
+            let ee = dot(v, &w);
+            let det = aa * cc - &bb * &bb;
+            if det.is_positive() {
+                // The closest line parameters have the same denominator det.
+                let x = &bb * &ee - cc * &dd;
+                let y = aa * &ee - &bb * &dd;
+                if !x.is_negative() && x <= det && !y.is_negative() && y <= det {
+                    // det = |u × v|². Only the normal component separates the lines.
+                    let height = dot(&w, &cross(u, v));
+                    best = best.min(&height * &height / det);
                 }
             }
         }

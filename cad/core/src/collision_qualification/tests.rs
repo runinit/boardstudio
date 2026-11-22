@@ -422,6 +422,16 @@ fn exact_features_cover_oblique_parallel_edges_and_square_root_two() {
     assert!(d.mm[0] > 0. && d.mm[1] >= 1e-12);
 }
 
+#[test]
+fn skew_edges_attain_the_exact_interior_distance() {
+    // Closest points (0, 0, 0) and (0, -1/2, 1/2) are interior to the first edges.
+    let a = [[-1., 0., 0.], [1., 0., 0.], [0., 1., -1.]];
+    let b = [[0., -1., 0.], [0., 1., 2.], [1., -1., 2.]];
+    let a = a.map(|p| point(p).unwrap());
+    let b = b.map(|p| point(p).unwrap());
+    assert_eq!(distance2(&a, &b), Ok(decimal("0.5").unwrap()));
+}
+
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn invalid_seeds_nonfinite_degenerates_caps_and_tighter_numeric_requests_refuse() {
