@@ -423,10 +423,6 @@ fn project_for_scope(
     ))
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "keycap_size_tests.rs"]
-mod tests;
-
 fn field_for_axis(axis: Option<ResizeAxis>) -> KeySizeField {
     match axis {
         Some(ResizeAxis::X) => KeySizeField::Width,

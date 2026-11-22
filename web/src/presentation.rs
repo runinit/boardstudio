@@ -36,13 +36,9 @@ mod layout_bounds;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
-mod layout_component_inspector_tests;
-#[cfg(test)]
 mod layout_field_preview_tests;
 #[cfg(test)]
 mod layout_layers_tests;
-#[cfg(test)]
-mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]

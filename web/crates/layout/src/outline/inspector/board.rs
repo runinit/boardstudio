@@ -1,6 +1,6 @@
 //! The board-outline (non-perimeter) section of the outline Inspector.
 use super::*;
-use boardstudio_web_ui_shared::inspector_fields::{DraftSelectField as SelectField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 
 pub(super) struct BoardInspectorView {
     pub(super) projection: OutlineInspectorProjection,
@@ -269,12 +269,11 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                     {
                                         let id = format!("layout-choice-{}-Outline-corners", dioxus::core::current_scope_id().0);
                                         rsx! {
-                                            SelectField {
+                                            SelectField::<String> {
                                                 id, label: "Corners", aria_label: "Outline corners",
-                                                class: "grid gap-[5px] text-xs text-muted-foreground", touch_targets: false,
                                                 value: corner_selection().unwrap_or_default(), disabled: !enabled,
                                                 options: vec![("sharp".into(), "Sharp".into()), ("fillet".into(), "Fillet".into()), ("chamfer".into(), "Chamfer".into())],
-                                                on_select: {
+                                                on_commit: {
                                                     let action_context = action_context.clone();
                                                     move |choice: String| {
                                                         let corner = match choice.as_str() {

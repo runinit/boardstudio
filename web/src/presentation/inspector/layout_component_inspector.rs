@@ -11,7 +11,7 @@ use boardstudio_web_layout::component_offset::{
     offset_values, position_commit_value, position_input_disabled,
 };
 use boardstudio_web_ui_shared::inspector_fields::{
-    CheckboxField, DraftNumericField as NumericField, DraftSelectField as SelectField,
+    CheckboxField, DraftNumericField as NumericField, SelectField,
 };
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

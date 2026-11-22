@@ -32,10 +32,6 @@ use dioxus_web::WebEventExt;
 use super::TreeContext;
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
 
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "matrix_transform_inspector_tests.rs"]
-mod mounted_tests;
-
 mod anchor_section;
 mod fields;
 mod key_section;

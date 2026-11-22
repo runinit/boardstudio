@@ -669,15 +669,15 @@ macro_rules! render_inspector {
                                                 );
 
                                                 rsx! {
-                                                    SelectField {
+                                                    SelectField::<String> {
                                                         id: control_id, label: control_label, aria_label: control_aria_label,
-                                                        value: kind_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                        value: kind_choice().unwrap_or_default(),
                                                         options: vec![
                                                             ("offset".into(), "Offset from part".into()),
                                                             ("mirror".into(), "Mirror placement across axis".into()),
                                                             ("mirror-line".into(), "Mirror line".into()),
                                                         ],
-                                                        on_select: move |choice: String| {
+                                                        on_commit: move |choice: String| {
                                                             constraint_kind.set(match choice.as_str() {
                                                                 "mirror" => ConstraintKind::Mirror,
                                                                 "mirror-line" => ConstraintKind::MirrorLine,
@@ -757,14 +757,14 @@ macro_rules! render_inspector {
                                                     );
 
                                                     rsx! {
-                                                        SelectField {
+                                                        SelectField::<String> {
                                                             id: control_id, label: control_label, aria_label: control_aria_label,
-                                                            value: axes_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                            value: axes_choice().unwrap_or_default(),
                                                             options: vec![
                                                                 (offset_axes_value(OffsetAxes::Board).to_owned(), "Offset on board axes".into()),
                                                                 (offset_axes_value(OffsetAxes::Part).to_owned(), "Offset along part axes".into()),
                                                             ],
-                                                            on_select: move |choice: String| choose_offset_axes(offset_axes_from_value(&choice)),
+                                                            on_commit: move |choice: String| choose_offset_axes(offset_axes_from_value(&choice)),
                                                         }
 
                                                     }
@@ -827,11 +827,11 @@ macro_rules! render_inspector {
                                                     );
 
                                                     rsx! {
-                                                        SelectField {
+                                                        SelectField::<String> {
                                                             id: control_id, label: control_label, aria_label: control_aria_label,
-                                                            value: axis_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                            value: axis_choice().unwrap_or_default(),
                                                             options: vec![("vertical".into(), "Vertical".into()), ("horizontal".into(), "Horizontal".into())],
-                                                            on_select: move |choice: String| {
+                                                            on_commit: move |choice: String| {
                                                                 mirror_axis.set(if choice == "horizontal" { MirrorAxis::Horizontal } else { MirrorAxis::Vertical });
                                                             },
                                                         }
