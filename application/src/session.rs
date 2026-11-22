@@ -66,11 +66,7 @@ pub struct AcceptedSnapshot {
 pub enum Lifecycle {
     #[default]
     Empty,
-    Opening,
     Ready,
-    Applying,
-    Saving,
-    RecoveryRequired,
     Closing,
     Closed,
 }
@@ -163,7 +159,6 @@ pub enum TerminalOutcome {
     Superseded,
     Cancelled,
     PersistenceFailed(String),
-    BlockedByRecovery(String),
     ExecutorFailed(String),
     Closed,
 }
@@ -316,11 +311,6 @@ pub enum Event {
     },
     RetrySave {
         operation_id: OperationId,
-    },
-    /// Explicitly discard unknown engine history and open the supplied durable document.
-    RecoverWithDocument {
-        operation_id: OperationId,
-        document: ProjectDoc,
     },
     SelectParts {
         operation_id: OperationId,
@@ -533,7 +523,6 @@ pub struct Session {
     next_job: u64,
     active_job: Option<(JobId, OperationId, Scope)>,
     exports: Vec<(OperationId, Scope, SnapshotToken)>,
-    settled: HashSet<OperationId>,
     close_operation: Option<OperationId>,
     gesture: Option<Gesture>,
     validate_open: OpenValidator,
@@ -558,7 +547,6 @@ impl Session {
             next_job: 1,
             active_job: None,
             exports: vec![],
-            settled: HashSet::new(),
             close_operation: None,
             gesture: None,
             validate_open,
@@ -680,7 +668,6 @@ impl Session {
         if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
             return;
         }
-        let generation = g.generation;
         let operation_id = g.operation_id;
         let command = EditCommand {
             base_revision: g.base_revision,
@@ -695,16 +682,13 @@ impl Session {
                 positions: positions.clone(),
             },
         };
-        let operation = if is_commit {
-            operation_id
-        } else {
+        if !is_commit {
             g.sent_positions = Some(positions);
-            OperationId(u64::MAX - generation)
-        };
+        }
         self.apply_request(
-            operation,
+            operation_id,
             CoreRequest::Edit {
-                id: wire_id(operation),
+                id: String::new(),
                 command,
             },
             true,
@@ -713,13 +697,19 @@ impl Session {
         );
     }
     fn invalidate_gesture(&mut self, effects: &mut Vec<Effect>) {
-        if let Some(g) = self.gesture.take() {
+        if let Some(operation_id) = self.clear_gesture(effects) {
+            self.settle(operation_id, TerminalOutcome::Cancelled, effects);
+        }
+    }
+
+    fn clear_gesture(&mut self, effects: &mut Vec<Effect>) -> Option<OperationId> {
+        let gesture = self.gesture.take();
+        gesture.map(|g| {
             if g.frame_pending {
                 effects.push(Effect::CancelFrame {
                     generation: g.generation,
                 });
             }
-            self.settle(g.operation_id, TerminalOutcome::Cancelled, effects);
             effects.push(Effect::ReleasePointer {
                 pointer_id: g.pointer_id,
             });
@@ -729,7 +719,8 @@ impl Session {
                 self.display_preview_transaction_id = None;
             }
             self.model.snap_guide = None;
-        }
+            g.operation_id
+        })
     }
     fn retain_export(&mut self, retained: Option<OperationId>, effects: &mut Vec<Effect>) {
         for export in std::mem::take(&mut self.exports) {
@@ -763,13 +754,7 @@ impl Session {
                         revision: snapshot.document.revision,
                     }
         }) else {
-            self.settle(
-                operation_id,
-                TerminalOutcome::BlockedByRecovery(
-                    "generation requires an accepted saved snapshot".into(),
-                ),
-                effects,
-            );
+            self.reject(operation_id, "generation requires an accepted saved snapshot", effects);
             return;
         };
         if !self.scope_is_current(&scope) {
@@ -799,13 +784,7 @@ impl Session {
             .clone()
             .filter(|_| self.model.lifecycle == Lifecycle::Ready)
         else {
-            self.settle(
-                operation_id,
-                TerminalOutcome::BlockedByRecovery(
-                    "export requires a ready accepted snapshot".into(),
-                ),
-                effects,
-            );
+            self.reject(operation_id, "export requires a ready accepted snapshot", effects);
             return;
         };
         if snapshot.scene.revision != snapshot.document.revision || !self.scope_is_current(&scope) {
@@ -845,18 +824,14 @@ impl Session {
         if let Some(pending) = self.pending_open.take() {
             self.settle(pending.operation_id, TerminalOutcome::Cancelled, effects);
         }
-        if self.model.lifecycle == Lifecycle::RecoveryRequired
-            || matches!(self.model.durability, Durability::Failed { .. })
-        {
-            self.settle(
-                operation_id,
-                TerminalOutcome::BlockedByRecovery("save the project before closing".into()),
-                effects,
-            );
+        if matches!(self.model.durability, Durability::Failed { .. }) {
+            self.reject(operation_id, "save the project before closing", effects);
             return;
         }
         if self.pending_save.is_some() {
-            self.close_operation = Some(operation_id);
+            if let Some(prior) = self.close_operation.replace(operation_id) {
+                self.settle(prior, TerminalOutcome::Superseded, effects);
+            }
             self.model.lifecycle = Lifecycle::Closing;
         } else {
             self.finish_close(operation_id, effects);
@@ -901,7 +876,6 @@ pub fn event_operation(event: &Event) -> Option<OperationId> {
     match event {
         Event::Open { operation_id, .. }
         | Event::GestureBegin { operation_id, .. }
-        | Event::RecoverWithDocument { operation_id, .. }
         | Event::PreviewEdit { operation_id, .. }
         | Event::ClearPreview { operation_id, .. }
         | Event::ReviewElectricalRemap { operation_id, .. }
@@ -930,23 +904,9 @@ impl Session {
         &mut self,
         operation_id: OperationId,
         document: ProjectDoc,
-        recovering: bool,
         effects: &mut Vec<Effect>,
     ) {
-        let awaiting_recovery = self.model.lifecycle == Lifecycle::RecoveryRequired;
-        if awaiting_recovery && !recovering {
-            self.settle(
-                operation_id,
-                TerminalOutcome::BlockedByRecovery("explicit recovery choice required".into()),
-                effects,
-            );
-            return;
-        }
-        if recovering && !awaiting_recovery {
-            self.reject(operation_id, "session is not awaiting recovery", effects);
-            return;
-        }
-        if !recovering && matches!(self.model.durability, Durability::Saving { .. }) {
+        if self.pending_save.is_some() {
             self.reject(
                 operation_id,
                 "save the current project before opening another",
@@ -992,7 +952,6 @@ impl Session {
             CoreReply::Scene { .. } => {
                 let failure = "core scene and document revisions differ";
                 self.model.last_error = Some(failure.into());
-                self.model.lifecycle = Lifecycle::RecoveryRequired;
                 self.settle(
                     operation_id,
                     TerminalOutcome::ExecutorFailed(failure.into()),
@@ -1002,7 +961,6 @@ impl Session {
             _ => {
                 let failure = "core returned an unexpected reply variant";
                 self.model.last_error = Some(failure.into());
-                self.model.lifecycle = Lifecycle::RecoveryRequired;
                 self.settle(
                     operation_id,
                     TerminalOutcome::ExecutorFailed(failure.into()),
@@ -1019,10 +977,7 @@ impl Session {
         resolver: EditResolver,
         effects: &mut Vec<Effect>,
     ) {
-        if matches!(
-            self.model.lifecycle,
-            Lifecycle::Closing | Lifecycle::RecoveryRequired
-        ) {
+        if self.model.lifecycle == Lifecycle::Closing {
             self.reject(operation_id, "no editable project is open", effects);
             return;
         }
@@ -1087,7 +1042,7 @@ impl Session {
     ) {
         if matches!(
             self.model.lifecycle,
-            Lifecycle::Closing | Lifecycle::Closed | Lifecycle::RecoveryRequired
+            Lifecycle::Closing | Lifecycle::Closed
         ) || self.model.accepted.is_none()
         {
             self.reject(operation_id, "no editable project is open", effects);
@@ -1106,8 +1061,10 @@ impl Session {
                 .as_ref()
                 .is_none_or(|snapshot| snapshot.document.revision != revision)
         }) {
+            if gesture {
+                self.clear_gesture(effects);
+            }
             self.reject(operation_id, "captured edit revision is stale", effects);
-            self.invalidate_gesture(effects);
             return;
         }
         let preview_transaction_id = match &request {
@@ -1119,7 +1076,6 @@ impl Session {
         let reply = self.core.handle(request);
         let failure = match reply {
             CoreReply::Preview { scene, .. } if preview_transaction_id.is_some() => {
-                self.model.lifecycle = Lifecycle::Ready;
                 self.model.display_preview = Some(Arc::new(scene));
                 self.display_preview_transaction_id = preview_transaction_id;
                 if !gesture {
@@ -1155,22 +1111,21 @@ impl Session {
                 self.model.last_error = None;
                 self.reconcile_selection_and_board();
                 self.model.lifecycle = Lifecycle::Ready;
+                if gesture {
+                    self.clear_gesture(effects);
+                } else {
+                    self.invalidate_gesture(effects);
+                }
                 self.settle_landed(operation_id, landing, effects);
-                self.invalidate_gesture(effects);
                 self.start_save(None, effects);
                 return;
             }
             CoreReply::Error { message, .. } => {
                 self.model.last_error = Some(message.clone());
-                self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
-                self.model.lifecycle = if self.model.accepted.is_some() {
-                    Lifecycle::Ready
-                } else {
-                    Lifecycle::Empty
-                };
                 if gesture {
-                    self.invalidate_gesture(effects);
+                    self.clear_gesture(effects);
                 }
+                self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
                 return;
             }
             CoreReply::Scene { .. } if preview_transaction_id.is_none() => {
@@ -1179,7 +1134,9 @@ impl Session {
             _ => "core returned an unexpected reply variant",
         };
         self.model.last_error = Some(failure.into());
-        self.model.lifecycle = Lifecycle::RecoveryRequired;
+        if gesture {
+            self.clear_gesture(effects);
+        }
         self.settle(
             operation_id,
             TerminalOutcome::ExecutorFailed(failure.into()),
@@ -1197,17 +1154,12 @@ impl Session {
             }
             return effects;
         }
-        let recovering = matches!(event, Event::RecoverWithDocument { .. });
         match event {
             Event::Open {
                 operation_id,
                 document,
-            }
-            | Event::RecoverWithDocument {
-                operation_id,
-                document,
             } => {
-                self.open(operation_id, document, recovering, &mut effects);
+                self.open(operation_id, document, &mut effects);
             }
             Event::PreviewEdit {
                 operation_id,
@@ -1705,8 +1657,10 @@ impl Session {
                     Ok(_) => TerminalOutcome::Cancelled,
                     Err(reason) => TerminalOutcome::ExecutorFailed(reason),
                 };
-                self.exports.retain(|(op, _, _)| *op != operation_id);
-                self.settle(operation_id, outcome, &mut effects);
+                if let Some(index) = self.exports.iter().position(|(op, _, _)| *op == operation_id) {
+                    self.exports.swap_remove(index);
+                    self.settle(operation_id, outcome, &mut effects);
+                }
             }
         }
         if self.pending_save.is_none()
@@ -1856,11 +1810,7 @@ impl Session {
         }
         if failed && let Some(operation) = self.close_operation.take() {
             self.model.lifecycle = Lifecycle::Ready;
-            self.settle(
-                operation,
-                TerminalOutcome::BlockedByRecovery("save failed before close".into()),
-                effects,
-            );
+            self.reject(operation, "save failed before close", effects);
         }
     }
 
@@ -1882,13 +1832,11 @@ impl Session {
         outcome: TerminalOutcome,
         effects: &mut Vec<Effect>,
     ) {
-        if self.settled.insert(operation_id) {
-            effects.push(Effect::Settled {
-                operation_id,
-                outcome,
-                landing: None,
-            });
-        }
+        effects.push(Effect::Settled {
+            operation_id,
+            outcome,
+            landing: None,
+        });
     }
 
     /// Settle a completed operation at the accepted snapshot it just installed, so callers
@@ -1899,7 +1847,6 @@ impl Session {
         landing: Landing,
         effects: &mut Vec<Effect>,
     ) {
-        self.settled.insert(operation_id);
         effects.push(Effect::Settled {
             operation_id,
             outcome: TerminalOutcome::Completed,
