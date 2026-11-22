@@ -56,7 +56,7 @@ fn board_projection_is_repeatable_and_keeps_source_canonical() {
     assert_eq!(reflected.pose.rotation, -15.0);
     assert_eq!(
         resolved.geometry().boards[1].part_ids,
-        [reflected.id.clone()]
+        std::slice::from_ref(&reflected.id)
     );
     assert_eq!(doc.parts.len(), 1);
     assert!(doc.boards[1].part_ids.is_empty());

@@ -354,6 +354,9 @@ pub fn create_half(
         MirroredHalfMode::ReuseBoard { instance_id } => {
             destination.id.clone_from(instance_id);
             destination.flipped = !destination.flipped;
+            destination.controller_part_id = None;
+            destination.construction_ownership =
+                crate::model::MechanicalConstructionOwnership::Local;
         }
     }
     if let Some(label) = labels.and_then(|labels| labels.mirror.as_ref()) {

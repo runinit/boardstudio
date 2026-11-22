@@ -881,23 +881,9 @@ pub(crate) fn apply_with_ledger(
             )?);
             Ok(changed)
         }
-        EditOperation::CreateMirroredHalf {
-            pair_id,
-            source_instance_id,
-            mode,
-            labels,
-            physical_setup,
-            mapping,
-            ..
-        } => mirrored_half::create_half(
-            doc,
-            pair_id,
-            source_instance_id,
-            mode,
-            labels.as_ref(),
-            physical_setup.as_ref(),
-            *mapping,
-        ),
+        EditOperation::CreateMirroredHalf { .. } => {
+            apply_create_mirrored_half(doc, board_contours, op, identities)
+        }
         EditOperation::SetLayout { layout: incoming } => {
             if incoming.mirror_link.is_some() {
                 return Err("Layout mirror links are unsupported; use a mirrored pair".into());
@@ -1019,4 +1005,207 @@ pub(crate) fn apply_with_ledger(
             Ok(changed)
         }
     }
+}
+
+fn feature_correspondences(
+    configuration: &MechanicalConfiguration,
+) -> Vec<crate::mechanical::change::MechanicalFeatureCorrespondence> {
+    let same = |kind: MechanicalFeatureKind, id: &str| {
+        crate::mechanical::change::MechanicalFeatureCorrespondence {
+            kind,
+            first_feature_id: id.into(),
+            second_feature_id: id.into(),
+            source_instance_id: None,
+        }
+    };
+    configuration
+        .mounts
+        .iter()
+        .map(|mount| same(MechanicalFeatureKind::Mount, &mount.id))
+        .chain(
+            configuration
+                .closure_mounts
+                .iter()
+                .flatten()
+                .map(|mount| same(MechanicalFeatureKind::ClosureMount, &mount.id)),
+        )
+        .chain(
+            configuration
+                .openings
+                .iter()
+                .flatten()
+                .map(|opening| same(MechanicalFeatureKind::Opening, &opening.id)),
+        )
+        .chain(
+            configuration
+                .gasket_layout
+                .iter()
+                .flat_map(|layout| &layout.supports)
+                .map(|support| same(MechanicalFeatureKind::GasketSupport, &support.id)),
+        )
+        .collect()
+}
+
+fn apply_create_mirrored_half(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    identities: &mechanical::edit::MechanicalIdentityLedger,
+) -> Result<Vec<String>, String> {
+    let EditOperation::CreateMirroredHalf {
+        pair_id,
+        source_instance_id,
+        mode,
+        labels,
+        physical_setup,
+        companion_mode,
+        companion_tweak,
+        mapping,
+        id_rule,
+        mounting_hole,
+    } = op
+    else {
+        unreachable!("apply_create_mirrored_half requires CreateMirroredHalf");
+    };
+    let MirroredIdRule::BoardPrefix = id_rule;
+    crate::mechanical::halves::validate_companion(*companion_mode, *companion_tweak)?;
+    if !(mapping.at.x.is_finite() && mapping.at.y.is_finite() && mapping.rotation.is_finite()) {
+        return Err("The mirrored half's mapping must be finite.".into());
+    }
+    if matches!(mode, MirroredHalfMode::ReuseBoard { .. }) {
+        if companion_tweak.is_some() {
+            return Err(
+                "reuse-board copies no companions; companionTweak requires new-board".into(),
+            );
+        }
+        if mapping.at.x != 0.0 || mapping.at.y != 0.0 || mapping.rotation != 0.0 {
+            return Err(
+                "A flipped instance of a reused board must use zero translation and zero rotation."
+                    .into(),
+            );
+        }
+    }
+    if let Some(setup) = physical_setup {
+        if setup.topology != HardwareTopology::Split
+            || !matches!(
+                setup.transport,
+                HardwareTransport::Wired | HardwareTransport::Wireless
+            )
+        {
+            return Err(
+                "Mirrored physical setup requires split topology and wired or wireless transport."
+                    .into(),
+            );
+        }
+        let source = &setup.source_instance;
+        if source.id != *source_instance_id
+            || source.board_id != setup.shared_construction.board_id
+            || !doc.boards.iter().any(|board| board.id == source.board_id)
+        {
+            return Err(
+                "Physical setup source and shared construction must belong to a configured board."
+                    .into(),
+            );
+        }
+    }
+    let mut next = doc.clone();
+    let mut changed = mirrored_half::create_half(
+        &mut next,
+        pair_id,
+        source_instance_id,
+        mode,
+        labels.as_ref(),
+        physical_setup.as_ref(),
+        *mapping,
+    )?;
+    let source_board_id = next
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .find(|instance| instance.id == *source_instance_id)
+        })
+        .map(|instance| instance.board_id.clone())
+        .ok_or("Unknown source physical instance")?;
+    let (mirror_instance_id, mirror_board_id, is_new_board) = match mode {
+        MirroredHalfMode::NewBoard {
+            board_id,
+            instance_id,
+        } => (instance_id.as_str(), board_id.clone(), true),
+        MirroredHalfMode::ReuseBoard { instance_id } => {
+            (instance_id.as_str(), source_board_id.clone(), false)
+        }
+    };
+    if let Ok(source_inputs) = crate::mechanical::inputs::effective_inputs(
+        &next,
+        &[],
+        &crate::mechanical::MechanicalTarget::Instance {
+            instance_id: source_instance_id.to_owned(),
+        },
+    ) {
+        if let Some(mirror_instance) = next.hardware.as_mut().and_then(|hardware| {
+            hardware
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == mirror_instance_id)
+        }) && mirror_instance.mechanical.is_none()
+        {
+            let mut cfg = source_inputs.configuration;
+            cfg.board_id.clone_from(&mirror_board_id);
+            if is_new_board {
+                cfg.hardware = None;
+                cfg.critical_fits = None;
+                cfg.battery = None;
+            }
+            mirror_instance.mechanical = Some(cfg);
+        }
+        let mirror_inputs = crate::mechanical::inputs::effective_inputs(
+            &next,
+            &[],
+            &crate::mechanical::MechanicalTarget::Instance {
+                instance_id: mirror_instance_id.to_owned(),
+            },
+        )?;
+        let edit = crate::mechanical::MechanicalEdit {
+            target: crate::mechanical::MechanicalTarget::Instance {
+                instance_id: source_instance_id.to_owned(),
+            },
+            change: crate::mechanical::MechanicalChange::LinkMirrorPair {
+                pair_id: pair_id.to_owned(),
+                members: [source_instance_id.to_owned(), mirror_instance_id.to_owned()],
+                mapping: *mapping,
+                construction_source: source_instance_id.to_owned(),
+                correspondences: feature_correspondences(&mirror_inputs.configuration),
+            },
+            mounting_hole: mounting_hole.clone(),
+        };
+        changed.extend(crate::mechanical::edit::apply_with_ledger(
+            &mut next,
+            board_contours,
+            &edit,
+            identities,
+        )?);
+        if !is_new_board
+            && let Some(pair) = next
+                .hardware
+                .as_mut()
+                .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == *pair_id))
+        {
+            pair.halves = Some(MirroredHalves {
+                companion_mode: *companion_mode,
+                source_board_id,
+                mirror_board_id,
+                correspondences: vec![],
+                exceptions: vec![],
+            });
+        }
+    }
+    layout::validate(&next)?;
+    crate::mechanical::halves::validate_document(&next)?;
+    changed.sort();
+    changed.dedup();
+    *doc = next;
+    Ok(changed)
 }
