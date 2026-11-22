@@ -60,11 +60,12 @@ Never let one provider both invent policy and self-grade its own diffs. Split **
 
 | Provider & Model | Role | Assigned Tracks | Guardrail |
 |---|---|---|---|
-| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, writes strict anti-drift briefs, merges, runs `check_reduction.py` + full `check.py`, prunes worktrees | Owns all merges & vetoes scope creep; **pauses between waves** with a 5-line scoreboard for user approval |
+| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, writes strict anti-drift briefs, merges, runs `check_reduction.py` + full `check.py`, prunes worktrees | Owns all merges & vetoes scope creep; posts a 5-line wave scoreboard and **auto-advances** to the next wave once the Neon High Wave-End Gate Review approves |
 | **Codex — GPT-6.2 Sol** (`reasoningEffort: "low"`) | **Primary Fast Architectural Implementer** | Track 1 (Mirroring), Track 4 (Layout Canvas & Gizmos) | Must receive explicit Deletion Manifest + Banned Patterns + `check_reduction.py` gate verbatim; zero compat shims |
 | **Codex — GPT-6.1 Terra** (`reasoningEffort: "low"`) | **Fast Multi-File & Mechanical Deletion Implementer** | Track 2 (Sync Core & Runtime), Track 3A/3C/3D (UI molecules + `parts`/`pcb`), Track 5A (`core/tests/` & Chrome launches), Track 6B (`core/` trim) | Strictly fenced by `check_reduction.py` manifest & negative LOC limits |
 | **Claude — Opus 5.5** (`effort: "medium"`) | **Conserved Read-Only Architectural & Anti-Bloat Reviewer** | Read-only diff review on Track 1, Track 2, Track 4 (high-risk cutovers only) | Conserves Opus quota; verifies correctness AND flags any sneaky wrappers, compat shims, or missed deletions |
 | **Claude — Sonnet 5.5** (`effort: "low"` / `"medium"`) | **Secondary UI & Script Implementer** | Track 3B (`case`), Track 5B (`scripts/`) | Must pass `check_reduction.py` per sub-track |
+| **Antigravity — Gemini 4 Neon** (`thought_level: "high"`) | **Read-Only Wave-End Gate Auditor & Auto-Approver** | Audits completed Wave 1, Wave 2, and Wave 3 against all discrete plans + `check_reduction.py` + `check.py` | Compares actual diff & metrics vs. plan; issues **`AUTO-APPROVE NEXT WAVE`** (unattended advance) or **`BLOCK`** (1 bounded fix retry, then escalate) |
 | **Antigravity — Gemini 4 Neon** (`thought_level: "low"` / `"medium"`) | **Cross-Crate Web/3D Consolidation Worker** | Track 3E+3F (`keycaps`/`keymap`/`library`/`presentation`), Track 6A (unified 3D host) | Must pass `check_reduction.py` per sub-track |
 
 ---
@@ -75,21 +76,21 @@ Never let one provider both invent policy and self-grade its own diffs. Split **
 flowchart TD
     DEV["dev (5aae86ff4) — 565,286 LOC"] --> T1["Wave 1A: Track 1 — Derived Mirroring (-47k LOC)"]
     DEV --> T2["Wave 1B: Track 2 — Sync Core & Runtime Collapse (-32k LOC)"]
-    T1 --> M1["Merge Wave 1 + Reduction Gate + Full check.py"]
+    T1 --> M1["Merge Wave 1 + Reduction Gate + check.py + Neon High Auto-Approve"]
     T2 --> M1
     M1 --> T3["Wave 2A: Track 3 — Declarative rust-ui Inspectors (-73k LOC, sharded by crate)"]
     M1 --> T4["Wave 2B: Track 4 — Layout Canvas & Gizmo Collapse (-57k LOC)"]
-    T3 --> M2["Merge Wave 2 + Reduction Gate + Full check.py"]
+    T3 --> M2["Merge Wave 2 + Reduction Gate + check.py + Neon High Auto-Approve"]
     T4 --> M2
     M2 --> T5["Wave 3A: Track 5 — Test Suite, Chrome Launches & Scripts Collapse (-80k LOC)"]
     M2 --> T6["Wave 3B: Track 6 — Unified 3D Host, Core Cleanup & Final Audit (-30k LOC)"]
-    T5 --> FINAL["Final Merge: <= 230,000 LOC, check.py <= 75s, Release <= dev"]
+    T5 --> FINAL["Final Merge + Neon High Audit: <= 230,000 LOC, check.py <= 75s, Release <= dev"]
     T6 --> FINAL
 ```
 
-- **Wave 1 (2 parallel worktrees):** Track 1 (Core) and Track 2 (Runtime/Worker) are file-disjoint except for the thin `CoreEngine` call boundary. Integrate and pass `check_reduction.py` + `check.py` before starting Wave 2.
-- **Wave 2 (3–4 parallel worktrees):** Track 3A (`ui-shared` schema molecules, fast first commit), then fan out Track 3B (`case`), Track 3C (`parts` + `pcb`), Track 3D (`keycaps` + `keymap` + `library`), and Track 4 (`layout*`). Never exceed 4 active worktrees.
-- **Wave 3 (2 parallel worktrees):** Track 5 (retire remaining Chrome launches, prune `core/tests/`, slim `scripts/`) and Track 6 (unify 3D viewer, trim `core/crates/{mechanical,kernel,artifact}`, prune stale worktrees).
+- **Wave 1 (2 parallel worktrees):** Track 1 (Core) and Track 2 (Runtime/Worker) are file-disjoint except for the thin `CoreEngine` call boundary. Integrate, pass `check_reduction.py` + `check.py`, then run a read-only `Gemini 4 Neon (high)` audit comparing what was built against the plan; on `VERDICT: AUTO-APPROVE NEXT WAVE`, launch Wave 2 unattended.
+- **Wave 2 (3–4 parallel worktrees):** Track 3A (`ui-shared` schema molecules, fast first commit), then fan out Track 3B (`case`), Track 3C (`parts` + `pcb`), Track 3D (`keycaps` + `keymap` + `library`), and Track 4 (`layout*`). Never exceed 4 active worktrees. After merging and passing `check_reduction.py` + `check.py`, a read-only `Gemini 4 Neon (high)` audit compares against the plan and auto-approves Wave 3 unattended.
+- **Wave 3 (2 parallel worktrees):** Track 5 (retire remaining Chrome launches, prune `core/tests/`, slim `scripts/`) and Track 6 (unify 3D viewer, trim `core/crates/{mechanical,kernel,artifact}`, prune stale worktrees). Conclude with a final read-only `Gemini 4 Neon (high)` audit against the cumulative program goals.
 
 ---
 
@@ -110,6 +111,10 @@ NON-NEGOTIABLE COMPLETION CONTRACT:
 - This is a DELETION-FIRST clean-slate rewrite. BoardStudio is pre-release (not live).
   ZERO backward-compatibility shims, ZERO v7 migration/recovery code, ZERO dual-path wrappers.
 - You MUST delete every file listed in the track's Mandatory Deletion Manifest.
+- UNATTENDED FILE DELETION (zero approval prompts): NEVER run rm, rm -rf, or git rm.
+  Delete files by moving them out of the worktree into /tmp/boardstudio-trash/<track>/
+  (mkdir -p /tmp/boardstudio-trash/<track> && mv <paths> /tmp/boardstudio-trash/<track>/)
+  and staging with git add -u.
 - You MUST pass docs/plans/clean-slate-reduction/check_reduction.py against <BASE_SHA>
   with strictly NEGATIVE net Production Rust LOC and strictly NEGATIVE net Test Rust LOC
   meeting the track's Hard Budget.

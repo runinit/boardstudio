@@ -64,8 +64,10 @@ Every completed wave MUST verify (at integration, not inside parallel lanes) tha
 ### Law 10 — Strict Orchestration & Worktree Hygiene
 - **Max 4 parallel subagent worktrees** at any time; zero overlapping file ownership between active lanes.
 - **No full `check.py`, release builds, or Chrome suites inside parallel worktrees** — run only fast targeted `cargo check` / `cargo test -p <crate>` under the shared lock (`~/.cache/tmp/boardstudio-build.lock`, `BOARDSTUDIO_BUILD_LOCK_FD=9`, `TMPDIR="$HOME/.cache/tmp"`).
+- **Unattended Soft-Delete Rule:** To avoid interactive shell safety prompts during unattended runs (especially in Codex), implementers MUST delete files by moving them out of the worktree (`mkdir -p /tmp/boardstudio-trash/<track> && mv <paths> /tmp/boardstudio-trash/<track>/`) and staging with `git add -u`, NEVER `rm`, `rm -rf`, or `git rm`.
 - **Immediately `git worktree remove`** every merged or abandoned delegate worktree; never leave stale worktrees accumulating gigabytes of `target/` directories.
 - **Review the actual `git diff --stat` and `check_reduction.py` output** before merging any subagent branch.
+- **Wave-End Auto-Approval Gate (`Gemini 4 Neon`, `thought_level: "high"`):** At the end of every wave (after merges, combined `check_reduction.py`, and full `scripts/check.py` pass), dispatch one read-only audit delegate on `antigravity` / `gemini-4-neon` (`thought_level: "high"`) comparing what was built against the wave's plan and all 10 Iron Laws. If it returns `VERDICT: AUTO-APPROVE NEXT WAVE`, post the 5-line scoreboard and proceed immediately to the next wave unattended. If it returns `BLOCK`, fix any bounded gap (≤ 100 LOC) and re-audit once; if still blocked, stop and escalate to the user.
 
 ---
 
@@ -102,3 +104,22 @@ Exit codes:
 5. Did the test count/LOC shrink proportionally instead of piling new tests on top of old ones?
 6. Were zero one-off trial/benchmark scripts or giant `.evidence/` markdown files added?
 7. Did `cargo fmt --all --check` and the required `scripts/check.py` gates pass?
+
+---
+
+## Wave-End Gate Audit Contract (Neon High Auto-Approval)
+
+At the end of **each wave** (Waves 1, 2, and 3), the Orchestrator MUST dispatch one **read-only** audit delegate using `antigravity` / `gemini-4-neon` with `thought_level: "high"` (`role: "review"`).
+
+### What Neon High Compares Against the Plan
+1. **Plan Adherence:** Does the actual merged git diff implement the architecture specified in the wave's track plans (e.g., pure derived projector, no in-memory mirror bloat, no worker/wrapper leftovers), rather than a workaround or partial wrap?
+2. **Whole-Repo `check_reduction.py` Gate:** Did the combined wave commit exit `0` against the true wave base (with strictly negative Production Rust and Test Rust deltas matching the wave budget)?
+3. **Deleted Manifest & Forbidden Symbols:** Are 100% of `--must-delete` files gone from `git ls-files` and 0 `--forbid-symbol` hits present?
+4. **No Regressions / Bloat:** No new `*_trial.py` / `measure-*.py` scripts, no >100-line `.evidence/` inventories, no raw HTML controls left behind, and no WASM/startup/build regressions.
+5. **Test Suite Verification:** Did `cargo fmt --all --check` and full `python3 scripts/check.py` (including `run-drag-browser.py` where applicable) pass on the merged wave commit?
+6. **Worktree Hygiene:** Were merged/abandoned delegate worktrees pruned cleanly?
+
+### Mandatory Verdict Format
+The Neon High auditor MUST end its report with **exactly one** of:
+- `VERDICT: AUTO-APPROVE NEXT WAVE` — Orchestrator immediately posts the 5-line wave scoreboard and launches the next wave unattended.
+- `VERDICT: BLOCK` — Followed by ≤ 3 concrete, bounded (<100 LOC) required fixes. Orchestrator applies/delegates those fixes, re-runs `check_reduction.py` + `scripts/check.py`, and runs one final Neon High re-audit; if still `BLOCK`, pause and escalate to the user.
