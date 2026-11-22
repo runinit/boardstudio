@@ -249,7 +249,8 @@ class PatchedPairWorkflowTests(unittest.TestCase):
                     assert shutil.which(binary, path=env['PATH']) == str(pair / binary)
                 return 0.0, True
             suite = sys.argv[-1]
-            with patch.object(check, 'run_commands', observe_launch):
+            with patch.dict(os.environ, {'CHROME_BIN': '/bin/true', 'CHROMEDRIVER': '/bin/true'}), \
+                 patch.object(check, 'run_commands', observe_launch):
                 assert check._run_plan([(suite, check.STEPS[suite][1])]) == 0
             with open(os.environ["TRACE"], "a") as trace:
                 trace.write("consumer " + " ".join(sys.argv[1:]) + " " + str(pair) + "\\n")

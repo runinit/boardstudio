@@ -16,6 +16,7 @@ DX_TOOLS = Path.home() / ".local/share/.dx/tools"
 # Set to "1" for the `build`, `lint` and `test` steps `check.py` runs together. It generated their
 # shared stylesheet first, and owns their process group.
 IN_OVERLAP_ENV = "BOARDSTUDIO_IN_OVERLAP"
+TEST_CSS_READY = "BOARDSTUDIO_TEST_CSS_READY"
 
 
 def check_jobs() -> int:
@@ -48,3 +49,12 @@ def tailwind_cli() -> Path | None:
     candidates += sorted((path for path in installed if path.is_file() and os.access(path, os.X_OK)),
                          key=lambda path: path.stat().st_mtime, reverse=True)
     return next((path for path in candidates if is_v4(path)), None)
+
+
+def test_css_command() -> list[str]:
+    """Generate the web test stylesheet, with Dioxus as the fallback."""
+    if compiler := tailwind_cli():
+        return [str(compiler), "-i", "tailwind.css", "-o", "assets/tailwind.css"]
+    return ["dx", "build", "--web", "--profile", "wasm-check", "--debug-symbols", "false",
+            "--wasm-js-cfg", "false", "--no-default-features", "--features", "page",
+            "--cargo-args=--locked"]
