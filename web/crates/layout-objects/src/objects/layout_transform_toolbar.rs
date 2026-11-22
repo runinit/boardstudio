@@ -33,7 +33,8 @@ use boardstudio_model::model::{
     PartAnchorValueChange, Pose2, Position, ProjectDoc, Vec2,
 };
 use boardstudio_web_layout_core::{
-    rail_drag::{DragPreview, drag_session_is_ready, nudge_session_is_ready},
+    interaction::CanvasInteraction,
+    rail_drag::{drag_session_is_ready, nudge_session_is_ready},
     rail_state::RailState,
 };
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};

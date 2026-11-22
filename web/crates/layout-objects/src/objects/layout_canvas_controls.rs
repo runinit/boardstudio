@@ -1,6 +1,6 @@
 //! Selection-attached measurements using the Inspector's typed edit route.
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
-use super::matrix_transform_inspector::NumericTransformField;
+use super::transform_properties;
 use super::{LayoutTransformMenuMount, LayoutTransformTool};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, column_angle,
@@ -105,8 +105,6 @@ pub fn LayoutCanvasControls(
     }
 }
 
-// Separate drafts let typing on the canvas coexist with an unfinished Inspector edit.
-// Requests still share the controller's sequence, owner checks and ticket settlement.
 #[component]
 fn CanvasDimension(
     mount: MatrixTransformInspectorMount,
@@ -115,30 +113,5 @@ fn CanvasDimension(
     unit: &'static str,
     value: f64,
 ) -> Element {
-    let Some((_, draft, failure)) = mount
-        .canvas_numeric_fields
-        .iter()
-        .find(|(candidate, _, _)| *candidate == field)
-    else {
-        return rsx! {};
-    };
-    let mut draft = *draft;
-    let mut failure = *failure;
-    use_hook(move || {
-        draft.set(value.to_string());
-        failure.set(None);
-    });
-    let Some(projection) = mount.projection.as_ref() else {
-        return rsx! {};
-    };
-    rsx! {
-        NumericTransformField {
-            owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
-            revision: projection.revision, field, label, unit, value,
-            display_precision: Some(4),
-            request_sequence: mount.request_sequence, editable: mount.editable,
-            feedback: mount.feedback.clone(), on_edit: mount.on_edit,
-            splay_affect: mount.splay_affect, draft, failure,
-        }
-    }
+    transform_properties::number(&mount, field, label, unit, value, true)
 }

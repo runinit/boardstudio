@@ -120,7 +120,7 @@ fn begin_gesture(
                 column,
             },
             tool: LayoutTransformTool::Stagger,
-            preview: DragPreview::default(),
+            interaction: RailDrag::interaction(1),
         },
         matrix: Rc::new(matrix),
         gesture,
@@ -152,7 +152,11 @@ fn offset_drag(
 
 async fn preview(runtime: &Rc<Runtime>, drag: &mut TransformDrag, world: Vec2) -> EditOperation {
     let operation = placement_preview(drag, world, None).expect("a preview");
-    assert!(drag.rail.preview.sample(&operation));
+    assert!(
+        drag.rail
+            .interaction
+            .sample(drag.rail.pointer_id, &operation)
+    );
     drag.rail
         .submit_preview(runtime, &drag.matrix.id, operation.clone());
     support::run_pending(runtime).await;

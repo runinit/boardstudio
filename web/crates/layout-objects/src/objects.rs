@@ -55,10 +55,10 @@ mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
 mod matrix_transform_controller;
-mod matrix_transform_inspector;
 mod matrix_transform_logic;
 mod mirrored_pair;
 mod mirrored_pair_controller;
+mod transform_properties;
 mod tree_projection_logic;
 pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
@@ -97,13 +97,13 @@ pub use matrix_setup_controller::use_matrix_setup;
 pub use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };
-pub use matrix_transform_inspector::{
-    MatrixTransformInspector, MatrixTransformInspectorOwner, SelectionDeleteControl,
-};
 pub use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
 pub use mirrored_pair_controller::use_mirrored_pair;
+pub use transform_properties::{
+    MatrixTransformInspector, MatrixTransformInspectorOwner, SelectionDeleteControl,
+};
 use tree::TreeKind;
 pub use tree::{ScopedTreeContext, TreeContext};
 

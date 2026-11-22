@@ -6,7 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -553,31 +553,16 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let mut default_choice = use_signal(|| "all".to_owned());
     let source_choice = use_memo(move || Some(default_choice()));
     let choice = default_choice();
-    let default_axis = format!("{:.2}", owner.default_axis_x);
-    let mut axis = use_signal(|| default_axis.clone());
-    let axis_value = axis();
-    let axis_number = axis_value
-        .trim()
-        .parse::<f64>()
-        .ok()
-        .filter(|value| value.is_finite());
+    let mut axis = use_signal(|| owner.default_axis_x);
     let has_sources = !owner.options.is_empty();
-    let can_create = props.projection.editable && has_sources && axis_number.is_some();
+    let can_create = props.projection.editable && has_sources;
     let on_create = props.on_create;
     let owner_submit = owner.clone();
-    let axis_submit = axis_value.clone();
     let choice_submit = choice.clone();
     let options = owner.options.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
-        let Some(axis_x) = axis_submit
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|value| value.is_finite())
-        else {
-            return;
-        };
+        let axis_x = axis();
         let matrix_ids = if choice_submit == "all" {
             options
                 .iter()
@@ -699,13 +684,10 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                             );
                             rsx! {
                                 NumericField {
-                                    id: control_input_id, label: "Mirror axis X (mm)", class: "", aria_invalid: None,
-                                    control_class: "max-[760px]:h-control-touch",
-                                    aria_label: "Mirror axis X",
-                                    required: true,
-                                    value: "{axis_value}",
-                                    disabled: !props.projection.editable,
-                                    oninput: move |event: FormEvent| axis.set(event.value()),
+                                    id: control_input_id, label: "Mirror axis X (mm)", aria_label: "Mirror axis X",
+                                    value: axis(), precision: 2,
+                                    disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                                    on_commit: move |value| axis.set(value),
                                 }
                             }
                         }

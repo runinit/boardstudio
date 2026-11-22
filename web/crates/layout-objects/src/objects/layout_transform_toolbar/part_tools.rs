@@ -329,7 +329,7 @@ pub fn LayoutPartToolOverlay(
                 owner: owner_for_start.clone(),
                 context: context_for_start.clone(),
                 tool,
-                preview: DragPreview::default(),
+                interaction: RailDrag::interaction(pointer.pointer_id()),
             },
             part_id: part_for_start.clone(),
             kind,
@@ -447,7 +447,11 @@ pub fn LayoutPartToolOverlay(
             let Some((delta, _, value)) = part_preview_result(&active, &operation) else {
                 return;
             };
-            if !active.rail.preview.sample(&operation) {
+            if !active
+                .rail
+                .interaction
+                .sample(pointer.pointer_id(), &operation)
+            {
                 return;
             }
             active
@@ -474,7 +478,7 @@ pub fn LayoutPartToolOverlay(
     let arbiter_for_end = arbiter.clone();
     let cancel_for_end = cancel.clone();
     let end_drag = Rc::new(move |event: PointerEvent| {
-        let Some((pointer, active)) = drag_event(event, true) else {
+        let Some((pointer, mut active)) = drag_event(event, true) else {
             return;
         };
         let (mut feedback, mut popup_at, mut pending) = (feedback, popup_at, pending);
@@ -521,48 +525,52 @@ pub fn LayoutPartToolOverlay(
                         snap.snap_fraction,
                     )
                 });
-            active.rail.preview.finish(operation).and_then(|sample| {
-                let (feedback_delta, delta, value) =
-                    part_preview_result(&active, &sample.operation)?;
-                if sample.submit_preview {
-                    active
-                        .rail
-                        .submit_preview(&runtime_for_end, &active.part_id, sample.operation);
-                }
-                if feedback_delta.is_zero() {
-                    if active.rail.preview.has_preview() {
+            active
+                .rail
+                .interaction
+                .finish(pointer.pointer_id(), operation)
+                .and_then(|sample| {
+                    let (feedback_delta, delta, value) =
+                        part_preview_result(&active, &sample.operation)?;
+                    if sample.needs_preview {
+                        active.rail.submit_preview(
+                            &runtime_for_end,
+                            &active.part_id,
+                            sample.operation,
+                        );
+                    }
+                    if feedback_delta.is_zero() {
                         active.rail.clear_preview(&runtime_for_end);
+                        return Some(FeedbackEvent::Choose {
+                            name: tool_name.to_owned(),
+                            value,
+                        });
                     }
-                    return Some(FeedbackEvent::Choose {
-                        name: tool_name.to_owned(),
-                        value,
+                    let part_id = active.part_id.clone();
+                    let transaction_id = active.rail.transaction_id.clone();
+                    let resolver = match (active.kind, delta) {
+                        (PartRailDragKind::DetachedRotate, PartAxisDelta::Rotation(delta)) => {
+                            part_detached_rotate_resolver(part_id, transaction_id, delta)
+                        }
+                        (_, delta) => part_anchor_drag_resolver(part_id, transaction_id, delta),
+                    };
+                    let ticket = runtime_for_end.resolve_edit(
+                        "layout-part-rail-drag",
+                        Some("transform".into()),
+                        resolver,
+                    );
+                    pending.write().push(PendingTransformCommit {
+                        ticket,
+                        owner: active.rail.owner.clone(),
+                        context: active.rail.context.clone(),
+                        toast: Some(PendingTransformToast {
+                            tool_name,
+                            value,
+                            delta: feedback_delta,
+                        }),
                     });
-                }
-                let part_id = active.part_id.clone();
-                let transaction_id = active.rail.transaction_id.clone();
-                let resolver = match (active.kind, delta) {
-                    (PartRailDragKind::DetachedRotate, PartAxisDelta::Rotation(delta)) => {
-                        part_detached_rotate_resolver(part_id, transaction_id, delta)
-                    }
-                    (_, delta) => part_anchor_drag_resolver(part_id, transaction_id, delta),
-                };
-                let ticket = runtime_for_end.resolve_edit(
-                    "layout-part-rail-drag",
-                    Some("transform".into()),
-                    resolver,
-                );
-                pending.write().push(PendingTransformCommit {
-                    ticket,
-                    owner: active.rail.owner.clone(),
-                    context: active.rail.context.clone(),
-                    toast: Some(PendingTransformToast {
-                        tool_name,
-                        value,
-                        delta: feedback_delta,
-                    }),
-                });
-                None
-            })
+                    None
+                })
         };
         if let Some(event) = follow_up {
             feedback.set(advance_feedback(&feedback(), event));

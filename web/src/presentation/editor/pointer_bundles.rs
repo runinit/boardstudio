@@ -30,49 +30,51 @@ pub(super) fn use_pointer_bundle(
     let interaction_version = cam.placement.interaction_version;
     let active_workspace = setup_a.active_workspace;
     let space_down = &cam.placement.space_down;
-    let move_pointer = super::pointer::move_pointer_handler(super::pointer::MovePointerInput {
-        navigation: canvas_navigation.clone(),
-        runtime: runtime.clone(),
-        svg: svg.clone(),
-        drag: drag.clone(),
-        adapter: adapter.clone(),
-        render_scope: render_scope.clone(),
-        owner: layout_owner.clone(),
-        snap_settings: layout_snap_settings,
-        placement: part_placement.clone(),
-        matrix_placement: matrix_placement.clone(),
-        tree_cell_anchor: tree_cell_anchor.clone(),
-        mirrored_pair: mirrored_pair.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        workspace,
-        view_x,
-        view_y,
-        width,
-        height,
-        render_generation,
-    });
-    let end_pointer = super::pointer::end_pointer_handler(super::pointer::EndPointerInput {
-        navigation: canvas_navigation.clone(),
-        runtime: runtime.clone(),
-        svg: svg.clone(),
-        drag: drag.clone(),
-        adapter: adapter.clone(),
-        owner: layout_owner.clone(),
-        placement: part_placement.clone(),
-        matrix_placement: matrix_placement.clone(),
-        snap_settings: layout_snap_settings,
-        render_scope: render_scope.clone(),
-        canvas_interaction: canvas_interaction.clone(),
-        workspace,
-        view_x,
-        view_y,
-        width,
-        height,
-        render_generation,
-        interaction_version,
-    });
+    let move_pointer =
+        super::canvas_adapter::move_pointer_handler(super::canvas_adapter::MovePointerInput {
+            navigation: canvas_navigation.clone(),
+            runtime: runtime.clone(),
+            svg: svg.clone(),
+            drag: drag.clone(),
+            adapter: adapter.clone(),
+            render_scope: render_scope.clone(),
+            owner: layout_owner.clone(),
+            snap_settings: layout_snap_settings,
+            placement: part_placement.clone(),
+            matrix_placement: matrix_placement.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            mirrored_pair: mirrored_pair.clone(),
+            canvas_interaction: canvas_interaction.clone(),
+            workspace,
+            view_x,
+            view_y,
+            width,
+            height,
+            render_generation,
+        });
+    let end_pointer =
+        super::canvas_adapter::end_pointer_handler(super::canvas_adapter::EndPointerInput {
+            navigation: canvas_navigation.clone(),
+            runtime: runtime.clone(),
+            svg: svg.clone(),
+            drag: drag.clone(),
+            adapter: adapter.clone(),
+            owner: layout_owner.clone(),
+            placement: part_placement.clone(),
+            matrix_placement: matrix_placement.clone(),
+            snap_settings: layout_snap_settings,
+            render_scope: render_scope.clone(),
+            canvas_interaction: canvas_interaction.clone(),
+            workspace,
+            view_x,
+            view_y,
+            width,
+            height,
+            render_generation,
+            interaction_version,
+        });
     let cancel_pointer =
-        super::pointer::cancel_pointer_handler(super::pointer::CancelPointerInput {
+        super::canvas_adapter::cancel_pointer_handler(super::canvas_adapter::CancelPointerInput {
             runtime: runtime.clone(),
             svg: svg.clone(),
             drag: drag.clone(),
@@ -83,7 +85,7 @@ pub(super) fn use_pointer_bundle(
             render_generation,
             interaction_version,
         });
-    super::pointer::use_pointer_workspace_effect(
+    super::canvas_adapter::use_pointer_workspace_effect(
         active_workspace,
         runtime.clone(),
         drag.clone(),

@@ -2,7 +2,7 @@
 //! `MatrixTransformRequest` as the Inspector's one-shot buttons and send it through the
 //! same `on_edit` path, so there is no second writer of placement parameters.
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
-use super::matrix_transform_inspector::MatrixTransformRequest;
+use super::transform_properties::submit;
 use crate::matrix_relations::DepartureAction;
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
@@ -95,9 +95,7 @@ impl MatrixTransformInspectorMount {
         };
         Some(DepartureControl {
             label,
-            disabled: !self.editable
-                || (self.one_shot_disabled(plan.field))()
-                || plan.blocked.is_some(),
+            disabled: !self.editable || plan.blocked.is_some(),
             reason: plan.blocked,
         })
     }
@@ -125,23 +123,12 @@ impl MatrixTransformInspectorMount {
     /// otherwise returns the submitted request id so the caller can show its feedback.
     pub fn run_departure(&self, action: DepartureAction) -> Option<u64> {
         let plan = self.departure_plan(action)?;
-        let projection = self.projection.as_ref()?;
         if self
             .departure_control(action)
             .is_none_or(|control| control.disabled)
         {
             return None;
         }
-        let mut sequence = self.request_sequence;
-        let id = sequence().checked_add(1)?;
-        sequence.set(id);
-        self.on_edit.call(MatrixTransformRequest::one_shot(
-            projection.owner.clone(),
-            (projection.snapshot_token, projection.revision),
-            id,
-            (plan.field, plan.baseline, plan.value),
-            (self.splay_affect)(),
-        ));
-        Some(id)
+        submit(self, plan.field, plan.baseline, plan.value)
     }
 }

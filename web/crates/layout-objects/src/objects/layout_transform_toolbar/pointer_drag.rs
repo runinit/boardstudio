@@ -9,10 +9,16 @@ pub(super) struct RailDrag {
     pub(super) owner: LayoutOwnerIdentity,
     pub(super) context: TreeContext,
     pub(super) tool: LayoutTransformTool,
-    pub(super) preview: DragPreview<EditOperation>,
+    pub(super) interaction: CanvasInteraction,
 }
 
 impl RailDrag {
+    pub(super) fn interaction(pointer: i32) -> CanvasInteraction {
+        let mut interaction = CanvasInteraction::default();
+        interaction.begin_transform(pointer);
+        interaction
+    }
+
     pub(super) fn submit_preview(
         &self,
         runtime: &Rc<Runtime>,

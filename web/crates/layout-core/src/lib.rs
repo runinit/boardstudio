@@ -17,6 +17,7 @@ mod inspector_fixture;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_projection_tests;
 pub mod inspector_types;
+pub mod interaction;
 pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;

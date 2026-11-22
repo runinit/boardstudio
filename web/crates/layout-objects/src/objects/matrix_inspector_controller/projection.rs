@@ -310,27 +310,3 @@ pub(super) fn project_current_for(
         editable,
     ))
 }
-
-pub(super) fn matrix_field_value_text(
-    projection: Option<&MatrixInspectorProjection>,
-    field: MatrixEditField,
-) -> String {
-    let Some(projection) = projection else {
-        return String::new();
-    };
-    match field {
-        MatrixEditField::Name => projection.name_value.clone(),
-        MatrixEditField::Rows => projection.rows.to_string(),
-        MatrixEditField::Columns => projection.columns.to_string(),
-        MatrixEditField::PitchX => projection.pitch_x.to_string(),
-        MatrixEditField::PitchY => projection.pitch_y.to_string(),
-        MatrixEditField::SwitchDefinition => projection.definition_id.clone(),
-        MatrixEditField::DiodeDirection => match projection.diode_direction {
-            DiodeDirection::Row2col => "row2col".to_owned(),
-            DiodeDirection::Col2row => "col2row".to_owned(),
-        },
-        MatrixEditField::EdgeGapX => projection.edge_gap_x.to_string(),
-        MatrixEditField::EdgeGapY => projection.edge_gap_y.to_string(),
-        MatrixEditField::ApplyPreset => String::new(),
-    }
-}

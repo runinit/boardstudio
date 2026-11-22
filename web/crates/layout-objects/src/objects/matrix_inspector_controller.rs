@@ -1,9 +1,9 @@
 //! Fresh accepted-source admission and exact operation acknowledgement for matrix fields.
 use super::matrix_inspector::{
     MatrixDeleteRequest, MatrixDuplicateRequest, MatrixEditFeedback, MatrixEditField,
-    MatrixEditRequest, MatrixEditValue, MatrixFieldView, MatrixInspectorOwner,
-    MatrixInspectorProjection, MatrixLayoutRelation, MatrixNameTarget, MatrixPreset,
-    MatrixPresetRequest, MatrixUnlinkRequest, SwitchOrientation,
+    MatrixEditRequest, MatrixEditValue, MatrixInspectorOwner, MatrixInspectorProjection,
+    MatrixLayoutRelation, MatrixNameTarget, MatrixPreset, MatrixPresetRequest, MatrixUnlinkRequest,
+    SwitchOrientation,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
@@ -212,8 +212,6 @@ pub struct MatrixInspectorMount {
     /// Field edits never read this: they queue freely.
     pub busy: bool,
     pub inspector_mounted: Signal<bool>,
-    pub fields: Vec<(MatrixEditField, MatrixFieldView)>,
-    pub pending_fields: Vec<MatrixEditField>,
     pub add_row_pending: bool,
     pub add_column_pending: bool,
     pub feedback: Vec<MatrixEditFeedback>,
@@ -337,17 +335,6 @@ pub fn use_matrix_inspector(
     let last_request_id = use_signal(|| 0u64);
     let _ = version();
     let inspector_mounted = use_signal(|| false);
-    // One draft/failure pair per editable field, in `MatrixEditField::ALL` order.
-    // `from_fn` invokes the hooks in a fixed order, so every render keeps the
-    // same durable draft signals.
-    let drafts: [(Signal<String>, Signal<Option<String>>); MatrixEditField::ALL.len()] =
-        std::array::from_fn(|_| (use_signal(String::new), use_signal(|| None::<String>)));
-    let fields: Vec<(MatrixEditField, MatrixFieldView)> = MatrixEditField::ALL
-        .into_iter()
-        .zip(drafts)
-        .map(|(field, (draft, failure))| (field, MatrixFieldView { draft, failure }))
-        .collect();
-    let mut field_owner = use_signal(|| None::<MatrixInspectorOwner>);
     let preparing_preset = use_signal(|| false);
     let duplicating = use_signal(|| false);
     let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
@@ -385,23 +372,9 @@ pub fn use_matrix_inspector(
         projection
     });
     let projection = fresh_projection;
-    let current_field_owner = projection
-        .as_ref()
-        .map(|projection| projection.owner.clone());
-    if field_owner.read().as_ref() != current_field_owner.as_ref() {
-        field_owner.set(current_field_owner);
-        for (field, view) in &fields {
-            let mut draft = view.draft;
-            let mut failure = view.failure;
-            draft.set(matrix_field_value_text(projection.as_ref(), *field));
-            failure.set(None);
-        }
-    }
-
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let callback_fields = fields.clone();
         let mut last_request_id = last_request_id;
         let mut feedback = feedback;
         move |request: MatrixEditRequest| {
@@ -506,22 +479,8 @@ pub fn use_matrix_inspector(
                     catalogue_definition,
                 ),
             );
-            let (next, _) = project_current(
-                &runtime,
-                Some(&selected),
-                editor_instance_id,
-                current_generation,
-                current_scope_generation,
-                current_workspace,
-            );
-            if let Some((_, view)) = callback_fields
-                .iter()
-                .find(|(field, _)| *field == request.field)
-            {
-                let mut draft = view.draft;
-                draft.set(matrix_field_value_text(next.as_ref(), request.field));
-                let mut failure = view.failure;
-                failure.set(result.err());
+            if let Err(message) = result {
+                publish_feedback(&mut feedback, &request, message);
             }
         }
     });
@@ -934,8 +893,6 @@ pub fn use_matrix_inspector(
         editable,
         busy: preparing_preset() || duplicating(),
         inspector_mounted,
-        fields,
-        pending_fields: Vec::new(),
         add_row_pending: false,
         add_column_pending: false,
         feedback: feedback.read().clone(),
@@ -957,9 +914,7 @@ use edits::{
     build_operation, clear_action_feedback, duplicate_design_variant, field_value,
     prepare_preset_matrix, publish_action_feedback, publish_feedback,
 };
-use projection::{
-    MatrixProjectionContext, matrix_field_value_text, project_current, project_current_for,
-};
+use projection::{MatrixProjectionContext, project_current, project_current_for};
 use variant::is_reversible;
 
 pub use projection::switch_choices;

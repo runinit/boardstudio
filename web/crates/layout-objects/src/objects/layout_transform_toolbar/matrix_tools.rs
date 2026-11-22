@@ -499,7 +499,7 @@ pub fn LayoutTransformToolOverlay(
                 owner: current_owner.clone(),
                 context: current_context.clone(),
                 tool,
-                preview: DragPreview::default(),
+                interaction: RailDrag::interaction(pointer.pointer_id()),
             },
             matrix: matrix_for_start.clone(),
             gesture,
@@ -573,7 +573,10 @@ pub fn LayoutTransformToolOverlay(
             },
         );
         if let Some(operation) = operation
-            && active.rail.preview.sample(&operation)
+            && active
+                .rail
+                .interaction
+                .sample(pointer.pointer_id(), &operation)
         {
             active
                 .rail
@@ -618,7 +621,7 @@ pub fn LayoutTransformToolOverlay(
         let mut popup_at_for_end = popup_at_for_end;
         let mut pending_for_end = pending_for_end;
         let svg_handle_for_end = svg_handle_for_end_outer.clone();
-        let Some((pointer, active)) = drag_event(event, true) else {
+        let Some((pointer, mut active)) = drag_event(event, true) else {
             return;
         };
         let point =
@@ -639,9 +642,13 @@ pub fn LayoutTransformToolOverlay(
                 },
             )
         });
-        if let Some(sample) = active.rail.preview.finish(operation) {
+        if let Some(sample) = active
+            .rail
+            .interaction
+            .finish(pointer.pointer_id(), operation)
+        {
             let operation = sample.operation;
-            if sample.submit_preview {
+            if sample.needs_preview {
                 active
                     .rail
                     .submit_preview(&runtime_for_end, &active.matrix.id, operation.clone());

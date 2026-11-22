@@ -1171,10 +1171,10 @@ pub(super) fn abandon_transform_drag(
     drag: &Rc<RefCell<Option<TransformDrag>>>,
     arbiter: &CanvasInteractionArbiter,
 ) -> bool {
-    let Some(active) = drag.borrow_mut().take() else {
+    let Some(mut active) = drag.borrow_mut().take() else {
         return false;
     };
-    if active.rail.preview.has_preview() {
+    if active.rail.interaction.cancel() {
         active.rail.clear_preview(runtime);
     }
     active.rail.release(arbiter);

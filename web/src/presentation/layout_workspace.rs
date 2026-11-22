@@ -656,8 +656,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 editable: input.matrix_inspector.editable,
                 busy: input.matrix_inspector.busy,
                 inspector_mounted: input.matrix_inspector.inspector_mounted,
-                fields: input.matrix_inspector.fields.clone(),
-                pending_fields: input.matrix_inspector.pending_fields.clone(),
                 feedback: input.matrix_inspector.feedback.clone(),
                 on_edit: input.matrix_inspector.on_edit,
                 on_apply_preset: input.matrix_inspector.on_apply_preset,

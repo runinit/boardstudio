@@ -1,5 +1,5 @@
 //! Accepted-snapshot projection and exact operation lifecycle for transform fields.
-use super::matrix_transform_inspector::{
+use super::transform_properties::{
     MatrixTransformFeedback, MatrixTransformInspectorOwner, MatrixTransformProjection,
     MatrixTransformRequest,
 };
@@ -403,10 +403,6 @@ pub struct MatrixTransformInspectorMount {
     pub splay_affect: Signal<MatrixSplayAffect>,
     pub(super) inspector_mounted: Signal<bool>,
     pub(super) canvas_mounted: Signal<bool>,
-    pub(super) numeric_fields: Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
-    pub(super) canvas_numeric_fields:
-        Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
-    one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
     pub(super) change_status: Signal<Option<TransformChangeAnnouncement>>,
     /// The pending canvas multi-Pick draft: the owner it was armed for and the
     /// picked parts. Owner-tagged so a selection change orphans it instead of
@@ -416,26 +412,6 @@ pub struct MatrixTransformInspectorMount {
 }
 
 impl MatrixTransformInspectorMount {
-    pub(super) fn one_shot_disabled(&self, field: MatrixTransformField) -> Signal<bool> {
-        self.one_shot_fields
-            .iter()
-            .find(|(candidate, _)| *candidate == field)
-            .expect("one-shot transform action has a stable view")
-            .1
-    }
-
-    pub(super) fn numeric_field(
-        &self,
-        field: MatrixTransformField,
-    ) -> (Signal<String>, Signal<Option<String>>) {
-        let (_, draft, failure) = self
-            .numeric_fields
-            .iter()
-            .find(|(candidate, _, _)| *candidate == field)
-            .expect("numeric transform field has a stable view");
-        (*draft, *failure)
-    }
-
     /// A canvas pick of the anchor key: retargets the anchor to the picked
     /// key identity, keeping the Follow subset, through one `SetMatrixAnchor`
     /// intent. Core validates the target (same Layout, no cycle, not
@@ -473,10 +449,6 @@ impl MatrixTransformInspectorMount {
                 column,
             },
             splay_affect: (self.splay_affect)(),
-            draft: None,
-            failure: None,
-            submitted_text: None,
-            one_shot: false,
         });
         true
     }
@@ -559,10 +531,6 @@ impl MatrixTransformInspectorMount {
             baseline: MatrixTransformValue::Point(*splay_origin),
             value: MatrixTransformValue::Point(point),
             splay_affect: (self.splay_affect)(),
-            draft: None,
-            failure: None,
-            submitted_text: None,
-            one_shot: false,
         });
         true
     }
@@ -606,72 +574,8 @@ pub fn use_workspace_matrix_transform(
         tracker.value
     };
 
-    let numeric_fields = use_hook(|| {
-        [
-            MatrixTransformField::OriginX,
-            MatrixTransformField::OriginY,
-            MatrixTransformField::MatrixRotation,
-            MatrixTransformField::RowOffsetX,
-            MatrixTransformField::RowOffsetY,
-            MatrixTransformField::RowShiftX,
-            MatrixTransformField::RowShiftY,
-            MatrixTransformField::RowBend,
-            MatrixTransformField::RowPadding,
-            MatrixTransformField::ColumnSplay,
-            MatrixTransformField::SplayOriginX,
-            MatrixTransformField::SplayOriginY,
-            MatrixTransformField::ColumnStagger,
-            MatrixTransformField::ColumnSpread,
-            MatrixTransformField::ColumnOffsetX,
-            MatrixTransformField::ColumnOffsetY,
-            MatrixTransformField::KeyOffsetX,
-            MatrixTransformField::KeyOffsetY,
-            MatrixTransformField::KeyShiftX,
-            MatrixTransformField::KeyShiftY,
-            MatrixTransformField::KeyBend,
-            MatrixTransformField::KeyRotation,
-        ]
-        .into_iter()
-        .map(|field| {
-            (
-                field,
-                Signal::new(String::new()),
-                Signal::new(None::<String>),
-            )
-        })
-        .collect::<Vec<_>>()
-    });
-    let canvas_numeric_fields = use_hook(|| {
-        numeric_fields
-            .iter()
-            .map(|(field, _, _)| {
-                (
-                    *field,
-                    Signal::new(String::new()),
-                    Signal::new(None::<String>),
-                )
-            })
-            .collect::<Vec<_>>()
-    });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let one_shot_fields = use_hook(|| {
-        [
-            MatrixTransformField::RowOffsetReset,
-            MatrixTransformField::ColumnOffsetReset,
-            MatrixTransformField::ColumnOffsetConvert,
-            MatrixTransformField::KeyTransformReset,
-            MatrixTransformField::MatrixDetach,
-            MatrixTransformField::MatrixDetachConfirm,
-            MatrixTransformField::KeyAssembliesLocal,
-            MatrixTransformField::KeyAttached,
-            MatrixTransformField::KeyAddAnchoredMatrix,
-            MatrixTransformField::DeleteSelection,
-        ]
-        .into_iter()
-        .map(|field| (field, Signal::new(false)))
-        .collect::<Vec<_>>()
-    });
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let change_status = use_signal(|| None::<TransformChangeAnnouncement>);
     let aggregate_pick_draft =
@@ -1108,9 +1012,6 @@ pub fn use_workspace_matrix_transform(
                 resolver
             };
             let result = runtime.commit("layout-matrix-transform", resolver);
-            if let Some(mut draft) = request.draft {
-                draft.set(accepted_field_text(&runtime, &request));
-            }
             let announcement = result
                 .as_ref()
                 .ok()
@@ -1137,9 +1038,6 @@ pub fn use_workspace_matrix_transform(
         splay_affect,
         inspector_mounted,
         canvas_mounted,
-        canvas_numeric_fields,
-        numeric_fields,
-        one_shot_fields,
         change_status,
         aggregate_pick_draft,
     }
@@ -1149,7 +1047,7 @@ pub fn use_workspace_matrix_transform(
 mod fields;
 #[path = "matrix_transform_controller/projection.rs"]
 mod projection;
-use fields::{accepted_field_text, field_value, publish_request_failure};
+use fields::{field_value, publish_request_failure};
 use projection::{
     ProjectionContext, project_current, project_current_for, transform_fields,
     workspace_route_matches,

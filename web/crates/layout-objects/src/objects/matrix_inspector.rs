@@ -7,19 +7,11 @@ use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
 };
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
-
-use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 
@@ -43,19 +35,6 @@ impl MatrixPreset {
 }
 
 impl MatrixEditField {
-    /// Every editable field, in the controller's draft-signal order.
-    pub(crate) const ALL: [Self; 9] = [
-        Self::Name,
-        Self::Rows,
-        Self::Columns,
-        Self::PitchX,
-        Self::PitchY,
-        Self::SwitchDefinition,
-        Self::DiodeDirection,
-        Self::EdgeGapX,
-        Self::EdgeGapY,
-    ];
-
     fn key(self) -> &'static str {
         match self {
             Self::Name => "name",
@@ -167,18 +146,6 @@ pub struct MatrixEditFeedback {
     pub message: String,
 }
 
-#[derive(Clone, Copy)]
-pub struct MatrixFieldView {
-    pub draft: Signal<String>,
-    pub failure: Signal<Option<String>>,
-}
-
-impl PartialEq for MatrixFieldView {
-    fn eq(&self, other: &Self) -> bool {
-        self.draft == other.draft && self.failure == other.failure
-    }
-}
-
 #[derive(Props, Clone, PartialEq)]
 pub struct MatrixInspectorProps {
     pub projection: MatrixInspectorProjection,
@@ -186,8 +153,6 @@ pub struct MatrixInspectorProps {
     pub editable: bool,
     pub busy: bool,
     pub inspector_mounted: Signal<bool>,
-    pub fields: Vec<(MatrixEditField, MatrixFieldView)>,
-    pub pending_fields: Vec<MatrixEditField>,
     pub feedback: Vec<MatrixEditFeedback>,
     pub on_edit: EventHandler<MatrixEditRequest>,
     pub on_apply_preset: EventHandler<MatrixPresetRequest>,
@@ -304,15 +269,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
             && feedback.field == MatrixEditField::ApplyPreset
             && preset_request_id() == Some(feedback.request_id)
     });
-    let field_view = |field| {
-        props
-            .fields
-            .iter()
-            .find(|(candidate, _)| *candidate == field)
-            .map(|(_, view)| *view)
-            .expect("Matrix Inspector fields are wired by the controller")
-    };
-    let field_pending = |field| props.pending_fields.contains(&field);
     let name_key = owner_key(&projection.owner, MatrixEditField::Name);
     let rows_key = owner_key(&projection.owner, MatrixEditField::Rows);
     let columns_key = owner_key(&projection.owner, MatrixEditField::Columns);
@@ -354,8 +310,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             request_sequence: props.request_sequence,
                             editable: props.editable,
                             feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Name),
-                            pending: field_pending(MatrixEditField::Name),
                             on_edit: props.on_edit,
                         }
                     }
@@ -375,8 +329,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             request_sequence: props.request_sequence,
                             editable: props.editable,
                             feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Rows),
-                            pending: field_pending(MatrixEditField::Rows),
                             on_edit: props.on_edit,
                         }
                     }
@@ -396,8 +348,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             request_sequence: props.request_sequence,
                             editable: props.editable,
                             feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Columns),
-                            pending: field_pending(MatrixEditField::Columns),
                             on_edit: props.on_edit,
                         }
                     }
@@ -417,8 +367,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             request_sequence: props.request_sequence,
                             editable: props.editable,
                             feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::PitchX),
-                            pending: field_pending(MatrixEditField::PitchX),
                             on_edit: props.on_edit,
                         }
                     }
@@ -438,8 +386,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             request_sequence: props.request_sequence,
                             editable: props.editable,
                             feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::PitchY),
-                            pending: field_pending(MatrixEditField::PitchY),
                             on_edit: props.on_edit,
                         }
                     }
@@ -613,8 +559,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                             request_sequence: props.request_sequence,
                                             editable: props.editable,
                                             feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::SwitchDefinition),
-                                            pending: field_pending(MatrixEditField::SwitchDefinition),
                                             on_edit: props.on_edit,
                                         }
                                     }
@@ -642,8 +586,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                             request_sequence: props.request_sequence,
                                             editable: props.editable,
                                             feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::DiodeDirection),
-                                            pending: field_pending(MatrixEditField::DiodeDirection),
                                             on_edit: props.on_edit,
                                         }
                                     }
@@ -687,8 +629,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                             request_sequence: props.request_sequence,
                                             editable: props.editable,
                                             feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::EdgeGapX),
-                                            pending: field_pending(MatrixEditField::EdgeGapX),
                                             on_edit: props.on_edit,
                                         }
                                     }
@@ -713,8 +653,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                             request_sequence: props.request_sequence,
                                             editable: props.editable,
                                             feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::EdgeGapY),
-                                            pending: field_pending(MatrixEditField::EdgeGapY),
                                             on_edit: props.on_edit,
                                         }
                                     }

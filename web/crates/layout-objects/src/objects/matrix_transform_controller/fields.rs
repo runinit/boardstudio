@@ -1,4 +1,3 @@
-use super::projection::transform_fields;
 use super::*;
 
 pub(super) fn field_value(
@@ -175,57 +174,14 @@ pub(super) fn field_value(
     }
 }
 
-pub(super) fn accepted_field_text(runtime: &Runtime, request: &MatrixTransformRequest) -> String {
-    let Some(snapshot) = runtime.model().accepted else {
-        return String::new();
-    };
-    let Some(matrix) = snapshot
-        .document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == request.owner.matrix_id)
-    else {
-        return String::new();
-    };
-    transform_fields(
-        &snapshot,
-        &request.owner.scope.board_id,
-        &request.owner.context,
-        matrix,
-    )
-    .and_then(|fields| field_value(&fields, request.field, &request.splay_affect))
-    .and_then(|value| match value {
-        MatrixTransformValue::Number(value) => Some(value.to_string()),
-        _ => None,
-    })
-    .unwrap_or_default()
-}
-
 pub(super) fn publish_request_failure(
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
     request: &MatrixTransformRequest,
     message: Option<String>,
 ) {
-    if let Some(mut failure) = request.failure {
-        failure.set(message);
-    } else {
-        publish_feedback(
-            feedback,
-            &request.owner,
-            request.request_id,
-            request.field,
-            message,
-        );
-    }
-}
-
-pub(super) fn publish_feedback(
-    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    owner: &MatrixTransformInspectorOwner,
-    request_id: u64,
-    field: MatrixTransformField,
-    message: Option<String>,
-) {
+    let owner = &request.owner;
+    let request_id = request.request_id;
+    let field = request.field;
     let next = MatrixTransformFeedback {
         owner: owner.clone(),
         request_id,

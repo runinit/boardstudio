@@ -236,14 +236,14 @@ pub(super) fn cancel_part_drag(
     arbiter: &CanvasInteractionArbiter,
     svg: &LayoutTransformSvg,
 ) {
-    let Some(active) = drag.borrow_mut().take() else {
+    let Some(mut active) = drag.borrow_mut().take() else {
         return;
     };
     if active.gesture_begun {
         runtime.submit(Event::GestureCancel {
             pointer_id: i64::from(active.rail.pointer_id),
         });
-    } else if active.rail.preview.has_preview() {
+    } else if active.rail.interaction.cancel() {
         active.rail.clear_preview(runtime);
     }
     active.rail.release(arbiter);

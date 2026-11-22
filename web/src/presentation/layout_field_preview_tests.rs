@@ -170,7 +170,12 @@ fn count(root_id: &str, selector: &str) -> u32 {
 
 fn dispatch(element: &web_sys::Element, kind: &str) {
     let event = web_sys::PointerEvent::new(kind).unwrap();
-    element.dispatch_event(event.as_ref()).unwrap();
+    element
+        .closest("[data-transform-number]")
+        .unwrap()
+        .unwrap()
+        .dispatch_event(event.as_ref())
+        .unwrap();
 }
 
 fn host() -> Element {

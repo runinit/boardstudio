@@ -1,5 +1,5 @@
 macro_rules! render_inspector {
-    ($props:ident, $mirror_section_open:ident, $outline_section_open:ident, $projection:ident, $owner:ident, $latest_capture:ident, $tab:ident, $constraint_open:ident, $x:ident, $y:ident, $margin:ident, $x_failure:ident, $y_failure:ident, $margin_failure:ident, $constraint_kind:ident, $source_part_id:ident, $offset_axes:ident, $offset_x:ident, $offset_y:ident, $rotation:ident, $mirror_axis:ident, $mirror_coordinate:ident, $mirror_line_x:ident, $mirror_line_y:ident, $mirror_line_angle:ident, $layout_choice:ident, $kind_choice:ident, $source_choice:ident, $axes_choice:ident, $axis_choice:ident, $error:ident, $anchor_spread:ident, $anchor_stagger:ident, $anchor_splay:ident, $anchor_offset_x:ident, $anchor_offset_y:ident, $anchor_rotation:ident, $pick_matrix:ident, $pick_matrix_choice:ident, $pick_row:ident, $pick_column:ident, $pick_follow_x:ident, $pick_follow_y:ident, $pick_follow_rotation:ident, $mirrored_half_action:ident, $board_parts:ident, $reset_properties_drafts:ident, $last_enter_commit:ident, $commit_position:ident, $set_outline:ident, $commit_anchor_follow:ident, $commit_anchor_pick:ident, $commit_anchor_detach:ident, $anchor_follow:ident, $anchor_follow_text:ident, $anchor_locked:ident, $anchor_choices:ident, $anchor_number_field:ident, $has_active_constraint:ident, $choose_offset_axes:ident, $save_constraint:ident, $remove_constraint:ident, $position:ident, $group_selection:ident, $outline:ident, $active_constraint:ident, $constraint_source_reference:ident, $constraint_target_reference:ident) => {{
+    ($props:ident, $mirror_section_open:ident, $outline_section_open:ident, $projection:ident, $owner:ident, $latest_capture:ident, $tab:ident, $constraint_open:ident, $margin:ident, $x_failure:ident, $y_failure:ident, $margin_failure:ident, $constraint_kind:ident, $source_part_id:ident, $offset_axes:ident, $offset_x:ident, $offset_y:ident, $rotation:ident, $mirror_axis:ident, $mirror_coordinate:ident, $mirror_line_x:ident, $mirror_line_y:ident, $mirror_line_angle:ident, $layout_choice:ident, $kind_choice:ident, $source_choice:ident, $axes_choice:ident, $axis_choice:ident, $error:ident, $pick_matrix:ident, $pick_matrix_choice:ident, $pick_row:ident, $pick_column:ident, $pick_follow_x:ident, $pick_follow_y:ident, $pick_follow_rotation:ident, $mirrored_half_action:ident, $board_parts:ident, $reset_properties_drafts:ident, $commit_position:ident, $set_outline:ident, $commit_anchor_follow:ident, $commit_anchor_pick:ident, $commit_anchor_detach:ident, $anchor_follow:ident, $anchor_follow_text:ident, $anchor_locked:ident, $anchor_choices:ident, $anchor_number_field:ident, $has_active_constraint:ident, $choose_offset_axes:ident, $save_constraint:ident, $remove_constraint:ident, $position:ident, $group_selection:ident, $outline:ident, $active_constraint:ident, $constraint_source_reference:ident, $constraint_target_reference:ident) => {{
         let props = $props.clone();
         let mut mirror_section_open = $mirror_section_open;
         let mut outline_section_open = $outline_section_open;
@@ -8,8 +8,6 @@ macro_rules! render_inspector {
         let latest_capture = $latest_capture;
         let mut tab = $tab;
         let mut constraint_open = $constraint_open;
-        let mut x = $x;
-        let mut y = $y;
         let mut margin = $margin;
         let x_failure = $x_failure;
         let y_failure = $y_failure;
@@ -31,12 +29,6 @@ macro_rules! render_inspector {
         let axes_choice = $axes_choice;
         let axis_choice = $axis_choice;
         let mut error = $error;
-        let anchor_spread = $anchor_spread;
-        let anchor_stagger = $anchor_stagger;
-        let anchor_splay = $anchor_splay;
-        let anchor_offset_x = $anchor_offset_x;
-        let anchor_offset_y = $anchor_offset_y;
-        let anchor_rotation = $anchor_rotation;
         let mut pick_matrix = $pick_matrix;
         let pick_matrix_choice = $pick_matrix_choice;
         let mut pick_row = $pick_row;
@@ -47,7 +39,6 @@ macro_rules! render_inspector {
         let mirrored_half_action = $mirrored_half_action;
         let board_parts = $board_parts;
         let reset_properties_drafts = $reset_properties_drafts;
-        let last_enter_commit = $last_enter_commit;
         let commit_position = $commit_position;
         let set_outline = $set_outline;
         let commit_anchor_follow = $commit_anchor_follow;
@@ -274,46 +265,26 @@ macro_rules! render_inspector {
                         p { "Anchored to {anchor.key_label()} · follows {anchor_follow_text.as_deref().unwrap_or(\"none\")}" }
                         h3 { class: "flex items-baseline justify-between text-[13px]", "Carried from the anchor", small { "anchor frame" } }
                         div { class: "grid grid-cols-2 gap-2",
-                            {anchor_number_field("Spread (mm)", "Anchor spread millimetres", "spread", anchor_spread,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread),
-                                projection.anchor.as_ref().map(|anchor| anchor.spread),
+                            {anchor_number_field("Spread (mm)", "Anchor spread millimetres", "spread", anchor.spread,
                                 Rc::new(PartAnchorValueChange::Spread))}
-                            {anchor_number_field("Stagger (mm)", "Anchor stagger millimetres", "stagger", anchor_stagger,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger),
-                                projection.anchor.as_ref().map(|anchor| anchor.stagger),
+                            {anchor_number_field("Stagger (mm)", "Anchor stagger millimetres", "stagger", anchor.stagger,
                                 Rc::new(PartAnchorValueChange::Stagger))}
-                            {anchor_number_field("Splay (degrees)", "Anchor splay degrees", "splay", anchor_splay,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay),
-                                projection.anchor.as_ref().map(|anchor| anchor.splay),
+                            {anchor_number_field("Splay (degrees)", "Anchor splay degrees", "splay", anchor.splay,
                                 Rc::new(PartAnchorValueChange::Splay))}
                         }
                         h3 { class: "flex items-baseline justify-between text-[13px]", "This part only", small { "millimetres, degrees" } }
                         div { class: "grid grid-cols-2 gap-2",
-                            {anchor_number_field("Offset X (mm)", "Anchor offset X millimetres", "offset-x", anchor_offset_x,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x),
-                                projection.anchor.as_ref().map(|anchor| anchor.offset.x),
+                            {anchor_number_field("Offset X (mm)", "Anchor offset X millimetres", "offset-x", anchor.offset.x,
                                 Rc::new({
-                                    let other = anchor_offset_y;
-                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.y).unwrap_or(0.0);
-                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
-                                        x: value,
-                                        y: anchor_commit_value(&other()).unwrap_or(fallback),
-                                    })
+                                    let y = anchor.offset.y;
+                                    move |x| PartAnchorValueChange::Offset(Vec2 { x, y })
                                 }))}
-                            {anchor_number_field("Offset Y (mm)", "Anchor offset Y millimetres", "offset-y", anchor_offset_y,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y),
-                                projection.anchor.as_ref().map(|anchor| anchor.offset.y),
+                            {anchor_number_field("Offset Y (mm)", "Anchor offset Y millimetres", "offset-y", anchor.offset.y,
                                 Rc::new({
-                                    let other = anchor_offset_x;
-                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.x).unwrap_or(0.0);
-                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
-                                        x: anchor_commit_value(&other()).unwrap_or(fallback),
-                                        y: value,
-                                    })
+                                    let x = anchor.offset.x;
+                                    move |y| PartAnchorValueChange::Offset(Vec2 { x, y })
                                 }))}
-                            {anchor_number_field("Rotation (degrees)", "Anchor rotation degrees", "rotation", anchor_rotation,
-                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation),
-                                projection.anchor.as_ref().map(|anchor| anchor.rotation),
+                            {anchor_number_field("Rotation (degrees)", "Anchor rotation degrees", "rotation", anchor.rotation,
                                 Rc::new(PartAnchorValueChange::Rotation))}
                         }
                         fieldset { class: "flex flex-wrap gap-3", disabled: anchor_locked,
@@ -357,14 +328,14 @@ macro_rules! render_inspector {
                           }
                         }
                         NumericField {
-                            id: "anchor-row", label: "Row", step: "1", min: "1", value: "{pick_row}",
-                            class: "", control_class: "", aria_invalid: None, aria_label: "Anchor row",
-                            disabled: anchor_locked, oninput: move |event: FormEvent| pick_row.set(event.value()),
+                            id: "anchor-row", label: "Row", step: Some(1.0), min: Some(1.0), value: pick_row().parse::<f64>().unwrap_or(1.0),
+                            aria_label: "Anchor row", disabled_reason: anchor_locked.then(|| "Anchor is unavailable".to_owned()),
+                            on_commit: move |value: f64| pick_row.set(value.to_string()),
                         }
                         NumericField {
-                            id: "anchor-column", label: "Column", step: "1", min: "1", value: "{pick_column}",
-                            class: "", control_class: "", aria_invalid: None, aria_label: "Anchor column",
-                            disabled: anchor_locked, oninput: move |event: FormEvent| pick_column.set(event.value()),
+                            id: "anchor-column", label: "Column", step: Some(1.0), min: Some(1.0), value: pick_column().parse::<f64>().unwrap_or(1.0),
+                            aria_label: "Anchor column", disabled_reason: anchor_locked.then(|| "Anchor is unavailable".to_owned()),
+                            on_commit: move |value: f64| pick_column.set(value.to_string()),
                         }
                         CheckboxField { inline: true, label: "X",
                             id: "pick-follow-x", aria_label: "Pick follows X", disabled: anchor_locked,
@@ -423,21 +394,11 @@ macro_rules! render_inspector {
                                     );
                                     rsx! {
                                         NumericField {
-                                            id: control_input_id, label: "X (mm)", class: "", aria_invalid: None,
-                                            control_class: "max-[760px]:h-control-touch",
-                                            step: "0.1",
-                                            value: "{x}",
-                                            aria_label: "X mm",
-                                            disabled: position_input_disabled(position_unavailable(&projection)),
-                                            oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
-                                            onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) },
-                                            onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                                                    match event.data().key().to_string().as_str() {
-                                                        "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
-                                                        "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
-                                                        _ => {}
-                                                    }
-                                                } },
+                                            id: control_input_id, label: "X (mm)", aria_label: "X mm",
+                                            value: format!("{:.2}", position.x).parse::<f64>().unwrap_or(position.x),
+                                            precision: 2, step: Some(0.1),
+                                            disabled_reason: position_unavailable(&projection).then(|| "Position is unavailable".to_owned()),
+                                            on_commit: { let mut commit = commit_position.clone(); move |value| commit(ComponentPositionAxis::X, value) },
                                         }
                                     }
                                 }
@@ -448,21 +409,11 @@ macro_rules! render_inspector {
                                     );
                                     rsx! {
                                         NumericField {
-                                            id: control_input_id, label: "Y (mm)", class: "", aria_invalid: None,
-                                            control_class: "max-[760px]:h-control-touch",
-                                            step: "0.1",
-                                            value: "{y}",
-                                            aria_label: "Y mm",
-                                            disabled: position_input_disabled(position_unavailable(&projection)),
-                                            oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
-                                            onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) },
-                                            onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                                                    match event.data().key().to_string().as_str() {
-                                                        "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
-                                                        "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
-                                                        _ => {}
-                                                    }
-                                                } },
+                                            id: control_input_id, label: "Y (mm)", aria_label: "Y mm",
+                                            value: format!("{:.2}", position.y).parse::<f64>().unwrap_or(position.y),
+                                            precision: 2, step: Some(0.1),
+                                            disabled_reason: position_unavailable(&projection).then(|| "Position is unavailable".to_owned()),
+                                            on_commit: { let mut commit = commit_position.clone(); move |value| commit(ComponentPositionAxis::Y, value) },
                                         }
                                     }
                                 }
@@ -557,45 +508,17 @@ macro_rules! render_inspector {
                                                         );
                                                         rsx! {
                                                             NumericField {
-                                                                id: control_input_id, label: "Part edge margin", class: "", aria_invalid: None,
-                                                                control_class: "max-[760px]:h-control-touch",
-                                                                min: "0",
-                                                                value: "{margin}",
-                                                                aria_label: "Part edge margin",
-                                                                oninput: move |event: FormEvent| margin.set(event.value()),
-                                                                onblur: {
-                                                                    let margin_outline = outline.clone();
+                                                                id: control_input_id, label: "Part edge margin",
+                                                                min: Some(0.0), value: outline.margin.unwrap_or_default(),
+                                                                on_commit: {
+                                                                    let outline = outline.clone();
                                                                     let save_outline = set_outline.clone();
-                                                                    move |_| {
-                                                                        match margin().parse::<f64>() {
-                                                                            Ok(value) if value.is_finite() && value >= 0.0 => {
-                                                                                if value != margin_outline.margin.unwrap_or(value) {
-                                                                                    let mut next = margin_outline.clone(); next.margin = Some(value); save_outline(next);
-                                                                                }
-                                                                                error.set(None);
-                                                                            }
-                                                                            _ => error.set(Some("Enter 0 or greater for the part edge margin.".to_owned())),
-                                                                        }
-                                                                    }
-                                                                },
-                                                                onkeydown: {
-                                                                    let accepted_margin = outline.margin.unwrap_or_default().to_string();
-                                                                    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                                                                        "Enter" => {
-                                                                            event.prevent_default();
-                                                                            if let Some(input) = event.data().try_as_web_event()
-                                                                                .and_then(|event| event.target())
-                                                                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                                                            {
-                                                                                let _ = input.blur();
-                                                                            }
-                                                                        }
-                                                                        "Escape" => {
-                                                                            event.prevent_default();
-                                                                            margin.set(accepted_margin.clone());
-                                                                            error.set(None);
-                                                                        }
-                                                                        _ => {}
+                                                                    move |value: f64| {
+                                                                        let mut next = outline.clone();
+                                                                        next.margin = Some(value);
+                                                                        margin.set(value.to_string());
+                                                                        error.set(None);
+                                                                        save_outline(next);
                                                                     }
                                                                 },
                                                             }
@@ -777,11 +700,10 @@ macro_rules! render_inspector {
                                                         );
                                                         rsx! {
                                                             NumericField {
-                                                                id: control_input_id, label: "Offset X (mm)", class: "", aria_invalid: None,
-                                                                control_class: "max-[760px]:h-control-touch",
+                                                                id: control_input_id, label: "Offset X (mm)",
                                                                 aria_label: "Offset X (mm)",
-                                                                value: "{offset_x}",
-                                                                oninput: move |event: FormEvent| offset_x.set(event.value()),
+                                                                value: offset_x().parse::<f64>().unwrap_or_default(),
+                                                                on_commit: move |value: f64| offset_x.set(value.to_string()),
                                                             }
                                                         }
                                                     }
@@ -792,11 +714,10 @@ macro_rules! render_inspector {
                                                         );
                                                         rsx! {
                                                             NumericField {
-                                                                id: control_input_id, label: "Offset Y (mm)", class: "", aria_invalid: None,
-                                                                control_class: "max-[760px]:h-control-touch",
+                                                                id: control_input_id, label: "Offset Y (mm)",
                                                                 aria_label: "Offset Y (mm)",
-                                                                value: "{offset_y}",
-                                                                oninput: move |event: FormEvent| offset_y.set(event.value()),
+                                                                value: offset_y().parse::<f64>().unwrap_or_default(),
+                                                                on_commit: move |value: f64| offset_y.set(value.to_string()),
                                                             }
                                                         }
                                                     }
@@ -808,11 +729,10 @@ macro_rules! render_inspector {
                                                     );
                                                     rsx! {
                                                         NumericField {
-                                                            id: control_input_id, label: "Rotation (degrees)", class: "", aria_invalid: None,
-                                                            control_class: "max-[760px]:h-control-touch",
+                                                            id: control_input_id, label: "Rotation (degrees)",
                                                             aria_label: "Rotation (degrees)",
-                                                            value: "{rotation}",
-                                                            oninput: move |event: FormEvent| rotation.set(event.value()),
+                                                            value: rotation().parse::<f64>().unwrap_or_default(),
+                                                            on_commit: move |value: f64| rotation.set(value.to_string()),
                                                         }
                                                     }
                                                 }
@@ -844,11 +764,10 @@ macro_rules! render_inspector {
                                                     );
                                                     rsx! {
                                                         NumericField {
-                                                            id: control_input_id, label: "Axis coordinate (mm)", class: "", aria_invalid: None,
-                                                            control_class: "max-[760px]:h-control-touch",
+                                                            id: control_input_id, label: "Axis coordinate (mm)",
                                                             aria_label: "Axis coordinate (mm)",
-                                                            value: "{mirror_coordinate}",
-                                                            oninput: move |event: FormEvent| mirror_coordinate.set(event.value()),
+                                                            value: mirror_coordinate().parse::<f64>().unwrap_or_default(),
+                                                            on_commit: move |value: f64| mirror_coordinate.set(value.to_string()),
                                                         }
                                                     }
                                                 }
@@ -864,11 +783,10 @@ macro_rules! render_inspector {
                                                         );
                                                         rsx! {
                                                             NumericField {
-                                                                id: control_input_id, label: "Line anchor X (mm)", class: "", aria_invalid: None,
-                                                                control_class: "max-[760px]:h-control-touch",
+                                                                id: control_input_id, label: "Line anchor X (mm)",
                                                                 aria_label: "Mirror line anchor X (mm)",
-                                                                value: "{mirror_line_x}",
-                                                                oninput: move |event: FormEvent| mirror_line_x.set(event.value()),
+                                                                value: mirror_line_x().parse::<f64>().unwrap_or_default(),
+                                                                on_commit: move |value: f64| mirror_line_x.set(value.to_string()),
                                                             }
                                                         }
                                                     }
@@ -879,11 +797,10 @@ macro_rules! render_inspector {
                                                         );
                                                         rsx! {
                                                             NumericField {
-                                                                id: control_input_id, label: "Line anchor Y (mm)", class: "", aria_invalid: None,
-                                                                control_class: "max-[760px]:h-control-touch",
+                                                                id: control_input_id, label: "Line anchor Y (mm)",
                                                                 aria_label: "Mirror line anchor Y (mm)",
-                                                                value: "{mirror_line_y}",
-                                                                oninput: move |event: FormEvent| mirror_line_y.set(event.value()),
+                                                                value: mirror_line_y().parse::<f64>().unwrap_or_default(),
+                                                                on_commit: move |value: f64| mirror_line_y.set(value.to_string()),
                                                             }
                                                         }
                                                     }
@@ -895,11 +812,10 @@ macro_rules! render_inspector {
                                                     );
                                                     rsx! {
                                                         NumericField {
-                                                            id: control_input_id, label: "Line angle (degrees)", class: "", aria_invalid: None,
-                                                            control_class: "max-[760px]:h-control-touch",
+                                                            id: control_input_id, label: "Line angle (degrees)",
                                                             aria_label: "Mirror line angle (degrees)",
-                                                            value: "{mirror_line_angle}",
-                                                            oninput: move |event: FormEvent| mirror_line_angle.set(event.value()),
+                                                            value: mirror_line_angle().parse::<f64>().unwrap_or_default(),
+                                                            on_commit: move |value: f64| mirror_line_angle.set(value.to_string()),
                                                         }
                                                     }
                                                 }
