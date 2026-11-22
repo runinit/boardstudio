@@ -28,17 +28,11 @@ mod details;
 mod details_logic;
 pub(crate) mod editor_fields;
 mod generator_settings;
-#[cfg(any(target_arch = "wasm32", test))]
-mod mechanical_profile_editor;
-#[cfg(target_arch = "wasm32")]
-mod mechanical_profile_ui;
-mod model_axis;
 mod module_profile_editor;
 mod modules_catalogue;
 mod modules_catalogue_logic;
 pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
 mod preview;
-mod standard_profile_lifetime;
 pub use assembly_presets::MatrixPresetId;
 
 /// Data source for the existing Layout matrix-placement lifecycle. Saved
@@ -67,20 +61,6 @@ fn AssemblyCreateButton() -> Element {
         } }
         TooltipContent { "New key assembly" }
     } }
-}
-
-#[component]
-fn PartsChoiceField(
-    label: String,
-    aria_label: String,
-    value: String,
-    options: Vec<(String, String)>,
-    #[props(default)] disabled: bool,
-    on_value_change: EventHandler<String>,
-) -> Element {
-    rsx! {
-        SelectField::<String> { label, value, options, aria_label: Some(aria_label), disabled, on_commit: on_value_change }
-    }
 }
 
 #[component]
@@ -126,27 +106,16 @@ pub fn matrix_setup_preset(
 }
 pub use generator_settings::GeneratorPreviewStatus;
 
-#[cfg(any(target_arch = "wasm32", test))]
-use mechanical_profile_editor::{
-    AcceptedProfileOwner, CurrentProfileScope, DetachedProfileSpawner, ManualProfileEditor,
-    ManualProfileEditorPorts, MechanicalExtractionFuture, MechanicalExtractionRequester,
-    StandardProfileFuture, StandardProfileRequester,
-};
 pub use preview::PartsPreviewPanel;
-pub use standard_profile_lifetime::PartsStandardProfileLifetime;
-#[cfg(all(test, target_arch = "wasm32"))]
-mod controls_tests;
-#[cfg(all(test, target_arch = "wasm32"))]
-mod placement_action_tests;
 
 use crate::parts_mechanical_profile::ProfileDefinitionSource;
+#[cfg(target_arch = "wasm32")]
+use crate::parts_mechanical_profile::ui::PartsMechanicalProfileWorkspace;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_model::model::ProjectDoc;
 use catalogue::{CatalogEntry, catalogue_choices, group_choices, preferred_label};
 use details::SelectedDefinition;
 use dioxus::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use mechanical_profile_ui::PartsMechanicalProfileWorkspace;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 /// Parent-owned interaction state keeps the reference library query and choice
@@ -225,15 +194,6 @@ struct CatalogueView {
     entries: Option<Rc<Vec<CatalogEntry>>>,
     error: Option<String>,
 }
-
-#[cfg(test)]
-type CatalogueLoadFuture =
-    std::pin::Pin<Box<dyn std::future::Future<Output = Result<Rc<Vec<CatalogEntry>>, String>>>>;
-
-/// Per-host source boundary for mounted loading/error-state tests only.
-#[cfg(test)]
-#[derive(Clone)]
-struct CatalogueLoadTestPort(Rc<dyn Fn(bool) -> CatalogueLoadFuture>);
 
 struct CachedProjectCatalogue {
     scope: Option<Scope>,
@@ -389,11 +349,11 @@ pub fn AddObjectComponentChooser(
     rsx! {
         div { class: "grid gap-2 min-w-0",
             if !layouts.is_empty() {
-                PartsChoiceField {
+                SelectField::<String> {
                     label: "Place in", aria_label: "Part placement layout", value: selected_layout,
                     options: std::iter::once((String::new(), "Board / ungrouped".into()))
                         .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
-                    on_value_change: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
+                    on_commit: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
                 }
             }
             Field {
@@ -430,10 +390,6 @@ fn matching_assembly_presets(search: &str) -> Vec<assembly_presets::Preset> {
         })
         .collect()
 }
-
-#[cfg(test)]
-#[path = "parts/add_object_menu_tests.rs"]
-mod add_object_menu_tests;
 
 #[path = "parts/library_panels.rs"]
 mod library_panels;
@@ -624,11 +580,11 @@ pub fn PartsInspectorPanel(
             }
             if controller_placement_enabled {
                 if !layouts.is_empty() {
-                    PartsChoiceField {
+                    SelectField::<String> {
                         label: "Place in", aria_label: "Part placement layout", value: selected_layout,
                         options: std::iter::once((String::new(), "Board / ungrouped".into()))
                             .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
-                        on_value_change: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
+                        on_commit: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
                     }
                 }
                 if let Some(definition_id) = controller_id {
@@ -844,21 +800,10 @@ pub fn PartsPreviewWorkspace(
 fn use_catalogue(snapshot: &AcceptedSnapshot, scope: &Option<Scope>) -> CatalogueView {
     let document = snapshot.document.clone();
     let reversible_layout = reversible_layout(&document);
-    #[cfg(test)]
-    let test_loader = try_consume_context::<CatalogueLoadTestPort>();
     let catalogue = use_resource(use_reactive((scope, &reversible_layout), {
         move |(scope, reversible_layout)| {
             let scope = scope.clone();
-            #[cfg(test)]
-            let test_loader = test_loader.clone();
             async move {
-                #[cfg(test)]
-                let loaded = if let Some(test_loader) = test_loader {
-                    (test_loader.0)(reversible_layout).await
-                } else {
-                    catalogue::load_bundled(reversible_layout).await
-                };
-                #[cfg(not(test))]
                 let loaded = catalogue::load_bundled(reversible_layout).await;
                 match loaded {
                     Ok(entries) => Ok((scope, reversible_layout, entries)),

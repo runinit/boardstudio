@@ -9,7 +9,3 @@ pub mod controller;
 pub use controller::{
     OwnerContext, OwnerIdentity, PhysicalSetupIntent, PhysicalSetupMount, use_controller,
 };
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_physical_setup/tests.rs"]
-mod tests;

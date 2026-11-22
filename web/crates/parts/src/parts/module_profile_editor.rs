@@ -1,5 +1,5 @@
 //! Definition-level module profile draft and accepted edit path.
-use super::editor_fields::{EditorNumberField, EditorSelect, EditorTextField};
+use super::editor_fields::EditorTextField;
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::WorkspaceState, runtime::Runtime};
@@ -8,15 +8,12 @@ use boardstudio_model::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
-use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, ToggleField,
+};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
-    checkbox::CheckboxState,
-    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    combobox::{Combobox, ComboboxOption},
-    field::FieldLabel,
-    select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -557,9 +554,8 @@ pub fn ModuleProfileEditor(
     });
 
     let candidate_models = definition.candidate_models.clone();
-    let candidate_models_for_select = candidate_models.clone();
     let attach_candidate = use_callback({
-        let candidates = candidate_models_for_select.clone();
+        let candidates = candidate_models.clone();
         move |asset_id: String| {
             if candidates
                 .iter()
@@ -583,17 +579,13 @@ pub fn ModuleProfileEditor(
             }
         }
     });
-    let candidate_id = format!(
-        "module-candidate-model-{}",
-        dioxus::core::current_scope_id().0
-    );
-    let candidate_value = use_memo(|| Some(String::new()));
     let current_draft = draft();
     let rotary_profile_exists = definition.electrical.rotary_profile.is_some();
     rsx! {
-        Collapsible { keep_mounted: true, default_open: false,
-            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Assembly geometry · {current_draft.volumes.len()} volumes · {current_draft.openings.len()} openings" }
-            CollapsibleContent { class: "data-[open=false]:hidden grid gap-3",
+        InspectorSection {
+            title: "Assembly geometry",
+            badge: format!("{} volumes · {} openings", current_draft.volumes.len(), current_draft.openings.len()),
+            default_open: false,
             p { "Coordinates use the module PCB midplane. Positive Z faces the module front. Unknown dimensions remain unqualified." }
             if rotary_profile_exists {
                 fieldset { class: "grid gap-2",
@@ -603,15 +595,15 @@ pub fn ModuleProfileEditor(
                         EditorTextField { label: "A terminal", aria_label: "Rotary A terminal", value: "{rotary().a}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.a = event.value()); } }
                         EditorTextField { label: "B terminal", aria_label: "Rotary B terminal", value: "{rotary().b}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.b = event.value()); } }
                         EditorTextField { label: "Common terminal", aria_label: "Rotary common terminal", value: "{rotary().common}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.common = event.value()); } }
-                        EditorSelect {
+                        SelectField::<String> {
                             label: "Driver",
                             aria_label: "Rotary driver",
                             value: "{rotary().driver}",
                             options: vec![("".to_owned(), "Choose driver…".to_owned()), ("ec11".to_owned(), "EC11".to_owned())],
-                            on_select: move |value: String| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.driver = value); },
+                            on_commit: move |value: String| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.driver = value); },
                         }
-                        EditorNumberField { label: "Pulses per rotation", aria_label: "Rotary pulses per rotation", min: "1", step: "1", value: "{rotary().steps}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.steps = event.value()); } }
-                        EditorNumberField { label: "Actions per rotation", aria_label: "Rotary actions per rotation", min: "1", step: "1", value: "{rotary().triggers_per_rotation}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()); } }
+                        NumericField { label: "Pulses per rotation", aria_label: "Rotary pulses per rotation", min: Some(1.0), step: Some(1.0), value: rotary().steps.parse::<f64>().unwrap_or_default(), mixed: rotary().steps.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.steps = number.to_string()); } }
+                        NumericField { label: "Actions per rotation", aria_label: "Rotary actions per rotation", min: Some(1.0), step: Some(1.0), value: rotary().triggers_per_rotation.parse::<f64>().unwrap_or_default(), mixed: rotary().triggers_per_rotation.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.triggers_per_rotation = number.to_string()); } }
                     }
                     Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
                 }
@@ -636,65 +628,34 @@ pub fn ModuleProfileEditor(
                     }, "Remove" }
                 }
             }
-            EditorSelect {
+            SelectField::<String> {
                 label: "Volume purpose",
                 aria_label: "Module volume purpose",
                 value: "{shape().purpose}",
                 options: vec![("occupied".to_owned(), "Component body".to_owned()), ("support".to_owned(), "Mounting hardware".to_owned()), ("service".to_owned(), "Cable / service space".to_owned()), ("opening".to_owned(), "Functional opening".to_owned())],
-                on_select: move |value: String| shape.with_mut(|shape| shape.purpose = value),
+                on_commit: move |value: String| shape.with_mut(|shape| shape.purpose = value),
             }
             div { class: "grid grid-cols-2 gap-2",
-                EditorNumberField { label: "X · mm", aria_label: "Module volume X", step: "0.1", value: "{shape().x}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.x = event.value()) }
-                EditorNumberField { label: "Y · mm", aria_label: "Module volume Y", step: "0.1", value: "{shape().y}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.y = event.value()) }
-                EditorNumberField { label: "Width · mm", aria_label: "Module volume width", min: "0.1", step: "0.1", value: "{shape().width}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.width = event.value()) }
-                EditorNumberField { label: "Depth · mm", aria_label: "Module volume depth", min: "0.1", step: "0.1", value: "{shape().depth}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.depth = event.value()) }
-                EditorNumberField { label: "Z from midplane · mm", aria_label: "Module volume Z", step: "0.1", value: "{shape().z}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.z = event.value()) }
-                EditorNumberField { label: "Height · mm", aria_label: "Module volume height", min: "0.1", step: "0.1", value: "{shape().height}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.height = event.value()) }
+                NumericField { label: "X · mm", aria_label: "Module volume X", step: Some(0.1), value: shape().x.parse::<f64>().unwrap_or_default(), mixed: shape().x.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.x = number.to_string()) }
+                NumericField { label: "Y · mm", aria_label: "Module volume Y", step: Some(0.1), value: shape().y.parse::<f64>().unwrap_or_default(), mixed: shape().y.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.y = number.to_string()) }
+                NumericField { label: "Width · mm", aria_label: "Module volume width", min: Some(0.1), step: Some(0.1), value: shape().width.parse::<f64>().unwrap_or_default(), mixed: shape().width.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.width = number.to_string()) }
+                NumericField { label: "Depth · mm", aria_label: "Module volume depth", min: Some(0.1), step: Some(0.1), value: shape().depth.parse::<f64>().unwrap_or_default(), mixed: shape().depth.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.depth = number.to_string()) }
+                NumericField { label: "Z from midplane · mm", aria_label: "Module volume Z", step: Some(0.1), value: shape().z.parse::<f64>().unwrap_or_default(), mixed: shape().z.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.z = number.to_string()) }
+                NumericField { label: "Height · mm", aria_label: "Module volume height", min: Some(0.1), step: Some(0.1), value: shape().height.parse::<f64>().unwrap_or_default(), mixed: shape().height.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.height = number.to_string()) }
             }
             EditorTextField { label: "Dimension evidence", aria_label: "Module volume evidence", value: "{shape().source}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.source = event.value()) }
-            CheckboxField {
-                label: "Dimensions and datum reviewed".to_owned(),
-                id: format!("module-volume-qualified-{}", dioxus::core::current_scope_id().0),
-                aria_label: Some("Dimensions and datum reviewed".to_owned()),
-                checked: if shape().qualified { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                on_checked_change: move |state: CheckboxState| shape.with_mut(|shape| shape.qualified = bool::from(state)),
+            ToggleField {
+                label: "Dimensions and datum reviewed", checked: shape().qualified,
+                on_commit: move |checked| shape.with_mut(|shape| shape.qualified = checked),
             }
             Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: add_volume, "Add measured volume" }
-            if !candidate_models.is_empty() {
-                FieldLabel { html_for: candidate_id.clone(), "Attach candidate model" }
-                if candidate_models.len() > 12 {
-                    Combobox::<String> {
-                        class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                        aria_label: "Module candidate model", list_aria_label: "Module candidate model",
-                        value: Some(candidate_value.into()),
-                        on_value_change: move |next: Option<String>| {
-                            if let Some(asset_id) = next
-                                && !asset_id.is_empty() {
-                                    attach_candidate.call(asset_id);
-                                }
-                        },
-                        for (index, candidate) in candidate_models.iter().enumerate() {
-                            ComboboxOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: candidate.asset_id.clone(), text_value: candidate.name.clone(), disabled: current_draft.models.iter().any(|model| model.asset_id == candidate.asset_id), "{candidate.name}" }
-                        }
-                    }
-                } else {
-                    Select::<String> {
-                        class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                        id: candidate_id.clone(),
-                        aria_label: "Module candidate model",
-                        value: Some(candidate_value.into()),
-                        on_value_change: move |next: Option<String>| {
-                            if let Some(asset_id) = next
-                                && !asset_id.is_empty() {
-                                    attach_candidate.call(asset_id);
-                                }
-                        },
-                        SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index: 0usize, value: "".to_owned(), text_value: "Select source model…".to_owned(), "Select source model…" }
-                        for (offset, candidate) in candidate_models.iter().enumerate() {
-                            SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index: offset + 1, value: candidate.asset_id.clone(), text_value: candidate.name.clone(), disabled: current_draft.models.iter().any(|model| model.asset_id == candidate.asset_id), "{candidate.name}" }
-                        }
-                    }
-                }
+            SelectField::<String> {
+                label: "Attach candidate model", aria_label: "Module candidate model", value: String::new(),
+                placeholder: "Select source model…",
+                disabled: candidate_models.iter().all(|candidate| current_draft.models.iter().any(|model| model.asset_id == candidate.asset_id)),
+                options: candidate_models.iter().filter(|candidate| !current_draft.models.iter().any(|model| model.asset_id == candidate.asset_id))
+                    .map(|candidate| (candidate.asset_id.clone(), candidate.name.clone())).collect(),
+                on_commit: attach_candidate,
             }
             for (model_index, model) in current_draft.models.iter().enumerate() {
                 fieldset { class: "grid gap-2", key: "model-{model.asset_id}-{model_index}",
@@ -702,8 +663,7 @@ pub fn ModuleProfileEditor(
                     for (vector_name, vector) in [("offset", model.offset), ("rotation", model.rotation), ("scale", model.scale)] {
                         div { class: "grid grid-cols-3 gap-2",
                             for (axis_name, value) in [("x", vector.x), ("y", vector.y), ("z", vector.z)] {
-                                EditorNumberField { label: "{vector_name} {axis_name}", step: "0.1", aria_label: "Module model {model_index + 1} {vector_name} {axis_name}", value: "{value}", oninput: move |event: FormEvent| {
-                                    let value = event.value().parse::<f64>().unwrap_or(f64::NAN);
+                                NumericField { label: "{vector_name} {axis_name}", step: Some(0.1), aria_label: "Module model {model_index + 1} {vector_name} {axis_name}", value, on_commit: move |value: f64| {
                                     profile_dirty.set(true);
                                     draft.with_mut(|draft| if let Some(model) = draft.models.get_mut(model_index) {
                                         let vector = match vector_name { "offset" => &mut model.offset, "rotation" => &mut model.rotation, _ => &mut model.scale };
@@ -720,17 +680,13 @@ pub fn ModuleProfileEditor(
                     }, "Remove model" }
                 }
             }
-            CheckboxField {
-                label: "Complete assembly, mounts, functional openings and cable clearance reviewed".to_owned(),
-                id: format!("module-profile-reviewed-{}", dioxus::core::current_scope_id().0),
-                aria_label: Some("Complete assembly, mounts, functional openings and cable clearance reviewed".to_owned()),
-                checked: if reviewed() { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                on_checked_change: move |state: CheckboxState| reviewed.set(bool::from(state)),
+            ToggleField {
+                label: "Complete assembly, mounts, functional openings and cable clearance reviewed", checked: reviewed(),
+                on_commit: move |checked| reviewed.set(checked),
             }
             p { "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
             Button { variant: ButtonVariant::Default, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
             if let Some(message) = visible_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
-            }
         }
     }
 }

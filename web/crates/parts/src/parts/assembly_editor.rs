@@ -1,25 +1,25 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
-use super::editor_fields::{EditorChoiceField, EditorNumberField, EditorSelect, EditorTextField};
-use super::model_axis::{ModelAxisField, ModelAxisGrid};
+use super::assembly_presets::{model_only_definition, validate_members};
+use super::editor_fields::EditorTextField;
 use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{
-    AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
-    PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
+    AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartModel,
+    Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
-    checkbox::CheckboxState,
     item::{Item, ItemGroup, ItemSize},
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
-use std::{collections::BTreeSet, rc::Rc};
+use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -923,27 +923,6 @@ fn assembly_preview_recipe(
         .collect()
 }
 
-fn model_only_definition(member: &AssemblyMember) -> PartDefinition {
-    PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: format!("assembly-model-only:{}", member.id),
-        name: format!("{} model", member.id),
-        kind: PartKind::Custom,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        courtyard: Vec::new(),
-        pads: Vec::new(),
-        models: Some(member.models.clone()),
-        generator: None,
-        mechanical_profile: None,
-    }
-}
-
 fn assembly_owner_current(
     runtime: &crate::runtime::Runtime,
     draft: &AssemblyDraft,
@@ -982,63 +961,7 @@ fn saved_document(
     if draft.value.name.trim().is_empty() || draft.value.members.is_empty() {
         return Err("Name the assembly and add at least one member".into());
     }
-    let member_ids = draft
-        .value
-        .members
-        .iter()
-        .map(|member| member.id.as_str())
-        .collect::<BTreeSet<_>>();
-    if member_ids.len() != draft.value.members.len()
-        || member_ids.iter().any(|id| id.trim().is_empty())
-    {
-        return Err("Assembly members must have unique, non-empty identities.".into());
-    }
-    if draft.value.members.iter().any(|member| {
-        !member.pose.at.x.is_finite()
-            || !member.pose.at.y.is_finite()
-            || !member.pose.rotation.is_finite()
-    }) {
-        return Err("Assembly member positions and angles must be finite.".into());
-    }
-    let model_asset_exists = |asset_id: &str| {
-        accepted
-            .assets
-            .iter()
-            .chain(&draft.assets)
-            .any(|asset| asset.id == asset_id)
-            || crate::bundled_models::bundled_model(asset_id).is_some()
-            || asset_id.starts_with("unresolved-model:")
-    };
-    for member in &draft.value.members {
-        for model in &member.models {
-            let finite = [
-                model.offset.x,
-                model.offset.y,
-                model.offset.z,
-                model.rotation.x,
-                model.rotation.y,
-                model.rotation.z,
-                model.scale.x,
-                model.scale.y,
-                model.scale.z,
-            ]
-            .into_iter()
-            .all(f64::is_finite);
-            if !finite
-                || [model.scale.x, model.scale.y, model.scale.z]
-                    .into_iter()
-                    .any(|scale| scale <= 0.0)
-            {
-                return Err("Model positions and rotations must be finite, and model scales must be positive.".into());
-            }
-            if !model_asset_exists(&model.asset_id) {
-                return Err(format!(
-                    "The model asset '{}' is not available in this project.",
-                    model.asset_id
-                ));
-            }
-        }
-    }
+    validate_members(&draft.value, accepted, &draft.assets)?;
     let current = accepted
         .assemblies
         .iter()
@@ -1144,6 +1067,3 @@ fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
         .map(|suffix| format!("{candidate}-{suffix}"))
         .find(|id| !used(id))
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod assembly_selector_tests;

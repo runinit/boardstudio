@@ -1,14 +1,12 @@
 //! Center-workspace manual mechanical profile draft and accepted edit.
 
-use boardstudio_application::{
-    AcceptedSnapshot, EditResolver, OperationId, Resolution, Scope, SessionEpoch,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_core_mechanical::mechanical::{
     default_plate_thickness, generator_switch_family, mounting_datum,
 };
 use boardstudio_model::model::{
-    CoreReply, EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile,
-    MechanicalSwitchFamily, PartDefinition,
+    EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile, MechanicalSwitchFamily,
+    PartDefinition,
 };
 
 use crate::parts_custom_definition::replacement_commit;
@@ -20,96 +18,6 @@ pub enum ProfileDefinitionSource {
     Generator,
     Imported,
     Project,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProfileEditOwner {
-    pub view_id: OperationId,
-    pub scope: Option<Scope>,
-    pub session_epoch: SessionEpoch,
-    pub document_id: String,
-    pub definition_id: String,
-    pub source: ProfileDefinitionSource,
-}
-
-impl ProfileEditOwner {
-    pub fn new(
-        view_id: OperationId,
-        snapshot: &AcceptedSnapshot,
-        scope: Option<Scope>,
-        source: ProfileDefinitionSource,
-        definition: &PartDefinition,
-    ) -> Self {
-        Self {
-            view_id,
-            scope,
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            definition_id: definition.id.clone(),
-            source,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct StandardProfileRequestCapture {
-    pub operation_id: OperationId,
-    pub owner: ProfileEditOwner,
-    pub definition: PartDefinition,
-    pub family: MechanicalSwitchFamily,
-    pub plate_to_pcb: f64,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-}
-
-impl StandardProfileRequestCapture {
-    pub fn new(
-        operation_id: OperationId,
-        owner: ProfileEditOwner,
-        definition: PartDefinition,
-        family: MechanicalSwitchFamily,
-        plate_to_pcb: f64,
-        scope_generation: u64,
-        selection_generation: u64,
-    ) -> Self {
-        Self {
-            operation_id,
-            owner,
-            definition,
-            family,
-            plate_to_pcb,
-            scope_generation,
-            selection_generation,
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn standard_profile_request_is_current(
-    request: &StandardProfileRequestCapture,
-    pending_operation: Option<OperationId>,
-    current_owner: &ProfileEditOwner,
-    runtime_scope: Option<&Scope>,
-    snapshot: &AcceptedSnapshot,
-    selection: &Option<(Option<Scope>, String)>,
-    definition: &PartDefinition,
-    scope_generation: u64,
-    selection_generation: u64,
-    workspace: &str,
-    mounted: bool,
-) -> bool {
-    mounted
-        && workspace == "Parts"
-        && pending_operation == Some(request.operation_id)
-        && current_owner == &request.owner
-        && request.owner.scope.as_ref() == runtime_scope
-        && snapshot.session_epoch == request.owner.session_epoch
-        && snapshot.document.id == request.owner.document_id
-        && selection.as_ref() == Some(&(request.owner.scope.clone(), request.definition.id.clone()))
-        && definition == &request.definition
-        && request.owner.definition_id == request.definition.id
-        && scope_generation == request.scope_generation
-        && selection_generation == request.selection_generation
 }
 
 pub fn standard_profile_source_and_gap(
@@ -132,45 +40,6 @@ pub fn standard_profile_controls(
         definition.kind == boardstudio_model::model::PartKind::Switch,
         profile.switch_family.is_some(),
     )
-}
-
-pub fn dispatch_standard_profile_family(
-    value: &str,
-    load_standard: impl FnOnce(MechanicalSwitchFamily),
-) -> bool {
-    let family = match value {
-        "mx" => MechanicalSwitchFamily::Mx,
-        "choc-v1" => MechanicalSwitchFamily::ChocV1,
-        "choc-v2" => MechanicalSwitchFamily::ChocV2,
-        _ => return false,
-    };
-    load_standard(family);
-    true
-}
-
-pub fn standard_profile_reply_matches(
-    reply: CoreReply,
-    request_id: &str,
-    definition_id: &str,
-    family: MechanicalSwitchFamily,
-    plate_to_pcb: f64,
-) -> Result<MechanicalPartProfile, String> {
-    match reply {
-        CoreReply::MechanicalProfile { id, profile } if id == request_id => {
-            if profile.definition_id != definition_id
-                || profile.switch_family != Some(family)
-                || (profile.plate_to_pcb - plate_to_pcb).abs() > f64::EPSILON
-            {
-                return Err("Core returned a different standard switch fit.".into());
-            }
-            Ok(profile)
-        }
-        CoreReply::Error { id, message, .. } if id == request_id => Err(message),
-        CoreReply::MechanicalProfile { .. } | CoreReply::Error { .. } => {
-            Err("Core returned a stale standard switch fit reply.".into())
-        }
-        _ => Err("Core returned an unexpected standard switch fit reply.".into()),
-    }
 }
 
 pub fn merge_standard_profile(
@@ -292,660 +161,360 @@ pub fn initial_profile(
     }
 }
 
-pub fn displayed_mounting_gap(profile: &MechanicalPartProfile) -> Option<String> {
-    profile
-        .switch_family
-        .map(|_| format!("{:.2}", profile.plate_to_pcb))
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod ui {
+    use super::*;
+    use crate::parts::{GeneratorPreviewDraft, PartsPreviewPanel, PartsSelectionGeneration};
+    use crate::{SelectionAdapter, WorkspaceState, runtime::Runtime};
+    use boardstudio_model::model::{
+        MechanicalGeometry, MechanicalPurpose, MechanicalPurposeMapping, Vec2,
+    };
+    use boardstudio_web_ui_shared::inspector_fields::{
+        InspectorSection, NumericField, SelectField,
+    };
+    use boardstudio_web_ui_shared::ui::{
+        alert::{Alert, AlertVariant},
+        button::Button,
+        spinner::Spinner,
+    };
+    use dioxus::prelude::*;
+    use std::{collections::BTreeMap, rc::Rc};
+
+    #[component]
+    pub fn PartsMechanicalProfileWorkspace(
+        snapshot: AcceptedSnapshot,
+        scope: Option<Scope>,
+        selection: Signal<Option<(Option<Scope>, String)>>,
+        definition: PartDefinition,
+        preview_definition: Option<PartDefinition>,
+        generator_draft: Option<GeneratorPreviewDraft>,
+        recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
+        recipe_error: Option<String>,
+        recipe_pending: bool,
+        recipe_identity: String,
+        preview_title: Option<String>,
+        source: ProfileDefinitionSource,
+    ) -> Element {
+        let mut editing = use_signal(|| false);
+        let profile_defined = definition.mechanical_profile.is_some();
+        if editing() {
+            return rsx! {
+                ProfileEditor {
+                    key: "{snapshot.session_epoch.0}:{definition.id}:{scope:?}",
+                    snapshot, scope, selection, definition, source,
+                    on_close: move |_| editing.set(false),
+                }
+            };
+        }
+        rsx! {
+            section { "aria-label": "Mechanical fit profile",
+                Button { onclick: {
+                    let scope = scope.clone();
+                    let id = definition.id.clone();
+                    move |_| {
+                        let mut selection = selection;
+                        selection.set(Some((scope.clone(), id.clone())));
+                        editing.set(true);
+                    }
+                }, if profile_defined { "Edit profile" } else { "Define profile" } }
+            }
+            PartsPreviewPanel {
+                definition: Some(Rc::new(preview_definition.unwrap_or_else(|| definition.clone()))),
+                recipe, recipe_error, recipe_pending, recipe_identity, preview_title,
+                scope, snapshot_token: snapshot.token, generator_draft,
+            }
+        }
+    }
+
+    enum GeometryRequest {
+        Standard(MechanicalSwitchFamily),
+        KiCad { source: String, apply: bool },
+    }
+
+    #[component]
+    fn ProfileEditor(
+        snapshot: AcceptedSnapshot,
+        scope: Option<Scope>,
+        selection: Signal<Option<(Option<Scope>, String)>>,
+        definition: PartDefinition,
+        source: ProfileDefinitionSource,
+        on_close: EventHandler<()>,
+    ) -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let workspace = use_context::<WorkspaceState>().0;
+        let selection_generation = use_context::<PartsSelectionGeneration>().0;
+        let scope_generation = use_context::<SelectionAdapter>().generation;
+        let generation = (scope_generation(), selection_generation());
+        let capture = crate::parts_custom_definition::DefinitionPanelCapture::new(
+            &snapshot,
+            scope,
+            &definition,
+        );
+        let current = {
+            let runtime = runtime.clone();
+            move || {
+                workspace() == "Parts"
+                    && generation == (scope_generation(), selection_generation())
+                    && runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                        capture.owner_matches(snapshot, runtime.scope(), selection())
+                    })
+            }
+        };
+        let mut draft =
+            use_signal(|| initial_profile(&definition, definition.mechanical_profile.as_ref()));
+        let mut busy = use_signal(|| false);
+        let mut error = use_signal(|| None::<String>);
+        let mut geometry = use_signal(|| None::<MechanicalGeometry>);
+        let mut purposes = use_signal(|| {
+            draft()
+                .source_geometry
+                .into_iter()
+                .flat_map(|source| source.mappings)
+                .filter_map(|mapping| Some((mapping.source_id?, mapping.purpose)))
+                .collect::<BTreeMap<_, _>>()
+        });
+
+        let load = EventHandler::new({
+            let runtime = runtime.clone();
+            let current = current.clone();
+            let definition_id = definition.id.clone();
+            let name = definition.name.clone();
+            move |request: GeometryRequest| {
+                if busy() || !current() {
+                    return;
+                }
+                busy.set(true);
+                error.set(None);
+                let runtime = runtime.clone();
+                let current = current.clone();
+                let definition_id = definition_id.clone();
+                let name = name.clone();
+                spawn(async move {
+                    let id = runtime.operation();
+                    let result = match request {
+                        GeometryRequest::Standard(family) => {
+                            let (_, gap) = standard_profile_source_and_gap(family);
+                            runtime
+                                .standard_switch_profile(id, definition_id, family, gap)
+                                .await
+                                .map(|loaded| {
+                                    if current() {
+                                        merge_standard_profile(
+                                            &mut draft.write(),
+                                            loaded,
+                                            family,
+                                            gap,
+                                        );
+                                    }
+                                })
+                        }
+                        GeometryRequest::KiCad { source, apply } => {
+                            let mappings = if apply {
+                                purposes()
+                                    .into_iter()
+                                    .map(|(id, purpose)| MechanicalPurposeMapping {
+                                        source_id: Some(id),
+                                        kind: None,
+                                        layer: None,
+                                        purpose,
+                                    })
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            };
+                            runtime
+                                .extract_mechanical_profile(
+                                    id.0.to_string(),
+                                    source,
+                                    mappings,
+                                    0.005,
+                                )
+                                .await
+                                .map(|extraction| {
+                                    if !current() {
+                                        return;
+                                    }
+                                    geometry.set(Some(extraction.geometry));
+                                    if apply {
+                                        draft.with_mut(|profile| {
+                                            profile.source = format!("KiCad {name}");
+                                            profile.source_geometry =
+                                                Some(extraction.source_geometry);
+                                            profile.pcb_holes = Some(extraction.pcb_holes);
+                                            profile.cutouts = extraction.plate_cutouts;
+                                            profile.clearances =
+                                                Some(extraction.clearance_envelopes);
+                                        });
+                                    }
+                                })
+                        }
+                    };
+                    busy.set(false);
+                    if current() {
+                        error.set(result.err());
+                    }
+                });
+            }
+        });
+        let profile = draft();
+        let (show_family, show_standard) = standard_profile_controls(&definition, &profile);
+        let read_only = busy().then(|| "Loading fit geometry".to_owned());
+        let footprint = definition
+            .kicad_source
+            .as_ref()
+            .map(|source| source.source.clone());
+        let save_id = definition.id.clone();
+        rsx! {
+            InspectorSection { title: format!("{} fit", definition.name),
+                Button { onclick: move |_| on_close.call(()), "Cancel" }
+                if show_family {
+                    SelectField::<Option<MechanicalSwitchFamily>> {
+                        label: "Switch fit family", value: profile.switch_family, disabled_reason: read_only.clone(),
+                        placeholder: "Select a standard family",
+                        options: [(MechanicalSwitchFamily::Mx, "MX"), (MechanicalSwitchFamily::ChocV1, "Choc v1"),
+                            (MechanicalSwitchFamily::ChocV2, "Choc v2")].map(|(family, label)| (Some(family), label.to_owned())).to_vec(),
+                        on_commit: move |family| if let Some(family) = family { load.call(GeometryRequest::Standard(family)); },
+                    }
+                }
+                if let Some(family) = profile.switch_family {
+                    p { "Plate underside to PCB top: {profile.plate_to_pcb:.2} mm" }
+                    if show_standard {
+                        Button { disabled: busy(), onclick: move |_| load.call(GeometryRequest::Standard(family)), "Use standard cutout" }
+                    }
+                } else {
+                    NumericField { label: "Plate underside to PCB top", unit: "mm", value: profile.plate_to_pcb,
+                        min: Some(0.0), step: Some(0.01), disabled_reason: read_only.clone(),
+                        on_commit: move |value| draft.with_mut(|profile| profile.plate_to_pcb = value),
+                    }
+                }
+                if let Some(footprint) = footprint {
+                    InspectorSection { title: "Footprint geometry",
+                        Button { disabled: busy(),
+                            onclick: { let footprint = footprint.clone(); move |_| load.call(GeometryRequest::KiCad { source: footprint.clone(), apply: false }) },
+                            "Read KiCad layers"
+                        }
+                        if let Some(geometry) = geometry() {
+                            for primitive in geometry.primitives {
+                                SelectField::<Option<MechanicalPurpose>> { key: "{primitive.id}",
+                                    label: format!("{} · {}", primitive.layer.as_deref().unwrap_or("Geometry"), primitive.id),
+                                    value: purposes().get(&primitive.id).copied(), disabled_reason: read_only.clone(),
+                                    options: [(None, "Unused"), (Some(MechanicalPurpose::PlateCutout), "Plate cutout"),
+                                        (Some(MechanicalPurpose::ElectricalPcbMountingHole), "PCB mounting hole"),
+                                        (Some(MechanicalPurpose::ClearanceEnvelope), "Clearance envelope"),
+                                        (Some(MechanicalPurpose::DrawingGuide), "Drawing guide")]
+                                        .map(|(purpose, label)| (purpose, label.to_owned())).to_vec(),
+                                    on_commit: move |purpose| purposes.with_mut(|mappings| {
+                                        if let Some(purpose) = purpose { mappings.insert(primitive.id.clone(), purpose); }
+                                        else { mappings.remove(&primitive.id); }
+                                    }),
+                                }
+                            }
+                            Button { disabled: busy() || purposes().is_empty(),
+                                onclick: move |_| load.call(GeometryRequest::KiCad { source: footprint.clone(), apply: true }),
+                                "Apply selected geometry"
+                            }
+                        }
+                    }
+                }
+                {contours(draft, false)}
+                {contours(draft, true)}
+                if busy() { div { role: "status", Spinner {} "Loading fit geometry…" } }
+                if let Some(message) = error() { Alert { variant: AlertVariant::Destructive, "{message}" } }
+                Button { disabled: busy(), onclick: move |_| {
+                    if current() {
+                        let resolver = mechanical_profile_resolver(source, save_id.clone(), definition.clone(), draft());
+                        match runtime.commit("parts-mechanical-profile", resolver) {
+                            Ok(_) => on_close.call(()),
+                            Err(message) => error.set(Some(message)),
+                        }
+                    }
+                }, "Save fit profile" }
+            }
+        }
+    }
+
+    fn profile_contours(
+        profile: &mut MechanicalPartProfile,
+        clearance: bool,
+    ) -> &mut Vec<Vec<Vec2>> {
+        if clearance {
+            profile.clearances.get_or_insert_with(Vec::new)
+        } else {
+            &mut profile.cutouts
+        }
+    }
+
+    fn contours(mut draft: Signal<MechanicalPartProfile>, clearance: bool) -> Element {
+        let data = if clearance {
+            draft().clearances.unwrap_or_default()
+        } else {
+            draft().cutouts
+        };
+
+        rsx! {
+            InspectorSection { title: if clearance { "Component clearances" } else { "Plate cutouts" },
+                Button { onclick: move |_| draft.with_mut(|profile| {
+                    profile_contours(profile, clearance).push([(-2.5, -2.5), (2.5, -2.5), (2.5, 2.5), (-2.5, 2.5)].map(|(x, y)| Vec2 { x, y }).into());
+                }), if clearance { "Add clearance" } else { "Add cutout" } }
+                for (index, contour) in data.into_iter().enumerate() {
+                    fieldset { key: "{index}",
+                        legend { "Contour {index + 1}" }
+                        for (point_index, point) in contour.into_iter().enumerate() {
+                            div { class: "grid grid-cols-2 gap-2",
+                                for (axis, value) in [("X", point.x), ("Y", point.y)] {
+                                    NumericField { key: "{axis}", label: "Vertex {point_index + 1} {axis}", unit: "mm", value,
+                                        on_commit: move |value| draft.with_mut(|profile| {
+                                            if let Some(point) = profile_contours(profile, clearance).get_mut(index).and_then(|contour| contour.get_mut(point_index)) {
+                                                if axis == "X" { point.x = value; } else { point.y = value; }
+                                            }
+                                        }),
+                                    }
+                                }
+                            }
+                        }
+                        Button { onclick: move |_| draft.with_mut(|profile| {
+                            if let Some(contour) = profile_contours(profile, clearance).get_mut(index)
+                                && let Some(point) = contour.last().copied() { contour.push(point); }
+                        }), "Add vertex" }
+                        Button { onclick: move |_| draft.with_mut(|profile| {
+                            let contours = profile_contours(profile, clearance);
+                            if index < contours.len() { contours.remove(index); }
+                        }), "Remove contour" }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(not(target_arch = "wasm32"))]
-    use boardstudio_application::{Event, TerminalOutcome};
-    #[cfg(not(target_arch = "wasm32"))]
-    use boardstudio_model::model::ProjectDoc;
-    use boardstudio_model::model::{MechanicalProfileSource, Vec2};
-    #[cfg(not(target_arch = "wasm32"))]
-    use std::rc::Rc;
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn fixed_commit(operation_id: OperationId, resolution: Resolution) -> Event {
-        Event::ResolveEdit {
-            operation_id,
-            label: "test fixed command".into(),
-            resolver: EditResolver::new("test fixed command", move |_| resolution.clone()),
-        }
-    }
-
-    fn definition(id: &str, name: &str) -> PartDefinition {
+    fn switch() -> PartDefinition {
         serde_json::from_value(serde_json::json!({
-            "id": id,
-            "name": name,
-            "kind": "custom",
-            "courtyard": [{"x": -5.0, "y": -3.0}, {"x": 5.0, "y": -3.0}, {"x": 5.0, "y": 3.0}],
-            "pads": []
+            "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
         }))
-        .unwrap()
-    }
-
-    fn profile(id: &str, source: &str) -> MechanicalPartProfile {
-        MechanicalPartProfile {
-            source_geometry: Some(MechanicalProfileSource {
-                text: "source geometry".into(),
-                sha256: "a".repeat(64),
-                mappings: vec![],
-                source_ids: vec!["source-1".into()],
-            }),
-            pcb_holes: None,
-            clearance_volumes: None,
-            openings: None,
-            clearances: Some(vec![vec![
-                Vec2 { x: -2.5, y: -2.5 },
-                Vec2 { x: 2.5, y: -2.5 },
-            ]]),
-            supported_thickness: None,
-            switch_family: None,
-            definition_id: id.into(),
-            source: source.into(),
-            cutouts: vec![vec![Vec2 { x: -1.0, y: -1.0 }, Vec2 { x: 1.0, y: -1.0 }]],
-            plate_to_pcb: 0.8,
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn document(definitions: Vec<PartDefinition>) -> ProjectDoc {
-        let mut document = ProjectDoc::empty("parts-fit", "Parts fit fixture");
-        document.definitions = definitions;
-        document
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn open(document: ProjectDoc) -> Rc<boardstudio_web_runtime::runtime::Runtime> {
-        let runtime = boardstudio_web_runtime::runtime::Runtime::with_core(
-            boardstudio_web_test_runtime::engine_core_services(),
-        );
-        runtime.submit(Event::Open {
-            operation_id: OperationId(1),
-            document,
-        });
-        runtime
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn accepted(runtime: &boardstudio_web_runtime::runtime::Runtime) -> AcceptedSnapshot {
-        runtime.model().accepted.clone().expect("open accepted")
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn edit_owner(
-        snapshot: &AcceptedSnapshot,
-        scope: Option<Scope>,
-        source: ProfileDefinitionSource,
-        definition: &PartDefinition,
-        view_id: u64,
-    ) -> ProfileEditOwner {
-        ProfileEditOwner::new(OperationId(view_id), snapshot, scope, source, definition)
-    }
-
-    /// Submit one profile save to the real native Runtime and read its terminal outcome.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn resolve_profile(
-        runtime: &boardstudio_web_runtime::runtime::Runtime,
-        operation: u64,
-        source: ProfileDefinitionSource,
-        definition: &PartDefinition,
-        profile: MechanicalPartProfile,
-    ) -> Vec<TerminalOutcome> {
-        let operation_id = OperationId(operation);
-        let outcome = runtime.observe_operation(operation_id);
-        runtime.submit(Event::ResolveEdit {
-            operation_id,
-            label: "parts-mechanical-profile".into(),
-            resolver: mechanical_profile_resolver(
-                source,
-                definition.id.clone(),
-                definition.clone(),
-                profile,
-            ),
-        });
-        vec![outcome.borrow().clone().expect("Runtime settled the edit")]
+        .expect("switch fixture")
     }
 
     #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn profile_save_lands_against_the_latest_accepted_document_and_round_trips_history() {
-        let mut target = definition("switch", "Switch");
-        let existing_profile = profile("switch", "Original source");
-        target.mechanical_profile = Some(existing_profile.clone());
-        let original = document(vec![target.clone(), definition("other", "Other")]);
-        let runtime = open(original.clone());
+    fn loading_a_standard_fit_updates_geometry_and_retains_optional_authored_data() {
+        let definition = switch();
+        let mut draft = initial_profile(&definition, None);
+        draft.clearances = Some(vec![vec![boardstudio_model::model::Vec2 {
+            x: 1.0,
+            y: 2.0,
+        }]]);
+        let mut loaded = initial_profile(&definition, None);
+        loaded.cutouts = vec![vec![boardstudio_model::model::Vec2 { x: -2.0, y: 3.0 }]];
+        let cutouts = loaded.cutouts.clone();
 
-        // An unrelated accepted edit lands while the profile editor is open.
-        let mut unrelated = runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .as_ref()
-            .clone();
-        unrelated.name = "Renamed project during draft".into();
-        runtime.submit(fixed_commit(
-            OperationId(2),
-            Resolution::submit_with_transaction_id(
-                vec![unrelated.id.clone()],
-                "unrelated-project-rename",
-                EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated),
-                },
-            ),
-        ));
+        merge_standard_profile(&mut draft, loaded, MechanicalSwitchFamily::ChocV1, 2.2);
 
-        let edited_profile = profile("switch", "Parts library");
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                3,
-                ProfileDefinitionSource::Project,
-                &target,
-                edited_profile.clone(),
-            ),
-            vec![TerminalOutcome::Completed],
-            "the profile save lands against the renamed document"
-        );
-        let document = accepted(&runtime).document;
-        assert_eq!(document.name, "Renamed project during draft");
-        assert_eq!(
-            document.definitions[0].mechanical_profile,
-            Some(edited_profile.clone())
-        );
-        assert_eq!(document.definitions[1], original.definitions[1]);
-
-        runtime.submit(Event::Undo {
-            operation_id: OperationId(4),
-        });
-        assert_eq!(
-            accepted(&runtime).document.definitions[0].mechanical_profile,
-            Some(existing_profile)
-        );
-        runtime.submit(Event::Redo {
-            operation_id: OperationId(5),
-        });
-        assert_eq!(
-            accepted(&runtime).document.definitions[0].mechanical_profile,
-            Some(edited_profile)
-        );
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn saving_a_selected_catalogue_definition_materializes_only_that_definition() {
-        let original = document(vec![definition("other", "Other")]);
-        let runtime = open(original.clone());
-        let selected_definition = definition("bundled-switch", "Bundled switch");
-        let draft = profile("bundled-switch", "Parts library");
-
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                2,
-                ProfileDefinitionSource::Generator,
-                &selected_definition,
-                draft.clone(),
-            ),
-            vec![TerminalOutcome::Completed],
-            "a bundled entry saves as a project override"
-        );
-        let proposed = accepted(&runtime).document;
-        assert_eq!(proposed.definitions.len(), 2);
-        assert_eq!(proposed.definitions[0], original.definitions[0]);
-        assert_eq!(proposed.definitions[1].id, "bundled-switch");
-        assert_eq!(proposed.definitions[1].mechanical_profile, Some(draft));
-        assert_eq!(proposed.name, original.name);
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn profile_save_retires_a_removed_project_definition_and_skips_unchanged_profiles() {
-        let target = definition("switch", "Switch");
-        let runtime = open(document(vec![target.clone()]));
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                2,
-                ProfileDefinitionSource::Project,
-                &target,
-                profile("switch", "Parts library"),
-            ),
-            vec![TerminalOutcome::Completed],
-            "the first save lands"
-        );
-        // Saving the identical profile again resolves Unchanged without a revision.
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                3,
-                ProfileDefinitionSource::Project,
-                &target,
-                profile("switch", "Parts library"),
-            ),
-            vec![TerminalOutcome::Completed],
-            "an unchanged save completes quietly"
-        );
-        assert_eq!(accepted(&runtime).document.revision, 1);
-
-        // Remove the definition, then queue another save of it.
-        let mut without = accepted(&runtime).document.as_ref().clone();
-        without.definitions.clear();
-        runtime.submit(fixed_commit(
-            OperationId(4),
-            Resolution::submit_with_transaction_id(
-                vec!["switch".into()],
-                "remove-definition",
-                EditOperation::ReplaceDocument {
-                    document: Box::new(without),
-                },
-            ),
-        ));
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                5,
-                ProfileDefinitionSource::Project,
-                &target,
-                profile("switch", "Parts library"),
-            ),
-            vec![TerminalOutcome::Rejected(PROFILE_GONE.into())],
-            "a save on a deleted definition retires with the reason"
-        );
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn profile_save_updates_a_definition_materialized_while_the_editor_was_open() {
-        let selected = definition("bundled-switch", "Bundled switch");
-        let runtime = open(document(vec![definition("other", "Other")]));
-        // Another edit materializes the same catalogue definition first.
-        let mut materialized = accepted(&runtime).document.as_ref().clone();
-        materialized.definitions.push(selected.clone());
-        runtime.submit(fixed_commit(
-            OperationId(2),
-            Resolution::submit_with_transaction_id(
-                vec!["bundled-switch".into()],
-                "materialize",
-                EditOperation::ReplaceDocument {
-                    document: Box::new(materialized),
-                },
-            ),
-        ));
-        let mut latest = accepted(&runtime).document.as_ref().clone();
-        latest.definitions[1].name = "Edited meanwhile".into();
-        runtime.submit(fixed_commit(
-            OperationId(3),
-            Resolution::submit_with_transaction_id(
-                vec!["bundled-switch".into()],
-                "rename",
-                EditOperation::ReplaceDocument {
-                    document: Box::new(latest),
-                },
-            ),
-        ));
-
-        assert_eq!(
-            resolve_profile(
-                &runtime,
-                4,
-                ProfileDefinitionSource::Generator,
-                &selected,
-                profile("bundled-switch", "Parts library"),
-            ),
-            vec![TerminalOutcome::Completed]
-        );
-        let document = accepted(&runtime).document;
-        assert_eq!(
-            document.definitions.len(),
-            2,
-            "no duplicate materialization"
-        );
-        assert_eq!(document.definitions[1].name, "Edited meanwhile");
-        assert_eq!(
-            document.definitions[1].mechanical_profile,
-            Some(profile("bundled-switch", "Parts library"))
-        );
-    }
-
-    #[test]
-    fn manual_profile_defaults_and_contour_edits_preserve_optional_profile_data() {
-        let definition = definition("custom", "Custom part");
-        let defaults = initial_profile(&definition, None);
-        assert_eq!(defaults.definition_id, "custom");
-        assert_eq!(defaults.source, "Parts library");
-        assert_eq!(defaults.plate_to_pcb, 0.0);
-        assert!(defaults.cutouts.is_empty());
-        assert!(defaults.clearances.is_none());
-        assert!(defaults.source_geometry.is_none());
-
-        let existing = profile("custom", "Existing evidence");
-        let mut edited = initial_profile(&definition, Some(&existing));
-        edited.cutouts[0][0].x = -3.0;
-        assert_eq!(edited.source_geometry, existing.source_geometry);
-        assert_eq!(edited.clearances, existing.clearances);
-        assert_eq!(edited.cutouts[0][0].x, -3.0);
-        assert_eq!(edited.cutouts[0][0].y, existing.cutouts[0][0].y);
-    }
-
-    #[test]
-    fn existing_switch_profile_displays_its_saved_gap_instead_of_a_default_gap() {
-        let mut saved = profile("switch", "Parts library");
-        saved.switch_family = Some(MechanicalSwitchFamily::Mx);
-        saved.plate_to_pcb = 0.8;
-        assert_eq!(displayed_mounting_gap(&saved).as_deref(), Some("0.80"));
-    }
-
-    #[test]
-    #[cfg(not(target_arch = "wasm32"))]
-    fn standard_profile_request_rejects_superseded_operation_and_returned_view_aba() {
-        let target = definition("bundled-switch", "Switch");
-        let runtime = open(document(vec![]));
-        let snapshot = accepted(&runtime);
-        let scope = runtime.scope();
-        let owner = edit_owner(
-            &snapshot,
-            scope.clone(),
-            ProfileDefinitionSource::Generator,
-            &target,
-            300,
-        );
-        let request = StandardProfileRequestCapture::new(
-            OperationId(301),
-            owner.clone(),
-            target.clone(),
-            boardstudio_model::model::MechanicalSwitchFamily::Mx,
-            3.5,
-            8,
-            4,
-        );
-        let selection = Some((scope.clone(), target.id.clone()));
-
-        let is_current = |pending, scope_generation, selection_generation| {
-            standard_profile_request_is_current(
-                &request,
-                pending,
-                &owner,
-                scope.as_ref(),
-                &snapshot,
-                &selection,
-                &target,
-                scope_generation,
-                selection_generation,
-                "Parts",
-                true,
-            )
-        };
-
-        assert!(is_current(Some(OperationId(301)), 8, 4));
-        assert!(!is_current(Some(OperationId(302)), 8, 4));
-        // A→B→A has the original Scope and selection again, but both monotonic owners advanced.
-        assert!(!is_current(Some(OperationId(301)), 10, 6));
-        assert!(!is_current(Some(OperationId(301)), 8, 6));
-        assert!(!is_current(Some(OperationId(301)), 10, 4));
-        assert!(!standard_profile_request_is_current(
-            &request,
-            Some(OperationId(301)),
-            &owner,
-            scope.as_ref(),
-            &snapshot,
-            &selection,
-            &target,
-            8,
-            4,
-            "Layout",
-            true,
-        ));
-        assert!(!standard_profile_request_is_current(
-            &request,
-            Some(OperationId(301)),
-            &owner,
-            scope.as_ref(),
-            &snapshot,
-            &selection,
-            &target,
-            8,
-            4,
-            "Parts",
-            false,
-        ));
-        let mut another_owner = owner.clone();
-        another_owner.source = ProfileDefinitionSource::Project;
-        assert!(!standard_profile_request_is_current(
-            &request,
-            Some(OperationId(301)),
-            &another_owner,
-            scope.as_ref(),
-            &snapshot,
-            &selection,
-            &target,
-            8,
-            4,
-            "Parts",
-            true,
-        ));
-        let mut another_definition = target.clone();
-        another_definition.name = "Newer selected definition".into();
-        assert!(!standard_profile_request_is_current(
-            &request,
-            Some(OperationId(301)),
-            &owner,
-            scope.as_ref(),
-            &snapshot,
-            &selection,
-            &another_definition,
-            8,
-            4,
-            "Parts",
-            true,
-        ));
-    }
-
-    #[test]
-    fn initial_profile_infers_the_family_and_its_plate_gap_from_the_generator() {
-        use boardstudio_model::model::MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
-        let definition = |generator: Option<(&str, serde_json::Value)>| -> PartDefinition {
-            let mut value = serde_json::json!({
-                "id":"def", "name":"def", "kind":"switch", "courtyard":[], "pads":[]
-            });
-            if let Some((source, parameters)) = generator {
-                value["generator"] =
-                    serde_json::json!({"source":source,"version":"1","parameters":parameters});
-            }
-            serde_json::from_value(value).unwrap()
-        };
-        let choc = "ceoloide/switch_choc_v1_v2";
-        for (generator, family, gap) in [
-            (
-                Some(("ceoloide/switch_mx", serde_json::json!({}))),
-                Some(Mx),
-                5.0 - 1.5,
-            ),
-            (
-                Some(("CEOLOIDE/Switch_MX", serde_json::json!({}))),
-                Some(Mx),
-                5.0 - 1.5,
-            ),
-            (
-                Some((
-                    choc,
-                    serde_json::json!({"choc_v1_support":true,"choc_v2_support":false}),
-                )),
-                Some(ChocV1),
-                3.5 - 1.3,
-            ),
-            (
-                Some((
-                    choc,
-                    serde_json::json!({
-                        "choc_v1_support":{"value":false},"choc_v2_support":{"value":true}
-                    }),
-                )),
-                Some(ChocV2),
-                5.0 - 1.5,
-            ),
-            (Some((choc, serde_json::json!({}))), None, 0.0),
-            (Some(("someone/else", serde_json::json!({}))), None, 0.0),
-            (None, None, 0.0),
-        ] {
-            let profile = initial_profile(&definition(generator), None);
-            assert_eq!(profile.switch_family, family);
-            assert_eq!(profile.plate_to_pcb, gap);
-        }
-    }
-
-    #[test]
-    fn standard_profile_request_matches_react_family_sources_and_plate_gaps() {
-        use boardstudio_model::model::{MechanicalBuiltinProfile, MechanicalSwitchFamily};
-
-        assert_eq!(
-            standard_profile_source_and_gap(MechanicalSwitchFamily::Mx),
-            (MechanicalBuiltinProfile::MxSwitch, 3.5)
-        );
-        assert_eq!(
-            standard_profile_source_and_gap(MechanicalSwitchFamily::ChocV1),
-            (MechanicalBuiltinProfile::ChocV1Switch, 2.2)
-        );
-        assert_eq!(
-            standard_profile_source_and_gap(MechanicalSwitchFamily::ChocV2),
-            (MechanicalBuiltinProfile::ChocV2Switch, 3.5)
-        );
-    }
-
-    #[test]
-    fn standard_profile_merge_preserves_sparse_user_fields_and_replaces_fit_geometry() {
-        let mut current = profile("switch", "manual provenance");
-        let old_cutouts = current.cutouts.clone();
-        let loaded = MechanicalPartProfile {
-            source_geometry: None,
-            pcb_holes: None,
-            clearance_volumes: None,
-            openings: None,
-            clearances: None,
-            supported_thickness: None,
-            switch_family: Some(MechanicalSwitchFamily::Mx),
-            definition_id: "switch".into(),
-            source: "Kailh MX standard".into(),
-            cutouts: vec![vec![Vec2 { x: -7.0, y: -7.0 }, Vec2 { x: 7.0, y: -7.0 }]],
-            plate_to_pcb: 3.5,
-        };
-        let new_cutouts = loaded.cutouts.clone();
-        merge_standard_profile(&mut current, loaded, MechanicalSwitchFamily::Mx, 3.5);
-        assert_eq!(
-            current.source_geometry.as_ref().unwrap().text,
-            "source geometry"
-        );
-        assert_eq!(current.clearances, profile("switch", "").clearances);
-        assert_eq!(current.cutouts, new_cutouts);
-        assert_ne!(current.cutouts, old_cutouts);
-        assert_eq!(current.source, "Kailh MX standard");
-        assert_eq!(current.switch_family, Some(MechanicalSwitchFamily::Mx));
-        assert_eq!(current.plate_to_pcb, 3.5);
-    }
-
-    #[test]
-    fn standard_profile_reply_rejects_wrong_request_owner_family_or_gap() {
-        use boardstudio_model::model::CoreReply;
-        let mut expected = profile("switch", "standard");
-        expected.switch_family = Some(MechanicalSwitchFamily::Mx);
-        expected.plate_to_pcb = 3.5;
-        assert!(
-            standard_profile_reply_matches(
-                CoreReply::MechanicalProfile {
-                    id: "right".into(),
-                    profile: expected.clone(),
-                },
-                "wrong",
-                "switch",
-                MechanicalSwitchFamily::Mx,
-                3.5,
-            )
-            .is_err()
-        );
-        assert!(
-            standard_profile_reply_matches(
-                CoreReply::MechanicalProfile {
-                    id: "right".into(),
-                    profile: expected.clone(),
-                },
-                "right",
-                "another-switch",
-                MechanicalSwitchFamily::Mx,
-                3.5,
-            )
-            .is_err()
-        );
-        assert!(
-            standard_profile_reply_matches(
-                CoreReply::MechanicalProfile {
-                    id: "right".into(),
-                    profile: expected.clone(),
-                },
-                "right",
-                "switch",
-                MechanicalSwitchFamily::ChocV2,
-                3.5,
-            )
-            .is_err()
-        );
-        assert!(
-            standard_profile_reply_matches(
-                CoreReply::MechanicalProfile {
-                    id: "right".into(),
-                    profile: expected,
-                },
-                "right",
-                "switch",
-                MechanicalSwitchFamily::Mx,
-                2.2,
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn standard_profile_selector_and_action_follow_distinct_issue15_predicates() {
-        let mut switch = definition("switch", "Project switch");
-        switch.kind = boardstudio_model::model::PartKind::Switch;
-        let mut family_profile = profile("switch", "saved fit");
-        family_profile.switch_family = Some(MechanicalSwitchFamily::ChocV1);
-        assert_eq!(
-            standard_profile_controls(&switch, &family_profile),
-            (true, true)
-        );
-
-        let mut non_switch = definition("controller", "Controller with saved switch fit");
-        non_switch.kind = boardstudio_model::model::PartKind::Controller;
-        assert_eq!(
-            standard_profile_controls(&non_switch, &family_profile),
-            (false, true)
-        );
-
-        family_profile.switch_family = None;
-        assert_eq!(
-            standard_profile_controls(&non_switch, &family_profile),
-            (false, false)
-        );
-    }
-
-    #[test]
-    fn standard_profile_family_selection_dispatches_a_load_request() {
-        let selected = std::cell::Cell::new(None);
-        assert!(dispatch_standard_profile_family("choc-v1", |family| {
-            selected.set(Some(family));
-        }));
-        assert_eq!(selected.get(), Some(MechanicalSwitchFamily::ChocV1));
-
-        assert!(!dispatch_standard_profile_family(
-            "unknown",
-            |_| unreachable!()
-        ));
+        assert_eq!(draft.switch_family, Some(MechanicalSwitchFamily::ChocV1));
+        assert_eq!(draft.plate_to_pcb, 2.2);
+        assert_eq!(draft.cutouts, cutouts);
+        assert_eq!(draft.clearances.unwrap()[0][0].x, 1.0);
     }
 }

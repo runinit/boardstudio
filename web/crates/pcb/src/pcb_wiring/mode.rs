@@ -49,26 +49,13 @@ pub struct BoardWiringModeFeedbackTarget {
     pub scope_generation: u64,
 }
 
-impl BoardWiringModeFeedbackTarget {
-    pub fn is_visible(
-        &self,
-        current_scope: Option<&Scope>,
-        current_selected_part_id: Option<&str>,
-        current_generation: u64,
-    ) -> bool {
-        current_scope == Some(&self.ui_scope)
-            && self.selected_part_id.as_deref() == current_selected_part_id
-            && self.scope_generation == current_generation
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeEditRequest {
     pub identity: BoardWiringModeIdentity,
     pub mode: ElectricalMode,
 }
 
-/// The accepted or pending mode written as the mode control's `value` text.
+/// The label used in the wiring panel header.
 pub(crate) fn mode_text(mode: ElectricalMode) -> String {
     match mode {
         ElectricalMode::Matrix => "matrix".to_owned(),
@@ -105,8 +92,8 @@ pub(crate) struct BoardWiringFailure {
 pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    pub(crate) draft: Signal<String>,
-    pub(crate) failure: Signal<Option<String>>,
+    pub(crate) mode: ElectricalMode,
+    pub(crate) failure: Option<String>,
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
@@ -120,35 +107,13 @@ pub fn use_board_wiring_mode_edits(
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
     let _ = version();
-    let mut draft = use_signal(String::new);
-    let mut failure = use_signal(|| None::<String>);
-    let mut bound = use_signal(|| None::<BoardWiringModeFeedbackTarget>);
-    let identity = source.as_ref().map(mode_identity);
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let accepted_snapshot = runtime.model().accepted;
-    let accepted = identity.as_ref().map_or_else(
-        || mode_text(ElectricalMode::Matrix),
-        |identity| {
-            accepted_snapshot.as_ref().map_or_else(
-                || mode_text(ElectricalMode::Matrix),
-                |snapshot| mode_text(board_mode(&snapshot.document, &identity.ui_scope.board_id)),
-            )
-        },
-    );
-    if bound.peek().as_ref() != target.as_ref() {
-        bound.set(target.clone());
-        failure.set(None);
-        draft.set(accepted.clone());
-    }
-    if draft.peek().as_str() != accepted {
-        draft.set(accepted);
-    }
+    let failure = use_signal(|| None::<BoardWiringFailure>);
+    let mode = source.as_ref().map_or(ElectricalMode::Matrix, |source| {
+        board_mode(&source.document, &source.ui_scope.board_id)
+    });
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut draft = draft;
         let mut failure = failure;
         move |request: BoardWiringModeEditRequest| {
             let Some(_snapshot) = current_edit_snapshot(
@@ -170,21 +135,28 @@ pub fn use_board_wiring_mode_edits(
             if identity != &request.identity.plan {
                 return;
             };
-            let board_id = request.identity.ui_scope.board_id.clone();
+            let target = request.identity.feedback_target();
             let result = runtime.commit("pcb-wiring-mode", mode_resolver(request));
-            if let Some(snapshot) = runtime.model().accepted {
-                draft.set(mode_text(board_mode(&snapshot.document, &board_id)));
-            }
-            failure.set(result.err());
+            failure.set(
+                result
+                    .err()
+                    .map(|message| BoardWiringFailure { target, message }),
+            );
         }
     });
     let identity = source.as_ref().map(mode_identity);
     let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
         && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let target = identity
+        .as_ref()
+        .map(BoardWiringModeIdentity::feedback_target);
+    let failure = failure()
+        .filter(|failure| Some(&failure.target) == target.as_ref())
+        .map(|failure| failure.message);
     BoardWiringModeActions {
         identity,
         editable,
-        draft,
+        mode,
         failure,
         on_change,
     }

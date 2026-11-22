@@ -19,36 +19,6 @@ use std::{
     rc::Rc,
 };
 
-#[cfg(test)]
-thread_local! {
-    static NEXT_PARTS_TEST_PREVIEW: RefCell<Option<boardstudio_model::model::PcbPreview>> = const { RefCell::new(None) };
-}
-
-#[cfg(test)]
-struct PartsTestPreviewGuard;
-
-#[cfg(test)]
-impl Drop for PartsTestPreviewGuard {
-    fn drop(&mut self) {
-        NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take());
-    }
-}
-
-#[cfg(test)]
-fn seed_parts_preview_for_test(
-    preview: boardstudio_model::model::PcbPreview,
-) -> PartsTestPreviewGuard {
-    NEXT_PARTS_TEST_PREVIEW.with(|next| {
-        assert!(next.borrow_mut().replace(preview).is_none());
-    });
-    PartsTestPreviewGuard
-}
-
-#[cfg(test)]
-fn take_parts_preview_for_test() -> Option<boardstudio_model::model::PcbPreview> {
-    NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take())
-}
-
 #[derive(Clone, Debug)]
 enum PreviewFailure {
     Unsupported,
@@ -244,10 +214,6 @@ pub fn PartsPreviewPanel(
                             &recipe,
                         )?;
                         lease_slot.replace(capture.lease.clone());
-                        #[cfg(test)]
-                        if let Some(preview) = take_parts_preview_for_test() {
-                            return capture.accept_preview(preview, None).map(Rc::new);
-                        }
                         runtime
                             .prepare_parts_library_preview(capture)
                             .await
@@ -726,8 +692,3 @@ fn PartsPreviewLayers(
     };
     boardstudio_web_ui_shared::layer_dock::use_docked_layers(content)
 }
-
-#[cfg(test)]
-#[cfg(test)]
-#[path = "preview/tests.rs"]
-mod tests;

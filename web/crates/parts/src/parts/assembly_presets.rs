@@ -1,7 +1,7 @@
 use super::catalogue::CatalogEntry;
 use boardstudio_model::model::{
-    AssemblyDefinition, Asset, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind,
-    PartOutline, ProjectDoc, Side, Vec2,
+    AssemblyDefinition, AssemblyMember, AssemblyModelMode, Asset, Matrix, MatrixAssembly,
+    MatrixCell, Part, PartDefinition, PartKind, PartOutline, ProjectDoc, Side, Vec2,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -313,113 +313,17 @@ pub fn matrix_with_assembly(
             "For matrix placement, keep the first member at the origin on the front".into(),
         );
     }
-    if assembly.members.iter().any(|member| {
-        !member.pose.at.x.is_finite()
-            || !member.pose.at.y.is_finite()
-            || !member.pose.rotation.is_finite()
-            || member.models.iter().any(|model| {
-                [
-                    model.offset.x,
-                    model.offset.y,
-                    model.offset.z,
-                    model.rotation.x,
-                    model.rotation.y,
-                    model.rotation.z,
-                    model.scale.x,
-                    model.scale.y,
-                    model.scale.z,
-                ]
-                .into_iter()
-                .any(|value| !value.is_finite())
-                    || [model.scale.x, model.scale.y, model.scale.z]
-                        .into_iter()
-                        .any(|value| value <= 0.0)
-            })
-    }) {
-        return Err(
-            "Assembly positions and angles must be finite, and model scales must be positive."
-                .into(),
-        );
-    }
-    let member_ids = assembly
+    validate_members(assembly, document, &[])?;
+    let nonce = safe_identity(snapshot_nonce);
+    let definitions = assembly
         .members
         .iter()
-        .map(|member| member.id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    if member_ids.len() != assembly.members.len()
-        || member_ids.iter().any(|id| id.trim().is_empty())
-    {
-        return Err("Assembly members must have unique, non-empty identities.".into());
-    }
-    let asset_exists = |id: &str| {
-        document.assets.iter().any(|asset| asset.id == id)
-            || crate::bundled_models::bundled_model(id).is_some()
-            || id.starts_with("unresolved-model:")
-    };
-    let mut definitions = Vec::with_capacity(assembly.members.len());
-    for member in &assembly.members {
-        let source = member.definition_id.as_deref().and_then(|id| {
-            document
-                .definitions
-                .iter()
-                .chain(catalogue_definitions)
-                .find(|definition| definition.id == id)
-        });
-        let mut definition = if let Some(source) = source {
-            source.clone()
-        } else if member.definition_id.is_none() {
-            PartDefinition {
-                hardware_profile: None,
-                input_profile: None,
-                id: format!("assembly-model-only:{}", member.id),
-                name: format!("{} model", member.id),
-                kind: PartKind::Custom,
-                keycap: None,
-                envelope_source: None,
-                kicad_source: None,
-                terminals: Default::default(),
-                matrix_terminals: None,
-                envelope_notice: None,
-                courtyard: Vec::new(),
-                pads: Vec::new(),
-                models: Some(member.models.clone()),
-                generator: None,
-                mechanical_profile: None,
-            }
-        } else {
-            return Err(format!(
-                "Missing component definition: {}",
-                member.definition_id.as_deref().unwrap_or_default()
-            ));
-        };
-        if let Some(generator) = definition.generator.as_mut()
-            && let Some(parameters) = member.parameters.as_ref()
-        {
-            generator.parameters.extend(parameters.clone());
-        }
-        if matches!(
-            &member.model_mode,
-            Some(boardstudio_model::model::AssemblyModelMode::Custom)
-        ) || (member.model_mode.is_none() && !member.models.is_empty())
-        {
-            definition.models = Some(member.models.clone());
-        }
-        for model in definition.models.as_deref().unwrap_or_default() {
-            if !asset_exists(&model.asset_id) {
-                return Err(format!(
-                    "The model asset '{}' is not available in this project.",
-                    model.asset_id
-                ));
-            }
-        }
-        definition.id = format!(
-            "{}/assembly-{}/definition/{}",
-            matrix.id,
-            safe_identity(snapshot_nonce),
-            member.id
-        );
-        definitions.push(definition);
-    }
+        .map(|member| {
+            let mut definition = member_definition(member, document, catalogue_definitions, &[])?;
+            definition.id = format!("{}/assembly-{nonce}/definition/{}", matrix.id, member.id);
+            Ok(definition)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
 
     let primary_rotation = primary.pose.rotation;
     let angle = -primary_rotation.to_radians();
@@ -496,121 +400,12 @@ pub fn document_with_assembly(
     else {
         return Err("The selected board is no longer available.".into());
     };
-    let member_ids = assembly
-        .members
-        .iter()
-        .map(|member| member.id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    if member_ids.len() != assembly.members.len()
-        || member_ids.iter().any(|id| id.trim().is_empty())
-    {
-        return Err("Assembly members must have unique, non-empty identities.".into());
-    }
-    if assembly.members.iter().any(|member| {
-        !member.pose.at.x.is_finite()
-            || !member.pose.at.y.is_finite()
-            || !member.pose.rotation.is_finite()
-            || member.models.iter().any(|model| {
-                [
-                    model.offset.x,
-                    model.offset.y,
-                    model.offset.z,
-                    model.rotation.x,
-                    model.rotation.y,
-                    model.rotation.z,
-                    model.scale.x,
-                    model.scale.y,
-                    model.scale.z,
-                ]
-                .into_iter()
-                .any(|value| !value.is_finite())
-                    || [model.scale.x, model.scale.y, model.scale.z]
-                        .into_iter()
-                        .any(|value| value <= 0.0)
-            })
-    }) {
-        return Err(
-            "Assembly positions and angles must be finite, and model scales must be positive."
-                .into(),
-        );
-    }
-
-    let asset_exists = |id: &str| {
-        document.assets.iter().any(|asset| asset.id == id)
-            || draft_assets.iter().any(|asset| asset.id == id)
-            || crate::bundled_models::bundled_model(id).is_some()
-            || id.starts_with("unresolved-model:")
-    };
+    validate_members(assembly, document, draft_assets)?;
     let mut next = document.clone();
-    for asset in draft_assets {
-        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
-            if existing != asset {
-                return Err(format!(
-                    "The model asset identity '{}' conflicts with the accepted project.",
-                    asset.id
-                ));
-            }
-        } else {
-            next.assets.push(asset.clone());
-        }
-    }
+    merge_assets(&mut next, draft_assets)?;
     let mut part_ids = Vec::with_capacity(assembly.members.len());
     for member in &assembly.members {
-        let source = member.definition_id.as_deref().and_then(|id| {
-            document
-                .definitions
-                .iter()
-                .chain(source_definitions)
-                .find(|definition| definition.id == id)
-        });
-        let mut definition = if let Some(source) = source {
-            source.clone()
-        } else if member.definition_id.is_none() {
-            PartDefinition {
-                hardware_profile: None,
-                input_profile: None,
-                id: format!("assembly-model-only:{}", member.id),
-                name: "Visual model".into(),
-                kind: PartKind::Custom,
-                keycap: None,
-                envelope_source: None,
-                kicad_source: None,
-                terminals: Default::default(),
-                matrix_terminals: None,
-                envelope_notice: None,
-                courtyard: Vec::new(),
-                pads: Vec::new(),
-                models: None,
-                generator: None,
-                mechanical_profile: None,
-            }
-        } else {
-            return Err(format!(
-                "Missing component definition: {}",
-                member.definition_id.as_deref().unwrap_or_default()
-            ));
-        };
-        if let Some(generator) = definition.generator.as_mut()
-            && let Some(parameters) = member.parameters.as_ref()
-        {
-            generator.parameters.extend(parameters.clone());
-        }
-        if !member.models.is_empty()
-            || matches!(
-                &member.model_mode,
-                Some(boardstudio_model::model::AssemblyModelMode::Custom)
-            )
-        {
-            definition.models = Some(member.models.clone());
-        }
-        for model in definition.models.as_deref().unwrap_or_default() {
-            if !asset_exists(&model.asset_id) {
-                return Err(format!(
-                    "The model asset '{}' is not available in this project.",
-                    model.asset_id
-                ));
-            }
-        }
+        let mut definition = member_definition(member, document, source_definitions, draft_assets)?;
         definition.id = format!("{placement_id}/definition/{}", member.id);
         let part_id = format!("{placement_id}/{}", member.id);
         if next
@@ -681,18 +476,7 @@ pub fn rebase_assembly_placement(
     part_ids: &[String],
 ) -> Result<ProjectDoc, String> {
     let mut next = latest.clone();
-    for asset in draft_assets {
-        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
-            if existing != asset {
-                return Err(format!(
-                    "The model asset identity '{}' conflicts with the accepted project.",
-                    asset.id
-                ));
-            }
-        } else {
-            next.assets.push(asset.clone());
-        }
-    }
+    merge_assets(&mut next, draft_assets)?;
 
     let definition_prefix = format!("{placement_id}/definition/");
     for definition in proposal
@@ -732,6 +516,127 @@ pub fn rebase_assembly_placement(
         }
     }
     Ok(next)
+}
+
+pub(super) fn merge_assets(next: &mut ProjectDoc, assets: &[Asset]) -> Result<(), String> {
+    for asset in assets {
+        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
+            if existing != asset {
+                return Err(format!(
+                    "The model asset identity '{}' conflicts with the accepted project.",
+                    asset.id
+                ));
+            }
+        } else {
+            next.assets.push(asset.clone());
+        }
+    }
+
+    Ok(())
+}
+
+fn asset_exists(document: &ProjectDoc, assets: &[Asset], id: &str) -> bool {
+    document
+        .assets
+        .iter()
+        .chain(assets)
+        .any(|asset| asset.id == id)
+        || crate::bundled_models::bundled_model(id).is_some()
+        || id.starts_with("unresolved-model:")
+}
+
+pub(super) fn validate_members(
+    assembly: &AssemblyDefinition,
+    document: &ProjectDoc,
+    assets: &[Asset],
+) -> Result<(), String> {
+    let mut ids = std::collections::BTreeSet::new();
+    for member in &assembly.members {
+        if member.id.trim().is_empty() || !ids.insert(&member.id) {
+            return Err("Assembly members must have unique, non-empty identities.".into());
+        }
+        if ![member.pose.at.x, member.pose.at.y, member.pose.rotation]
+            .into_iter()
+            .all(f64::is_finite)
+        {
+            return Err("Assembly member positions and angles must be finite.".into());
+        }
+        for model in &member.models {
+            let scale = model.scale;
+            let coordinates = [model.offset, model.rotation, scale];
+            if !coordinates
+                .into_iter()
+                .flat_map(|point| [point.x, point.y, point.z])
+                .all(f64::is_finite)
+                || [scale.x, scale.y, scale.z]
+                    .into_iter()
+                    .any(|value| value <= 0.0)
+            {
+                return Err("Model positions and rotations must be finite, and model scales must be positive.".into());
+            }
+            if !asset_exists(document, assets, &model.asset_id) {
+                return Err(format!(
+                    "The model asset '{}' is not available in this project.",
+                    model.asset_id
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn member_definition(
+    member: &AssemblyMember,
+    document: &ProjectDoc,
+    catalogue: &[PartDefinition],
+    assets: &[Asset],
+) -> Result<PartDefinition, String> {
+    let mut definition = match member.definition_id.as_deref() {
+        Some(id) => document
+            .definitions
+            .iter()
+            .chain(catalogue)
+            .find(|definition| definition.id == id)
+            .cloned()
+            .ok_or_else(|| format!("Missing component definition: {id}"))?,
+        None => model_only_definition(member),
+    };
+    if let (Some(generator), Some(parameters)) = (&mut definition.generator, &member.parameters) {
+        generator.parameters.extend(parameters.clone());
+    }
+    if member.model_mode == Some(AssemblyModelMode::Custom) || !member.models.is_empty() {
+        definition.models = Some(member.models.clone());
+    }
+    for model in definition.models.as_deref().unwrap_or_default() {
+        if !asset_exists(document, assets, &model.asset_id) {
+            return Err(format!(
+                "The model asset '{}' is not available in this project.",
+                model.asset_id
+            ));
+        }
+    }
+    Ok(definition)
+}
+
+pub(super) fn model_only_definition(member: &AssemblyMember) -> PartDefinition {
+    PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        id: format!("assembly-model-only:{}", member.id),
+        name: format!("{} model", member.id),
+        kind: PartKind::Custom,
+        keycap: None,
+        envelope_source: None,
+        kicad_source: None,
+        terminals: Default::default(),
+        matrix_terminals: None,
+        envelope_notice: None,
+        courtyard: Vec::new(),
+        pads: Vec::new(),
+        models: Some(member.models.clone()),
+        generator: None,
+        mechanical_profile: None,
+    }
 }
 
 fn safe_identity(value: &str) -> String {

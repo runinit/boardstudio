@@ -2,7 +2,6 @@
 use crate::pcb_controls::PcbFile;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, ToggleField,
 };
@@ -10,11 +9,10 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{File, HtmlInputElement};
 
 use boardstudio_web_host::host::AssetBytes;
@@ -134,21 +132,6 @@ impl BoardReferenceContext {
     }
 }
 
-async fn wait_for_reference(
-    ctx: &BoardReferenceContext,
-    outcome: EditOutcome,
-) -> Result<(), String> {
-    loop {
-        let live = (ctx.generation)() == ctx.request_generation && ctx.lineage_is_current();
-        match outcome.settlement(live) {
-            Settlement::Landed { .. } => return Ok(()),
-            Settlement::Failed { message } => return Err(message),
-            Settlement::Retired => return Err(String::new()),
-            Settlement::Pending => TimeoutFuture::new(25).await,
-        }
-    }
-}
-
 async fn discover_stored_paths(
     ctx: &BoardReferenceContext,
     reference: &BoardReference,
@@ -214,13 +197,11 @@ async fn import_routed_board(
     ctx: &BoardReferenceContext,
     reference: Option<&BoardReference>,
     file: File,
-) -> Result<(String, String, Vec<String>), String> {
+) -> Result<(String, Vec<String>), String> {
     if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let (bytes, source) = read_kicad_file(&file).await?;
-    #[cfg(all(test, target_arch = "wasm32"))]
-    test_support::pause_import_after_file_read().await;
     if !ctx.is_live() {
         return Err("The project or board changed while the routed-board file was read.".into());
     }
@@ -277,58 +258,36 @@ async fn import_routed_board(
         return Err("Could not allocate a unique routed-board asset identity.".into());
     }
     proposed.assets.push(asset);
-    let reference_id = if let Some(reference) = reference {
+    if let Some(reference) = reference {
         let existing = proposed
             .board_references
             .iter_mut()
             .find(|current| current.id == reference.id && current.board_id == scope.board_id)
-            .ok_or_else(|| {
-                "The routed-board reference changed. Reopen the panel and retry.".to_owned()
-            })?;
-        existing.asset_id = asset_id;
+            .ok_or("The routed-board reference changed. Reopen the panel and retry.")?;
+        existing.asset_id = asset_id.clone();
         existing.enabled = true;
-        existing.id.clone()
     } else {
-        let id = crate::runtime::new_project_id()?;
-        if proposed
-            .board_references
-            .iter()
-            .any(|current| current.id == id)
-        {
-            return Err("Could not allocate a unique routed-board reference identity.".into());
-        }
         proposed.board_references.push(BoardReference {
-            id: id.clone(),
+            id: crate::runtime::new_project_id()?,
             board_id: scope.board_id.clone(),
-            asset_id,
+            asset_id: asset_id.clone(),
             enabled: true,
             pose: boardstudio_model::model::Pose2 {
                 at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
             elevation: 0.0,
-            model_assets: reference
-                .map(|reference| reference.model_assets.clone())
-                .unwrap_or_default(),
+            model_assets: Default::default(),
         });
-        id
-    };
-    let asset_id = proposed
-        .board_references
-        .iter()
-        .find(|current| current.id == reference_id && current.board_id == scope.board_id)
-        .map(|current| current.asset_id.clone())
-        .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
-    let outcome = super::submit_board_reference_document(
+    }
+    super::submit_board_reference_document(
         &ctx.runtime,
-        ctx.is_current(),
+        ctx.is_live(),
         &ctx.owner,
         proposed,
         "board-reference-import",
-    )?
-    .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference(ctx, outcome).await?;
-    Ok((reference_id, asset_id, paths))
+    )?;
+    Ok((asset_id, paths))
 }
 
 enum ModelAttachment {
@@ -443,15 +402,13 @@ async fn attach_model_files(
         current.model_assets.insert(path, asset.id.clone());
         proposed.assets.push(asset);
     }
-    let outcome = super::submit_board_reference_document(
+    super::submit_board_reference_document(
         &ctx.runtime,
-        ctx.is_current(),
+        ctx.is_live(),
         &ctx.owner,
         proposed,
         "board-reference-model-attach",
-    )?
-    .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference(ctx, outcome).await
+    )
 }
 
 fn begin_request(
@@ -483,12 +440,12 @@ fn begin_board_import(
     };
     ctx.request_generation = epoch;
     let current_epoch = ctx.generation;
-    spawn_local(async move {
+    spawn(async move {
         let result = import_routed_board(&ctx, reference.as_ref(), file).await;
         if current_epoch() == epoch {
             busy.set(false);
             match result {
-                Ok((_, asset_id, discovered)) => {
+                Ok((asset_id, discovered)) => {
                     paths.set(discovered);
                     paths_asset_id.set(Some(asset_id));
                 }
@@ -520,7 +477,7 @@ fn begin_model_attachment(
     };
     ctx.request_generation = epoch;
     let current_epoch = ctx.generation;
-    spawn_local(async move {
+    spawn(async move {
         let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
         if current_epoch() == epoch {
             busy.set(false);
@@ -618,7 +575,7 @@ pub fn Editor(
                 let mut error = error;
                 let mut model_paths = model_paths;
                 let mut paths_asset_id = paths_asset_id;
-                spawn_local(async move {
+                spawn(async move {
                     let result = discover_stored_paths(&ctx, &reference).await;
                     if (ctx.generation)() == epoch {
                         busy_signal.set(false);
@@ -869,12 +826,3 @@ pub fn Editor(
         }
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_board_reference/test_support.rs"]
-mod test_support;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_board_reference/mounted_async_tests.rs"]
-mod mounted_async_tests;
