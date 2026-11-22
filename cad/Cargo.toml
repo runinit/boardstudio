@@ -33,6 +33,11 @@ opt-level = 2
 [profile.cad-test.package.lyon_tessellation]
 opt-level = 2
 
+[profile.cad-test.package.cadmpeg-codec-step]
+opt-level = 2
+
+[profile.cad-test.package.cadmpeg-tessellate]
+opt-level = 2
 
 [patch.crates-io]
 cadmpeg-tessellate = { path = "vendor/cadmpeg-tessellate" }

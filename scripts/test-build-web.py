@@ -53,6 +53,9 @@ class BuildWebTests(unittest.TestCase):
                 cargo_wasm = root / "target/boardstudio-web.wasm"
                 cargo_wasm.parent.mkdir()
                 cargo_wasm.write_bytes(b"cargo")
+                tools = (root / "tailwindcss", root / "wasm-bindgen", str(root / "dx"))
+                for tool in tools[1:]:
+                    Path(tool).touch()
                 public = root / "page/public"
                 calls = []
 
@@ -71,13 +74,15 @@ class BuildWebTests(unittest.TestCase):
                         out = Path(command[command.index("--out-dir") + 1])
                         out.mkdir(parents=True)
                         (out / "boardstudio-web.js").write_text(bindgen_js)
+                        (out / "boardstudio-web_bg.wasm").write_bytes(b"bound")
 
                 with patch.object(BUILD, "cargo_page_artifact", return_value=cargo_wasm), \
                      patch.object(BUILD, "run", fake_run):
-                    BUILD.plain_page(route, (Path("/t/tailwindcss"), Path("/t/wasm-bindgen"), "/t/dx"), public)
+                    BUILD.plain_page(route, tools, public)
+                    BUILD.plain_page(route, tools, public)
 
                 self.assertEqual(cargo_wasm.read_bytes(), b"cargo")
-                self.assertEqual([command[0] for command in calls], ["/t/dx", "/t/wasm-bindgen"])
+                self.assertEqual([command[0] for command in calls], [tools[2], str(tools[1])])
                 bindgen = calls[1]
                 for flag in ("--target", "web", "--no-typescript", "--remove-name-section"):
                     self.assertIn(flag, bindgen)
@@ -102,6 +107,34 @@ class BuildWebTests(unittest.TestCase):
                     self.assertIn(meta, index)
                 else:
                     self.assertNotIn("DIOXUS_ASSET_ROOT", index)
+
+                with patch.object(BUILD, "cargo_page_artifact", return_value=cargo_wasm), \
+                     patch.object(BUILD, "run", fake_run):
+                    def assert_miss(current_tools):
+                        calls.clear()
+                        BUILD.plain_page(route, current_tools, public)
+                        self.assertEqual(len(calls), 2)
+
+                    for product in ("assets/focus-trap-dxh0.js", "wasm/boardstudio-web.js",
+                                    "wasm/boardstudio-web_bg.wasm", "index.html"):
+                        with self.subTest(missing=product):
+                            (public / product).unlink()
+                            assert_miss(tools)
+                    cargo_wasm.write_bytes(b"changed")
+                    assert_miss(tools)
+                    alternate = root / "alternate-bindgen"
+                    alternate.touch()
+                    assert_miss((tools[0], alternate, tools[2]))
+
+    def test_worker_builds_use_a_separate_cargo_target(self):
+        with patch.object(BUILD, "run") as run, \
+             patch.object(BUILD, "_stage_provider_entries"), patch.object(BUILD.shutil, "copy2"):
+            BUILD.prepare_runtime_providers(fast=True)
+        commands = BUILD.provider_commands(fast=True)
+        self.assertEqual([call.args[0] for call in run.call_args_list[:len(commands)]], commands)
+        for call in run.call_args_list[:2]:
+            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(BUILD.ROOT / "target/wasm-workers"))
+        self.assertNotIn("env", run.call_args_list[2].kwargs)
 
     def test_site_and_dev_assets_stage_the_same_providers_and_worker_entries(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -198,10 +231,10 @@ class BuildWebTests(unittest.TestCase):
 
             def page(route, tools, public):
                 events.append(route)
-                public.mkdir()
+                public.mkdir(parents=True)
                 (public / "index.html").write_text(route)
 
-            with patch.object(BUILD, "PAGE_PUBLIC", public), \
+            with patch.object(BUILD, "PAGE_TARGET", public), \
                  patch.object(BUILD, "page_tools", return_value=tools), \
                  patch.dict(os.environ), \
                  patch.object(BUILD, "prepare_runtime_providers", side_effect=lambda fast: events.append(fast)), \

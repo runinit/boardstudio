@@ -35,7 +35,8 @@ import cargo_json  # noqa: E402
 from tailwind_tools import TEST_CSS_READY, check_jobs, test_css_command  # noqa: E402
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
-# `wasm-check` is the profile the checked page build uses, so the page tests reuse its units.
+# Share the profile and target directory with the browser crate tests. Test-support and
+# dev-dependency features give this build a different graph from the packaged page.
 PAGE_BUILD = ["cargo", "test", "--no-run", "--target", "wasm32-unknown-unknown", "--locked",
               "--profile", "wasm-check", "--no-default-features", "--features", "page,boardstudio-web-host/test-support",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--message-format=json"]
@@ -136,8 +137,7 @@ def build_page_test(root, env):
     if env.get(TEST_CSS_READY) != "1" and (root / "web/tailwind.css").is_file():
         subprocess.run(test_css_command(), cwd=root / "web", env=env, check=True, stdout=sys.stderr,
                        pass_fds=() if fd is None else (fd,))
-    build_env = dict(env)
-    build_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+    build_env = wasm_bindgen_tools.test_build_env(env, root)
     try:
         result = subprocess.run(PAGE_BUILD, cwd=root, env=build_env, text=True,
                                 stdout=subprocess.PIPE, pass_fds=() if fd is None else (fd,))

@@ -31,26 +31,27 @@ import wasm_bindgen_tools
 PY = "python3"
 OVERLAP_MIN_CPUS = 8
 OVERLAP_STEPS = frozenset({"build", "lint", "test"})
+OVERLAP_OPTIONAL_STEPS = frozenset({"repo", "tooling"})
 # One workspace invocation compiles Core once for every crate's tests, including footprints.
 CARGO_TESTS: list[list[str]] = [
-    ["cargo", "test", "--workspace", "--locked"],
+    ["cargo", "test", "--workspace", "--locked", "--lib", "--bins", "--tests"],
 ]
 # Longest first, so the parallel batch ends with short scripts; the serial scripts run after it.
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "scripts/test-ci-workflow.py",
     "scripts/test-check-quick.py", "scripts/test-check.py", "scripts/test-browser-tools.py",
     "scripts/test-mutation-check.py", "scripts/test-run-wasm-tests.py",
-    "scripts/test-gitnexus-stop-hook.py", "scripts/test-stage-ergogen-models.py", "scripts/test-dev-web.py",
-    "scripts/test-build-web.py", "scripts/test-build-time.py", "scripts/test-build-patched-wasm-bindgen.py",
-    "scripts/test-gitnexus-refresh.py",
+    "scripts/test-stage-ergogen-models.py", "scripts/test-dev-web.py",
+    "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py",
     "scripts/test-bump-chrome-for-testing.py", "scripts/test-chrome-for-testing.py",
     "scripts/test-check-native-tests.py", "scripts/test-verify-no-node.py",
     "scripts/test-catalogue-tools.py", "scripts/test-run-drag-browser.py",
     "scripts/test-serve-web.py",
 )
 KICAD_PARTS_TEST = [PY, "scripts/test-import-kicad-parts.py"]
+CAD_TEST = [PY, "cad/scripts/test-cad.py"]
 WASM_PAGE = ["--no-default-features", "--features", "page"]
-# Every wasm test build shares the checked page build's profile, and so its units; see Cargo.toml.
+# Keep browser test builds on the same profile as the checked page.
 WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-unknown-unknown",
                     "--profile", "wasm-check", "--locked", "--message-format=json"]
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
@@ -67,7 +68,7 @@ PAGE_SUITE = [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
 PAGE_TEST_BUILD = [PY, "scripts/run-wasm-tests.py", "--build-only"]
 PAGE_PACKAGE = "boardstudio-web"
 BUILD_LOCK_SCRIPTS = (
-    "scripts/build-web.py", "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", KICAD_PARTS_TEST[1],
+    "scripts/build-web.py", "scripts/run-wasm-tests.py", CAD_TEST[1], KICAD_PARTS_TEST[1],
     "scripts/check.py",
 )
 
@@ -166,7 +167,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "build": (True, [[PY, "scripts/build-web.py", "--fast"], *BROWSER_PREBUILDS]),
     "lint": (True, LINT),
     "release": (False, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], KICAD_PARTS_TEST]),
+    "test": (True, [*CARGO_TESTS, CAD_TEST, KICAD_PARTS_TEST]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "browser-packaged": (False, [cmd for cmd in browser() if not (is_crate_build(cmd) or launch_crate(cmd))]),
@@ -270,7 +271,7 @@ def run_serial(command, environment, cwd=ROOT, captured=None, outputs=None):
     return time.monotonic() - started, result.returncode
 
 
-def run_parallel(batch, environment):
+def run_parallel(batch, environment, *, captured=None):
     """Run independent command lanes, each in order, and clean up on interruption."""
     started = time.monotonic()
     active = set()
@@ -281,6 +282,7 @@ def run_parallel(batch, environment):
     def run_lane(lane):
         for command, cwd, env in lane:
             print("$ " + shlex.join(command), flush=True)
+            command_started = time.monotonic()
             with lock:
                 if cancelled.is_set():
                     return False
@@ -299,7 +301,12 @@ def run_parallel(batch, environment):
             with lock:
                 process.wait()
                 active.discard(process)
-            print(output, end="", flush=True)
+                if captured is not None:
+                    captured.append((command, output))
+            elapsed = time.monotonic() - command_started
+            if output:
+                print(output, end="" if output.endswith("\n") else "\n", flush=True)
+            print(f"check: {elapsed:.2f}s {shlex.join(command)}", flush=True)
             if process.returncode:
                 print("check: command failed: " + shlex.join(command), file=sys.stderr)
                 return False
@@ -329,6 +336,23 @@ def run_parallel(batch, environment):
     return time.monotonic() - started, all(results)
 
 
+def run_native_tests(environment, cwd, state):
+    captured = []
+    with tempfile.TemporaryDirectory(prefix="check-native-") as temporary:
+        with overlap_jobserver(Path(temporary), os.cpu_count() or 1) as flags:
+            env = dict(environment, MAKEFLAGS=flags)
+            kicad_env = env.copy()
+            kicad_env.pop("APPDIR", None)  # KiCad must use its system libraries.
+            batch = [
+                [(command, cwd, env) for command in CARGO_TESTS],
+                [(CAD_TEST, cwd, env), (KICAD_PARTS_TEST, cwd, kicad_env)],
+            ]
+            elapsed, passed = run_parallel(batch, env, captured=captured)
+    if passed:
+        state["native"] = [output for command, output in captured if command in CARGO_TESTS]
+    return elapsed, passed
+
+
 def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_going=False):
     started = time.monotonic()
     if state is None:
@@ -341,6 +365,8 @@ def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_goin
         return time.monotonic() - started, passed and all(serial_passed)
     if is_browser_step(name):
         return run_browser(commands, environment, cwd, state, keep_going)
+    if name == "test" and commands == STEPS["test"][1] and check_jobs() > 1:
+        return run_native_tests(environment, cwd, state)
 
     passed = True
     for command in commands:
@@ -373,8 +399,7 @@ def build_crate_tests(command, environment, cwd, state):
     if command == state.get("crate_build") and all(path.is_file() for path in state["crates"].values()):
         return True
     output = []
-    env = environment.copy()
-    env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+    env = wasm_bindgen_tools.test_build_env(environment, cwd)
     _, code = run_serial(command, env, cwd, outputs=output)
     crates = [value.removeprefix("boardstudio-web-") for flag, value in zip(command, command[1:])
               if flag == "-p"]
@@ -439,13 +464,20 @@ def run_browser(commands, environment, cwd, state, keep_going):
 def overlap_span(plan):
     if os.environ.get("CI") or check_jobs() <= 1 or (os.cpu_count() or 1) < OVERLAP_MIN_CPUS:
         return None
-    for start in range(len(plan) - 2):
-        group = plan[start:start + 3]
-        if ({name for name, _ in group} == OVERLAP_STEPS
-                and all(commands == STEPS[name][1] for name, commands in group)):
+    allowed = OVERLAP_STEPS | OVERLAP_OPTIONAL_STEPS
+    for start in range(len(plan) - len(OVERLAP_STEPS) + 1):
+        names = set()
+        end = start
+        for name, commands in plan[start:start + len(allowed)]:
+            if name in names or name not in allowed or commands != STEPS[name][1]:
+                break
+            names.add(name)
+            end += 1
+        if OVERLAP_STEPS <= names:
             # Only the plain Cargo page can reuse CSS while WASM Clippy reads it.
             if importlib.import_module("build-web").page_tools(quiet=True):
-                return start
+                return start, end
+            return None
     return None
 
 
@@ -507,20 +539,19 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, totals=No
         env = os.environ.copy()
         if state["css"]:
             env[TEST_CSS_READY] = "1"
-        if "BUILDTIME_LOG" in env:
-            env["BUILDTIME_STEP"] = name
-        if index == span:
+        if span and index == span[0]:
             print("== test-css", flush=True)
             totals["test-css"], code = run_serial(test_css_command(), env, ROOT / "web")
             if code:
                 return 1
-            group = plan[index:index + 3]
-            totals["build/lint/test"], passed = run_overlapped_steps(group, update_native_baseline)
+            group = plan[index:span[1]]
+            group_name = "/".join(name for name, _ in group)
+            totals[group_name], passed = run_overlapped_steps(group, update_native_baseline)
             if not passed:
                 return 1
             state["css"] = True
             baseline_checked |= update_native_baseline
-            index += 3
+            index = span[1]
             continue
         print(f"== {name}", flush=True)
         if name == "test":
@@ -613,7 +644,7 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         if commands:
             plan.append(("browser", commands))
     if selection.cad:
-        plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
+        plan.append(("test", [CAD_TEST]))
     if selection.kicad_parts:
         plan.append(("test", [KICAD_PARTS_TEST]))
     return plan

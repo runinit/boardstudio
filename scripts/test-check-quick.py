@@ -102,7 +102,7 @@ class QuickPlanTests(unittest.TestCase):
         self.assertLess(names.index("test-css"), names.index("lint"))
 
     def test_core_and_footprints_use_one_workspace_test_command(self):
-        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked"]])
+        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked", "--lib", "--bins", "--tests"]])
         plan = self.plan(["core/src/lib.rs", "catalogue/footprints/a.rs"])
         self.assertEqual(len(plan["test"]), 1)
         self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])

@@ -26,7 +26,7 @@ ROUTES = {"subpath": "/boardstudio/", "root": "/"}
 DEFAULT_ROUTES = ("subpath",)
 # Cargo config already passes the getrandom WASM cfg to every build.
 DX_FLAGS = ("--wasm-js-cfg", "false")
-PAGE_PUBLIC = WEB / "target/page/public"
+PAGE_TARGET = WEB / "target/page"
 PLAIN_PAGE_DX_VERSION = "0.7.10"
 PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown", "--profile", "wasm-check",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--no-default-features",
@@ -258,24 +258,51 @@ def index_html(base_path: str) -> str:
 
 def plain_page(route: str, tools: tuple[Path, Path, str], public: Path) -> None:
     _tailwind, bindgen, dx = tools
+    artifact = cargo_page_artifact()
+    dx, bindgen = Path(dx).resolve(), bindgen.resolve()
+    with artifact.open("rb") as wasm:
+        digest = hashlib.file_digest(wasm, "sha256")
+    # Versions were validated by page_tools. Include timestamps for same-version tool replacements
+    # and the packaging script for changes to the generated loader, HTML, or tool flags.
+    digest.update(json.dumps([
+        route, str(dx), PLAIN_PAGE_DX_VERSION, dx.stat().st_mtime_ns,
+        str(bindgen), wasm_bindgen_tools.locked_version(ROOT), bindgen.stat().st_mtime_ns,
+    ]).encode())
+    digest.update(Path(__file__).read_bytes())
+    key = digest.hexdigest().encode("ascii")
+    stamp = public.parent / "plain-page.sha256"
+    assets = public / "assets"
+    script = public / "wasm/boardstudio-web.js"
+    bound_wasm = public / "wasm/boardstudio-web_bg.wasm"
+    index = public / "index.html"
+    if (stamp.is_file() and stamp.read_bytes() == key and assets.is_dir() and any(assets.iterdir())
+            and all(path.is_file() for path in (script, bound_wasm, index))):
+        print(f"build-web: reusing plain page for {ROUTES[route]}", flush=True)
+        return
+
+    # A failed extraction or bindgen run must leave no reusable stamp.
+    stamp.unlink(missing_ok=True)
+    if public.exists():
+        shutil.rmtree(public)
     module = public.parent / "boardstudio-web.wasm"
     public.mkdir(parents=True, exist_ok=True)
     # Dioxus extracts assets by rewriting the module, so pass it a copy.
-    shutil.copy2(cargo_page_artifact(), module)
-    assets = public / "assets"
-    run([dx, "tools", "assets", str(module), str(assets)], cwd=WEB)
+    shutil.copy2(artifact, module)
+    run([str(dx), "tools", "assets", str(module), str(assets)], cwd=WEB)
     if not assets.is_dir() or not any(assets.iterdir()):
         raise FileNotFoundError(f"dx tools assets extracted no files into {assets}")
     # dx's checked page has no name section either; it would triple the module the browser loads.
     run([str(bindgen), "--target", "web", "--no-typescript", "--remove-name-section",
          "--out-dir", str(public / "wasm"), "--out-name", "boardstudio-web", str(module)],
         env={**os.environ, "RAYON_NUM_THREADS": "1"})
-    script = public / "wasm/boardstudio-web.js"
+    if not bound_wasm.is_file():
+        raise FileNotFoundError(f"wasm-bindgen did not generate {bound_wasm}")
     module_js = script.read_text()
     if missing := [binding for binding in BINDGEN_BINDINGS if not re.search(binding, module_js, re.MULTILINE)]:
         raise ValueError(f"{script} lacks the wasm-bindgen bindings the Dioxus loader uses: {missing}")
     script.write_text(module_js.rstrip("\n") + "\n" + DX_FOOTER.format(base_path=ROUTES[route]))
-    (public / "index.html").write_text(index_html(ROUTES[route]))
+    index.write_text(index_html(ROUTES[route]))
+    stamp.write_bytes(key)
 
 
 def package_route(output: Path, public: Path, route: str) -> None:
@@ -289,7 +316,11 @@ def package_route(output: Path, public: Path, route: str) -> None:
 
 def prepare_runtime_providers(fast=False):
     for command in provider_commands(fast):
-        run(command)
+        if command[:3] == ["wasm-pack", "build", str(WEB)]:
+            # Both worker variants build boardstudio-web with a different feature set.
+            run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target/wasm-workers")))
+        else:
+            run(command)
     run(["node", "cad/scripts/bake-bundled-step.cjs"])
     _stage_provider_entries(WEB / "assets", ROOT)
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json", WEB / "assets/imported-modules.json")
@@ -299,17 +330,18 @@ def build(output, *, release=True, prepare_providers=True, routes=DEFAULT_ROUTES
     output = output.resolve()
     tools = page_tools() if fast and not release else None
     profile = "release" if release else "debug"
-    public = PAGE_PUBLIC if tools else ROOT / f"target/dx/boardstudio-web/{profile}/web/public"
     if prepare_providers:
         prepare_runtime_providers(fast)
     if tools and IN_OVERLAP_ENV not in os.environ:
         run([str(tools[0]), "-i", "tailwind.css", "-o", "assets/tailwind.css"], cwd=WEB)
     for route in routes:
-        if public.exists():
-            shutil.rmtree(public)
         if tools:
+            public = PAGE_TARGET / route / "public"
             plain_page(route, tools, public)
         else:
+            public = ROOT / f"target/dx/boardstudio-web/{profile}/web/public"
+            if public.exists():
+                shutil.rmtree(public)
             run(dx_command(route, release=release, fast=fast), cwd=WEB)
         package_route(output, public, route)
     print(output, flush=True)

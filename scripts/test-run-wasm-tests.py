@@ -90,6 +90,7 @@ else:
                 run.return_value.returncode = 0
                 self.assertEqual(RUNNER.build_page_test(root, {}), artifact)
             self.assertEqual([call.args[0] for call in run.call_args_list], [["tailwind"], RUNNER.PAGE_BUILD])
+            self.assertEqual(run.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target/wasm-tests"))
 
 
 if __name__ == "__main__":

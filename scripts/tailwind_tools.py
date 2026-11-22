@@ -13,8 +13,8 @@ import subprocess
 
 TAILWIND_ENV = "BOARDSTUDIO_TAILWINDCSS"
 DX_TOOLS = Path.home() / ".local/share/.dx/tools"
-# Set to "1" for the `build`, `lint` and `test` steps `check.py` runs together. It generated their
-# shared stylesheet first, and owns their process group.
+# Set to "1" for steps `check.py` runs in the overlap group. It generated the shared stylesheet
+# first and owns the process groups.
 IN_OVERLAP_ENV = "BOARDSTUDIO_IN_OVERLAP"
 TEST_CSS_READY = "BOARDSTUDIO_TEST_CSS_READY"
 

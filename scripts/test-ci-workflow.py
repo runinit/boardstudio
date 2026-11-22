@@ -203,6 +203,8 @@ class PatchedPairWorkflowTests(unittest.TestCase):
             "CARGO_HOME": str(self.root / "cargo-home"), "RUSTC": str(self.root / "rustc"),
             "PATH": str(self.root) + os.pathsep + os.environ["PATH"], "TRACE": str(self.trace),
         }
+        # Fixture subprocesses use fake Cargo and do not inherit the real build-lock descriptor.
+        self.env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         self.write_executable(self.root / "rustc", 'echo "fixture rustc $RUSTUP_TOOLCHAIN"\n')
         self.write_executable(self.root / "cargo", textwrap.dedent('''\
             set -eu
