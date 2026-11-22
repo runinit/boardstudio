@@ -5,7 +5,6 @@ pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
-use crate::mechanical_settings_controller::use_bound_mechanical_field;
 pub use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
     MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
@@ -285,59 +284,18 @@ pub(crate) struct HardwareDimensionTarget {
 
 // Profile-volume controls emit the same UpdateProfile domain request, but each
 // mounted dimension owns a distinct bounded helper observation and accepted text.
-pub(crate) fn dimension_field_key(props: &DimensionFieldProps) -> String {
-    let field = props.field.field_id();
-    if let Some(target) = &props.profile_volume_target {
-        format!(
-            "field:profile-volume:{}:{}:{}:{field}",
-            target.profile.definition_id, target.clearance_volume, target.opening_index
-        )
-    } else if let Some(target) = &props.support_target {
-        format!("field:gasket-support:{}:{field}", target.support_id)
-    } else if let Some(target) = &props.mount_target {
-        format!(
-            "field:mount:{}:{}:{field}",
-            mount_collection_id(target.collection),
-            target.mount_id
-        )
-    } else if let Some(target) = &props.opening_target {
-        format!(
-            "field:opening:{}:{:?}:{field}",
-            target.opening_id, target.vertex_id
-        )
-    } else if let Some(target) = &props.critical_fit_target {
-        format!("field:critical-fit:{}:{field}", target.fit_id)
-    } else if let Some(target) = &props.hardware_target {
-        format!("field:hardware:{}:{field}", target.hardware_id)
-    } else if let Some(part_id) = &props.process_target {
-        format!("field:process:{part_id}:{field}")
-    } else {
-        format!("field:dimension:{field}")
-    }
-}
-
 #[component]
 pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.to_string());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut failure = use_signal(|| None::<String>);
-    let field_key = dimension_field_key(&props);
     let accepted = props.value.to_string();
-    let (controller, pending) =
-        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
-    use_effect(use_reactive(
-        (&accepted, &pending),
-        move |(accepted, pending)| {
-            if pending {
-                return;
-            }
-            if !*dirty.peek() && *draft.peek() != accepted {
-                draft.set(accepted);
-                error.set(None);
-            }
-        },
-    ));
+    use_effect(use_reactive((&accepted,), move |(accepted,)| {
+        if !*dirty.peek() && *draft.peek() != accepted {
+            draft.set(accepted);
+            error.set(None);
+        }
+    }));
 
     let commit: Rc<dyn Fn()> = Rc::new({
         let identity = props.identity.clone();
@@ -453,30 +411,18 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
                 reviewed_fingerprint: None,
             };
             dirty.set(false);
-            if let Some(controller) = controller.as_ref() {
-                controller.request_field(
-                    field_key.clone(),
-                    draft,
-                    failure,
-                    text,
-                    on_request,
-                    request,
-                );
-            } else {
-                on_request.call(request);
-            }
+            on_request.call(request);
         }
     });
-    let error_text = error().or_else(&*failure);
-    let status_text = pending.then_some("Saving…");
+    let error_text = error();
     let id = format!("case-dimension-{}", dioxus::core::current_scope_id().0);
     let message_id = format!("{id}-message");
     let invalid = error_text.is_some();
-    let described_by = (invalid || pending).then(|| message_id.clone());
+    let described_by = invalid.then(|| message_id.clone());
     rsx! {
         MechanicalBoundInputRow {
             label: props.label, html_for: id.clone(), disabled: !props.editable,
-            message_id: Some(message_id), error: error_text, status: status_text,
+            message_id: Some(message_id), error: error_text,
             InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                 InputGroupInput {
                     id: id.clone(), class: "font-mono",
@@ -495,7 +441,6 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
-                        failure.set(None);
                     },
                     attributes: vec![dioxus::events::onblur({
                         let commit = commit.clone();
@@ -519,7 +464,6 @@ pub(crate) fn DimensionField(props: DimensionFieldProps) -> Element {
                                 draft.set(accepted.to_string());
                                 dirty.set(false);
                                 error.set(None);
-                                failure.set(None);
                             }
                         }
                     })],
@@ -549,23 +493,13 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.clone());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut failure = use_signal(|| None::<String>);
-    let field_key = format!("field:text:{:?}", props.intent);
     let accepted = props.value.clone();
-    let (controller, pending) =
-        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
-    use_effect(use_reactive(
-        (&accepted, &pending),
-        move |(accepted, pending)| {
-            if pending {
-                return;
-            }
-            if !*dirty.peek() && *draft.peek() != accepted {
-                draft.set(accepted);
-                error.set(None);
-            }
-        },
-    ));
+    use_effect(use_reactive((&accepted,), move |(accepted,)| {
+        if !*dirty.peek() && *draft.peek() != accepted {
+            draft.set(accepted);
+            error.set(None);
+        }
+    }));
 
     let commit: Rc<dyn Fn()> = Rc::new({
         let identity = props.identity.clone();
@@ -605,30 +539,18 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
             };
             dirty.set(false);
             error.set(None);
-            if let Some(controller) = controller.as_ref() {
-                controller.request_field(
-                    field_key.clone(),
-                    draft,
-                    failure,
-                    value,
-                    on_request,
-                    request,
-                );
-            } else {
-                on_request.call(request);
-            }
+            on_request.call(request);
         }
     });
-    let error_text = error().or_else(&*failure);
-    let status_text = pending.then_some("Saving…");
+    let error_text = error();
     let id = format!("case-text-{}", dioxus::core::current_scope_id().0);
     let message_id = format!("{id}-message");
     let invalid = error_text.is_some();
-    let described_by = (invalid || pending).then(|| message_id.clone());
+    let described_by = invalid.then(|| message_id.clone());
     rsx! {
         MechanicalBoundInputRow {
             label: props.label, html_for: id.clone(), disabled: !props.editable,
-            message_id: Some(message_id), error: error_text, status: status_text,
+            message_id: Some(message_id), error: error_text,
             InputGroup { class: if !props.multiline { "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch" },
                 if props.multiline {
                     InputGroupTextarea {
@@ -643,7 +565,6 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                             draft.set(event.value());
                             dirty.set(true);
                             error.set(None);
-                            failure.set(None);
                         },
                         attributes: vec![dioxus::events::onblur({
                             let commit = commit.clone();
@@ -657,7 +578,6 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                                     draft.set(accepted.clone());
                                     dirty.set(false);
                                     error.set(None);
-                                    failure.set(None);
                                 }
                             }
                         })],
@@ -675,7 +595,6 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                             draft.set(event.value());
                             dirty.set(true);
                             error.set(None);
-                            failure.set(None);
                         },
                         attributes: vec![dioxus::events::onblur({
                             let commit = commit.clone();
@@ -699,7 +618,6 @@ pub(crate) fn TextDraftField(props: TextDraftFieldProps) -> Element {
                                     draft.set(accepted.clone());
                                     dirty.set(false);
                                     error.set(None);
-                                    failure.set(None);
                                 }
                             }
                         })],

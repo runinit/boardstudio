@@ -101,19 +101,10 @@ pub struct KeycapsBoardSettingsEditorProps {
 
 #[component]
 pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Element {
-    let mut settings = props.settings;
+    let settings = props.settings;
     let actions = props.actions;
     let target = KeycapsEditTarget::Board;
     let baseline = KeycapsEditBaseline::Board(settings.clone());
-    for change in pending_changes(&actions, &target) {
-        match change {
-            KeycapEditChange::BoardColor(value) => settings.color = value,
-            KeycapEditChange::BoardLegendColor(value) => settings.legend_color = value,
-            KeycapEditChange::BoardClearance(value) => settings.clearance = value,
-            _ => {}
-        }
-    }
-    let feedback = actions.feedback.as_ref().filter(|f| f.target == target);
     let retries = actions
         .retry_drafts
         .iter()
@@ -142,7 +133,7 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
                     min: Some("0".into()), max: Some("5".into()), step: Some("0.1".into()), value: settings.clearance.to_string(),
                     oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); }
                 }
-                {settings_feedback(feedback, retries, &actions)}
+                {settings_feedback(retries, &actions)}
             }
         }
     }
@@ -159,19 +150,9 @@ pub struct KeycapsMatrixSettingsEditorProps {
 #[component]
 pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> Element {
     let target = KeycapsEditTarget::Matrix(props.matrix_id);
-    let mut settings = props.settings;
+    let settings = props.settings;
     let actions = props.actions;
     let baseline = KeycapsEditBaseline::Matrix(settings.clone());
-    for change in pending_changes(&actions, &target) {
-        match change {
-            KeycapEditChange::MatrixProfile(value) => settings.profile = value,
-            KeycapEditChange::MatrixMount(value) => settings.mount = value,
-            KeycapEditChange::MatrixFirstRow(value) => settings.first_row = value,
-            KeycapEditChange::MatrixWallThickness(value) => settings.wall_thickness = value,
-            _ => {}
-        }
-    }
-    let feedback = actions.feedback.as_ref().filter(|f| f.target == target);
     let retries = actions
         .retry_drafts
         .iter()
@@ -213,20 +194,13 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
                     on_change: move |value: String| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&value))),
                 }
             }
-            {settings_feedback(feedback, retries, &actions)}
+            {settings_feedback(retries, &actions)}
         }
     }
 }
 
-fn settings_feedback(
-    feedback: Option<&KeycapsEditFeedback>,
-    retries: Vec<KeycapsRetryDraft>,
-    actions: &KeycapsSettingsActions,
-) -> Element {
+fn settings_feedback(retries: Vec<KeycapsRetryDraft>, actions: &KeycapsSettingsActions) -> Element {
     rsx! {
-        if feedback.is_some() {
-            p { role: "status", Spinner {} "Saving keycap settings…" }
-        }
         KeycapsRetryList { retries, on_retry: actions.on_retry, on_discard: actions.on_discard }
     }
 }
@@ -260,24 +234,8 @@ pub struct KeycapsSettingsEditorProps {
 pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let selected = props.selected;
     let actions = props.actions;
-    let mut settings = selected.settings;
+    let settings = selected.settings;
     let key = selected.key;
-    for change in pending_changes(&actions, &KeycapsEditTarget::Key(key.id.to_string())) {
-        match change {
-            KeycapEditChange::Color(value) => settings.color = value,
-            KeycapEditChange::Profile(value) => settings.profile = value,
-            KeycapEditChange::Mount(value) => settings.mount = value,
-            KeycapEditChange::Row(value) => settings.row = value,
-            KeycapEditChange::UnitsWidth(value) => {
-                settings.units.get_or_insert(Vec2 { x: 1.0, y: 1.0 }).x = value
-            }
-            KeycapEditChange::UnitsDepth(value) => {
-                settings.units.get_or_insert(Vec2 { x: 1.0, y: 1.0 }).y = value
-            }
-            KeycapEditChange::ClearUnits(_) => settings.units = None,
-            _ => {}
-        }
-    }
     let accepted_legend = settings.legend.clone();
     let accepted_color = settings.color.clone();
     let accepted_profile = settings.profile;
@@ -291,11 +249,6 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let mut legend_draft = edits_context.map_or(own_draft, |context| context.legend_draft);
     let mut legend_failure = edits_context.map_or(own_failure, |context| context.legend_failure);
     let mut legend_dirty = use_signal(|| false);
-    let legend_pending = field_pending(
-        &actions,
-        &KeycapsEditTarget::Key(key.id.to_string()),
-        KeycapEditField::Legend,
-    );
     let legend_owner = (
         actions.editor_instance_id,
         actions.scope.clone(),
@@ -311,14 +264,11 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
             legend_draft.set(legend.clone());
         }
     }));
-    use_effect(use_reactive(
-        (&accepted_legend, &legend_pending),
-        move |(accepted, pending)| {
-            if !legend_dirty() && !pending {
-                legend_draft.set(accepted.unwrap_or_default());
-            }
-        },
-    ));
+    use_effect(use_reactive((&accepted_legend,), move |(accepted,)| {
+        if !legend_dirty() {
+            legend_draft.set(accepted.unwrap_or_default());
+        }
+    }));
     let request = |change: KeycapEditChange,
                    request_sequence: &mut Signal<u64>,
                    on_change: EventHandler<KeycapsEditRequest>,
@@ -344,10 +294,6 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let mount = accepted_mount.map_or("", mount_value);
     let width = accepted_units.map_or_else(String::new, |units| units.x.to_string());
     let depth = accepted_units.map_or_else(String::new, |units| units.y.to_string());
-    let feedback = actions.feedback.as_ref().filter(|feedback| {
-        feedback.target == KeycapsEditTarget::Key(key.id.to_string())
-            && feedback.selection_generation == actions.selection_generation
-    });
     let retry_drafts = actions.retry_drafts.clone();
     let legend_retry_pending = retry_drafts.iter().any(|draft| {
         draft.field == KeycapEditField::Legend
@@ -473,9 +419,6 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                             }
                         },
                 }
-            }
-            if feedback.is_some() {
-                p { role: "status", Spinner {} "Saving keycap override…" }
             }
             KeycapsRetryList { retries: retry_drafts.iter().cloned().collect::<Vec<_>>(), on_retry, on_discard }
         }

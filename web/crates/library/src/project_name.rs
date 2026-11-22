@@ -1,6 +1,6 @@
 //! Project rename admission and resolution. The module compiles natively so its tests
 //! drive the real Session and Core through the native Runtime; the Library panel binds
-//! the resulting resolver to its name field through a draft-bound ticket.
+//! the resulting resolver to its name field.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, SessionEpoch};
 use boardstudio_web_runtime::runtime::Runtime;
@@ -20,12 +20,6 @@ impl From<&AcceptedSnapshot> for ProjectNameOwner {
             document_id: snapshot.document.id.clone(),
         }
     }
-}
-
-/// The only logical key of the project name field.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ProjectNameKey {
-    Name,
 }
 
 /// Why a rename commit was not admitted.
@@ -71,7 +65,6 @@ mod tests {
     use super::*;
     use boardstudio_application::Event;
     use boardstudio_model::model::{EditOperation, ProjectDoc};
-    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
     use std::rc::Rc;
 
     fn open(id: &str, name: &str) -> Rc<Runtime> {
@@ -85,23 +78,6 @@ mod tests {
 
     fn owner(runtime: &Runtime) -> ProjectNameOwner {
         ProjectNameOwner::from(&runtime.model().accepted.expect("accepted project"))
-    }
-
-    fn rename(
-        runtime: &Rc<Runtime>,
-        edits: &DraftEdits<ProjectNameKey, ()>,
-        owner: &ProjectNameOwner,
-        value: &str,
-    ) {
-        let resolver = project_name_resolver(runtime, owner, &Cell::new(true), value)
-            .expect("rename admitted");
-        edits.begin(
-            runtime,
-            ProjectNameKey::Name,
-            "project-name",
-            Some("project name".into()),
-            resolver,
-        );
     }
 
     #[test]
@@ -137,153 +113,13 @@ mod tests {
                 if command.target_ids == [accepted.document.id.clone()]
                     && command.operation == (EditOperation::RenameProject { name: "Renamed".into() })
         ));
-        let edits = DraftEdits::<_, ()>::default();
-
-        rename(&runtime, &edits, &current, "  Renamed  ");
-        assert_eq!(
-            edits.discard_drafts(true),
-            vec![PendingEditResult::Landed {
-                key: ProjectNameKey::Name,
-                revision: 1,
-            }]
-        );
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Renamed");
-
-        rename(&runtime, &edits, &current, "Renamed");
-        assert_eq!(
-            edits.discard_drafts(true),
-            vec![PendingEditResult::Landed {
-                key: ProjectNameKey::Name,
-                revision: 1,
-            }],
-            "an unchanged name lands at the existing revision"
-        );
-        assert_eq!(runtime.model().accepted.unwrap().document.revision, 1);
-    }
-
-    #[test]
-    fn rename_resolves_against_the_document_accepted_when_it_runs() {
-        let runtime = open("rename-queued", "Original");
-        let current = owner(&runtime);
-        let edits = DraftEdits::<_, ()>::default();
-        runtime.hold_next_core();
-        rename(&runtime, &edits, &current, "First");
-        rename(&runtime, &edits, &current, "Latest");
-        runtime.release_core();
-
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Latest");
-        assert_eq!(
-            edits.discard_drafts(true),
-            vec![PendingEditResult::Landed {
-                key: ProjectNameKey::Name,
-                revision: 2,
-            }]
-        );
-    }
-
-    #[test]
-    fn rename_retires_silently_when_its_owner_is_gone() {
-        let runtime = open("rename-retired", "Original");
-        let current = owner(&runtime);
-        let edits = DraftEdits::<_, ()>::default();
-        runtime.hold_next_core();
-        rename(&runtime, &edits, &current, "Orphan");
-        assert_eq!(
-            edits.discard_drafts(false),
-            vec![PendingEditResult::Retired {
-                key: ProjectNameKey::Name,
-            }]
-        );
-        runtime.release_core();
-    }
-
-    #[test]
-    fn rename_failure_surfaces_the_ticket_message() {
-        let runtime = open("rename-fails", "Original");
-        let current = owner(&runtime);
-        let edits = DraftEdits::<_, ()>::default();
-        runtime.fail_next_core("engine died");
-        rename(&runtime, &edits, &current, "Doomed");
-        let results = edits.discard_drafts(true);
-        assert!(
-            matches!(
-                results.as_slice(),
-                [PendingEditResult::Failed { message, .. }] if message.contains("engine died")
-            ),
-            "{results:?}"
-        );
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
-    }
-
-    #[test]
-    fn rename_queued_behind_a_parts_edit_preserves_both_and_undo_order() {
-        use boardstudio_application::Event;
-        use boardstudio_model::model::EditOperation;
-
-        let mut document = ProjectDoc::empty("queued-rename", "Original");
-        document.definitions.push(
-            serde_json::from_value(serde_json::json!({
-                "id": "switch",
-                "name": "Original switch",
-                "kind": "switch",
-                "courtyard": [],
-                "pads": []
-            }))
-            .unwrap(),
-        );
-        let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
-        runtime.submit(Event::Open {
-            operation_id: runtime.operation(),
-            document,
-        });
-        let accepted = runtime.model().accepted.expect("accepted project");
-        let current = ProjectNameOwner::from(&accepted);
-        let mut replacement = accepted.document.as_ref().clone();
-        replacement.definitions[0].name = "Updated switch".into();
-        runtime.hold_next_core();
         runtime.submit(Event::ResolveEdit {
             operation_id: runtime.operation(),
-            label: "parts name".into(),
-            resolver: EditResolver::new("parts-name", move |_accepted| {
-                boardstudio_application::Resolution::submit(
-                    vec!["switch".into()],
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(replacement.clone()),
-                    },
-                )
-            }),
+            label: "project-name".into(),
+            resolver,
         });
-        let edits = DraftEdits::<_, ()>::default();
-        rename(&runtime, &edits, &current, "Renamed");
-        runtime.release_core();
-        let result = runtime.model().accepted.expect("accepted project");
-        assert_eq!(result.document.name, "Renamed");
-        assert_eq!(result.document.definitions[0].name, "Updated switch");
-        assert_eq!(
-            edits.discard_drafts(true),
-            vec![PendingEditResult::Landed {
-                key: ProjectNameKey::Name,
-                revision: result.document.revision,
-            }]
-        );
-        runtime.submit(Event::Undo {
-            operation_id: runtime.operation(),
-        });
-        let result = runtime.model().accepted.expect("accepted project");
-        assert_eq!(result.document.name, "Original");
-        assert_eq!(result.document.definitions[0].name, "Updated switch");
-        runtime.submit(Event::Undo {
-            operation_id: runtime.operation(),
-        });
-        assert_eq!(
-            runtime
-                .model()
-                .accepted
-                .expect("accepted project")
-                .document
-                .definitions[0]
-                .name,
-            "Original switch"
-        );
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.name, "Renamed");
+        assert_eq!(accepted.document.revision, 1);
     }
 }

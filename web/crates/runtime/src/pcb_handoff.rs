@@ -4,15 +4,14 @@
 //! module owns only the single Core `ExportPcb` request
 //! and the two archive layers used by the reference handoff.
 
+use crate::portable_archive::pack_files;
 use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_core_mechanical::electrical::ElectricalPlan;
 use boardstudio_model::model::{
-    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
-    PrepareExportRequest,
+    ArtifactReply, ArtifactRequest, ExportTarget, PrepareExportRequest,
 };
-use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
-use js_sys::Uint8Array;
+use boardstudio_web_host::host::BrowserStore;
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -26,12 +25,8 @@ pub struct HandoffSource<'a> {
 }
 
 pub struct HandoffPorts<'a> {
-    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
-    pub executor_epoch: u64,
 }
-
-pub use crate::handoff_ordering::package_then_protect;
 
 pub async fn build_handoff(
     source: HandoffSource<'_>,
@@ -46,11 +41,7 @@ pub async fn build_handoff(
         populations,
         draft,
     } = source;
-    let HandoffPorts {
-        core,
-        store,
-        executor_epoch,
-    } = ports;
+    let HandoffPorts { store } = ports;
     let document = snapshot.document.as_ref();
     let board = document
         .boards
@@ -99,10 +90,7 @@ pub async fn build_handoff(
         },
     };
     is_current()?;
-    let reply = core
-        .artifact(&request_id, &executor_epoch.to_string(), &request)
-        .await
-        .map_err(|error| format!("KiCad export failed: {error}"))?;
+    let reply = crate::runtime::artifact_reply(&request)?;
     is_current()?;
     let exported = match reply {
         ArtifactReply::ExportPcb { id, result } if id == request_id => result,
@@ -128,15 +116,8 @@ pub async fn build_handoff(
         board_file.filename.clone(),
         board_file.content.as_bytes().to_vec(),
     )?;
-    let board_archive = pack_files(
-        operation_id,
-        core,
-        executor_epoch,
-        "board",
-        model_files,
-        &is_current,
-    )
-    .await?;
+    is_current()?;
+    let board_archive = pack_files(model_files)?;
 
     let mut handoff = vec![(format!("{}-kicad.zip", board.name), board_archive)];
     let report = serde_json::to_vec_pretty(&json!({
@@ -177,15 +158,8 @@ pub async fn build_handoff(
             )?;
         }
     }
-    pack_files(
-        operation_id,
-        core,
-        executor_epoch,
-        "handoff",
-        handoff,
-        &is_current,
-    )
-    .await
+    is_current()?;
+    pack_files(handoff)
 }
 
 async fn load_model_files(
@@ -241,56 +215,6 @@ async fn load_model_files(
         push_file(&mut files, path, bytes)?;
     }
     Ok((paths, files))
-}
-
-async fn pack_files(
-    operation_id: OperationId,
-    core: &dyn CoreExecutor,
-    executor_epoch: u64,
-    label: &str,
-    files: Vec<(String, Vec<u8>)>,
-    is_current: &impl Fn() -> Result<(), String>,
-) -> Result<Vec<u8>, String> {
-    is_current()?;
-    let entries = files
-        .iter()
-        .enumerate()
-        .map(|(index, (path, _))| {
-            Ok(ArchiveEntry {
-                path: path.clone(),
-                buffer_index: u32::try_from(index)
-                    .map_err(|_| "Too many KiCad handoff files.".to_owned())?,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-        .map_err(|error| format!("Could not prepare KiCad archive request: {error}"))?;
-    let buffers = files
-        .iter()
-        .map(|(_, bytes)| Uint8Array::from(bytes.as_slice()))
-        .collect();
-    let request_id = format!("pcb-handoff-{}-{label}-archive", operation_id.0);
-    let packed = core
-        .archive(&request_id, &executor_epoch.to_string(), &metadata, buffers)
-        .await
-        .map_err(|error| format!("KiCad archive packaging failed: {error}"))?;
-    is_current()?;
-    match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-        .map_err(|error| format!("Could not read KiCad archive result: {error}"))?
-    {
-        ArchiveReply::Packed => packed
-            .buffers
-            .first()
-            .map(Uint8Array::to_vec)
-            .filter(|bytes| !bytes.is_empty())
-            .ok_or_else(|| "KiCad archive provider returned no bytes.".into()),
-        ArchiveReply::Error { message } => {
-            Err(format!("KiCad archive packaging failed: {message}"))
-        }
-        ArchiveReply::Unpacked { .. } => {
-            Err("Core returned an unexpected unpacked KiCad archive.".into())
-        }
-    }
 }
 
 fn push_file(

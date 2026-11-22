@@ -8,7 +8,7 @@ use boardstudio_model::model::{CoreReply, CoreRequest};
 pub type DocumentCore = Box<dyn FnMut(CoreRequest) -> CoreReply>;
 
 /// A throwaway Core engine: requests run in order against its own document and never reach
-/// the Session or the worker executor.
+/// the Session.
 pub type ScratchCore = DocumentCore;
 
 /// Creates a fresh engine for the document or a read-only scratch probe (a reviewed link's

@@ -1,7 +1,7 @@
 //! Apply the exact current accepted board plan through the normal Session edit owner.
 use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
+use super::mode::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};

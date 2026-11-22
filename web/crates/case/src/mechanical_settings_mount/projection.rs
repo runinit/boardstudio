@@ -292,7 +292,7 @@ pub(super) fn project_settings_source(
     let profiles = configuration
         .as_ref()
         .map_or_else(Vec::new, |configuration| {
-            profile_choices(accepted, configuration)
+            profile_choices(&effective, configuration)
         });
     Some(MechanicalSettingsSourceProjection {
         key: key.clone(),
@@ -302,16 +302,11 @@ pub(super) fn project_settings_source(
 }
 
 pub(super) fn profile_targets(
-    accepted: &AcceptedSnapshot,
+    document: &ProjectDoc,
     board_id: &str,
     configuration: Option<&MechanicalConfiguration>,
 ) -> Vec<MechanicalProfileTargetChoice> {
-    let Some(board) = accepted
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == board_id)
-    else {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return Vec::new();
     };
     if configuration.is_none() {
@@ -327,8 +322,7 @@ pub(super) fn profile_targets(
         })
         .unwrap_or_default();
     let mut seen = std::collections::HashSet::new();
-    accepted
-        .document
+    document
         .parts
         .iter()
         .filter(|part| {
@@ -336,8 +330,7 @@ pub(super) fn profile_targets(
         })
         .filter(|part| !assigned.contains(part.definition_id.as_str()))
         .filter_map(|part| {
-            let definition = accepted
-                .document
+            let definition = document
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)?;
@@ -522,11 +515,10 @@ pub(super) fn stabilizer_fits(
 }
 
 pub(super) fn profile_choices(
-    accepted: &AcceptedSnapshot,
+    document: &ProjectDoc,
     configuration: &MechanicalConfiguration,
 ) -> Vec<MechanicalProfileChoice> {
-    let Some(board) = accepted
-        .document
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == configuration.board_id)
@@ -537,12 +529,11 @@ pub(super) fn profile_choices(
         .profiles
         .iter()
         .map(|profile| {
-            let definition = accepted
-                .document
+            let definition = document
                 .definitions
                 .iter()
                 .find(|definition| definition.id == profile.definition_id);
-            let placed_switch = accepted.document.parts.iter().any(|part: &Part| {
+            let placed_switch = document.parts.iter().any(|part: &Part| {
                 board.part_ids.contains(&part.id)
                     && part.definition_id == profile.definition_id
                     && definition.is_some_and(|definition| {

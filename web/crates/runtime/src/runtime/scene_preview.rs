@@ -181,16 +181,13 @@ impl Runtime {
                 return executor(snapshot, owner.scope.clone());
             }
         }
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch().0.to_string();
         let prepared = prepare_captured_case(
-            core.as_ref(),
-            &executor_epoch,
+            (self.core_services.open_scratch)(),
             &job_id,
             &snapshot,
             &owner.scope,
+            false,
         )
-        .await
         .map_err(|error| format!("Case preview preparation failed: {error:?}"))?;
         if !is_current() {
             return Err("Case gesture preview was superseded".into());
@@ -372,18 +369,7 @@ impl Runtime {
             &native_paths,
             &preview.accepted_document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
@@ -492,37 +478,24 @@ impl Runtime {
                         return Err("Model asset request became stale before loading".into());
                     }
                     let cached = runtime.assets.borrow().get(&sha256).cloned();
-                    let (bytes, cache_packaged) = match (asset.source.clone(), cached) {
-                        (ModelAssetSource::Document, Some(bytes)) => (Some(bytes.to_vec()), false),
-                        (ModelAssetSource::Document, None) => (
-                            runtime
-                                .store
-                                .load_asset(sha256.clone())
-                                .await
-                                .map_err(|error| error.to_string())?
-                                .map(|bytes| bytes.to_vec()),
-                            false,
-                        ),
-                        (ModelAssetSource::Packaged { .. }, Some(bytes)) => {
-                            (Some(bytes.to_vec()), false)
-                        }
-                        (ModelAssetSource::Packaged { url_path }, None) => {
-                            let descriptor_matches = crate::bundled_models::bundled_model(
-                                &asset.id,
-                            )
-                            .is_some_and(|model| {
-                                model.url_path == url_path && model.sha256 == asset.sha256
-                            });
-                            if !descriptor_matches {
+                    let packaged = matches!(asset.source, ModelAssetSource::Packaged { .. });
+                    let cache_packaged = packaged && cached.is_none();
+                    let bytes = match (cached, &asset.source) {
+                        (Some(bytes), _) => Some(bytes),
+                        (None, ModelAssetSource::Document) => runtime
+                            .store
+                            .load_asset(sha256.clone())
+                            .await
+                            .map_err(|error| error.to_string())?
+                            .map(|bytes| bytes.to_vec()),
+                        (None, ModelAssetSource::Packaged { .. }) => {
+                            if packaged_model_asset(&asset.id).as_ref() != Some(&asset) {
                                 return Err(
                                     "Packaged model descriptor no longer matches the catalogue"
                                         .into(),
                                 );
                             }
-                            (
-                                Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?),
-                                true,
-                            )
+                            Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?)
                         }
                     };
                     if !is_current() || runtime.scope().as_ref() != Some(&scope) {
@@ -632,16 +605,11 @@ impl Runtime {
             "case-preview-{}-{}-{}",
             expected_token.0, expected_revision, operation
         );
-        let core = self.core.borrow().clone();
-        let core_executor_epoch = self.session.borrow().core_executor_epoch().0;
-        let core_worker_identity = core_executor_identity(&core);
         let capture = match crate::case_preview::capture_native_preview(
             &accepted,
             &expected_scope,
             generation,
             generation,
-            core_executor_epoch,
-            core_worker_identity,
             request_token.clone(),
         ) {
             Ok(capture) => capture,
@@ -651,8 +619,6 @@ impl Runtime {
                     &expected_scope,
                     generation,
                     generation,
-                    core_executor_epoch,
-                    core_worker_identity,
                     request_token,
                 );
                 self.native_case_preview.borrow_mut().error = Some((owner, error.clone()));
@@ -715,42 +681,23 @@ impl Runtime {
             weak.upgrade()
                 .is_some_and(|runtime| runtime.parts_preview_capture_is_current(&current_capture))
         });
-        let preview = self
-            .run_preview_pipeline(
-                capture.request.clone(),
-                operation,
-                capture.sample_scope.clone(),
-                capture.owner.source_generation,
-                is_current.clone(),
-            )
-            .await?;
+        let preview = self.run_preview_pipeline(
+            capture.request.clone(),
+            operation,
+            capture.sample_scope.clone(),
+            capture.owner.source_generation,
+            is_current.clone(),
+        )?;
         if !is_current() {
             capture.lease.invalidate();
             return Err("Parts preview became stale after geometry preparation".into());
         }
 
         let native_paths = crate::model_delivery::native_model_path_assets(&capture.path_assets);
-        let unique_model_paths = preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut bundled_ids_by_path = BTreeMap::new();
-        if !unique_model_paths.is_empty() {
-            let ids =
-                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
-                    .await?;
-            if !is_current() {
-                capture.lease.invalidate();
-                return Err("Parts model resolution became stale".into());
-            }
-            if ids.len() != unique_model_paths.len() {
-                capture.lease.invalidate();
-                return Err("Model path resolver returned an incomplete Parts mapping".into());
-            }
-            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        let bundled_ids_by_path = bundled_preview_paths(&preview.models).await?;
+        if !is_current() {
+            capture.lease.invalidate();
+            return Err("Parts model resolution became stale".into());
         }
         let selections = crate::model_delivery::resolve_preview_assets(
             &preview.models,
@@ -758,18 +705,7 @@ impl Runtime {
             &native_paths,
             &capture.sample_document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
@@ -880,7 +816,6 @@ impl Runtime {
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
     ) -> bool {
         let model = self.model();
-        let core = self.core.borrow().clone();
         self.scope().as_ref() == Some(&owner.scope)
             && self
                 .native_case_preview
@@ -898,12 +833,6 @@ impl Runtime {
                         == owner.accepted_scene_identity
             })
             && self.native_case_preview.borrow().generation == owner.projection_generation
-            && crate::case_preview::same_core_executor(
-                owner.core_executor_epoch,
-                self.session.borrow().core_executor_epoch().0,
-                owner.core_worker_identity,
-                core_executor_identity(&core),
-            )
     }
 
     pub(super) fn preview_owner_lease_is_current(
@@ -929,16 +858,14 @@ impl Runtime {
             })
         });
         let preview = match &capture.request {
-            crate::case_preview::CasePreviewRequest::Authored(request) => {
-                self.run_preview_pipeline(
+            crate::case_preview::CasePreviewRequest::Authored(request) => self
+                .run_preview_pipeline(
                     request.as_ref().clone(),
                     operation,
                     capture.owner.scope.clone(),
                     capture.owner.projection_generation,
                     is_current,
-                )
-                .await?
-            }
+                )?,
             crate::case_preview::CasePreviewRequest::Imported { asset, .. } => {
                 let request_id = format!("case-preview-{operation}-imported");
                 self.run_imported_board_preview(asset, request_id.clone(), is_current, |source| {
@@ -953,7 +880,7 @@ impl Runtime {
     /// One Core request shared by canonical Layout
     /// and the physical Case producer. Source construction and liveness stay with
     /// each workflow; this method owns only the established preview pipeline.
-    pub(super) async fn run_preview_pipeline(
+    pub(super) fn run_preview_pipeline(
         &self,
         request: PrepareExportRequest,
         operation: u64,
@@ -972,42 +899,17 @@ impl Runtime {
         {
             return Err("Preview request does not match its captured board source".into());
         }
-        let core = self.core.borrow().clone();
-        let core_epoch = self.session.borrow().core_executor_epoch().0;
-        let ensure_current = || -> Result<(), String> {
-            if !is_current() {
-                return Err("Accepted board preview source became stale".to_owned());
-            }
-            if self.session.borrow().core_executor_epoch().0 != core_epoch
-                || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-            {
-                return Err("Core worker changed during board preview generation".to_owned());
-            }
-            Ok(())
-        };
-        ensure_current()?;
-
-        let epoch = core_epoch.to_string();
+        if !is_current() {
+            return Err("Accepted board preview source became stale".into());
+        }
         let preview_id = format!("board-preview-{operation}");
-        let preview_request = boardstudio_model::model::ArtifactRequest::PreviewPcb {
-            id: preview_id.clone(),
-            request: request.clone(),
-        };
-        let reply = core
-            .artifact(&preview_id, &epoch, &preview_request)
-            .await
-            .map_err(|error| format!("Core board preview failed: {error}"))?;
-        ensure_current()?;
-        let preview = match reply {
-            ArtifactReply::PreviewBoard { id, result } if id == preview_id => result,
-            ArtifactReply::Error { id, error } if id == preview_id => {
-                return Err(format!("Core rejected the board preview: {error:?}"));
-            }
-            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                return Err("Core returned a board preview for another request".into());
-            }
-            _ => return Err("Core returned an unexpected board preview reply".into()),
-        };
+        let preview = self.board_preview(
+            &ArtifactRequest::PreviewPcb {
+                id: preview_id.clone(),
+                request: request.clone(),
+            },
+            &preview_id,
+        )?;
         if preview.revision != request.expected_revision {
             return Err("Core returned a board preview for another revision".into());
         }

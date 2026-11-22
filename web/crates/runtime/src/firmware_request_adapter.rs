@@ -28,7 +28,8 @@ pub fn firmware_request(
             "A split firmware handoff requires a distinct peripheral electrical plan".into(),
         );
     }
-    build_request(document, plan, peripheral_plan, transport)
+    let document = boardstudio_application::resolved_document(document);
+    build_request(&document, plan, peripheral_plan, transport)
 }
 
 fn build_request(

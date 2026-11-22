@@ -25,7 +25,7 @@ pub(crate) use boardstudio_web_catalogue::physical_setup;
 pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_runtime::{
-    firmware_position_projection, model_delivery, operation_outcomes, pcb_wiring_mode_operation,
+    firmware_position_projection, model_delivery, operation_outcomes,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]

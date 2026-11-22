@@ -207,10 +207,7 @@ fn relations_host() -> Element {
         "Layout",
     );
     let (x, y, margin, error) = state.component_inspector_drafts();
-    let (layout_pending, constraint_pending, remove_pending, mirrored_half_pending) =
-        state.component_inspector_pending_controls();
-    let (companion_pending, companion_error, companion_edits) =
-        state.companion_placement_controls();
+    let companion_error = state.companion_placement_error();
     let (x_failure, y_failure, margin_failure) = state.component_inspector_field_failures();
     let select_runtime = runtime.clone();
     let select_adapter = adapter.clone();
@@ -220,7 +217,6 @@ fn relations_host() -> Element {
             context_detail: None,
             show_position_inspector: false,
             component_inspector,
-            component_inspector_pending_edits: state.component_inspector_edits(),
             component_inspector_x: x,
             component_inspector_y: y,
             component_inspector_margin: margin,
@@ -228,14 +224,8 @@ fn relations_host() -> Element {
             component_inspector_x_failure: x_failure,
             component_inspector_y_failure: y_failure,
             component_inspector_margin_failure: margin_failure,
-            component_inspector_layout_pending: layout_pending,
-            component_inspector_constraint_pending: constraint_pending,
-            component_inspector_remove_pending: remove_pending,
-            component_inspector_mirrored_half_pending: mirrored_half_pending,
             companion_placement: None,
-            companion_placement_pending: companion_pending,
             companion_placement_error: companion_error,
-            companion_placement_edits: companion_edits,
             on_companion_placement_action: EventHandler::new(|_| {}),
             on_component_inspector_action: EventHandler::new(|_| {}),
             matrix_inspector,

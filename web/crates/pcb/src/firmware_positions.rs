@@ -67,11 +67,10 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
                                 let label = key.label.clone();
                                 let id = format!("firmware-key-{}", key.id);
                                 let identity = props.projection.identity.clone();
-                                let accepted_value = props.projection.bindings
+                                let value = props.projection.bindings
                                     .get(&key.id)
                                     .map_or("&none", String::as_str)
                                     .to_owned();
-                                let value = identity.as_ref().and_then(|identity| super::pcb_wiring::pending_binding(identity, &key.id)).unwrap_or(accepted_value);
                                 let choices = firmware_position_choices::choices();
                                 rsx! {
                                     PcbChoice { key: "{key_id}", id: Some(id), class: "firmware-keymap-row", label: label.clone(), aria_label: format!("Binding for {label}"), value, searchable: true, disabled,
@@ -114,9 +113,6 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
         .feedback
         .as_ref()
         .map(|feedback| match &feedback.state {
-            FirmwarePositionFeedbackState::Pending => rsx! {
-                p { class: "firmware-keymap-feedback", role: "status", Spinner {} "Saving firmware position…" }
-            },
             FirmwarePositionFeedbackState::Failed(message) => rsx! {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             },
@@ -162,7 +158,6 @@ mod mounted_tests {
                 scope: scope.clone(),
                 token: SnapshotToken(1),
                 revision: 1,
-                executor_epoch: 1,
             },
             ui_scope: scope,
             scope_generation: 1,

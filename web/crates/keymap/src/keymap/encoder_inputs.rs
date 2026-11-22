@@ -31,7 +31,6 @@ fn plan_identity_matches(
         model.active_instance_id.as_deref(),
     ) && identity.token == snapshot.token
         && identity.revision == snapshot.document.revision
-        && identity.executor_epoch == runtime.electrical_preview_executor_epoch()
         && scope.session_epoch == snapshot.session_epoch
         && scope.document_id == snapshot.document.id
         && model.active_board_id == scope.board_id
@@ -76,7 +75,6 @@ fn failed_identity_matches(
         model.active_instance_id.as_deref(),
     ) && identity.token == snapshot.token
         && identity.revision == snapshot.document.revision
-        && identity.executor_epoch == runtime.electrical_preview_executor_epoch()
         && scope.session_epoch == snapshot.session_epoch
         && scope.document_id == snapshot.document.id
 }

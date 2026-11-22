@@ -5,7 +5,6 @@ pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
-use crate::mechanical_settings_controller::use_bound_mechanical_field;
 pub use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
     MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
@@ -183,55 +182,6 @@ pub struct MechanicalHardwareMount {
     pub kind: MountKind,
     pub x: f64,
     pub y: f64,
-}
-
-pub(crate) fn is_dimension_field(field_id: &str) -> bool {
-    if field_id.starts_with("opening:") {
-        return true;
-    }
-    if field_id.starts_with("mount:")
-        && [
-            "mount-position-x",
-            "mount-position-y",
-            "mount-hole-diameter",
-            "mount-boss-diameter",
-            "mount-boss-height",
-        ]
-        .iter()
-        .any(|field| field_id.ends_with(field))
-    {
-        return true;
-    }
-    if field_id.starts_with("closure-")
-        || field_id.starts_with("critical-fit:")
-        || field_id.starts_with("hardware:")
-    {
-        return true;
-    }
-    [
-        MechanicalDimension::PlateThickness,
-        MechanicalDimension::PlateFoamThickness,
-        MechanicalDimension::PcbThickness,
-        MechanicalDimension::BottomFoamThickness,
-        MechanicalDimension::BottomThickness,
-        MechanicalDimension::WallThickness,
-        MechanicalDimension::Clearance,
-        MechanicalDimension::OpeningAllowance,
-        MechanicalDimension::OpeningBottomZ,
-        MechanicalDimension::OpeningHeight,
-        MechanicalDimension::OpeningPointX,
-        MechanicalDimension::OpeningPointY,
-        MechanicalDimension::BatteryWidth,
-        MechanicalDimension::BatteryDepth,
-        MechanicalDimension::BatteryHeight,
-        MechanicalDimension::BatteryCableWidth,
-        MechanicalDimension::BatteryPositionX,
-        MechanicalDimension::BatteryPositionY,
-        MechanicalDimension::BatteryCableExitX,
-        MechanicalDimension::BatteryCableExitY,
-    ]
-    .iter()
-    .any(|field| field.field_id() == field_id)
 }
 
 pub(crate) trait MechanicalDimensionExt {

@@ -229,55 +229,6 @@ async fn column_angle_nudges_compose_without_overwriting_splay() {
 }
 
 #[wasm_bindgen_test]
-async fn column_angle_drag_delta_composes_with_the_latest_rotation() {
-    let runtime = open_angled_column().await;
-    let gesture = TransformGesture::Splay {
-        column: 0,
-        start_angle: 0.0,
-        origin: Vec2::default(),
-        swing: false,
-    };
-    let drag = begin_gesture(&runtime, fixture::MATRIX_ID, gesture);
-    let angle = |angle| EditOperation::SetMatrixSplay {
-        matrix_id: fixture::MATRIX_ID.into(),
-        column: 0,
-        change: MatrixSplayChange::Angle {
-            angle,
-            affect: MatrixSplayAffect::Column,
-        },
-    };
-    let result = transform_drag_result(&drag, &angle(12.0)).unwrap();
-    assert_eq!(
-        result,
-        TransformDragResult::SplayAngle {
-            column: 0,
-            delta_degrees: 2.0,
-            affect: MatrixSplayAffect::Column,
-        }
-    );
-    assert!(same_transform_as_start(&drag, &angle(10.0)));
-    let (entered, release) = support::gate_next_core_reply(&runtime);
-    let other = nudge_with(&runtime, angle_nudge(MatrixSplayAffect::Column));
-    support::drive_pending(&runtime);
-    entered.await.expect("the nudge reached Core");
-    let queued = drag_edit(&runtime, fixture::MATRIX_ID, result);
-    release.send(()).unwrap();
-    settle_edit(&runtime, &other).await;
-    settle_edit(&runtime, &queued).await;
-    let rotation =
-        |runtime: &Rc<Runtime>| fixture::accepted_matrix(runtime).column_layout[0].rotation;
-    assert_eq!(rotation(&runtime), 13.0);
-    assert_eq!(
-        fixture::accepted_matrix(&runtime).column_layout[0].splay,
-        7.0
-    );
-    undo(&runtime).await;
-    assert_eq!(rotation(&runtime), 11.0);
-    redo(&runtime).await;
-    assert_eq!(rotation(&runtime), 13.0);
-}
-
-#[wasm_bindgen_test]
 async fn an_offset_drag_moves_one_column_by_the_pointer_delta() {
     let runtime = fixture::open_matrix_runtime().await;
     let drag = offset_drag(
@@ -430,32 +381,6 @@ async fn a_stagger_snaps_to_the_grid_step_of_its_axis_dominant_component() {
 }
 
 #[wasm_bindgen_test]
-async fn three_handle_nudges_queued_behind_a_gated_reply_move_the_matrix_three_steps() {
-    let runtime = fixture::open_matrix_runtime().await;
-    let (entered, release) = support::gate_next_core_reply(&runtime);
-    let first = stagger_nudge(&runtime, ArrowKey::Up, false);
-    support::drive_pending(&runtime);
-    entered.await.expect("the first nudge reached Core");
-    let second = stagger_nudge(&runtime, ArrowKey::Up, false);
-    let third = stagger_nudge(&runtime, ArrowKey::Up, false);
-    support::drive_pending(&runtime);
-    release.send(()).expect("release the held reply");
-    for edits in [&third, &first, &second] {
-        settle_edit(&runtime, edits).await;
-    }
-    let matrix = fixture::accepted_matrix(&runtime);
-    assert!(
-        (matrix.column_layout[0].stagger - 0.3).abs() < 1e-9,
-        "three steps of 0.1 compose to a stagger of 0.3, got {}",
-        matrix.column_layout[0].stagger
-    );
-    assert!(
-        all_zero_offsets(matrix.column_layout.iter().map(|record| &record.offset)),
-        "the offsets are untouched"
-    );
-}
-
-#[wasm_bindgen_test]
 async fn a_drag_commit_applies_its_net_transform_to_the_accepted_matrix() {
     let runtime = fixture::open_matrix_runtime().await;
     // Another stagger edit lands while the drag was in flight; the drag's net change
@@ -526,27 +451,6 @@ async fn one_drag_is_one_undo_step_and_redo_restores_it() {
     assert_eq!(staggers(&matrix_and_poses(&runtime).0), staggers(&before.0));
     redo(&runtime).await;
     assert_eq!(matrix_and_poses(&runtime), after, "Redo restores the drag");
-}
-
-#[wasm_bindgen_test]
-async fn a_drag_composes_with_an_unrelated_edit_held_in_flight() {
-    let runtime = fixture::open_matrix_runtime().await;
-    let (entered, release) = support::gate_next_core_reply(&runtime);
-    let unrelated = placement_edit(
-        &runtime,
-        PlacementParameter::ColumnOffset { column: 2 },
-        PlacementValue::Offset(Vec2 { x: 1.0, y: 0.0 }),
-    );
-    support::drive_pending(&runtime);
-    entered.await.expect("the unrelated edit reached Core");
-    let drag = drag_edit(&runtime, fixture::MATRIX_ID, stagger_result(1, 2.0));
-    support::drive_pending(&runtime);
-    release.send(()).expect("release the held reply");
-    settle_edit(&runtime, &drag).await;
-    settle_edit(&runtime, &unrelated).await;
-    let matrix = fixture::accepted_matrix(&runtime);
-    assert_eq!(matrix.column_layout[1].stagger, 2.0);
-    assert_eq!(matrix.column_layout[2].offset, Vec2 { x: 1.0, y: 0.0 });
 }
 
 #[wasm_bindgen_test]

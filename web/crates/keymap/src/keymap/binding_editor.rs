@@ -17,7 +17,6 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
 use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
-use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -100,12 +99,7 @@ fn emit_change(
 pub fn BindingEditor(props: BindingEditorProps) -> Element {
     let request_sequence = props.request_sequence;
     let context = EditContext::from(&props);
-    let value = super::binding_controller::draft_binding(
-        &props.scope,
-        &props.active_layer_id,
-        &props.target,
-        &props.value,
-    );
+    let value = props.value.clone();
     let behavior = Behavior::from_binding(&value);
     let target_key = props.target.stable_key();
     let keycode_field = binding_keycode(&value);
@@ -121,11 +115,8 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
             && feedback.editor_instance_id == props.editor_instance_id
             && field_exists(&value, feedback.field)
     });
-    let pending =
-        feedback.is_some_and(|feedback| matches!(feedback.status, BindingEditStatus::Pending));
-    let failed_field = feedback.and_then(|feedback| match &feedback.status {
-        BindingEditStatus::Failed(message) => Some((feedback.field, message.as_str())),
-        BindingEditStatus::Pending => None,
+    let failed_field = feedback.map(|feedback| match &feedback.status {
+        BindingEditStatus::Failed(message) => (feedback.field, message.as_str()),
     });
     let code_error = failed_field
         .filter(|(field, _)| matches!(field, BindingField::Keycode | BindingField::Tap))
@@ -190,7 +181,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                             field_label: field_label.to_string(),
                             accepted_value: accepted_value.to_string(),
                             error: code_error.clone(),
-                            pending: feedback.is_some_and(|feedback| feedback.field == field && matches!(feedback.status, BindingEditStatus::Pending)),
                             disabled,
                         }
                     }
@@ -283,7 +273,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                     }
                 }
             }
-            if pending { p { role: "status", Spinner {} "Saving binding…" } }
             if let Some(message) = error { Alert { variant: AlertVariant::Destructive, "{message}" } }
         }
     }
@@ -342,7 +331,6 @@ struct KeycodeFieldProps {
     field_label: String,
     accepted_value: String,
     error: Option<String>,
-    pending: bool,
     disabled: bool,
 }
 
@@ -351,9 +339,9 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
     let mut draft = use_signal(|| props.accepted_value.clone());
     let mut dirty = use_signal(|| false);
     use_effect(use_reactive(
-        (&props.accepted_value, &props.pending, &props.error),
-        move |(accepted, pending, _)| {
-            if !dirty() && !pending {
+        (&props.accepted_value, &props.error),
+        move |(accepted, _)| {
+            if !dirty() {
                 draft.set(accepted);
             }
         },

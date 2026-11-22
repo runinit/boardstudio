@@ -3,7 +3,6 @@ use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -17,8 +16,6 @@ use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{File, HtmlInputElement};
 
 use boardstudio_web_host::host::AssetBytes;
-
-use super::board_reference_owner::BoardReferenceKey;
 
 use crate::runtime::Runtime;
 
@@ -71,54 +68,6 @@ pub enum Action {
         asset_id: Option<String>,
     },
     Remove,
-}
-
-/// Only the latest submitted control can place a failure message.
-fn place_reference_results(
-    results: Vec<PendingEditResult<BoardReferenceKey>>,
-    latest: Signal<Option<BoardReferenceKey>>,
-    mut error: Signal<Option<String>>,
-) {
-    for result in results {
-        let (key, message) = match result {
-            PendingEditResult::Failed { key, message } => (key, Some(message)),
-            PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                (key, None)
-            }
-        };
-        if latest.peek().as_ref() == Some(&key) {
-            // Landing and retirement show nothing; failures keep their message.
-            error.set(message);
-        }
-    }
-}
-
-/// The reference the form shows: the accepted one with every still-pending submission
-/// applied. A newer submission for the same control wins; landing and retirement drop
-/// the submission so the accepted value shows again.
-fn reference_with_drafts(
-    mut reference: BoardReference,
-    edits: &DraftEdits<BoardReferenceKey, Action>,
-) -> BoardReference {
-    for action in &edits.pending_values(|_| true) {
-        match action {
-            Action::SetEnabled(value) => reference.enabled = *value,
-            Action::SetPositionX(value) => reference.pose.at.x = *value,
-            Action::SetPositionY(value) => reference.pose.at.y = *value,
-            Action::SetRotation(value) => reference.pose.rotation = *value,
-            Action::SetElevation(value) => reference.elevation = *value,
-            Action::SetModelAsset { path, asset_id } => match asset_id {
-                Some(id) => {
-                    reference.model_assets.insert(path.clone(), id.clone());
-                }
-                None => {
-                    reference.model_assets.remove(path);
-                }
-            },
-            Action::Remove => {}
-        }
-    }
-    reference
 }
 
 async fn read_kicad_file(file: &File) -> Result<(Vec<u8>, String), String> {
@@ -690,26 +639,7 @@ pub fn Editor(
         },
     ));
 
-    let mut action_edits = use_signal(DraftEdits::<BoardReferenceKey, Action>::default);
-    let mut action_latest = use_signal(|| None::<BoardReferenceKey>);
-    let version = use_context::<Signal<u64>>()();
-    use_effect(use_reactive((&version,), {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = owner.clone();
-        move |_| {
-            let panel_is_live = super::board_reference_owner_lineage_is_current(
-                &runtime, workspace, &adapter, &owner,
-            );
-            if !panel_is_live || action_edits.peek().has_terminal() {
-                place_reference_results(
-                    action_edits.write().discard_drafts(panel_is_live),
-                    action_latest,
-                    error,
-                );
-            }
-        }
-    }));
+    let _ = use_context::<Signal<u64>>()();
     let on_action = use_callback({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -720,17 +650,15 @@ pub fn Editor(
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            if let Some(key) = super::dispatch_board_reference_action(
+            if let Some(result) = super::dispatch_board_reference_action(
                 &runtime,
                 workspace,
                 &adapter,
                 &owner,
                 reference_id,
                 action,
-                &action_edits.write(),
             ) {
-                action_latest.set(Some(key));
-                error.set(None);
+                error.set(result.err());
             }
         }
     });
@@ -814,9 +742,6 @@ pub fn Editor(
         }
     });
 
-    let reference =
-        reference.map(|reference| reference_with_drafts(reference, &action_edits.read()));
-    let removal_disabled = action_edits.read().is_pending(&BoardReferenceKey::Remove);
     let options = assets
         .iter()
         .filter(|asset| matching::is_model_filename(&asset.name))
@@ -925,7 +850,7 @@ pub fn Editor(
                     }
                 }
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    disabled: disabled || busy || removal_disabled,
+                    disabled: disabled || busy,
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }

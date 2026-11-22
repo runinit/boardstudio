@@ -401,6 +401,7 @@ pub(crate) fn use_workbench_appearance() -> Signal<bool> {
 pub(crate) struct HeaderBundle {
     pub(crate) project_name: String,
     pub(crate) save_state: &'static str,
+    pub(crate) save_retryable: bool,
     pub(crate) settings_open: Signal<bool>,
     pub(crate) palette: command_palette::PaletteState,
     pub(crate) on_undo: EventHandler<()>,
@@ -425,6 +426,10 @@ pub(crate) fn use_workbench_header(
     } else {
         durability_state(&runtime.model().durability)
     };
+    let save_retryable = !matches!(
+        &runtime.model().durability,
+        Durability::Failed { reason, .. } if reason == boardstudio_web_host::host::CONFLICT
+    );
     let settings_open = use_signal(|| false);
     let palette = command_palette::use_palette_state();
     boardstudio_web_ui_shared::ui::command::use_command_registry();
@@ -459,6 +464,7 @@ pub(crate) fn use_workbench_header(
     HeaderBundle {
         project_name,
         save_state,
+        save_retryable,
         settings_open,
         palette,
         on_undo,

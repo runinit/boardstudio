@@ -152,15 +152,13 @@ pub(super) fn on_component_inspector_action_handler(
     inspect_open: Signal<bool>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::LayoutComponentInspectorAction> {
-    use boardstudio_web_ui_shared::draft_edits::FieldView;
-    let component_inspector_pending_edits = layout_state.component_inspector_edits();
-    let (x, y, margin, _) = layout_state.component_inspector_drafts();
+    let (x, y, margin, error) = layout_state.component_inspector_drafts();
     let (x_failure, y_failure, margin_failure) = layout_state.component_inspector_field_failures();
     let views = layout_component_edits::ComponentEditViews {
-        x: FieldView::new(x, x_failure),
-        y: FieldView::new(y, y_failure),
-        margin: FieldView::new(margin, margin_failure),
-        actions: layout_state.component_inspector_pending_controls(),
+        x: (x, x_failure),
+        y: (y, y_failure),
+        margin: (margin, margin_failure),
+        error,
     };
     EventHandler::new({
         let runtime = runtime.clone();
@@ -173,7 +171,7 @@ pub(super) fn on_component_inspector_action_handler(
                 &owner,
                 &lifetime,
                 (workspace, inspect_open),
-                (component_inspector_pending_edits, views),
+                views,
                 action,
             )
         }
@@ -186,8 +184,7 @@ pub(super) fn on_companion_placement_action_handler(
     workspace: Signal<&'static str>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::CompanionPlacementAction> {
-    let (companion_placement_pending, mut companion_placement_error, companion_placement_edits) =
-        layout_state.companion_placement_controls();
+    let mut companion_placement_error = layout_state.companion_placement_error();
     EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -206,20 +203,16 @@ pub(super) fn on_companion_placement_action_handler(
                 ));
                 return;
             }
-            companion_placement_error.set(None);
-            submit_layout_component_edit(
-                &runtime,
-                companion_placement_edits,
-                layout_component_edits::InspectorField::CompanionPlacement,
+            let result = runtime.commit(
+                "layout-companion-placement",
                 layout_component_edits::companion_placement_resolver(
                     action.pair_id,
                     action.targets,
                     action.mode,
                     action.tweak,
                 ),
-                boardstudio_web_ui_shared::draft_edits::EditDisplay::default()
-                    .disabling(companion_placement_pending),
             );
+            companion_placement_error.set(result.err());
         }
     })
 }
@@ -626,7 +619,6 @@ pub(super) fn layout_inspector_input(
         on_component_inspector_action,
         runtime,
     } = input;
-    let component_inspector_pending_edits = layout_state.component_inspector_edits();
     let (
         component_inspector_x,
         component_inspector_y,
@@ -638,14 +630,7 @@ pub(super) fn layout_inspector_input(
         component_inspector_y_failure,
         component_inspector_margin_failure,
     ) = layout_state.component_inspector_field_failures();
-    let (
-        component_inspector_layout_pending,
-        component_inspector_constraint_pending,
-        component_inspector_remove_pending,
-        component_inspector_mirrored_half_pending,
-    ) = layout_state.component_inspector_pending_controls();
-    let (companion_placement_pending, companion_placement_error, companion_placement_edits) =
-        layout_state.companion_placement_controls();
+    let companion_placement_error = layout_state.companion_placement_error();
     workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
         layout_workspace::InspectorInput {
             context_title: context_summary
@@ -666,7 +651,6 @@ pub(super) fn layout_inspector_input(
                 }),
             show_position_inspector,
             component_inspector,
-            component_inspector_pending_edits,
             component_inspector_x,
             component_inspector_y,
             component_inspector_margin,
@@ -674,14 +658,8 @@ pub(super) fn layout_inspector_input(
             component_inspector_x_failure,
             component_inspector_y_failure,
             component_inspector_margin_failure,
-            component_inspector_layout_pending,
-            component_inspector_constraint_pending,
-            component_inspector_remove_pending,
-            component_inspector_mirrored_half_pending,
             companion_placement,
-            companion_placement_pending,
             companion_placement_error,
-            companion_placement_edits,
             on_companion_placement_action,
             on_component_inspector_action,
             matrix_inspector,

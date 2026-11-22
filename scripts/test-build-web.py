@@ -28,7 +28,7 @@ class BuildWebTests(unittest.TestCase):
         joined = "\n".join(commands)
         self.assertNotIn("wasm-pack build core", joined)
         for retained in (
-            "--features core-worker", "--features cad-worker", "--features service-worker",
+            "--features cad-worker", "--features service-worker",
             "cad/scripts/build-cad-wasm.py",
             "stage-ergogen-models.py",
         ):
@@ -39,7 +39,7 @@ class BuildWebTests(unittest.TestCase):
             return [command for command, _ in BUILD.provider_commands(fast)
                     if command[:2] == ["wasm-pack", "build"]]
 
-        self.assertEqual(len(builds(True)), 4)
+        self.assertEqual(len(builds(True)), 3)
         self.assertTrue(all("--no-opt" in command for command in builds(True)))
         self.assertTrue(all("--no-opt" not in command for command in builds(False)))
         for command in builds(True):
@@ -66,7 +66,7 @@ class BuildWebTests(unittest.TestCase):
                 finished.append("css")
                 return
             self.assertIn("ergogen", finished)
-            if "m1_core_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
+            if "m1_cad_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
                 barrier.wait()
             if command[0] == "dx":
                 page_build(command)
@@ -80,7 +80,7 @@ class BuildWebTests(unittest.TestCase):
             public.mkdir()
 
         def stage():
-            self.assertEqual(len([step for step in finished if step != "css"]), 8)
+            self.assertEqual(len([step for step in finished if step != "css"]), 7)
             cad = next(i for i, step in enumerate(finished) if "cad/scripts/build-cad-wasm.py" in step)
             bake = finished.index(["node", "cad/scripts/bake-bundled-step.cjs"])
             self.assertLess(cad, bake)
@@ -102,7 +102,7 @@ class BuildWebTests(unittest.TestCase):
         # The stylesheet comes first, so check.py's WASM Clippy needn't wait for any build.
         self.assertEqual(finished[:2], ["css", "ergogen"])
         lane = [step for step in finished[2:] if step == "plain page" or "wasm-pack" in step]
-        self.assertEqual(len(lane), 5)
+        self.assertEqual(len(lane), 4)
         self.assertEqual(lane[-1], "plain page")
 
     def test_fast_single_route_falls_back_to_dx_without_debug_symbols(self):
@@ -115,7 +115,7 @@ class BuildWebTests(unittest.TestCase):
         self.assertEqual(finished[0], "ergogen")
         self.assertNotIn("css", finished)
         lane = [step for step in finished[1:] if step[0] in ("dx", "wasm-pack")]
-        self.assertEqual([step[0] for step in lane], ["wasm-pack"] * 4 + ["dx"])
+        self.assertEqual([step[0] for step in lane], ["wasm-pack"] * 3 + ["dx"])
 
     def test_shipped_multi_route_and_single_job_never_launch_build_lanes(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(BUILD, "run_lanes") as lanes, \
@@ -423,10 +423,9 @@ class BuildWebTests(unittest.TestCase):
             (root / "cad/wasm/pkg/cad.js").write_text("export {}")
             (root / "renderer/pkg").mkdir(parents=True)
             (root / "renderer/pkg/renderer.js").write_text("export {}")
-            for name in ("core-worker", "cad-worker"):
-                provider = web / "target/providers" / name
-                provider.mkdir(parents=True)
-                (provider / f"{name}.js").write_text("export {}")
+            provider = web / "target/providers/cad-worker"
+            provider.mkdir(parents=True)
+            (provider / "cad-worker.js").write_text("export {}")
             calls = []
 
             def fake_run(command, *, cwd=BUILD.ROOT, env=None):
@@ -464,7 +463,6 @@ class BuildWebTests(unittest.TestCase):
                 self.assertTrue((site / "assets/imported-modules.json").is_file())
                 self.assertTrue((site / "assets/cad/cad.js").is_file())
                 self.assertTrue((site / "assets/renderer/renderer.js").is_file())
-                self.assertTrue((site / "assets/core-worker/entry.js").is_file())
                 self.assertTrue((site / "assets/cad-worker/entry.js").is_file())
                 self.assertTrue((site / "service-worker.js").is_file())
 
@@ -473,7 +471,6 @@ class BuildWebTests(unittest.TestCase):
             root = Path(directory)
             for path in ("web/assets/workbench-base.css", "catalogue/modules/imported-modules.json",
                          "cad/wasm/pkg/cad.js", "renderer/pkg/renderer.js",
-                         "web/target/providers/core-worker/m1_core_worker.js",
                          "web/target/providers/cad-worker/m1_cad_worker.js"):
                 (root / path).parent.mkdir(parents=True, exist_ok=True)
                 (root / path).write_text(path)
@@ -484,12 +481,9 @@ class BuildWebTests(unittest.TestCase):
             self.assertTrue((site / "assets/workbench-base.css").is_file())
             self.assertTrue((site / "assets/imported-modules.json").is_file())
             self.assertFalse((dev / "imported-modules.json").exists(), "dx serve's copy is prepare_runtime_providers'")
-            for relative in ("cad/cad.js", "renderer/renderer.js", "core-worker/m1_core_worker.js",
-                             "cad-worker/m1_cad_worker.js", "core-worker/entry.js", "cad-worker/entry.js"):
+            for relative in ("cad/cad.js", "renderer/renderer.js", "cad-worker/m1_cad_worker.js",
+                             "cad-worker/entry.js"):
                 self.assertEqual((site / "assets" / relative).read_text(), (dev / relative).read_text(), relative)
-            self.assertEqual((dev / "core-worker/entry.js").read_text(),
-                             'import init, { start_core_worker } from "./m1_core_worker.js";\n'
-                             'await init();\nstart_core_worker();\n')
             self.assertEqual((dev / "cad-worker/entry.js").read_text(),
                              'import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\n'
                              'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n')
@@ -588,7 +582,7 @@ class BuildWebTests(unittest.TestCase):
                 return
             if command[0] == "dx" or "wasm-bindgen" in command[0]:
                 self.fail(f"staging ran during the cargo phase: {command}")
-            if "m1_core_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
+            if "m1_cad_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
                 barrier.wait()
             finished.append(command)
 
@@ -607,7 +601,7 @@ class BuildWebTests(unittest.TestCase):
             os.environ.pop(BUILD.IN_OVERLAP_ENV, None)
             self.assertEqual(BUILD.build(output, release=False, fast=True, phase="cargo"), output)
         self.assertEqual(finished[:2], ["css", "ergogen"])
-        self.assertEqual(len([step for step in finished[2:] if step[0] == "wasm-pack"]), 4)
+        self.assertEqual(len([step for step in finished[2:] if step[0] == "wasm-pack"]), 3)
         self.assertTrue(any("cad/scripts/build-cad-wasm.py" in step for step in finished[2:]))
         module = public.parent / "boardstudio-web.wasm"
         self.assertTrue(module.is_file())

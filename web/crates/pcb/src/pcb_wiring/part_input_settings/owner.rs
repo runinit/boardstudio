@@ -4,15 +4,12 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PressScanMode};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::{
-    cell::{Cell, RefCell},
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
-use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartInputIdentity {
@@ -23,7 +20,6 @@ pub struct PartInputIdentity {
     pub generator_source: Option<String>,
     pub token: SnapshotToken,
     pub revision: u64,
-    pub executor_epoch: u64,
     pub scope_generation: u64,
 }
 
@@ -45,51 +41,7 @@ pub enum PartInputIntent {
 pub struct PartInputEditRequest {
     pub identity: PartInputIdentity,
     pub intent: PartInputIntent,
-}
-
-/// One part-input control's bounded logical key: the part target plus the field it edits.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PartInputKey {
-    pub(crate) ui_scope: Scope,
-    pub(crate) scope_generation: u64,
-    pub(crate) part_id: String,
-    pub(crate) field: PartInputField,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PartInputField {
-    ScanMode,
-    GeneratorParameter(String),
-    GeneratorAnchor { name: String, axis: String },
-}
-
-impl PartInputKey {
-    fn of(request: &PartInputEditRequest) -> Self {
-        let field = match &request.intent {
-            PartInputIntent::ScanMode(_) => PartInputField::ScanMode,
-            PartInputIntent::GeneratorParameter { name, .. } => {
-                PartInputField::GeneratorParameter(name.clone())
-            }
-            PartInputIntent::GeneratorAnchor { name, axis, .. } => {
-                PartInputField::GeneratorAnchor {
-                    name: name.clone(),
-                    axis: axis.clone(),
-                }
-            }
-        };
-        Self {
-            ui_scope: request.identity.ui_scope.clone(),
-            scope_generation: request.identity.scope_generation,
-            part_id: request.identity.part_id.clone(),
-            field,
-        }
-    }
-
-    fn same_part(&self, identity: &PartInputIdentity) -> bool {
-        self.ui_scope == identity.ui_scope
-            && self.scope_generation == identity.scope_generation
-            && self.part_id == identity.part_id
-    }
+    pub(crate) schema: Rc<BTreeMap<String, Value>>,
 }
 
 /// The panel's latest failure, attributed to the part it belongs to.
@@ -102,7 +54,7 @@ pub(crate) struct PartInputFailure {
 }
 
 impl PartInputFailure {
-    fn of(key: &PartInputKey, message: String) -> Self {
+    fn of(key: &PartInputIdentity, message: String) -> Self {
         Self {
             ui_scope: key.ui_scope.clone(),
             scope_generation: key.scope_generation,
@@ -114,61 +66,10 @@ impl PartInputFailure {
 
 #[derive(Clone, PartialEq)]
 pub struct PartInputActions {
-    /// A committed setting for the rendered part has not settled yet.
-    pub(crate) pending: bool,
     /// The latest failure for the rendered part; landing and retirement are silent.
     pub(crate) failure: Option<PartInputFailure>,
     pub editable: bool,
     pub on_edit: EventHandler<PartInputEditRequest>,
-}
-
-/// The shared projection the rendered controls read: the latest committed intent per
-/// field. The collection owns the ticket lifetime, its pending payloads and settlement.
-#[derive(Clone, Copy)]
-struct InputDrafts(Signal<DraftEdits<PartInputKey, PartInputEditRequest>>);
-
-/// Reapply the committed pending intents for this part over the accepted projection.
-pub(super) fn apply_drafts(
-    identity: &PartInputIdentity,
-    projection: &mut super::PartInputProjection,
-) {
-    let Some(drafts) = try_consume_context::<InputDrafts>() else {
-        return;
-    };
-    for request in drafts
-        .0
-        .read()
-        .pending_values(|key| key.same_part(identity))
-    {
-        match &request.intent {
-            PartInputIntent::ScanMode(mode) => projection.press_mode = Some(*mode),
-            PartInputIntent::GeneratorParameter { name, value } => {
-                if let Some(value) = value {
-                    projection
-                        .generator_parameters
-                        .insert(name.clone(), value.clone());
-                } else {
-                    projection.generator_parameters.remove(name);
-                }
-            }
-            PartInputIntent::GeneratorAnchor { name, axis, value } => {
-                let mut anchor = projection
-                    .generator_parameters
-                    .get(name)
-                    .and_then(Value::as_object)
-                    .cloned()
-                    .unwrap_or_default();
-                if let Some(value) = value {
-                    anchor.insert(axis.clone(), Value::from(*value));
-                } else {
-                    anchor.remove(axis);
-                }
-                projection
-                    .generator_parameters
-                    .insert(name.clone(), Value::Object(anchor));
-            }
-        }
-    }
 }
 
 pub fn use_part_input_edits(
@@ -178,41 +79,8 @@ pub fn use_part_input_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartInputActions {
-    let mut edits = use_signal(DraftEdits::<PartInputKey, PartInputEditRequest>::default);
-    let latest = use_signal(|| None::<PartInputKey>);
+    let _ = version();
     let failure = use_signal(|| None::<PartInputFailure>);
-    use_context_provider(|| InputDrafts(edits));
-    // Schema preparation is serial so slower module loading cannot reorder committed values.
-    let queue = use_hook(|| Rc::new(RefCell::new(VecDeque::<PartInputEditRequest>::new())));
-    let preparing = use_hook(|| Rc::new(Cell::new(false)));
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
-    use_drop({
-        let alive = alive.clone();
-        move || alive.set(false)
-    });
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let mut failure = failure;
-        move |_| {
-            // The collection owns the ticket lifetime, its pending payload projection and
-            // Scope retirement; the keyed payloads are this panel's projection.
-            let live = workspace() == "PCB";
-            if live && !edits.peek().has_terminal() {
-                return;
-            }
-            for result in edits.write().discard_drafts(live) {
-                let (key, message) = match result {
-                    PendingEditResult::Failed { key, message } => (key, Some(message)),
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        (key, None)
-                    }
-                };
-                if latest.peek().as_ref() == Some(&key) {
-                    failure.set(message.map(|message| PartInputFailure::of(&key, message)));
-                }
-            }
-        }
-    }));
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
@@ -228,63 +96,14 @@ pub fn use_part_input_edits(
             {
                 return;
             }
-            let key = PartInputKey::of(&request);
-            let mut latest = latest;
-            latest.set(Some(key.clone()));
+            let identity = request.identity.clone();
+            let result = runtime.commit("pcb-part-settings", input_resolver(request));
             let mut failure = failure;
-            failure.set(None);
-            queue.borrow_mut().push_back(request);
-            if preparing.replace(true) {
-                return;
-            }
-            let queue = queue.clone();
-            let preparing = preparing.clone();
-            let alive = alive.clone();
-            let runtime = runtime.clone();
-            spawn_local(async move {
-                loop {
-                    let request = queue.borrow_mut().pop_front();
-                    let Some(request) = request else {
-                        preparing.set(false);
-                        break;
-                    };
-                    let schema = match &request.intent {
-                        PartInputIntent::ScanMode(_) => Ok(BTreeMap::new()),
-                        PartInputIntent::GeneratorParameter { .. }
-                        | PartInputIntent::GeneratorAnchor { .. } => {
-                            match &request.identity.generator_source {
-                                Some(source) => {
-                                    crate::presentation::parts::generator_parameter_schema(
-                                        source.clone(),
-                                    )
-                                    .await
-                                }
-                                None => Err("The part has no supported generator.".into()),
-                            }
-                        }
-                    };
-                    if !alive.get() {
-                        return;
-                    }
-                    let key = PartInputKey::of(&request);
-                    let live = workspace() == "PCB"
-                        && scope_generation() == key.scope_generation
-                        && runtime.scope().as_ref() == Some(&key.ui_scope)
-                        && runtime.model().selected_part_ids.as_slice() == [key.part_id.as_str()];
-                    if !live {
-                        continue;
-                    }
-                    let submitted = request.clone();
-                    edits.write().submit_value(
-                        &runtime,
-                        key,
-                        "pcb-part-settings",
-                        Some("setting".into()),
-                        input_resolver(request, schema),
-                        submitted,
-                    );
-                }
-            });
+            failure.set(
+                result
+                    .err()
+                    .map(|message| PartInputFailure::of(&identity, message)),
+            );
         }
     });
     let editable = current_pcb_source(
@@ -299,13 +118,6 @@ pub fn use_part_input_edits(
             && runtime.scope().as_ref() == Some(ui_scope)
             && runtime.model().selected_part_ids.as_slice() == [part_id]
     };
-    let pending = edits
-        .read()
-        .observations()
-        .into_iter()
-        .any(|(key, pending)| {
-            pending && live_target(&key.ui_scope, key.scope_generation, &key.part_id)
-        });
     let failure = failure().filter(|failure| {
         live_target(
             &failure.ui_scope,
@@ -314,7 +126,6 @@ pub fn use_part_input_edits(
         )
     });
     PartInputActions {
-        pending,
         failure,
         editable,
         on_edit,
@@ -346,7 +157,6 @@ fn current_snapshot(
         || model.selected_part_ids.len() != 1
         || model.selected_part_ids.first() != Some(&identity.part_id)
         || runtime.scope().as_ref() != Some(&identity.ui_scope)
-        || runtime.electrical_preview_executor_epoch() != identity.executor_epoch
     {
         return None;
     }
@@ -419,10 +229,7 @@ fn current_pcb_source(
         })
 }
 
-fn input_resolver(
-    request: PartInputEditRequest,
-    schema: Result<BTreeMap<String, Value>, String>,
-) -> EditResolver {
+fn input_resolver(request: PartInputEditRequest) -> EditResolver {
     EditResolver::new("pcb-part-settings", move |accepted: &AcceptedSnapshot| {
         let identity = &request.identity;
         let Some(projection) = project(&accepted.document, &identity.board_id, &identity.part_id)
@@ -442,10 +249,7 @@ fn input_resolver(
         {
             return Resolution::Retire("The part is locked or its definition changed.".into());
         }
-        let schema = match &schema {
-            Ok(schema) => schema,
-            Err(reason) => return Resolution::Retire(reason.clone()),
-        };
+        let schema = &request.schema;
         let operation = match &request.intent {
             PartInputIntent::ScanMode(mode) => {
                 if projection.press_mode.is_none()

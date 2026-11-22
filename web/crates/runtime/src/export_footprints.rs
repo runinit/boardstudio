@@ -1,24 +1,21 @@
 //! Private standalone KiCad footprint ZIP adapter for the Export workspace.
 //!
 //! Rust Core plans, renders and serializes the footprints in one `ExportPcb`
-//! request; the existing Core archive worker packs the resulting files.
+//! request; Core packs the resulting files directly.
 
+use crate::portable_archive::pack_files;
 use boardstudio_application::{AcceptedSnapshot, OperationId};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{
-    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
-    PrepareExportRequest,
+    ArtifactReply, ArtifactRequest, ExportTarget, PrepareExportRequest,
 };
-use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
-use js_sys::Uint8Array;
+use boardstudio_web_host::host::BrowserStore;
 use std::collections::BTreeMap;
 
 pub struct ExportSource<'a> {
     pub operation_id: OperationId,
     pub snapshot: &'a AcceptedSnapshot,
-    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
-    pub executor_epoch: u64,
 }
 
 pub async fn build_zip(
@@ -28,9 +25,7 @@ pub async fn build_zip(
     let ExportSource {
         operation_id,
         snapshot,
-        core,
         store,
-        executor_epoch,
     } = source;
     let document = snapshot.document.as_ref();
     is_current()?;
@@ -64,11 +59,8 @@ pub async fn build_zip(
         },
     };
     is_current()?;
-    let reply = core
-        .artifact(&request_id, &executor_epoch.to_string(), &request)
-        .await;
+    let reply = crate::runtime::artifact_reply(&request)?;
     is_current()?;
-    let reply = reply.map_err(|error| format!("Footprint export failed: {error}"))?;
     let exported = match reply {
         ArtifactReply::ExportPcb { id, result } if id == request_id => result,
         ArtifactReply::Error { id, error } if id == request_id => {
@@ -119,45 +111,7 @@ pub async fn build_zip(
     )?;
 
     is_current()?;
-    let entries = files
-        .iter()
-        .enumerate()
-        .map(|(index, (path, _))| {
-            Ok(ArchiveEntry {
-                path: path.clone(),
-                buffer_index: u32::try_from(index)
-                    .map_err(|_| "Too many footprint archive files.".to_owned())?,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-        .map_err(|error| format!("Could not prepare footprint ZIP request: {error}"))?;
-    let buffers = files
-        .iter()
-        .map(|(_, contents)| Uint8Array::from(contents.as_slice()))
-        .collect();
-    let archive_id = format!("footprints-{}-archive", operation_id.0);
-    let packed = core
-        .archive(&archive_id, &executor_epoch.to_string(), &metadata, buffers)
-        .await;
-    is_current()?;
-    let packed = packed.map_err(|error| format!("Footprint ZIP packaging failed: {error}"))?;
-    match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-        .map_err(|error| format!("Could not read footprint ZIP result: {error}"))?
-    {
-        ArchiveReply::Packed => packed
-            .buffers
-            .first()
-            .map(Uint8Array::to_vec)
-            .filter(|bytes| !bytes.is_empty())
-            .ok_or_else(|| "Footprint ZIP provider returned no bytes.".into()),
-        ArchiveReply::Error { message } => {
-            Err(format!("Footprint ZIP packaging failed: {message}"))
-        }
-        ArchiveReply::Unpacked { .. } => {
-            Err("Core returned an unpacked project for footprint export.".into())
-        }
-    }
+    pack_files(files)
 }
 
 async fn load_model_files(

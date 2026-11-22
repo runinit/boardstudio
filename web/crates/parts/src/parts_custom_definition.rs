@@ -97,8 +97,6 @@ pub(crate) mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_model::model::{Pad, PadShape, PartDefinition, PartKind};
-    use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -181,17 +179,8 @@ pub(crate) mod ui {
     }
 
     impl PanelRows {
-        /// Release departed row bindings before discarding their projection handles.
-        fn retain_rows(&mut self, live: &[u64], pending: &DraftEdits<DefinitionFieldKey>) {
-            self.drafts.retain(|row, _| {
-                if live.contains(row) {
-                    return true;
-                }
-                for field in PadField::text_fields() {
-                    pending.detach_field(&DefinitionFieldKey::Pad { row: *row, field });
-                }
-                false
-            });
+        fn retain_rows(&mut self, live: &[u64]) {
+            self.drafts.retain(|row, _| live.contains(row));
             self.accepted.retain(|row, _| live.contains(row));
         }
 
@@ -254,7 +243,6 @@ pub(crate) mod ui {
         let mut failure = use_signal(|| None::<String>);
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
         let owner_identity = (scope.clone(), selection(), definition.id.clone());
-        let pending = use_hook(DraftEdits::<DefinitionFieldKey>::default);
         // Pad-row drafts live here so a settlement can never write a Signal whose row
         // component already unmounted; the helper's bindings point at these Signals.
         let row_drafts = use_hook(|| Rc::new(RefCell::new(PanelRows::default())));
@@ -269,7 +257,6 @@ pub(crate) mod ui {
         if *observation_owner.borrow() != capture {
             // A replacement definition takes fresh bindings. Old observations retire
             // before the replacement can receive their terminal feedback.
-            pending.clear();
             *row_drafts.borrow_mut() = PanelRows::default();
             *observation_owner.borrow_mut() = capture.clone();
             width.set(courtyard.0.clone());
@@ -286,10 +273,9 @@ pub(crate) mod ui {
             let runtime = runtime.clone();
             let selection = selection;
             let capture = capture.clone();
-            let pending = pending.clone();
             let row_drafts = row_drafts.clone();
-            let width = width;
-            let height = height;
+            let mut width = width;
+            let mut height = height;
             let mut failure = failure;
             move |request: DefinitionFieldEdit| {
                 let model = runtime.model();
@@ -305,79 +291,42 @@ pub(crate) mod ui {
                     return;
                 }
                 let key = DefinitionFieldKey::of(request.row, &edit);
-                let one_shot = matches!(
-                    key,
-                    DefinitionFieldKey::AddPad
-                        | DefinitionFieldKey::Pad {
-                            field: PadField::Remove,
-                            ..
-                        }
-                );
-                // A retained handler can run again before its disabled render.
-                // Only one-shot actions refuse another pending submission.
-                if one_shot && pending.is_pending(&key) {
-                    return;
-                }
-                let view = match key {
-                    DefinitionFieldKey::CourtyardWidth => Some(FieldView::new(width, failure)),
-                    DefinitionFieldKey::CourtyardHeight => Some(FieldView::new(height, failure)),
-                    DefinitionFieldKey::Pad { row, field } => {
-                        field.text_index().and_then(|index| {
-                            row_drafts
-                                .borrow()
-                                .drafts
-                                .get(&row)
-                                .map(|row| FieldView::new(row.drafts[index], failure))
-                        })
-                    }
-                    DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => None,
-                };
-                let submitted = view
-                    .map(|view| view.draft.peek().clone())
-                    .unwrap_or_default();
-                // A baseline value is a real new intent while an older edit waits.
-                // Otherwise compare with fresh accepted state, so retained callbacks
-                // cannot mistake a stale prop value for the accepted value.
-                if !pending.is_pending(&key)
-                    && current
-                        .document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == capture.definition_id)
-                        .is_some_and(|definition| {
-                            field_matches_accepted(&key, &edit, &submitted, definition)
-                        })
-                {
-                    match key {
-                        DefinitionFieldKey::CourtyardWidth => width_dirty.set(false),
-                        DefinitionFieldKey::CourtyardHeight => height_dirty.set(false),
-                        DefinitionFieldKey::Pad { row, field } => {
-                            if let Some(index) = field.text_index()
-                                && let Some(mut drafts) =
-                                    row_drafts.borrow().drafts.get(&row).copied()
-                            {
-                                drafts.dirty[index].set(false);
-                            }
-                        }
-                        DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => {}
-                    }
-                    return;
-                }
                 let seed = match edit {
                     DefinitionEdit::AddPad => runtime.operation().0,
                     _ => 0,
                 };
                 let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
-                pending.submit(
-                    &runtime,
-                    key,
-                    "parts-definition-field",
-                    Some("part definition".into()),
-                    resolver,
-                    view.map(|view| view.submitted(submitted))
-                        .unwrap_or_default(),
-                );
-                failure.set(None);
+                let result = runtime.commit("parts-definition-field", resolver);
+                if let Some(previous) = current
+                    .document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == capture.definition_id)
+                {
+                    let (accepted_width, accepted_height) = courtyard_size(previous);
+                    match key {
+                        DefinitionFieldKey::CourtyardWidth => {
+                            width_dirty.set(false);
+                            width.set(accepted_width);
+                        }
+                        DefinitionFieldKey::CourtyardHeight => {
+                            height_dirty.set(false);
+                            height.set(accepted_height);
+                        }
+                        DefinitionFieldKey::Pad { row, field } => {
+                            let rows = row_drafts.borrow();
+                            if let Some(index) = field.text_index()
+                                && let Some(mut drafts) = rows.drafts.get(&row).copied()
+                                && let Some(accepted) = rows.accepted.get(&row)
+                            {
+                                drafts.dirty[index].set(false);
+                                drafts.drafts[index].set(accepted[index].clone());
+                            }
+                        }
+                        DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => {}
+                    }
+                }
+                failure.set(result.err());
             }
         });
 
@@ -407,12 +356,6 @@ pub(crate) mod ui {
             }
         }));
 
-        // The selection, document session and scope this panel's edits belong to are
-        // still current; a departed owner retires its edits.
-        let owner_live =
-            runtime.model().accepted.as_ref().is_some_and(|current| {
-                capture.owner_matches(current, runtime.scope(), selection())
-            });
         let owner_key = format!("{:?}:{}", scope, definition.id);
         let pad_rows = use_hook(|| Rc::new(RefCell::new(PadRowKeys::default())));
         let row_keys = pad_rows.borrow_mut().for_pads(&owner_key, &definition.pads);
@@ -435,53 +378,7 @@ pub(crate) mod ui {
             }
         }
 
-        // Settle the pending edits before rendering: pending fields keep their drafts,
-        // failures restore the accepted value with the message inline, and landed or
-        // retired edits drop so the fields follow the accepted document again. A row
-        // whose pad vanished can still report its failure at the shared placement,
-        // even after its field bindings and draft handles have been pruned.
-        let results = pending.settle(owner_live, |key| {
-            accepted_field_text(key, &definition, &row_keys, &row_drafts, &courtyard)
-        });
-        for result in &results {
-            let key = match result {
-                PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key } => key,
-            };
-            if !pending.is_pending(key) {
-                match key {
-                    DefinitionFieldKey::CourtyardWidth if *width.peek() == courtyard.0 => {
-                        width_dirty.set(false);
-                    }
-                    DefinitionFieldKey::CourtyardHeight if *height.peek() == courtyard.1 => {
-                        height_dirty.set(false);
-                    }
-                    DefinitionFieldKey::Pad { row, field } => {
-                        if let Some(index) = field.text_index()
-                            && let Some(mut drafts) = row_drafts.borrow().drafts.get(row).copied()
-                            && *drafts.drafts[index].peek()
-                                == accepted_field_text(
-                                    key,
-                                    &definition,
-                                    &row_keys,
-                                    &row_drafts,
-                                    &courtyard,
-                                )
-                        {
-                            drafts.dirty[index].set(false);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            if let PendingEditResult::Failed { message, .. } = result {
-                failure.set(Some(message.clone()));
-            }
-        }
-        // A missing row can still report its terminal failure above, but must not
-        // retain draft handles or helper bindings after leaving the accepted list.
-        row_drafts.borrow_mut().retain_rows(&row_keys, &pending);
+        row_drafts.borrow_mut().retain_rows(&row_keys);
 
         let kind = kind_name(&definition.kind);
         let on_kind = {
@@ -532,7 +429,6 @@ pub(crate) mod ui {
         let committed_height = courtyard.1.clone();
         let height_keydown =
             move |event| draft_keydown(event, height, height_dirty, committed_height.clone());
-        let add_pad_pending = pending.is_pending(&DefinitionFieldKey::AddPad);
 
         rsx! {
             div { class: "grid gap-3",
@@ -564,7 +460,7 @@ pub(crate) mod ui {
                 }
                 div { class: "flex flex-wrap items-center justify-between gap-2",
                     strong { "Pads " small { "{definition.pads.len()}" } }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: kicad_locked || add_pad_pending, onclick: on_add, "+ Add pad" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: kicad_locked, onclick: on_add, "+ Add pad" }
                 }
                 if kicad_locked {
                     Callout { variant: CalloutVariant::Info, "Imported pad geometry stays linked to its original KiCad source." }
@@ -574,10 +470,6 @@ pub(crate) mod ui {
                         key: "{owner_key}:{row_key}", index, row: row_key, pad: pad.clone(),
                         locked: kicad_locked,
                         drafts: row_drafts.borrow_mut().drafts.get(&row_key).copied(),
-                        remove_pending: pending.is_pending(&DefinitionFieldKey::Pad {
-                            row: row_key,
-                            field: PadField::Remove,
-                        }),
                         failure,
                         submit,
                     }
@@ -587,71 +479,6 @@ pub(crate) mod ui {
                 }
                 if let Some(message) = failure() {
                     Alert { variant: AlertVariant::Destructive, "{message}" }
-                }
-            }
-        }
-    }
-
-    /// Admission compares only fresh accepted projection. Submitted-draft memory and
-    /// terminal restoration remain in the helper.
-    fn field_matches_accepted(
-        key: &DefinitionFieldKey,
-        edit: &DefinitionEdit,
-        submitted: &str,
-        definition: &PartDefinition,
-    ) -> bool {
-        match edit {
-            DefinitionEdit::Kind(kind) => return *kind == definition.kind,
-            DefinitionEdit::CourtyardWidth(_) => return submitted == courtyard_size(definition).0,
-            DefinitionEdit::CourtyardHeight(_) => return submitted == courtyard_size(definition).1,
-            DefinitionEdit::AddPad | DefinitionEdit::RemovePad { .. } => return false,
-            _ => {}
-        }
-        let pad_id = match edit {
-            DefinitionEdit::PadId { pad_id, .. }
-            | DefinitionEdit::PadNumber { pad_id, .. }
-            | DefinitionEdit::PadCoordinate { pad_id, .. }
-            | DefinitionEdit::PadSize { pad_id, .. }
-            | DefinitionEdit::PadDrill { pad_id, .. }
-            | DefinitionEdit::PadShape { pad_id, .. } => pad_id,
-            _ => return false,
-        };
-        let Some(pad) = definition.pads.iter().find(|pad| &pad.id == pad_id) else {
-            return false;
-        };
-        if let DefinitionEdit::PadShape { shape, .. } = edit {
-            return *shape == pad.shape;
-        }
-        matches!(key, DefinitionFieldKey::Pad { field, .. }
-            if field.text_index().is_some_and(|index| RowDrafts::accepted_texts(pad)[index] == submitted))
-    }
-
-    /// The accepted text one committed field settles back to. A vanished row keeps its
-    /// current draft text, so the settlement cannot invent a value for a pad that is
-    /// gone; the failure message still surfaces through the shared placement.
-    fn accepted_field_text(
-        key: &DefinitionFieldKey,
-        definition: &PartDefinition,
-        row_keys: &[u64],
-        row_drafts: &Rc<RefCell<PanelRows>>,
-        courtyard: &(String, String),
-    ) -> String {
-        match *key {
-            DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => String::new(),
-            DefinitionFieldKey::CourtyardWidth => courtyard.0.clone(),
-            DefinitionFieldKey::CourtyardHeight => courtyard.1.clone(),
-            DefinitionFieldKey::Pad { row, field } => {
-                let index = field.text_index().unwrap_or_default();
-                match row_keys.iter().position(|existing| *existing == row) {
-                    Some(position) => {
-                        RowDrafts::accepted_texts(&definition.pads[position])[index].clone()
-                    }
-                    None => row_drafts
-                        .borrow()
-                        .drafts
-                        .get(&row)
-                        .map(|drafts| drafts.drafts[index].peek().clone())
-                        .unwrap_or_default(),
                 }
             }
         }
@@ -734,7 +561,6 @@ pub(crate) mod ui {
         pad: Pad,
         locked: bool,
         drafts: Option<RowDrafts>,
-        remove_pending: bool,
         failure: Signal<Option<String>>,
         submit: EventHandler<DefinitionFieldEdit>,
     ) -> Element {
@@ -916,7 +742,7 @@ pub(crate) mod ui {
                     }
                     EditorNumberField { label: "Drill", value: "{drill()}", aria_label: "Pad {index + 1} drill", disabled: locked, min: "0.01", step: "0.1", placeholder: "None", oninput: move |event: FormEvent| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown }
                 }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: remove_pending, onclick: on_remove, "Remove pad" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: on_remove, "Remove pad" }
             }
         }
     }

@@ -5,7 +5,6 @@ pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
-use crate::mechanical_settings_controller::use_bound_mechanical_field;
 pub use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
     MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
@@ -243,7 +242,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
+                    if feedback.state == MechanicalSettingsFeedbackState::Failed
                         && let Some(message) = feedback.message.as_deref()
                     {
                         Alert { variant: AlertVariant::Destructive, "{message}" }

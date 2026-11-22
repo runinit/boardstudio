@@ -30,9 +30,6 @@ pub(super) struct WorkspaceEventWiring {
     pub keymap_export: EventHandler<()>,
     pub show_configured_board: EventHandler<String>,
     pub toggle_footprints: EventHandler<()>,
-    pub retry_save: EventHandler<()>,
-    pub download_pending: EventHandler<()>,
-    pub recover_saved: EventHandler<()>,
     pub canvas_end_pointer: EventHandler<PointerEvent>,
     pub canvas_cancel_pointer: EventHandler<PointerEvent>,
     pub canvas_keyboard: EventHandler<KeyboardEvent>,
@@ -84,8 +81,6 @@ pub(super) fn use_workspace_event_wiring(
     } = input;
     let undo = runtime.clone();
     let redo = runtime.clone();
-    let retry = runtime.clone();
-    let recover = runtime.clone();
     workspace_routing.select_tree.replace(Box::new(select_tree));
     workspace_routing.navigate.replace(navigate);
     let WiringHandlers {
@@ -117,22 +112,6 @@ pub(super) fn use_workspace_event_wiring(
         let mut footprints = layer_visibility.footprints;
         footprints.set(!footprints());
     });
-    let retry_save = {
-        let retry = retry.clone();
-        EventHandler::new(move |_| {
-            retry.submit(Event::RetrySave {
-                operation_id: retry.operation(),
-            });
-        })
-    };
-    let download_pending = {
-        let pending = runtime.clone();
-        EventHandler::new(move |_| pending.download_pending_edits())
-    };
-    let recover_saved = {
-        let recover = recover.clone();
-        EventHandler::new(move |_| recover.recover_saved())
-    };
     let canvas_end_pointer = end_pointer;
     let canvas_cancel_pointer = cancel_pointer;
     let canvas_keyboard = keyboard;
@@ -174,9 +153,6 @@ pub(super) fn use_workspace_event_wiring(
             keymap_export,
             show_configured_board,
             toggle_footprints,
-            retry_save,
-            download_pending,
-            recover_saved,
             canvas_end_pointer,
             canvas_cancel_pointer,
             canvas_keyboard,
@@ -255,7 +231,6 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
                 &board_scope,
                 scope,
                 model.selected_part_ids.first().map(String::as_str),
-                runtime.electrical_preview_executor_epoch(),
                 (adapter.generation)(),
             )
         });
@@ -730,9 +705,6 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
             keymap_export,
             show_configured_board,
             toggle_footprints,
-            retry_save,
-            download_pending,
-            recover_saved,
             canvas_end_pointer,
             canvas_cancel_pointer,
             canvas_keyboard,
@@ -849,9 +821,6 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
                 keymap_export,
                 show_configured_board,
                 toggle_footprints,
-                retry_save,
-                download_pending,
-                recover_saved,
                 canvas_end_pointer,
                 canvas_cancel_pointer,
                 canvas_keyboard,

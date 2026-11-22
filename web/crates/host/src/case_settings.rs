@@ -32,23 +32,6 @@ pub fn initial_settings(
     .map(|inputs| inputs.configuration)
 }
 
-/// Keep the standard process overrides in sync, matching MechanicalAssemblyPanel.update.
-pub fn update_bottom_thickness(
-    config: &mut MechanicalConfiguration,
-    thickness: f64,
-) -> Result<(), String> {
-    if !thickness.is_finite() || thickness <= 0.0 {
-        return Err("Bottom thickness must be positive.".into());
-    }
-    config.bottom_thickness = thickness;
-    if let Some(processes) = &mut config.part_processes {
-        for process in processes.iter_mut().filter(|p| p.part_id == "bottom") {
-            process.thickness = thickness;
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

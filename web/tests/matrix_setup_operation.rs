@@ -2,7 +2,7 @@
 mod matrix_setup_operation;
 
 use boardstudio_application::{
-    Completion, Durability, Effect, Event, ExecutorEpoch, OperationId, RequestId, SaveResult,
+    Completion, Durability, Effect, Event, OperationId, SaveResult,
     SelectionMode, Session, TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::*};
@@ -76,34 +76,6 @@ fn session_document() -> ProjectDoc {
     document
 }
 
-fn session_core_effect(effects: &[Effect]) -> (RequestId, ExecutorEpoch, CoreRequest) {
-    effects
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } => Some((*request_id, *executor_epoch, (**request).clone())),
-            _ => None,
-        })
-        .expect("one Core operation")
-}
-
-fn complete_session_core(
-    session: &mut Session,
-    engine: &mut CoreEngine,
-    effects: Vec<Effect>,
-) -> Vec<Effect> {
-    let (request_id, executor_epoch, request) = session_core_effect(&effects);
-    session.complete(Completion::Core {
-        request_id,
-        executor_epoch,
-        reply: Box::new(engine.handle(request)),
-    })
-}
-
 fn persist_session_committed(session: &mut Session, effects: Vec<Effect>) -> Vec<Effect> {
     let (save_attempt_id, document) = effects
         .iter()
@@ -130,7 +102,6 @@ fn persist_session_committed(session: &mut Session, effects: Vec<Effect>) -> Vec
 
 fn open_session_saved(
     session: &mut Session,
-    engine: &mut CoreEngine,
     document: ProjectDoc,
     id: u64,
 ) {
@@ -138,7 +109,6 @@ fn open_session_saved(
         operation_id: OperationId(id),
         document,
     });
-    let effects = complete_session_core(session, engine, effects);
     persist_session_committed(session, effects);
     let model = session.read_model();
     assert_eq!(model.lifecycle, boardstudio_application::Lifecycle::Ready);
@@ -146,9 +116,8 @@ fn open_session_saved(
     assert!(matches!(model.durability, Durability::Saved { .. }));
 }
 
-fn session_history_action(session: &mut Session, engine: &mut CoreEngine, event: Event) {
+fn session_history_action(session: &mut Session, event: Event) {
     let effects = session.submit(event);
-    let effects = complete_session_core(session, engine, effects);
     persist_session_committed(session, effects);
 }
 
@@ -431,8 +400,7 @@ fn generated_matrix_identity_skips_existing_matrix_definition_and_member_ids() {
 #[test]
 fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
     let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
-    let mut engine = CoreEngine::new();
-    open_session_saved(&mut session, &mut engine, session_document(), 1);
+    open_session_saved(&mut session, session_document(), 1);
 
     let prepared = prepare_matrix(
         "matrix-new".into(),
@@ -461,8 +429,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
             resolution.clone()
         }),
     });
-    let save_effects = complete_session_core(&mut session, &mut engine, edit_effects);
-    let completion_effects = persist_session_committed(&mut session, save_effects);
+    persist_session_committed(&mut session, edit_effects.clone());
+    let completion_effects = edit_effects;
     assert!(completion_effects.iter().any(|effect| matches!(
         effect,
         Effect::Settled {
@@ -522,7 +490,6 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
 
     session_history_action(
         &mut session,
-        &mut engine,
         Event::Undo {
             operation_id: OperationId(4),
         },
@@ -549,7 +516,6 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
 
     session_history_action(
         &mut session,
-        &mut engine,
         Event::Redo {
             operation_id: OperationId(5),
         },
@@ -566,10 +532,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
 
     let durable_document = (*redone.document).clone();
     let mut reopened_session = Session::new(boardstudio_core::CoreEngine::validate_open);
-    let mut reopened_engine = CoreEngine::new();
     open_session_saved(
         &mut reopened_session,
-        &mut reopened_engine,
         durable_document,
         6,
     );

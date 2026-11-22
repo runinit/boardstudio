@@ -184,8 +184,6 @@ pub enum LayoutComponentInspectorAction {
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
     pub inspector_tab: Signal<LayoutInspectorTab>,
-    pub(in crate::presentation) pending_edits:
-        Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(in crate::presentation) x: Signal<String>,
     pub(in crate::presentation) y: Signal<String>,
     pub(in crate::presentation) margin: Signal<String>,
@@ -193,10 +191,6 @@ pub struct LayoutComponentInspectorProps {
     pub(in crate::presentation) y_failure: Signal<Option<String>>,
     pub(in crate::presentation) margin_failure: Signal<Option<String>>,
     pub(in crate::presentation) error: Signal<Option<String>>,
-    pub(in crate::presentation) layout_pending: Signal<bool>,
-    pub(in crate::presentation) constraint_pending: Signal<bool>,
-    pub(in crate::presentation) remove_pending: Signal<bool>,
-    pub(in crate::presentation) mirrored_half_pending: Signal<bool>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -423,26 +417,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             }));
         }));
     }
-    let pending = props.pending_edits.peek().clone();
-    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<LayoutComponentInspectorOwnerKey>)));
-    let owner_is_live = {
-        let mut previous = last_owner.borrow_mut();
-        let changed = previous.as_ref().is_some_and(|old| {
-            old != &LayoutComponentInspectorOwnerKey {
-                scope: Some(owner.scope.clone()),
-                workspace: "Layout",
-                part_id: Some(owner.part_id.clone()),
-                selected_part_ids: owner.selected_part_ids.clone(),
-            }
-        });
-        *previous = Some(LayoutComponentInspectorOwnerKey {
-            scope: Some(owner.scope.clone()),
-            workspace: "Layout",
-            part_id: Some(owner.part_id.clone()),
-            selected_part_ids: owner.selected_part_ids.clone(),
-        });
-        !changed
-    };
     let mirrored_half_action = |state| {
         let mirrored_half = projection.mirrored_half.clone();
         let owner = latest_capture;
@@ -474,14 +448,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let mut previous_x = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_x = (identity.clone(), initial_position.x);
     let identity_x = identity.clone();
-    let pending_x = pending.clone();
     use_effect(use_reactive((&accepted_x,), move |((_, value),)| {
         let previous = previous_x.peek().clone();
         let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
             old_identity != &identity_x || x.peek().as_str() == format!("{old_value:.2}")
         });
-        if clean && !pending_x.is_pending(&super::super::layout_component_edits::InspectorField::X)
-        {
+        if clean {
             x.set(format!("{value:.2}"));
         }
         previous_x.set(Some((identity_x.clone(), value)));
@@ -489,14 +461,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let mut previous_y = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_y = (identity.clone(), initial_position.y);
     let identity_y = identity.clone();
-    let pending_y = pending.clone();
     use_effect(use_reactive((&accepted_y,), move |((_, value),)| {
         let previous = previous_y.peek().clone();
         let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
             old_identity != &identity_y || y.peek().as_str() == format!("{old_value:.2}")
         });
-        if clean && !pending_y.is_pending(&super::super::layout_component_edits::InspectorField::Y)
-        {
+        if clean {
             y.set(format!("{value:.2}"));
         }
         previous_y.set(Some((identity_y.clone(), value)));
@@ -504,7 +474,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let mut previous_margin = use_signal(|| None::<(InspectorOwnerIdentity, Option<f64>)>);
     let accepted_margin = (identity.clone(), initial_outline.margin);
     let identity_margin = identity.clone();
-    let pending_margin = pending.clone();
     use_effect(use_reactive((&accepted_margin,), move |((_, value),)| {
         let previous = previous_margin.peek().clone();
         let old_text = previous
@@ -514,10 +483,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             .as_ref()
             .is_none_or(|(old_identity, _)| old_identity != &identity_margin)
             || old_text.as_deref() == Some(margin.peek().as_str());
-        if clean
-            && !pending_margin
-                .is_pending(&super::super::layout_component_edits::InspectorField::Margin)
-        {
+        if clean {
             margin.set(value.map(|value| value.to_string()).unwrap_or_default());
         }
         previous_margin.set(Some((identity_margin.clone(), value)));
@@ -635,26 +601,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     };
-    let accepted_projection = projection.clone();
-    pending.settle(owner_is_live, move |key| match key {
-        super::super::layout_component_edits::InspectorField::X => {
-            format!("{:.2}", accepted_projection.position.x)
-        }
-        super::super::layout_component_edits::InspectorField::Y => {
-            format!("{:.2}", accepted_projection.position.y)
-        }
-        super::super::layout_component_edits::InspectorField::Margin => accepted_projection
-            .outline
-            .margin
-            .map(|value| value.to_string())
-            .unwrap_or_default(),
-        _ => String::new(),
-    });
-    let retired_pending = pending.clone();
-    use_drop(move || {
-        retired_pending.settle(false, |_| String::new());
-    });
-
     let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
     let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
         let latest_capture = latest_capture;

@@ -57,7 +57,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
         };
     }
 
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
     let Some(board) = document
         .boards
         .iter()

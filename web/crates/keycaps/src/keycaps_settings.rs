@@ -8,12 +8,9 @@ use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_ui_shared::draft_edits::FieldView;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -111,18 +108,6 @@ pub struct KeycapsEditRequest {
     pub change: KeycapEditChange,
 }
 
-/// The newest keycap edit still pending for the visible owner. Failures are reported
-/// inline at their field and as retry drafts; there is no Saved or Failed status here.
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeycapsEditFeedback {
-    pub editor_instance_id: u64,
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-    pub target: KeycapsEditTarget,
-    pub field: KeycapEditField,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeycapsRetryDraft {
     pub editor_instance_id: u64,
@@ -158,110 +143,16 @@ pub struct KeycapsSettingsActions {
     pub selected_key_id: String,
     pub accepted_settings: KeycapKeySettings,
     pub request_sequence: Signal<u64>,
-    pub feedback: Option<KeycapsEditFeedback>,
     pub retry_drafts: Rc<[KeycapsRetryDraft]>,
     pub on_change: EventHandler<KeycapsEditRequest>,
     pub on_retry: EventHandler<KeycapsRetryIdentity>,
     pub on_discard: EventHandler<KeycapsRetryIdentity>,
 }
 
-/// Compare by field identity so a newer request replaces its observation.
-#[derive(Clone)]
-struct KeycapsPendingKey(KeycapsEditRequest);
-
-impl PartialEq for KeycapsPendingKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.target == other.0.target && self.0.change.field() == other.0.change.field()
-    }
-}
-
-/// Board and Matrix edits follow the scope and workspace. Key edits also follow selection.
-#[derive(Default)]
-struct KeycapsEdits {
-    shared: DraftEdits<KeycapsPendingKey>,
-    shared_owner: Option<(Option<Scope>, u64, &'static str)>,
-    key: DraftEdits<KeycapsPendingKey>,
-    key_owner: u64,
-}
-
-impl KeycapsEdits {
-    /// Drop the observations whose owner lifetime ended.
-    fn follow_owner(
-        &mut self,
-        scope: Option<&Scope>,
-        scope_generation: u64,
-        workspace: &'static str,
-        owner_generation: u64,
-    ) {
-        let shared_owner = (scope.cloned(), scope_generation, workspace);
-        if self.shared_owner.as_ref() != Some(&shared_owner) {
-            self.shared = DraftEdits::default();
-            self.shared_owner = Some(shared_owner);
-        }
-        if self.key_owner != owner_generation {
-            self.key = DraftEdits::default();
-            self.key_owner = owner_generation;
-        }
-    }
-
-    fn owners_changed(
-        &self,
-        scope: Option<&Scope>,
-        scope_generation: u64,
-        workspace: &'static str,
-        owner_generation: u64,
-    ) -> bool {
-        self.shared_owner.as_ref() != Some(&(scope.cloned(), scope_generation, workspace))
-            || self.key_owner != owner_generation
-    }
-
-    fn has_terminal(&self) -> bool {
-        self.shared.has_terminal() || self.key.has_terminal()
-    }
-}
-
 #[derive(Clone, Copy)]
 struct KeycapsEditsContext {
-    edits: Signal<KeycapsEdits>,
     legend_draft: Signal<String>,
     legend_failure: Signal<Option<String>>,
-}
-
-// These values belong only to outstanding field edits. They are presentation drafts,
-// never used to construct a replacement document or as the accepted baseline.
-fn pending_changes(
-    actions: &KeycapsSettingsActions,
-    target: &KeycapsEditTarget,
-) -> Vec<KeycapEditChange> {
-    let Some(context) = try_consume_context::<KeycapsEditsContext>() else {
-        return vec![];
-    };
-    let edits = context.edits.read();
-    let tickets = match target {
-        KeycapsEditTarget::Key(_) => &edits.key,
-        _ => &edits.shared,
-    };
-    tickets
-        .pending_keys()
-        .into_iter()
-        .filter(|KeycapsPendingKey(request)| {
-            request.scope == actions.scope
-                && request.scope_generation == actions.scope_generation
-                && request.selection_generation == actions.selection_generation
-                && request.target == *target
-        })
-        .map(|KeycapsPendingKey(request)| request.change.clone())
-        .collect()
-}
-
-fn field_pending(
-    actions: &KeycapsSettingsActions,
-    target: &KeycapsEditTarget,
-    field: KeycapEditField,
-) -> bool {
-    pending_changes(actions, target)
-        .iter()
-        .any(|change| change.field() == field)
 }
 
 /// The legend text an accepted keycap shows; none is the empty draft.
@@ -307,18 +198,15 @@ pub fn use_keycaps_settings_actions(
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
 ) -> Option<KeycapsSettingsActions> {
-    let version = use_context::<Signal<u64>>()();
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
         move || runtime.operation().0
     });
     let request_sequence = use_signal(|| 0_u64);
     let last_request_id = use_signal(|| 0_u64);
-    let edits = use_signal(KeycapsEdits::default);
     let legend_draft = use_signal(String::new);
     let legend_failure = use_signal(|| None::<String>);
     use_context_provider(|| KeycapsEditsContext {
-        edits,
         legend_draft,
         legend_failure,
     });
@@ -375,141 +263,12 @@ pub fn use_keycaps_settings_actions(
         })
         .unwrap_or_default();
 
-    use_effect(use_reactive((&version,), {
-        let runtime = runtime.clone();
-        let mut edits = edits;
-        let mut retry_drafts = retry_drafts;
-        let owner_tracker = owner_tracker.clone();
-        let legend = FieldView::new(legend_draft, legend_failure);
-        move |_| {
-            let live_key_id = live_selected_key_id(&runtime);
-            let live_scope = runtime.scope();
-            let generation = scope_generation();
-            let live_workspace = workspace();
-            let owner_generation = owner_tracker.borrow_mut().observe(
-                live_scope.as_ref(),
-                generation,
-                live_workspace,
-                live_key_id.as_deref(),
-            );
-            if edits.peek().owners_changed(
-                live_scope.as_ref(),
-                generation,
-                live_workspace,
-                owner_generation,
-            ) {
-                let mut guard = edits.write();
-                guard.follow_owner(
-                    live_scope.as_ref(),
-                    generation,
-                    live_workspace,
-                    owner_generation,
-                );
-            }
-            if !edits.peek().has_terminal() {
-                return;
-            }
-            let document = runtime.model().accepted.map(|snapshot| snapshot.document);
-            let results = {
-                let guard = edits.write();
-                let mut results = guard.shared.discard_drafts(true);
-                results.extend(guard.key.discard_drafts(true));
-                results
-            };
-            for result in results {
-                let (PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key }) = &result;
-                let request = &key.0;
-                if !request_owner_is_current(
-                    request,
-                    editor_instance_id,
-                    live_scope.as_ref(),
-                    generation,
-                    owner_generation,
-                    live_key_id.as_deref(),
-                    live_workspace,
-                ) {
-                    continue;
-                }
-                if let (KeycapsEditTarget::Key(id), KeycapEditChange::Legend(submitted)) =
-                    (&request.target, &request.change)
-                {
-                    let message = match &result {
-                        PendingEditResult::Failed { message, .. } => Some(message.as_str()),
-                        _ => None,
-                    };
-                    legend.restore(
-                        submitted.as_deref().unwrap_or_default(),
-                        || {
-                            document
-                                .as_ref()
-                                .map(|doc| accepted_legend_text(doc, id))
-                                .unwrap_or_default()
-                        },
-                        message,
-                    );
-                }
-                match &result {
-                    PendingEditResult::Landed { .. } => remove_retry_draft_through(
-                        &mut retry_drafts,
-                        &request.target,
-                        &request.change.field(),
-                        request.request_id,
-                    ),
-                    PendingEditResult::Failed { message, .. } => {
-                        keep_retry_draft(&mut retry_drafts, request, message.clone());
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }));
-
-    let visible_feedback = {
-        let live_key_id = live_selected_key_id(&runtime);
-        let live_scope = runtime.scope();
-        let live_scope_generation = scope_generation();
-        let owner_generation = owner_tracker.borrow_mut().observe(
-            live_scope.as_ref(),
-            live_scope_generation,
-            workspace(),
-            live_key_id.as_deref(),
-        );
-        let guard = edits.read();
-        guard
-            .shared
-            .pending_keys()
-            .into_iter()
-            .chain(guard.key.pending_keys())
-            .map(|KeycapsPendingKey(request)| request)
-            .filter(|request| {
-                request_owner_is_current(
-                    request,
-                    editor_instance_id,
-                    live_scope.as_ref(),
-                    live_scope_generation,
-                    owner_generation,
-                    live_key_id.as_deref(),
-                    workspace(),
-                )
-            })
-            .max_by_key(|request| request.request_id)
-            .map(|request| KeycapsEditFeedback {
-                editor_instance_id: request.editor_instance_id,
-                scope: request.scope.clone(),
-                scope_generation: request.scope_generation,
-                selection_generation: request.selection_generation,
-                target: request.target.clone(),
-                field: request.change.field(),
-            })
-    };
-
     let on_change = use_callback({
         let runtime = runtime.clone();
         let source = active_source.clone();
         let owner_tracker = owner_tracker.clone();
-        let mut edits = edits;
+        let mut legend_draft = legend_draft;
+        let mut legend_failure = legend_failure;
         let mut retry_drafts = retry_drafts;
         let mut last_request_id = last_request_id;
         move |request: KeycapsEditRequest| {
@@ -566,21 +325,18 @@ pub fn use_keycaps_settings_actions(
                 &request.change.field(),
                 request.request_id,
             );
-            if edits.peek().owners_changed(
-                live_scope.as_ref(),
-                live_scope_generation,
-                live_workspace,
-                live_selection_generation,
-            ) {
-                let mut guard = edits.write();
-                guard.follow_owner(
-                    live_scope.as_ref(),
-                    live_scope_generation,
-                    live_workspace,
-                    live_selection_generation,
-                );
+            let result = commit_keycap_edit(&runtime, request.clone());
+            if let (KeycapsEditTarget::Key(id), KeycapEditChange::Legend(_)) =
+                (&request.target, &request.change)
+            {
+                if let Some(snapshot) = runtime.model().accepted {
+                    legend_draft.set(accepted_legend_text(&snapshot.document, id));
+                }
+                legend_failure.set(result.as_ref().err().cloned());
             }
-            submit_keycap_edit(&runtime, &mut edits, request);
+            if let Err(message) = result {
+                keep_retry_draft(&mut retry_drafts, &request, message);
+            }
         }
     });
 
@@ -712,7 +468,6 @@ pub fn use_keycaps_settings_actions(
         selected_key_id: selected_key_id.unwrap_or_default(),
         accepted_settings,
         request_sequence,
-        feedback: visible_feedback,
         retry_drafts: Rc::from(drafts),
         on_change,
         on_retry,
@@ -1051,8 +806,8 @@ fn change_is_noop(
 #[path = "keycaps_settings/retry_drafts.rs"]
 mod retry_drafts;
 use retry_drafts::{
-    draft_owner_mismatch, keep_retry_draft, remove_retry_draft_through, retry_identity_is_current,
-    retry_identity_matches, submit_keycap_edit,
+    commit_keycap_edit, draft_owner_mismatch, keep_retry_draft, remove_retry_draft_through,
+    retry_identity_is_current, retry_identity_matches,
 };
 #[cfg(all(test, not(target_arch = "wasm32")))]
 use retry_drafts::{remove_retry_draft_through_map, retry_identity, store_retry_draft};
@@ -1261,6 +1016,3 @@ fn change_label(change: &KeycapEditChange) -> String {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod queued_settings_tests;

@@ -116,9 +116,6 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
     `fast` skips wasm-opt for the checked builds; the shipped build keeps it.
     """
     commands = [
-        (["wasm-pack", "build", str(WEB), "--target", "web", "--out-name", "m1_core_worker",
-          "--out-dir", str(WEB / "target/providers/core-worker"), "--release", "--locked",
-          "--no-default-features", "--features", "core-worker"], ROOT),
         (["wasm-pack", "build", str(WEB), "--target", "web", "--out-name", "m1_cad_worker",
           "--out-dir", str(WEB / "target/providers/cad-worker"), "--release", "--locked",
           "--no-default-features", "--features", "cad-worker"], ROOT),
@@ -184,14 +181,9 @@ def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_a
         shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
                      assets / "imported-modules.json")
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
-    for name in ("core-worker", "cad-worker"):
-        shutil.copytree(provider_root / f"web/target/providers/{name}", assets / name,
-                        dirs_exist_ok=True)
+    shutil.copytree(provider_root / "web/target/providers/cad-worker", assets / "cad-worker",
+                    dirs_exist_ok=True)
     shutil.copytree(provider_root / "renderer/pkg", assets / "renderer", dirs_exist_ok=True)
-    (assets / "core-worker/entry.js").write_text(
-        'import init, { start_core_worker } from "./m1_core_worker.js";\n'
-        'await init();\nstart_core_worker();\n'
-    )
     baked_loader = _stage_baked_step(assets / "cad-worker", provider_root)
     loader_argument = ", loadBakedStep" if baked_loader else ""
     (assets / "cad-worker/entry.js").write_text(

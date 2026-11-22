@@ -133,11 +133,9 @@ use canvas_layers::CanvasLayers;
 pub(crate) use companion_placement::{
     companion_placement_projection, matrix_context_relations, relation_target_request,
 };
+pub(in crate::presentation) use component_dispatch::dispatch_layout_component_inspector_action;
 pub(crate) use component_dispatch::{
     companion_placement_owner_is_current, layout_component_inspector_owner_key,
-};
-pub(in crate::presentation) use component_dispatch::{
-    dispatch_layout_component_inspector_action, submit_layout_component_edit,
 };
 pub(crate) use component_inspector::{
     layout_component_inspector_projection, mirrored_half_projection,
@@ -265,6 +263,7 @@ fn WorkbenchApp() -> Element {
     let workbench::HeaderBundle {
         project_name,
         save_state,
+        save_retryable,
         mut settings_open,
         palette,
         on_undo,
@@ -300,6 +299,11 @@ fn WorkbenchApp() -> Element {
                 show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
                 has_project: runtime.model().accepted.is_some(),
                 save_state,
+                save_retryable,
+                on_retry_save: {
+                    let runtime = runtime.clone();
+                    move |_| runtime.submit(boardstudio_application::Event::RetrySave { operation_id: runtime.operation() })
+                },
                 settings_open,
                 palette_open: palette.open,
                 on_search: move |_| palette.show(),

@@ -22,7 +22,6 @@ impl PcbWiringSource {
         scope: &Scope,
         ui_scope: &Scope,
         active_part_id: Option<&str>,
-        executor_epoch: u64,
         scope_generation: u64,
     ) -> Option<Self> {
         if scope.instance_id.is_some()
@@ -46,7 +45,6 @@ impl PcbWiringSource {
                 scope: scope.clone(),
                 token: accepted.token,
                 revision: accepted.document.revision,
-                executor_epoch,
             },
             ui_scope: ui_scope.clone(),
             scope_generation,

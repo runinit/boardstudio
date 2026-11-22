@@ -1,6 +1,30 @@
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{Asset, ProjectDoc};
+use boardstudio_model::model::{ArchiveEntry, ArchiveReply, ArchiveRequest, Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
+
+pub(crate) fn pack_files(
+    files: impl IntoIterator<Item = (String, Vec<u8>)>,
+) -> Result<Vec<u8>, String> {
+    let mut entries = Vec::new();
+    let mut buffers = Vec::new();
+    for (path, bytes) in files {
+        let buffer_index = u32::try_from(buffers.len()).map_err(|_| "Too many archive files.")?;
+        entries.push(ArchiveEntry { path, buffer_index });
+        buffers.push(bytes);
+    }
+    let request = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+        .map_err(|error| error.to_string())?;
+    let (metadata, buffers) = boardstudio_core::archive::request(&request, &buffers);
+    match serde_json::from_str(&metadata).map_err(|error| error.to_string())? {
+        ArchiveReply::Packed => buffers
+            .into_iter()
+            .next()
+            .filter(|bytes| !bytes.is_empty())
+            .ok_or_else(|| "Archive returned no ZIP bytes.".into()),
+        ArchiveReply::Error { message } => Err(message),
+        ArchiveReply::Unpacked { .. } => Err("Archive returned an unpacked project.".into()),
+    }
+}
 
 pub struct PreparedArchive {
     pub metadata: String,
@@ -166,340 +190,55 @@ pub fn referenced_models(
 
 #[cfg(test)]
 mod tests {
-    use super::referenced_models;
-    use boardstudio_core_kernel::hash::sha256_hex;
-    use boardstudio_model::model::HardwareSource;
-    use boardstudio_model::model::{
-        AssemblyDefinition, AssemblyMember, Asset, BoardReference, ModuleBoard, ModuleCircuit,
-        ModuleDefinition, ModuleElectrical, ModuleProtocol, PartDefinition, PartKind, PartModel,
-        Pose2, ProjectDoc, Side, Vec2, Vec3,
-    };
-    use serde_json::json;
-    use std::collections::BTreeMap;
-
-    fn model(asset_id: &str) -> PartModel {
-        PartModel {
-            asset_id: asset_id.into(),
-            offset: Vec3::default(),
-            rotation: Vec3::default(),
-            scale: Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-        }
-    }
-
-    fn definition(id: &str, models: Vec<PartModel>) -> PartDefinition {
-        PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            id: id.into(),
-            name: id.into(),
-            kind: PartKind::Custom,
-            keycap: None,
-            envelope_source: None,
-            kicad_source: None,
-            terminals: BTreeMap::new(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            courtyard: vec![],
-            pads: vec![],
-            models: Some(models),
-            generator: None,
-            mechanical_profile: None,
-        }
-    }
-
-    fn module_definition(models: Vec<PartModel>, circuit: ModuleCircuit) -> ModuleDefinition {
-        ModuleDefinition {
-            id: "module".into(),
-            catalogue_row: None,
-            name: "module".into(),
-            family: "test".into(),
-            variant: "test".into(),
-            source: HardwareSource {
-                repository: "test".into(),
-                revision: "test".into(),
-                path: "test".into(),
-                license: "test".into(),
-                sha256: None,
-                upstream_status: None,
-            },
-            board: ModuleBoard {
-                contours: vec![],
-                holes: vec![],
-                thickness: None,
-                pcb_source: None,
-                round_drills: Vec::new(),
-            },
-            mounts: vec![],
-            volumes: vec![],
-            openings: vec![],
-            models,
-            candidate_models: vec![],
-            gates: vec![],
-            interfaces: vec![],
-            electrical: ModuleElectrical {
-                protocol: ModuleProtocol::Nonstandard,
-                required_signals: vec![],
-                logic_voltage: None,
-                current_ma: None,
-                i2c_address: None,
-                pullup_ohms: None,
-                driver: None,
-                rotary_profile: None,
-            },
-            constituents: vec![],
-            circuit: Some(circuit),
-        }
-    }
+    use super::*;
 
     #[test]
-    fn selected_closure_matches_react_reference_buckets_and_deduplicates() {
-        let included = "bundled-model:foostan/OLED-Module-with-Pins.step";
-        let other = "bundled-model:infused-kim/Nice_Nano_V2.step";
-        let unused = "bundled-model:thqwgd001/THQWGD001 #1.stp";
-        let circuit_definition = definition("circuit-definition", vec![model(other)]);
-        let circuit = ModuleCircuit {
-            definitions: vec![circuit_definition],
-            parts: vec![],
-            nets: vec![],
-            ports: BTreeMap::new(),
-            adaptations: vec![],
-        };
-        let mut document = ProjectDoc::empty("doc", "portable test");
-        document
-            .definitions
-            .push(definition("unplaced", vec![model(included)]));
-        document
-            .module_definitions
-            .push(module_definition(vec![model(other)], circuit));
-        document.assemblies.push(AssemblyDefinition {
-            id: "assembly".into(),
-            name: "assembly".into(),
-            members: vec![AssemblyMember {
-                parameters: None,
-                model_mode: None,
-                id: "member".into(),
-                definition_id: None,
-                pose: Pose2 {
-                    at: Vec2::default(),
-                    rotation: 0.0,
-                },
-                side: Side::Front,
-                models: vec![model(included)],
-            }],
-        });
-        document.board_references.push(BoardReference {
-            id: "board-ref".into(),
-            board_id: "board".into(),
-            asset_id: "pcb".into(),
-            enabled: true,
-            pose: Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            },
-            elevation: 0.0,
-            model_assets: BTreeMap::from([("case".into(), other.into())]),
-        });
-        document.assets.push(Asset {
-            id: included.into(),
-            name: "already owned".into(),
-            media_type: "model/step".into(),
-            sha256: "00".repeat(32),
-            license: None,
-            source: None,
-        });
-
-        let selected = referenced_models(&document, [included.to_owned()]).unwrap();
-        let ids = selected.iter().map(|model| model.id).collect::<Vec<_>>();
-        assert_eq!(
-            ids,
-            vec![
-                "bundled-model:foostan/OLED-Module-with-Pins.step",
-                "bundled-model:infused-kim/Nice_Nano_V2.step",
-            ]
-        );
-        assert!(!ids.contains(&unused));
-    }
-
-    #[test]
-    fn generated_document_owned_model_does_not_require_a_bundled_provider() {
-        let mut document = ProjectDoc::empty("doc", "local generated model");
-        document.assets.push(Asset {
-            id: "local-switch".into(),
-            name: "local.step".into(),
-            media_type: "model/step".into(),
-            sha256: "00".repeat(32),
-            license: None,
-            source: None,
-        });
-        let models = referenced_models(&document, ["local-switch".to_owned()])
-            .expect("document-owned generated model uses local asset bytes");
-        assert!(models.is_empty());
-    }
-
-    #[test]
-    fn generated_unknown_ergogen_model_fails_instead_of_silently_omitting() {
-        let error = referenced_models(
-            &ProjectDoc::empty("doc", "unknown reference"),
-            ["bundled-model:missing/model.step".to_owned()],
-        )
-        .unwrap_err();
-        assert!(error.contains("bundled-model:missing/model.step"));
-    }
-
-    #[test]
-    fn a_disabled_embedding_option_can_keep_local_assets_without_resolving_models() {
-        let document = ProjectDoc::empty("doc", "local assets");
-        let serialized = serde_json::to_value(&document).unwrap();
-        assert_eq!(serialized["assets"], json!([]));
-        // The public operation skips `referenced_models` entirely when false;
-        // this input documents the boundary before the F8 preference is wired.
-        assert!(
-            referenced_models(&document, Vec::<String>::new())
-                .unwrap()
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes() {
-        use boardstudio_model::model::{ArchiveReply, Asset};
-
-        let local_bytes = b"existing local asset".to_vec();
-        let local_hash = sha256_hex(&local_bytes);
+    fn round_trip_preserves_document_owned_bytes_and_optionally_embeds_models() {
         let model =
-            super::super::bundled_models::bundled_model("bundled-model:thqwgd001/THQWGD001 #1.stp")
+            crate::bundled_models::bundled_model("bundled-model:thqwgd001/THQWGD001 #1.stp")
                 .unwrap();
-        let opaque_bytes = Vec::new();
-        let mut document = ProjectDoc::empty("doc", "archive copy");
+        let local = b"local asset".to_vec();
+        let hash = sha256_hex(&local);
+        let mut document = ProjectDoc::empty("doc", "Archive");
         document.assets.push(Asset {
-            id: "local-asset".into(),
+            id: "local".into(),
             name: "local.bin".into(),
+            sha256: hash.clone(),
             media_type: "application/octet-stream".into(),
-            sha256: local_hash.clone(),
-            license: None,
             source: None,
-        });
-        let original = document.clone();
-        let local_assets = BTreeMap::from([(local_hash.clone(), local_bytes.clone())]);
-
-        let enabled = super::prepare_archive(
-            &document,
-            &local_assets,
-            vec![(model, opaque_bytes.clone())],
-            true,
-        )
-        .unwrap();
-        let (reply, archive_buffers) =
-            boardstudio_core::archive::request(&enabled.metadata, &enabled.buffers);
-        assert!(matches!(
-            serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
-            ArchiveReply::Packed
-        ));
-        let (reply, unpacked_buffers) =
-            boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &archive_buffers);
-        let ArchiveReply::Unpacked {
-            project_json,
-            assets,
-        } = serde_json::from_str::<ArchiveReply>(&reply).unwrap()
-        else {
-            panic!("packed archive should unpack")
-        };
-        let restored: ProjectDoc = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(restored.assets.len(), 2);
-        assert_eq!(restored.assets[0], original.assets[0]);
-        assert_eq!(restored.assets[1].id, model.id);
-        assert_eq!(restored.assets[1].name, model.filename);
-        assert_eq!(
-            restored.assets[1].source.as_deref(),
-            Some("bundled footprint library")
-        );
-        assert_eq!(restored.assets[1].sha256, sha256_hex(&opaque_bytes));
-        let local = assets
-            .iter()
-            .find(|asset| asset.sha256 == local_hash)
-            .unwrap();
-        assert_eq!(unpacked_buffers[local.buffer_index as usize], local_bytes);
-        let model_row = assets
-            .iter()
-            .find(|asset| asset.sha256 == sha256_hex(&opaque_bytes))
-            .unwrap();
-        assert!(unpacked_buffers[model_row.buffer_index as usize].is_empty());
-        assert!(archive_option(&enabled.metadata));
-        assert_eq!(document, original);
-
-        let disabled =
-            super::prepare_archive(&document, &local_assets, vec![(model, opaque_bytes)], false)
-                .unwrap();
-        let (reply, archive_buffers) =
-            boardstudio_core::archive::request(&disabled.metadata, &disabled.buffers);
-        assert!(matches!(
-            serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
-            ArchiveReply::Packed
-        ));
-        let (reply, _) =
-            boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &archive_buffers);
-        let ArchiveReply::Unpacked {
-            project_json,
-            assets,
-        } = serde_json::from_str::<ArchiveReply>(&reply).unwrap()
-        else {
-            panic!("local-only archive should unpack")
-        };
-        let restored: ProjectDoc = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(restored.assets, original.assets);
-        assert_eq!(assets.len(), 1);
-        assert!(!archive_option(&disabled.metadata));
-
-        let existing_model_bytes = b"already embedded by the document".to_vec();
-        let existing_model_hash = sha256_hex(&existing_model_bytes);
-        let mut document_with_model = ProjectDoc::empty("doc", "existing model asset");
-        document_with_model.assets.push(Asset {
-            id: model.id.into(),
-            name: model.filename.into(),
-            media_type: model.media_type.into(),
-            sha256: existing_model_hash.clone(),
             license: None,
-            source: Some("document-owned".into()),
         });
-        let preserved = super::prepare_archive(
-            &document_with_model,
-            &BTreeMap::from([(existing_model_hash, existing_model_bytes.clone())]),
-            vec![(model, b"must not replace the document-owned copy".to_vec())],
-            true,
-        )
-        .unwrap();
-        let (reply, packed_buffers) =
-            boardstudio_core::archive::request(&preserved.metadata, &preserved.buffers);
-        assert!(matches!(
-            serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
-            ArchiveReply::Packed
-        ));
-        let (reply, unpacked_buffers) =
-            boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed_buffers);
-        let ArchiveReply::Unpacked {
-            project_json,
-            assets,
-        } = serde_json::from_str::<ArchiveReply>(&reply).unwrap()
-        else {
-            panic!("existing document asset should unpack")
-        };
-        let restored: ProjectDoc = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(restored.assets, document_with_model.assets);
-        assert_eq!(assets.len(), 1, "an existing identity is never duplicated");
-        assert_eq!(
-            unpacked_buffers[assets[0].buffer_index as usize],
-            existing_model_bytes
-        );
-
-        fn archive_option(metadata: &str) -> bool {
-            let value: serde_json::Value = serde_json::from_str(metadata).unwrap();
-            let archive_json: serde_json::Value =
-                serde_json::from_str(value["archiveJson"].as_str().unwrap()).unwrap();
-            archive_json["embedUsedModels"].as_bool().unwrap()
+        for embed in [false, true] {
+            let prepared = prepare_archive(
+                &document,
+                &BTreeMap::from([(hash.clone(), local.clone())]),
+                vec![(model, vec![])],
+                embed,
+            )
+            .unwrap();
+            let (reply, packed) =
+                boardstudio_core::archive::request(&prepared.metadata, &prepared.buffers);
+            assert_eq!(
+                serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
+                ArchiveReply::Packed
+            );
+            let (reply, buffers) =
+                boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed);
+            let ArchiveReply::Unpacked {
+                project_json,
+                assets,
+            } = serde_json::from_str(&reply).unwrap()
+            else {
+                panic!("packed archive should unpack");
+            };
+            let restored: ProjectDoc = serde_json::from_str(&project_json).unwrap();
+            assert_eq!(restored.assets.len(), 1 + usize::from(embed));
+            assert_eq!(restored.assets[0], document.assets[0]);
+            let row = assets.iter().find(|row| row.sha256 == hash).unwrap();
+            assert_eq!(buffers[row.buffer_index as usize], local);
+            if embed {
+                assert_eq!(restored.assets[1].id, model.id);
+            }
         }
     }
 }

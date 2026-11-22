@@ -16,9 +16,7 @@ use boardstudio_web_ui_shared::ui::collapsible::{
 use boardstudio_web_ui_shared::ui::item::{Item, ItemContent, ItemSize};
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::spawn_local;
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeycapsFitSource {
@@ -190,51 +188,24 @@ pub fn use_keycaps_fit(
     source: Option<KeycapsFitSource>,
 ) -> KeycapsFitActions {
     let mut state = use_signal(|| None::<KeycapsFitState>);
-    let mut sequence = use_signal(|| 0_u64);
     let mut retry_generation = use_signal(|| 0_u64);
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
-    use_drop({
-        let alive = alive.clone();
-        move || alive.set(false)
-    });
-
-    use_effect(use_reactive((&source, &retry_generation()), {
-        let runtime = runtime.clone();
-        let alive = alive.clone();
-        move |(source, _retry_generation)| {
-            // Bookkeeping must not subscribe this effect to the signals it updates.
-            let current = (*sequence.peek()).saturating_add(1);
-            sequence.set(current);
+    use_effect(use_reactive(
+        (&source, &retry_generation()),
+        move |(source, _)| {
             let Some(source) = source else {
                 state.set(None);
                 return;
             };
-            let previous = state.peek().clone();
-            state.set(Some(KeycapsFitState::begin(
-                source.clone(),
-                previous.as_ref(),
-            )));
-            let mut state = state;
-            let runtime = runtime.clone();
-            let alive = alive.clone();
-            spawn_local(async move {
-                let result = runtime
-                    .resolve_keycaps_preview(source.scope.clone(), source.token, source.revision)
-                    .await;
-                // Browser-local tasks outlive this component's scope. Check the mount guard
-                // before touching any signal after await; stale scopes must never be read/written.
-                if !alive.get() || *sequence.peek() != current {
-                    return;
-                }
-                let mut current = state.write();
-                if let Some(current_state) = current.as_mut()
-                    && current_state.source == source
-                {
-                    current_state.finish(result);
-                }
-            });
-        }
-    }));
+            let result = runtime.resolve_keycaps_preview(
+                source.scope.clone(),
+                source.token,
+                source.revision,
+            );
+            let mut next = KeycapsFitState::begin(source, state.peek().as_ref());
+            next.finish(result);
+            state.set(Some(next));
+        },
+    ));
 
     let on_retry = use_callback(move |()| {
         retry_generation.set(retry_generation().saturating_add(1));

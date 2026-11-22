@@ -60,7 +60,6 @@ fn board_input_with_controller(
         },
         token: SnapshotToken(token),
         revision,
-        executor_epoch: 1,
     };
     let accepted = AcceptedSnapshot {
         token: SnapshotToken(token),

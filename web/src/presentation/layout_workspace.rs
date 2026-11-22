@@ -2,7 +2,6 @@
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use boardstudio_web_ui_model::split_focus::SplitHalf;
-use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -44,16 +43,10 @@ pub(super) struct ObjectsInput {
 }
 
 pub(super) struct ToolbarInput {
-    pub(super) save_failure: Option<String>,
-    pub(super) recovery_required: bool,
     pub(super) footprints_pressed: bool,
     pub(super) on_toggle_footprints: EventHandler<()>,
     pub(super) assembly_3d: bool,
     pub(super) on_view_mode: EventHandler<bool>,
-    pub(super) on_retry_save: EventHandler<()>,
-    pub(super) save_conflict: bool,
-    pub(super) on_download_pending: EventHandler<()>,
-    pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
     pub(super) command_label: String,
@@ -73,8 +66,6 @@ pub(super) struct InspectorInput {
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
     pub(super) component_inspector: Option<super::inspector::LayoutComponentInspectorProjection>,
-    pub(super) component_inspector_pending_edits:
-        dioxus::prelude::Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(super) component_inspector_x: Signal<String>,
     pub(super) component_inspector_y: Signal<String>,
     pub(super) component_inspector_margin: Signal<String>,
@@ -82,15 +73,8 @@ pub(super) struct InspectorInput {
     pub(super) component_inspector_x_failure: Signal<Option<String>>,
     pub(super) component_inspector_y_failure: Signal<Option<String>>,
     pub(super) component_inspector_margin_failure: Signal<Option<String>>,
-    pub(super) component_inspector_layout_pending: Signal<bool>,
-    pub(super) component_inspector_constraint_pending: Signal<bool>,
-    pub(super) component_inspector_remove_pending: Signal<bool>,
-    pub(super) component_inspector_mirrored_half_pending: Signal<bool>,
     pub(super) companion_placement: Option<super::inspector::CompanionPlacementProjection>,
-    pub(super) companion_placement_pending: Signal<bool>,
     pub(super) companion_placement_error: Signal<Option<String>>,
-    pub(super) companion_placement_edits:
-        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(super) on_companion_placement_action:
         EventHandler<super::inspector::CompanionPlacementAction>,
     pub(super) on_component_inspector_action:
@@ -150,7 +134,6 @@ pub(super) struct LayoutWorkspaceState {
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
-    component_inspector_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     component_inspector_x: Signal<String>,
     component_inspector_y: Signal<String>,
     component_inspector_margin: Signal<String>,
@@ -158,13 +141,7 @@ pub(super) struct LayoutWorkspaceState {
     component_inspector_x_failure: Signal<Option<String>>,
     component_inspector_y_failure: Signal<Option<String>>,
     component_inspector_margin_failure: Signal<Option<String>>,
-    component_inspector_layout_pending: Signal<bool>,
-    component_inspector_constraint_pending: Signal<bool>,
-    component_inspector_remove_pending: Signal<bool>,
-    component_inspector_mirrored_half_pending: Signal<bool>,
-    companion_placement_pending: Signal<bool>,
     companion_placement_error: Signal<Option<String>>,
-    companion_placement_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     add_object_menu_open: Signal<bool>,
 }
 
@@ -186,9 +163,6 @@ pub(super) fn use_layout_workspace_state(
         pending_splay_origin_pick: use_signal(|| None),
         pending_anchor_pick: use_signal(|| None),
         pair_created_selection: use_signal(|| None),
-        component_inspector_edits: use_signal(
-            super::layout_component_edits::LayoutComponentInspectorEdits::default,
-        ),
         component_inspector_x: use_signal(String::new),
         component_inspector_y: use_signal(String::new),
         component_inspector_margin: use_signal(String::new),
@@ -196,15 +170,7 @@ pub(super) fn use_layout_workspace_state(
         component_inspector_x_failure: use_signal(|| None),
         component_inspector_y_failure: use_signal(|| None),
         component_inspector_margin_failure: use_signal(|| None),
-        component_inspector_layout_pending: use_signal(|| false),
-        component_inspector_constraint_pending: use_signal(|| false),
-        component_inspector_remove_pending: use_signal(|| false),
-        component_inspector_mirrored_half_pending: use_signal(|| false),
-        companion_placement_pending: use_signal(|| false),
         companion_placement_error: use_signal(|| None),
-        companion_placement_edits: use_signal(
-            super::layout_component_edits::LayoutComponentInspectorEdits::default,
-        ),
         add_object_menu_open: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
@@ -269,11 +235,6 @@ impl LayoutWorkspaceState {
         self.pair_created_selection
     }
 
-    pub(super) fn component_inspector_edits(
-        self,
-    ) -> Signal<super::layout_component_edits::LayoutComponentInspectorEdits> {
-        self.component_inspector_edits
-    }
     pub(super) fn component_inspector_drafts(
         self,
     ) -> (
@@ -289,29 +250,8 @@ impl LayoutWorkspaceState {
             self.component_inspector_error,
         )
     }
-    pub(super) fn component_inspector_pending_controls(
-        self,
-    ) -> (Signal<bool>, Signal<bool>, Signal<bool>, Signal<bool>) {
-        (
-            self.component_inspector_layout_pending,
-            self.component_inspector_constraint_pending,
-            self.component_inspector_remove_pending,
-            self.component_inspector_mirrored_half_pending,
-        )
-    }
-
-    pub(super) fn companion_placement_controls(
-        self,
-    ) -> (
-        Signal<bool>,
-        Signal<Option<String>>,
-        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
-    ) {
-        (
-            self.companion_placement_pending,
-            self.companion_placement_error,
-            self.companion_placement_edits,
-        )
+    pub(super) fn companion_placement_error(self) -> Signal<Option<String>> {
+        self.companion_placement_error
     }
 
     pub(super) fn component_inspector_field_failures(self) -> InspectorFieldFailures {
@@ -447,155 +387,132 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-            div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size] [&>*]:pointer-events-auto", "data-workspace-toolbar": "layout",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() {
-                        raw.stop_propagation();
+        div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size] [&>*]:pointer-events-auto", "data-workspace-toolbar": "layout",
+        onkeydown: move |event: KeyboardEvent| {
+            if event.key().to_string() == " " {
+                event.stop_propagation();
+                if let Some(raw) = event.data().try_as_web_event() {
+                    raw.stop_propagation();
+                }
+            }
+        },
+            div { class: "pointer-events-none! absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
+                if !input.assembly_3d {
+                    objects::LayoutCommandPill {
+                        command_label: input.command_label,
+                        menu_owner_key: input.menu_owner_key,
+                        open_menu: input.open_menu,
+                        transform: input.transform,
+                        align: input.align,
+                        selection_kind: input.selection_kind,
+                        snap_settings: input.snap_settings,
+                        on_selection_kind: input.on_selection_kind,
+                        on_snap_intent: input.on_snap_intent,
+                        has_selection_context: input.has_selection_context,
+                        show_relationships: input.show_relationships,
+                        on_show_relationships: input.on_show_relationships,
+                        snap_in_dock: true,
                     }
                 }
-            },
-                div { class: "pointer-events-none! absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
-                    if !input.assembly_3d {
-                        objects::LayoutCommandPill {
-                            command_label: input.command_label,
-                            menu_owner_key: input.menu_owner_key,
-                            open_menu: input.open_menu,
-                            transform: input.transform,
-                            align: input.align,
-                            selection_kind: input.selection_kind,
-                            snap_settings: input.snap_settings,
-                            on_selection_kind: input.on_selection_kind,
-                            on_snap_intent: input.on_snap_intent,
-                            has_selection_context: input.has_selection_context,
-                            show_relationships: input.show_relationships,
-                            on_show_relationships: input.on_show_relationships,
-                            snap_in_dock: true,
+            }
+            div { class: "absolute bottom-2 left-3 z-[11] flex gap-0.5 rounded-[8px] bg-toolbar p-[3px]",
+                ToggleGroup {
+                    aria_label: "Design view",
+                    horizontal: true,
+                    pressed: Some(
+                        std::collections::HashSet::from([
+                            if input.assembly_3d { 1usize } else { 0usize },
+                        ]),
+                    ),
+                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                        if next.contains(&0) {
+                            input.on_view_mode.call(false);
+                        } else if next.contains(&1) {
+                            input.on_view_mode.call(true);
                         }
-                    }
-                }
-                if let Some(reason) = input.save_failure.as_ref() {
-                    Alert { class: "m-0 max-w-[min(44vw,440px)] text-xs text-destructive",
-    variant: AlertVariant::Destructive,AlertDescription {  "Save failed: {reason}"  } }
-                    if !input.save_conflict {
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            onclick: move |_| input.on_retry_save.call(()),
-                            "Retry save"
+                    },
+                    Tooltip {
+                        TooltipTrigger {
+                            r#as: move |attributes: Vec<Attribute>| rsx! {
+                                ToggleItem {
+                                    index: 0usize,
+                                    aria_label: "2D",
+                                    class: "min-h-11 min-w-11",
+                                    attributes,
+                                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                        rect {
+                                            x: "3",
+                                            y: "3",
+                                            width: "14",
+                                            height: "14",
+                                            rx: "2",
+                                        }
+                                        path { d: "M3 8h14M8 3v14" }
+                                    }
+                                    span { class: "sr-only", "2D" }
+                                }
+                            },
                         }
+                        TooltipContent { "2D layout" }
                     }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        onclick: move |_| input.on_download_pending.call(()),
-                        "Download my pending edits"
+                    Tooltip {
+                        TooltipTrigger {
+                            r#as: move |attributes: Vec<Attribute>| rsx! {
+                                ToggleItem {
+                                    index: 1usize,
+                                    aria_label: "3D assembly",
+                                    class: "min-h-11 min-w-11",
+                                    attributes,
+                                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                        path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
+                                    }
+                                    span { class: "sr-only", "3D assembly" }
+                                }
+                            },
+                        }
+                        TooltipContent { "3D assembly" }
                     }
                 }
-                if input.recovery_required {
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        onclick: move |_| input.on_recover_saved.call(()),
-                        "Reload saved version"
-                    }
-                }
-                div { class: "absolute bottom-2 left-3 z-[11] flex gap-0.5 rounded-[8px] bg-toolbar p-[3px]",
+                if !input.assembly_3d {
                     ToggleGroup {
-                        aria_label: "Design view",
-                        horizontal: true,
+                        aria_label: "Footprints visibility",
                         pressed: Some(
-                            std::collections::HashSet::from([
-                                if input.assembly_3d { 1usize } else { 0usize },
-                            ]),
+                            if input.footprints_pressed {
+                                std::collections::HashSet::from([0usize])
+                            } else {
+                                std::collections::HashSet::new()
+                            },
                         ),
-                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            if next.contains(&0) {
-                                input.on_view_mode.call(false);
-                            } else if next.contains(&1) {
-                                input.on_view_mode.call(true);
-                            }
-                        },
+                        on_pressed_change: move |_| input.on_toggle_footprints.call(()),
                         Tooltip {
                             TooltipTrigger {
                                 r#as: move |attributes: Vec<Attribute>| rsx! {
                                     ToggleItem {
                                         index: 0usize,
-                                        aria_label: "2D",
+                                        aria_label: "Footprints",
                                         class: "min-h-11 min-w-11",
                                         attributes,
                                         svg { view_box: "0 0 20 20", "aria-hidden": "true",
                                             rect {
-                                                x: "3",
-                                                y: "3",
-                                                width: "14",
-                                                height: "14",
-                                                rx: "2",
+                                                x: "5",
+                                                y: "4",
+                                                width: "10",
+                                                height: "12",
+                                                rx: "1",
                                             }
-                                            path { d: "M3 8h14M8 3v14" }
+                                            path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
                                         }
-                                        span { class: "sr-only", "2D" }
+                                        span { class: "sr-only", "Footprints" }
                                     }
                                 },
                             }
-                            TooltipContent { "2D layout" }
-                        }
-                        Tooltip {
-                            TooltipTrigger {
-                                r#as: move |attributes: Vec<Attribute>| rsx! {
-                                    ToggleItem {
-                                        index: 1usize,
-                                        aria_label: "3D assembly",
-                                        class: "min-h-11 min-w-11",
-                                        attributes,
-                                        svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                                            path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
-                                        }
-                                        span { class: "sr-only", "3D assembly" }
-                                    }
-                                },
-                            }
-                            TooltipContent { "3D assembly" }
-                        }
-                    }
-                    if !input.assembly_3d {
-                        ToggleGroup {
-                            aria_label: "Footprints visibility",
-                            pressed: Some(
-                                if input.footprints_pressed {
-                                    std::collections::HashSet::from([0usize])
-                                } else {
-                                    std::collections::HashSet::new()
-                                },
-                            ),
-                            on_pressed_change: move |_| input.on_toggle_footprints.call(()),
-                            Tooltip {
-                                TooltipTrigger {
-                                    r#as: move |attributes: Vec<Attribute>| rsx! {
-                                        ToggleItem {
-                                            index: 0usize,
-                                            aria_label: "Footprints",
-                                            class: "min-h-11 min-w-11",
-                                            attributes,
-                                            svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                                                rect {
-                                                    x: "5",
-                                                    y: "4",
-                                                    width: "10",
-                                                    height: "12",
-                                                    rx: "1",
-                                                }
-                                                path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
-                                            }
-                                            span { class: "sr-only", "Footprints" }
-                                        }
-                                    },
-                                }
-                                TooltipContent { "Footprints" }
-                            }
+                            TooltipContent { "Footprints" }
                         }
                     }
                 }
             }
         }
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -712,7 +629,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 super::inspector::LayoutComponentInspector {
                     projection,
                     inspector_tab: input.inspector_tab,
-                    pending_edits: input.component_inspector_pending_edits,
                     x: input.component_inspector_x,
                     y: input.component_inspector_y,
                     margin: input.component_inspector_margin,
@@ -720,10 +636,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     x_failure: input.component_inspector_x_failure,
                     y_failure: input.component_inspector_y_failure,
                     margin_failure: input.component_inspector_margin_failure,
-                    layout_pending: input.component_inspector_layout_pending,
-                    constraint_pending: input.component_inspector_constraint_pending,
-                    remove_pending: input.component_inspector_remove_pending,
-                    mirrored_half_pending: input.component_inspector_mirrored_half_pending,
                     on_action: input.on_component_inspector_action,
                 }
             } else if input.show_position_inspector {
@@ -733,9 +645,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         if let Some(projection) = input.companion_placement {
             super::inspector::CompanionPlacementInspector {
                 projection,
-                pending: input.companion_placement_pending,
                 error: input.companion_placement_error,
-                pending_edits: input.companion_placement_edits,
                 on_apply: input.on_companion_placement_action,
             }
         }

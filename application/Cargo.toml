@@ -8,8 +8,9 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 boardstudio-model = { path = "../core/crates/model" }
 
-[dev-dependencies]
 boardstudio_core = { path = "../core" }
+
+[dev-dependencies]
 serde_json = "1"
 
 [lib]

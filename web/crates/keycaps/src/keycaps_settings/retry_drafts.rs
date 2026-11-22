@@ -128,12 +128,10 @@ pub(super) fn retry_identity_is_current(
                 }))
 }
 
-pub(super) fn submit_keycap_edit(
+pub(super) fn commit_keycap_edit(
     runtime: &Rc<Runtime>,
-    edits: &mut Signal<KeycapsEdits>,
-    request: KeycapsEditRequest,
-) {
-    let intent = request.clone();
+    intent: KeycapsEditRequest,
+) -> Result<AcceptedSnapshot, String> {
     let resolver = EditResolver::new("keycaps", move |accepted: &AcceptedSnapshot| {
         if !valid_edit_target(accepted, &intent.scope, &intent.target) {
             return Resolution::Retire("This keycap settings target no longer exists.".into());
@@ -156,16 +154,5 @@ pub(super) fn submit_keycap_edit(
         }
         Resolution::submit(vec![target_id(&intent.target, &intent.scope)], operation)
     });
-    let mut edits = edits.write();
-    let tickets = match request.target {
-        KeycapsEditTarget::Key(_) => &mut edits.key,
-        _ => &mut edits.shared,
-    };
-    tickets.begin(
-        runtime,
-        KeycapsPendingKey(request),
-        "keycaps",
-        Some("keycap settings".into()),
-        resolver,
-    );
+    runtime.commit("keycaps", resolver)
 }

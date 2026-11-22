@@ -387,8 +387,6 @@ def run(suite, site):
             smoke.onboarding(url + "/boardstudio/")
             if suite in ("all", "drag"):
                 smoke.drag()
-                require(any(path.endswith("/m1_core_worker_bg.wasm") for path in served.copy()),
-                        "Core worker WASM was not served")
             if suite in ("all", "collision"):
                 smoke.collision()
                 for suffix in ("/m1_cad_worker_bg.wasm", ".bstep"):

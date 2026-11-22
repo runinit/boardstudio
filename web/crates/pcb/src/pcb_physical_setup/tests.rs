@@ -4,7 +4,7 @@
 //! Coverage limitation, recorded for the root review: the former module held these
 //! scenarios as native `#[test]`s inside this wasm32-only parent, so it compiled on
 //! neither target and executed never. The tests below restore executable coverage of the
-//! behavior the DraftEdits migration changed — silent landing, silent retirement and
+//! behavior of physical setup — silent landing, silent retirement and
 //! owner attribution at dispatch and settlement. The scenarios that relied on the native
 //! stub's synchronous VirtualDom polling remain uncovered by any executing test:
 //! preparation results arriving after their source was replaced, unmount races, and the
@@ -18,7 +18,7 @@ use boardstudio_application::Event;
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
-use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until_step};
+use boardstudio_web_ui_shared::test_wait::settle_until;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -210,143 +210,6 @@ fn queue_reply(probe: &Probe, value: ProposalReply) {
         }
         None => *probe.reply.borrow_mut() = Some(value),
     }
-}
-
-/// Hold the next Core reply, submit a reversible-layout setup, and observe it in flight.
-async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
-    queue_reply(probe, admit());
-    let (mut entered, release) = support::gate_next_core_reply(&probe.runtime);
-    mount(probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
-    // The panel submits from a task that first awaits preparation, so the Core request is
-    // only held after a turn of the local executor. Yield, drive whatever the turn held,
-    // and repeat until the gate reports the request in flight.
-    let mut held = false;
-    for _ in 0..12 {
-        rendered().await;
-        support::drive_pending(&probe.runtime);
-        if let Ok(Some(())) = entered.try_recv() {
-            held = true;
-            break;
-        }
-    }
-    assert!(held, "the setup request reaches the gated Core executor");
-    poke(probe);
-    rendered().await;
-    release
-}
-
-#[wasm_bindgen_test]
-async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_context() {
-    let (probe, root, _mounted) = mounted("setup-landing").await;
-    let runtime = probe.runtime.clone();
-    let release = hold_in_flight(&probe).await;
-    assert!(
-        mount(&probe).projection.busy,
-        "the setup edit holds the busy gate while in flight"
-    );
-    release.send(()).unwrap();
-    settle_until(
-        &runtime,
-        support::run_pending,
-        "the accepted proposal clears busy and lands",
-        || {
-            !mount(&probe).projection.busy
-                && accepted_reversible(&runtime) == Some(serde_json::json!(true))
-        },
-    )
-    .await;
-    let projection = mount(&probe).projection;
-    assert!(!projection.busy, "landing clears busy without a status");
-    assert!(
-        projection.project_feedback.is_none(),
-        "landing shows the accepted value without a status message"
-    );
-    assert!(
-        projection.feedback.is_none(),
-        "a project result must not appear in Case"
-    );
-    assert_eq!(
-        accepted_reversible(&runtime),
-        Some(serde_json::json!(true)),
-        "the exact accepted proposal landed"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
-    let (probe, root, _mounted) = mounted("setup-hidden-success").await;
-    let runtime = probe.runtime.clone();
-    let release = hold_in_flight(&probe).await;
-    probe.active.set(false);
-    release.send(()).unwrap();
-    settle_until(
-        &runtime,
-        support::run_pending,
-        "the hidden landing clears busy and lands",
-        || {
-            !mount(&probe).projection.busy
-                && accepted_reversible(&runtime) == Some(serde_json::json!(true))
-        },
-    )
-    .await;
-    let projection = mount(&probe).projection;
-    assert!(!projection.busy, "the hidden landing still clears busy");
-    assert!(projection.project_feedback.is_none());
-    assert!(projection.feedback.is_none());
-    poke(&probe);
-    rendered().await;
-    probe.active.set(true);
-    poke(&probe);
-    rendered().await;
-    assert!(
-        mount(&probe).projection.project_feedback.is_none(),
-        "a success recorded while hidden still shows no status when the view returns"
-    );
-    assert_eq!(
-        accepted_reversible(&runtime),
-        Some(serde_json::json!(true)),
-        "the accepted proposal still landed"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
-    let (probe, root, _mounted) = mounted("setup-retire").await;
-    let release = hold_in_flight(&probe).await;
-    probe.active.set(false);
-    poke(&probe);
-    rendered().await;
-    // The settlement loop answers for a departed owner while the reply is still held.
-    wait_until_step("the retired setup clears busy", async || {
-        poke(&probe);
-        rendered().await;
-        !mount(&probe).projection.busy
-    })
-    .await;
-    let projection = mount(&probe).projection;
-    assert!(!projection.busy, "the retired setup clears busy silently");
-    assert!(
-        projection.project_feedback.is_none(),
-        "retirement is silent, per the ADR-0005 amendment"
-    );
-    assert!(projection.feedback.is_none());
-    release.send(()).unwrap();
-    settle_until(
-        &probe.runtime,
-        support::run_pending,
-        "retired setup drains without feedback",
-        || {
-            let projection = mount(&probe).projection;
-            !projection.busy
-                && projection.project_feedback.is_none()
-                && projection.feedback.is_none()
-        },
-    )
-    .await;
-    assert!(mount(&probe).projection.project_feedback.is_none());
-    root.remove();
 }
 
 #[wasm_bindgen_test]

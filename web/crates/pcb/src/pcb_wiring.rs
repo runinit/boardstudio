@@ -19,7 +19,6 @@ pub use boardstudio_web_ui_model::wiring::{PcbWiringResolution, PcbWiringSource}
 mod apply;
 mod connections;
 mod controller;
-pub(crate) use controller::pending_binding;
 mod mode;
 mod part_connections;
 mod part_input_projection;
@@ -191,7 +190,6 @@ pub struct FirmwarePositionEditRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FirmwarePositionFeedbackState {
-    Pending,
     Failed(String),
 }
 
@@ -580,7 +578,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                             let on_edit = actions.on_edit;
                             let identity = actions.identity.clone();
                             let pad_ids = row.pad_ids.clone();
-                            let value = identity.as_ref().and_then(|identity| controller::pending_net(identity, &row.pad_ids)).unwrap_or_else(|| row.selected_net_id.clone()).unwrap_or_default();
+                            let value = row.selected_net_id.clone().unwrap_or_default();
                             rsx! {
                                 PcbChoice { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground", key: "{row.label}",
                                         label: row.label.clone(), aria_label: format!("Net for {}", row.label), value, searchable: true,
@@ -727,7 +725,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_choose_controller = props.on_choose_controller;
     let mode_actions = props.mode_actions.clone();
     let selected_mode = (mode_actions.draft)();
-    let mode_pending = mode_actions.pending;
     let mode_failure = (mode_actions.failure)();
     let change_mode = mode_actions.on_change;
     let mode_identity = mode_actions.identity.clone();
@@ -737,19 +734,10 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let release_disabled = apply_actions.release_disabled;
     let on_apply = apply_actions.on_apply;
     let pin_actions = props.pin_actions.clone();
-    let pin_pending = pin_actions.pending;
     let pin_failure = pin_actions.failure.clone();
-    let pin_identity = pin_actions.identity.clone();
-    let mut pin_rows = matching_plan
+    let pin_rows = matching_plan
         .map(|plan| pins::assignments(&props.source, plan))
         .unwrap_or_default();
-    if let Some(identity) = &pin_identity {
-        for row in &mut pin_rows {
-            if let Some(value) = pins::pending_pin(identity, &row.id) {
-                row.value = value;
-            }
-        }
-    }
     let assignment_groups = pins::group_assignments(&pin_rows);
 
     let protected_remap_actions = props.protected_remap_actions.clone();
@@ -801,14 +789,8 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 p { "Place a controller from Parts to assign this board’s wiring." }
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_choose_controller.call(()), "Add controller" }
             }
-            if mode_pending {
-                p { role: "status", Spinner {} "Saving wiring mode…" }
-            }
             if let Some(message) = &mode_failure {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
-            }
-            if pin_pending {
-                p { role: "status", Spinner {} "Saving wiring pin…" }
             }
             if let Some(message) = &pin_failure {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
@@ -1037,12 +1019,11 @@ mod tests {
             board_id: "board".into(),
             instance_id: None,
         };
-        let identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
+        let identity = mode::BoardWiringModeIdentity {
             plan: crate::firmware_position_projection::FirmwarePlanIdentity {
                 scope: scope.clone(),
                 token: boardstudio_application::SnapshotToken(1),
                 revision: 0,
-                executor_epoch: 0,
             },
             ui_scope: scope,
             selected_part_id: None,
@@ -1051,7 +1032,6 @@ mod tests {
         let actions = PcbWiringPinActions {
             identity: Some(identity),
             editable: true,
-            pending: false,
             failure: None,
             on_change: EventHandler::new(move |request| *capture.0.borrow_mut() = Some(request)),
         };
@@ -1184,7 +1164,6 @@ mod tests {
         let actions = PcbWiringPinActions {
             identity: None,
             editable: false,
-            pending: false,
             failure: None,
             on_change: EventHandler::new(|_| {}),
         };
@@ -1237,8 +1216,5 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod test_fixtures;
-
-#[cfg(test)]
-mod queued_edit_tests;

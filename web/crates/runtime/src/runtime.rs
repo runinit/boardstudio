@@ -1,14 +1,10 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
-use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 pub use crate::core_services::CoreServices;
-use crate::core_services::DocumentCore;
-use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
 };
 use crate::native_model_mapping::{NativeModelDeliveryState, resolve_native_model_paths};
-use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
     ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -18,35 +14,26 @@ use boardstudio_core_mechanical::electrical::{
     ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::{
-    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-    CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
-    KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile, MechanicalConfiguration,
-    MechanicalExtraction, MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily,
-    Operation, OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+    ArchiveReply, ArtifactReply, ArtifactRequest, Board, CaseAssemblyIR, CaseIR, CompiledFootprint,
+    CoreReply, CoreRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
+    MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
+    MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings,
+    PcbPreview, PrepareExportRequest, ProjectDoc,
 };
-pub use boardstudio_web_host::host::CoreExecutor;
 
-/// The stable identity of the current Core executor: captures compare it to detect that the
-/// executor was replaced while their operation was in flight.
-fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
-    Rc::as_ptr(core) as *const () as usize
-}
 use boardstudio_web_host::host::{
-    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken,
+    BrowserStore, SaveError, SavedProject, StorageSession, StorageToken,
 };
 use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
         captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
-        prepare_captured_step_assembly, validate_reply,
+        validate_reply,
     },
     cad_worker::CadWorker,
 };
 #[cfg(test)]
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
-
-type CoreExecutorFactory = dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>;
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -99,7 +86,7 @@ pub struct KeycapsCadPreview {
 }
 
 use gloo_timers::future::TimeoutFuture;
-use js_sys::{Array, Function, JsString, Object, Reflect, Uint8Array};
+use js_sys::{Array, Function, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -113,16 +100,6 @@ use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
-struct Artifact {
-    operation_id: OperationId,
-    bytes: Vec<u8>,
-    filename: String,
-    media_type: Option<String>,
-    scope: Scope,
-    token: SnapshotToken,
-    board_outline: bool,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeReportSeverity {
     Status,
@@ -178,29 +155,43 @@ impl RuntimeReport {
     }
 }
 
-fn export_terminal_report(
-    capture_is_current: bool,
-    outcome: TerminalOutcome,
-    delivery_error: Option<String>,
-) -> Option<RuntimeReport> {
-    if !capture_is_current {
-        return None;
-    }
-    match outcome {
-        TerminalOutcome::Completed => Some(match delivery_error {
-            Some(error) => RuntimeReport::alert(error).transient(),
-            None => RuntimeReport::status("Saved locally.").transient(),
-        }),
+fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Option<RuntimeReport> {
+    let (message, alert, transient) = match outcome {
+        TerminalOutcome::Completed => match export? {
+            ExportKind::BoardOutline { .. } => return None,
+            kind => {
+                let status = match kind {
+                    ExportKind::Firmware => "Saved locally.",
+                    ExportKind::ProjectCopy { .. } => "Project copy downloaded.",
+                    _ => "Export finished.",
+                };
+                (status.into(), false, true)
+            }
+        },
         TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason) => {
-            Some(RuntimeReport::alert(reason).transient())
+            (reason, export.is_some(), export.is_some())
         }
         TerminalOutcome::PersistenceFailed(reason) | TerminalOutcome::BlockedByRecovery(reason) => {
-            Some(RuntimeReport::alert(reason))
+            (reason, export.is_some(), false)
         }
-        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.").transient()),
-        TerminalOutcome::Closed => Some(RuntimeReport::status("Editor closed.")),
-        TerminalOutcome::Superseded => None,
-    }
+        TerminalOutcome::Cancelled => (
+            "Cancelled.".into(),
+            false,
+            !matches!(export, Some(ExportKind::BoardOutline { .. })),
+        ),
+        TerminalOutcome::Closed => ("Editor closed.".into(), false, false),
+        TerminalOutcome::Superseded => return None,
+    };
+    let report = if alert {
+        RuntimeReport::alert(message)
+    } else {
+        RuntimeReport::status(message)
+    };
+    Some(if transient {
+        report.transient()
+    } else {
+        report
+    })
 }
 
 fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
@@ -262,13 +253,6 @@ impl DocumentPersistence for BrowserStore {
     }
 }
 
-#[derive(Clone, Copy)]
-struct FirmwarePlanTarget<'a> {
-    board_id: &'a str,
-    instance_id: Option<&'a str>,
-    label: &'a str,
-}
-
 impl PartialEq for CadScene {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
@@ -323,25 +307,39 @@ fn generated_analysis_cache_key(
     )
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ExportKind {
+    ProjectCopy { embed_used_models: bool },
+    Step,
+    KeycapsStl,
+    Firmware,
+    Footprints,
+    PcbHandoff { draft: bool },
+    Mechanical { filename: String },
+    BoardOutline { dxf: bool },
+}
+
+#[derive(Clone)]
+struct ExportState {
+    kind: ExportKind,
+    token: SnapshotToken,
+    scope: Scope,
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
-    document_core: Option<RefCell<DocumentCore>>,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
-    core: RefCell<Rc<dyn CoreExecutor>>,
-    core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     storage_session: RefCell<Option<StorageSession>>,
     storage_initializing: Cell<bool>,
     storage_error: RefCell<Option<String>>,
     saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
-    pending_document: RefCell<Option<Arc<ProjectDoc>>>,
-    save_conflict: Cell<bool>,
+    before_unload: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
-    artifacts: RefCell<BTreeMap<String, Artifact>>,
-    export_leases: RefCell<ExportLeases>,
+    exports: RefCell<BTreeMap<OperationId, ExportState>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
@@ -359,7 +357,6 @@ pub struct Runtime {
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     latest_firmware_export: Cell<Option<OperationId>>,
-    export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
@@ -383,7 +380,7 @@ pub struct Runtime {
     collision_batch: Cell<u64>,
     collision_alive: RefCell<Rc<Cell<bool>>>,
     collision_generated_attempts: RefCell<BTreeSet<String>>,
-    archive_export_options: ArchiveExportOptions,
+    embed_used_models: Cell<bool>,
     #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
     #[cfg(any(test, feature = "test-support"))]
@@ -408,11 +405,41 @@ impl Drop for ProjectDeletionLease {
 }
 
 mod collision;
-#[cfg(test)]
-mod document_core_tests;
 mod effects;
 mod export_bytes;
 mod exports;
+fn packaged_model_asset(asset_id: &str) -> Option<crate::model_delivery::ResolvedModelAsset> {
+    use crate::model_delivery::{ModelAssetSource, ResolvedModelAsset};
+    let model = crate::bundled_models::bundled_model(asset_id)?;
+    Some(ResolvedModelAsset {
+        id: model.id.to_owned(),
+        sha256: model.sha256.to_owned(),
+        filename: model.filename.to_owned(),
+        source: ModelAssetSource::Packaged {
+            url_path: model.url_path.to_owned(),
+        },
+    })
+}
+
+async fn bundled_preview_paths(
+    models: &[boardstudio_model::model::PcbModel],
+) -> Result<BTreeMap<String, Option<String>>, String> {
+    let paths: Vec<_> = models
+        .iter()
+        .map(|model| model.path.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    if paths.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let ids = crate::bundled_models::generated_model_asset_ids_for_paths(&paths).await?;
+    if ids.len() != paths.len() {
+        return Err("Model path resolver returned an incomplete mapping".into());
+    }
+    Ok(paths.into_iter().zip(ids).collect())
+}
+
 mod layout_preview;
 mod mechanical_export;
 mod projects;
@@ -421,18 +448,33 @@ mod sources;
 
 use mechanical_export::authored_case_filename;
 
+pub(crate) fn artifact_reply(request: &ArtifactRequest) -> Result<ArtifactReply, String> {
+    let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
+    let reply = serde_json::from_str(&boardstudio_core::artifact_request(&request))
+        .map_err(|error| error.to_string())?;
+    match reply {
+        ArtifactReply::Error { error, .. } => {
+            let mut message = error.message;
+            for diagnostic in error.diagnostics {
+                message.push(' ');
+                message.push_str(&diagnostic.message);
+            }
+            Err(message)
+        }
+        reply => Ok(reply),
+    }
+}
+
 impl Runtime {
     /// Keep one injected engine for the document; scratch probes create their own engines.
-    /// Archive and artifact work remains on the auxiliary Core worker.
+    /// Archive and artifact operations also execute in process.
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
-        let document_core = (core_services.open_scratch)();
-        Self::new_with_restoration(true, core_services, Some(document_core))
+        Self::new_with_restoration(true, core_services)
     }
 
     fn new_with_restoration(
         restore_active_project: bool,
         core_services: CoreServices,
-        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let store = if restore_active_project {
@@ -441,41 +483,30 @@ impl Runtime {
             BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
         }
         .map_err(|e| e.to_string())?;
-        Self::new_with_store(restore_active_project, store, core_services, document_core)
+        Self::new_with_store(restore_active_project, store, core_services)
     }
 
     fn new_with_store(
         restore_active_project: bool,
         store: BrowserStore,
         core_services: CoreServices,
-        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
-        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(|| {
-            resource_url("assets/core-worker/entry.js")
-                .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
-                .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
-        });
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
             core_services,
-            document_core: document_core.map(RefCell::new),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
-            core: RefCell::new(core_executor_factory.clone()()?),
-            core_executor_factory: RefCell::new(core_executor_factory),
             persistence: RefCell::new(Rc::new(store.clone())),
             store,
             storage_session: RefCell::default(),
             storage_initializing: Cell::new(restore_active_project),
             storage_error: RefCell::new(None),
             saved_tokens: RefCell::default(),
-            pending_document: RefCell::default(),
-            save_conflict: Cell::new(false),
+            before_unload: RefCell::default(),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
-            artifacts: RefCell::new(BTreeMap::new()),
-            export_leases: RefCell::new(ExportLeases::default()),
+            exports: RefCell::default(),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
@@ -494,7 +525,6 @@ impl Runtime {
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
-            export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
@@ -510,7 +540,7 @@ impl Runtime {
             collision_batch: Cell::new(0),
             collision_alive: RefCell::new(Rc::new(Cell::new(true))),
             collision_generated_attempts: RefCell::new(BTreeSet::new()),
-            archive_export_options: ArchiveExportOptions::default(),
+            embed_used_models: Cell::new(true),
             #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
@@ -558,6 +588,27 @@ impl Runtime {
                 runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
             }
         });
+        if restore_active_project && let Some(window) = web_sys::window() {
+            let runtime_ref = Rc::downgrade(&runtime);
+            let listener =
+                Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+                    if runtime_ref.upgrade().is_some_and(|runtime| {
+                        matches!(
+                            runtime.model().durability,
+                            Durability::Saving { .. } | Durability::Failed { .. }
+                        )
+                    }) {
+                        event.prevent_default();
+                        let _ = Reflect::set(event.as_ref(), &"returnValue".into(), &JsValue::TRUE);
+                    }
+                });
+            if window
+                .add_event_listener_with_callback("beforeunload", listener.as_ref().unchecked_ref())
+                .is_ok()
+            {
+                *runtime.before_unload.borrow_mut() = Some(listener);
+            }
+        }
         Ok(runtime)
     }
     fn restore_active_project(self: &Rc<Self>) {
@@ -577,9 +628,6 @@ impl Runtime {
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
         self.session.borrow().scope()
-    }
-    pub fn electrical_preview_executor_epoch(&self) -> u64 {
-        self.session.borrow().core_executor_epoch().0
     }
     /// The Core entry points the page injected (Open admission and scratch probes).
     pub fn core_services(&self) -> CoreServices {
@@ -604,61 +652,16 @@ impl Runtime {
             MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
             MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
         };
-        self.standard_builtin_profile(
-            operation_id,
-            definition_id,
-            source,
-            Some(family),
-            plate_to_pcb,
-        )
-        .await
-    }
-
-    /// Load a reviewed Core builtin profile for the Case editor's private assignment path.
-    pub async fn standard_builtin_profile(
-        &self,
-        operation_id: OperationId,
-        definition_id: String,
-        source: MechanicalBuiltinProfile,
-        expected_family: Option<MechanicalSwitchFamily>,
-        plate_to_pcb: f64,
-    ) -> Result<MechanicalPartProfile, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request_id = format!("parts-standard-profile-{}", operation_id.0);
         let request = CoreRequest::MechanicalProfile {
-            id: request_id.clone(),
-            definition_id: definition_id.clone(),
-            source: source.clone(),
+            id: request_id,
+            definition_id,
+            source,
             plate_to_pcb,
         };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Standard switch fit failed: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("Core worker changed during standard switch fit lookup.".into());
-        }
-        match reply {
-            CoreReply::MechanicalProfile { id, profile } if id == request_id => {
-                if profile.definition_id != definition_id
-                    || profile.switch_family != expected_family
-                    || (profile.plate_to_pcb - plate_to_pcb).abs() > f64::EPSILON
-                    || (matches!(
-                        source,
-                        MechanicalBuiltinProfile::MxStab2u | MechanicalBuiltinProfile::MxStab625u
-                    ) && profile.source_geometry.is_none())
-                {
-                    return Err("Core returned a different standard mechanical profile.".into());
-                }
-                Ok(profile)
-            }
-            CoreReply::Error { id, message, .. } if id == request_id => Err(message),
-            CoreReply::MechanicalProfile { .. } | CoreReply::Error { .. } => {
-                Err("Core returned a stale standard mechanical profile reply.".into())
-            }
+        match (self.core_services.open_scratch)()(request) {
+            CoreReply::MechanicalProfile { profile, .. } => Ok(profile),
+            CoreReply::Error { message, .. } => Err(message),
             _ => Err("Core returned an unexpected standard mechanical profile reply.".into()),
         }
     }
@@ -671,43 +674,14 @@ impl Runtime {
         definition_id: String,
         source: String,
     ) -> Result<CompiledFootprint, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request = ArtifactRequest::ImportFootprint {
-            id: request_id.clone(),
+            id: request_id,
             definition_id,
             source,
         };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not import KiCad footprint: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err(
-                "The KiCad footprint import became stale when the Core worker changed.".into(),
-            );
-        }
-        match reply {
-            ArtifactReply::ImportFootprint { id, result } if id == request_id => Ok(*result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let diagnostics = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                let details = if diagnostics.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", diagnostics.join(" "))
-                };
-                Err(format!("{}{}", error.message, details))
-            }
-            ArtifactReply::ImportFootprint { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned a KiCad footprint result for another request.".into())
-            }
-            _ => Err("Core returned an unexpected KiCad footprint import reply.".into()),
+        match artifact_reply(&request)? {
+            ArtifactReply::ImportFootprint { result, .. } => Ok(*result),
+            _ => Err("Unexpected KiCad artifact reply.".into()),
         }
     }
 
@@ -720,44 +694,15 @@ impl Runtime {
         mappings: Vec<MechanicalPurposeMapping>,
         max_deviation_mm: f64,
     ) -> Result<MechanicalExtraction, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request = ArtifactRequest::ExtractMechanical {
-            id: request_id.clone(),
+            id: request_id,
             source,
             mappings,
             max_deviation_mm,
         };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not read KiCad mechanical geometry: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err(
-                "The KiCad geometry result became stale when the Core worker changed.".into(),
-            );
-        }
-        match reply {
-            ArtifactReply::ExtractMechanical { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let diagnostics = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                let details = if diagnostics.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", diagnostics.join(" "))
-                };
-                Err(format!("{}{}", error.message, details))
-            }
-            ArtifactReply::ExtractMechanical { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned KiCad geometry for another request.".into())
-            }
-            _ => Err("Core returned an unexpected KiCad geometry reply.".into()),
+        match artifact_reply(&request)? {
+            ArtifactReply::ExtractMechanical { result, .. } => Ok(result),
+            _ => Err("Unexpected KiCad artifact reply.".into()),
         }
     }
 
@@ -768,30 +713,15 @@ impl Runtime {
         base_revision: u64,
         matrices: Vec<boardstudio_model::model::Matrix>,
     ) -> Result<Vec<boardstudio_model::model::MatrixScene>, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request_id = format!("matrix-projection-{}", self.operation().0);
         let expected_ids: Vec<_> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
-        let request = CoreRequest::ProjectMatrices {
-            id: request_id.clone(),
-            base_revision,
-            matrices,
-        };
-        let reply = if let Some(document_core) = &self.document_core {
-            if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
-                return Err("Matrix preview failed: editor is closed".into());
-            }
-            (document_core.borrow_mut())(request)
-        } else {
-            core.request(&request_id, &executor_epoch.0.to_string(), &request)
-                .await
-                .map_err(|error| format!("Matrix preview failed: {error}"))?
-        };
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("The Core worker changed during matrix preview.".into());
+        if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
+            return Err("Matrix preview failed: editor is closed".into());
         }
+        let reply =
+            self.session
+                .borrow_mut()
+                .project_matrices(request_id.clone(), base_revision, matrices);
         match reply {
             CoreReply::MatrixProjections {
                 id,
@@ -843,10 +773,10 @@ impl Runtime {
         std::mem::take(&mut *self.notifications.borrow_mut())
     }
     pub fn embed_used_models(&self) -> bool {
-        self.archive_export_options.embed_used_models()
+        self.embed_used_models.get()
     }
     pub fn set_embed_used_models(&self, value: bool) {
-        if self.archive_export_options.set_embed_used_models(value) {
+        if self.embed_used_models.replace(value) != value {
             self.changed();
         }
     }
@@ -966,10 +896,13 @@ impl Runtime {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod case_preview_source_tests;
 
-impl Drop for Runtime {
-    fn drop(&mut self) {
+#[cfg(all(test, target_arch = "wasm32"))]
+mod document_core_tests;
+
+impl Runtime {
+    fn close_browser_workers(&self) {
         self.cancel_frames();
-        if let Some((_, worker)) = self.keycaps_preview_worker.get_mut().take() {
+        if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
             worker.close();
         }
         if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
@@ -978,7 +911,20 @@ impl Drop for Runtime {
         for (_, worker) in std::mem::take(&mut *self.export_workers.borrow_mut()) {
             worker.close();
         }
-        self.core.borrow().close();
+    }
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        if let Some(listener) = self.before_unload.get_mut().take()
+            && let Some(window) = web_sys::window()
+        {
+            let _ = window.remove_event_listener_with_callback(
+                "beforeunload",
+                listener.as_ref().unchecked_ref(),
+            );
+        }
+        self.close_browser_workers();
     }
 }
 
@@ -1071,9 +1017,6 @@ pub mod test_hooks;
 #[cfg(test)]
 pub use crate::fixtures::{in_process_support, project_name_test_support};
 
-#[cfg(test)]
-mod firmware_export_tests;
-
 #[cfg(all(test, target_arch = "wasm32"))]
 mod notification_tests;
 
@@ -1081,18 +1024,4 @@ mod notification_tests;
 mod cad_scene_rebind_tests;
 
 #[cfg(all(test, target_arch = "wasm32"))]
-mod project_open_supersession_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod in_process_adapter_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
 mod offline_safety_tests;
-
-/// Quota-recovery RED tests: with origin storage full every save aborts, so the
-/// in-app delete path must not rewrite durable state before the single-key
-/// delete, and create-new must discard the latched pending doc without
-/// committing it. Saves are failed through the persistence port (the quota
-/// simulation); single-key deletes go straight to the store and must succeed.
-#[cfg(all(test, target_arch = "wasm32"))]
-mod quota_recovery_deletion_tests;

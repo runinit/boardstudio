@@ -70,7 +70,6 @@ fn mounted_inspector() -> Element {
             selected_key_id: selected_id.to_owned(),
             accepted_settings,
             request_sequence,
-            feedback: None,
             retry_drafts: Rc::from([]),
             on_change: EventHandler::new(
                 |_: super::super::keycaps_settings::KeycapsEditRequest| {},

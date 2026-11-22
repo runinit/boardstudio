@@ -7,7 +7,6 @@ use boardstudio_core::model::{
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use dioxus::prelude::Signal;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,39 +19,18 @@ pub(super) enum InspectorField {
     RemoveConstraint,
     MirroredHalfState,
     PartMirror,
-    CompanionPlacement,
     PartAnchorValue,
     PartAnchorFollow,
     PartAnchorPick,
     PartAnchorDetach,
 }
 
-pub(super) type LayoutComponentInspectorEdits = DraftEdits<InspectorField>;
-
 #[derive(Clone, Copy)]
 pub(super) struct ComponentEditViews {
-    pub x: FieldView,
-    pub y: FieldView,
-    pub margin: FieldView,
-    pub actions: (Signal<bool>, Signal<bool>, Signal<bool>, Signal<bool>),
-}
-
-impl ComponentEditViews {
-    pub fn display(self, field: InspectorField, draft: Option<String>) -> EditDisplay<String> {
-        let (layout, constraint, remove, mirror) = self.actions;
-        match field {
-            InspectorField::X => self.x.submitted(draft.unwrap_or_default()),
-            InspectorField::Y => self.y.submitted(draft.unwrap_or_default()),
-            InspectorField::Margin => self.margin.submitted(draft.unwrap_or_default()),
-            InspectorField::Layout => EditDisplay::default().disabling(layout),
-            InspectorField::Constraint => EditDisplay::default().disabling(constraint),
-            InspectorField::RemoveConstraint => EditDisplay::default().disabling(remove),
-            InspectorField::MirroredHalfState | InspectorField::PartMirror => {
-                EditDisplay::default().disabling(mirror)
-            }
-            _ => EditDisplay::default(),
-        }
-    }
+    pub x: (Signal<String>, Signal<Option<String>>),
+    pub y: (Signal<String>, Signal<Option<String>>),
+    pub margin: (Signal<String>, Signal<Option<String>>),
+    pub error: Signal<Option<String>>,
 }
 
 fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {

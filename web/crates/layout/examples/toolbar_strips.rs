@@ -51,7 +51,7 @@ fn fixture() -> Element {
                 align: LayoutAlignMount {
                     references: (0..reference_count()).map(|i| AlignReference { id: i.to_string(), label: format!("Reference {i}") }).collect(),
                     selected_reference: Some(reference()), action: None, enabled: false,
-                    disabled_reason: Some("Select a part to align.".into()), busy: false, feedback: None,
+                    disabled_reason: Some("Select a part to align.".into()), feedback: None,
                     on_reference: EventHandler::new(move |next| reference.set(next)), on_align: EventHandler::new(|_| {}),
                 },
                 show_relationships: false, has_selection_context: has_selection(),

@@ -7,7 +7,10 @@ use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 mod owner;
 pub use owner::{
@@ -27,7 +30,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     let Some(part_id) = props.source.active_part_id.as_deref() else {
         return rsx! {};
     };
-    let Some(mut projection) = project(
+    let Some(projection) = project(
         &props.source.document,
         &props.source.identity.scope.board_id,
         part_id,
@@ -42,7 +45,6 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         .generator
         .as_ref()
         .map(|generator| generator.source.clone());
-    owner::apply_drafts(&identity, &mut projection);
     let schema = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
             Some(source) => crate::presentation::parts::generator_parameter_schema(source).await,
@@ -68,6 +70,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         on_edit.call(PartInputEditRequest {
             identity: scan_identity.clone(),
             intent: PartInputIntent::ScanMode(mode),
+            schema: Rc::default(),
         });
     };
 
@@ -92,6 +95,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                 Some(Ok(schema)) => {
                     let terminals = projection.definition.terminals.keys().cloned().collect::<BTreeSet<_>>();
                     let fields = binding_schema(&schema, &terminals);
+                    let schema = Rc::new(schema);
                     if fields.is_empty() {
                         rsx! {}
                     } else {
@@ -105,9 +109,11 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                             let field_name = name.clone();
                                             let edit = props.actions.on_edit;
                                             let nets = projection.nets.clone();
+                                            let schema = schema.clone();
                                             let on_change = move |value: String| {
                                                 edit.call(PartInputEditRequest {
                                                     identity: field_identity.clone(),
+                                                    schema: schema.clone(),
                                                     intent: PartInputIntent::GeneratorParameter {
                                                         name: field_name.clone(),
                                                         value: (!value.is_empty()).then_some(Value::String(value)),
@@ -132,6 +138,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                 let field_name = name.clone();
                                                 let field_axis = axis.to_owned();
                                                 let edit = props.actions.on_edit;
+                                                let schema = schema.clone();
                                                 let on_change = move |event: FormEvent| {
                                                     let raw = event.value();
                                                     let value = if raw.trim().is_empty() { None } else {
@@ -139,7 +146,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                         if !coordinate.is_finite() { return; }
                                                         Some(coordinate)
                                                     };
-                                                    edit.call(PartInputEditRequest { identity: field_identity.clone(), intent: PartInputIntent::GeneratorAnchor { name: field_name.clone(), axis: field_axis.clone(), value } });
+                                                    edit.call(PartInputEditRequest { identity: field_identity.clone(), schema: schema.clone(), intent: PartInputIntent::GeneratorAnchor { name: field_name.clone(), axis: field_axis.clone(), value } });
                                                 };
                                                 rsx! {
                                                     PcbInput { key: "{axis}", label: format!("{name} {}", axis_upper(axis)),
@@ -163,9 +170,6 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                 Some(Err(error)) => rsx! { Alert { variant: AlertVariant::Destructive, "Generator settings could not be loaded: {error}" } },
                 None if generator_source.is_some() => rsx! { p { role: "status", Spinner {} "Loading generator settings…" } },
                 None => rsx! {},
-            }
-            if props.actions.pending {
-                p { role: "status", Spinner {} "Saving PCB setting…" }
             }
             if let Some(failure) = props.actions.failure.clone() {
                 Alert { variant: AlertVariant::Destructive, "{failure.message}" }
@@ -203,7 +207,6 @@ fn edit_identity(
         generator_source,
         token: source.identity.token,
         revision: source.identity.revision,
-        executor_epoch: source.identity.executor_epoch,
         scope_generation: source.scope_generation,
     })
 }
@@ -231,7 +234,6 @@ mod tests {
                 scope: scope.clone(),
                 token: boardstudio_application::SnapshotToken(1),
                 revision: 0,
-                executor_epoch: 0,
             },
             ui_scope: scope,
             scope_generation: 0,
@@ -239,7 +241,6 @@ mod tests {
             active_part_id: Some("matrix/main/r0c0".into()),
         };
         let actions = PartInputActions {
-            pending: false,
             failure: None,
             editable: true,
             on_edit: EventHandler::new(move |request| *capture.0.borrow_mut() = Some(request)),

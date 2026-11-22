@@ -45,18 +45,7 @@ pub enum MacroEditChange {
     Change(MacroChange),
 }
 
-#[derive(Clone, Copy)]
-pub(crate) enum PrecedingStructure {
-    Append,
-    Remove(usize),
-    Ambiguous,
-}
-
-pub(crate) fn macro_resolver(
-    request: MacroEditRequest,
-    seed: u64,
-    preceding_structure: Option<PrecedingStructure>,
-) -> EditResolver {
+pub(crate) fn macro_resolver(request: MacroEditRequest, seed: u64) -> EditResolver {
     EditResolver::new("keymap-macro", move |accepted: &AcceptedSnapshot| {
         if !accepted
             .document
@@ -108,29 +97,17 @@ pub(crate) fn macro_resolver(
                 else {
                     return Resolution::Retire("This macro no longer exists.".into());
                 };
-                // Appending, or removing a later step, keeps this positional target.
-                // A removed/shifted target is no longer eligible; a failed structural
-                // operation leaves the original position available.
-                if let MacroEditTarget::RemoveStep { index }
-                | MacroEditTarget::StepKind { index }
-                | MacroEditTarget::StepDelay { index }
-                | MacroEditTarget::StepKeycode { index } = request.target
-                {
-                    let valid =
-                        request.step_sequence.as_ref().is_some_and(
-                            |steps| match preceding_structure {
-                                Some(PrecedingStructure::Append) => {
-                                    item.steps.len() == steps.len()
-                                        || item.steps.len() == steps.len() + 1
-                                }
-                                Some(PrecedingStructure::Remove(removed)) => {
-                                    item.steps.len() == steps.len()
-                                        || (item.steps.len() + 1 == steps.len() && index < removed)
-                                }
-                                Some(PrecedingStructure::Ambiguous) => false,
-                                None => item.steps.len() == steps.len(),
-                            },
-                        );
+                if matches!(
+                    request.target,
+                    MacroEditTarget::RemoveStep { .. }
+                        | MacroEditTarget::StepKind { .. }
+                        | MacroEditTarget::StepDelay { .. }
+                        | MacroEditTarget::StepKeycode { .. }
+                ) {
+                    let valid = request
+                        .step_sequence
+                        .as_ref()
+                        .is_some_and(|steps| steps.len() == item.steps.len());
                     if !valid {
                         return Resolution::Retire("This macro step is no longer available because the steps changed. Select the step again.".into());
                     }
@@ -237,7 +214,6 @@ mod tests {
     use boardstudio_application::Event;
     use boardstudio_model::model::{KeyBinding, ProjectDoc};
     use boardstudio_web_runtime::runtime::Runtime;
-    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 
     fn open() -> (Rc<Runtime>, Scope) {
         let mut document = ProjectDoc::empty("macro-edits", "Macros");
@@ -281,23 +257,10 @@ mod tests {
         }
     }
 
-    fn settle(
-        runtime: &Rc<Runtime>,
-        request: MacroEditRequest,
-        seed: u64,
-        preceding: Option<PrecedingStructure>,
-    ) -> PendingEditResult<u8> {
-        let edits = DraftEdits::<_, ()>::default();
-        edits.begin(
-            runtime,
-            0u8,
-            "keymap-macro",
-            Some("macro".into()),
-            macro_resolver(request, seed, preceding),
-        );
-        let mut results = edits.discard_drafts(true);
-        assert_eq!(results.len(), 1, "{results:?}");
-        results.remove(0)
+    fn commit(runtime: &Rc<Runtime>, request: MacroEditRequest, seed: u64) -> Result<u64, String> {
+        runtime
+            .commit("keymap-macro", macro_resolver(request, seed))
+            .map(|snapshot| snapshot.document.revision)
     }
 
     fn tap() -> MacroStep {
@@ -307,7 +270,7 @@ mod tests {
     }
 
     fn add(runtime: &Rc<Runtime>, scope: &Scope) -> String {
-        let added = settle(
+        let added = commit(
             runtime,
             request(
                 runtime,
@@ -323,12 +286,8 @@ mod tests {
                 },
             ),
             11,
-            None,
         );
-        assert!(
-            matches!(added, PendingEditResult::Landed { .. }),
-            "{added:?}"
-        );
+        assert!(matches!(added, Ok(_)), "{added:?}");
         runtime
             .model()
             .accepted
@@ -347,7 +306,7 @@ mod tests {
         let (runtime, scope) = open();
         let id = add(&runtime, &scope);
 
-        let renamed = settle(
+        let renamed = commit(
             &runtime,
             request(
                 &runtime,
@@ -360,12 +319,8 @@ mod tests {
                 }),
             ),
             12,
-            None,
         );
-        assert!(
-            matches!(renamed, PendingEditResult::Landed { .. }),
-            "{renamed:?}"
-        );
+        assert!(matches!(renamed, Ok(_)), "{renamed:?}");
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted.document.keymap.as_ref().unwrap().macros[0].name,
@@ -373,7 +328,7 @@ mod tests {
         );
         let revision = accepted.document.revision;
 
-        let unchanged = settle(
+        let unchanged = commit(
             &runtime,
             request(
                 &runtime,
@@ -386,11 +341,10 @@ mod tests {
                 }),
             ),
             13,
-            None,
         );
-        assert_eq!(unchanged, PendingEditResult::Landed { key: 0, revision });
+        assert_eq!(unchanged, Ok(revision));
 
-        let removed = settle(
+        let removed = commit(
             &runtime,
             request(
                 &runtime,
@@ -401,12 +355,8 @@ mod tests {
                 MacroEditChange::Remove,
             ),
             14,
-            None,
         );
-        assert!(
-            matches!(removed, PendingEditResult::Landed { .. }),
-            "{removed:?}"
-        );
+        assert!(matches!(removed, Ok(_)), "{removed:?}");
         assert!(
             runtime
                 .model()
@@ -426,7 +376,7 @@ mod tests {
         let (runtime, scope) = open();
         let id = add(&runtime, &scope);
         let stale: Rc<[MacroStep]> = Rc::from(vec![tap()]);
-        let result = settle(
+        let result = commit(
             &runtime,
             request(
                 &runtime,
@@ -440,20 +390,19 @@ mod tests {
                 }),
             ),
             15,
-            None,
         );
         assert!(
-            matches!(&result, PendingEditResult::Failed { message, .. } if message.contains("steps changed")),
+            matches!(&result, Err(message) if message.contains("steps changed")),
             "{result:?}"
         );
     }
 
     #[test]
-    fn appending_before_a_step_edit_keeps_its_position_and_missing_macros_fail() {
+    fn step_edits_use_the_current_position_and_missing_macros_fail() {
         let (runtime, scope) = open();
         let id = add(&runtime, &scope);
         let current: Rc<[MacroStep]> = Rc::from(vec![tap(), MacroStep::Wait { ms: 5 }]);
-        let edited = settle(
+        let edited = commit(
             &runtime,
             request(
                 &runtime,
@@ -467,12 +416,8 @@ mod tests {
                 }),
             ),
             16,
-            Some(PrecedingStructure::Append),
         );
-        assert!(
-            matches!(edited, PendingEditResult::Landed { .. }),
-            "{edited:?}"
-        );
+        assert!(matches!(edited, Ok(_)), "{edited:?}");
         assert_eq!(
             runtime
                 .model()
@@ -487,7 +432,7 @@ mod tests {
             MacroStep::Wait { ms: 9 }
         );
 
-        let missing = settle(
+        let missing = commit(
             &runtime,
             request(
                 &runtime,
@@ -498,10 +443,9 @@ mod tests {
                 MacroEditChange::Change(MacroChange::Name { value: "x".into() }),
             ),
             17,
-            None,
         );
         assert!(
-            matches!(&missing, PendingEditResult::Failed { message, .. } if message.contains("no longer exists")),
+            matches!(&missing, Err(message) if message.contains("no longer exists")),
             "{missing:?}"
         );
     }

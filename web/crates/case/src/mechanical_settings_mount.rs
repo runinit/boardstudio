@@ -20,7 +20,7 @@ use crate::mechanical_feedback::{
     FeedbackRecord, field_feedback, relevant_summary, same_feedback_owner,
 };
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, Scope, SnapshotToken};
+use boardstudio_application::{Durability, Lifecycle, Scope, SnapshotToken};
 use boardstudio_model::model::{
     HardwareTransport, MechanicalAssembly, MechanicalBottomStyle, MechanicalConfiguration,
     MechanicalMount, MechanicalStabilizerKind, MechanicalStabilizerOverride, Mount, Part, PartKind,
@@ -145,13 +145,8 @@ pub fn use_mechanical_settings_mount(
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
             let submit_runtime = runtime_for_operation.clone();
-            let resolve_edit = Rc::new(move |resolver| {
-                submit_runtime.resolve_edit(
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            });
+            let commit =
+                Rc::new(move |resolver| submit_runtime.commit("mechanical-settings", resolver));
             let publish_alive = alive.clone();
             let publish_current = current.clone();
             let publish = Rc::new(move |entry: MechanicalSettingsFeedback| {
@@ -212,7 +207,7 @@ pub fn use_mechanical_settings_mount(
             MechanicalSettingsController::new(MechanicalSettingsPorts {
                 current: current.clone(),
                 load_mounting_hole,
-                resolve_edit,
+                commit,
                 publish,
             })
         }
@@ -221,11 +216,6 @@ pub fn use_mechanical_settings_mount(
 
     let version = use_context::<Signal<u64>>();
     let resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);
-    let resolving_mechanical = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
-        ))
-    });
     let settled_mechanical = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
@@ -234,76 +224,39 @@ pub fn use_mechanical_settings_mount(
     use_effect(use_reactive((&version(), &workspace()), {
         let runtime = runtime.clone();
         let current = current.clone();
-        let alive = alive.clone();
-        let resolving = resolving_mechanical.clone();
         let settled = settled_mechanical.clone();
+        let mut resolved = resolved_mechanical;
         move |_| {
             if workspace() != "Case" {
                 return;
             }
-            let Some(current_settings) = current() else {
+            let Some(current_settings) =
+                current().filter(|settings| settings.configuration.is_some())
+            else {
                 return;
             };
-            if current_settings.configuration.is_none() {
-                return;
-            }
             let Some(key) = current_source_key(&runtime) else {
                 return;
             };
-            let identity = current_settings.identity.clone();
+            let identity = current_settings.identity;
             let request_key = (key.clone(), identity.clone());
             if settled.borrow().as_ref() == Some(&request_key) {
                 return;
             }
-            {
-                let mut pending = resolving.borrow_mut();
-                if pending.as_ref() == Some(&request_key) {
-                    return;
-                }
-                *pending = Some(request_key.clone());
-            }
-
-            let accepted = current_settings.accepted.clone();
+            *settled.borrow_mut() = Some(request_key);
+            let accepted = current_settings.accepted;
             let proposed = accepted.document.as_ref().clone();
-            let scope = key.scope.clone();
-            let runtime = runtime.clone();
-            let current = current.clone();
-            let alive = alive.clone();
-            let resolving = resolving.clone();
-            let settled = settled.clone();
-            let mut resolved = resolved_mechanical;
-            spawn_local(async move {
-                let result = runtime
-                    .resolve_mechanical_settings(accepted, scope, proposed)
-                    .await;
-                if !alive.get() {
-                    return;
+            let result = runtime.resolve_mechanical_settings(accepted, key.scope.clone(), proposed);
+            resolved.set(result.ok().map(|(assembly, effective_configuration)| {
+                MechanicalSettingsResolvedProjection {
+                    key,
+                    identity,
+                    resolution: Rc::new(MechanicalResolution {
+                        assembly,
+                        effective_configuration,
+                    }),
                 }
-                let still_current = current().is_some_and(|live| live.identity == identity)
-                    && current_source_key(&runtime).as_ref() == Some(&key);
-                {
-                    let mut pending = resolving.borrow_mut();
-                    if pending.as_ref() == Some(&request_key) {
-                        *pending = None;
-                    }
-                }
-                if !still_current {
-                    return;
-                }
-                *settled.borrow_mut() = Some(request_key);
-                if let Ok((assembly, effective_configuration)) = result {
-                    resolved.set(Some(MechanicalSettingsResolvedProjection {
-                        key,
-                        identity,
-                        resolution: Rc::new(MechanicalResolution {
-                            assembly,
-                            effective_configuration,
-                        }),
-                    }));
-                } else {
-                    resolved.set(None);
-                }
-            });
+            }));
         }
     }));
     use_effect(use_reactive((&version(), &workspace()), {
@@ -313,10 +266,6 @@ pub fn use_mechanical_settings_mount(
         let attempted = attempted_closure_initialization.clone();
         let mut request_sequence = request_sequence;
         move |_| {
-            // Observe navigation synchronously before settling: callback identities from the
-            // previous Case mount must be stale even when Runtime Scope itself did not change.
-            let _ = current();
-            controller.settle();
             if controller.is_busy() {
                 return;
             }
@@ -403,10 +352,11 @@ pub fn use_mechanical_settings_mount(
                 })
         });
         let model = runtime.model();
+        let resolved = boardstudio_application::resolved_document(&current.accepted.document);
         workspace() == "Case"
             && instance_selection.is_current(&model)
             && crate::case_generation_admission::is_ready(
-                &current.accepted.document,
+                &resolved,
                 &current.accepted.scene,
                 &current.identity.active_board_id,
                 current
@@ -467,14 +417,13 @@ pub fn use_mechanical_settings_mount(
     ));
     // Keep settlement alive in every workspace; prepare panel data only while Case is visible.
     let props = current_projection.filter(|_| workspace() == "Case").map(|current| {
+        let resolved = boardstudio_application::resolved_document(&current.accepted.document);
         let configuration = current.configuration.as_ref();
         let mismatch = configuration
             .filter(|configuration| configuration.board_id != current.identity.active_board_id)
             .map(|configuration| MechanicalBoardMismatch {
                 board_id: configuration.board_id.clone(),
-                board_name: current
-                    .accepted
-                    .document
+                board_name: resolved
                     .boards
                     .iter()
                     .find(|board| board.id == configuration.board_id)
@@ -494,15 +443,15 @@ pub fn use_mechanical_settings_mount(
             .map(|projection| projection.profiles.clone())
             .unwrap_or_else(|| Rc::from([]));
         let profile_targets = profile_targets(
-            &current.accepted,
+            &resolved,
             &current.identity.active_board_id,
             configuration.map(|value| &**value),
         );
         let process_targets = configuration.map_or_else(Vec::new, |configuration| {
-            process_targets(&current.accepted.document, configuration)
+            process_targets(&resolved, configuration)
         });
         let stabilizer_fits = configuration.map_or_else(Vec::new, |configuration| {
-            stabilizer_fits(&current.accepted.document, configuration)
+            stabilizer_fits(&resolved, configuration)
         });
         let scene_rows = scene_rows.read();
         let layers = scene_rows
@@ -783,7 +732,7 @@ pub fn use_mechanical_settings_mount(
             )
         });
         let preview_values = if configuration.is_none() {
-            boardstudio_core_mechanical::mechanical::effective_inputs(&current.accepted.document, &current.accepted.scene.board_contours, &boardstudio_core_mechanical::mechanical::MechanicalTarget::Board { board_id: current.identity.active_board_id.clone() }).ok().map(|inputs| settings_values(&inputs.configuration, transport))
+            boardstudio_core_mechanical::mechanical::effective_inputs(&resolved, &current.accepted.scene.board_contours, &boardstudio_core_mechanical::mechanical::MechanicalTarget::Board { board_id: current.identity.active_board_id.clone() }).ok().map(|inputs| settings_values(&inputs.configuration, transport))
         } else { None };
         MechanicalSettingsProps {
             preview_values,

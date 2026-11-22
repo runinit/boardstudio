@@ -1,9 +1,7 @@
 #![forbid(unsafe_code)]
-//! Worker entry points packaged by wasm-pack (`core-worker`, `cad-worker`, `service-worker`).
+//! Worker entry points packaged by wasm-pack (`cad-worker`, `service-worker`).
 //! The page is the `boardstudio-web` bin. Worker services live in `boardstudio-web-worker-host`.
 
-#[cfg(all(target_arch = "wasm32", feature = "core-worker"))]
-mod core_worker;
 #[cfg(all(target_arch = "wasm32", feature = "service-worker"))]
 mod service_worker;
 

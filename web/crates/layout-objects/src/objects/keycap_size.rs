@@ -32,23 +32,8 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let Some(projection) = props.mount.projection.clone() else {
         return rsx! {};
     };
-    let mut inspector_mounted = props.mount.inspector_mounted;
-    use_hook(|| inspector_mounted.set(true));
     let mut draft = use_signal(|| projection.units);
     let mut draft_dirty = use_signal(|| false);
-    let failure = use_signal(|| None::<String>);
-    let on_bind_draft = props.mount.on_bind_draft;
-    on_bind_draft.call((
-        projection.owner.clone(),
-        Some((draft, failure, draft_dirty)),
-    ));
-    use_drop({
-        let owner = projection.owner.clone();
-        move || {
-            on_bind_draft.call((owner, None));
-            inspector_mounted.set(false);
-        }
-    });
     let sent = use_signal(|| None::<String>);
     let keyboard_generation = use_hook(|| std::rc::Rc::new(Cell::new(0u64)));
     let sequence = props.mount.request_sequence;
@@ -75,7 +60,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let feedback = props.mount.feedback.clone();
     let mut draft_for_effect = draft;
     let mut sent_for_effect = sent;
-    let mut failure_for_effect = failure;
     let mut dirty_for_effect = draft_dirty;
     use_effect(use_reactive(
         (&owner_for_effect, &base_units, &mixed, &feedback),
@@ -91,9 +75,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                     if *dirty_for_effect.peek() {
                         dirty_for_effect.set(false);
                     }
-                }
-                if *previous_owner != owner && failure_for_effect.peek().is_some() {
-                    failure_for_effect.set(None);
                 }
                 *previous_owner = owner;
                 sent_for_effect.set(None);
@@ -146,6 +127,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
             sent.set(Some(signature));
             let request_id = sequence() + 1;
             sequence.set(request_id);
+            draft_dirty.set(false);
             callback.call(KeySizeRequest {
                 owner: intent.owner,
                 request_id,

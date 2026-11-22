@@ -1,22 +1,17 @@
 //! Native test Runtime: Session and Core are real; browser effects use in-memory ports.
-use crate::core_services::{CoreServices, ScratchCore};
+use crate::core_services::CoreServices;
 #[cfg(any(test, feature = "test-support"))]
 use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
-    Completion, Effect, Event, OperationId, ReadModel, RequestId, SaveResult, Scope, Session,
+    Completion, Effect, Event, Landing, OperationId, ReadModel, SaveResult, Scope, Session,
+    TerminalOutcome,
 };
-use boardstudio_model::model::{CoreRequest, ProjectDoc};
+use boardstudio_model::model::ProjectDoc;
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, VecDeque},
     rc::Rc,
 };
-
-type ParkedCore = (
-    RequestId,
-    boardstudio_application::ExecutorEpoch,
-    Box<CoreRequest>,
-);
 
 /// A synchronous adapter for the browser Runtime's session-driven edit behavior.
 ///
@@ -25,7 +20,6 @@ type ParkedCore = (
 /// reaches a one-shot test gate.
 pub struct Runtime {
     session: RefCell<Session>,
-    engine: RefCell<ScratchCore>,
     services: CoreServices,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     next_operation: Cell<u64>,
@@ -37,7 +31,7 @@ pub struct Runtime {
     #[cfg(any(test, feature = "test-support"))]
     save_entered: Cell<bool>,
     #[cfg(any(test, feature = "test-support"))]
-    parked_core: RefCell<Option<ParkedCore>>,
+    parked_core: RefCell<Option<Event>>,
     #[cfg(any(test, feature = "test-support"))]
     parked_save: RefCell<Option<(boardstudio_application::SaveAttemptId, ProjectDoc)>>,
     /// Events submitted through this Runtime, retained for read-only test assertions.
@@ -70,7 +64,6 @@ impl Runtime {
     pub fn with_core(services: CoreServices) -> Rc<Self> {
         Rc::new(Self {
             session: RefCell::new(Session::new(services.validate_open)),
-            engine: RefCell::new((services.open_scratch)()),
             services,
             operation_outcomes: Default::default(),
             next_operation: Cell::new(1),
@@ -102,10 +95,6 @@ impl Runtime {
         self.session.borrow().scope()
     }
 
-    pub fn electrical_preview_executor_epoch(&self) -> u64 {
-        self.session.borrow().core_executor_epoch().0
-    }
-
     pub fn operation(&self) -> OperationId {
         let operation = OperationId(self.next_operation.get());
         self.next_operation.set(
@@ -124,14 +113,70 @@ impl Runtime {
         self.operation_outcomes.observe(operation)
     }
 
+    pub fn commit(
+        &self,
+        label: &str,
+        resolver: boardstudio_application::EditResolver,
+    ) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+        use boardstudio_application::TerminalOutcome;
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        self.submit(Event::ResolveEdit {
+            operation_id,
+            label: label.into(),
+            resolver,
+        });
+        match outcome.borrow_mut().take() {
+            Some(TerminalOutcome::Completed) => self
+                .model()
+                .accepted
+                .ok_or_else(|| "No accepted keyboard after the edit.".into()),
+            Some(TerminalOutcome::Rejected(reason)) => Err(reason),
+            other => Err(format!("The change could not be applied: {other:?}")),
+        }
+    }
+
     pub fn submit(&self, event: Event) {
+        self.submit_observed(event, None);
+    }
+
+    pub(crate) fn submit_observed(
+        &self,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         self.events.push(event.clone());
+        #[cfg(any(test, feature = "test-support"))]
+        match self.gates.take_core() {
+            Some(OneShotBehavior::Hold) => {
+                self.core_entered.set(true);
+                *self.parked_core.borrow_mut() = Some(event);
+                return None;
+            }
+            Some(OneShotBehavior::Fail(reason)) => {
+                let operation = boardstudio_application::event_operation(&event)?;
+                let outcome = TerminalOutcome::ExecutorFailed(reason);
+                self.operation_outcomes.settle(operation, outcome.clone());
+                return (observe == Some(operation)).then_some((outcome, None));
+            }
+            None => {}
+        }
+        self.apply(event, observe)
+    }
+
+    fn apply(
+        &self,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
         if self.scope() != previous_scope {
             self.operation_outcomes.retire_edit_scope();
         }
+        let result = crate::operation_outcomes::observed_outcome(&effects, observe);
         self.drive(effects.into());
+        result
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -170,18 +215,13 @@ impl Runtime {
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn release_core(&self) {
-        let Some((request_id, executor_epoch, request)) = self.parked_core.borrow_mut().take()
-        else {
-            panic!("no parked Core request");
-        };
+        let event = self
+            .parked_core
+            .borrow_mut()
+            .take()
+            .expect("no parked test event");
         self.core_entered.set(false);
-        let reply = (self.engine.borrow_mut())(*request);
-        let effects = self.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        self.drive(effects.into());
+        self.apply(event, None);
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -220,12 +260,6 @@ impl Runtime {
     fn drive(&self, mut effects: VecDeque<Effect>) {
         while let Some(effect) = effects.pop_front() {
             match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => effects.extend(self.run_core(request_id, executor_epoch, request)),
                 Effect::Persist {
                     save_attempt_id,
                     document,
@@ -234,13 +268,9 @@ impl Runtime {
                 Effect::Settled {
                     operation_id,
                     outcome,
-                    landing,
+                    ..
                 } => {
-                    self.operation_outcomes
-                        .settle_with_landing(operation_id, outcome, landing);
-                }
-                Effect::RestartCoreExecutor { executor_epoch } => {
-                    effects.extend(self.complete(Completion::ExecutorRestarted { executor_epoch }));
+                    self.operation_outcomes.settle(operation_id, outcome);
                 }
                 _ => {}
             }
@@ -249,38 +279,6 @@ impl Runtime {
 }
 
 impl Runtime {
-    #[cfg(any(test, feature = "test-support"))]
-    fn run_core(
-        &self,
-        request_id: RequestId,
-        executor_epoch: boardstudio_application::ExecutorEpoch,
-        request: Box<CoreRequest>,
-    ) -> VecDeque<Effect> {
-        match self.gates.take_core() {
-            Some(OneShotBehavior::Fail(reason)) => self
-                .complete(Completion::CoreFailed {
-                    request_id,
-                    executor_epoch,
-                    reason,
-                })
-                .into(),
-            Some(OneShotBehavior::Hold) => {
-                self.core_entered.set(true);
-                *self.parked_core.borrow_mut() = Some((request_id, executor_epoch, request));
-                VecDeque::new()
-            }
-            None => {
-                let reply = (self.engine.borrow_mut())(*request);
-                self.complete(Completion::Core {
-                    request_id,
-                    executor_epoch,
-                    reply: Box::new(reply),
-                })
-                .into()
-            }
-        }
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     fn run_save(
         &self,

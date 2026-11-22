@@ -8,38 +8,8 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_model::model::EditOperation;
 use boardstudio_web_runtime::operation_outcomes::EditOutcome;
-use boardstudio_web_ui_shared::draft_edits::DraftEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
-
-/// One routed-board reference control's bounded logical key: its action kind, with the
-/// model path that identifies a model-asset field.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum BoardReferenceKey {
-    Enabled,
-    PositionX,
-    PositionY,
-    Rotation,
-    Elevation,
-    ModelAsset(String),
-    Remove,
-}
-
-impl BoardReferenceKey {
-    pub(crate) fn of(action: &pcb_board_reference::Action) -> Self {
-        match action {
-            pcb_board_reference::Action::SetEnabled(_) => Self::Enabled,
-            pcb_board_reference::Action::SetPositionX(_) => Self::PositionX,
-            pcb_board_reference::Action::SetPositionY(_) => Self::PositionY,
-            pcb_board_reference::Action::SetRotation(_) => Self::Rotation,
-            pcb_board_reference::Action::SetElevation(_) => Self::Elevation,
-            pcb_board_reference::Action::SetModelAsset { path, .. } => {
-                Self::ModelAsset(path.clone())
-            }
-            pcb_board_reference::Action::Remove => Self::Remove,
-        }
-    }
-}
 
 pub fn board_reference_owner_is_current(
     runtime: &Rc<Runtime>,
@@ -277,19 +247,13 @@ pub(crate) fn dispatch_board_reference_action(
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-    edits: &DraftEdits<BoardReferenceKey, pcb_board_reference::Action>,
-) -> Option<BoardReferenceKey> {
+) -> Option<Result<AcceptedSnapshot, String>> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return None;
     }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
-    let key = BoardReferenceKey::of(&action);
-    let intent = action.clone();
-    let resolver = if key == BoardReferenceKey::Remove {
-        if edits.is_pending(&key) {
-            return None;
-        }
+    let resolver = if action == pcb_board_reference::Action::Remove {
         board_reference_removal_resolver(scope.board_id, reference_id)
     } else {
         EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
@@ -301,7 +265,7 @@ pub(crate) fn dispatch_board_reference_action(
                     "The reference or model asset is no longer available.".into(),
                 );
             };
-            match intent.clone() {
+            match action.clone() {
                 pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
                 pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
                     reference.pose.at.x = value;
@@ -353,13 +317,5 @@ pub(crate) fn dispatch_board_reference_action(
             )
         })
     };
-    edits.submit_value(
-        runtime,
-        key.clone(),
-        "board-reference",
-        Some("board reference".into()),
-        resolver,
-        action,
-    );
-    Some(key)
+    Some(runtime.commit("board-reference", resolver))
 }

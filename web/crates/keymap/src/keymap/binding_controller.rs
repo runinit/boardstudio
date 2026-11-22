@@ -1,6 +1,6 @@
 //! Fresh-source admission and exact-operation acknowledgement for Keymap bindings.
 use super::binding_editor::{
-    BindingEditFeedback, BindingEditRequest, BindingEditStatus, BindingField, BindingLayerChoice,
+    BindingEditFeedback, BindingEditRequest, BindingEditStatus, BindingLayerChoice,
     BindingMacroChoice, BindingTarget, EncoderInputIdentity,
 };
 use super::layer_controller::LayerSource;
@@ -12,8 +12,6 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -42,69 +40,6 @@ pub struct BindingProjectionSources {
     pub view: Option<Rc<KeymapView>>,
     pub encoder_projection: Memo<Option<EncoderInputProjection>>,
     pub current_encoder_projection: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
-}
-
-/// A binding field's logical identity: the latest edit for it replaces the earlier one.
-/// The key carries its request for follow-ups and draft projection; keys compare by layer,
-/// target and field only.
-#[derive(Clone)]
-struct BindingKey {
-    layer: String,
-    target: BindingTarget,
-    field: BindingField,
-    request: Option<Rc<BindingEditRequest>>,
-}
-
-impl PartialEq for BindingKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.layer == other.layer && self.target == other.target && self.field == other.field
-    }
-}
-
-impl BindingKey {
-    fn of(request: &BindingEditRequest) -> Self {
-        Self {
-            layer: request.active_layer_id.clone(),
-            target: request.target.clone(),
-            field: request.field,
-            request: Some(Rc::new(request.clone())),
-        }
-    }
-}
-
-type BindingPending = OwnedEdits<BindingKey>;
-
-#[derive(Clone, Copy)]
-struct BindingTickets(Signal<BindingPending>);
-
-/// Pending field values belong to the editor, not the accepted document projection.
-pub(super) fn draft_binding(
-    scope: &Scope,
-    layer: &str,
-    target: &BindingTarget,
-    accepted: &KeyBinding,
-) -> KeyBinding {
-    let mut value = accepted.clone();
-    if let Some(tickets) = try_consume_context::<BindingTickets>() {
-        for request in tickets
-            .0
-            .read()
-            .edits
-            .pending_keys()
-            .iter()
-            .filter_map(|entry| entry.request.as_deref())
-            .filter(|request| {
-                request.scope == *scope
-                    && request.active_layer_id == layer
-                    && request.target == *target
-            })
-        {
-            if let Some(next) = apply_requested_field(&value, &request.binding, request.field) {
-                value = next;
-            }
-        }
-    }
-    value
 }
 
 #[derive(Clone)]
@@ -349,8 +284,6 @@ pub fn use_binding_operations(
         encoder_projection,
         current_encoder_projection,
     } = projections;
-    let version = use_context::<Signal<u64>>()();
-    let observed_workspace = workspace();
     let encoder_inputs_value = encoder_projection();
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -359,66 +292,7 @@ pub fn use_binding_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(BindingPending::default);
-    use_context_provider(|| BindingTickets(pending));
     let feedback = use_signal(Vec::<BindingFeedbackState>::new);
-    use_effect(use_reactive((&version, &observed_workspace), {
-        let runtime = runtime.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
-        move |(_, observed_workspace)| {
-            // The hidden panel retires its observations even though the Editor
-            // hook and authoritative Session work continue.
-            let owner_scope = if observed_workspace == "Keymap" {
-                runtime.scope()
-            } else {
-                None
-            };
-            let owner_generation = scope_generation();
-            if pending
-                .peek()
-                .owner_changed(owner_scope.as_ref(), owner_generation)
-            {
-                pending
-                    .write()
-                    .follow_owner(owner_scope.as_ref(), owner_generation);
-                if !feedback.peek().is_empty() {
-                    feedback.write().clear();
-                }
-            }
-            if !pending.peek().edits.has_terminal() {
-                return;
-            }
-            let results = pending
-                .write()
-                .edits
-                .settle(true, |_| unreachable!("binding tickets have no draft view"));
-            for result in results {
-                let (PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key }) = &result;
-                let Some(waiting) = key.request.as_deref() else {
-                    continue;
-                };
-                let live = runtime.scope().as_ref() == Some(&waiting.scope)
-                    && scope_generation() == captured_generation;
-                match &result {
-                    PendingEditResult::Failed { message, .. } if live => {
-                        if let Some(entry) = feedback
-                            .write()
-                            .iter_mut()
-                            .find(|entry| entry.request.request_id == waiting.request_id)
-                        {
-                            entry.status = BindingEditStatus::Failed(message.clone());
-                        }
-                    }
-                    _ => feedback
-                        .write()
-                        .retain(|entry| entry.request.request_id != waiting.request_id),
-                }
-            }
-        }
-    }));
 
     let model = runtime.model();
     let selected_key_id = model.selected_part_ids.first().cloned();
@@ -551,7 +425,6 @@ pub fn use_binding_operations(
 
     let on_change = EventHandler::new({
         let runtime = runtime.clone();
-        let mut pending = pending;
         let mut feedback = feedback;
         let source = source.clone();
         let view = view.clone();
@@ -608,30 +481,20 @@ pub fn use_binding_operations(
             if apply_requested_field(&request.binding, &request.binding, request.field).is_none() {
                 return;
             }
-            if pending
-                .peek()
-                .owner_changed(Some(&expected_source.scope), captured_generation)
-            {
-                pending
-                    .write()
-                    .follow_owner(Some(&expected_source.scope), captured_generation);
-            }
-            let key = BindingKey::of(&request);
-            pending.write().edits.begin(
-                &runtime,
-                key,
-                "keymap-binding",
-                Some("binding".into()),
-                binding_resolver(request.clone()),
-            );
+            let result = runtime.commit("keymap-binding", binding_resolver(request.clone()));
             feedback.write().retain(|entry| {
-                !(entry.request.target == request.target && entry.request.field == request.field)
+                entry.scope_generation == captured_generation
+                    && entry.request.scope == request.scope
+                    && !(entry.request.target == request.target
+                        && entry.request.field == request.field)
             });
-            feedback.write().push(BindingFeedbackState {
-                request: request.clone(),
-                scope_generation: captured_generation,
-                status: BindingEditStatus::Pending,
-            });
+            if let Err(message) = result {
+                feedback.write().push(BindingFeedbackState {
+                    request: request.clone(),
+                    scope_generation: captured_generation,
+                    status: BindingEditStatus::Failed(message),
+                });
+            }
             last_admitted_request_id.set(request.request_id);
         }
     });

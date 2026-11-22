@@ -19,6 +19,8 @@ pub(super) fn Header(
     show_workspaces: bool,
     has_project: bool,
     save_state: &'static str,
+    save_retryable: bool,
+    on_retry_save: EventHandler<()>,
     mut settings_open: Signal<bool>,
     palette_open: ReadSignal<bool>,
     on_search: EventHandler<()>,
@@ -109,9 +111,13 @@ pub(super) fn Header(
                         match save_state {
                             "saved" => "Changes are saved in this browser. Use Save project copy for a portable backup.",
                             "saving" => "Saving changes in this browser…",
+                            "failed" if !save_retryable => boardstudio_web_host::host::CONFLICT,
                             "failed" => "Changes could not be saved locally. Check available browser storage before editing further.",
                             _ => "Local save status is unavailable.",
                         }
+                    }
+                    if save_state == "failed" && save_retryable {
+                        Button { variant: ButtonVariant::Secondary, onclick: move |_| on_retry_save.call(()), "Retry save" }
                     }
                 }
             }

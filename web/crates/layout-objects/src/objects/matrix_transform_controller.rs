@@ -17,27 +17,9 @@ use boardstudio_model::model::{
     AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
     convert_offset_available,
 };
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
-
-#[derive(Clone)]
-struct TransformPendingKey {
-    field: MatrixTransformField,
-    splay_affect: MatrixSplayAffect,
-    owner: MatrixTransformInspectorOwner,
-    request_id: u64,
-    one_shot: bool,
-    failure: Option<Signal<Option<String>>>,
-}
-
-impl PartialEq for TransformPendingKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.field == other.field && self.one_shot == other.one_shot
-    }
-}
 
 /// Resolve one transform field edit against the accepted document at execution time. The
 /// matrix and the row, column or key the field belongs to are read from the accepted
@@ -673,11 +655,6 @@ pub fn use_workspace_matrix_transform(
     });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    // Transform field edits and one-shot actions are observed through shared draft
-    // tickets keyed by field and kind. The submitted view travels on the ticket so
-    // settlement restores the durable draft only while it still is the submitted value.
-    // No Signal mirrors the pending state.
-    let edits = use_signal(DraftEdits::<TransformPendingKey>::default);
     let one_shot_fields = use_hook(|| {
         [
             MatrixTransformField::RowOffsetReset,
@@ -706,7 +683,6 @@ pub fn use_workspace_matrix_transform(
         let alive = alive.clone();
         move || {
             alive.set(false);
-            let _ = edits.read().settle(false, |_| String::new());
         }
     });
     let switch_catalog = use_signal(Vec::<boardstudio_model::model::PartDefinition>::new);
@@ -883,34 +859,27 @@ pub fn use_workspace_matrix_transform(
                 })
             });
     }
-    let identity = observed_identity.clone();
-
-    use_effect(use_reactive(
-        (&version(), &workspace(), &scope_generation(), &identity),
-        {
-            let runtime = runtime.clone();
-            let mut feedback = feedback;
-            let mut change_status = change_status;
-            let alive = alive.clone();
-            move |(_, current_workspace, _, _)| {
-                let owner_is_live = alive.get()
-                    && (inspector_mounted() || canvas_mounted())
-                    && workspace_route_matches(current_workspace, owner_workspace);
-                settle_pending(
-                    &runtime,
-                    &edits.read(),
-                    owner_is_live,
-                    &mut feedback,
-                    &mut change_status,
-                );
+    use_effect(use_reactive((&version(),), {
+        let runtime = runtime.clone();
+        let mut change_status = change_status;
+        move |_| {
+            let revision = runtime
+                .model()
+                .accepted
+                .map(|snapshot| snapshot.document.revision);
+            if change_status
+                .peek()
+                .as_ref()
+                .is_some_and(|announcement| Some(announcement.revision) != revision)
+            {
+                change_status.set(None);
             }
-        },
-    ));
+        }
+    }));
 
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let one_shot_fields = one_shot_fields.clone();
         let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;
         let mut feedback = feedback;
@@ -951,17 +920,6 @@ pub fn use_workspace_matrix_transform(
                 return;
             };
             if current.owner != request.owner {
-                return;
-            }
-            let key = TransformPendingKey {
-                field: request.field,
-                splay_affect: request.splay_affect.clone(),
-                owner: request.owner.clone(),
-                request_id: request.request_id,
-                one_shot: request.one_shot,
-                failure: request.failure,
-            };
-            if request.one_shot && edits.read().is_pending(&key) {
                 return;
             }
             if !editable {
@@ -1149,40 +1107,24 @@ pub fn use_workspace_matrix_transform(
             } else {
                 resolver
             };
-            // A newer submit retires the previous announcement before Core answers.
-            change_status.set(None);
-            if !request.one_shot {
-                let display = match (request.draft, request.failure, request.submitted_text) {
-                    (Some(draft), Some(failure), Some(text)) => {
-                        FieldView::new(draft, failure).submitted(text)
-                    }
-                    _ => EditDisplay::default(),
-                };
-                edits.read().submit(
-                    &runtime,
-                    key,
-                    "layout-matrix-transform",
-                    Some("transform".into()),
-                    resolver,
-                    display,
-                );
-            } else {
-                let Some((_, disabled)) = one_shot_fields
-                    .iter()
-                    .cloned()
-                    .find(|(field, _)| *field == request.field)
-                else {
-                    return;
-                };
-                edits.read().submit(
-                    &runtime,
-                    key,
-                    "layout-matrix-transform",
-                    Some("transform".into()),
-                    resolver,
-                    EditDisplay::default().disabling(disabled),
-                );
+            let result = runtime.commit("layout-matrix-transform", resolver);
+            if let Some(mut draft) = request.draft {
+                draft.set(accepted_field_text(&runtime, &request));
             }
+            let announcement = result
+                .as_ref()
+                .ok()
+                .filter(|accepted| accepted.document.revision != snapshot.document.revision)
+                .map(|accepted| TransformChangeAnnouncement {
+                    owner: request.owner.clone(),
+                    revision: accepted.document.revision,
+                    message: format!(
+                        "Changed {} · one Undo entry",
+                        transform_field_label(request.field)
+                    ),
+                });
+            change_status.set(announcement);
+            publish_request_failure(&mut feedback, &request, result.err());
         }
     });
 
@@ -1207,12 +1149,8 @@ pub fn use_workspace_matrix_transform(
 mod fields;
 #[path = "matrix_transform_controller/projection.rs"]
 mod projection;
-use fields::{field_value, publish_request_failure, settle_pending};
+use fields::{accepted_field_text, field_value, publish_request_failure};
 use projection::{
     ProjectionContext, project_current, project_current_for, transform_fields,
     workspace_route_matches,
 };
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "matrix_transform_controller/queued_edits.rs"]
-mod queued_edits;

@@ -1,14 +1,11 @@
 //! Accepted selected-board assignment pin and lock edits.
+use super::mode::BoardWiringModeIdentity;
 use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource};
-use crate::{
-    pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
-    runtime::Runtime,
-};
+use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -55,39 +52,9 @@ pub struct PcbWiringPinEditRequest {
 pub struct PcbWiringPinActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    /// A pin edit for the current board target is still pending.
-    pub(crate) pending: bool,
     /// The current board target's inline failure; landing and retirement are silent.
     pub(crate) failure: Option<String>,
     pub on_change: EventHandler<PcbWiringPinEditRequest>,
-}
-
-/// One pin control's bounded logical key: the rendered board target plus its assignment.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PcbWiringPinKey {
-    target: BoardWiringModeFeedbackTarget,
-    assignment_id: String,
-}
-
-impl PcbWiringPinKey {
-    fn new(identity: &BoardWiringModeIdentity, assignment_id: &str) -> Self {
-        Self {
-            target: identity.feedback_target(),
-            assignment_id: assignment_id.to_owned(),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct PinOwner(Signal<DraftEdits<PcbWiringPinKey, Option<String>>>);
-
-pub(super) fn pending_pin(
-    identity: &BoardWiringModeIdentity,
-    assignment_id: &str,
-) -> Option<Option<String>> {
-    let owner = try_consume_context::<PinOwner>()?;
-    let key = PcbWiringPinKey::new(identity, assignment_id);
-    owner.0.read().pending_submission(&key)
 }
 
 pub fn use_pcb_wiring_pin_edits(
@@ -99,43 +66,11 @@ pub fn use_pcb_wiring_pin_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> PcbWiringPinActions {
-    let mut edits = use_signal(DraftEdits::<PcbWiringPinKey, Option<String>>::default);
-    let latest = use_signal(|| None::<PcbWiringPinKey>);
+    let _ = version();
     let failure = use_signal(|| None::<BoardWiringFailure>);
-    use_context_provider(|| PinOwner(edits));
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let mut failure = failure;
-        move |_| {
-            // The collection owns the ticket lifetime and its pending select projection;
-            // each ticket retires itself when its Scope departs.
-            let live = workspace() == "PCB";
-            if live && !edits.peek().has_terminal() {
-                return;
-            }
-            for result in edits.write().discard_drafts(live) {
-                match result {
-                    PendingEditResult::Failed { key, message } => {
-                        if latest.peek().as_ref() == Some(&key) {
-                            failure.set(Some(BoardWiringFailure {
-                                target: key.target.clone(),
-                                message,
-                            }));
-                        }
-                    }
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        if latest.peek().as_ref() == Some(&key) {
-                            failure.set(None);
-                        }
-                    }
-                }
-            }
-        }
-    }));
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut latest = latest;
         let mut failure = failure;
         move |request: PcbWiringPinEditRequest| {
             let Some(snapshot) = current_edit_snapshot(
@@ -166,17 +101,12 @@ pub fn use_pcb_wiring_pin_edits(
             ) {
                 return;
             }
-            let key = PcbWiringPinKey::new(&request.identity, &request.assignment_id);
-            latest.set(Some(key.clone()));
-            failure.set(None);
-            let pin = request.pin.clone();
-            edits.write().submit_value(
-                &runtime,
-                key,
-                "pcb-wiring-pins",
-                Some("wiring pin".into()),
-                pins_resolver(request),
-                pin,
+            let target = request.identity.feedback_target();
+            let result = runtime.commit("pcb-wiring-pins", pins_resolver(request));
+            failure.set(
+                result
+                    .err()
+                    .map(|message| BoardWiringFailure { target, message }),
             );
         }
     });
@@ -186,20 +116,12 @@ pub fn use_pcb_wiring_pin_edits(
     let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
-    let pending = target.as_ref().is_some_and(|target| {
-        edits
-            .read()
-            .observations()
-            .into_iter()
-            .any(|(key, pending)| pending && &key.target == target)
-    });
     let failure = failure()
         .filter(|failure| target.as_ref() == Some(&failure.target))
         .map(|failure| failure.message);
     PcbWiringPinActions {
         identity,
         editable,
-        pending,
         failure,
         on_change,
     }
@@ -219,7 +141,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
-        } = crate::pcb_wiring_mode_operation::electrical_preview_request(
+        } = boardstudio_web_runtime::electrical_preview_request(
             "pin-edit",
             &accepted.document,
             board_id,

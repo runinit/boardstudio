@@ -9,13 +9,11 @@ use super::test_fixtures::document;
 use super::*;
 use boardstudio_application::{
     Durability, EditResolver, Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken,
-    TerminalOutcome,
 };
 use boardstudio_core_mechanical::electrical::{
     ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::*;
-use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -164,7 +162,6 @@ fn source(
         },
         token: SnapshotToken(token),
         revision,
-        executor_epoch: 4,
     };
     super::PcbWiringSource {
         identity,
@@ -246,7 +243,6 @@ fn refreshed_source(
             },
             token: accepted.token,
             revision: accepted.document.revision,
-            executor_epoch: runtime.electrical_preview_executor_epoch(),
         },
         ui_scope,
         scope_generation: generation,
@@ -281,7 +277,6 @@ fn mounted_with_document(document: ProjectDoc) -> (Probe, VirtualDom) {
         },
         token: accepted.token,
         revision: accepted.document.revision,
-        executor_epoch: runtime.electrical_preview_executor_epoch(),
     };
     source.ui_scope = ui_scope;
     source.document = accepted.document.clone();
@@ -450,7 +445,6 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
         CurrentSnapshotBlocker::InstanceSelection
     );
 
-    probe.runtime.hold_next_core();
     let mut opening_document = document();
     opening_document.id = "opening-project".into();
     probe.runtime.submit(Event::Open {
@@ -459,9 +453,8 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
     });
     assert_eq!(
         check("PCB", true).unwrap_err(),
-        CurrentSnapshotBlocker::Lifecycle
+        CurrentSnapshotBlocker::SessionEpoch
     );
-    probe.runtime.release_core();
 
     let (preview_probe, _preview_dom) = mounted();
     let preview_identity = preview_probe
@@ -573,14 +566,12 @@ fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
     let (probe, mut dom) = mounted();
     assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
 
-    probe.runtime.hold_next_core();
     probe.runtime.submit(Event::Open {
         operation_id: probe.runtime.operation(),
         document: document(),
     });
     tick(&probe, &mut dom);
     assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
-    probe.runtime.release_core();
     navigate(&probe.runtime, "left");
 
     navigate(&probe.runtime, "right");
@@ -597,7 +588,6 @@ fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
         },
         token: accepted.token,
         revision: accepted.document.revision,
-        executor_epoch: probe.runtime.electrical_preview_executor_epoch(),
     };
     let current_source = PcbWiringSource {
         identity: identity.clone(),
@@ -833,100 +823,47 @@ fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh()
 }
 
 #[test]
-fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
+fn mounted_protected_remap_distinguishes_core_refusal_from_save_failure() {
     for fail_save in [false, true] {
-        let document = protected_document();
-        let (probe, mut dom) = mounted_with_document(document.clone());
+        let (probe, mut dom) = mounted_with_document(protected_document());
         if fail_save {
             probe.runtime.fail_next_save("disk");
         } else {
             probe.runtime.fail_next_core("executor");
         }
-        probe
-            .latest_remap
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .on_review
-            .call(
+        let remap = probe.latest_remap.borrow().as_ref().unwrap().clone();
+        remap.on_review.call(remap.identity.unwrap());
+        let _ = submitted_remap(&probe);
+        tick(&probe, &mut dom);
+
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let handoff = &document.hardware.as_ref().unwrap().boards[0].protected_handoff;
+        if fail_save {
+            assert!(handoff.is_none());
+            assert!(matches!(
+                model.durability,
+                boardstudio_application::Durability::Failed { .. }
+            ));
+        } else {
+            assert_eq!(
+                handoff.as_ref().unwrap().fingerprint,
+                "protected-fixture-fingerprint"
+            );
+            assert!(matches!(
                 probe
                     .latest_remap
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .identity
-                    .clone()
-                    .unwrap(),
-            );
-        let _ = submitted_remap(&probe);
-        tick(&probe, &mut dom);
-        let accepted = probe.runtime.model();
-        assert_eq!(
-            accepted
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .hardware
-                .as_ref()
-                .unwrap()
-                .boards[0]
-                .protected_handoff
-                .as_ref()
-                .unwrap()
-                .fingerprint,
-            "protected-fixture-fingerprint"
-        );
-        assert!(matches!(
-            probe
-                .latest_remap
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .feedback
-                .as_ref()
-                .unwrap()
-                .state,
-            ProtectedRemapFeedback::Failed(_)
-        ));
+                    .feedback
+                    .as_ref()
+                    .unwrap()
+                    .state,
+                ProtectedRemapFeedback::Failed(_)
+            ));
+        }
     }
-}
-
-/// Queue a whole-document edit that resolves against the document accepted when it runs.
-fn queue_document_edit(
-    runtime: &crate::runtime::Runtime,
-    change: impl Fn(&mut ProjectDoc) + 'static,
-) -> OutcomeSlot {
-    let operation = runtime.operation();
-    let slot = runtime.observe_operation(operation);
-    runtime.submit(Event::ResolveEdit {
-        operation_id: operation,
-        label: "native-test-queued-document-edit".into(),
-        resolver: EditResolver::new("native-test-queued-document-edit", move |accepted| {
-            let mut document = (*accepted.document).clone();
-            change(&mut document);
-            Resolution::submit(
-                vec![document.id.clone()],
-                EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-            )
-        }),
-    });
-    slot
-}
-
-/// The settlement slot of the most recently submitted edit, observed while it is gated.
-fn latest_edit_slot(runtime: &crate::runtime::Runtime) -> OutcomeSlot {
-    let events = runtime.events.borrow();
-    let Some(Event::ResolveEdit { operation_id, .. }) = events
-        .iter()
-        .rev()
-        .find(|event| matches!(event, Event::ResolveEdit { .. }))
-    else {
-        panic!("no edit was submitted");
-    };
-    runtime.observe_operation(*operation_id)
 }
 
 fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
@@ -944,27 +881,6 @@ fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
                 .find(|configuration| configuration.board_id == "left")
         })
         .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
-}
-
-fn mark_unrelated(document: &mut ProjectDoc) {
-    document
-        .parameters
-        .insert("unrelated-edit".into(), serde_json::json!(true));
-}
-
-fn has_unrelated_edit(runtime: &crate::runtime::Runtime) -> bool {
-    runtime
-        .model()
-        .accepted
-        .unwrap()
-        .document
-        .parameters
-        .get("unrelated-edit")
-        == Some(&serde_json::json!(true))
-}
-
-fn remove_left_board(document: &mut ProjectDoc) {
-    document.boards.retain(|board| board.id != "left");
 }
 
 #[test]
@@ -994,226 +910,8 @@ fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
         "direct",
         "the control shows the accepted mode after landing"
     );
-    assert!(!shown.pending);
     assert!(
         (shown.failure)().is_none(),
         "landing shows the accepted value without a status message"
     );
-}
-
-#[test]
-fn mounted_mode_owner_departure_does_not_resurrect_a_pending_choice_when_selection_returns() {
-    let (probe, mut dom) = mounted();
-    let actions = probe.latest.borrow().as_ref().unwrap().clone();
-    probe.runtime.hold_next_core();
-    actions
-        .on_change
-        .call(request(&probe, ElectricalMode::Direct));
-    let mode = latest_edit_slot(&probe.runtime);
-    assert!(probe.runtime.core_entered(), "the mode choice reaches Core");
-    tick(&probe, &mut dom);
-    assert!(probe.latest.borrow().as_ref().unwrap().pending);
-
-    select_part(&probe.runtime, "matrix/m/r0c0");
-    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, Some("matrix/m/r0c0"), 5);
-    tick(&probe, &mut dom);
-    assert!(!probe.latest.borrow().as_ref().unwrap().pending);
-    probe.runtime.submit(Event::SelectParts {
-        operation_id: probe.runtime.operation(),
-        mode: boardstudio_application::SelectionMode::Replace,
-        part_ids: Vec::new(),
-        range_part_ids: Vec::new(),
-    });
-    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
-    tick(&probe, &mut dom);
-    let shown = probe.latest.borrow().as_ref().unwrap().clone();
-    assert!(
-        !shown.pending,
-        "returning to a departed owner does not revive its observation"
-    );
-    assert_eq!(
-        (shown.draft)(),
-        "matrix",
-        "the returned owner shows accepted mode"
-    );
-    assert!((shown.failure)().is_none(), "owner retirement is silent");
-    assert!(
-        mode.borrow().is_none(),
-        "the departed owner's Session edit still waits for Core"
-    );
-
-    probe.runtime.release_core();
-    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
-    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
-    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
-    tick(&probe, &mut dom);
-    let shown = probe.latest.borrow().as_ref().unwrap().clone();
-    assert!(!shown.pending);
-    assert_eq!((shown.draft)(), "direct");
-    assert!((shown.failure)().is_none());
-}
-
-#[test]
-fn queued_mode_choice_resolves_against_the_prior_accepted_edit() {
-    let (probe, _dom) = mounted();
-    let actions = probe.latest.borrow().as_ref().unwrap().clone();
-    let direct = request(&probe, ElectricalMode::Direct);
-
-    probe.runtime.hold_next_core();
-    let unrelated = queue_document_edit(&probe.runtime, mark_unrelated);
-    assert!(
-        probe.runtime.core_entered(),
-        "the unrelated edit reaches Core"
-    );
-    actions.on_change.call(direct);
-    assert_eq!(mutation_count(&probe.runtime), 2);
-    let mode = latest_edit_slot(&probe.runtime);
-    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
-
-    probe.runtime.release_core();
-    assert_eq!(*unrelated.borrow(), Some(TerminalOutcome::Completed));
-    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
-    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
-    assert!(
-        has_unrelated_edit(&probe.runtime),
-        "the mode choice keeps the edit accepted ahead of it"
-    );
-}
-
-#[test]
-fn queued_mode_choice_retires_when_its_board_departs_first() {
-    let (probe, _dom) = mounted();
-    let actions = probe.latest.borrow().as_ref().unwrap().clone();
-    let direct = request(&probe, ElectricalMode::Direct);
-
-    probe.runtime.hold_next_core();
-    let departure = queue_document_edit(&probe.runtime, remove_left_board);
-    assert!(probe.runtime.core_entered(), "the departure reaches Core");
-    actions.on_change.call(direct);
-    let mode = latest_edit_slot(&probe.runtime);
-    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
-
-    probe.runtime.release_core();
-    assert_eq!(*departure.borrow(), Some(TerminalOutcome::Completed));
-    assert_eq!(
-        *mode.borrow(),
-        Some(TerminalOutcome::Rejected("The board was deleted.".into()))
-    );
-    let accepted = probe.runtime.model().accepted.unwrap();
-    assert!(
-        accepted
-            .document
-            .boards
-            .iter()
-            .all(|board| board.id != "left")
-    );
-}
-
-#[test]
-fn queued_pin_choice_keeps_the_prior_edit_and_retires_with_its_board() {
-    let free_pin = resolved_plan(&document()).free_pins[0].clone();
-    for board_departs in [false, true] {
-        let (probe, _dom) = mounted();
-        let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
-        let choice = PcbWiringPinEditRequest {
-            identity: actions.identity.clone().unwrap(),
-            assignment_id: "row/0".into(),
-            pin: Some(free_pin.clone()),
-        };
-
-        probe.runtime.hold_next_core();
-        let first = if board_departs {
-            queue_document_edit(&probe.runtime, remove_left_board)
-        } else {
-            queue_document_edit(&probe.runtime, mark_unrelated)
-        };
-        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
-        actions.on_change.call(choice);
-        let pin = latest_edit_slot(&probe.runtime);
-        assert!(pin.borrow().is_none(), "the pin choice waits for Core");
-
-        probe.runtime.release_core();
-        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
-        let accepted = probe.runtime.model().accepted.unwrap();
-        if board_departs {
-            assert_eq!(
-                *pin.borrow(),
-                Some(TerminalOutcome::Rejected("The board was deleted.".into()))
-            );
-            assert!(
-                accepted
-                    .document
-                    .boards
-                    .iter()
-                    .all(|board| board.id != "left")
-            );
-        } else {
-            assert_eq!(*pin.borrow(), Some(TerminalOutcome::Completed));
-            assert!(has_unrelated_edit(&probe.runtime));
-            let locks = &accepted
-                .document
-                .hardware
-                .as_ref()
-                .unwrap()
-                .boards
-                .iter()
-                .find(|configuration| configuration.board_id == "left")
-                .unwrap()
-                .locks;
-            assert_eq!(locks.get("row/0"), Some(&free_pin));
-        }
-    }
-}
-
-#[test]
-fn queued_apply_keeps_the_prior_edit_and_retires_when_its_target_changes_first() {
-    type Change = fn(&mut ProjectDoc);
-    fn set_direct_mode(document: &mut ProjectDoc) {
-        let hardware = document.hardware.get_or_insert_with(Default::default);
-        match hardware
-            .boards
-            .iter_mut()
-            .find(|configuration| configuration.board_id == "left")
-        {
-            Some(configuration) => configuration.mode = ElectricalMode::Direct,
-            None => hardware.boards.push(ElectricalBoardConfiguration {
-                board_id: "left".into(),
-                mode: ElectricalMode::Direct,
-                ..Default::default()
-            }),
-        }
-    }
-    let cases: [(Change, Option<&str>); 3] = [
-        (mark_unrelated, None),
-        (remove_left_board, Some("The board was deleted.")),
-        (
-            set_direct_mode,
-            Some("The board wiring mode changed. Resolve the plan again."),
-        ),
-    ];
-    for (first_edit, retired_reason) in cases {
-        let (probe, _dom) = mounted();
-        let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
-        assert!(actions.editable);
-
-        probe.runtime.hold_next_core();
-        let first = queue_document_edit(&probe.runtime, first_edit);
-        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
-        actions.on_apply.call(actions.identity.clone().unwrap());
-        let apply = latest_edit_slot(&probe.runtime);
-        assert!(apply.borrow().is_none(), "the apply waits for Core");
-
-        probe.runtime.release_core();
-        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
-        match retired_reason {
-            Some(reason) => assert_eq!(
-                *apply.borrow(),
-                Some(TerminalOutcome::Rejected(reason.into()))
-            ),
-            None => {
-                assert_eq!(*apply.borrow(), Some(TerminalOutcome::Completed));
-                assert!(has_unrelated_edit(&probe.runtime));
-            }
-        }
-    }
 }

@@ -311,16 +311,6 @@ pub(super) fn project_current_for(
     ))
 }
 
-pub(super) fn matrix_field_text(
-    key: &MatrixPendingKey,
-    projection: Option<&MatrixInspectorProjection>,
-) -> String {
-    match key {
-        MatrixPendingKey::Field(field) => matrix_field_value_text(projection, *field),
-        MatrixPendingKey::Action(_) => String::new(),
-    }
-}
-
 pub(super) fn matrix_field_value_text(
     projection: Option<&MatrixInspectorProjection>,
     field: MatrixEditField,

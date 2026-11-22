@@ -1,25 +1,17 @@
-//! Headless application session for ordered document work and host-owned effects.
+//! Main-thread document session and host-owned effects.
 //!
 //! This crate deliberately contains no browser handles. A host runs each emitted effect and
 //! returns its completion through [`Session::complete`].
 
-mod completion;
-mod dispatch;
-mod queue;
-
 use crate::interactions::{DragSnapOptions, MagneticSnapState, SnapGuide, normalize_drag};
 use boardstudio_model::model::*;
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OperationId(pub u64);
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RequestId(pub u64);
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ExecutorEpoch(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SaveAttemptId(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -70,8 +62,9 @@ pub struct AcceptedSnapshot {
     pub scene: Arc<SceneDelta>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Lifecycle {
+    #[default]
     Empty,
     Opening,
     Ready,
@@ -81,22 +74,46 @@ pub enum Lifecycle {
     Closing,
     Closed,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Durability {
+    #[default]
     NoDocument,
-    Saved { revision: u64 },
-    Saving { revision: u64 },
-    Failed { revision: u64, reason: String },
+    Saved {
+        revision: u64,
+    },
+    Saving {
+        revision: u64,
+    },
+    Failed {
+        revision: u64,
+        reason: String,
+    },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum GenerationStatus {
+    #[default]
     Idle,
-    Preparing { job_id: JobId },
-    Running { job_id: JobId },
-    Ready { job_id: JobId, exact: bool },
-    Blocked { job_id: JobId, reason: String },
-    Failed { job_id: JobId, reason: String },
-    Cancelled { job_id: JobId },
+    Preparing {
+        job_id: JobId,
+    },
+    Running {
+        job_id: JobId,
+    },
+    Ready {
+        job_id: JobId,
+        exact: bool,
+    },
+    Blocked {
+        job_id: JobId,
+        reason: String,
+    },
+    Failed {
+        job_id: JobId,
+        reason: String,
+    },
+    Cancelled {
+        job_id: JobId,
+    },
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct GestureView {
@@ -113,7 +130,7 @@ pub struct CameraState {
     pub zoom: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ReadModel {
     pub lifecycle: Lifecycle,
     pub durability: Durability,
@@ -130,26 +147,11 @@ pub struct ReadModel {
     pub generation: GenerationStatus,
     pub last_error: Option<String>,
 }
-impl Default for ReadModel {
+impl Default for CameraState {
     fn default() -> Self {
         Self {
-            lifecycle: Lifecycle::Empty,
-            durability: Durability::NoDocument,
-            accepted: None,
-            display_preview: None,
-            selected_part_ids: vec![],
-            selection_anchor_id: None,
-            selection_mode: SelectionMode::Replace,
-            camera: CameraState {
-                center: Vec2::default(),
-                zoom: 1.0,
-            },
-            active_board_id: String::new(),
-            active_instance_id: None,
-            gesture: None,
-            snap_guide: None,
-            generation: GenerationStatus::Idle,
-            last_error: None,
+            center: Vec2::default(),
+            zoom: 1.0,
         }
     }
 }
@@ -166,8 +168,9 @@ pub enum TerminalOutcome {
     Closed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SelectionMode {
+    #[default]
     Replace,
     Add,
     Toggle,
@@ -196,13 +199,7 @@ impl Resolution {
     /// Submit a committed edit intent. Session fills in the accepted revision
     /// and a transaction ID when one was not supplied by the resolver.
     pub fn submit(target_ids: Vec<String>, operation: EditOperation) -> Self {
-        Self::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids,
-            operation,
-        })
+        Self::submit_with_transaction_id(target_ids, "", operation)
     }
 
     /// Submit a committed edit intent that belongs to a caller-managed transaction.
@@ -223,9 +220,10 @@ impl Resolution {
 
 /// The owner-captured intent of a pending edit: a pure function of the accepted snapshot
 /// and the values the owner captured when the user committed. Session calls it exactly
-/// once, when the edit reaches the head of the queue with nothing else running — the
+/// once against the current snapshot before Core receives the command. The
 /// snapshot it receives is exactly the document Core will apply the resolved command to.
 /// A resolver must not read UI state, signals or Runtime.
+#[derive(Clone)]
 pub struct EditResolver {
     label: String,
     resolve: Rc<dyn Fn(&AcceptedSnapshot) -> Resolution>,
@@ -260,15 +258,6 @@ impl EditResolver {
     /// presentation tests with a fake runtime call it to stand in for Session.
     pub fn resolve(&self, accepted: &AcceptedSnapshot) -> Resolution {
         (self.resolve)(accepted)
-    }
-}
-
-impl Clone for EditResolver {
-    fn clone(&self) -> Self {
-        Self {
-            label: self.label.clone(),
-            resolve: self.resolve.clone(),
-        }
     }
 }
 
@@ -434,27 +423,9 @@ pub enum SaveResult {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Completion {
-    Core {
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        reply: Box<CoreReply>,
-    },
     Persist {
         save_attempt_id: SaveAttemptId,
         result: SaveResult,
-    },
-    CoreFailed {
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        reason: String,
-    },
-    ExecutorRestarted {
-        executor_epoch: ExecutorEpoch,
-    },
-    GenerationProgress {
-        job_id: JobId,
-        scope: Scope,
-        message: String,
     },
     GenerationFinished {
         job_id: JobId,
@@ -465,40 +436,19 @@ pub enum Completion {
         job_id: JobId,
         scope: Scope,
         reason: String,
+        blocked: bool,
     },
-    GenerationBlocked {
-        job_id: JobId,
-        scope: Scope,
-        reason: String,
-    },
-    ExportFinished {
+    Export {
         operation_id: OperationId,
-        token: SnapshotToken,
-        scope: Scope,
-        artifact_id: String,
-    },
-    ExportFailed {
-        operation_id: OperationId,
-        reason: String,
+        result: Result<(SnapshotToken, Scope), String>,
     },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Effect {
-    Core {
-        operation_id: OperationId,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        request: Box<CoreRequest>,
-    },
-    RestartCoreExecutor {
-        executor_epoch: ExecutorEpoch,
-    },
     Persist {
-        operation_id: OperationId,
         save_attempt_id: SaveAttemptId,
         document: Arc<ProjectDoc>,
-        assets: Vec<AssetRef>,
     },
     Settled {
         operation_id: OperationId,
@@ -518,7 +468,6 @@ pub enum Effect {
         generation: u64,
     },
     RunGeneration {
-        operation_id: OperationId,
         job_id: JobId,
         scope: Scope,
         snapshot: AcceptedSnapshot,
@@ -534,87 +483,13 @@ pub enum Effect {
         scope: Scope,
         snapshot: AcceptedSnapshot,
     },
-    DeliverExport {
-        operation_id: OperationId,
-        artifact_id: String,
-        token: SnapshotToken,
-    },
 }
 
-#[derive(Clone, Debug)]
-enum IntentKind {
-    Open(Box<ProjectDoc>),
-    Edit(EditCommand),
-    ResolveEdit {
-        label: String,
-        resolver: EditResolver,
-    },
-    ClearPreview {
-        token: SnapshotToken,
-        revision: u64,
-        board_id: String,
-        transaction_id: String,
-    },
-    ReviewElectricalRemap {
-        base_revision: u64,
-        board_id: String,
-        expected_fingerprint: String,
-    },
-    Undo,
-    Redo,
-    GesturePreview(EditCommand),
-    GestureCommit(EditCommand),
-    Generate(Scope),
-    Export(Scope),
-    ExportCommit {
-        owner: ExportCommitOwner,
-        commit: ExportCommitRequest,
-    },
-}
-#[derive(Clone, Debug)]
-struct ExportCommitOwner {
-    operation_id: OperationId,
-    token: SnapshotToken,
-    scope: Scope,
-}
-#[derive(Clone, Debug)]
-struct Intent {
-    operation_id: OperationId,
-    submitted_epoch: SessionEpoch,
-    kind: IntentKind,
-    strict_revision: bool,
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ActiveKind {
-    Open,
-    Commit,
-    ReviewElectricalRemap,
-    Preview,
-    Undo,
-    Redo,
-    GestureCommit,
-    ExportCommit,
-}
-#[derive(Clone, Debug)]
-struct ActiveCore {
-    request_id: RequestId,
-    executor_epoch: ExecutorEpoch,
-    operation_id: OperationId,
-    kind: ActiveKind,
-    gesture_generation: Option<u64>,
-    preview_transaction_id: Option<String>,
-    preview_cancelled: bool,
-    export_owner: Option<ExportCommitOwner>,
-}
 #[derive(Debug)]
 struct PendingSave {
-    operation_id: OperationId,
-    document: Arc<ProjectDoc>,
-    scene: Arc<SceneDelta>,
-    kind: ActiveKind,
     save_attempt_id: SaveAttemptId,
-    retry_operation_id: Option<OperationId>,
-    export_owner: Option<ExportCommitOwner>,
+    revision: u64,
+    operation: Option<OperationId>,
 }
 #[derive(Clone, Debug)]
 struct Gesture {
@@ -626,7 +501,6 @@ struct Gesture {
     start: Vec<Position>,
     latest: Vec<Position>,
     sent_positions: Option<Vec<Position>>,
-    commit_queued: bool,
     operation_id: OperationId,
     pitch: Vec2,
     snap_fraction: f64,
@@ -637,22 +511,17 @@ struct Gesture {
     alt: bool,
     frame_pending: bool,
     changed: bool,
-    preview_in_flight: bool,
-    final_positions: Option<Vec<Position>>,
 }
 
 pub struct Session {
     model: ReadModel,
-    queue: VecDeque<Intent>,
-    active_core: Option<ActiveCore>,
+    core: boardstudio_core::CoreEngine,
     display_preview_transaction_id: Option<String>,
     pending_save: Option<PendingSave>,
-    next_request: u64,
     next_save: u64,
     next_token: u64,
     next_gesture: u64,
     next_job: u64,
-    core_epoch: ExecutorEpoch,
     active_job: Option<(JobId, OperationId, Scope)>,
     exports: Vec<(OperationId, Scope, SnapshotToken)>,
     settled: HashSet<OperationId>,
@@ -670,16 +539,13 @@ impl Session {
     pub fn new(validate_open: OpenValidator) -> Self {
         Self {
             model: ReadModel::default(),
-            queue: VecDeque::new(),
-            active_core: None,
+            core: boardstudio_core::CoreEngine::new(),
             display_preview_transaction_id: None,
             pending_save: None,
-            next_request: 1,
             next_save: 1,
             next_token: 1,
             next_gesture: 1,
             next_job: 1,
-            core_epoch: ExecutorEpoch(1),
             active_job: None,
             exports: vec![],
             settled: HashSet::new(),
@@ -691,22 +557,20 @@ impl Session {
     pub fn read_model(&self) -> &ReadModel {
         &self.model
     }
-    pub fn core_executor_epoch(&self) -> ExecutorEpoch {
-        self.core_epoch
+
+    pub fn project_matrices(
+        &mut self,
+        id: String,
+        base_revision: u64,
+        matrices: Vec<boardstudio_model::model::Matrix>,
+    ) -> CoreReply {
+        self.core.handle(CoreRequest::ProjectMatrices {
+            id,
+            base_revision,
+            matrices,
+        })
     }
 
-    /// Check before executing a deferred Core effect. A rejected stale reply alone
-    /// cannot protect an in-process engine from a stale request mutating it.
-    pub fn core_request_is_current(
-        &self,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-    ) -> bool {
-        self.core_epoch == executor_epoch
-            && self.active_core.as_ref().is_some_and(|active| {
-                active.request_id == request_id && active.executor_epoch == executor_epoch
-            })
-    }
     pub fn scope(&self) -> Option<Scope> {
         let accepted = self.model.accepted.as_ref()?;
         Some(Scope {
@@ -731,66 +595,58 @@ impl Session {
             .any(|(operation, captured_scope, captured_token)| {
                 *operation == operation_id && captured_scope == scope && *captured_token == token
             })
-            && self.snapshot_matches(token, scope)
+            && self.snapshot_is_current(token, scope)
     }
 
     fn gesture_sample(
         &mut self,
         pointer_id: i64,
         positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
         end: bool,
         effects: &mut Vec<Effect>,
     ) {
-        let board_id = self.model.active_board_id.clone();
-        let Some(g) = &mut self.gesture else {
+        let Some((g, snapshot)) = self
+            .gesture
+            .as_mut()
+            .zip(self.model.accepted.as_ref())
+            .filter(|(gesture, _)| gesture.pointer_id == pointer_id)
+        else {
             return;
         };
-        if g.pointer_id != pointer_id {
-            return;
-        }
+        g.pixels_per_world = pixels_per_world.or(g.pixels_per_world);
         g.alt = alt;
-        let (positions, guide) =
-            self.model
-                .accepted
-                .as_ref()
-                .map_or((positions.clone(), None), |snapshot| {
-                    normalize_drag(
-                        &snapshot.document,
-                        &g.start,
-                        positions,
-                        DragSnapOptions {
-                            board_id: &board_id,
-                            pitch: g.pitch,
-                            fraction: g.snap_fraction,
-                            geometry_snap: g.geometry_snap,
-                            gap: g.gap,
-                            targets: &g.targets,
-                            alt: g.alt,
-                            pixels_per_world: g.pixels_per_world,
-                            state: &mut g.snap_state,
-                        },
-                    )
-                });
+        let (positions, guide) = normalize_drag(
+            &snapshot.document,
+            &g.start,
+            positions,
+            DragSnapOptions {
+                board_id: &self.model.active_board_id,
+                pitch: g.pitch,
+                fraction: g.snap_fraction,
+                geometry_snap: g.geometry_snap,
+                gap: g.gap,
+                targets: &g.targets,
+                alt,
+                pixels_per_world: g.pixels_per_world,
+                state: &mut g.snap_state,
+            },
+        );
         self.model.snap_guide = guide;
         g.changed = positions != g.start;
-        g.latest = positions.clone();
-        if end {
-            g.final_positions = Some(positions);
-        }
+        g.latest = positions;
         let generation = g.generation;
         let changed = g.changed;
         if !g.frame_pending && !end {
             g.frame_pending = true;
             effects.push(Effect::RequestFrame { generation });
         }
-        let preview_in_flight = g.preview_in_flight;
-        let commit_queued = g.commit_queued;
         self.model.gesture = self.gesture.as_ref().map(gesture_view);
         if end && !changed {
             self.invalidate_gesture(effects);
-        } else if end && !preview_in_flight && !commit_queued {
-            self.dispatch_latest_gesture_preview(effects);
+        } else if end {
+            self.apply_gesture(true, effects);
         }
     }
     fn gesture_frame(&mut self, generation: u64, effects: &mut Vec<Effect>) {
@@ -801,23 +657,16 @@ impl Session {
             return;
         }
         g.frame_pending = false;
-        self.dispatch_latest_gesture_preview(effects);
+        self.apply_gesture(false, effects);
     }
-    fn dispatch_latest_gesture_preview(&mut self, _effects: &mut Vec<Effect>) {
+    fn apply_gesture(&mut self, is_commit: bool, effects: &mut Vec<Effect>) {
         let Some(g) = &mut self.gesture else {
             return;
         };
-        if g.preview_in_flight
-            || g.commit_queued
-            || (!g.changed && g.final_positions.is_none() && g.sent_positions.is_none())
-        {
+        if !is_commit && !g.changed && g.sent_positions.is_none() {
             return;
         }
-        let is_commit = g.final_positions.is_some();
-        let positions = g
-            .final_positions
-            .clone()
-            .unwrap_or_else(|| g.latest.clone());
+        let positions = g.latest.clone();
         if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
             return;
         }
@@ -836,26 +685,22 @@ impl Session {
                 positions: positions.clone(),
             },
         };
-        if is_commit {
-            g.commit_queued = true;
-            g.final_positions = None;
-            self.queue.push_front(Intent {
-                operation_id,
-                submitted_epoch: self.epoch(),
-                kind: IntentKind::GestureCommit(command),
-                strict_revision: true,
-            });
+        let operation = if is_commit {
+            operation_id
         } else {
-            g.preview_in_flight = true;
             g.sent_positions = Some(positions);
-            let internal_operation = OperationId(u64::MAX - generation);
-            self.queue.push_front(Intent {
-                operation_id: internal_operation,
-                submitted_epoch: self.epoch(),
-                kind: IntentKind::GesturePreview(command),
-                strict_revision: true,
-            });
-        }
+            OperationId(u64::MAX - generation)
+        };
+        self.apply_request(
+            operation,
+            CoreRequest::Edit {
+                id: wire_id(operation),
+                command,
+            },
+            true,
+            None,
+            effects,
+        );
     }
     fn invalidate_gesture(&mut self, effects: &mut Vec<Effect>) {
         if let Some(g) = self.gesture.take() {
@@ -864,26 +709,6 @@ impl Session {
                     generation: g.generation,
                 });
             }
-            if self
-                .active_core
-                .as_ref()
-                .is_some_and(|active| active.gesture_generation == Some(g.generation))
-                && let Some(active) = &self.active_core
-            {
-                self.settle(active.operation_id, TerminalOutcome::Cancelled, effects);
-            }
-            let mut retained = VecDeque::new();
-            while let Some(intent) = self.queue.pop_front() {
-                if matches!(
-                    intent.kind,
-                    IntentKind::GesturePreview(_) | IntentKind::GestureCommit(_)
-                ) {
-                    self.settle(intent.operation_id, TerminalOutcome::Cancelled, effects);
-                } else {
-                    retained.push_back(intent);
-                }
-            }
-            self.queue = retained;
             self.settle(g.operation_id, TerminalOutcome::Cancelled, effects);
             effects.push(Effect::ReleasePointer {
                 pointer_id: g.pointer_id,
@@ -894,45 +719,12 @@ impl Session {
                 self.display_preview_transaction_id = None;
             }
             self.model.snap_guide = None;
-            if self.model.lifecycle == Lifecycle::Applying
-                && self
-                    .active_core
-                    .as_ref()
-                    .is_some_and(|a| a.gesture_generation == Some(g.generation))
-            {
-                // The worker result may arrive, but its generation no longer authorizes display.
-            }
         }
     }
-    fn finish_gesture_commit(
-        &mut self,
-        generation: Option<u64>,
-        succeeded: bool,
-        effects: &mut Vec<Effect>,
-    ) {
-        if generation.is_some_and(|generation| {
-            self.gesture
-                .as_ref()
-                .is_some_and(|g| g.generation != generation)
-        }) {
-            return;
-        }
-        if succeeded || self.gesture.is_some() {
-            self.invalidate_gesture(effects);
-        }
-    }
-    fn cancel_exports(&mut self, effects: &mut Vec<Effect>) {
-        let exports = std::mem::take(&mut self.exports);
-        for (operation_id, _, _) in exports {
-            effects.push(Effect::CancelExport { operation_id });
-            self.settle(operation_id, TerminalOutcome::Cancelled, effects);
-        }
-    }
-    fn cancel_exports_except(&mut self, retained: OperationId, effects: &mut Vec<Effect>) {
-        let mut keep = Vec::new();
+    fn retain_export(&mut self, retained: Option<OperationId>, effects: &mut Vec<Effect>) {
         for export in std::mem::take(&mut self.exports) {
-            if export.0 == retained {
-                keep.push(export);
+            if Some(export.0) == retained {
+                self.exports.push(export);
             } else {
                 effects.push(Effect::CancelExport {
                     operation_id: export.0,
@@ -940,7 +732,6 @@ impl Session {
                 self.settle(export.0, TerminalOutcome::Cancelled, effects);
             }
         }
-        self.exports = keep;
     }
     fn cancel_job(&mut self, effects: &mut Vec<Effect>) {
         if let Some((job_id, operation_id, _)) = self.active_job.take() {
@@ -955,13 +746,13 @@ impl Session {
         scope: Scope,
         effects: &mut Vec<Effect>,
     ) {
-        let is_saved = self.model.accepted.as_ref().is_some_and(|s| {
-            self.model.durability
-                == Durability::Saved {
-                    revision: s.document.revision,
-                }
-        });
-        if self.model.lifecycle != Lifecycle::Ready || !is_saved {
+        let Some(snapshot) = self.model.accepted.clone().filter(|snapshot| {
+            self.model.lifecycle == Lifecycle::Ready
+                && self.model.durability
+                    == Durability::Saved {
+                        revision: snapshot.document.revision,
+                    }
+        }) else {
             self.settle(
                 operation_id,
                 TerminalOutcome::BlockedByRecovery(
@@ -970,21 +761,9 @@ impl Session {
                 effects,
             );
             return;
-        }
-        let Some(snapshot) = self.model.accepted.clone() else {
-            self.settle(
-                operation_id,
-                TerminalOutcome::Rejected("no accepted document".into()),
-                effects,
-            );
-            return;
         };
-        if !self.snapshot_matches(snapshot.token, &scope) {
-            self.settle(
-                operation_id,
-                TerminalOutcome::Rejected("generation scope is stale".into()),
-                effects,
-            );
+        if !self.scope_is_current(&scope) {
+            self.reject(operation_id, "generation scope is stale", effects);
             return;
         }
         self.cancel_job(effects);
@@ -993,7 +772,6 @@ impl Session {
         self.active_job = Some((job_id, operation_id, scope.clone()));
         self.model.generation = GenerationStatus::Preparing { job_id };
         effects.push(Effect::RunGeneration {
-            operation_id,
             job_id,
             scope,
             snapshot,
@@ -1005,7 +783,12 @@ impl Session {
         scope: Scope,
         effects: &mut Vec<Effect>,
     ) {
-        if self.model.lifecycle != Lifecycle::Ready || self.model.accepted.is_none() {
+        let Some(snapshot) = self
+            .model
+            .accepted
+            .clone()
+            .filter(|_| self.model.lifecycle == Lifecycle::Ready)
+        else {
             self.settle(
                 operation_id,
                 TerminalOutcome::BlockedByRecovery(
@@ -1014,12 +797,11 @@ impl Session {
                 effects,
             );
             return;
-        }
-        let snapshot = self.model.accepted.clone().unwrap();
-        if self.model.scene_is_pending() || !self.snapshot_matches(snapshot.token, &scope) {
-            self.settle(
+        };
+        if snapshot.scene.revision != snapshot.document.revision || !self.scope_is_current(&scope) {
+            self.reject(
                 operation_id,
-                TerminalOutcome::Rejected("export snapshot or scope is not current".into()),
+                "export snapshot or scope is not current",
                 effects,
             );
             return;
@@ -1039,42 +821,30 @@ impl Session {
         }) && self.model.active_board_id == scope.board_id
             && self.model.active_instance_id == scope.instance_id
     }
-    fn snapshot_matches(&self, token: SnapshotToken, scope: &Scope) -> bool {
+    pub fn snapshot_is_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.model
             .accepted
             .as_ref()
             .is_some_and(|s| s.token == token)
             && self.scope_is_current(scope)
     }
-    fn job_is_current(&self, job_id: JobId, scope: &Scope) -> bool {
-        self.active_job.as_ref().is_some_and(|(id, _, captured)| {
-            *id == job_id
-                && captured == scope
-                && self.snapshot_matches(
-                    self.model
-                        .accepted
-                        .as_ref()
-                        .map_or(SnapshotToken(0), |s| s.token),
-                    scope,
-                )
-        })
-    }
     fn close(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
         self.invalidate_gesture(effects);
         self.cancel_job(effects);
-        self.cancel_exports(effects);
-        if self.model.lifecycle == Lifecycle::RecoveryRequired {
+        self.retain_export(None, effects);
+        if self.model.lifecycle == Lifecycle::RecoveryRequired
+            || matches!(self.model.durability, Durability::Failed { .. })
+        {
             self.settle(
                 operation_id,
-                TerminalOutcome::BlockedByRecovery("resolve retained work before closing".into()),
+                TerminalOutcome::BlockedByRecovery("save the project before closing".into()),
                 effects,
             );
             return;
         }
-        if self.pending_save.is_some() || self.active_core.is_some() {
+        if self.pending_save.is_some() {
             self.close_operation = Some(operation_id);
             self.model.lifecycle = Lifecycle::Closing;
-            self.block_queue("session is closing", effects);
         } else {
             self.finish_close(operation_id, effects);
         }
@@ -1088,13 +858,22 @@ impl Session {
     }
 }
 
-impl ReadModel {
-    fn scene_is_pending(&self) -> bool {
-        self.accepted
-            .as_ref()
-            .is_none_or(|s| s.scene.revision != s.document.revision)
+fn update_selection(selection: &mut Vec<String>, incoming: Vec<String>, mode: SelectionMode) {
+    if matches!(mode, SelectionMode::Replace | SelectionMode::Range) {
+        *selection = incoming;
+        return;
+    }
+    for id in incoming {
+        match selection.iter().position(|current| current == &id) {
+            Some(index) if mode == SelectionMode::Toggle => {
+                selection.remove(index);
+            }
+            None => selection.push(id),
+            _ => {}
+        }
     }
 }
+
 fn gesture_view(g: &Gesture) -> GestureView {
     GestureView {
         pointer_id: g.pointer_id,
@@ -1105,7 +884,7 @@ fn gesture_view(g: &Gesture) -> GestureView {
         alt: g.alt,
     }
 }
-fn event_operation(event: &Event) -> Option<OperationId> {
+pub fn event_operation(event: &Event) -> Option<OperationId> {
     match event {
         Event::Open { operation_id, .. }
         | Event::GestureBegin { operation_id, .. }
@@ -1129,20 +908,953 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         _ => None,
     }
 }
-fn reply_id(reply: &CoreReply) -> String {
-    match reply {
-        CoreReply::KeycapsResolved { id, .. }
-        | CoreReply::ModulesResolved { id, .. }
-        | CoreReply::FirmwareGenerated { id, .. }
-        | CoreReply::ElectricalResolved { id, .. }
-        | CoreReply::ElectricalApplied { id, .. }
-        | CoreReply::ElectricalHandoffProtected { id, .. }
-        | CoreReply::MechanicalProfile { id, .. }
-        | CoreReply::MechanicalResolved { id, .. }
-        | CoreReply::Preview { id, .. }
-        | CoreReply::Scene { id, .. }
-        | CoreReply::MatrixProjections { id, .. }
-        | CoreReply::Error { id, .. }
-        | CoreReply::CasePrepared { id, .. } => id.clone(),
+fn wire_id(operation: OperationId) -> String {
+    format!("m1-{}", operation.0)
+}
+
+impl Session {
+    fn open(
+        &mut self,
+        operation_id: OperationId,
+        document: ProjectDoc,
+        recovering: bool,
+        effects: &mut Vec<Effect>,
+    ) {
+        let awaiting_recovery = self.model.lifecycle == Lifecycle::RecoveryRequired;
+        if awaiting_recovery && !recovering {
+            self.settle(
+                operation_id,
+                TerminalOutcome::BlockedByRecovery("explicit recovery choice required".into()),
+                effects,
+            );
+            return;
+        }
+        if recovering && !awaiting_recovery {
+            self.reject(operation_id, "session is not awaiting recovery", effects);
+            return;
+        }
+        if !recovering && matches!(self.model.durability, Durability::Saving { .. }) {
+            self.reject(
+                operation_id,
+                "save the current project before opening another",
+                effects,
+            );
+            return;
+        }
+        if let Err(reason) = (self.validate_open)(&document) {
+            self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
+            return;
+        }
+        if recovering {
+            self.pending_save = None;
+            self.model.durability =
+                self.model
+                    .accepted
+                    .as_ref()
+                    .map_or(Durability::NoDocument, |snapshot| Durability::Saved {
+                        revision: snapshot.document.revision,
+                    });
+            self.model.last_error = None;
+        }
+        self.invalidate_gesture(effects);
+        self.cancel_job(effects);
+        self.retain_export(None, effects);
+        self.apply_document_request(
+            operation_id,
+            CoreRequest::Open {
+                id: wire_id(operation_id),
+                document,
+            },
+            effects,
+        );
+    }
+
+    fn resolve_edit(
+        &mut self,
+        operation_id: OperationId,
+        label: String,
+        resolver: EditResolver,
+        effects: &mut Vec<Effect>,
+    ) {
+        if matches!(
+            self.model.lifecycle,
+            Lifecycle::Closing | Lifecycle::RecoveryRequired
+        ) {
+            self.reject(operation_id, "no editable project is open", effects);
+            return;
+        }
+        let Some(accepted) = self.model.accepted.as_ref() else {
+            self.reject(operation_id, "open a project before editing", effects);
+            return;
+        };
+        let command = match resolver.resolve(accepted) {
+            Resolution::Submit(mut command) if command.phase == EditPhase::Commit => {
+                command.base_revision = accepted.document.revision;
+                if command.transaction_id.is_empty() {
+                    command.transaction_id = format!("m1-{label}-{}", operation_id.0);
+                }
+                command
+            }
+            Resolution::Unchanged => {
+                self.settle_landed(
+                    operation_id,
+                    Landing {
+                        revision: accepted.document.revision,
+                        token: accepted.token,
+                    },
+                    effects,
+                );
+                return;
+            }
+            resolution => {
+                let reason = match resolution {
+                    Resolution::Retire(reason) => reason,
+                    _ => "a resolved edit must be a commit".into(),
+                };
+                self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
+                return;
+            }
+        };
+        self.apply_document_request(
+            operation_id,
+            CoreRequest::Edit {
+                id: wire_id(operation_id),
+                command,
+            },
+            effects,
+        );
+    }
+
+    fn apply_document_request(
+        &mut self,
+        operation: OperationId,
+        request: CoreRequest,
+        effects: &mut Vec<Effect>,
+    ) {
+        self.apply_request(operation, request, false, None, effects);
+    }
+
+    fn apply_request(
+        &mut self,
+        operation_id: OperationId,
+        request: CoreRequest,
+        gesture: bool,
+        export_owner: Option<OperationId>,
+        effects: &mut Vec<Effect>,
+    ) {
+        let opening = matches!(request, CoreRequest::Open { .. });
+        if matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed)
+            || !opening
+                && (self.model.accepted.is_none()
+                    || self.model.lifecycle == Lifecycle::RecoveryRequired)
+        {
+            self.reject(operation_id, "no editable project is open", effects);
+            return;
+        }
+        let revision = match &request {
+            CoreRequest::Edit { command, .. } => Some(command.base_revision),
+            CoreRequest::ReviewElectricalRemap { base_revision, .. }
+            | CoreRequest::ApplyElectrical { base_revision, .. }
+            | CoreRequest::ProtectElectricalHandoff { base_revision, .. } => Some(*base_revision),
+            _ => None,
+        };
+        if revision.is_some_and(|revision| {
+            self.model
+                .accepted
+                .as_ref()
+                .is_none_or(|snapshot| snapshot.document.revision != revision)
+        }) {
+            self.reject(operation_id, "captured edit revision is stale", effects);
+            self.invalidate_gesture(effects);
+            return;
+        }
+        let preview_transaction_id = match &request {
+            CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview => {
+                Some(command.transaction_id.clone())
+            }
+            _ => None,
+        };
+        let reply = self.core.handle(request);
+        let failure = match reply {
+            CoreReply::Preview { scene, .. } if preview_transaction_id.is_some() => {
+                self.model.lifecycle = Lifecycle::Ready;
+                self.model.display_preview = Some(Arc::new(scene));
+                self.display_preview_transaction_id = preview_transaction_id;
+                if !gesture {
+                    self.settle(operation_id, TerminalOutcome::Completed, effects);
+                }
+                return;
+            }
+            CoreReply::Scene {
+                scene, document, ..
+            } if preview_transaction_id.is_none() && scene.revision == document.revision => {
+                let document = Arc::new(*document);
+                let epoch = SessionEpoch(self.epoch().0 + u64::from(opening));
+                self.cancel_job(effects);
+                self.retain_export(export_owner, effects);
+                let token = SnapshotToken(self.next_token);
+                self.next_token += 1;
+                let revision = document.revision;
+                let landing = Landing { revision, token };
+                self.model.accepted = Some(AcceptedSnapshot {
+                    token,
+                    session_epoch: epoch,
+                    document,
+                    scene: Arc::new(scene),
+                });
+                if export_owner.is_some()
+                    && let Some(retained) = self.exports.first_mut()
+                {
+                    retained.2 = token;
+                }
+                self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
+                self.model.durability = Durability::Saving { revision };
+                self.model.last_error = None;
+                if opening {
+                    self.pending_save = None;
+                    self.model.selected_part_ids.clear();
+                    self.model.active_instance_id = None;
+                }
+                self.reconcile_selection_and_board();
+                self.model.lifecycle = Lifecycle::Ready;
+                if !opening {
+                    self.settle_landed(operation_id, landing, effects);
+                }
+                self.invalidate_gesture(effects);
+                self.start_save(opening.then_some(operation_id), effects);
+                return;
+            }
+            CoreReply::Error { message, .. } => {
+                self.model.last_error = Some(message.clone());
+                self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
+                self.model.lifecycle = if self.model.accepted.is_some() {
+                    Lifecycle::Ready
+                } else {
+                    Lifecycle::Empty
+                };
+                if gesture {
+                    self.invalidate_gesture(effects);
+                }
+                return;
+            }
+            CoreReply::Scene { .. } if preview_transaction_id.is_none() => {
+                "core scene and document revisions differ"
+            }
+            _ => "core returned an unexpected reply variant",
+        };
+        self.model.last_error = Some(failure.into());
+        self.model.lifecycle = Lifecycle::RecoveryRequired;
+        self.settle(
+            operation_id,
+            TerminalOutcome::ExecutorFailed(failure.into()),
+            effects,
+        );
+    }
+}
+
+impl Session {
+    pub fn submit(&mut self, event: Event) -> Vec<Effect> {
+        let mut effects = Vec::new();
+        if self.model.lifecycle == Lifecycle::Closed {
+            if let Some(operation_id) = event_operation(&event) {
+                self.settle(operation_id, TerminalOutcome::Closed, &mut effects);
+            }
+            return effects;
+        }
+        let recovering = matches!(event, Event::RecoverWithDocument { .. });
+        match event {
+            Event::Open {
+                operation_id,
+                document,
+            }
+            | Event::RecoverWithDocument {
+                operation_id,
+                document,
+            } => {
+                self.open(operation_id, document, recovering, &mut effects);
+            }
+            Event::PreviewEdit {
+                operation_id,
+                transaction_id,
+                target_ids,
+                operation,
+            } => {
+                let base_revision = self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .map_or(0, |snapshot| snapshot.document.revision);
+                self.apply_document_request(
+                    operation_id,
+                    CoreRequest::Edit {
+                        id: wire_id(operation_id),
+                        command: EditCommand {
+                            base_revision,
+                            transaction_id,
+                            phase: EditPhase::Preview,
+                            target_ids,
+                            operation,
+                        },
+                    },
+                    &mut effects,
+                );
+            }
+            Event::ResolveEdit {
+                operation_id,
+                label,
+                resolver,
+            } => self.resolve_edit(operation_id, label, resolver, &mut effects),
+            Event::ClearPreview {
+                operation_id,
+                token,
+                revision,
+                board_id,
+                transaction_id,
+            } => {
+                let current = self.model.accepted.as_ref().is_some_and(|accepted| {
+                    accepted.token == token
+                        && accepted.document.revision == revision
+                        && self.model.active_board_id == board_id
+                });
+                if current
+                    && self.display_preview_transaction_id.as_deref() == Some(&transaction_id)
+                {
+                    self.model.display_preview = None;
+                    self.model.snap_guide = None;
+                    self.display_preview_transaction_id = None;
+                }
+                self.settle(
+                    operation_id,
+                    if current {
+                        TerminalOutcome::Completed
+                    } else {
+                        TerminalOutcome::Superseded
+                    },
+                    &mut effects,
+                );
+            }
+            Event::ReviewElectricalRemap {
+                operation_id,
+                base_revision,
+                board_id,
+                expected_fingerprint,
+            } => {
+                self.apply_document_request(
+                    operation_id,
+                    CoreRequest::ReviewElectricalRemap {
+                        id: wire_id(operation_id),
+                        base_revision,
+                        board_id,
+                        expected_fingerprint,
+                    },
+                    &mut effects,
+                );
+            }
+            Event::Undo { operation_id } | Event::Redo { operation_id } => {
+                let id = wire_id(operation_id);
+                let request = if matches!(event, Event::Undo { .. }) {
+                    CoreRequest::Undo { id }
+                } else {
+                    CoreRequest::Redo { id }
+                };
+                self.apply_document_request(operation_id, request, &mut effects);
+            }
+            Event::RetrySave { operation_id } => self.retry_save(operation_id, &mut effects),
+            Event::SelectParts {
+                operation_id,
+                part_ids,
+                range_part_ids,
+                mode,
+            } => {
+                if let Some(snapshot) = &self.model.accepted {
+                    let valid = snapshot
+                        .document
+                        .parts
+                        .iter()
+                        .map(|part| part.id.as_str())
+                        .collect::<HashSet<_>>();
+                    let incoming = part_ids
+                        .into_iter()
+                        .filter(|id| valid.contains(id.as_str()))
+                        .collect::<Vec<_>>();
+                    match mode {
+                        SelectionMode::Range => {
+                            let valid_order = range_part_ids
+                                .iter()
+                                .filter(|id| valid.contains(id.as_str()))
+                                .cloned()
+                                .collect::<Vec<_>>();
+                            let anchor =
+                                self.model.selection_anchor_id.as_ref().or(incoming.first());
+                            if let (Some(anchor), Some(last)) = (anchor, incoming.last())
+                                && let (Some(a), Some(b)) = (
+                                    valid_order.iter().position(|id| id == anchor),
+                                    valid_order.iter().position(|id| id == last),
+                                )
+                            {
+                                self.model.selected_part_ids =
+                                    valid_order[a.min(b)..=a.max(b)].to_vec();
+                            }
+                        }
+                        _ => update_selection(
+                            &mut self.model.selected_part_ids,
+                            incoming.clone(),
+                            mode,
+                        ),
+                    }
+                    self.model.selection_mode = mode;
+                    if let Some(anchor) = incoming.first() {
+                        self.model.selection_anchor_id = Some(anchor.clone());
+                    }
+                    self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
+                } else {
+                    self.reject(operation_id, "no accepted document is open", &mut effects);
+                }
+            }
+            Event::SelectMatrixCell {
+                operation_id,
+                scope,
+                matrix_id,
+                target_part_id,
+                part_ids,
+                mode,
+            } => {
+                let Some(snapshot) = self.model.accepted.as_ref() else {
+                    self.reject(operation_id, "no accepted document is open", &mut effects);
+                    return effects;
+                };
+                let board = snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id);
+                let matrix = snapshot.document.matrices.iter().find(|matrix| {
+                    matrix.id == matrix_id
+                        && matrix
+                            .board_id
+                            .as_ref()
+                            .is_none_or(|id| id == &scope.board_id)
+                });
+                let scene = snapshot
+                    .scene
+                    .matrix_scenes
+                    .iter()
+                    .find(|scene| scene.matrix_id == matrix_id);
+                let Some(((board, matrix), scene)) = board
+                    .zip(matrix)
+                    .zip(scene)
+                    .filter(|_| self.scope_is_current(&scope))
+                else {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                };
+                let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
+                let document_parts: HashSet<_> = snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .map(|part| part.id.as_str())
+                    .collect();
+                let owns_part = |id: &str| board_parts.contains(id) && document_parts.contains(id);
+                let mut primary_cells = scene
+                    .cells
+                    .iter()
+                    .filter_map(|cell| {
+                        let id = cell.member_id.as_deref()?;
+                        (cell.enabled
+                            && matrix.part_ids.iter().any(|member| member == id)
+                            && owns_part(id))
+                        .then(|| (cell.row, cell.column, id.to_owned()))
+                    })
+                    .collect::<Vec<_>>();
+                primary_cells.sort_by_key(|(row, column, _)| (*row, *column));
+                let target_is_live = primary_cells.iter().any(|(_, _, id)| id == &target_part_id);
+                if !target_is_live {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                }
+                let incoming = part_ids
+                    .into_iter()
+                    .filter(|id| owns_part(id))
+                    .collect::<Vec<_>>();
+                let mut retained_anchor = self.model.selection_anchor_id.clone();
+                let mut effective_mode = mode;
+                let selected = if mode == SelectionMode::Range {
+                    let cell_at = |part: &str| {
+                        primary_cells
+                            .iter()
+                            .find(|(_, _, id)| id == part)
+                            .map(|(row, column, _)| (*row, *column))
+                    };
+                    if let Some(((anchor_row, anchor_column), (target_row, target_column))) =
+                        retained_anchor
+                            .as_deref()
+                            .and_then(cell_at)
+                            .zip(cell_at(&target_part_id))
+                    {
+                        primary_cells
+                            .iter()
+                            .filter(|(row, column, _)| {
+                                *row >= anchor_row.min(target_row)
+                                    && *row <= anchor_row.max(target_row)
+                                    && *column >= anchor_column.min(target_column)
+                                    && *column <= anchor_column.max(target_column)
+                            })
+                            .map(|(_, _, id)| id.clone())
+                            .collect::<Vec<_>>()
+                    } else {
+                        effective_mode = SelectionMode::Replace;
+                        retained_anchor = Some(target_part_id.clone());
+                        incoming
+                    }
+                } else {
+                    retained_anchor = Some(target_part_id.clone());
+                    incoming
+                };
+                update_selection(&mut self.model.selected_part_ids, selected, effective_mode);
+                self.model.selection_mode = effective_mode;
+                self.model.selection_anchor_id = retained_anchor;
+                self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
+            }
+            Event::Navigate {
+                operation_id,
+                board_id,
+                instance_id,
+            } => {
+                if let Some(snapshot) = &self.model.accepted {
+                    let board_ok = snapshot
+                        .document
+                        .boards
+                        .iter()
+                        .any(|board| board.id == board_id);
+                    let instance_ok = instance_id.as_ref().is_none_or(|id| {
+                        snapshot.document.hardware.as_ref().is_some_and(|h| {
+                            h.instances
+                                .iter()
+                                .any(|i| &i.id == id && i.board_id == board_id)
+                        })
+                    });
+                    if board_ok && instance_ok {
+                        self.model.active_board_id = board_id;
+                        self.model.active_instance_id = instance_id;
+                        self.invalidate_gesture(&mut effects);
+                        self.cancel_job(&mut effects);
+                        self.retain_export(None, &mut effects);
+                        self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
+                    } else {
+                        self.reject(
+                            operation_id,
+                            "board or instance is not in the accepted document",
+                            &mut effects,
+                        );
+                    }
+                } else {
+                    self.reject(operation_id, "no accepted document is open", &mut effects);
+                }
+            }
+            Event::SetCamera {
+                operation_id,
+                center,
+                zoom,
+            } => {
+                if center.x.is_finite() && center.y.is_finite() && zoom.is_finite() && zoom > 0.0 {
+                    self.model.camera = CameraState { center, zoom };
+                    self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
+                } else {
+                    self.reject(
+                        operation_id,
+                        "camera values must be finite and zoom positive",
+                        &mut effects,
+                    );
+                }
+            }
+            Event::GestureBegin {
+                operation_id,
+                pointer_id,
+                target_ids,
+                transaction_id,
+                start,
+                pitch,
+                snap_fraction,
+                geometry_snap,
+                gap,
+                pixels_per_world,
+                alt,
+            } => {
+                if self.gesture.is_none() && self.model.lifecycle == Lifecycle::Ready {
+                    let generation = self.next_gesture;
+                    self.next_gesture += 1;
+                    let base_revision = self
+                        .model
+                        .accepted
+                        .as_ref()
+                        .map_or(0, |s| s.document.revision);
+                    self.gesture = Some(Gesture {
+                        operation_id,
+                        pointer_id,
+                        generation,
+                        transaction_id,
+                        base_revision,
+                        targets: target_ids,
+                        start: start.clone(),
+                        latest: start,
+                        sent_positions: None,
+                        pitch,
+                        snap_fraction,
+                        geometry_snap,
+                        gap,
+                        pixels_per_world,
+                        snap_state: MagneticSnapState::default(),
+                        alt,
+                        frame_pending: false,
+                        changed: false,
+                    });
+                    self.model.gesture = self.gesture.as_ref().map(gesture_view);
+                    effects.push(Effect::CapturePointer { pointer_id });
+                }
+            }
+            Event::GestureSample {
+                pointer_id,
+                positions,
+                pixels_per_world,
+                alt,
+            } => self.gesture_sample(
+                pointer_id,
+                positions,
+                pixels_per_world,
+                alt,
+                false,
+                &mut effects,
+            ),
+            Event::GestureFrame { generation } => self.gesture_frame(generation, &mut effects),
+            Event::GestureEnd {
+                pointer_id,
+                final_positions,
+                pixels_per_world,
+                alt,
+            } => self.gesture_sample(
+                pointer_id,
+                final_positions,
+                pixels_per_world,
+                alt,
+                true,
+                &mut effects,
+            ),
+            Event::GestureCancel { pointer_id } => {
+                if self
+                    .gesture
+                    .as_ref()
+                    .is_some_and(|g| g.pointer_id == pointer_id)
+                {
+                    self.invalidate_gesture(&mut effects);
+                }
+            }
+            Event::StartGeneration {
+                operation_id,
+                scope,
+            } => self.start_generation_now(operation_id, scope, &mut effects),
+            Event::CancelGeneration { operation_id } => {
+                self.cancel_job(&mut effects);
+                self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
+            }
+            Event::StartExport {
+                operation_id,
+                scope,
+            } => self.start_export_now(operation_id, scope, &mut effects),
+            Event::ExportCommit {
+                operation_id,
+                export_operation_id,
+                token,
+                scope,
+                commit,
+            } => {
+                if !self.export_is_current(export_operation_id, token, &scope) {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                } else {
+                    let id = wire_id(operation_id);
+                    let request = match commit {
+                        ExportCommitRequest::ApplyElectrical { plan, draft } => {
+                            CoreRequest::ApplyElectrical {
+                                id,
+                                base_revision: plan.revision,
+                                plan,
+                                draft,
+                            }
+                        }
+                        ExportCommitRequest::ProtectElectricalHandoff { plan } => {
+                            CoreRequest::ProtectElectricalHandoff {
+                                id,
+                                base_revision: plan.revision,
+                                board_id: scope.board_id,
+                                plan,
+                            }
+                        }
+                    };
+                    self.apply_request(
+                        operation_id,
+                        request,
+                        false,
+                        Some(export_operation_id),
+                        &mut effects,
+                    );
+                }
+            }
+            Event::Close { operation_id } => self.close(operation_id, &mut effects),
+        }
+        effects
+    }
+
+    pub fn complete(&mut self, completion: Completion) -> Vec<Effect> {
+        let mut effects = Vec::new();
+        match completion {
+            Completion::Persist {
+                save_attempt_id,
+                result,
+            } => self.persist_completed(save_attempt_id, result, &mut effects),
+            Completion::GenerationFinished {
+                job_id,
+                scope,
+                exact,
+            } => {
+                self.finish_generation(
+                    job_id,
+                    &scope,
+                    GenerationStatus::Ready { job_id, exact },
+                    TerminalOutcome::Completed,
+                    &mut effects,
+                );
+            }
+            Completion::GenerationFailed {
+                job_id,
+                scope,
+                reason,
+                blocked,
+            } => {
+                let (status, outcome) = if blocked {
+                    (
+                        GenerationStatus::Blocked {
+                            job_id,
+                            reason: reason.clone(),
+                        },
+                        TerminalOutcome::Rejected(reason),
+                    )
+                } else {
+                    (
+                        GenerationStatus::Failed {
+                            job_id,
+                            reason: reason.clone(),
+                        },
+                        TerminalOutcome::ExecutorFailed(reason),
+                    )
+                };
+                self.finish_generation(job_id, &scope, status, outcome, &mut effects);
+            }
+            Completion::Export {
+                operation_id,
+                result,
+            } => {
+                let outcome = match result {
+                    Ok((token, scope)) if self.export_is_current(operation_id, token, &scope) => {
+                        TerminalOutcome::Completed
+                    }
+                    Ok(_) => TerminalOutcome::Cancelled,
+                    Err(reason) => TerminalOutcome::ExecutorFailed(reason),
+                };
+                self.exports.retain(|(op, _, _)| *op != operation_id);
+                self.settle(operation_id, outcome, &mut effects);
+            }
+        }
+        if self.pending_save.is_none()
+            && let Some(operation_id) = self.close_operation.take()
+        {
+            self.finish_close(operation_id, &mut effects);
+        }
+        effects
+    }
+}
+
+impl Session {
+    fn finish_generation(
+        &mut self,
+        job_id: JobId,
+        scope: &Scope,
+        status: GenerationStatus,
+        outcome: TerminalOutcome,
+        effects: &mut Vec<Effect>,
+    ) {
+        if let Some((active, operation, captured)) = self.active_job.as_ref()
+            && *active == job_id
+            && captured == scope
+            && self.scope_is_current(scope)
+        {
+            let operation = *operation;
+            self.active_job = None;
+            if let TerminalOutcome::ExecutorFailed(reason) | TerminalOutcome::Rejected(reason) =
+                &outcome
+            {
+                self.model.last_error = Some(reason.clone());
+            }
+            self.model.generation = status;
+            self.settle(operation, outcome, effects);
+        }
+    }
+
+    fn start_save(&mut self, operation: Option<OperationId>, effects: &mut Vec<Effect>) {
+        if self.pending_save.is_some() {
+            return;
+        }
+        let Some(accepted) = self.model.accepted.as_ref() else {
+            return;
+        };
+        let document = accepted.document.clone();
+        let save_attempt_id = SaveAttemptId(self.next_save);
+        self.next_save += 1;
+        self.pending_save = Some(PendingSave {
+            save_attempt_id,
+            revision: document.revision,
+            operation,
+        });
+        self.model.durability = Durability::Saving {
+            revision: document.revision,
+        };
+        effects.push(Effect::Persist {
+            save_attempt_id,
+            document,
+        });
+    }
+
+    pub(super) fn persist_completed(
+        &mut self,
+        save_attempt_id: SaveAttemptId,
+        result: SaveResult,
+        effects: &mut Vec<Effect>,
+    ) {
+        let Some(pending) = self
+            .pending_save
+            .take_if(|pending| pending.save_attempt_id == save_attempt_id)
+        else {
+            return;
+        };
+        let revision = self
+            .model
+            .accepted
+            .as_ref()
+            .expect("saving an open project")
+            .document
+            .revision;
+        let outcome = match result {
+            SaveResult::Committed if pending.revision != revision => {
+                self.start_save(pending.operation, effects);
+                return;
+            }
+            SaveResult::Committed => {
+                self.model.durability = Durability::Saved { revision };
+                TerminalOutcome::Completed
+            }
+            SaveResult::Aborted(reason) => {
+                self.model.durability = Durability::Failed {
+                    revision,
+                    reason: reason.clone(),
+                };
+                TerminalOutcome::PersistenceFailed(reason)
+            }
+        };
+        let failed = matches!(outcome, TerminalOutcome::PersistenceFailed(_));
+        if let Some(operation) = pending.operation {
+            self.settle(operation, outcome, effects);
+        }
+        if failed && let Some(operation) = self.close_operation.take() {
+            self.model.lifecycle = Lifecycle::Ready;
+            self.settle(
+                operation,
+                TerminalOutcome::BlockedByRecovery("save failed before close".into()),
+                effects,
+            );
+        }
+    }
+
+    pub(super) fn retry_save(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
+        if matches!(self.model.durability, Durability::Failed { .. }) {
+            self.start_save(Some(operation_id), effects);
+        } else {
+            self.reject(operation_id, "there is no failed save to retry", effects);
+        }
+    }
+
+    fn reject(&mut self, operation: OperationId, reason: &str, effects: &mut Vec<Effect>) {
+        self.settle(operation, TerminalOutcome::Rejected(reason.into()), effects);
+    }
+
+    pub(super) fn settle(
+        &mut self,
+        operation_id: OperationId,
+        outcome: TerminalOutcome,
+        effects: &mut Vec<Effect>,
+    ) {
+        if self.settled.insert(operation_id) {
+            effects.push(Effect::Settled {
+                operation_id,
+                outcome,
+                landing: None,
+            });
+        }
+    }
+
+    /// Settle a completed operation at the accepted snapshot it just installed, so callers
+    /// read exactly where it landed.
+    pub(super) fn settle_landed(
+        &mut self,
+        operation_id: OperationId,
+        landing: Landing,
+        effects: &mut Vec<Effect>,
+    ) {
+        self.settled.insert(operation_id);
+        effects.push(Effect::Settled {
+            operation_id,
+            outcome: TerminalOutcome::Completed,
+            landing: Some(landing),
+        });
+    }
+    pub(super) fn epoch(&self) -> SessionEpoch {
+        self.model
+            .accepted
+            .as_ref()
+            .map_or(SessionEpoch(0), |s| s.session_epoch)
+    }
+    fn reconcile_selection_and_board(&mut self) {
+        let Some(snapshot) = &self.model.accepted else {
+            return;
+        };
+        let parts = snapshot
+            .document
+            .parts
+            .iter()
+            .map(|part| part.id.as_str())
+            .collect::<HashSet<_>>();
+        self.model
+            .selected_part_ids
+            .retain(|id| parts.contains(id.as_str()));
+        if !snapshot
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == self.model.active_board_id)
+        {
+            self.model.active_board_id = snapshot
+                .document
+                .boards
+                .first()
+                .map_or_else(String::new, |board| board.id.clone());
+        }
+        if self.model.active_instance_id.as_ref().is_some_and(|id| {
+            !snapshot.document.hardware.as_ref().is_some_and(|h| {
+                h.instances
+                    .iter()
+                    .any(|i| &i.id == id && i.board_id == self.model.active_board_id)
+            })
+        }) {
+            self.model.active_instance_id = None;
+        }
     }
 }

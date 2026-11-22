@@ -11,6 +11,7 @@ description = "BoardStudio page runtime: browser services, model delivery and pr
 test-support = []
 
 [dependencies]
+boardstudio_core = { path = "../../../core" }
 boardstudio-application = { path = "../../../application" }
 boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
