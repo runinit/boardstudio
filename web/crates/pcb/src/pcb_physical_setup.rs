@@ -1,13 +1,15 @@
 //! Accepted-source owner and contextual controls for physical setup.
+mod reassignment_owner;
+
+#[cfg(target_arch = "wasm32")]
 #[path = "pcb_physical_setup/controller.rs"]
 pub mod controller;
 
+#[cfg(target_arch = "wasm32")]
 pub use controller::{
     OwnerContext, OwnerIdentity, PhysicalSetupIntent, PhysicalSetupMount, use_controller,
 };
 
-// The parent module is wasm32-only, so these mounted tests execute in the browser suite;
-// a native gate here compiled the module on neither target.
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 #[path = "pcb_physical_setup/tests.rs"]
 mod tests;

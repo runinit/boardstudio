@@ -64,6 +64,7 @@ pub mod connector_admission;
 pub mod firmware_position_choices;
 mod pcb_layer_inventory;
 mod pcb_layer_projection;
+pub mod pcb_physical_setup;
 pub mod pcb_wiring_remap_operation;
 
 #[cfg(target_arch = "wasm32")]
@@ -80,8 +81,6 @@ pub mod pcb_layers;
 pub mod pcb_module_footprints;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_module_inspector;
-#[cfg(target_arch = "wasm32")]
-pub mod pcb_physical_setup;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_scene;
 #[cfg(target_arch = "wasm32")]

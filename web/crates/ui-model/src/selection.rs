@@ -1,6 +1,7 @@
 use crate::runtime::Runtime;
+pub use crate::scope_transition::ScopeTransition;
 use crate::tree::{self as objects, ScopedTreeContext, TreeContext};
-use boardstudio_application::{Event, Scope, SelectionMode, SnapshotToken};
+use boardstudio_application::{Event, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -8,29 +9,6 @@ use std::{
 };
 
 pub type Cleanup = Rc<dyn Fn()>;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScopeTransition {
-    pub previous_scope: Option<Scope>,
-    pub previous_token: Option<SnapshotToken>,
-    pub next_scope: Option<Scope>,
-    pub next_token: Option<SnapshotToken>,
-    pub previous_generation: u64,
-    pub next_generation: u64,
-}
-
-impl ScopeTransition {
-    pub fn matches_current(
-        &self,
-        observed: Option<&Self>,
-        accepted_token: Option<SnapshotToken>,
-        generation: u64,
-    ) -> bool {
-        observed == Some(self)
-            && accepted_token == self.next_token
-            && generation == self.next_generation
-    }
-}
 
 #[derive(Clone)]
 pub struct SelectionAdapter {

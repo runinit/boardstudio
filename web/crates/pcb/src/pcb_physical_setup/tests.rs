@@ -9,7 +9,7 @@
 //! stub's synchronous VirtualDom polling remain uncovered by any executing test:
 //! preparation results arriving after their source was replaced, unmount races, and the
 //! stale-scope CaseTransport variant. The CasePcbDesign reassignment navigation keeps a
-//! pure unit assertion in `controller.rs` (case_reassignment_scope_transition_tests),
+//! native unit assertion in `reassignment_owner.rs`,
 //! and wiring-panel equivalents cover the topology landing and undo path in
 //! `pcb_wiring/queued_edit_tests.rs`.
 use super::*;
