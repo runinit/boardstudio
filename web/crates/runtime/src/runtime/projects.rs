@@ -223,9 +223,7 @@ impl Runtime {
         let this = self.clone();
         spawn_local(async move {
             let result = match JsFuture::from(file.array_buffer()).await {
-                Ok(buffer) => {
-                    this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence, None)
-                }
+                Ok(buffer) => this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence),
                 Err(error) => Err(format!("Import read failed: {error:?}")),
             };
             if let Err(error) = result
@@ -243,7 +241,6 @@ impl Runtime {
         self: &Rc<Self>,
         bytes: Vec<u8>,
         sequence: u64,
-        fresh_copy_id: Option<String>,
     ) -> Result<(), String> {
         let (metadata, buffers) =
             (self.core_services.archive)("{\"kind\":\"unpack-project\"}", &[bytes]);
@@ -255,11 +252,8 @@ impl Runtime {
         else {
             return Err(format!("Archive rejected: {reply:?}"));
         };
-        let mut document: ProjectDoc =
+        let document: ProjectDoc =
             serde_json::from_str(&project_json).map_err(|e| e.to_string())?;
-        if let Some(copy_id) = fresh_copy_id {
-            document.id = copy_id;
-        }
         let mut copied = BTreeMap::new();
         for asset in assets {
             let bytes = buffers

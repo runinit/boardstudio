@@ -38,7 +38,7 @@ use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
         captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
-        prepare_captured_step_assembly, validate_reply,
+        validate_reply,
     },
     cad_worker::CadWorker,
 };

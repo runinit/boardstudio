@@ -637,16 +637,13 @@ impl Runtime {
             }
         };
         guard()?;
-        let core = self.core.borrow().clone();
-        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
         let prepared = prepare_captured_case(
-            core.as_ref(),
-            &epoch,
+            (self.core_services.open_scratch)(),
             &format!("case-{}", job_id.0),
             snapshot,
             scope,
-        )
-        .await?;
+            false,
+        )?;
         guard()?;
         let previous = self.cad_worker.borrow_mut().take();
         let worker = match previous {

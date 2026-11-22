@@ -185,10 +185,14 @@ impl Runtime {
             }
         };
         ensure_current()?;
-        let mut prepared =
-            prepare_captured_step_assembly(core, executor_epoch, request_prefix, snapshot, scope)
-                .await
-                .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        let mut prepared = prepare_captured_case(
+            (self.core_services.open_scratch)(),
+            request_prefix,
+            snapshot,
+            scope,
+            true,
+        )
+        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
         ensure_current()?;
         let pcb_source = captured_pcb_source(snapshot, scope)
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;

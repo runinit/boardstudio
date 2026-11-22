@@ -140,53 +140,17 @@ fn captured_case_inputs(
     effective_case_inputs(&snapshot.document, &snapshot.scene, scope)
 }
 
-/// Resolve mechanical policy and prepare case regions using the public core protocol.
-/// The CAD package uses JavaScript numbers for revision fields, so unsupported
-/// wide identities fail before crossing that boundary.
+/// Prepare CAD from the selected accepted snapshot. STEP includes the nominal PCB body.
 #[cfg(target_arch = "wasm32")]
-pub async fn prepare_captured_case(
-    core: &dyn crate::host::CoreExecutor,
-    executor_epoch: &str,
-    request_prefix: &str,
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-) -> Result<PreparedCadSnapshot, CadJobError> {
-    prepare_captured_case_for_step(core, executor_epoch, request_prefix, snapshot, scope, false)
-        .await
-}
-
-/// Prepare a mechanical export assembly with the nominal PCB reference body,
-/// matching the existing mechanical assembly export contract.
-#[cfg(target_arch = "wasm32")]
-pub async fn prepare_captured_step_assembly(
-    core: &dyn crate::host::CoreExecutor,
-    executor_epoch: &str,
-    request_prefix: &str,
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-) -> Result<PreparedCadSnapshot, CadJobError> {
-    prepare_captured_case_for_step(core, executor_epoch, request_prefix, snapshot, scope, true)
-        .await
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn prepare_captured_case_for_step(
-    core: &dyn crate::host::CoreExecutor,
-    executor_epoch: &str,
+pub fn prepare_captured_case(
+    mut core: impl FnMut(CoreRequest) -> CoreReply,
     request_prefix: &str,
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
     include_pcb_reference: bool,
 ) -> Result<PreparedCadSnapshot, CadJobError> {
     let (identity, initial) = preparation_request(snapshot, scope, request_prefix)?;
-    let reply = core
-        .request(
-            &format!("{request_prefix}-resolve"),
-            executor_epoch,
-            &initial,
-        )
-        .await
-        .map_err(|error| CadJobError::Failed(error.to_string()))?;
+    let reply = core(initial.clone());
     let mut pcb_reference = None;
     let mechanical_assembly;
     let prepare = match reply {
@@ -259,14 +223,7 @@ async fn prepare_captured_case_for_step(
             ));
         }
     };
-    let reply = core
-        .request(
-            &format!("{request_prefix}-prepare"),
-            executor_epoch,
-            &prepare,
-        )
-        .await
-        .map_err(|error| CadJobError::Failed(error.to_string()))?;
+    let reply = core(prepare);
     let mut prepared = match reply {
         CoreReply::CasePrepared { ir, .. } => Ok(ir),
         CoreReply::Error { message, .. } => Err(CadJobError::Blocked(message)),
@@ -283,10 +240,7 @@ async fn prepare_captured_case_for_step(
                 bodies: vec![reference],
             },
         };
-        let reply = core
-            .request(&request_id, executor_epoch, &prepare_reference)
-            .await
-            .map_err(|error| CadJobError::Failed(error.to_string()))?;
+        let reply = core(prepare_reference);
         match reply {
             CoreReply::CasePrepared { ir, .. } if ir.revision == identity.revision => {
                 prepared.bodies.extend(ir.bodies);

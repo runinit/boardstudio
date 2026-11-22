@@ -29,16 +29,14 @@ async fn fixture_document_scene(
         serde_json::from_value(data["preparedBody"].clone()).unwrap();
     body.revision = snapshot.document.revision;
     let prepared = if snapshot.document.mechanical.is_some() {
-        let core = runtime.core.borrow().clone();
         Some(
             prepare_captured_case(
-                core.as_ref(),
-                &runtime.electrical_preview_executor_epoch().to_string(),
+                (runtime.core_services.open_scratch)(),
                 "collision-mechanical-fixture",
                 &snapshot,
                 &scope,
+                false,
             )
-            .await
             .unwrap(),
         )
     } else {
