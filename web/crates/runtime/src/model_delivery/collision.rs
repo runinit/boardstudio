@@ -464,26 +464,6 @@ pub fn resolve_face_provenance(
     })
 }
 
-pub fn resolve_physical_model_row_transform(
-    delivered: &DeliveredModel,
-    explicit_pcb_row_transform: Option<[f64; 16]>,
-) -> Result<[f64; 16], String> {
-    if let Some(matrix) = delivered.matrix {
-        boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-            .map_err(|error| error.to_string())?;
-        return Ok(matrix);
-    }
-    let matrix = explicit_pcb_row_transform.ok_or_else(|| {
-        format!(
-            "PCB model row {} has matrix: None and no explicit physical assembly transform was supplied",
-            delivered.id
-        )
-    })?;
-    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-        .map_err(|error| error.to_string())?;
-    Ok(matrix)
-}
-
 pub fn resolve_subject_face_provenance(
     subject: &CadCollisionSubject,
     provenance: &boardstudio_web_host::cad_jobs::CadTriangleProvenance,

@@ -97,52 +97,6 @@ impl Runtime {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn query_vendor_step_collision(
-        &self,
-        left: &crate::model_delivery::DeliveredModel,
-        left_explicit_pcb_transform: Option<[f64; 16]>,
-        right: &crate::model_delivery::DeliveredModel,
-        right_explicit_pcb_transform: Option<[f64; 16]>,
-        clearance_threshold_mm: f64,
-        requested_accuracy_mm: Option<f64>,
-        scope: Scope,
-        token: SnapshotToken,
-        revision: u64,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
-        use crate::model_delivery::{CadCollisionSubject, resolve_physical_model_row_transform};
-        let left = CadCollisionSubject::VendorModel {
-            id: left.id.clone(),
-            reference: left.id.clone(),
-            row_transform_f64: resolve_physical_model_row_transform(
-                left,
-                left_explicit_pcb_transform,
-            )?,
-            vendor_step: left.mesh.vendor_step.clone(),
-        };
-        let right = CadCollisionSubject::VendorModel {
-            id: right.id.clone(),
-            reference: right.id.clone(),
-            row_transform_f64: resolve_physical_model_row_transform(
-                right,
-                right_explicit_pcb_transform,
-            )?,
-            vendor_step: right.mesh.vendor_step.clone(),
-        };
-        self.query_collision_subjects(
-            &left,
-            &right,
-            clearance_threshold_mm,
-            requested_accuracy_mm,
-            scope,
-            token,
-            revision,
-            is_current,
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn query_collision_subjects(
         &self,
         left: &crate::model_delivery::CadCollisionSubject,
