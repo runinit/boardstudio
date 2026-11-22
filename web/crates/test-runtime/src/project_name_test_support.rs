@@ -4,7 +4,7 @@ pub use crate::runtime::test_hooks::{
     observe, observe_next, replace_document, replace_session, run_effect, run_pending,
     set_storage_initializing, submit_fixed_command, take_held_effects,
 };
-use crate::runtime::{CoreExecutor, Runtime, test_hooks};
+use crate::runtime::{Runtime, test_hooks};
 use boardstudio_application::{Event, Session};
 use boardstudio_model::model::{ArchiveReply, ProjectDoc};
 use std::rc::Rc;
@@ -22,18 +22,7 @@ pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::Core
     let adapters = Rc::new(InProcessAdapters::new(core, test_hooks::store(runtime)));
     let current = adapters.current_core();
     let persistence = adapters.persistence();
-    let factory = adapters.clone();
-    test_hooks::install(
-        runtime,
-        session,
-        adapters,
-        current,
-        persistence,
-        Rc::new(move || {
-            factory.restart_core();
-            Ok(factory.current_core() as Rc<dyn CoreExecutor>)
-        }),
-    );
+    test_hooks::install(runtime, session, adapters, current, persistence);
 }
 
 /// Route saves into the in-process memory store. Requires `install` to have run.

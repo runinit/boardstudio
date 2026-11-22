@@ -362,27 +362,20 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
     let mut name_failure = context.name_failure;
     let mut dirty = use_signal(|| false);
     use_effect(use_reactive(
-        (&props.layer_name, &props.feedback),
-        move |(name, feedback)| {
-            if !dirty() && !matches!(feedback, Some(KeymapLayerFeedback::Pending)) {
+        (&props.layer_id, &props.layer_name),
+        move |(_, name)| {
+            if !*dirty.peek() {
                 name_draft.set(name);
             }
         },
     ));
-    let add_disabled = !props.enabled
-        || props.layer_count >= 32
-        || super::layer_controller::action_pending(&KeymapLayerOperation::Add);
-    let remove_disabled = !props.enabled
-        || props.is_base
-        || super::layer_controller::action_pending(&KeymapLayerOperation::Remove {
-            layer_id: props.layer_id.clone(),
-        });
+    let add_disabled = !props.enabled || props.layer_count >= 32;
+    let remove_disabled = !props.enabled || props.is_base;
     let layer_id = props.layer_id.clone();
     let name_id = format!("keymap-layer-name-{}", dioxus::core::current_scope_id().0);
     let error_id = format!("{name_id}-error");
     let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
         KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
-        KeymapLayerFeedback::Pending => None,
     });
     let field_error = if feedback_error.is_none() {
         name_failure()

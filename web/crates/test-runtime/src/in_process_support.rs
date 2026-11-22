@@ -506,10 +506,6 @@ impl InProcessAdapters {
         self.core.borrow().clone()
     }
 
-    pub(super) fn restart_core(&self) {
-        *self.core.borrow_mut() = Rc::new(InProcessCore::new(boardstudio_core::CoreEngine::new()));
-    }
-
     pub fn use_memory_saves(&self) {
         self.persistence.use_memory_saves();
     }

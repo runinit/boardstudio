@@ -6,8 +6,8 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use dioxus::prelude::*;
+use std::rc::Rc;
 use std::sync::Arc;
-use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
 pub struct MacroReadSource {
@@ -57,7 +57,6 @@ pub use crate::macro_edit::{MacroEditChange, MacroEditRequest, MacroEditTarget};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MacroEditStatus {
-    Pending,
     Failed(String),
 }
 
@@ -172,7 +171,6 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
             })
     });
     let feedback_text = feedback.and_then(|feedback| match &feedback.status {
-        MacroEditStatus::Pending => None,
         MacroEditStatus::Failed(message) => Some(message.clone()),
     });
 
@@ -207,7 +205,7 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
             Button {
                 variant: ButtonVariant::Secondary,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: busy || macros.len() >= 128 || super::macro_controller::action_pending(None, MacroEditTarget::AddMacro),
+                disabled: busy || macros.len() >= 128,
                 onclick: move |_| {
                     if macro_count >= 128 { return; }
                     // Entity identity is allocated by the controller; this typed request
@@ -310,19 +308,19 @@ fn MacroCard(props: MacroCardProps) -> Element {
             legend { "{value.name}" }
             TextDraft {
                 label: "Name", aria_label: format!("Macro name {}", value.name),
-                macro_id: macro_id.clone(), target: MacroEditTarget::Name,
+
                 accepted: value.name.clone(), max_length: Some(32), identity: format!("{:?}:{}:{}:{}:name", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::Name), on_commit: EventHandler::new(name_change),
             }
             NumberDraft {
                 label: "Tap duration (ms)", aria_label: format!("{} tapMs", value.name),
-                macro_id: macro_id.clone(), target: MacroEditTarget::TapMs,
+
                 accepted: value.tap_ms, identity: format!("{:?}:{}:{}:{}:tap", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::TapMs), on_commit: EventHandler::new(tap_change),
             }
             NumberDraft {
                 label: "Between actions (ms)", aria_label: format!("{} waitMs", value.name),
-                macro_id: macro_id.clone(), target: MacroEditTarget::WaitMs,
+
                 accepted: value.wait_ms, identity: format!("{:?}:{}:{}:{}:wait", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::WaitMs), on_commit: EventHandler::new(wait_change),
             }
@@ -343,7 +341,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                 }
             }
             Button {
-                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || !can_add_step,
                 onclick: move |_| {
                     if !can_add_step { return; }
                     request(&add_context, MacroEditTarget::AddStep, Some(add_macro_id.clone()), Some(add_sequence.clone()),
@@ -351,7 +349,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                 }, "Add step"
             }
             Button {
-                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled,
                 onclick: move |_| request(&remove_context, MacroEditTarget::RemoveMacro,
                     Some(remove_macro_id.clone()), None, MacroEditChange::Remove),
                 "Remove macro"
@@ -395,17 +393,9 @@ fn StepEditor(props: StepEditorProps) -> Element {
     let Some(accepted) = props.sequence.get(index) else {
         return rsx! {};
     };
-    let displayed = super::macro_controller::draft_step(&props.scope, &macro_id, index, accepted);
-    let accepted_step = displayed.clone();
-    let kind = step_kind(&displayed);
-    // Pending kind changes choose the mounted control and its initial value. A field
-    // editing the current kind projects only the accepted document; its bound draft
-    // and the shared helper already display and settle the submitted text.
-    let field_value = if step_kind(accepted) == kind {
-        accepted
-    } else {
-        &displayed
-    };
+    let accepted_step = accepted.clone();
+    let kind = step_kind(accepted);
+    let field_value = accepted;
     let value = match field_value {
         MacroStep::Wait { ms } => *ms,
         _ => 0,
@@ -445,10 +435,10 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     }
                 },
             }
-            if let MacroStep::Wait { .. } = displayed {
+            if let MacroStep::Wait { .. } = accepted {
                 NumberDraft {
                     label: "Delay (ms)", aria_label: crate::macro_accessible_names::step_value_control_name(true).to_owned(),
-                    macro_id: macro_id.clone(), target: MacroEditTarget::StepDelay { index },
+
                     accepted: value, identity: format!("{identity}:delay"), enabled: props.enabled,
                     feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepDelay { index }),
                     on_commit: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |ms| {
@@ -459,7 +449,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
             } else {
                 TextDraft {
                     label: "Keycode", aria_label: crate::macro_accessible_names::step_value_control_name(false).to_owned(),
-                    macro_id: macro_id.clone(), target: MacroEditTarget::StepKeycode { index },
+
                     accepted: keycode, identity: format!("{identity}:keycode"), enabled: props.enabled,
                     feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepKeycode { index }),
                     trim_on_commit: true,
@@ -479,7 +469,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 }
             }
             Button {
-                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || props.sequence.len() <= 1,
                 onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }
                     request(&context, MacroEditTarget::RemoveStep { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -496,8 +486,6 @@ struct TextDraftProps {
     aria_label: String,
     accepted: String,
     identity: String,
-    macro_id: String,
-    target: MacroEditTarget,
     enabled: bool,
     #[props(default = false)]
     trim_on_commit: bool,
@@ -514,19 +502,18 @@ struct TextDraftProps {
 fn TextDraft(props: TextDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.clone());
     let mut dirty = use_signal(|| false);
-    let mut failure = use_signal(|| None::<String>);
-    super::macro_controller::use_bound_macro_field(&props.macro_id, props.target, draft, failure);
-    use_accepted_macro_draft(
-        &props.identity,
-        props.accepted.clone(),
-        draft,
-        dirty,
-        failure,
+    let accepted = props.accepted.clone();
+    use_accepted_macro_draft(&props.identity, accepted.clone(), draft, dirty);
+    let failure = if dirty() {
+        None
+    } else {
         props
             .feedback
             .as_ref()
-            .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending)),
-    );
+            .map(|feedback| match &feedback.status {
+                MacroEditStatus::Failed(message) => message.clone(),
+            })
+    };
     let on_commit = props.on_commit;
     let trim = props.trim_on_commit;
     let commit_if_unchanged = props.commit_if_unchanged;
@@ -534,13 +521,13 @@ fn TextDraft(props: TextDraftProps) -> Element {
     rsx! {
         TextField {
             id, label: props.label, aria_label: Some(props.aria_label), value: draft(),
-            disabled: !props.enabled, error: failure(),
+            disabled: !props.enabled, error: failure,
             maxlength: props.max_length.map(|max| max.to_string()),
-            oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+            oninput: move |event: FormEvent| { draft.set(event.value()); dirty.set(true); },
             onblur: move |_| {
                 let raw = draft();
                 let value = if trim { raw.trim().to_owned() } else { raw };
-                if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
+                if dirty() || commit_if_unchanged { dirty.set(false); draft.set(accepted.clone()); on_commit.call(value); }
             },
         }
     }
@@ -552,8 +539,6 @@ struct NumberDraftProps {
     aria_label: String,
     accepted: u32,
     identity: String,
-    macro_id: String,
-    target: MacroEditTarget,
     enabled: bool,
     #[props(default)]
     feedback: Option<MacroEditFeedback>,
@@ -564,69 +549,55 @@ struct NumberDraftProps {
 fn NumberDraft(props: NumberDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.to_string());
     let mut dirty = use_signal(|| false);
-    let mut failure = use_signal(|| None::<String>);
-    super::macro_controller::use_bound_macro_field(&props.macro_id, props.target, draft, failure);
-    use_accepted_macro_draft(
-        &props.identity,
-        props.accepted.to_string(),
-        draft,
-        dirty,
-        failure,
+    let accepted = props.accepted.to_string();
+    use_accepted_macro_draft(&props.identity, accepted.clone(), draft, dirty);
+    let failure = if dirty() {
+        None
+    } else {
         props
             .feedback
             .as_ref()
-            .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending)),
-    );
+            .map(|feedback| match &feedback.status {
+                MacroEditStatus::Failed(message) => message.clone(),
+            })
+    };
     let on_commit = props.on_commit;
     let id = format!("macro-number-{}", dioxus::core::current_scope_id().0);
     let error_id = format!("{id}-error");
-    let message = failure();
+    let message = failure;
     rsx! {
         NumericField {
             id, label: props.label, aria_label: props.aria_label, min: "0", max: "10000", step: None::<String>,
             class: "gap-1.5", error: message, message_id: error_id,
             value: "{draft}", disabled: !props.enabled,
-            oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+            oninput: move |event: FormEvent| { draft.set(event.value()); dirty.set(true); },
             onblur: move |_| {
                 let raw = draft();
                 let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
-                if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
+                if let Some(value) = parsed && dirty() { dirty.set(false); draft.set(accepted.clone()); on_commit.call(value); }
             },
         }
     }
 }
 
-/// Initialize a new field owner and follow ordinary accepted changes such as Undo.
-/// Submission settlement belongs to the bound helper: feedback disappearance is not
-/// a dependency, and an accepted change only updates a draft still following its
-/// previous accepted baseline, with no dirty input or observed submission.
 fn use_accepted_macro_draft(
     identity: &str,
     accepted: String,
     mut draft: Signal<String>,
     mut dirty: Signal<bool>,
-    mut failure: Signal<Option<String>>,
-    pending: bool,
 ) {
-    let previous = use_hook(|| Rc::new(RefCell::new((identity.to_owned(), accepted.clone()))));
+    let mut owner = use_signal(|| identity.to_owned());
     let identity = identity.to_owned();
     use_effect(use_reactive(
         (&identity, &accepted),
         move |(identity, accepted)| {
-            let mut previous = previous.borrow_mut();
-            let owner_changed = previous.0 != identity;
-            if owner_changed {
+            if *owner.peek() != identity {
+                owner.set(identity);
                 dirty.set(false);
-                if failure.peek().is_some() {
-                    failure.set(None);
-                }
             }
-            if (owner_changed || (!dirty() && !pending && *draft.peek() == previous.1))
-                && *draft.peek() != accepted
-            {
-                draft.set(accepted.clone());
+            if !*dirty.peek() && *draft.peek() != accepted {
+                draft.set(accepted);
             }
-            *previous = (identity, accepted);
         },
     ));
 }

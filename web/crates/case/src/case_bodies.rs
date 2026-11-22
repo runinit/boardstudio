@@ -67,8 +67,6 @@ pub struct CaseBodyEditFeedback {
     pub request_id: u64,
     /// Echoed from the request so only the owning control consumes feedback.
     pub field_id: Option<String>,
-    /// The edit has not settled; its draft stays visible.
-    pub pending: bool,
     /// The settled edit's failure, shown inline at its field.
     pub failure: Option<String>,
     pub created_body_id: Option<String>,
@@ -77,7 +75,7 @@ pub struct CaseBodyEditFeedback {
 impl CaseBodyEditFeedback {
     /// The edit landed: the field shows the accepted value again.
     fn landed(&self) -> bool {
-        !self.pending && self.failure.is_none()
+        self.failure.is_none()
     }
 }
 
@@ -270,11 +268,6 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
         })
         .cloned()
         .collect::<Vec<_>>();
-    let action_pending = |id: &str| {
-        feedback
-            .iter()
-            .any(|entry| entry.field_id.as_deref() == Some(id) && entry.pending)
-    };
     let mut selection_for_effect = selected_body;
     let scope = props.scope.clone();
     let saved_add = feedback
@@ -302,7 +295,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     }
 
     let can_edit = props.editable;
-    let can_add = can_edit && !action_pending("action:add-body") && board.is_some();
+    let can_add = can_edit && board.is_some();
     let body_id = active_body.map(|body| body.id.clone());
     let editor_key = body_id
         .as_ref()
@@ -501,7 +494,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary, button_type: "button",
                                     class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                    disabled: !can_edit || action_pending(&format!("action:body:{body_id}:add-mount")),
+                                    disabled: !can_edit,
                                     onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::AddMount { body_id: body_id.clone() }) },
                                     "+ Add mount"
                                 }
@@ -518,7 +511,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                             Button {
                                                 variant: ButtonVariant::Secondary, button_type: "button",
                                                 class: "justify-self-end max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                                disabled: !can_edit || action_pending(&format!("action:body:{body_id}:mount:{mount_id}:remove")),
+                                                disabled: !can_edit,
                                                 aria_label: "Remove {mount_label}",
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
                                                 "Remove"
@@ -594,14 +587,14 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 if body.gasket.is_some() {
                                     Button { variant: ButtonVariant::Secondary, button_type: "button",
                                         class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                        disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
+                                        disabled: !can_edit,
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
                                         "Remove"
                                     }
                                 } else {
                                     Button { variant: ButtonVariant::Secondary, button_type: "button",
                                         class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                        disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
+                                        disabled: !can_edit,
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { inset: 2.0, width: 2.0, depth: 1.5 }) }) },
                                         "+ Add gasket"
                                     }
@@ -680,13 +673,15 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     let dirty = use_signal(|| false);
     let skip_enter_blur = use_hook(|| Rc::new(Cell::new(false)));
 
-    let mut field_failure = use_signal(|| None::<String>);
-    let pending = super::case_controller::use_bound_case_field(
-        &props.field_id,
-        props.value.to_string(),
-        draft,
-        field_failure,
-    );
+    let field_failure = try_consume_context::<super::case_controller::BodyFieldFeedback>()
+        .and_then(|feedback| {
+            feedback
+                .0
+                .read()
+                .iter()
+                .find(|entry| entry.field_id.as_deref() == Some(props.field_id.as_str()))
+                .and_then(|entry| entry.failure.clone())
+        });
     let accepted_text = props.value.to_string();
     let current_draft = draft();
     let is_dirty = dirty();
@@ -694,11 +689,8 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     let mut error_for_effect = error;
     let mut dirty_for_effect = dirty;
     use_effect(use_reactive(
-        (&accepted_text, &pending, &current_draft, &is_dirty),
-        move |(accepted, pending, current_draft, is_dirty)| {
-            if pending {
-                return;
-            }
+        (&accepted_text, &current_draft, &is_dirty),
+        move |(accepted, current_draft, is_dirty)| {
             if current_draft == accepted {
                 dirty_for_effect.set(false);
                 error_for_effect.set(None);
@@ -746,7 +738,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         NumberRule::Positive => Some("0.001".to_owned()),
     };
     // A rejected save is as invalid as a rejected draft: both mark the input and describe it.
-    let field_error = error().or_else(&*field_failure);
+    let field_error = error().or_else(|| (!dirty()).then_some(field_failure).flatten());
     let id = format!("case-body-number-{}", dioxus::core::current_scope_id().0);
     let message_id = format!("{id}-message");
 
@@ -763,7 +755,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                     value: "{draft}",
                     disabled: !props.editable,
                     aria_invalid: field_error.is_some(),
-                    aria_describedby: if field_error.is_some() || pending { Some(message_id.clone()) } else { None },
+                    aria_describedby: if field_error.is_some() { Some(message_id.clone()) } else { None },
                     oninput: {
                         let skip_enter_blur = skip_enter_blur.clone();
                         move |event: FormEvent| {
@@ -771,7 +763,6 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                             let mut dirty = dirty;
                             let mut error = error;
                             skip_enter_blur.set(false);
-                            field_failure.set(None);
                             draft.set(event.value());
                             dirty.set(true);
                             error.set(None);
@@ -811,7 +802,6 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
             }
             div { id: message_id,
                 if let Some(error) = field_error.as_deref() { FieldError { "{error}" } }
-                if field_error.is_none() && pending { small { role: "status", "Saving…" } }
             }
         }
     }

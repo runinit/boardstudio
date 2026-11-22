@@ -31,6 +31,3 @@ where
     is_current_before_delivery(&protection)?;
     Ok((bytes, protection))
 }
-
-#[cfg(test)]
-mod tests;

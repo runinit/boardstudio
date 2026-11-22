@@ -39,7 +39,6 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
     let on_action = projection.on_action;
     let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
-    let one_shot_enabled = enabled && !projection.one_shot_pending;
     let mut drawing_operation = projection.drawing_operation;
     let mut drawing_points = projection.drawing_points;
     let mut draft_serial = draft_serial;
@@ -139,7 +138,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                     aria_label: control_aria_label.clone(),
                                                     list_aria_label: control_aria_label.clone(),
                                                     value: Some(active_selection.into()),
-                                                    disabled: !one_shot_enabled,
+                                                    disabled: !enabled,
                                                     on_value_change,
                                                     for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
                                                         ComboboxOption::<String> {
@@ -156,7 +155,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                     id: control_id.clone(),
                                                     aria_label: control_aria_label.clone(),
                                                     value: Some(active_selection.into()),
-                                                    disabled: !one_shot_enabled,
+                                                    disabled: !enabled,
                                                     on_value_change,
                                                     for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
                                                         SelectOption::<String> {
@@ -256,7 +255,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                 }
                                 if !projection.has_generated && projection.active_version_id.is_none() {
                                     Button { variant: ButtonVariant::Secondary,
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     onclick: {
                                     let action_context = action_context.clone();
                                     move |_| on_action.call(action_context.action(OutlineEdit::CreateAutomatic))
@@ -478,7 +477,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                 Button { variant: ButtonVariant::Secondary,
     class: "min-h-8 justify-self-start",
     aria_label: "Remove protected gap {index + 1}",
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     onclick: {
                                                 let gap_id = gap.id.clone();
                                                 let action_context = action_context.clone();
@@ -572,7 +571,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                         if let Some(version_id) = active_version.as_ref().filter(|_| index > 0) {
                                                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     aria_label: "Remove {feature_name} {index + 1}",
     onclick: {
                                                             let action_context = action_context.clone();
@@ -813,7 +812,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                 if let Some(before) = projection.connection_feature.as_ref() {
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     aria_label: "Remove connection {index + 1}",
     onclick: {
                                                     let action_context = action_context.clone();
@@ -1006,7 +1005,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                         div { class: "my-3 flex flex-wrap gap-2",
                                                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled || index + 1 == connection.points.len(),
+    disabled: !enabled || index + 1 == connection.points.len(),
     aria_label: "Insert after connection point {index + 1}",
     onclick: {
                                                             let action_context = action_context.clone();
@@ -1037,7 +1036,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                                              }
                                                             Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled || connection.points.len() <= 2,
+    disabled: !enabled || connection.points.len() <= 2,
     aria_label: "Remove connection point {index + 1}",
     onclick: {
                                                             let action_context = action_context.clone();
@@ -1119,7 +1118,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                          }
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled
+    disabled: !enabled
                                                 || drawing_points.read().len()
                                                     < if tool == OutlineDrawTool::Connect { 2 } else { 3 }
                                                 || matches!(tool, OutlineDrawTool::Polygon(_))
@@ -1160,7 +1159,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                     div { class: "mt-3 flex flex-wrap gap-2 [&_button]:min-h-9",
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Add))); },
 
                                             "Draw addition"
@@ -1168,7 +1167,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                          }
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled,
+    disabled: !enabled,
     onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Subtract))); },
 
                                             "Draw cutout"
@@ -1176,7 +1175,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                          }
                                         Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: !one_shot_enabled || projection.active_version_id.is_some()
+    disabled: !enabled || projection.active_version_id.is_some()
                                                 || !projection.has_generated,
     onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Connect)); },
 
@@ -1190,7 +1189,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     button_type: "button",
-                                    disabled: !projection.enabled || projection.one_shot_pending,
+                                    disabled: !projection.enabled,
                                     onclick: move |_| copy_handler.call(copy.clone()),
                                     "Copy outline"
                                 }
@@ -1198,7 +1197,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        disabled: !projection.enabled || projection.one_shot_pending,
+                                        disabled: !projection.enabled,
                                         onclick: move |_| freeze_handler.call(freeze.clone()),
 
                                         "Freeze into an edited copy"
@@ -1209,7 +1208,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        disabled: !projection.enabled || projection.one_shot_pending,
+                                        disabled: !projection.enabled,
                                         onclick: move |_| refine_handler.call(refine.clone()),
 
                                         "Refine outline"
@@ -1220,7 +1219,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                     Button {
                                         variant: ButtonVariant::Secondary,
                                         button_type: "button",
-                                        disabled: !projection.enabled || projection.one_shot_pending,
+                                        disabled: !projection.enabled,
                                         onclick: move |_| delete_handler.call(delete.clone()),
                                         "Delete outline"
                                     }

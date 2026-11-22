@@ -660,15 +660,11 @@ fn companion_click(root: &web_sys::Element, role: &str, name: &str) {
 fn companion_placement_component_host() -> Element {
     let projection = use_context::<inspector::CompanionPlacementProjection>();
     let actions = use_context::<Rc<RefCell<Option<inspector::CompanionPlacementAction>>>>();
-    let pending = use_signal(|| false);
     let error = use_signal(|| Some("Core refused this edit.".to_owned()));
-    let pending_edits = use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
     rsx! {
         inspector::CompanionPlacementInspector {
             projection,
-            pending,
             error,
-            pending_edits,
             on_apply: EventHandler::new(move |action| *actions.borrow_mut() = Some(action)),
         }
     }
@@ -686,17 +682,12 @@ fn companion_placement_runtime_host() -> Element {
             generation += 1;
         }));
     });
-    let pending = use_signal(|| false);
-    let error = use_signal(|| None::<String>);
-    let pending_edits = use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    let mut error = use_signal(|| None::<String>);
     let action_runtime = runtime.clone();
-    let action_edits = pending_edits;
     rsx! {
         inspector::CompanionPlacementInspector {
             projection,
-            pending,
             error,
-            pending_edits,
             on_apply: EventHandler::new(move |mut action: inspector::CompanionPlacementAction| {
                 if refuse_as_invalid_pair_tweak.get() {
                     action.targets.push(boardstudio_core::model::CompanionPlacementTarget::Pair);
@@ -706,18 +697,16 @@ fn companion_placement_runtime_host() -> Element {
                         rotation: 2.0,
                     });
                 }
-                submit_layout_component_edit(
-                    &action_runtime,
-                    action_edits,
-                    layout_component_edits::InspectorField::CompanionPlacement,
+                let result = action_runtime.commit(
+                    "layout-companion-placement",
                     layout_component_edits::companion_placement_resolver(
                         action.pair_id,
                         action.targets,
                         action.mode,
                         action.tweak,
                     ),
-                    boardstudio_web_ui_shared::draft_edits::EditDisplay::default().disabling(pending),
                 );
+                error.set(result.err());
             }),
         }
     }

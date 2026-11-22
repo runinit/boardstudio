@@ -1,25 +1,16 @@
 //! Private owner for the Case mechanical-settings field requests.
 //!
-//! Catalogue resources are loaded before dispatch, in commit order. Each prepared ticket
-//! then submits one typed Core mechanical edit; Core owns defaults, validation, closure-mount
-//! initialization, clearance projection, the precise changed ids and the no-op short-circuit,
-//! and settlement never compares document content.
+//! Mounting-hole catalogue preparation precedes a synchronous typed edit.
 use super::mechanical_settings::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
     MechanicalSettingsPatch, MechanicalSettingsPatchExt, MechanicalSettingsRequest,
 };
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
-};
+use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_core_mechanical::mechanical::change::{MechanicalEdit, MechanicalTarget};
 use boardstudio_core_mechanical::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_model::model::{
     EditOperation, MechanicalAssembly, MechanicalConfiguration, PartDefinition,
 };
-use boardstudio_web_runtime::operation_outcomes::EditOutcome;
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
-use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -62,429 +53,104 @@ pub struct MechanicalResolution {
 pub struct MechanicalSettingsPorts {
     pub current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
     pub load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
-    pub resolve_edit: Rc<dyn Fn(EditResolver) -> EditOutcome>,
+    pub commit: Rc<dyn Fn(EditResolver) -> Result<AcceptedSnapshot, String>>,
     pub publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
 pub struct MechanicalSettingsController {
     ports: MechanicalSettingsPorts,
-    requests: RefCell<Vec<SettingsEdit>>,
-    /// The latest observed edit per field, for the owner it was admitted under; an older
-    /// edit for the field still runs. A changed owner replaces the helper.
-    edits: RefCell<(Option<MechanicalSettingsIdentity>, DraftEdits<String>)>,
+    template: RefCell<Option<Rc<PartDefinition>>>,
+    loading: Cell<bool>,
     last_request_id: Cell<u64>,
-    fields: RefCell<Vec<MechanicalField>>,
-    staged_field: RefCell<Option<PreparedField>>,
-}
-
-struct MechanicalField {
-    key: String,
-    view: FieldView,
-    accepted: String,
-    latest_request: Option<u64>,
-}
-
-/// Only catalogue preparation retains this commit-time text and binding identity.
-/// Once a ticket starts, its helper owns both submitted text and binding epochs.
-#[derive(Clone)]
-struct PreparedField {
-    key: String,
-    view: FieldView,
-    text: String,
-}
-
-/// Connect actual child Signals to the existing controller without expanding panel props.
-/// The registry contains only mounted logical controls; dropped views are never read.
-pub(super) fn use_bound_mechanical_field(
-    key: String,
-    accepted: String,
-    draft: Signal<String>,
-    failure: Signal<Option<String>>,
-) -> (Option<Rc<MechanicalSettingsController>>, bool) {
-    let controller = try_consume_context::<Rc<MechanicalSettingsController>>();
-    let bound = use_hook(|| Rc::new(RefCell::new(None::<String>)));
-    let view = FieldView { draft, failure };
-    if let Some(controller) = controller.as_ref() {
-        let mut previous = bound.borrow_mut();
-        if let Some(old) = previous.as_ref()
-            && old != &key
-        {
-            controller.unbind_field(old, view);
-        }
-        controller.bind_field(key.clone(), view, accepted);
-        *previous = Some(key.clone());
-    }
-    let pending = controller.as_ref().is_some_and(|controller| {
-        let latest = controller
-            .fields
-            .borrow()
-            .iter()
-            .find(|field| field.key == key && field.view == view)
-            .and_then(|field| field.latest_request);
-        controller.requests.borrow().iter().any(|request| {
-            request.key == key
-                && Some(request.request.request_id) == latest
-                && (!matches!(request.phase, SettingsPhase::Submitted)
-                    || controller.edits.borrow().1.is_pending(&key))
-        })
-    });
-    use_drop({
-        let controller = controller.clone();
-        move || {
-            if let Some(controller) = controller
-                && let Some(key) = bound.borrow().as_ref()
-            {
-                controller.unbind_field(key, view);
-            }
-        }
-    });
-    (controller, pending)
-}
-
-#[derive(Clone)]
-struct SettingsEdit {
-    request: MechanicalSettingsRequest,
-    phase: SettingsPhase,
-    key: String,
-    prepared_field: Option<PreparedField>,
-}
-
-#[derive(Clone)]
-enum SettingsPhase {
-    Preparing,
-    Prepared(EditResolver),
-    Submitted,
 }
 
 impl MechanicalSettingsController {
     pub fn new(ports: MechanicalSettingsPorts) -> Rc<Self> {
         Rc::new(Self {
             ports,
-            requests: RefCell::new(Vec::new()),
-            edits: RefCell::new((None, DraftEdits::default())),
+            template: RefCell::default(),
+            loading: Cell::new(false),
             last_request_id: Cell::new(0),
-            fields: RefCell::new(Vec::new()),
-            staged_field: RefCell::new(None),
         })
     }
 
     pub fn is_busy(&self) -> bool {
-        !self.requests.borrow().is_empty()
-    }
-
-    fn bind_field(&self, key: String, view: FieldView, accepted: String) {
-        self.follow_owner();
-        let mut fields = self.fields.borrow_mut();
-        match fields.iter_mut().find(|field| field.key == key) {
-            Some(field) => {
-                if field.view != view {
-                    self.edits.borrow().1.detach_field(&key);
-                    field.latest_request = None;
-                }
-                field.view = view;
-                field.accepted = accepted;
-            }
-            None => fields.push(MechanicalField {
-                key,
-                view,
-                accepted,
-                latest_request: None,
-            }),
-        }
-    }
-
-    fn unbind_field(&self, key: &str, view: FieldView) {
-        let mut fields = self.fields.borrow_mut();
-        if fields
-            .iter()
-            .any(|field| field.key == key && field.view == view)
-        {
-            self.edits.borrow().1.detach_field(&key.to_owned());
-            fields.retain(|field| field.key != key);
-        }
-    }
-
-    /// Keep the original callback's admission path and transfer field metadata only
-    /// during its synchronous submit. Rejected admission leaves no staged request.
-    pub(super) fn request_field(
-        &self,
-        key: String,
-        draft: Signal<String>,
-        failure: Signal<Option<String>>,
-        text: String,
-        on_request: EventHandler<MechanicalSettingsRequest>,
-        request: MechanicalSettingsRequest,
-    ) {
-        let previous = self.staged_field.replace(Some(PreparedField {
-            key,
-            view: FieldView { draft, failure },
-            text,
-        }));
-        on_request.call(request);
-        self.staged_field.replace(previous);
+        self.loading.get()
     }
 
     pub fn submit(self: &Rc<Self>, request: MechanicalSettingsRequest) -> bool {
-        let prepared_field = self.staged_field.borrow_mut().take();
-        if request.request_id <= self.last_request_id.get() {
+        if request.request_id <= self.last_request_id.get() || self.loading.get() {
             return false;
         }
-        self.last_request_id.set(request.request_id);
         let Some(current) = (self.ports.current)() else {
             return false;
         };
         if !admitted(&current, &request.identity) || request.field_id != request.patch.field_id() {
             return false;
         }
-        if is_one_shot(&request.patch)
-            && self
-                .requests
-                .borrow()
-                .iter()
-                .any(|pending| pending.request.field_id == request.field_id)
-        {
-            return false;
-        }
-        // Preparation has no ticket yet. Remember only the latest admitted request
-        // for the current mounted view, including after that preparation fails.
-        if let Some(submitted) = prepared_field.as_ref()
-            && let Some(field) = self
-                .fields
-                .borrow_mut()
-                .iter_mut()
-                .find(|field| field.key == submitted.key && field.view == submitted.view)
-        {
-            field.latest_request = Some(request.request_id);
-            // The newer preparation owns this view while the old Session edit finishes.
-            self.edits.borrow().1.detach_field(&field.key);
-        }
-        let opening_guard = opening_target_guard(&request.patch, &self.requests.borrow());
-        let reviewed_pair_guard = reviewed_pair_guard(
+        self.last_request_id.set(request.request_id);
+        let review = reviewed_pair_guard(
             &request.patch,
             request.reviewed_fingerprint.clone(),
             &current.accepted,
         );
-        self.requests.borrow_mut().push(SettingsEdit {
-            request: request.clone(),
-            phase: SettingsPhase::Preparing,
-            key: prepared_field.as_ref().map_or_else(
-                || format!("request:{}", request.field_id),
-                |field| field.key.clone(),
-            ),
-            prepared_field,
-        });
-        self.emit(&request, MechanicalSettingsFeedbackState::Pending, None);
-        let owner = Rc::downgrade(self);
-        let loader = self.ports.load_mounting_hole.clone();
-        spawn_local(async move {
-            let result = loader().await;
-            let Some(owner) = owner.upgrade() else {
-                return;
-            };
-            if !(owner.ports.current)()
-                .is_some_and(|current| same_owner(&current.identity, &request.identity))
-            {
-                owner
-                    .requests
-                    .borrow_mut()
-                    .retain(|pending| pending.request.request_id != request.request_id);
-                owner.flush_prepared();
-                return;
-            }
-            match result {
-                Ok(template) => {
-                    let intent = request.clone();
-                    let resolver = EditResolver::new(
-                        "mechanical-settings",
-                        move |accepted: &AcceptedSnapshot| {
-                            if let Some(guard) = &opening_guard
-                                && let Err(reason) = guard.check(accepted, &intent.identity.scope)
-                            {
-                                return Resolution::Retire(reason);
-                            }
-                            if let Some(guard) = &reviewed_pair_guard
-                                && let Err(reason) = guard.check(accepted)
-                            {
-                                return Resolution::Retire(reason);
-                            }
-                            resolve_mechanical_edit(&intent, &template, accepted)
-                        },
-                    );
-                    if let Some(pending) = owner
-                        .requests
-                        .borrow_mut()
-                        .iter_mut()
-                        .find(|pending| pending.request.request_id == request.request_id)
-                    {
-                        pending.phase = SettingsPhase::Prepared(resolver);
-                    }
+        if let Some(template) = self.template.borrow().clone() {
+            self.commit(request, template, review);
+        } else {
+            self.loading.set(true);
+            self.emit(&request, MechanicalSettingsFeedbackState::Pending, None);
+            let owner = Rc::downgrade(self);
+            let load = self.ports.load_mounting_hole.clone();
+            spawn_local(async move {
+                let result = load().await;
+                let Some(owner) = owner.upgrade() else {
+                    return;
+                };
+                owner.loading.set(false);
+                if let Ok(template) = &result {
+                    owner.template.replace(Some(template.clone()));
                 }
-                Err(message) => {
-                    let removed = {
-                        let mut requests = owner.requests.borrow_mut();
-                        requests
-                            .iter()
-                            .position(|pending| pending.request.request_id == request.request_id)
-                            .map(|index| requests.remove(index))
-                    };
-                    // No ticket exists yet: this is catalogue preparation failure,
-                    // projected only to the same still-mounted commit-time field.
-                    if let Some(field) = removed.and_then(|entry| entry.prepared_field) {
-                        owner.fail_preparation(&field, request.request_id, &message);
-                    }
-                    owner.emit(
+                if !(owner.ports.current)()
+                    .is_some_and(|current| admitted(&current, &request.identity))
+                {
+                    return;
+                }
+                match result {
+                    Ok(template) => owner.commit(request, template, review),
+                    Err(message) => owner.emit(
                         &request,
                         MechanicalSettingsFeedbackState::Failed,
                         Some(message),
-                    );
+                    ),
                 }
-            }
-            owner.flush_prepared();
-        });
+            });
+        }
         true
     }
 
-    // Preserve commit order even if catalogue loads complete in a different order.
-    fn flush_prepared(&self) {
-        let prepared = {
-            let requests = self.requests.borrow();
-            requests
-                .iter()
-                .take_while(|pending| !matches!(pending.phase, SettingsPhase::Preparing))
-                .filter_map(|pending| match &pending.phase {
-                    SettingsPhase::Prepared(resolver) => Some((
-                        pending.request.request_id,
-                        pending.key.clone(),
-                        pending.prepared_field.clone(),
-                        resolver.clone(),
-                    )),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        };
-        for (id, key, field, resolver) in prepared {
-            self.follow_owner();
-            let helper = self.edits.borrow().1.clone();
-            let display = field
-                .filter(|submitted| {
-                    self.fields.borrow().iter().any(|entry| {
-                        entry.key == key
-                            && entry.view == submitted.view
-                            && entry.latest_request == Some(id)
-                    })
-                })
-                .map(|submitted| submitted.view.submitted(submitted.text))
-                .unwrap_or_default();
-            helper.track(key.clone(), (self.ports.resolve_edit)(resolver), display);
-            let mut requests = self.requests.borrow_mut();
-            // The newest observation replaces the older one for its field.
-            requests.retain(|entry| {
-                entry.request.request_id == id
-                    || entry.key != key
-                    || !matches!(entry.phase, SettingsPhase::Submitted)
-            });
-            if let Some(pending) = requests
-                .iter_mut()
-                .find(|pending| pending.request.request_id == id)
-            {
-                pending.phase = SettingsPhase::Submitted;
-                pending.prepared_field = None;
-            }
-        }
-    }
-
-    pub fn settle(&self) {
-        let current = (self.ports.current)();
-        let live = |request: &MechanicalSettingsRequest| {
-            current
-                .as_ref()
-                .is_some_and(|current| same_owner(&current.identity, &request.identity))
-        };
-        // A request whose owner has gone retires silently in any phase; a later result
-        // for its field then finds no request to report.
-        self.requests
-            .borrow_mut()
-            .retain(|pending| live(&pending.request));
-        self.follow_owner();
-        let helper = self.edits.borrow().1.clone();
-        let results = helper.settle(current.is_some(), |key| {
-            self.fields
-                .borrow()
-                .iter()
-                .find(|field| &field.key == key)
-                .map(|field| field.accepted.clone())
-                .unwrap_or_default()
-        });
-        for result in results {
-            let key = match &result {
-                PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key } => key.clone(),
-            };
-            let settled = {
-                let mut requests = self.requests.borrow_mut();
-                requests
-                    .iter()
-                    .position(|entry| {
-                        matches!(entry.phase, SettingsPhase::Submitted) && entry.key == key
-                    })
-                    .map(|index| requests.remove(index))
-            };
-            let Some(settled) = settled else {
-                continue;
-            };
-            match result {
-                PendingEditResult::Landed { .. } => self.emit(
-                    &settled.request,
-                    MechanicalSettingsFeedbackState::Landed,
-                    None,
-                ),
-                PendingEditResult::Failed { message, .. } => self.emit(
-                    &settled.request,
-                    MechanicalSettingsFeedbackState::Failed,
-                    Some(message),
-                ),
-                PendingEditResult::Retired { .. } => {}
-            }
-        }
-        self.flush_prepared();
-    }
-
-    /// Presentation ownership governs UI observations, including leave/return to Case.
-    /// Replacing the helper never cancels the already submitted Session-owned edits.
-    fn follow_owner(&self) {
-        let Some(current) = (self.ports.current)() else {
-            return;
-        };
-        let mut edits = self.edits.borrow_mut();
-        let changed = edits
-            .0
-            .as_ref()
-            .is_none_or(|owner| !same_owner(&current.identity, owner));
-        if changed {
-            if edits.0.is_some() {
-                edits.1.clear();
-                for field in self.fields.borrow_mut().iter_mut() {
-                    field.latest_request = None;
+    fn commit(
+        &self,
+        request: MechanicalSettingsRequest,
+        template: Rc<PartDefinition>,
+        review: Option<ReviewedPairGuard>,
+    ) {
+        let intent = request.clone();
+        let resolver =
+            EditResolver::new("mechanical-settings", move |accepted: &AcceptedSnapshot| {
+                if let Some(review) = &review
+                    && let Err(reason) = review.check(accepted)
+                {
+                    return Resolution::Retire(reason);
                 }
-            }
-            edits.0 = Some(current.identity);
-        }
-    }
-
-    fn fail_preparation(&self, submitted: &PreparedField, request_id: u64, message: &str) {
-        let field = self
-            .fields
-            .borrow()
-            .iter()
-            .find(|field| {
-                field.key == submitted.key
-                    && field.view == submitted.view
-                    && field.latest_request == Some(request_id)
-            })
-            .map(|field| (field.view, field.accepted.clone()));
-        if let Some((view, accepted)) = field {
-            view.restore(submitted.text.as_str(), || accepted, Some(message));
+                resolve_mechanical_edit(&intent, &template, accepted)
+            });
+        match (self.ports.commit)(resolver) {
+            Ok(_) => self.emit(&request, MechanicalSettingsFeedbackState::Landed, None),
+            Err(message) => self.emit(
+                &request,
+                MechanicalSettingsFeedbackState::Failed,
+                Some(message),
+            ),
         }
     }
 
@@ -502,94 +168,6 @@ impl MechanicalSettingsController {
             message,
         });
     }
-}
-
-// Authored openings and vertices carry durable ids, so a queued edit names the exact
-// target it was authored against and a reorder can never redirect it. The one local
-// retirement this guard owns is a target that no longer exists: an earlier queued
-// removal of that same opening or vertex, or a target already gone from the accepted
-// configuration. Both retire silently instead of surfacing a Core error.
-struct OpeningTargetGuard {
-    opening_id: String,
-    vertex_id: Option<String>,
-    removals: Vec<(String, Option<String>)>,
-}
-
-impl OpeningTargetGuard {
-    fn check(&self, accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
-        let removed_earlier = self.removals.iter().any(|(opening_id, vertex_id)| {
-            *opening_id == self.opening_id
-                && vertex_id
-                    .as_deref()
-                    .is_none_or(|removed| self.vertex_id.as_deref() == Some(removed))
-        });
-        let vanished = match boardstudio_web_host::cad_jobs::captured_case_document(accepted, scope)
-        {
-            Err(_) => true,
-            Ok(document) => {
-                let openings = document
-                    .mechanical
-                    .as_ref()
-                    .and_then(|configuration| configuration.openings.as_ref());
-                match openings.and_then(|openings| {
-                    openings
-                        .iter()
-                        .find(|opening| opening.id == self.opening_id)
-                }) {
-                    None => true,
-                    Some(opening) => self.vertex_id.as_deref().is_some_and(|vertex_id| {
-                        !opening.vertices.iter().any(|vertex| vertex.id == vertex_id)
-                    }),
-                }
-            }
-        };
-        if removed_earlier || vanished {
-            Err("The selected opening or vertex was removed before this edit could run.".into())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-fn opening_target_guard(
-    patch: &MechanicalSettingsPatch,
-    earlier: &[SettingsEdit],
-) -> Option<OpeningTargetGuard> {
-    let (opening_id, vertex_id) = match patch {
-        MechanicalSettingsPatch::SetOpeningDimension {
-            opening_id,
-            vertex_id,
-            ..
-        } => (opening_id.clone(), vertex_id.clone()),
-        MechanicalSettingsPatch::RemoveOpening { opening_id }
-        | MechanicalSettingsPatch::AddOpeningVertex { opening_id } => (opening_id.clone(), None),
-        MechanicalSettingsPatch::RemoveOpeningVertex {
-            opening_id,
-            vertex_id,
-        } => (opening_id.clone(), Some(vertex_id.clone())),
-        _ => return None,
-    };
-    let removals = earlier
-        .iter()
-        .filter_map(|entry| match &entry.request.patch {
-            MechanicalSettingsPatch::RemoveOpening { opening_id } => {
-                Some((opening_id.clone(), None))
-            }
-            MechanicalSettingsPatch::RemoveOpeningVertex {
-                opening_id,
-                vertex_id,
-            } => Some((opening_id.clone(), Some(vertex_id.clone()))),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if removals.is_empty() {
-        return None;
-    }
-    Some(OpeningTargetGuard {
-        opening_id,
-        vertex_id,
-        removals,
-    })
 }
 
 /// The reviewed inputs a mechanical pair action was submitted with.
@@ -657,47 +235,6 @@ fn reviewed_pair_guard(
     })
 }
 
-fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
-    matches!(
-        patch,
-        MechanicalSettingsPatch::AddOpening
-            | MechanicalSettingsPatch::RemoveOpening { .. }
-            | MechanicalSettingsPatch::AddOpeningVertex { .. }
-            | MechanicalSettingsPatch::RemoveOpeningVertex { .. }
-            | MechanicalSettingsPatch::AddMount { .. }
-            | MechanicalSettingsPatch::AddSuggestedClosureMounts(_)
-            | MechanicalSettingsPatch::SetMountCollection { .. }
-            | MechanicalSettingsPatch::AdoptClosurePositions(_)
-            | MechanicalSettingsPatch::InitializeClosures
-            | MechanicalSettingsPatch::ResetGasketPlacement
-            | MechanicalSettingsPatch::AddHardware { .. }
-            | MechanicalSettingsPatch::RemoveHardware { .. }
-            | MechanicalSettingsPatch::RemoveMount { .. }
-            | MechanicalSettingsPatch::RemoveProfile { .. }
-            | MechanicalSettingsPatch::AddProcessOverride { .. }
-            | MechanicalSettingsPatch::RemoveProcessOverride { .. }
-            | MechanicalSettingsPatch::AddCriticalFit { .. }
-            | MechanicalSettingsPatch::RemoveCriticalFit { .. }
-            | MechanicalSettingsPatch::AssignSwitchProfile { .. }
-            | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
-            | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. }
-            | MechanicalSettingsPatch::RemovePhysicalInstance
-            | MechanicalSettingsPatch::MaterializeLegacyConstruction { .. }
-    )
-}
-
-/// Builds the one typed mechanical edit this request submits.
-///
-/// Core owns the whole settings vocabulary, defaults, closure-mount initialization,
-/// clearance projection, precise changed ids and the no-op short-circuit. The adapter
-/// asks Core's read-only evaluator for the disposition first: `Unchanged` settles
-/// without a request or revision step, and a target that is already gone retires
-/// instead of being redirected at whatever now occupies its place. A malformed value
-/// still reaches Core through the submission, so the user sees the Core error rather
-/// than a silent retirement. The only local retirement besides that is the
-/// opening-target guard in [`MechanicalSettingsController::submit`], because a removed
-/// opening or vertex can no longer be addressed by the request's positional identity.
-/// This is deliberately not a reimplementation of Core's rules.
 fn resolve_mechanical_edit(
     request: &MechanicalSettingsRequest,
     template: &PartDefinition,
@@ -757,7 +294,3 @@ fn same_owner(current: &MechanicalSettingsIdentity, request: &MechanicalSettings
         && current.active_board_id == request.active_board_id
         && current.configuration_board_id == request.configuration_board_id
 }
-
-#[cfg(test)]
-#[path = "mechanical_settings_controller/adapter_tests.rs"]
-mod adapter_tests;

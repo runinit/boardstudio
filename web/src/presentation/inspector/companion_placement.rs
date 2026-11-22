@@ -1,7 +1,6 @@
 use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -14,7 +13,6 @@ use boardstudio_web_ui_shared::ui::collapsible::{
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
 
 pub use boardstudio_web_layout::inspector_types::{
     CompanionPlacementOwner, CompanionPlacementProjection,
@@ -32,9 +30,7 @@ pub struct CompanionPlacementAction {
 #[derive(Props, Clone, PartialEq)]
 pub struct CompanionPlacementInspectorProps {
     pub projection: CompanionPlacementProjection,
-    pub pending: Signal<bool>,
     pub error: Signal<Option<String>>,
-    pub pending_edits: Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub on_apply: EventHandler<CompanionPlacementAction>,
 }
 
@@ -42,7 +38,6 @@ pub struct CompanionPlacementInspectorProps {
 pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) -> Element {
     let mut placement_section_open = use_signal(|| false);
 
-    use super::super::layout_component_edits::InspectorField;
     let mut mode = use_signal(|| {
         if props.projection.mixed_mode {
             String::new()
@@ -95,37 +90,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             props.error.set(None);
         }
     }));
-    let pending_edits = props.pending_edits.peek().clone();
-    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<CompanionPlacementOwner>)));
-    let owner_is_live = {
-        let mut previous = last_owner.borrow_mut();
-        let current = props.projection.owner.clone();
-        let changed = previous.as_ref().is_some_and(|owner| owner != &current);
-        *previous = Some(current);
-        !changed
-    };
-    let mut error = props.error;
     let error_messages = (props.error)();
-    for result in pending_edits.settle(owner_is_live, |_| String::new()) {
-        match result {
-            PendingEditResult::Failed {
-                key: InspectorField::CompanionPlacement,
-                message,
-            } => error.set(Some(message)),
-            PendingEditResult::Landed {
-                key: InspectorField::CompanionPlacement,
-                ..
-            }
-            | PendingEditResult::Retired {
-                key: InspectorField::CompanionPlacement,
-            } => error.set(None),
-            _ => {}
-        }
-    }
-    let retired_pending = pending_edits.clone();
-    use_drop(move || {
-        retired_pending.settle(false, |_| String::new());
-    });
 
     let selected_mode = parse_mode(&mode());
     let wants_tweak = selected_mode == Some(MirroredCompanionMode::LiteralMirrorWithTweak);
@@ -143,7 +108,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     });
     let pair_tweak_refusal = pair_default() && tweak.is_some();
     let disabled_reason = props.projection.disabled_reason;
-    let disabled = (props.pending)() || disabled_reason.is_some();
+    let disabled = disabled_reason.is_some();
     let can_apply = !disabled
         && !props.projection.targets.is_empty()
         && selected_mode.is_some()

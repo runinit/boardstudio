@@ -13,11 +13,12 @@ use boardstudio_model::model::{
     Asset, BoardReference, ModuleModelPlacement, PcbModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, VecDeque},
     future::{Future, poll_fn},
     pin::Pin,
     rc::{Rc, Weak},
-    task::{Context, Poll, Waker},
+    task::Poll,
 };
 
 const MESH_CACHE_CAPACITY: usize = 80;
@@ -501,278 +502,6 @@ pub fn derived_step_cache_key(
     Ok(key)
 }
 
-#[derive(Clone)]
-enum CacheSlot {
-    Pending {
-        batch: ModelBatchIdentity,
-        task_token: u64,
-    },
-    Ready(Rc<ValidatedMesh>),
-    Refreshing {
-        task_token: u64,
-        batch: String,
-        is_current: Rc<dyn Fn() -> bool>,
-    },
-}
-
-#[derive(Clone, Debug)]
-pub enum MeshCacheClaim {
-    Reuse(Rc<ValidatedMesh>),
-    JoinPending {
-        task_token: u64,
-    },
-    Start {
-        task_token: u64,
-        /// A replaced task belonged to a superseded batch. The owner should
-        /// settle/cancel that batch's waiters; it must not affect this slot.
-        superseded: Option<EvictedTask>,
-        /// LRU eviction only drops cache retention. A current task still
-        /// completes its live rows even though it can no longer populate the cache.
-        evicted: Option<EvictedTask>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EvictedTask {
-    pub sha256: String,
-    pub task_token: u64,
-}
-
-/// SHA cache with a batch-owned pending slot and token-checked settlement.
-/// Stale completion/failure cannot overwrite or remove a replacement task.
-pub struct ModelMeshCache {
-    slots: BTreeMap<String, CacheSlot>,
-    recency: VecDeque<String>,
-    next_task_token: u64,
-    evidence_attempts: BTreeMap<String, String>,
-    evidence_batch: Option<String>,
-}
-
-impl Default for ModelMeshCache {
-    fn default() -> Self {
-        Self {
-            slots: BTreeMap::new(),
-            recency: VecDeque::new(),
-            next_task_token: 1,
-            evidence_attempts: BTreeMap::new(),
-            evidence_batch: None,
-        }
-    }
-}
-
-impl ModelMeshCache {
-    pub fn claim_with_step_options(
-        &mut self,
-        sha256: &str,
-        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
-        batch: &ModelBatchIdentity,
-    ) -> Result<MeshCacheClaim, String> {
-        let key = derived_step_cache_key(sha256, options)?;
-        self.claim(&key, batch)
-    }
-
-    pub fn complete_with_step_options(
-        &mut self,
-        sha256: &str,
-        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
-        task_token: u64,
-        mesh: Rc<ValidatedMesh>,
-    ) -> Result<bool, String> {
-        let key = derived_step_cache_key(sha256, options)?;
-        if let Some(vendor_step) = &mesh.vendor_step
-            && (vendor_step.source_sha256 != sha256
-                || !vendor_step.import_options.same_identity(options))
-        {
-            return Err("STEP asset identity does not match derived cache key".into());
-        }
-        Ok(self.complete(&key, task_token, mesh))
-    }
-
-    pub fn fail_with_step_options(
-        &mut self,
-        sha256: &str,
-        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
-        task_token: u64,
-    ) -> Result<bool, String> {
-        let key = derived_step_cache_key(sha256, options)?;
-        Ok(self.fail(&key, task_token))
-    }
-
-    pub fn claim(
-        &mut self,
-        sha256: &str,
-        batch: &ModelBatchIdentity,
-    ) -> Result<MeshCacheClaim, String> {
-        if let Some(slot) = self.slots.get(sha256) {
-            match slot {
-                CacheSlot::Ready(mesh) => {
-                    let mesh = mesh.clone();
-                    self.touch(sha256);
-                    return Ok(MeshCacheClaim::Reuse(mesh));
-                }
-                CacheSlot::Pending {
-                    batch: pending_batch,
-                    task_token,
-                } if pending_batch.same_batch(batch) => {
-                    let task_token = *task_token;
-                    self.touch(sha256);
-                    return Ok(MeshCacheClaim::JoinPending { task_token });
-                }
-                // An evidence batch does not carry a comparable preview owner.
-                CacheSlot::Pending { .. } | CacheSlot::Refreshing { .. } => {}
-            }
-        }
-
-        let task_token = self.allocate_task_token()?;
-        let superseded = match self.slots.get(sha256) {
-            Some(
-                CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. },
-            ) => Some(EvictedTask {
-                sha256: sha256.to_owned(),
-                task_token: *task_token,
-            }),
-            _ => None,
-        };
-        let evicted = self.make_room_for(sha256);
-        self.slots.insert(
-            sha256.to_owned(),
-            CacheSlot::Pending {
-                batch: batch.clone(),
-                task_token,
-            },
-        );
-        self.touch(sha256);
-        Ok(MeshCacheClaim::Start {
-            task_token,
-            superseded,
-            evicted,
-        })
-    }
-
-    pub fn complete(&mut self, sha256: &str, task_token: u64, mesh: Rc<ValidatedMesh>) -> bool {
-        let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current, .. }) if *current == task_token);
-        if current {
-            self.slots.insert(sha256.to_owned(), CacheSlot::Ready(mesh));
-            self.touch(sha256);
-        }
-        current
-    }
-
-    /// A failed current task is removed so the normal retry can claim a new
-    /// task. A superseded task has no authority to evict the replacement.
-    pub fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
-        let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current, .. }) if *current == task_token);
-        if current {
-            self.slots.remove(sha256);
-            self.recency.retain(|key| key != sha256);
-        }
-        current
-    }
-
-    fn allocate_task_token(&mut self) -> Result<u64, String> {
-        let token = self.next_task_token;
-        self.next_task_token = token
-            .checked_add(1)
-            .ok_or_else(|| "Model decode task identity exhausted".to_owned())?;
-        Ok(token)
-    }
-
-    fn claim_evidence_refresh(
-        &mut self,
-        key: &str,
-        batch: &str,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<MeshCacheClaim, String> {
-        if self.evidence_batch.as_deref() != Some(batch) {
-            self.evidence_attempts.clear();
-            self.evidence_batch = Some(batch.into());
-        }
-        if let Some(CacheSlot::Refreshing {
-            task_token,
-            batch: owner,
-            is_current,
-        }) = self.slots.get(key)
-            && owner == batch
-            && is_current()
-        {
-            self.evidence_attempts.insert(key.into(), batch.into());
-            return Ok(MeshCacheClaim::JoinPending {
-                task_token: *task_token,
-            });
-        }
-        if self
-            .evidence_attempts
-            .get(key)
-            .is_some_and(|current| current == batch)
-        {
-            return match self.slots.get(key) {
-                Some(CacheSlot::Ready(asset)) => Ok(MeshCacheClaim::Reuse(asset.clone())),
-                _ => Err("evidence preparation already failed in this batch".into()),
-            };
-        }
-        let task_token = self.allocate_task_token()?;
-        // Ordinary preview Pending has a typed preview owner, not an evidence
-        // batch. Without comparable ownership, neither path may join the other.
-        let superseded = match self.slots.get(key) {
-            Some(
-                CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. },
-            ) => Some(EvictedTask {
-                sha256: key.into(),
-                task_token: *task_token,
-            }),
-            _ => None,
-        };
-        let evicted = self.make_room_for(key);
-        self.evidence_attempts.insert(key.into(), batch.into());
-        self.slots.insert(
-            key.into(),
-            CacheSlot::Refreshing {
-                task_token,
-                batch: batch.into(),
-                is_current,
-            },
-        );
-        self.touch(key);
-        Ok(MeshCacheClaim::Start {
-            task_token,
-            superseded,
-            evicted,
-        })
-    }
-
-    fn make_room_for(&mut self, sha256: &str) -> Option<EvictedTask> {
-        if self.slots.contains_key(sha256) || self.slots.len() < MESH_CACHE_CAPACITY {
-            return None;
-        }
-        let victim = self.recency.pop_front()?;
-        let slot = self.slots.remove(&victim)?;
-        match slot {
-            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. } => {
-                Some(EvictedTask {
-                    sha256: victim,
-                    task_token,
-                })
-            }
-            CacheSlot::Ready(_) => None,
-        }
-    }
-
-    fn touch(&mut self, sha256: &str) {
-        self.recency.retain(|key| key != sha256);
-        self.recency.push_back(sha256.to_owned());
-    }
-}
-
-impl ModelBatchIdentity {
-    fn same_batch(&self, other: &Self) -> bool {
-        self.owner.same_owner(&other.owner)
-            && self.accepted_revision == other.accepted_revision
-            && self.batch_generation == other.batch_generation
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct DeliveredModel {
     pub id: String,
@@ -887,108 +616,33 @@ pub fn select_model_asset_id(
         })
 }
 
-type TaskKey = (String, u64);
-type PendingModelWaiters = BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>;
 type ModelResult = Result<Rc<ValidatedMesh>, String>;
-type DeliveryTask = Pin<Box<dyn Future<Output = ()> + 'static>>;
+type DeliveryTask<'a> = Pin<Box<dyn Future<Output = ()> + 'a>>;
 
-struct WaitState<T> {
-    value: Option<T>,
-    wakers: Vec<Waker>,
-}
-
-impl<T> Default for WaitState<T> {
-    fn default() -> Self {
-        Self {
-            value: None,
-            wakers: Vec::new(),
-        }
-    }
-}
-
-struct WaitCell<T> {
-    state: std::cell::RefCell<WaitState<T>>,
-}
-
-struct WaitCellFuture<T> {
-    cell: Rc<WaitCell<T>>,
-}
-
-impl<T> WaitCell<T> {
-    fn new() -> Self {
-        Self {
-            state: std::cell::RefCell::new(WaitState::default()),
-        }
-    }
-
-    fn settle(&self, value: T) {
-        let wakers = {
-            let mut state = self.state.borrow_mut();
-            if state.value.is_some() {
-                return;
-            }
-            state.value = Some(value);
-            std::mem::take(&mut state.wakers)
-        };
-        for waker in wakers {
-            waker.wake();
-        }
-    }
-}
-
-impl<T: Clone> Future for WaitCellFuture<T> {
-    type Output = T;
-
-    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut state = self.cell.state.borrow_mut();
-        if let Some(value) = &state.value {
-            return Poll::Ready(value.clone());
-        }
-        if !state
-            .wakers
-            .iter()
-            .any(|waker| waker.will_wake(context.waker()))
-        {
-            state.wakers.push(context.waker().clone());
-        }
-        Poll::Pending
-    }
-}
-
-/// Runs the model rows for one accepted preview concurrently, then publishes
-/// the completed Promise.all-style row snapshot in preview order. Meshes are
-/// cached by verified SHA; model rows retain their distinct renderer IDs.
 #[derive(Default)]
 pub struct ModelDeliveryAdapter {
-    cache: Rc<std::cell::RefCell<ModelMeshCache>>,
-    pending: Rc<std::cell::RefCell<PendingModelWaiters>>,
-}
-
-/// Only a START owner may retire its token when its caller drops the future.
-/// JOIN waiters never own this guard; old tokens cannot fail a replacement slot.
-struct RefreshProducer<'a> {
-    cache: &'a std::cell::RefCell<ModelMeshCache>,
-    pending: &'a std::cell::RefCell<PendingModelWaiters>,
-    task: &'a TaskKey,
-    armed: bool,
-}
-
-impl Drop for RefreshProducer<'_> {
-    fn drop(&mut self) {
-        if self.armed {
-            self.cache.borrow_mut().fail(&self.task.0, self.task.1);
-            settle_task(
-                self.pending,
-                self.task,
-                Err("evidence preparation cancelled".into()),
-            );
-        }
-    }
+    meshes: RefCell<VecDeque<(String, Rc<ValidatedMesh>)>>,
 }
 
 impl ModelDeliveryAdapter {
-    /// A missing proof lease may replace a ready full asset once per check batch.
-    /// Concurrent callers join the same task and only its token can settle it.
+    fn cached(&self, key: &str) -> Option<Rc<ValidatedMesh>> {
+        let mut meshes = self.meshes.borrow_mut();
+        let index = meshes.iter().position(|(id, _)| id == key)?;
+        let entry = meshes.remove(index).expect("located cached mesh");
+        let mesh = entry.1.clone();
+        meshes.push_back(entry);
+        Some(mesh)
+    }
+
+    fn cache(&self, key: String, mesh: Rc<ValidatedMesh>) {
+        let mut meshes = self.meshes.borrow_mut();
+        meshes.retain(|(id, _)| id != &key);
+        if meshes.len() == MESH_CACHE_CAPACITY {
+            meshes.pop_front();
+        }
+        meshes.push_back((key, mesh));
+    }
+
     pub async fn refresh_step_evidence(
         &self,
         sha: &str,
@@ -1000,94 +654,21 @@ impl ModelDeliveryAdapter {
         if !is_current() {
             return Err("evidence preparation became stale".into());
         }
-        let key = derived_step_cache_key(sha, options)?;
-        let claim =
-            self.cache
-                .borrow_mut()
-                .claim_evidence_refresh(&key, batch, is_current.clone())?;
-        let (task_token, start) = match claim {
-            MeshCacheClaim::Reuse(asset) => return Ok(asset),
-            MeshCacheClaim::JoinPending { task_token } => (task_token, false),
-            MeshCacheClaim::Start {
-                task_token,
-                evicted,
-                superseded,
-            } => {
-                if let Some(task) = superseded {
-                    settle_pending(
-                        &self.pending,
-                        &task,
-                        Err("evidence preparation superseded".into()),
-                    );
-                }
-                if let Some(task) = evicted {
-                    settle_pending(
-                        &self.pending,
-                        &task,
-                        Err("evidence preparation evicted".into()),
-                    );
-                }
-                (task_token, true)
-            }
-        };
-        let cell = Rc::new(WaitCell::new());
-        let task = (key, task_token);
-        self.pending
-            .borrow_mut()
-            .entry(task.clone())
-            .or_default()
-            .push(cell.clone());
-        if start {
-            let mut producer = RefreshProducer {
-                cache: &self.cache,
-                pending: &self.pending,
-                task: &task,
-                armed: true,
-            };
-            let result = load
-                .await
-                .and_then(|arrays| {
-                    if arrays.vendor_step.is_none() {
-                        return Err("evidence preparation omitted the full STEP asset".into());
-                    }
-                    ValidatedMesh::try_from(arrays)
-                })
-                .map(Rc::new);
-            let result = if !is_current() {
-                Err("evidence preparation became stale after parsing".into())
-            } else {
-                result
-            };
-            let result = match result {
-                Ok(mesh) => {
-                    let completed = self.cache.borrow_mut().complete_with_step_options(
-                        sha,
-                        options,
-                        task_token,
-                        mesh.clone(),
-                    );
-                    match completed {
-                        Ok(true) => Ok(mesh),
-                        Ok(false) => Err("evidence preparation was superseded".into()),
-                        Err(error) => {
-                            self.cache.borrow_mut().fail(&task.0, task_token);
-                            Err(error)
-                        }
-                    }
-                }
-                Err(error) => {
-                    self.cache.borrow_mut().fail(&task.0, task_token);
-                    Err(error)
-                }
-            };
-            settle_task(&self.pending, &task, result);
-            producer.armed = false;
+        // A new collision batch may need a fresh worker proof for the same source.
+        let key = format!("evidence/{batch}/{}", derived_step_cache_key(sha, options)?);
+        if let Some(mesh) = self.cached(&key) {
+            return Ok(mesh);
         }
-        let result = WaitCellFuture { cell }.await;
+        let arrays = load.await?;
         if !is_current() {
-            return Err("evidence preparation became stale after settlement".into());
+            return Err("evidence preparation became stale after parsing".into());
         }
-        result
+        if arrays.vendor_step.is_none() {
+            return Err("evidence preparation omitted the full STEP asset".into());
+        }
+        let mesh = Rc::new(ValidatedMesh::try_from(arrays)?);
+        self.cache(key, mesh.clone());
+        Ok(mesh)
     }
 
     pub async fn deliver_models(
@@ -1105,165 +686,55 @@ impl ModelDeliveryAdapter {
             return None;
         }
 
-        let mut direct = BTreeMap::<String, ModelResult>::new();
-        let mut completed_by_sha = BTreeMap::<String, ModelResult>::new();
-        let mut by_sha = BTreeMap::<String, Vec<String>>::new();
-        let mut receivers = BTreeMap::<String, WaitCellFuture<ModelResult>>::new();
-        let mut tasks = Vec::<DeliveryTask>::new();
-
+        let mut assets = BTreeMap::new();
+        let mut rows = Vec::new();
+        let mut outcomes = BTreeMap::new();
         for model in models {
-            if !is_current() {
-                return None;
-            }
-            let Some(selection) = selections.get(&model.id) else {
-                direct.insert(
-                    model.id.clone(),
-                    Err("No model asset mapping was provided".into()),
-                );
-                continue;
-            };
-            let asset = match selection {
-                AssetSelection::Archived(asset) | AssetSelection::Packaged(asset) => asset.clone(),
-                AssetSelection::MissingDocumentAsset { asset_id } => {
-                    direct.insert(
-                        model.id.clone(),
-                        Err(format!("Document model asset {asset_id} is missing")),
-                    );
-                    continue;
+            match selected_asset(selections.get(&model.id)) {
+                Ok(asset) => {
+                    rows.push((model.id.clone(), asset.sha256.clone()));
+                    assets.entry(asset.sha256.clone()).or_insert(asset);
                 }
-                AssetSelection::MissingBundledProvider { asset_id } => {
-                    direct.insert(
-                        model.id.clone(),
-                        Err(format!(
-                            "Bundled model provider is unavailable for {asset_id}"
-                        )),
-                    );
-                    continue;
+                Err(message) => {
+                    outcomes.insert(model.id.clone(), Err(message));
                 }
-                AssetSelection::NoAssetId => {
-                    direct.insert(model.id.clone(), Err("No model asset ID is mapped".into()));
-                    continue;
-                }
-            };
-            let format = match ModelFormat::from_filename(&asset.filename) {
-                Ok(format) => format,
-                Err(error) => {
-                    direct.insert(model.id.clone(), Err(error));
-                    continue;
-                }
-            };
-
-            if let Some(ids) = by_sha.get_mut(&asset.sha256) {
-                ids.push(model.id.clone());
-                continue;
-            }
-
-            let claim = match self.cache.borrow_mut().claim(&asset.sha256, batch) {
-                Ok(claim) => claim,
-                Err(error) => {
-                    direct.insert(model.id.clone(), Err(error));
-                    continue;
-                }
-            };
-            let (task_token, start_task) = match claim {
-                MeshCacheClaim::Reuse(mesh) => {
-                    completed_by_sha.insert(asset.sha256.clone(), Ok(mesh));
-                    by_sha.insert(asset.sha256.clone(), vec![model.id.clone()]);
-                    continue;
-                }
-                MeshCacheClaim::JoinPending { task_token } => (task_token, false),
-                MeshCacheClaim::Start {
-                    task_token,
-                    superseded,
-                    evicted,
-                } => {
-                    if let Some(task) = superseded {
-                        settle_pending(
-                            &self.pending,
-                            &task,
-                            Err("Model request was superseded".into()),
-                        );
-                    }
-                    if let Some(task) = evicted {
-                        settle_pending(
-                            &self.pending,
-                            &task,
-                            Err("Model request was evicted from the bounded cache".into()),
-                        );
-                    }
-                    (task_token, true)
-                }
-            };
-
-            let task_key = (asset.sha256.clone(), task_token);
-            let cell = Rc::new(WaitCell::new());
-            self.pending
-                .borrow_mut()
-                .entry(task_key.clone())
-                .or_default()
-                .push(cell.clone());
-            receivers.insert(asset.sha256.clone(), WaitCellFuture { cell });
-            by_sha.insert(asset.sha256.clone(), vec![model.id.clone()]);
-
-            if start_task {
-                let cache = self.cache.clone();
-                let pending = self.pending.clone();
-                let ports = ports.clone();
-                let batch_owner = batch.owner().clone();
-                let expected_sha = asset.sha256.clone();
-                let current = is_current.clone();
-                tasks.push(Box::pin(async move {
-                    let result = if !current() {
-                        Err("Model request became stale before loading".into())
-                    } else {
-                        load_and_decode(&ports, &asset, format, batch_owner, current.clone()).await
-                    };
-                    let result = if current() {
-                        match result {
-                            Ok(mesh) => {
-                                let mesh = Rc::new(mesh);
-                                if cache.borrow_mut().complete(
-                                    &expected_sha,
-                                    task_token,
-                                    mesh.clone(),
-                                ) {
-                                    Ok(mesh)
-                                } else {
-                                    Err("Model request was superseded before completion".into())
-                                }
-                            }
-                            Err(error) => {
-                                cache.borrow_mut().fail(&expected_sha, task_token);
-                                Err(error)
-                            }
-                        }
-                    } else {
-                        cache.borrow_mut().fail(&expected_sha, task_token);
-                        Err("Model request became stale".into())
-                    };
-                    settle_task(&pending, &task_key, result);
-                }));
             }
         }
 
+        let results = RefCell::new(BTreeMap::<String, ModelResult>::new());
+        let mut tasks: Vec<DeliveryTask<'_>> = Vec::new();
+        for (sha, asset) in assets {
+            let results = &results;
+            let current = is_current.clone();
+            tasks.push(Box::pin(async move {
+                let result = async {
+                    if !current() {
+                        return Err("Model request became stale before loading".into());
+                    }
+                    let format = ModelFormat::from_filename(&asset.filename)?;
+                    if let Some(mesh) = self.cached(&sha) {
+                        return Ok(mesh);
+                    }
+                    let mesh = Rc::new(
+                        load_and_decode(ports, asset, format, batch.owner().clone(), current)
+                            .await?,
+                    );
+                    self.cache(sha.clone(), mesh.clone());
+                    Ok(mesh)
+                }
+                .await;
+                results.borrow_mut().insert(sha, result);
+            }));
+        }
         join_all(tasks).await;
-
-        let mut outcomes = direct;
-        for (sha, receiver) in receivers {
-            let result = receiver.await;
-            if !is_current() {
-                return None;
-            }
-            completed_by_sha.insert(sha, result);
-        }
         if !is_current() {
             return None;
         }
-        for (sha, ids) in by_sha {
-            if let Some(result) = completed_by_sha.get(&sha) {
-                for id in ids {
-                    outcomes.insert(id, result.clone());
-                }
+
+        let results = results.into_inner();
+        for (id, sha) in rows {
+            if let Some(result) = results.get(&sha) {
+                outcomes.insert(id, result.clone());
             }
         }
         Some(merge_model_rows(models, &outcomes))
@@ -1351,28 +822,21 @@ async fn load_and_decode(
     Ok(mesh)
 }
 
-fn settle_pending(
-    pending: &std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>,
-    task: &EvictedTask,
-    result: ModelResult,
-) {
-    settle_task(pending, &(task.sha256.clone(), task.task_token), result);
-}
-
-fn settle_task(
-    pending: &std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>,
-    key: &TaskKey,
-    result: ModelResult,
-) {
-    let waiters = pending.borrow_mut().remove(key);
-    if let Some(waiters) = waiters {
-        for waiter in waiters {
-            waiter.settle(result.clone());
+fn selected_asset(selection: Option<&AssetSelection>) -> Result<&ResolvedModelAsset, String> {
+    match selection {
+        Some(AssetSelection::Archived(asset) | AssetSelection::Packaged(asset)) => Ok(asset),
+        Some(AssetSelection::MissingDocumentAsset { asset_id }) => {
+            Err(format!("Document model asset {asset_id} is missing"))
         }
+        Some(AssetSelection::MissingBundledProvider { asset_id }) => Err(format!(
+            "Bundled model provider is unavailable for {asset_id}"
+        )),
+        Some(AssetSelection::NoAssetId) => Err("No model asset ID is mapped".into()),
+        None => Err("No model asset mapping was provided".into()),
     }
 }
 
-async fn join_all(futures: Vec<DeliveryTask>) {
+async fn join_all(futures: Vec<DeliveryTask<'_>>) {
     let mut futures = futures.into_iter().map(Some).collect::<Vec<_>>();
     poll_fn(move |context| {
         let mut all_ready = true;

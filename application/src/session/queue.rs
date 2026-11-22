@@ -7,6 +7,17 @@ impl Session {
         document: ProjectDoc,
         effects: &mut Vec<Effect>,
     ) {
+        if matches!(
+            self.model.durability,
+            Durability::Saving { .. } | Durability::Failed { .. }
+        ) {
+            self.settle(
+                operation_id,
+                TerminalOutcome::Rejected("save the current project before opening another".into()),
+                effects,
+            );
+            return;
+        }
         if let Err(reason) = (self.validate_open)(&document) {
             self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
             return;
@@ -128,13 +139,16 @@ impl Session {
     }
     pub(super) fn pump(&mut self, effects: &mut Vec<Effect>) {
         if self.active_core.is_some()
-            || self.pending_save.is_some()
             || self.model.lifecycle == Lifecycle::RecoveryRequired
             || self.model.lifecycle == Lifecycle::Closed
         {
             return;
         }
         while let Some(intent) = self.queue.pop_front() {
+            if self.pending_save.is_some() && matches!(intent.kind, IntentKind::Open(_)) {
+                self.queue.push_front(intent);
+                return;
+            }
             if intent.submitted_epoch != self.epoch() && !matches!(intent.kind, IntentKind::Open(_))
             {
                 self.settle(

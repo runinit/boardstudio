@@ -153,7 +153,6 @@ pub(super) fn submit_layout_component_edit(
         }
         layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
         layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
-        layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
         layout_component_edits::InspectorField::PartAnchorValue => "layout-part-anchor-value",
         layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
         layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",

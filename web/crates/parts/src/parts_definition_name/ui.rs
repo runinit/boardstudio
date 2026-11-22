@@ -3,25 +3,15 @@ use crate::parts_custom_definition::DefinitionPanelCapture;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::PartDefinition;
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
-
-/// This panel's one committed field. A bounded logical key: the helper keeps one
-/// observation for the name field, whatever definition the panel currently shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum NameFieldKey {
-    Name,
-}
 
 #[component]
 pub fn DefinitionNameEditor(
@@ -35,31 +25,11 @@ pub fn DefinitionNameEditor(
     let mut draft = use_signal(|| definition.name.clone());
     let mut draft_dirty = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
-    let pending = use_hook(DraftEdits::<NameFieldKey>::default);
-    // Subscribe to the workspace's runtime-change version: outcomes settle outside
-    // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
-    // even when the accepted document did not change (for example a failed save).
-    let version = use_context::<Signal<u64>>();
-    let _ = version();
     let pad_count = definition.pads.len();
     let mut section_open = use_signal(|| pad_count == 0);
     let mut section_chosen = use_signal(|| false);
     let section_owner = (scope.clone(), definition.id.clone());
     let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
-    let observation_owner = use_hook(|| Rc::new(RefCell::new(capture.clone())));
-    if *observation_owner.borrow() != capture {
-        // Detach the old owner's Signals before silently retiring its observations.
-        // The Session still owns and executes the already committed edits.
-        pending.clear();
-        *observation_owner.borrow_mut() = capture.clone();
-        draft.set(definition.name.clone());
-        draft_dirty.set(false);
-        failure.set(None);
-    }
-    // A fresh accepted snapshot is required at commit time, but it is not
-    // a reason to discard a dirty field draft. React DraftInput keys its
-    // reset to the accepted field value; keep this target identity
-    // independent from the snapshot capture that protects submission.
     let draft_identity = (scope.clone(), selection(), definition.id.clone());
     use_effect(use_reactive((&draft_identity,), {
         let definition = definition.clone();
@@ -92,30 +62,6 @@ pub fn DefinitionNameEditor(
         }
     }));
 
-    // Settle the pending name edit before rendering: pending keeps the draft, a
-    // failure restores the accepted value with the message inline, and a landed or
-    // retired edit drops so the field follows the accepted document again. The
-    // editor outlives selection changes, so owner liveness is a real answer.
-    {
-        let model = runtime.model();
-        let owner_live = model
-            .accepted
-            .as_ref()
-            .is_some_and(|current| capture.owner_matches(current, runtime.scope(), selection()));
-        let results = pending.settle(owner_live, |_| definition.name.clone());
-        if !results.is_empty()
-            && !pending.is_pending(&NameFieldKey::Name)
-            && *draft.peek() == definition.name
-        {
-            draft_dirty.set(false);
-        }
-        for result in &results {
-            if let PendingEditResult::Failed { message, .. } = result {
-                failure.set(Some(message.clone()));
-            }
-        }
-    }
-
     let accepted_name = definition.name.clone();
     let on_blur = {
         let runtime = runtime.clone();
@@ -130,27 +76,35 @@ pub fn DefinitionNameEditor(
                 return;
             }
             let name = draft();
-            if !pending.is_pending(&NameFieldKey::Name)
-                && current
-                    .document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == capture.definition_id)
-                    .is_some_and(|definition| definition.name == name)
+            if current
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == capture.definition_id)
+                .is_some_and(|definition| definition.name == name)
             {
                 draft_dirty.set(false);
                 return;
             }
             let resolver = definition_name_resolver(capture.definition_id.clone(), name);
-            pending.submit(
-                &runtime,
-                NameFieldKey::Name,
-                "parts-definition-name",
-                Some("part definition".into()),
-                resolver,
-                FieldView::new(draft, failure).submitted(draft.peek().clone()),
-            );
-            failure.set(None);
+            let result = runtime.commit("parts-definition-name", resolver);
+            if let Some(name) = runtime
+                .model()
+                .accepted
+                .as_ref()
+                .and_then(|snapshot| {
+                    snapshot
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == capture.definition_id)
+                })
+                .map(|definition| definition.name.clone())
+            {
+                draft.set(name);
+            }
+            draft_dirty.set(false);
+            failure.set(result.err());
         }
     };
     let on_keydown = {
@@ -199,6 +153,7 @@ pub fn DefinitionNameEditor(
                             value: draft(),
                             error: name_error.clone(),
                             oninput: move |event: FormEvent| {
+                                failure.set(None);
                                 draft.set(event.value());
                                 draft_dirty.set(true);
                             },

@@ -11,178 +11,8 @@ use boardstudio_model::model::ProjectDoc;
 use boardstudio_model::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::{
-    draft_edits::{EditDisplay, FieldView},
-    owned_edits::OwnedEdits,
-};
 use dioxus::prelude::*;
 use std::rc::Rc;
-
-struct BodyEditMeta {
-    request: CaseBodyRequest,
-    created_body_id: Option<String>,
-}
-
-/// What a body edit is logically: a numeric field, or another edit kind on a body (an
-/// action such as adding a mount, or a kind change). Edits of different kinds never share
-/// a key, so one cannot replace the observation of another.
-#[derive(Clone, PartialEq)]
-enum BodyEditLogical {
-    Field(String),
-    Edit(std::mem::Discriminant<CaseBodyEdit>, Option<String>),
-}
-
-/// A body edit's logical identity: the latest edit for it replaces the earlier one. The key
-/// carries its request and created body for follow-ups; keys compare by logical identity only.
-#[derive(Clone)]
-struct BodyEditKey {
-    logical: BodyEditLogical,
-    meta: Option<Rc<BodyEditMeta>>,
-}
-
-impl PartialEq for BodyEditKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.logical == other.logical
-    }
-}
-
-type BodyEditPending = OwnedEdits<BodyEditKey>;
-
-impl BodyEditKey {
-    /// A key without a request, for binding a field's Signals.
-    fn bound(field_id: &str) -> Self {
-        Self {
-            logical: BodyEditLogical::Field(field_id.to_owned()),
-            meta: None,
-        }
-    }
-
-    fn of(waiting: BodyEditMeta) -> Self {
-        let logical = match &waiting.request.field_id {
-            Some(field_id) => BodyEditLogical::Field(field_id.clone()),
-            None => BodyEditLogical::Edit(
-                std::mem::discriminant(&waiting.request.edit),
-                waiting.request.edit.body_id().map(str::to_owned),
-            ),
-        };
-        Self {
-            logical,
-            meta: Some(Rc::new(waiting)),
-        }
-    }
-}
-
-struct CaseFieldEntry {
-    field_id: String,
-    view: FieldView,
-    /// The text the accepted document shows for the field, refreshed on every render.
-    accepted: String,
-}
-
-/// The controller's helper and the mounted number fields it is bound to. Fields register
-/// while mounted so the controller reads the draft a commit submits and the accepted text a
-/// settlement restores, and releases their Signals when they leave.
-#[derive(Clone)]
-pub(crate) struct CaseEditsContext {
-    pending: Signal<BodyEditPending>,
-    fields: Rc<std::cell::RefCell<Vec<CaseFieldEntry>>>,
-}
-
-impl CaseEditsContext {
-    fn accepted_text(&self, key: &BodyEditKey) -> String {
-        let BodyEditLogical::Field(field_id) = &key.logical else {
-            return String::new();
-        };
-        self.fields
-            .borrow()
-            .iter()
-            .find(|entry| &entry.field_id == field_id)
-            .map(|entry| entry.accepted.clone())
-            .unwrap_or_default()
-    }
-
-    fn release_field(&self, field_id: &str, view: FieldView) {
-        let mut fields = self.fields.borrow_mut();
-        if fields
-            .iter()
-            .any(|entry| entry.field_id == field_id && entry.view == view)
-        {
-            self.pending
-                .peek()
-                .edits
-                .detach_field(&BodyEditKey::bound(field_id));
-            fields.retain(|entry| entry.field_id != field_id);
-        }
-    }
-
-    fn submitted(&self, field_id: Option<&String>) -> EditDisplay<String> {
-        self.fields
-            .borrow()
-            .iter()
-            .find(|entry| Some(&entry.field_id) == field_id)
-            .map(|entry| entry.view.submitted(entry.view.draft.peek().clone()))
-            .unwrap_or_default()
-    }
-}
-
-/// Bind a number field's draft and failure Signals to the controller's helper while the
-/// calling component is mounted; they are released when it unmounts. Return whether
-/// the helper is still observing a pending edit for this field.
-pub(crate) fn use_bound_case_field(
-    field_id: &str,
-    accepted: String,
-    draft: Signal<String>,
-    failure: Signal<Option<String>>,
-) -> bool {
-    let context = try_consume_context::<CaseEditsContext>();
-    let bound = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
-    let view = FieldView::new(draft, failure);
-    if let Some(context) = context.as_ref() {
-        let mut previous = bound.borrow_mut();
-        if let Some(old) = previous.as_ref()
-            && old != field_id
-        {
-            context.release_field(old, view);
-        }
-        let mut fields = context.fields.borrow_mut();
-        match fields.iter_mut().find(|entry| entry.field_id == field_id) {
-            Some(entry) => {
-                if entry.view != view {
-                    context
-                        .pending
-                        .peek()
-                        .edits
-                        .detach_field(&BodyEditKey::bound(field_id));
-                    entry.view = view;
-                }
-                entry.accepted = accepted;
-            }
-            None => fields.push(CaseFieldEntry {
-                field_id: field_id.to_owned(),
-                view,
-                accepted,
-            }),
-        }
-        *previous = Some(field_id.to_owned());
-    }
-    let pending = context.as_ref().is_some_and(|context| {
-        context
-            .pending
-            .read()
-            .edits
-            .is_pending(&BodyEditKey::bound(field_id))
-    });
-    use_drop({
-        let bound = bound.clone();
-        move || {
-            if let (Some(context), Some(field_id)) = (context.as_ref(), bound.borrow_mut().take()) {
-                context.release_field(&field_id, view);
-            }
-        }
-    });
-    pending
-}
 
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
 /// its already scope-guarded configured-board navigation callback.
@@ -198,16 +28,10 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     });
     let mut body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
     let request_sequence = use_signal(|| 0_u64);
-    let pending = use_signal(BodyEditPending::default);
-    let edits_context = CaseEditsContext {
-        pending,
-        fields: use_hook(|| Rc::new(std::cell::RefCell::new(Vec::new()))),
-    };
-    use_context_provider(|| edits_context.clone());
     let feedback = use_signal(Vec::<CaseBodyEditFeedback>::new);
+    use_context_provider(|| BodyFieldFeedback(feedback));
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
-        let edits_context = edits_context.clone();
         move || {
             let portal = body_edit_portal;
             let runtime = runtime.clone();
@@ -217,7 +41,6 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                       snapshot_token: boardstudio_application::SnapshotToken,
                       revision: u64| {
                     let mut request_sequence = request_sequence;
-                    let mut pending = pending;
                     let mut feedback = feedback;
                     if !(portal.editable)() {
                         return;
@@ -235,9 +58,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                         &runtime,
                         instance_selection,
                         editor_instance_id,
-                        &mut pending,
                         &mut feedback,
-                        &edits_context,
                         CaseBodyRequest {
                             editor_instance_id,
                             request_id,
@@ -301,59 +122,15 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         }
     }));
 
-    use_effect(use_reactive((&version(),), {
-        let edits_context = edits_context.clone();
-        let runtime = runtime.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
-        move |_| {
-            if !pending.peek().edits.has_terminal() {
-                return;
-            }
-            let scope = runtime.scope();
-            let results = pending
-                .write()
-                .edits
-                .settle(true, |key| edits_context.accepted_text(key));
-            let mut next_feedback = feedback.peek().clone();
-            for result in results {
-                let (PendingEditResult::Landed { key, .. }
-                | PendingEditResult::Failed { key, .. }
-                | PendingEditResult::Retired { key }) = &result;
-                let Some(waiting) = key.meta.as_deref() else {
-                    continue;
-                };
-                let live = scope.as_ref() == Some(&waiting.request.scope);
-                match &result {
-                    PendingEditResult::Landed { .. } if live => {
-                        record_feedback(&mut next_feedback, feedback_for(waiting, None));
-                    }
-                    PendingEditResult::Failed { message, .. } if live => record_feedback(
-                        &mut next_feedback,
-                        feedback_for(waiting, Some(message.clone())),
-                    ),
-                    _ => {
-                        next_feedback.retain(|entry| entry.request_id != waiting.request.request_id)
-                    }
-                }
-            }
-            feedback.set(next_feedback);
-        }
-    }));
-
     let on_edit = {
         let runtime = runtime.clone();
-        let edits_context = edits_context.clone();
-        let mut pending = pending;
         let mut feedback = feedback;
         move |request: CaseBodyRequest| {
             submit_body_edit(
                 &runtime,
                 instance_selection,
                 editor_instance_id,
-                &mut pending,
                 &mut feedback,
-                &edits_context,
                 request,
             );
         }
@@ -453,19 +230,8 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     }
 }
 
-fn feedback_for(pending: &BodyEditMeta, failure: Option<String>) -> CaseBodyEditFeedback {
-    CaseBodyEditFeedback {
-        editor_instance_id: pending.request.editor_instance_id,
-        scope: pending.request.scope.clone(),
-        snapshot_token: pending.request.snapshot_token,
-        revision: pending.request.revision,
-        request_id: pending.request.request_id,
-        field_id: pending.request.field_id.clone(),
-        pending: false,
-        failure,
-        created_body_id: pending.created_body_id.clone(),
-    }
-}
+#[derive(Clone, Copy)]
+pub(crate) struct BodyFieldFeedback(pub Signal<Vec<CaseBodyEditFeedback>>);
 
 fn record_feedback(entries: &mut Vec<CaseBodyEditFeedback>, feedback: CaseBodyEditFeedback) {
     if let Some(current) = entries
@@ -484,9 +250,7 @@ fn submit_body_edit(
     runtime: &Rc<Runtime>,
     instance_selection: super::InstanceSelection,
     editor_instance_id: u64,
-    pending: &mut Signal<BodyEditPending>,
     feedback: &mut Signal<Vec<CaseBodyEditFeedback>>,
-    edits: &CaseEditsContext,
     request: CaseBodyRequest,
 ) {
     let model = runtime.model();
@@ -510,17 +274,6 @@ fn submit_body_edit(
     {
         return;
     }
-    if let Some(action_id) = request.edit.action_id()
-        && pending
-            .peek()
-            .edits
-            .pending_keys()
-            .iter()
-            .filter_map(|entry| entry.meta.as_deref())
-            .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
-    {
-        return;
-    }
     let seed = runtime.operation().0;
     let resolver = body_resolver(request.scope.clone(), request.edit.clone(), seed);
     let created_body_id = if matches!(request.edit, CaseBodyEdit::AddBody) {
@@ -534,26 +287,19 @@ fn submit_body_edit(
     } else {
         None
     };
-    let scope = request.scope.clone();
-    let display = edits.submitted(request.field_id.as_ref());
-    let waiting = BodyEditMeta {
-        request,
-        created_body_id,
-    };
-    let mut submitted = feedback_for(&waiting, None);
-    submitted.pending = true;
-    record_feedback(&mut feedback.write(), submitted);
-    let key = BodyEditKey::of(waiting);
-    if pending.peek().owner_changed(Some(&scope), 0) {
-        pending.write().follow_owner(Some(&scope), 0);
-    }
-    pending.write().edits.submit(
-        runtime,
-        key,
-        "case-body",
-        Some("case body".into()),
-        resolver,
-        display,
+    let result = runtime.commit("case-body", resolver);
+    record_feedback(
+        &mut feedback.write(),
+        CaseBodyEditFeedback {
+            editor_instance_id: request.editor_instance_id,
+            scope: request.scope,
+            snapshot_token: request.snapshot_token,
+            revision: request.revision,
+            request_id: request.request_id,
+            field_id: request.field_id,
+            created_body_id: result.is_ok().then_some(created_body_id).flatten(),
+            failure: result.err(),
+        },
     );
 }
 

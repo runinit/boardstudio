@@ -46,8 +46,6 @@ use boardstudio_web_host::{
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
-type CoreExecutorFactory = dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>;
-
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
 
@@ -329,7 +327,6 @@ pub struct Runtime {
     document_core: Option<RefCell<DocumentCore>>,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
-    core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     storage_session: RefCell<Option<StorageSession>>,
@@ -338,6 +335,7 @@ pub struct Runtime {
     saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
     pending_document: RefCell<Option<Arc<ProjectDoc>>>,
     save_conflict: Cell<bool>,
+    before_unload: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
@@ -450,21 +448,17 @@ impl Runtime {
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
-        // Each executor (and each restart) owns a fresh scratch engine, as each worker did.
-        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(move || {
-            Ok(Rc::new(InProcessCoreExecutor::new(
-                (core_services.open_scratch)(),
-                core_services.archive,
-                core_services.artifact,
-            )) as Rc<dyn CoreExecutor>)
-        });
+        let core = Rc::new(InProcessCoreExecutor::new(
+            (core_services.open_scratch)(),
+            core_services.archive,
+            core_services.artifact,
+        ));
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
             core_services,
             document_core: document_core.map(RefCell::new),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
-            core: RefCell::new(core_executor_factory.clone()()?),
-            core_executor_factory: RefCell::new(core_executor_factory),
+            core: RefCell::new(core),
             persistence: RefCell::new(Rc::new(store.clone())),
             store,
             storage_session: RefCell::default(),
@@ -473,6 +467,7 @@ impl Runtime {
             saved_tokens: RefCell::default(),
             pending_document: RefCell::default(),
             save_conflict: Cell::new(false),
+            before_unload: RefCell::default(),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
@@ -559,6 +554,27 @@ impl Runtime {
                 runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
             }
         });
+        if restore_active_project && let Some(window) = web_sys::window() {
+            let runtime_ref = Rc::downgrade(&runtime);
+            let listener =
+                Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+                    if runtime_ref.upgrade().is_some_and(|runtime| {
+                        matches!(
+                            runtime.model().durability,
+                            Durability::Saving { .. } | Durability::Failed { .. }
+                        )
+                    }) {
+                        event.prevent_default();
+                        let _ = Reflect::set(event.as_ref(), &"returnValue".into(), &JsValue::TRUE);
+                    }
+                });
+            if window
+                .add_event_listener_with_callback("beforeunload", listener.as_ref().unchecked_ref())
+                .is_ok()
+            {
+                *runtime.before_unload.borrow_mut() = Some(listener);
+            }
+        }
         Ok(runtime)
     }
     fn restore_active_project(self: &Rc<Self>) {
@@ -967,8 +983,19 @@ impl Runtime {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod case_preview_source_tests;
 
+#[cfg(all(test, target_arch = "wasm32"))]
+mod document_core_tests;
+
 impl Drop for Runtime {
     fn drop(&mut self) {
+        if let Some(listener) = self.before_unload.get_mut().take()
+            && let Some(window) = web_sys::window()
+        {
+            let _ = window.remove_event_listener_with_callback(
+                "beforeunload",
+                listener.as_ref().unchecked_ref(),
+            );
+        }
         self.cancel_frames();
         if let Some((_, worker)) = self.keycaps_preview_worker.get_mut().take() {
             worker.close();
@@ -1080,10 +1107,6 @@ mod notification_tests;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod cad_scene_rebind_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod project_open_supersession_tests;
-
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod offline_safety_tests;

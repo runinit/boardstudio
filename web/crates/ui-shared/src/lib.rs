@@ -18,13 +18,11 @@ pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
-pub mod draft_edits;
 pub mod footprint_forms;
 #[cfg(any(test, target_arch = "wasm32"))]
 mod generator_preview_defaults;
 pub mod inspector_fields;
 pub mod layout_camera;
-pub mod owned_edits;
 pub mod ui;
 
 pub mod board_layer;

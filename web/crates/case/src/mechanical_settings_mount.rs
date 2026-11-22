@@ -145,13 +145,8 @@ pub fn use_mechanical_settings_mount(
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
             let submit_runtime = runtime_for_operation.clone();
-            let resolve_edit = Rc::new(move |resolver| {
-                submit_runtime.resolve_edit(
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            });
+            let commit =
+                Rc::new(move |resolver| submit_runtime.commit("mechanical-settings", resolver));
             let publish_alive = alive.clone();
             let publish_current = current.clone();
             let publish = Rc::new(move |entry: MechanicalSettingsFeedback| {
@@ -212,7 +207,7 @@ pub fn use_mechanical_settings_mount(
             MechanicalSettingsController::new(MechanicalSettingsPorts {
                 current: current.clone(),
                 load_mounting_hole,
-                resolve_edit,
+                commit,
                 publish,
             })
         }
@@ -313,10 +308,6 @@ pub fn use_mechanical_settings_mount(
         let attempted = attempted_closure_initialization.clone();
         let mut request_sequence = request_sequence;
         move |_| {
-            // Observe navigation synchronously before settling: callback identities from the
-            // previous Case mount must be stale even when Runtime Scope itself did not change.
-            let _ = current();
-            controller.settle();
             if controller.is_busy() {
                 return;
             }

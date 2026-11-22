@@ -20,7 +20,6 @@ pub(super) enum InspectorField {
     RemoveConstraint,
     MirroredHalfState,
     PartMirror,
-    CompanionPlacement,
     PartAnchorValue,
     PartAnchorFollow,
     PartAnchorPick,

@@ -275,7 +275,3 @@ mod tests {
         assert_eq!(edit.settlement(true), Settlement::Landed { revision: 3 });
     }
 }
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-#[path = "edit_outcome_tests.rs"]
-mod edit_outcome_tests;

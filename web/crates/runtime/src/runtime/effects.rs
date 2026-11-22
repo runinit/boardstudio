@@ -1,10 +1,47 @@
 //! Session event submission and effect execution.
 use super::*;
-use boardstudio_application::{ExecutorEpoch, RequestId, SnapshotToken};
-use boardstudio_model::model::EditPhase;
+use boardstudio_application::{EditResolver, ExecutorEpoch, RequestId, SnapshotToken};
 
 impl Runtime {
     pub fn submit(self: &Rc<Self>, event: Event) {
+        self.submit_event(event, None);
+    }
+
+    /// Resolve against the current accepted snapshot and return the in-memory result.
+    pub fn commit(
+        self: &Rc<Self>,
+        label: &str,
+        resolver: EditResolver,
+    ) -> Result<AcceptedSnapshot, String> {
+        let operation_id = self.operation();
+        let result = self.submit_event(
+            Event::ResolveEdit {
+                operation_id,
+                label: label.into(),
+                resolver,
+            },
+            Some(operation_id),
+        );
+        match result {
+            Some(TerminalOutcome::Completed) => self
+                .model()
+                .accepted
+                .ok_or_else(|| "No accepted keyboard after the edit.".into()),
+            Some(
+                TerminalOutcome::Rejected(reason)
+                | TerminalOutcome::ExecutorFailed(reason)
+                | TerminalOutcome::BlockedByRecovery(reason),
+            ) => Err(reason),
+            Some(outcome) => Err(format!("The change could not be applied: {outcome:?}")),
+            None => Err("The change did not complete synchronously.".into()),
+        }
+    }
+
+    fn submit_event(
+        self: &Rc<Self>,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<TerminalOutcome> {
         if self.project_deletion_pending.get() {
             let open_operation = match &event {
                 Event::Open { operation_id, .. }
@@ -16,7 +53,7 @@ impl Runtime {
                     self.project_deletion_open.set(None);
                 } else {
                     self.report("Wait for the saved keyboard deletion to finish before opening another project.");
-                    return;
+                    return None;
                 }
             }
         }
@@ -26,7 +63,7 @@ impl Runtime {
             self.report(
                 "Finish preparing mounting locations before generating the mechanical assembly.",
             );
-            return;
+            return None;
         }
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
@@ -50,9 +87,9 @@ impl Runtime {
         #[cfg(any(test, feature = "test-support"))]
         if self.in_process_adapters.borrow().is_some() {
             self.held_effects.borrow_mut().extend(effects);
-            return;
+            return None;
         }
-        self.drive(effects);
+        self.drive_effects(effects, observe)
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -142,33 +179,50 @@ impl Runtime {
             .map(|snapshot| (snapshot.token, snapshot.document.revision))
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
+        self.drive_effects(effects, None);
+    }
+
+    fn drive_effects(
+        self: &Rc<Self>,
+        effects: Vec<Effect>,
+        observe: Option<OperationId>,
+    ) -> Option<TerminalOutcome> {
         let this = self.clone();
         let mut effects = VecDeque::from(effects);
-        // An unblocked commit can finish its Core request on the submit stack.
-        // Honor preceding effects, including pointer release and job cancellation,
-        // and leave persistence and terminal delivery with the effect driver.
-        if let Some(document_core) = &self.document_core
-            && matches!(
-                effects.front(),
-                Some(Effect::Core { request, .. })
-                    if matches!(request.as_ref(), CoreRequest::Edit { command, .. }
-                        if command.phase == EditPhase::Commit)
-            )
-            && let Some(Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            }) = effects.pop_front()
-        {
-            effects.extend(self.run_document_core(
-                document_core,
-                request_id,
-                executor_epoch,
-                *request,
-            ));
+        let mut deferred = VecDeque::new();
+        let mut result = None;
+        while let Some(effect) = effects.pop_front() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } if let Some(document_core) = &self.document_core => {
+                    effects.extend(self.run_document_core(
+                        document_core,
+                        request_id,
+                        executor_epoch,
+                        *request,
+                    ));
+                }
+                effect => {
+                    if let Effect::Settled {
+                        operation_id,
+                        outcome,
+                        ..
+                    } = &effect
+                        && observe == Some(*operation_id)
+                    {
+                        result = Some(outcome.clone());
+                    }
+                    deferred.push_back(effect);
+                }
+            }
         }
+        let mut effects = deferred;
         #[cfg(any(test, feature = "test-support"))]
         let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
             let (finished, receive) = futures_channel::oneshot::channel();
@@ -195,6 +249,7 @@ impl Runtime {
                 let _ = finished.send(());
             }
         });
+        result
     }
 
     fn run_document_core(
@@ -256,28 +311,6 @@ impl Runtime {
                     }),
                 }
             }
-            Effect::RestartCoreExecutor { executor_epoch } => {
-                self.core.borrow().close();
-                let create_executor = self.core_executor_factory.borrow().clone();
-                match create_executor() {
-                    Ok(core) => {
-                        *self.core.borrow_mut() = core.clone();
-                        match core.ready().await {
-                            Ok(()) => {
-                                self.complete(Completion::ExecutorRestarted { executor_epoch })
-                            }
-                            Err(error) => {
-                                self.report(format!("Executor restart failed: {error}"));
-                                vec![]
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        self.report(error);
-                        vec![]
-                    }
-                }
-            }
             Effect::Persist {
                 document,
                 save_attempt_id,
@@ -313,10 +346,23 @@ impl Runtime {
                         SaveResult::Aborted(error.to_string())
                     }
                 };
-                self.complete(Completion::Persist {
+                let persisted = result == SaveResult::Committed;
+                let effects = self.complete(Completion::Persist {
                     save_attempt_id,
                     result,
-                })
+                });
+                match self.model().durability {
+                    Durability::Saved { .. } if persisted => {
+                        self.apply_report(RuntimeReport::status("Saved locally.").transient());
+                    }
+                    Durability::Failed { reason, .. } => {
+                        *self.pending_document.borrow_mut() =
+                            self.model().accepted.map(|snapshot| snapshot.document);
+                        self.report(reason);
+                    }
+                    _ => {}
+                }
+                effects
             }
             Effect::Settled {
                 operation_id,
@@ -395,9 +441,7 @@ impl Runtime {
                     }
                 } else {
                     match outcome {
-                        TerminalOutcome::Completed => {
-                            self.apply_report(RuntimeReport::status("Saved locally.").transient());
-                        }
+                        TerminalOutcome::Completed => {}
                         TerminalOutcome::Rejected(reason)
                         | TerminalOutcome::PersistenceFailed(reason)
                         | TerminalOutcome::BlockedByRecovery(reason)

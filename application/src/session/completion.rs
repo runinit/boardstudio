@@ -76,29 +76,55 @@ impl Session {
                     );
                     return;
                 }
-                let save_attempt_id = SaveAttemptId(self.next_save);
-                self.next_save += 1;
-                let assets = document.assets.iter().map(AssetRef::from).collect();
-                let scene = Arc::new(scene);
-                self.pending_save = Some(PendingSave {
-                    operation_id: active.operation_id,
-                    document: document.clone(),
-                    scene,
-                    kind: active.kind,
-                    save_attempt_id,
-                    retry_operation_id: None,
-                    export_owner: active.export_owner,
-                });
-                self.model.lifecycle = Lifecycle::Saving;
-                self.model.durability = Durability::Saving {
-                    revision: document.revision,
+                let is_open = active.kind == ActiveKind::Open;
+                let epoch = if is_open {
+                    SessionEpoch(self.epoch().0 + 1)
+                } else {
+                    self.epoch()
                 };
-                effects.push(Effect::Persist {
-                    operation_id: active.operation_id,
-                    save_attempt_id,
+                self.cancel_job(effects);
+                if let Some(owner) = &active.export_owner {
+                    self.cancel_exports_except(owner.operation_id, effects);
+                } else {
+                    self.cancel_exports(effects);
+                }
+                let token = SnapshotToken(self.next_token);
+                self.next_token += 1;
+                let revision = document.revision;
+                let landing = Landing { revision, token };
+                self.model.accepted = Some(AcceptedSnapshot {
+                    token,
+                    session_epoch: epoch,
                     document,
-                    assets,
+                    scene: Arc::new(scene),
                 });
+                if let Some(owner) = &active.export_owner
+                    && let Some(export) =
+                        self.exports
+                            .iter_mut()
+                            .find(|(operation, scope, old_token)| {
+                                *operation == owner.operation_id
+                                    && *scope == owner.scope
+                                    && *old_token == owner.token
+                            })
+                {
+                    export.2 = token;
+                }
+                self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
+                self.model.durability = Durability::Saving { revision };
+                self.model.last_error = None;
+                if is_open {
+                    self.model.selected_part_ids.clear();
+                    self.model.active_instance_id = None;
+                }
+                self.reconcile_selection_and_board();
+                self.model.lifecycle = Lifecycle::Ready;
+                if !is_open {
+                    self.settle_landed(active.operation_id, landing, effects);
+                }
+                self.finish_gesture_commit(None, true, effects);
+                self.start_save(is_open.then_some(active.operation_id), effects);
             }
             (_, CoreReply::Error { message, .. }) => {
                 self.model.last_error = Some(message.clone());
@@ -129,6 +155,32 @@ impl Session {
             }
         }
     }
+    fn start_save(&mut self, operation: Option<OperationId>, effects: &mut Vec<Effect>) {
+        if self.pending_save.is_some() {
+            return;
+        }
+        let Some(accepted) = self.model.accepted.as_ref() else {
+            return;
+        };
+        let document = accepted.document.clone();
+        let save_attempt_id = SaveAttemptId(self.next_save);
+        self.next_save += 1;
+        self.pending_save = Some(PendingSave {
+            save_attempt_id,
+            revision: document.revision,
+            operation,
+        });
+        let assets = document.assets.iter().map(AssetRef::from).collect();
+        self.model.durability = Durability::Saving {
+            revision: document.revision,
+        };
+        effects.push(Effect::Persist {
+            save_attempt_id,
+            document,
+            assets,
+        });
+    }
+
     pub(super) fn persist_completed(
         &mut self,
         save_attempt_id: SaveAttemptId,
@@ -142,124 +194,58 @@ impl Session {
             self.pending_save = Some(pending);
             return;
         }
-        let attempt_operation = pending.retry_operation_id.unwrap_or(pending.operation_id);
+        let accepted = self
+            .model
+            .accepted
+            .as_ref()
+            .expect("saving an open project");
+        let revision = accepted.document.revision;
         match result {
+            SaveResult::Committed if pending.revision != revision => {
+                self.start_save(pending.operation, effects);
+            }
+            SaveResult::Committed => {
+                self.model.durability = Durability::Saved { revision };
+                if let Some(operation_id) = pending.operation {
+                    self.settle(operation_id, TerminalOutcome::Completed, effects);
+                }
+            }
             SaveResult::Aborted(reason) => {
-                self.model.lifecycle = Lifecycle::RecoveryRequired;
                 self.model.durability = Durability::Failed {
-                    revision: pending.document.revision,
+                    revision,
                     reason: reason.clone(),
                 };
-                self.model.last_error = Some(reason.clone());
-                self.pending_save = Some(pending);
-                self.settle(
-                    attempt_operation,
-                    TerminalOutcome::PersistenceFailed(reason.clone()),
-                    effects,
-                );
-                self.block_queue(&reason, effects);
-                if let Some(close_operation) = self.close_operation.take() {
+                if let Some(operation_id) = pending.operation {
                     self.settle(
-                        close_operation,
-                        TerminalOutcome::BlockedByRecovery(
-                            "pending save failed; resolve recovery before closing".into(),
-                        ),
+                        operation_id,
+                        TerminalOutcome::PersistenceFailed(reason),
+                        effects,
+                    );
+                }
+                if let Some(operation) = self.close_operation.take() {
+                    self.model.lifecycle = Lifecycle::Ready;
+                    self.settle(
+                        operation,
+                        TerminalOutcome::BlockedByRecovery("save failed before close".into()),
                         effects,
                     );
                 }
             }
-            SaveResult::Committed => {
-                let is_open = pending.kind == ActiveKind::Open;
-                let epoch = if is_open {
-                    SessionEpoch(self.epoch().0 + 1)
-                } else {
-                    self.epoch()
-                };
-                self.cancel_job(effects);
-                if let Some(owner) = &pending.export_owner {
-                    self.cancel_exports_except(owner.operation_id, effects);
-                } else {
-                    self.cancel_exports(effects);
-                }
-                let token = SnapshotToken(self.next_token);
-                self.next_token += 1;
-                let revision = pending.document.revision;
-                let landing = Landing { revision, token };
-                self.model.accepted = Some(AcceptedSnapshot {
-                    token,
-                    session_epoch: epoch,
-                    document: pending.document,
-                    scene: pending.scene,
-                });
-                if let Some(owner) = &pending.export_owner
-                    && let Some(export) =
-                        self.exports
-                            .iter_mut()
-                            .find(|(operation, scope, old_token)| {
-                                *operation == owner.operation_id
-                                    && *scope == owner.scope
-                                    && *old_token == owner.token
-                            })
-                {
-                    export.2 = token;
-                }
-                self.model.display_preview = None;
-                self.display_preview_transaction_id = None;
-                self.model.durability = Durability::Saved { revision };
-                self.model.last_error = None;
-                if is_open {
-                    self.model.selected_part_ids.clear();
-                    self.model.active_instance_id = None;
-                }
-                self.reconcile_selection_and_board();
-                self.model.lifecycle = Lifecycle::Ready;
-                self.settle_landed(pending.operation_id, landing, effects);
-                if let Some(retry_operation_id) = pending.retry_operation_id {
-                    self.settle_landed(retry_operation_id, landing, effects);
-                }
-                self.finish_gesture_commit(None, true, effects);
-                if let Some(operation) = self.close_operation.take() {
-                    self.finish_close(operation, effects);
-                }
-            }
         }
     }
+
     pub(super) fn retry_save(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
-        let Some(mut pending) = self.pending_save.take() else {
+        if matches!(self.model.durability, Durability::Failed { .. }) {
+            self.start_save(Some(operation_id), effects);
+        } else {
             self.settle(
                 operation_id,
-                TerminalOutcome::Rejected("there is no retained save to retry".into()),
+                TerminalOutcome::Rejected("there is no failed save to retry".into()),
                 effects,
             );
-            return;
-        };
-        if self.model.lifecycle != Lifecycle::RecoveryRequired {
-            self.pending_save = Some(pending);
-            self.settle(
-                operation_id,
-                TerminalOutcome::Rejected("session is not in save recovery".into()),
-                effects,
-            );
-            return;
         }
-        let save_attempt_id = SaveAttemptId(self.next_save);
-        self.next_save += 1;
-        pending.save_attempt_id = save_attempt_id;
-        pending.retry_operation_id = Some(operation_id);
-        self.model.lifecycle = Lifecycle::Saving;
-        self.model.durability = Durability::Saving {
-            revision: pending.document.revision,
-        };
-        let document = pending.document.clone();
-        let assets = document.assets.iter().map(AssetRef::from).collect();
-        self.pending_save = Some(pending);
-        effects.push(Effect::Persist {
-            operation_id,
-            save_attempt_id,
-            document,
-            assets,
-        });
     }
+
     pub(super) fn core_failed(
         &mut self,
         request_id: RequestId,
@@ -275,9 +261,6 @@ impl Session {
             return;
         }
         self.core_epoch = ExecutorEpoch(self.core_epoch.0 + 1);
-        effects.push(Effect::RestartCoreExecutor {
-            executor_epoch: self.core_epoch,
-        });
         self.model.lifecycle = Lifecycle::RecoveryRequired;
         self.model.last_error = Some(reason.clone());
         self.settle(

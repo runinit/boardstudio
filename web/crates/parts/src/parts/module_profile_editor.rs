@@ -8,7 +8,6 @@ use boardstudio_model::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -113,12 +112,6 @@ impl ModuleRotaryDraft {
                 .unwrap_or_default(),
         }
     }
-}
-
-/// Each typed field observes its latest save under one bounded key.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ModuleProfileKey {
-    Save,
 }
 
 #[derive(Clone)]
@@ -321,8 +314,6 @@ pub fn ModuleProfileEditor(
     let mut rotary_dirty = use_signal(|| false);
     let mut shape = use_signal(ModuleVolumeDraft::default);
     let mut reviewed = use_signal(|| false);
-    let profile_edits = use_hook(DraftEdits::<ModuleProfileKey, ModuleProfileDraft>::default);
-    let rotary_edits = use_hook(DraftEdits::<ModuleProfileKey, ModuleRotaryDraft>::default);
     let mut failure = use_signal(|| None::<String>);
     let mut error = use_signal(|| None::<ModuleProfileError>);
     let draft_owner = (
@@ -336,16 +327,11 @@ pub fn ModuleProfileEditor(
     use_effect(use_reactive((&draft_owner,), {
         let baseline = baseline.clone();
         let baseline_rotary = baseline_rotary.clone();
-        let profile_edits = profile_edits.clone();
-        let rotary_edits = rotary_edits.clone();
         move |(next_owner,)| {
             if processed_owner.peek().as_ref() == Some(&next_owner) {
                 return;
             }
             processed_owner.set(Some(next_owner));
-            // A new owner retires observations before its drafts replace the old ones.
-            profile_edits.clear();
-            rotary_edits.clear();
             draft.set(baseline.clone());
             rotary.set(baseline_rotary.clone());
             profile_dirty.set(false);
@@ -370,53 +356,6 @@ pub fn ModuleProfileEditor(
             reviewed.set(false);
         }
     }));
-    use_effect(use_reactive((&owner, &version()), {
-        let runtime = runtime.clone();
-        let owner = owner.clone();
-        let profile_edits = profile_edits.clone();
-        let rotary_edits = rotary_edits.clone();
-        let baseline = baseline.clone();
-        let baseline_rotary = baseline_rotary.clone();
-        move |_| {
-            let live = module_profile_owner_is_current(
-                &runtime,
-                &owner,
-                &selected,
-                selection_generation(),
-                &workspace,
-            )
-            .is_some();
-            let accepted = runtime.model().accepted.and_then(|snapshot| {
-                snapshot
-                    .document
-                    .module_definitions
-                    .iter()
-                    .find(|definition| definition.id == owner.definition_id)
-                    .cloned()
-            });
-            let accepted_profile = accepted
-                .as_ref()
-                .map(ModuleProfileDraft::from_definition)
-                .unwrap_or_else(|| baseline.clone());
-            let accepted_rotary = accepted
-                .as_ref()
-                .map(|definition| {
-                    ModuleRotaryDraft::from_profile(definition.electrical.rotary_profile.as_ref())
-                })
-                .unwrap_or_else(|| baseline_rotary.clone());
-            let profile_results = profile_edits.settle(live, |_| accepted_profile.clone());
-            let rotary_results = rotary_edits.settle(live, |_| accepted_rotary.clone());
-            // The helper owns submitted-value restoration. A restored accepted draft
-            // is clean again; newer typing keeps its independent dirty marker.
-            if !profile_results.is_empty() && *draft.peek() == accepted_profile {
-                profile_dirty.set(false);
-            }
-            if !rotary_results.is_empty() && *rotary.peek() == accepted_rotary {
-                rotary_dirty.set(false);
-            }
-        }
-    }));
-
     let current_owner = module_profile_owner_is_current(
         &runtime,
         &owner,
@@ -435,8 +374,6 @@ pub fn ModuleProfileEditor(
         })
         .map(|feedback| feedback.message)
         .or_else(|| current_owner.as_ref().and_then(|_| failure()));
-    let busy = profile_edits.is_pending(&ModuleProfileKey::Save)
-        || rotary_edits.is_pending(&ModuleProfileKey::Save);
     let runtime_for_add = runtime.clone();
     let add_volume = {
         let mut draft = draft;
@@ -550,8 +487,6 @@ pub fn ModuleProfileEditor(
         let baseline = baseline.clone();
         let draft = draft;
         let rotary = rotary;
-        let profile_edits = profile_edits.clone();
-        let rotary_edits = rotary_edits.clone();
         let mut failure = failure;
         let mut error = error;
         let selected = selected;
@@ -593,27 +528,30 @@ pub fn ModuleProfileEditor(
                 rotary_override,
                 reviewed,
             );
+            let result = runtime.commit("parts-module-profile", resolver);
+            let accepted = runtime.model().accepted.and_then(|snapshot| {
+                snapshot
+                    .document
+                    .module_definitions
+                    .iter()
+                    .find(|definition| definition.id == owner.definition_id)
+                    .cloned()
+            });
             if rotary_save {
-                rotary_edits.submit(
-                    &runtime,
-                    ModuleProfileKey::Save,
-                    "parts-module-profile",
-                    Some("module profile".into()),
-                    resolver,
-                    FieldView::new(rotary, failure).submitted(rotary.peek().clone()),
-                );
+                rotary_dirty.set(false);
+                if let Some(definition) = accepted {
+                    rotary.set(ModuleRotaryDraft::from_profile(
+                        definition.electrical.rotary_profile.as_ref(),
+                    ));
+                }
             } else {
-                profile_edits.submit(
-                    &runtime,
-                    ModuleProfileKey::Save,
-                    "parts-module-profile",
-                    Some("module profile".into()),
-                    resolver,
-                    FieldView::new(draft, failure).submitted(draft.peek().clone()),
-                );
+                profile_dirty.set(false);
+                if let Some(definition) = accepted {
+                    draft.set(ModuleProfileDraft::from_definition(&definition));
+                }
             }
             error.set(None);
-            failure.set(None);
+            failure.set(result.err());
         }
     });
 
@@ -790,344 +728,8 @@ pub fn ModuleProfileEditor(
             }
             p { "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
             Button { variant: ButtonVariant::Default, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
-            if busy { div { role: "status", class: "flex items-center gap-2", Spinner {} "Saving module profile…" } }
             if let Some(message) = visible_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod settlement_tests {
-    use super::*;
-    use boardstudio_model::model::ProjectDoc;
-    use boardstudio_web_test_runtime::project_name_test_support as support;
-    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
-    use boardstudio_web_ui_shared::test_mount::MountedFixture;
-    use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen_test::*;
-
-    fn mounted_host() -> Element {
-        let runtime = use_context::<Rc<Runtime>>();
-        let version = use_signal(|| 0_u64);
-        use_context_provider(|| version);
-        let workspace = use_signal(|| "Parts");
-        use_context_provider(|| WorkspaceState(workspace));
-        let generation = use_signal(|| 1_u64);
-        use_context_provider(|| PartsSelectionGeneration(generation));
-        let selected = use_signal(|| Some((runtime.scope(), "module:module".into())));
-        let _ = version();
-        use_hook({
-            let runtime = runtime.clone();
-            move || {
-                runtime.subscribe(Rc::new(move || {
-                    let mut version = version;
-                    version += 1;
-                }))
-            }
-        });
-        let snapshot = runtime.model().accepted.unwrap();
-        let definition = snapshot.document.module_definitions[0].clone();
-        rsx! { ModuleProfileEditor { snapshot, definition, project_owned: true, scope: runtime.scope(), selected } }
-    }
-
-    fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
-        input.set_value(value);
-        let init = web_sys::EventInit::new();
-        init.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
-            .unwrap();
-    }
-
-    fn accepted_steps(runtime: &Runtime) -> Option<u16> {
-        runtime
-            .model()
-            .accepted?
-            .document
-            .module_definitions
-            .first()?
-            .electrical
-            .rotary_profile
-            .as_ref()?
-            .steps
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_rotary_save_preserves_newer_baseline_typing_and_resumes_history_projection() {
-        let runtime = support::new_runtime();
-        let mut document = ProjectDoc::empty("mounted-module-profile", "Module profile");
-        document.module_definitions.push(serde_json::from_value(serde_json::json!({
-            "id":"module", "name":"Module", "family":"encoder", "variant":"test",
-            "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
-            "board":{"contours":[]}, "electrical":{"protocol":"gpio", "rotaryProfile":{"a":"A", "b":"B", "common":"C", "steps":20, "triggersPerRotation":20, "driver":"ec11"}}
-        })).unwrap());
-        support::open_document(&runtime, document).await;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(mounted_host);
-        dom.provide_root_context(runtime.clone());
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("rotary profile input mounts", || {
-            by_role_name(&root, "spinbutton", "Rotary pulses per rotation").is_some()
-        })
-        .await;
-        let pulses: web_sys::HtmlInputElement =
-            by_role_name(&root, "spinbutton", "Rotary pulses per rotation")
-                .expect("rotary pulses field")
-                .dyn_into()
-                .unwrap();
-        let save: web_sys::HtmlElement = by_role_name(&root, "button", "Save rotary profile")
-            .expect("save rotary profile action");
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = support::observe_next(&runtime);
-        type_value(&pulses, "24");
-        save.click();
-        support::drive_pending(&runtime);
-        wait_until_future("rotary save enters Core", entered)
-            .await
-            .unwrap();
-        type_value(&pulses, "20");
-        release.send(()).unwrap();
-        wait_until_step(
-            "rotary save lands with newer typing preserved",
-            async || {
-                support::run_pending(&runtime).await;
-                matches!(
-                    *first.borrow(),
-                    Some(boardstudio_application::TerminalOutcome::Completed)
-                ) && accepted_steps(&runtime) == Some(24)
-                    && pulses.value() == "20"
-            },
-        )
-        .await;
-        assert_eq!(
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .module_definitions[0]
-                .electrical
-                .rotary_profile
-                .as_ref()
-                .unwrap()
-                .steps,
-            Some(24)
-        );
-        assert_eq!(
-            pulses.value(),
-            "20",
-            "newer typing that returns to the original accepted value survives landing"
-        );
-        let second = support::observe_next(&runtime);
-        save.click();
-        wait_until_step("newer rotary draft saves", async || {
-            support::run_pending(&runtime).await;
-            matches!(
-                *second.borrow(),
-                Some(boardstudio_application::TerminalOutcome::Completed)
-            ) && accepted_steps(&runtime) == Some(20)
-        })
-        .await;
-        assert_eq!(
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .module_definitions[0]
-                .electrical
-                .rotary_profile
-                .as_ref()
-                .unwrap()
-                .steps,
-            Some(20)
-        );
-        runtime.submit(boardstudio_application::Event::Undo {
-            operation_id: runtime.operation(),
-        });
-        wait_until_step("rotary draft follows Undo", async || {
-            support::run_pending(&runtime).await;
-            accepted_steps(&runtime) == Some(24) && pulses.value() == "24"
-        })
-        .await;
-        assert_eq!(pulses.value(), "24", "a clean rotary draft follows Undo");
-        runtime.submit(boardstudio_application::Event::Redo {
-            operation_id: runtime.operation(),
-        });
-        wait_until_step("rotary draft follows Redo", async || {
-            support::run_pending(&runtime).await;
-            accepted_steps(&runtime) == Some(20) && pulses.value() == "20"
-        })
-        .await;
-        assert_eq!(pulses.value(), "20", "a clean rotary draft follows Redo");
-
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        let blocker = DraftEdits::<_, ()>::default();
-        blocker.begin(
-            &runtime,
-            (),
-            "rotary-failure-blocker",
-            None,
-            EditResolver::new("rotary-failure-blocker", |accepted: &AcceptedSnapshot| {
-                let mut document = accepted.document.as_ref().clone();
-                document.name = "Failure blocker".into();
-                replacement_commit(
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                    vec![],
-                )
-            }),
-        );
-        support::drive_pending(&runtime);
-        wait_until_future("rotary failure blocker enters Core", entered)
-            .await
-            .unwrap();
-        support::fail_next_core_reply(&runtime, "controlled rotary failure");
-        type_value(&pulses, "24");
-        save.click();
-        type_value(&pulses, "26");
-        release.send(()).unwrap();
-        wait_until_step("older rotary failure preserves newer typing", async || {
-            support::run_pending(&runtime).await;
-            pulses.value() == "26"
-                && root
-                    .text_content()
-                    .unwrap()
-                    .contains("controlled rotary failure")
-        })
-        .await;
-        assert_eq!(
-            pulses.value(),
-            "26",
-            "an older failure preserves newer rotary typing"
-        );
-        assert!(
-            root.text_content()
-                .unwrap()
-                .contains("controlled rotary failure")
-        );
-        runtime.unsubscribe();
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn queued_rotary_save_can_return_to_the_original_value() {
-        let definition: ModuleDefinition = serde_json::from_value(serde_json::json!({
-            "id":"module", "name":"Module", "family":"encoder", "variant":"test",
-            "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
-            "board":{"contours":[]}, "electrical":{"protocol":"gpio", "rotaryProfile":{"a":"A", "b":"B", "common":"C", "steps":20}}
-        })).unwrap();
-        let runtime = support::new_runtime();
-        let mut document = ProjectDoc::empty("module-profile", "Module profile");
-        document.module_definitions.push(definition.clone());
-        support::open_document(&runtime, document).await;
-        let accepted = runtime.model().accepted.unwrap();
-        let owner = module_profile_owner(&accepted, &definition, runtime.scope(), 1, true);
-        let original_rotary = definition.electrical.rotary_profile.clone();
-        let mut changed = original_rotary.clone().unwrap();
-        changed.steps = Some(24);
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = support::observe_next(&runtime);
-        let edits = DraftEdits::<_, ()>::default();
-        edits.begin(
-            &runtime,
-            0_u64,
-            "rotary-change",
-            None,
-            module_profile_resolver(
-                owner.clone(),
-                definition.clone(),
-                ModuleProfileDraft::from_definition(&definition),
-                Some(Some(changed)),
-                false,
-            ),
-        );
-        support::drive_pending(&runtime);
-        wait_until_future("rotary change enters Core", entered)
-            .await
-            .unwrap();
-        let restore = support::observe_next(&runtime);
-        edits.begin(
-            &runtime,
-            1_u64,
-            "rotary-restore",
-            None,
-            module_profile_resolver(
-                owner,
-                definition.clone(),
-                ModuleProfileDraft::from_definition(&definition),
-                Some(original_rotary),
-                false,
-            ),
-        );
-        release.send(()).unwrap();
-        wait_until_step("both rotary edits settle", async || {
-            support::run_pending(&runtime).await;
-            first.borrow().is_some() && restore.borrow().is_some()
-        })
-        .await;
-        assert!(
-            matches!(
-                edits.discard_drafts(true).as_slice(),
-                [
-                    PendingEditResult::Landed { .. },
-                    PendingEditResult::Landed { .. }
-                ]
-            ),
-            "the queued restore runs behind the held change and both land"
-        );
-        assert_eq!(
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .module_definitions[0]
-                .electrical
-                .rotary_profile
-                .as_ref()
-                .unwrap()
-                .steps,
-            Some(20)
-        );
-        runtime.submit(boardstudio_application::Event::Undo {
-            operation_id: runtime.operation(),
-        });
-        wait_until_step("undo restores the original rotary value", async || {
-            support::run_pending(&runtime).await;
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .module_definitions[0]
-                .electrical
-                .rotary_profile
-                .as_ref()
-                .unwrap()
-                .steps
-                == Some(24)
-        })
-        .await;
-        assert_eq!(
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .module_definitions[0]
-                .electrical
-                .rotary_profile
-                .as_ref()
-                .unwrap()
-                .steps,
-            Some(24)
-        );
     }
 }

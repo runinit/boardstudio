@@ -87,10 +87,7 @@ pub(super) struct InspectorInput {
     pub(super) component_inspector_remove_pending: Signal<bool>,
     pub(super) component_inspector_mirrored_half_pending: Signal<bool>,
     pub(super) companion_placement: Option<super::inspector::CompanionPlacementProjection>,
-    pub(super) companion_placement_pending: Signal<bool>,
     pub(super) companion_placement_error: Signal<Option<String>>,
-    pub(super) companion_placement_edits:
-        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(super) on_companion_placement_action:
         EventHandler<super::inspector::CompanionPlacementAction>,
     pub(super) on_component_inspector_action:
@@ -162,9 +159,7 @@ pub(super) struct LayoutWorkspaceState {
     component_inspector_constraint_pending: Signal<bool>,
     component_inspector_remove_pending: Signal<bool>,
     component_inspector_mirrored_half_pending: Signal<bool>,
-    companion_placement_pending: Signal<bool>,
     companion_placement_error: Signal<Option<String>>,
-    companion_placement_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     add_object_menu_open: Signal<bool>,
 }
 
@@ -200,11 +195,7 @@ pub(super) fn use_layout_workspace_state(
         component_inspector_constraint_pending: use_signal(|| false),
         component_inspector_remove_pending: use_signal(|| false),
         component_inspector_mirrored_half_pending: use_signal(|| false),
-        companion_placement_pending: use_signal(|| false),
         companion_placement_error: use_signal(|| None),
-        companion_placement_edits: use_signal(
-            super::layout_component_edits::LayoutComponentInspectorEdits::default,
-        ),
         add_object_menu_open: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
@@ -300,18 +291,8 @@ impl LayoutWorkspaceState {
         )
     }
 
-    pub(super) fn companion_placement_controls(
-        self,
-    ) -> (
-        Signal<bool>,
-        Signal<Option<String>>,
-        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
-    ) {
-        (
-            self.companion_placement_pending,
-            self.companion_placement_error,
-            self.companion_placement_edits,
-        )
+    pub(super) fn companion_placement_error(self) -> Signal<Option<String>> {
+        self.companion_placement_error
     }
 
     pub(super) fn component_inspector_field_failures(self) -> InspectorFieldFailures {
@@ -733,9 +714,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         if let Some(projection) = input.companion_placement {
             super::inspector::CompanionPlacementInspector {
                 projection,
-                pending: input.companion_placement_pending,
                 error: input.companion_placement_error,
-                pending_edits: input.companion_placement_edits,
                 on_apply: input.on_companion_placement_action,
             }
         }

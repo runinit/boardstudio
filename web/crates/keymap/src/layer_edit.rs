@@ -13,7 +13,6 @@ pub enum KeymapLayerOperation {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeymapLayerFeedback {
-    Pending,
     Failed(String),
 }
 
@@ -95,7 +94,6 @@ mod tests {
     use boardstudio_application::Event;
     use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::runtime::Runtime;
-    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
     use std::rc::Rc;
 
     fn open() -> (Rc<Runtime>, Scope) {
@@ -117,23 +115,15 @@ mod tests {
         (runtime, scope)
     }
 
-    fn settle(
+    fn commit(
         runtime: &Rc<Runtime>,
         scope: &Scope,
         request: KeymapLayerOperation,
         seed: u64,
-    ) -> PendingEditResult<u8> {
-        let edits = DraftEdits::<_, ()>::default();
-        edits.begin(
-            runtime,
-            0u8,
-            "keymap-layer",
-            Some("layer".into()),
-            layer_resolver(scope.clone(), request, seed),
-        );
-        let mut results = edits.discard_drafts(true);
-        assert_eq!(results.len(), 1, "{results:?}");
-        results.remove(0)
+    ) -> Result<u64, String> {
+        runtime
+            .commit("keymap-layer", layer_resolver(scope.clone(), request, seed))
+            .map(|snapshot| snapshot.document.revision)
     }
 
     fn layer_names(runtime: &Runtime) -> Vec<String> {
@@ -151,11 +141,8 @@ mod tests {
     #[test]
     fn add_rename_and_remove_land_against_the_accepted_keymap() {
         let (runtime, scope) = open();
-        let added = settle(&runtime, &scope, KeymapLayerOperation::Add, 7);
-        assert!(
-            matches!(added, PendingEditResult::Landed { .. }),
-            "{added:?}"
-        );
+        let added = commit(&runtime, &scope, KeymapLayerOperation::Add, 7);
+        assert!(matches!(added, Ok(_)), "{added:?}");
         let names = layer_names(&runtime);
         assert_eq!(names.len(), 2, "{names:?}");
 
@@ -168,7 +155,7 @@ mod tests {
             .clone()
             .unwrap();
         let added_id = map.layers[1].id.clone();
-        let renamed = settle(
+        let renamed = commit(
             &runtime,
             &scope,
             KeymapLayerOperation::Rename {
@@ -177,22 +164,16 @@ mod tests {
             },
             8,
         );
-        assert!(
-            matches!(renamed, PendingEditResult::Landed { .. }),
-            "{renamed:?}"
-        );
+        assert!(matches!(renamed, Ok(_)), "{renamed:?}");
         assert_eq!(layer_names(&runtime)[1], "Symbols");
 
-        let removed = settle(
+        let removed = commit(
             &runtime,
             &scope,
             KeymapLayerOperation::Remove { layer_id: added_id },
             9,
         );
-        assert!(
-            matches!(removed, PendingEditResult::Landed { .. }),
-            "{removed:?}"
-        );
+        assert!(matches!(removed, Ok(_)), "{removed:?}");
         assert_eq!(layer_names(&runtime).len(), 1);
     }
 
@@ -200,7 +181,7 @@ mod tests {
     fn unchanged_rename_lands_without_a_new_revision() {
         let (runtime, scope) = open();
         let before = runtime.model().accepted.unwrap().document.revision;
-        let result = settle(
+        let result = commit(
             &runtime,
             &scope,
             KeymapLayerOperation::Rename {
@@ -209,19 +190,13 @@ mod tests {
             },
             1,
         );
-        assert_eq!(
-            result,
-            PendingEditResult::Landed {
-                key: 0,
-                revision: before,
-            }
-        );
+        assert_eq!(result, Ok(before));
     }
 
     #[test]
     fn stale_targets_fail_with_the_resolver_message() {
         let (runtime, scope) = open();
-        let base = settle(
+        let base = commit(
             &runtime,
             &scope,
             KeymapLayerOperation::Remove {
@@ -230,10 +205,10 @@ mod tests {
             1,
         );
         assert!(
-            matches!(&base, PendingEditResult::Failed { message, .. } if message.contains("no longer exists")),
+            matches!(&base, Err(message) if message.contains("no longer exists")),
             "{base:?}"
         );
-        let missing = settle(
+        let missing = commit(
             &runtime,
             &scope,
             KeymapLayerOperation::Rename {
@@ -243,14 +218,14 @@ mod tests {
             2,
         );
         assert!(
-            matches!(&missing, PendingEditResult::Failed { message, .. } if message.contains("no longer exists")),
+            matches!(&missing, Err(message) if message.contains("no longer exists")),
             "{missing:?}"
         );
         let mut elsewhere = scope.clone();
         elsewhere.board_id = "gone".into();
-        let board = settle(&runtime, &elsewhere, KeymapLayerOperation::Add, 3);
+        let board = commit(&runtime, &elsewhere, KeymapLayerOperation::Add, 3);
         assert!(
-            matches!(&board, PendingEditResult::Failed { message, .. } if message.contains("board no longer exists")),
+            matches!(&board, Err(message) if message.contains("board no longer exists")),
             "{board:?}"
         );
         assert_eq!(layer_names(&runtime).len(), 0);

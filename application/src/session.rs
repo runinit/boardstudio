@@ -448,9 +448,6 @@ pub enum Completion {
         executor_epoch: ExecutorEpoch,
         reason: String,
     },
-    ExecutorRestarted {
-        executor_epoch: ExecutorEpoch,
-    },
     GenerationProgress {
         job_id: JobId,
         scope: Scope,
@@ -491,11 +488,7 @@ pub enum Effect {
         executor_epoch: ExecutorEpoch,
         request: Box<CoreRequest>,
     },
-    RestartCoreExecutor {
-        executor_epoch: ExecutorEpoch,
-    },
     Persist {
-        operation_id: OperationId,
         save_attempt_id: SaveAttemptId,
         document: Arc<ProjectDoc>,
         assets: Vec<AssetRef>,
@@ -608,13 +601,9 @@ struct ActiveCore {
 }
 #[derive(Debug)]
 struct PendingSave {
-    operation_id: OperationId,
-    document: Arc<ProjectDoc>,
-    scene: Arc<SceneDelta>,
-    kind: ActiveKind,
     save_attempt_id: SaveAttemptId,
-    retry_operation_id: Option<OperationId>,
-    export_owner: Option<ExportCommitOwner>,
+    revision: u64,
+    operation: Option<OperationId>,
 }
 #[derive(Clone, Debug)]
 struct Gesture {
@@ -1063,10 +1052,12 @@ impl Session {
         self.invalidate_gesture(effects);
         self.cancel_job(effects);
         self.cancel_exports(effects);
-        if self.model.lifecycle == Lifecycle::RecoveryRequired {
+        if self.model.lifecycle == Lifecycle::RecoveryRequired
+            || matches!(self.model.durability, Durability::Failed { .. })
+        {
             self.settle(
                 operation_id,
-                TerminalOutcome::BlockedByRecovery("resolve retained work before closing".into()),
+                TerminalOutcome::BlockedByRecovery("save the project before closing".into()),
                 effects,
             );
             return;

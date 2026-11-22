@@ -35,7 +35,6 @@ pub fn install(
     adapters: Rc<dyn InstalledAdapters>,
     core: Rc<dyn CoreExecutor>,
     persistence: Rc<dyn DocumentPersistence>,
-    factory: Rc<CoreExecutorFactory>,
 ) {
     runtime.saved_tokens.borrow_mut().clear();
     if let Some(accepted) = session.read_model().accepted.as_ref()
@@ -49,7 +48,6 @@ pub fn install(
     *runtime.session.borrow_mut() = session;
     *runtime.core.borrow_mut() = core;
     *runtime.persistence.borrow_mut() = persistence;
-    *runtime.core_executor_factory.borrow_mut() = factory;
     *runtime.in_process_adapters.borrow_mut() = Some(adapters);
     runtime.changed();
 }

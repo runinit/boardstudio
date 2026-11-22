@@ -1,8 +1,6 @@
 use super::demo_projects::DEMO_PROJECTS;
 use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
-use crate::project_name::{
-    ProjectNameKey, ProjectNameOwner, ProjectNameRejection, project_name_resolver,
-};
+use crate::project_name::{ProjectNameOwner, ProjectNameRejection, project_name_resolver};
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
@@ -12,7 +10,6 @@ use boardstudio_model::model::{PartKind, ProjectDoc};
 #[cfg(test)]
 use boardstudio_web_host::host::ProjectListing;
 use boardstudio_web_host::host::UnreadableProject;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::alert_dialog::{
     AlertDialog, AlertDialogActions, AlertDialogCancel, AlertDialogDescription, AlertDialogTitle,
@@ -66,26 +63,21 @@ struct ProjectNameCommitAction {
     runtime: Rc<Runtime>,
     owner: ProjectNameOwner,
     mounted: Rc<Cell<bool>>,
-    edits: DraftEdits<ProjectNameKey>,
-    name: FieldView,
-    /// The project the latest submitted rename belongs to; its observation is live only
-    /// while that project stays accepted.
-    submitted_owner: Rc<std::cell::RefCell<Option<ProjectNameOwner>>>,
+    name: Signal<String>,
+    failure: Signal<Option<String>>,
 }
 
 impl ProjectNameCommitAction {
     fn commit(&self, value: &str) {
         match project_name_resolver(&self.runtime, &self.owner, &self.mounted, value) {
             Ok(resolver) => {
-                self.edits.submit(
-                    &self.runtime,
-                    ProjectNameKey::Name,
-                    "project-name",
-                    Some("project name".into()),
-                    resolver,
-                    self.name.submitted(value.to_owned()),
-                );
-                *self.submitted_owner.borrow_mut() = Some(self.owner.clone());
+                let result = self.runtime.commit("project-name", resolver);
+                if let Some(accepted) = self.runtime.model().accepted {
+                    let mut name = self.name;
+                    name.set(accepted.document.name.clone());
+                }
+                let mut failure = self.failure;
+                failure.set(result.err());
             }
             Err(ProjectNameRejection::OwnerChanged) => self
                 .runtime
@@ -663,14 +655,9 @@ pub fn Library(
     let mut project_name = use_signal(|| current_name.clone());
     let mut name_dirty = use_signal(|| false);
     let mut name_failure = use_signal(|| None::<String>);
-    let name_edits = use_hook(DraftEdits::<ProjectNameKey>::default);
-    let submitted_name_owner =
-        use_hook(|| Rc::new(std::cell::RefCell::new(None::<ProjectNameOwner>)));
     let name_version = version();
     let observed_name = use_hook(|| Rc::new(std::cell::RefCell::new(None)));
     use_effect(use_reactive((&name_owner, &current_name, &name_version), {
-        let name_edits = name_edits.clone();
-        let submitted_name_owner = submitted_name_owner.clone();
         move |(owner, current_name, _)| {
             let observed = (owner.clone(), current_name.clone());
             let changed = observed_name.borrow().as_ref() != Some(&observed);
@@ -679,10 +666,7 @@ pub fn Library(
                 .as_ref()
                 .is_some_and(|(previous, _)| previous != &owner);
             *observed_name.borrow_mut() = Some(observed);
-            let owner_is_live = owner.is_some() && *submitted_name_owner.borrow() == owner;
-            name_edits.settle(owner_is_live, |_| current_name.clone());
-            let pending = name_edits.is_pending(&ProjectNameKey::Name);
-            if owner_changed || (!pending && !*name_dirty.peek() && changed) {
+            if owner_changed || (!*name_dirty.peek() && changed) {
                 project_name.set(current_name);
                 name_dirty.set(false);
             }
@@ -713,9 +697,8 @@ pub fn Library(
         runtime: runtime.clone(),
         owner,
         mounted: mounted.clone(),
-        edits: name_edits.clone(),
-        name: FieldView::new(project_name, name_failure),
-        submitted_owner: submitted_name_owner.clone(),
+        name: project_name,
+        failure: name_failure,
     });
     #[cfg(all(test, target_arch = "wasm32"))]
     PROJECT_NAME_ACTION_PROBE.with(|probe| *probe.borrow_mut() = name_action.clone());

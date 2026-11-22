@@ -101,7 +101,6 @@ pub struct BindingEditRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BindingEditStatus {
-    Pending,
     Failed(String),
 }
 

@@ -5,7 +5,6 @@ pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
-use crate::mechanical_settings_controller::use_bound_mechanical_field;
 pub use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
     MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,

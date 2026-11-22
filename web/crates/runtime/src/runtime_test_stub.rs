@@ -124,6 +124,29 @@ impl Runtime {
         self.operation_outcomes.observe(operation)
     }
 
+    pub fn commit(
+        &self,
+        label: &str,
+        resolver: boardstudio_application::EditResolver,
+    ) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+        use boardstudio_application::TerminalOutcome;
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        self.submit(Event::ResolveEdit {
+            operation_id,
+            label: label.into(),
+            resolver,
+        });
+        match outcome.borrow_mut().take() {
+            Some(TerminalOutcome::Completed) => self
+                .model()
+                .accepted
+                .ok_or_else(|| "No accepted keyboard after the edit.".into()),
+            Some(TerminalOutcome::Rejected(reason)) => Err(reason),
+            other => Err(format!("The change could not be applied: {other:?}")),
+        }
+    }
+
     pub fn submit(&self, event: Event) {
         self.events.push(event.clone());
         let previous_scope = self.scope();
@@ -238,9 +261,6 @@ impl Runtime {
                 } => {
                     self.operation_outcomes
                         .settle_with_landing(operation_id, outcome, landing);
-                }
-                Effect::RestartCoreExecutor { executor_epoch } => {
-                    effects.extend(self.complete(Completion::ExecutorRestarted { executor_epoch }));
                 }
                 _ => {}
             }

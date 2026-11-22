@@ -551,10 +551,7 @@ impl Session {
             }
             Event::Close { operation_id } => self.close(operation_id, &mut effects),
         }
-        if self.active_core.is_none()
-            && self.pending_save.is_none()
-            && self.model.lifecycle != Lifecycle::RecoveryRequired
-        {
+        if self.active_core.is_none() && self.model.lifecycle != Lifecycle::RecoveryRequired {
             self.pump(&mut effects);
         }
         effects
@@ -577,11 +574,6 @@ impl Session {
                 executor_epoch,
                 reason,
             } => self.core_failed(request_id, executor_epoch, reason, &mut effects),
-            Completion::ExecutorRestarted { executor_epoch } => {
-                if executor_epoch == self.core_epoch {
-                    self.core_epoch = executor_epoch;
-                }
-            }
             Completion::GenerationProgress {
                 job_id,
                 scope,
@@ -677,11 +669,10 @@ impl Session {
                 );
             }
         }
-        if self.active_core.is_none()
-            && self.pending_save.is_none()
-            && self.model.lifecycle != Lifecycle::RecoveryRequired
-        {
-            if let Some(operation_id) = self.close_operation.take() {
+        if self.active_core.is_none() && self.model.lifecycle != Lifecycle::RecoveryRequired {
+            if self.pending_save.is_none()
+                && let Some(operation_id) = self.close_operation.take()
+            {
                 self.finish_close(operation_id, &mut effects);
             } else {
                 self.pump(&mut effects);
