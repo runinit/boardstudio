@@ -1,5 +1,5 @@
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
+use boardstudio_application::{ReadModel, Scope, SelectionMode};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use boardstudio_web_ui_shared::ui::{
@@ -21,16 +21,9 @@ use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod add_matrix_surface;
 mod board_setup_controller;
 mod existing_half;
-#[cfg(test)]
-mod tree_projection_tests;
-
-#[cfg(test)]
-thread_local! {
-    static TREE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-mod add_matrix_surface;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -48,7 +41,6 @@ mod layout_rail_tool;
 mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_toolbar_logic;
-mod matrix_edit_test_support;
 mod matrix_inspector;
 mod matrix_placement_controller;
 mod matrix_preset;
@@ -278,8 +270,6 @@ pub fn Objects(
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),
         |(source, board_id, expanded, by_part)| {
-            #[cfg(test)]
-            TREE_BUILDS.set(TREE_BUILDS.get() + 1);
             let snapshot = &source.0;
             let resolved = boardstudio_application::resolved_document(&snapshot.document);
             let document = resolved.as_ref();
@@ -701,18 +691,6 @@ pub fn Objects(
             }
 }
 
-#[derive(Clone)]
-struct AcceptedSource(AcceptedSnapshot);
-
-impl PartialEq for AcceptedSource {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.token == other.0.token
-            && self.0.session_epoch == other.0.session_epoch
-            && std::sync::Arc::ptr_eq(&self.0.document, &other.0.document)
-            && std::sync::Arc::ptr_eq(&self.0.scene, &other.0.scene)
-    }
-}
-
 #[component]
 fn AddObjectEntry(
     mut menu_open: Signal<bool>,
@@ -1057,6 +1035,7 @@ fn tree_glyph(kind: TreeKind) -> Element {
     }
 }
 
+use tree_projection_logic::AcceptedSource;
 pub(crate) use tree_projection_logic::grouped_part_tree;
 
 fn report_grow(mount: &MatrixInspectorMount, result: Result<(), String>) {

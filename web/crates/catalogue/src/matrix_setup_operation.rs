@@ -371,3 +371,6 @@ impl MatrixSetupPreset {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

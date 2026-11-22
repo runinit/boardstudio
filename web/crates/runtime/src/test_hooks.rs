@@ -22,6 +22,10 @@ pub fn new_runtime(services: CoreServices) -> Result<Rc<Runtime>, String> {
 pub fn store(runtime: &Runtime) -> BrowserStore {
     runtime.store.clone()
 }
+pub fn cache_asset(runtime: &Runtime, sha256: String, bytes: Vec<u8>) {
+    runtime.assets.borrow_mut().insert(sha256, bytes);
+}
+
 pub fn clear_saved_tokens(runtime: &Runtime) {
     runtime.saved_tokens.borrow_mut().clear();
 }

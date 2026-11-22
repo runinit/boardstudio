@@ -39,6 +39,3 @@ pub mod keymap {
     pub use view::{KeymapView, project};
     pub use view_controls::{FitCamera, fit_camera, selected_bounds};
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

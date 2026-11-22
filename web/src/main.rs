@@ -27,6 +27,9 @@ mod model_decode_boundary_tests;
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
 mod layout_space_pan_listener_tests;
 
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+mod page_suite_tests;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);

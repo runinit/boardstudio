@@ -468,10 +468,7 @@ impl Runtime {
         if !is_current() {
             return Err("Imported board asset request became stale after loading".into());
         }
-        let digest = sha256_hex(&bytes);
-        if digest != asset.sha256 {
-            return Err("Imported board asset bytes do not match the accepted SHA-256".into());
-        }
+        verify_source_digest(asset, &bytes)?;
         self.assets
             .borrow_mut()
             .insert(asset.sha256.clone(), bytes.clone());

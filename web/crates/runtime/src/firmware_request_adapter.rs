@@ -826,3 +826,6 @@ fn rgb_overlay(
         "#include <zephyr/dt-bindings/led/led.h>\n&spi3 {{ status = \"okay\"; pinctrl-0 = <&boardstudio_spi3>; pinctrl-names = \"default\"; led_strip: ws2812@0 {{ compatible = \"worldsemi,ws2812-spi\"; reg = <0>; spi-max-frequency = <4000000>; chain-length = <{count}>; spi-one-frame = <0x70>; spi-zero-frame = <0x40>; color-mapping = <LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>; }}; }}; &pinctrl {{ boardstudio_spi3: boardstudio_spi3 {{ group1 {{ psels = <NRF_PSEL(SPIM_MOSI, {port}, {pin_number})>; }}; }}; }}; / {{ chosen {{ zmk,underglow = &led_strip; }}; }};"
     ))
 }
+
+#[cfg(test)]
+mod tests;

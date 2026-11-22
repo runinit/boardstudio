@@ -30,15 +30,18 @@ pub(crate) mod native_model_mapping;
 mod native_model_mapping_tests;
 pub mod operation_outcomes;
 pub mod parts_preview;
+mod physical_pcb;
 pub mod portable_archive;
 #[cfg(test)]
 mod qualification_assessment_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod source_pcb_export_tests;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod case_gesture_preview;
 #[cfg(target_arch = "wasm32")]
 pub mod export_footprints;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod firmware_request_adapter;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_handoff;
@@ -50,19 +53,7 @@ pub mod runtime;
 #[path = "runtime_test_stub.rs"]
 pub mod runtime;
 
-// Unit tests instantiate this crate's Runtime and inspect its private state. Compile the
-// shared fixture wiring against that Runtime, as the external fixture crate does for callers.
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "../../test-runtime/src/fixtures.rs"]
-mod fixtures;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-fn engine_core_services() -> core_services::CoreServices {
-    core_services::CoreServices::engine()
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+mod runtime_report;
 
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlanRequest};
 use boardstudio_model::model::{CoreRequest, ProjectDoc};

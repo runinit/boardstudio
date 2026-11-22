@@ -120,11 +120,9 @@ impl Runtime {
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PhysicalStepAssembly, String> {
         let ensure_current = || {
-            if is_current() {
-                Ok(())
-            } else {
-                Err("Physical PCB preparation was cancelled or became stale.".to_owned())
-            }
+            is_current()
+                .then_some(())
+                .ok_or("Physical PCB preparation was cancelled or became stale.")
         };
         ensure_current()?;
         let mut prepared = prepare_captured_case(
@@ -140,122 +138,17 @@ impl Runtime {
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
         let mut pcb_source_thickness = None;
         if let Some(source) = &pcb_source {
-            let source_is_current = is_current.clone();
             let bytes = self
-                .load_preview_document_asset(&source.asset, source_is_current)
+                .load_preview_document_asset(&source.asset, is_current.clone())
                 .await?;
             ensure_current()?;
-            let request_id = format!("{request_prefix}-pcb-source");
-            let request = ArtifactRequest::ReadBoardSource {
-                id: request_id.clone(),
-                source: String::from_utf8(bytes)
-                    .map_err(|error| format!("PCB source is not valid UTF-8: {error}"))?,
-                placement: source.placement,
-                flipped: source.flipped,
-            };
-            let reply = artifact_reply(&request)?;
-            let board = match reply {
-                ArtifactReply::ReadBoardSource { id, result } if id == request_id => result,
-                _ => return Err("Core returned PCB source for another request.".into()),
-            };
-            let indices = prepared
-                .prepared
-                .bodies
-                .iter()
-                .enumerate()
-                .filter(|(_, body)| body.body.id == "pcb-reference")
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>();
-            if indices.len() != 1 {
-                return Err("Prepared PCB reference is missing or ambiguous.".into());
-            }
-            let mut body = prepared.prepared.bodies[indices[0]].body.clone();
-            pcb_source_thickness = board.thickness;
-            if board
-                .thickness
-                .is_some_and(|thickness| thickness != body.thickness)
-            {
-                return Err(
-                    "Imported PCB thickness does not match the mechanical PCB thickness.".into(),
-                );
-            }
-            if board
-                .pcb_source
-                .as_ref()
-                .is_none_or(|profile| profile.contours.is_empty())
-                || board.contours.is_empty()
-            {
-                return Err("Core returned incomplete PCB source geometry.".into());
-            }
-            if body
-                .features
-                .as_ref()
-                .is_some_and(|features| !features.is_empty())
-                || body
-                    .openings
-                    .as_ref()
-                    .is_some_and(|openings| !openings.is_empty())
-                || body
-                    .mounts
-                    .as_ref()
-                    .is_some_and(|mounts| !mounts.is_empty())
-                || body.gasket.is_some()
-                || body.pcb_source.is_some()
-            {
-                return Err(
-                    "Imported source cannot replace a modified nominal PCB reference.".into(),
-                );
-            }
-            body.z = Some(body.z.unwrap_or(0.0) + source.reference.elevation);
-            body.pcb_source = board.pcb_source;
-            body.mounts = (!board.round_drills.is_empty()).then_some(board.round_drills);
-            let mut contours = board.contours;
-            contours.extend(
-                board
-                    .holes
-                    .into_iter()
-                    .map(|points| boardstudio_model::model::Contour { points, hole: true }),
-            );
-            let source_ir = CaseIR {
-                revision: prepared.identity.revision,
-                body,
-                contours,
-            };
-            let request_id = format!("{request_prefix}-pcb-prepare");
-            let request = CoreRequest::PrepareCase {
-                id: request_id.clone(),
-                ir: CaseAssemblyIR {
-                    revision: source_ir.revision,
-                    bodies: vec![source_ir.clone()],
-                },
-            };
-            let reply = (self.core_services.open_scratch)()(request);
-            let mut ir = match reply {
-                CoreReply::CasePrepared { id, ir } if id == request_id => ir,
-                CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-                _ => return Err("Core returned an unexpected source PCB preparation.".into()),
-            };
-            if ir.revision != prepared.identity.revision
-                || ir.bodies.len() != 1
-                || ir.bodies[0].revision != ir.revision
-                || ir.bodies[0].body != source_ir.body
-            {
-                return Err("Core returned an incomplete or stale source PCB preparation.".into());
-            }
-            let mut pcb = ir.bodies.pop().expect("one source PCB body checked");
-            // Compatibility polygons already contain these voids; exact CAD uses body mounts.
-            for region in &mut pcb.regions {
-                region.mounts.clear();
-            }
-            prepared.prepared.bodies[indices[0]] = pcb;
-            if let Some(assembly) = &mut prepared.mechanical_assembly {
-                assembly.pcb_reference = Some(source_ir);
-                for layer in &mut assembly.stack {
-                    if layer.id == "pcb" {
-                        layer.z += source.reference.elevation;
-                    }
-                }
-            }
+            pcb_source_thickness = install_source_pcb(
+                self.core_services.open_scratch,
+                request_prefix,
+                source,
+                bytes,
+                &mut prepared,
+            )?;
         }
         Ok(PhysicalStepAssembly {
             prepared,

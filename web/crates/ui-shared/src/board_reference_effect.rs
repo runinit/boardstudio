@@ -29,7 +29,10 @@ pub fn clear_missing_reference(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests;
+
+#[cfg(test)]
+mod error_tests {
     use super::retryable_error;
 
     #[test]

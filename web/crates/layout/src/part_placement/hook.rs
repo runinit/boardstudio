@@ -45,13 +45,6 @@ pub struct PartPlacementMount {
     pub on_cancel: EventHandler<()>,
 }
 
-impl PartPlacementMount {
-    #[cfg(test)]
-    pub fn owns_canvas(&self) -> bool {
-        self.busy || self.projection.is_some()
-    }
-}
-
 pub struct PartPlacementHost {
     pub runtime: Rc<Runtime>,
     pub load_definition: DefinitionLoader,

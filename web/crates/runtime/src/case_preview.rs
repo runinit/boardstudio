@@ -402,6 +402,14 @@ impl NativePreviewState {
                 .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
     }
 
+    pub(crate) fn current_error(
+        &self,
+        is_current: impl FnOnce(&CasePreviewOwnerIdentity) -> bool,
+    ) -> Option<String> {
+        let (owner, error) = self.error.as_ref()?;
+        is_current(owner).then(|| error.clone())
+    }
+
     pub fn is_stale(&self, is_current: impl Fn(&CasePreviewOwnerIdentity) -> bool) -> bool {
         self.published
             .as_ref()
@@ -617,4 +625,66 @@ pub fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
         }
     }
     path_assets
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod capture_error_tests {
+    use super::*;
+    use boardstudio_application::Event;
+    use boardstudio_model::model::Board;
+
+    #[test]
+    fn missing_board_source_only_reports_to_the_captured_owner() {
+        let runtime = crate::runtime::Runtime::new();
+        let mut document = ProjectDoc::empty("source", "Imported source");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.board_references.push(BoardReference {
+            id: "reference".into(),
+            board_id: "board".into(),
+            asset_id: "missing-asset".into(),
+            enabled: true,
+            pose: boardstudio_model::model::Pose2 {
+                at: Default::default(),
+                rotation: 0.0,
+            },
+            elevation: 0.0,
+            model_assets: Default::default(),
+        });
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
+        });
+        let snapshot = runtime.model().accepted.unwrap();
+        let scope = runtime.scope().unwrap();
+        let error = capture_native_preview(&snapshot, &scope, 1, 1, "capture".into())
+            .err()
+            .unwrap();
+        assert!(
+            error.contains("Imported board asset is unavailable"),
+            "{error}"
+        );
+        let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, 1, "capture".into());
+        let state = NativePreviewState {
+            error: Some((owner, error.clone())),
+            ..Default::default()
+        };
+        assert_eq!(
+            state.current_error(|owner| owner.scope == scope),
+            Some(error)
+        );
+        assert!(state.pending.is_none() && state.published.is_none());
+        assert_eq!(
+            state.current_error(|owner| owner.scope.board_id == "another-board"),
+            None
+        );
+    }
 }

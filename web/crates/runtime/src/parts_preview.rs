@@ -401,8 +401,7 @@ mod tests {
         })
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[test]
     fn late_old_generation_invalidation_cannot_revoke_new_parts_preview_lease() {
         let slot = PartsPreviewLeaseSlot::default();
         slot.select_generation(1);

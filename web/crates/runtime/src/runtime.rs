@@ -5,11 +5,13 @@ use crate::mechanical_package::{
     mechanical_stl, push_mechanical_file,
 };
 use crate::native_model_mapping::{NativeModelDeliveryState, resolve_native_model_paths};
+use crate::physical_pcb::{artifact_reply, install_source_pcb, verify_source_digest};
+pub use crate::runtime_report::RuntimeNotification;
+use crate::runtime_report::{RuntimeReport, publish};
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
     ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
-use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_core_mechanical::electrical::{
     ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
@@ -32,8 +34,6 @@ use boardstudio_web_host::{
     },
     cad_worker::CadWorker,
 };
-#[cfg(test)]
-use sha2::{Digest, Sha256};
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -55,17 +55,7 @@ struct PhysicalStepAssembly {
     pcb_source_thickness: Option<f64>,
 }
 
-pub struct CadScene {
-    pub scope: Scope,
-    pub token: SnapshotToken,
-    pub snapshot: AcceptedSnapshot,
-    pub result: CadResult,
-    pub prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
-    pub physical_fingerprint: Option<[u8; 32]>,
-    pub mechanical: Option<boardstudio_model::model::MechanicalAssembly>,
-    pub exact: bool,
-    pub contours: Vec<boardstudio_model::model::Contour>,
-}
+pub use crate::case_generation_lifecycle::CadScene;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeycapsPreviewInput {
@@ -100,61 +90,6 @@ use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RuntimeReportSeverity {
-    Status,
-    Alert,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct RuntimeReport {
-    message: String,
-    severity: RuntimeReportSeverity,
-    notification_error: Option<bool>,
-}
-
-/// A one-shot result for the shell's single notification consumer.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeNotification {
-    pub message: String,
-    pub is_error: bool,
-}
-
-impl RuntimeReport {
-    fn status(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            severity: RuntimeReportSeverity::Status,
-            notification_error: None,
-        }
-    }
-
-    fn alert(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            severity: RuntimeReportSeverity::Alert,
-            notification_error: None,
-        }
-    }
-
-    fn transient(mut self) -> Self {
-        self.notification_error = Some(self.severity == RuntimeReportSeverity::Alert);
-        self
-    }
-
-    fn transient_error(mut self) -> Self {
-        self.notification_error = Some(true);
-        self
-    }
-
-    fn clear_alert(&mut self) {
-        if self.severity == RuntimeReportSeverity::Alert {
-            self.message.clear();
-            self.severity = RuntimeReportSeverity::Status;
-        }
-    }
-}
-
 fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Option<RuntimeReport> {
     let (message, alert, transient) = match outcome {
         TerminalOutcome::Completed => match export? {
@@ -182,15 +117,10 @@ fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Opt
         TerminalOutcome::Closed => ("Editor closed.".into(), false, false),
         TerminalOutcome::Superseded => return None,
     };
-    let report = if alert {
-        RuntimeReport::alert(message)
-    } else {
-        RuntimeReport::status(message)
-    };
-    Some(if transient {
-        report.transient()
-    } else {
-        report
+    Some(RuntimeReport {
+        message,
+        is_alert: alert,
+        notification_error: transient.then_some(alert),
     })
 }
 
@@ -449,23 +379,6 @@ mod scene_preview;
 mod sources;
 
 use mechanical_export::authored_case_filename;
-
-pub(crate) fn artifact_reply(request: &ArtifactRequest) -> Result<ArtifactReply, String> {
-    let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
-    let reply = serde_json::from_str(&boardstudio_core::artifact_request(&request))
-        .map_err(|error| error.to_string())?;
-    match reply {
-        ArtifactReply::Error { error, .. } => {
-            let mut message = error.message;
-            for diagnostic in error.diagnostics {
-                message.push(' ');
-                message.push_str(&diagnostic.message);
-            }
-            Err(message)
-        }
-        reply => Ok(reply),
-    }
-}
 
 impl Runtime {
     /// Keep one injected engine for the document; scratch probes create their own engines.
@@ -764,7 +677,7 @@ impl Runtime {
         self.status.borrow().message.clone()
     }
     pub fn status_is_alert(&self) -> bool {
-        self.status.borrow().severity == RuntimeReportSeverity::Alert
+        self.status.borrow().is_alert
     }
     pub fn status_is_transient(&self) -> bool {
         self.status.borrow().notification_error.is_some()
@@ -772,7 +685,7 @@ impl Runtime {
     /// Drain every pending result in order, including identical results between renders.
     /// Only the shell consumes this queue; reading it does not trigger another render.
     pub fn take_notifications(&self) -> Vec<RuntimeNotification> {
-        std::mem::take(&mut *self.notifications.borrow_mut())
+        crate::runtime_report::take_notifications(&self.notifications)
     }
     pub fn embed_used_models(&self) -> bool {
         self.embed_used_models.get()
@@ -795,18 +708,7 @@ impl Runtime {
         self.apply_report(RuntimeReport::status(status));
     }
     fn apply_report(&self, report: RuntimeReport) {
-        if let Some(is_error) = report.notification_error {
-            self.notifications.borrow_mut().push(RuntimeNotification {
-                message: report.message.clone(),
-                is_error,
-            });
-        }
-        *self.status.borrow_mut() = report;
-        self.changed();
-    }
-    fn clear_alert(&self) {
-        self.status.borrow_mut().clear_alert();
-        self.changed();
+        publish(&self.status, &self.notifications, report, || self.changed());
     }
     fn changed(&self) {
         if let Some(notify) = self.notify.borrow().as_ref().cloned() {
@@ -895,12 +797,6 @@ impl Runtime {
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod case_preview_source_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod document_core_tests;
-
 impl Runtime {
     fn close_browser_workers(&self) {
         self.cancel_frames();
@@ -934,21 +830,6 @@ impl Drop for Runtime {
 mod collision_check;
 
 pub use collision_check::{CollisionCheckInput, CollisionCheckReport};
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "runtime_collision_browser_tests.rs"]
-mod collision_browser_tests;
-
-#[cfg(test)]
-#[path = "source_pcb_export_tests.rs"]
-mod source_pcb_export_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "cad_runtime_borrow_tests.rs"]
-mod cad_runtime_borrow_tests;
-
-#[cfg(test)]
-pub use crate::fixtures::firmware_export_test_support;
 
 pub fn deployment_prefix() -> Result<&'static str, String> {
     let path = web_sys::window()
@@ -1015,15 +896,3 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 #[cfg(any(test, feature = "test-support"))]
 #[path = "test_hooks.rs"]
 pub mod test_hooks;
-
-#[cfg(test)]
-pub use crate::fixtures::{in_process_support, project_name_test_support};
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod notification_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod cad_scene_rebind_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod offline_safety_tests;

@@ -3,9 +3,21 @@
 //! The production Objects tree (wasm) delegates to this module so the same
 //! grouping runs under `cargo test` without a browser.
 
-use boardstudio_application::ReadModel;
+use boardstudio_application::{AcceptedSnapshot, ReadModel};
 use boardstudio_web_ui_model::tree::{self, TreeKind};
 use std::collections::BTreeSet;
+
+#[derive(Clone)]
+pub(crate) struct AcceptedSource(pub(crate) AcceptedSnapshot);
+
+impl PartialEq for AcceptedSource {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.token == other.0.token
+            && self.0.session_epoch == other.0.session_epoch
+            && std::sync::Arc::ptr_eq(&self.0.document, &other.0.document)
+            && std::sync::Arc::ptr_eq(&self.0.scene, &other.0.scene)
+    }
+}
 
 pub(crate) fn grouped_part_tree(
     model: &ReadModel,
@@ -160,6 +172,26 @@ mod tests {
             .unwrap(),
         );
         document
+    }
+
+    #[test]
+    fn accepted_tree_source_ignores_presentation_but_tracks_accepted_replacements() {
+        let model = snapshot(document());
+        let accepted = model.accepted.unwrap();
+        let source = AcceptedSource(accepted.clone());
+        assert!(source == AcceptedSource(accepted.clone()));
+
+        let mut committed = accepted.clone();
+        committed.token = SnapshotToken(8);
+        assert!(source != AcceptedSource(committed));
+        let mut renamed = accepted.clone();
+        Arc::make_mut(&mut renamed.document).boards[0].name = "Updated board".into();
+        assert!(source != AcceptedSource(renamed));
+        let mut scene_changed = accepted;
+        Arc::make_mut(&mut scene_changed.scene)
+            .changed_ids
+            .push("part-1".into());
+        assert!(source != AcceptedSource(scene_changed));
     }
 
     #[test]

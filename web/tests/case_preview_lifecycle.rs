@@ -7,27 +7,14 @@ use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     future::Future,
-    pin::Pin,
     rc::Rc,
     task::{Context, Poll, Waker},
 };
 
-type Detached = Pin<Box<dyn Future<Output = ()>>>;
-thread_local! { static TASKS: RefCell<Vec<Detached>> = RefCell::default(); }
-
-pub fn spawn_local(future: impl Future<Output = ()> + 'static) {
-    TASKS.with_borrow_mut(|tasks| tasks.push(Box::pin(future)));
-}
-
-fn poll_detached() {
-    TASKS.with_borrow_mut(|tasks| {
-        tasks.retain_mut(|task| {
-            task.as_mut()
-                .poll(&mut Context::from_waker(Waker::noop()))
-                .is_pending()
-        })
-    });
-}
+#[path = "support/detached.rs"]
+mod detached;
+use detached::poll_detached;
+pub use detached::spawn_local;
 
 mod runtime {
     use super::*;

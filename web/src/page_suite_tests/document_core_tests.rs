@@ -1,5 +1,10 @@
-use super::*;
+use crate::runtime::Runtime;
 use boardstudio_application::EditResolver;
+use boardstudio_application::{Durability, Event};
+use boardstudio_core::model::ProjectDoc;
+use boardstudio_web_runtime::runtime::test_hooks;
+use boardstudio_web_test_runtime::engine_core_services;
+use gloo_timers::future::TimeoutFuture;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 async fn wait_for_save(runtime: &Runtime, revision: u64) {
@@ -15,8 +20,8 @@ async fn wait_for_save(runtime: &Runtime, revision: u64) {
 
 #[wasm_bindgen_test]
 async fn commits_publish_before_the_latest_revision_is_durable() {
-    let services = CoreServices::engine();
-    let runtime = Runtime::new_with_restoration(false, services).unwrap();
+    let runtime = test_hooks::new_runtime(engine_core_services()).unwrap();
+    let store = test_hooks::store(&runtime);
     let id = "coalesced-rename";
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
@@ -37,21 +42,9 @@ async fn commits_publish_before_the_latest_revision_is_durable() {
     }
 
     wait_for_save(&runtime, 3).await;
-    let reloaded = runtime
-        .store
-        .load_document(id.to_owned())
-        .await
-        .unwrap()
-        .unwrap();
+    let reloaded = store.load_document(id.to_owned()).await.unwrap().unwrap();
     assert_eq!(reloaded.name, "Latest");
     assert_eq!(reloaded.revision, 3);
-    runtime.store.delete_project(id.to_owned()).await.unwrap();
-    assert!(
-        runtime
-            .store
-            .load_document(id.to_owned())
-            .await
-            .unwrap()
-            .is_none()
-    );
+    store.delete_project(id.to_owned()).await.unwrap();
+    assert!(store.load_document(id.to_owned()).await.unwrap().is_none());
 }

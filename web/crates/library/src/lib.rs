@@ -31,6 +31,3 @@ pub(crate) mod demo_projects;
 pub mod library;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod project_name;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
