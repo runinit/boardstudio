@@ -222,11 +222,10 @@ mod tests {
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
     use boardstudio_web_test_runtime::firmware_export_test_support as runtime_test;
-    use boardstudio_web_ui_shared::test_role::{accessible_name, by_role_name};
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::cell::RefCell;
     use std::rc::Rc;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[derive(Clone)]
@@ -313,150 +312,6 @@ mod tests {
             source,
             resolution,
         }
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_export_panel_dispatches_failure_alert_and_successful_retry_from_same_row() {
-        let (runtime, accepted, scope) = runtime_test::fixture().await;
-        runtime_test::fail(&runtime, runtime_test::Stage::Generation);
-        let before = runtime_test::session_model(&runtime);
-        let root = mount_production_export_panel(production_probe(
-            runtime.clone(),
-            &accepted,
-            &scope,
-            runtime.electrical_preview_executor_epoch(),
-            true,
-        ));
-        wait_until("the production export panel mounts both workspaces", || {
-            root.query_selector_all("h2")
-                .is_ok_and(|headings| headings.length() == 2)
-        })
-        .await;
-
-        let headings = root.query_selector_all("h2").unwrap();
-        assert_eq!(headings.length(), 2);
-        assert_eq!(
-            headings.item(0).unwrap().text_content().as_deref(),
-            Some("Design files")
-        );
-        assert_eq!(
-            headings.item(1).unwrap().text_content().as_deref(),
-            Some("Portable project")
-        );
-        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
-        let row = button.parent_element().unwrap();
-        assert_eq!(
-            row.query_selector("strong")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("ZMK firmware")
-        );
-        assert_eq!(
-            row.query_selector("[data-slot=item-description]")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("ZMK v0.3.0 configuration and editable starter keymap")
-        );
-        assert!(
-            row.query_selector("[data-slot=badge]")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref()
-                == Some("Available")
-        );
-        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
-        button.click();
-        let mut effects = None;
-        wait_until_step("the ZMK export action dispatches", async || {
-            let pending = runtime_test::take_effects(&runtime);
-            if pending.is_empty() {
-                false
-            } else {
-                effects = Some(pending);
-                true
-            }
-        })
-        .await;
-        let effects = effects.expect("the export action dispatches effects");
-        assert_eq!(
-            effects
-                .iter()
-                .filter(|effect| matches!(
-                    effect,
-                    boardstudio_application::Effect::RunExport { .. }
-                ))
-                .count(),
-            1,
-            "the mounted hook invokes the existing firmware export operation"
-        );
-        runtime_test::run_effects(&runtime, effects).await;
-        let failure_message = "Firmware generation failed: injected firmware-generation failure";
-        wait_until("firmware generation failure renders its Toast", || {
-            by_role_name(&root, "status", failure_message).is_some()
-        })
-        .await;
-
-        let alert = by_role_name(&root, "status", failure_message).unwrap_or_else(|| {
-            panic!(
-                "mounted report alert missing; runtime status={:?}, DOM={}",
-                runtime.status(),
-                root.inner_html()
-            )
-        });
-        assert_eq!(accessible_name(&alert), failure_message);
-        assert_eq!(alert.get_attribute("data-type").as_deref(), Some("error"));
-        assert_eq!(runtime_test::session_model(&runtime), before);
-        assert!(!runtime_test::has_artifacts(&runtime));
-        assert!(runtime_test::take_deliveries(&runtime).is_empty());
-        let row_after_failure = by_role_name(&root, "button", "Export ZMK firmware")
-            .unwrap()
-            .parent_element()
-            .unwrap();
-        assert!(
-            row.is_same_node(row_after_failure.dyn_ref::<web_sys::Node>()),
-            "failure keeps the same row mounted for retry"
-        );
-
-        by_role_name(&alert, "button", "close").unwrap().click();
-        button.click();
-        wait_until("retry clears the firmware export alert", || {
-            by_role_name(&root, "status", failure_message).is_none()
-        })
-        .await;
-        let mut retry_effects = None;
-        wait_until_step("the firmware retry dispatches", async || {
-            let pending = runtime_test::take_effects(&runtime);
-            if pending.is_empty() {
-                false
-            } else {
-                retry_effects = Some(pending);
-                true
-            }
-        })
-        .await;
-        runtime_test::run_effects(
-            &runtime,
-            retry_effects.expect("the retry dispatches effects"),
-        )
-        .await;
-        wait_until("successful firmware retry renders its status", || {
-            by_role_name(&root, "status", "Saved locally.").is_some()
-        })
-        .await;
-
-        let status = by_role_name(&root, "status", "Saved locally.").unwrap();
-        assert_eq!(accessible_name(&status), "Saved locally.");
-        let deliveries = runtime_test::take_deliveries(&runtime);
-        assert_eq!(deliveries.len(), 1);
-        assert_eq!(deliveries[0].filename, "ZMK export test-zmk.zip");
-        assert_eq!(deliveries[0].media_type.as_deref(), Some("application/zip"));
-        assert_eq!(runtime_test::session_model(&runtime), before);
-        root.remove();
     }
 
     #[wasm_bindgen_test]

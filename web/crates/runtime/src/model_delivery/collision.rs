@@ -676,32 +676,3 @@ pub fn assess_subject_collision_observation(
         query_qualification: report,
     }
 }
-
-pub fn assess_collision_observation(
-    left_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
-    right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
-    clearance_threshold_mm: f64,
-    requested_accuracy_mm: Option<f64>,
-    observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
-) -> CadCollisionResult {
-    let left = CadCollisionSubject::VendorModel {
-        id: "left".into(),
-        reference: "left".into(),
-        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
-        vendor_step: Some(Rc::new(left_asset.clone())),
-    };
-    let right = CadCollisionSubject::VendorModel {
-        id: "right".into(),
-        reference: "right".into(),
-        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
-        vendor_step: Some(Rc::new(right_asset.clone())),
-    };
-    assess_subject_collision_observation(
-        &left,
-        &right,
-        clearance_threshold_mm,
-        requested_accuracy_mm,
-        None,
-        observation,
-    )
-}

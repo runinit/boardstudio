@@ -29,8 +29,6 @@ mod boundary_parity;
 pub(crate) mod support;
 
 #[cfg(feature = "page")]
-pub mod in_process_core;
-#[cfg(feature = "page")]
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod persistence_contract;
 

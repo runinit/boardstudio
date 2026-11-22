@@ -222,8 +222,6 @@ pub(crate) fn core_services() -> CoreServices {
             let mut engine = boardstudio_core::CoreEngine::new();
             Box::new(move |request| engine.handle(request))
         },
-        archive: boardstudio_core::archive::request,
-        artifact: boardstudio_core::artifact_request,
     }
 }
 

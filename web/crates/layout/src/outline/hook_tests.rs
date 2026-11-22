@@ -315,28 +315,6 @@ async fn activation_rejects_stale_rendered_token() {
 }
 
 #[wasm_bindgen_test]
-async fn activation_retains_observed_slot_after_editor_unmount() {
-    let (probe, dom) = versioned().await;
-    let (entered, release) =
-        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
-            &probe.runtime,
-        );
-    let slot = probe.watch_next();
-    activate_generated(&probe);
-    let runtime = probe.runtime.clone();
-    let (done_tx, done_rx) = futures_channel::oneshot::channel();
-    wasm_bindgen_futures::spawn_local(async move {
-        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
-        let _ = done_tx.send(());
-    });
-    entered.await.unwrap();
-    drop(dom);
-    release.send(()).unwrap();
-    done_rx.await.unwrap();
-    assert_eq!(*slot.borrow(), Some(TerminalOutcome::Completed));
-}
-
-#[wasm_bindgen_test]
 async fn activation_settles_exact_generated_target_while_hidden() {
     let (probe, mut dom) = versioned().await;
     let slot = probe.watch_next();

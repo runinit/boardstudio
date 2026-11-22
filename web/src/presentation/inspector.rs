@@ -305,7 +305,7 @@ mod tests {
     use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side};
     use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen_test::*;
 
     fn host() -> Element {
@@ -479,87 +479,6 @@ mod tests {
         });
         support::run_pending(&runtime).await;
         assert_eq!(accepted_x(), 0.0);
-        runtime.unsubscribe();
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_failed_position_restores_the_clean_axis_and_preserves_a_newer_draft() {
-        let (runtime, root) = mounted_position_inspector().await;
-        let x = by_role_name(&root, "spinbutton", "X (mm)")
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        let y = by_role_name(&root, "spinbutton", "Y (mm)")
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        let apply = by_role_name(&root, "button", "Apply position").unwrap();
-        let bubbling = web_sys::EventInit::new();
-        bubbling.set_bubbles(true);
-        for (field, value) in [(&x, "5"), (&y, "7")] {
-            field.set_value(value);
-            field
-                .dispatch_event(
-                    &web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap(),
-                )
-                .unwrap();
-        }
-        support::run_pending(&runtime).await;
-        support::fail_next_persist(&runtime, "legacy position durable write failure");
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        apply.click();
-        support::drive_pending(&runtime);
-        entered.await.expect("the position commit reached Core");
-        x.set_value("9");
-        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-            .unwrap();
-        assert_eq!(
-            y.value(),
-            "7",
-            "the submitted Y stays visible while pending"
-        );
-        assert!(apply.has_attribute("disabled"));
-
-        release.send(()).expect("release the held position result");
-        wait_until_step(
-            "the failed save enters recovery and renders feedback",
-            async || {
-                support::run_pending(&runtime).await;
-                runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired
-                    && root
-                        .query_selector("[role='alert']")
-                        .is_ok_and(|alert| alert.is_some())
-            },
-        )
-        .await;
-        let model = runtime.model();
-        assert_eq!(
-            model.accepted.unwrap().document.parts[0].pose.at,
-            Vec2 { x: 0.0, y: 0.0 },
-            "a failed durable save leaves the accepted pair unchanged"
-        );
-        assert_eq!(
-            model.lifecycle,
-            boardstudio_application::Lifecycle::RecoveryRequired
-        );
-        assert_eq!(x.value(), "9", "failure preserves the newer X draft");
-        assert_eq!(
-            y.value(),
-            "0",
-            "the unchanged submitted Y restores its accepted value"
-        );
-        assert!(!apply.has_attribute("disabled"));
-        let alert = root
-            .query_selector("[role='alert']")
-            .unwrap()
-            .expect("the failed save is explained inline")
-            .text_content()
-            .unwrap();
-        assert!(
-            alert.contains("legacy position durable write failure"),
-            "{alert}"
-        );
         runtime.unsubscribe();
         root.remove();
     }

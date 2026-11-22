@@ -3,21 +3,19 @@
 //! Rust Core plans, renders and serializes the footprints in one `ExportPcb`
 //! request; Core packs the resulting files directly.
 
-use crate::{core_services::ArchiveHandler, portable_archive::pack_files};
+use crate::portable_archive::pack_files;
 use boardstudio_application::{AcceptedSnapshot, OperationId};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{
     ArtifactReply, ArtifactRequest, ExportTarget, PrepareExportRequest,
 };
-use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
+use boardstudio_web_host::host::BrowserStore;
 use std::collections::BTreeMap;
 
 pub struct ExportSource<'a> {
     pub operation_id: OperationId,
     pub snapshot: &'a AcceptedSnapshot,
-    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
-    pub archive: ArchiveHandler,
 }
 
 pub async fn build_zip(
@@ -27,9 +25,7 @@ pub async fn build_zip(
     let ExportSource {
         operation_id,
         snapshot,
-        core,
         store,
-        archive,
     } = source;
     let document = snapshot.document.as_ref();
     is_current()?;
@@ -63,9 +59,8 @@ pub async fn build_zip(
         },
     };
     is_current()?;
-    let reply = core.artifact(&request_id, "1", &request).await;
+    let reply = crate::runtime::artifact_reply(&request)?;
     is_current()?;
-    let reply = reply.map_err(|error| format!("Footprint export failed: {error}"))?;
     let exported = match reply {
         ArtifactReply::ExportPcb { id, result } if id == request_id => result,
         ArtifactReply::Error { id, error } if id == request_id => {
@@ -116,7 +111,7 @@ pub async fn build_zip(
     )?;
 
     is_current()?;
-    pack_files(archive, files)
+    pack_files(files)
 }
 
 async fn load_model_files(

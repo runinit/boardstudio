@@ -8,7 +8,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let guard = || self.require_export_current(operation_id, snapshot, scope, None);
+        let guard = || self.require_export_current(operation_id, snapshot, scope);
         guard()?;
         let contours = snapshot
             .scene
@@ -110,7 +110,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let guard = || self.require_export_current(operation_id, snapshot, scope, None);
+        let guard = || self.require_export_current(operation_id, snapshot, scope);
         guard()?;
         let resolution = self.resolve_case_keycaps_preview(
             scope.clone(),
@@ -165,17 +165,17 @@ impl Runtime {
         self.export_workers.borrow_mut().remove(&operation_id);
         let files = result?;
         guard()?;
-        crate::portable_archive::pack_files(self.core_services.archive, files)
+        crate::portable_archive::pack_files(files)
     }
 
-    pub(super) async fn firmware_bytes(
+    pub(super) fn firmware_bytes(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
+        self.require_export_current(operation_id, snapshot, scope)?;
         let document = snapshot.document.as_ref();
-        self.require_export_current(operation_id, snapshot, scope, None)?;
         if !document
             .boards
             .iter()
@@ -206,40 +206,22 @@ impl Runtime {
         let primary_instance_id = central.map_or(scope.instance_id.as_deref(), |instance| {
             Some(instance.id.as_str())
         });
-        let core = self.core.borrow().clone();
-        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
-        let primary = self
-            .resolve_firmware_plan(
-                operation_id,
-                snapshot,
-                scope,
-                &core,
-                FirmwarePlanTarget {
-                    board_id: primary_board_id,
-                    instance_id: primary_instance_id,
-                    label: "central",
-                },
-            )
-            .await?;
-        let secondary = if let Some(instance) = peripheral {
-            Some(
-                self.resolve_firmware_plan(
-                    operation_id,
+        let primary = self.resolve_export_wiring(
+            snapshot,
+            primary_board_id,
+            primary_instance_id,
+            format!("firmware-electrical-{}-central", operation_id.0),
+        )?;
+        let secondary = peripheral
+            .map(|instance| {
+                self.resolve_export_wiring(
                     snapshot,
-                    scope,
-                    &core,
-                    FirmwarePlanTarget {
-                        board_id: &instance.board_id,
-                        instance_id: Some(&instance.id),
-                        label: "peripheral",
-                    },
+                    &instance.board_id,
+                    Some(&instance.id),
+                    format!("firmware-electrical-{}-peripheral", operation_id.0),
                 )
-                .await?,
-            )
-        } else {
-            None
-        };
-        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
+            })
+            .transpose()?;
         let (request, _) = crate::firmware_request_adapter::firmware_request(
             document,
             &primary,
@@ -250,10 +232,7 @@ impl Runtime {
             id: generate_id.clone(),
             request,
         };
-        let generated = core.request(&generate_id, "1", &request).await;
-        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
-        let generated =
-            generated.map_err(|error| format!("Firmware generation failed: {error}"))?;
+        let generated = boardstudio_core::CoreEngine::new().handle(request);
         let package = match generated {
             CoreReply::FirmwareGenerated { id, package } if id == generate_id => package,
             CoreReply::Error { id, message, .. } if id == generate_id => return Err(message),
@@ -279,41 +258,16 @@ impl Runtime {
             serde_json::to_string_pretty(&serde_json::Value::Object(plan_value))
                 .map_err(|error| format!("Could not serialize electrical plan: {error}"))?,
         );
-        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         crate::portable_archive::pack_files(
-            self.core_services.archive,
             files
                 .into_iter()
                 .map(|(path, contents)| (path, contents.into_bytes())),
         )
     }
 
-    pub(super) async fn resolve_firmware_plan(
-        &self,
-        operation_id: OperationId,
-        snapshot: &AcceptedSnapshot,
-        scope: &Scope,
-        core: &Rc<dyn CoreExecutor>,
-        target: FirmwarePlanTarget<'_>,
-    ) -> Result<ElectricalPlan, String> {
-        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
-        let plan = self
-            .resolve_export_wiring(
-                snapshot,
-                core,
-                target.board_id,
-                target.instance_id,
-                format!("firmware-electrical-{}-{}", operation_id.0, target.label),
-            )
-            .await;
-        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
-        plan
-    }
-
-    pub(super) async fn resolve_export_wiring(
+    pub(super) fn resolve_export_wiring(
         &self,
         snapshot: &AcceptedSnapshot,
-        core: &Rc<dyn CoreExecutor>,
         board_id: &str,
         instance_id: Option<&str>,
         request_id: String,
@@ -353,8 +307,7 @@ impl Runtime {
                 controller_part_id,
             },
         };
-        let reply = core.request(&request_id, "1", &request).await;
-        let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
+        let reply = boardstudio_core::CoreEngine::new().handle(request);
         let plan = match reply {
             CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
             CoreReply::Error { id, message, .. } if id == request_id => return Err(message),

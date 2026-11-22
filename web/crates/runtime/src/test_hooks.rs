@@ -33,7 +33,6 @@ pub fn install(
     runtime: &Runtime,
     session: Session,
     adapters: Rc<dyn InstalledAdapters>,
-    core: Rc<dyn CoreExecutor>,
     persistence: Rc<dyn DocumentPersistence>,
 ) {
     runtime.saved_tokens.borrow_mut().clear();
@@ -46,7 +45,6 @@ pub fn install(
             .insert(accepted.document.id.clone(), token);
     }
     *runtime.session.borrow_mut() = session;
-    *runtime.core.borrow_mut() = core;
     *runtime.persistence.borrow_mut() = persistence;
     *runtime.in_process_adapters.borrow_mut() = Some(adapters);
     runtime.changed();

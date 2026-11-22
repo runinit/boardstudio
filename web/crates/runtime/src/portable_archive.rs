@@ -1,10 +1,8 @@
-use crate::core_services::ArchiveHandler;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{ArchiveEntry, ArchiveReply, ArchiveRequest, Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(crate) fn pack_files(
-    archive: ArchiveHandler,
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
 ) -> Result<Vec<u8>, String> {
     let mut entries = Vec::new();
@@ -16,7 +14,7 @@ pub(crate) fn pack_files(
     }
     let request = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
         .map_err(|error| error.to_string())?;
-    let (metadata, buffers) = archive(&request, &buffers);
+    let (metadata, buffers) = boardstudio_core::archive::request(&request, &buffers);
     match serde_json::from_str(&metadata).map_err(|error| error.to_string())? {
         ArchiveReply::Packed => buffers
             .into_iter()

@@ -18,11 +18,10 @@ pub fn new_runtime() -> Rc<Runtime> {
 /// `CoreEngine`. Saves keep running through the production browser-store port (gated by
 /// `gate_next_persist` / `fail_next_persist`); call `install_memory_persistence` to save
 /// into memory instead.
-pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
-    let adapters = Rc::new(InProcessAdapters::new(core, test_hooks::store(runtime)));
-    let current = adapters.current_core();
+pub fn install(runtime: &Runtime, session: Session, _core: boardstudio_core::CoreEngine) {
+    let adapters = Rc::new(InProcessAdapters::new(test_hooks::store(runtime)));
     let persistence = adapters.persistence();
-    test_hooks::install(runtime, session, adapters, current, persistence);
+    test_hooks::install(runtime, session, adapters, persistence);
 }
 
 /// Route saves into the in-process memory store. Requires `install` to have run.
@@ -87,40 +86,7 @@ pub fn gate_next_persist(
     installed(runtime).persistence().gate_next_save()
 }
 
-/// Fail the next Core reply with the supplied reason.
-pub fn fail_next_core_reply(runtime: &Runtime, reason: impl Into<String>) {
-    installed(runtime).current_core().fail_next_reply(reason);
-}
-
-/// Hold the next Core reply until the returned release sender fires. The entered
-/// receiver observes the request reaching the executor.
-pub fn gate_next_core_reply(
-    runtime: &Runtime,
-) -> (
-    futures_channel::oneshot::Receiver<()>,
-    futures_channel::oneshot::Sender<()>,
-) {
-    installed(runtime).current_core().gate_next_reply()
-}
-
-pub fn gate_next_core_reply_then_fail(
-    runtime: &Runtime,
-    _reason: impl Into<String>,
-) -> (
-    futures_channel::oneshot::Receiver<()>,
-    futures_channel::oneshot::Sender<()>,
-) {
-    installed(runtime)
-        .current_core()
-        .gate_next_reply_then_fail(_reason)
-}
-
 /// The copy a completed save left in the in-process memory store.
 pub fn saved_document(runtime: &Runtime, project_id: &str) -> Option<ProjectDoc> {
     installed(runtime).persistence().saved_document(project_id)
-}
-
-/// The in-process Core executor currently installed on the runtime.
-pub fn in_process_core(runtime: &Runtime) -> Rc<super::in_process_support::InProcessCore> {
-    installed(runtime).current_core()
 }

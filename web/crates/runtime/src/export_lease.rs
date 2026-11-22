@@ -1,7 +1,7 @@
 //! Captured ownership for asynchronous exports.
 //!
 //! A lease is valid only while Session still owns the export and the accepted project,
-//! scope, Core executor epoch, and worker identity remain the ones captured at start.
+//! scope remain the ones captured at start.
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 
@@ -22,21 +22,14 @@ pub(crate) struct ExportLease {
     kind: ExportKind,
     snapshot: AcceptedSnapshot,
     scope: Scope,
-    worker_identity: usize,
 }
 
 impl ExportLease {
-    pub(crate) fn new(
-        kind: ExportKind,
-        snapshot: AcceptedSnapshot,
-        scope: Scope,
-        worker_identity: usize,
-    ) -> Self {
+    pub(crate) fn new(kind: ExportKind, snapshot: AcceptedSnapshot, scope: Scope) -> Self {
         Self {
             kind,
             snapshot,
             scope,
-            worker_identity,
         }
     }
 
@@ -60,11 +53,9 @@ impl ExportLease {
         &self,
         current_scope: Option<&Scope>,
         current_snapshot: Option<&AcceptedSnapshot>,
-        worker_identity: usize,
     ) -> bool {
         current_scope == Some(&self.scope)
             && current_snapshot.is_some_and(|current| self.accepted_snapshot_matches(current))
-            && worker_identity == self.worker_identity
     }
 
     /// Advance ownership after an export's own accepted commit, retaining its strict origin.
@@ -86,11 +77,8 @@ impl ExportLease {
         &self,
         session_owns_export: bool,
         current_snapshot: Option<&AcceptedSnapshot>,
-        worker_identity: usize,
     ) -> Result<(), String> {
-        if session_owns_export
-            && self.source_is_current(Some(&self.scope), current_snapshot, worker_identity)
-        {
+        if session_owns_export && self.source_is_current(Some(&self.scope), current_snapshot) {
             Ok(())
         } else {
             Err("Export lease is no longer current.".into())
@@ -145,49 +133,7 @@ mod tests {
             board_id: "board-a".into(),
             instance_id: None,
         };
-        ExportLease::new(kind, snapshot, scope, 123)
-    }
-
-    #[test]
-    fn worker_replacement_invalidates_every_export_kind() {
-        for kind in [
-            ExportKind::ProjectCopy {
-                embed_used_models: true,
-            },
-            ExportKind::Step,
-            ExportKind::KeycapsStl,
-            ExportKind::Firmware,
-            ExportKind::Footprints,
-            ExportKind::PcbHandoff { draft: false },
-            ExportKind::Mechanical {
-                filename: "board-mechanical.zip".into(),
-            },
-            ExportKind::BoardOutline { dxf: true },
-        ] {
-            let lease = captured(kind);
-            assert!(lease.source_is_current(Some(lease.scope()), Some(lease.snapshot()), 123,));
-            let mut changed_scope = lease.scope().clone();
-            changed_scope.board_id = "board-b".into();
-            assert!(!lease.source_is_current(Some(&changed_scope), Some(lease.snapshot()), 123,));
-            assert!(
-                lease
-                    .require_current(true, Some(lease.snapshot()), 123)
-                    .is_ok()
-            );
-            assert!(
-                lease
-                    .require_current(true, Some(lease.snapshot()), 456)
-                    .is_err()
-            );
-            assert!(
-                lease
-                    .require_current(false, Some(lease.snapshot()), 123)
-                    .is_err()
-            );
-            let mut changed = lease.snapshot().clone();
-            changed.token = SnapshotToken(18);
-            assert!(lease.require_current(true, Some(&changed), 123).is_err());
-        }
+        ExportLease::new(kind, snapshot, scope)
     }
 
     #[test]

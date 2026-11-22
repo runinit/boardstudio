@@ -6,28 +6,16 @@
 //! in Runtime itself.
 
 use crate::gate_driver::{GateDriver, OneShotBehavior};
-use crate::runtime::{CoreExecutor, DocumentPersistence, test_hooks::InstalledAdapters};
+use crate::runtime::{DocumentPersistence, test_hooks::InstalledAdapters};
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, OperationId, SaveResult, Scope, Session,
 };
-use boardstudio_core::artifact_request;
-use boardstudio_model::model::{
-    ArtifactReply, ArtifactRequest, Board, CoreReply, CoreRequest, ProjectDoc,
-};
+use boardstudio_model::model::{Board, ProjectDoc};
 use boardstudio_web_host::host::{BrowserStore, SaveError, StorageToken};
-use boardstudio_web_host::host::{CoreExecutorFuture, HostError};
 use futures_channel::oneshot;
-use std::{
-    cell::{Cell, RefCell},
-    collections::BTreeMap,
-    future::Future,
-    pin::Pin,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::BTreeMap, future::Future, pin::Pin, rc::Rc};
 
 type AsyncGate = (oneshot::Sender<()>, oneshot::Receiver<()>);
-type RequestFilter = fn(&CoreRequest) -> bool;
-type ScriptedReply = fn(&CoreRequest) -> Option<CoreReply>;
 
 #[derive(Clone)]
 enum PersistTarget {
@@ -39,215 +27,6 @@ enum PersistTarget {
 struct MemorySave {
     document: ProjectDoc,
     assets: BTreeMap<String, Vec<u8>>,
-}
-
-/// The in-process Core executor: one `CoreEngine`, always ready, closable, with an optional
-/// one-shot behavior that fails or holds the next Core reply.
-pub struct InProcessCore {
-    engine: Rc<RefCell<boardstudio_core::CoreEngine>>,
-    closed: Rc<Cell<bool>>,
-    behavior: GateDriver,
-    fail_after_hold: RefCell<Option<String>>,
-    gate: RefCell<Option<AsyncGate>>,
-    request_filter: Cell<Option<RequestFilter>>,
-    scripted_reply: Cell<Option<ScriptedReply>>,
-}
-
-impl InProcessCore {
-    pub fn new(engine: boardstudio_core::CoreEngine) -> Self {
-        Self {
-            engine: Rc::new(RefCell::new(engine)),
-            closed: Rc::new(Cell::new(false)),
-            behavior: GateDriver::default(),
-            fail_after_hold: RefCell::new(None),
-            gate: RefCell::new(None),
-            request_filter: Cell::new(None),
-            scripted_reply: Cell::new(None),
-        }
-    }
-
-    pub fn fail_next_reply(&self, reason: impl Into<String>) {
-        self.fail_after_hold.borrow_mut().take();
-        self.request_filter.set(None);
-        self.behavior.fail_next_core(reason);
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.closed.get()
-    }
-
-    pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        self.fail_after_hold.borrow_mut().take();
-        self.request_filter.set(None);
-        let (entered, entered_rx) = oneshot::channel();
-        let (release, release_rx) = oneshot::channel();
-        self.behavior.hold_next_core();
-        *self.gate.borrow_mut() = Some((entered, release_rx));
-        (entered_rx, release)
-    }
-
-    /// Hold the next Core reply and fail that same request after release.
-    pub fn gate_next_reply_then_fail(
-        &self,
-        reason: impl Into<String>,
-    ) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        let gate = self.gate_next_reply();
-        *self.fail_after_hold.borrow_mut() = Some(reason.into());
-        gate
-    }
-
-    /// Filter a one-shot behavior so unrelated Session requests still reach Core.
-    pub fn fail_matching_reply(
-        &self,
-        matches: fn(&CoreRequest) -> bool,
-        reason: impl Into<String>,
-    ) {
-        self.fail_next_reply(reason);
-        self.request_filter.set(Some(matches));
-    }
-
-    pub fn gate_matching_reply(
-        &self,
-        matches: fn(&CoreRequest) -> bool,
-    ) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        let gate = self.gate_next_reply();
-        self.request_filter.set(Some(matches));
-        gate
-    }
-
-    /// Script only the external-provider reply a fixture needs; return None for real Core.
-    pub fn script_replies(&self, reply: fn(&CoreRequest) -> Option<CoreReply>) {
-        self.scripted_reply.set(Some(reply));
-    }
-
-    fn take_behavior(&self) -> Option<OneShotBehavior> {
-        self.behavior.take_core()
-    }
-}
-
-impl CoreExecutor for InProcessCore {
-    fn request<'a>(
-        &'a self,
-        request_id: &'a str,
-        _executor_epoch: &'a str,
-        request: &'a CoreRequest,
-    ) -> CoreExecutorFuture<'a, CoreReply> {
-        Box::pin(async move {
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            let behavior = if self
-                .request_filter
-                .get()
-                .is_none_or(|matches| matches(request))
-            {
-                self.take_behavior()
-            } else {
-                None
-            };
-            if let Some(behavior) = behavior {
-                match behavior {
-                    OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
-                    OneShotBehavior::Hold => {
-                        let Some((entered, release)) = self.gate.borrow_mut().take() else {
-                            return Err(HostError("Core gate was not configured".into()));
-                        };
-                        let fail_after_hold = self.fail_after_hold.borrow_mut().take();
-                        let _ = entered.send(());
-                        let _ = release.await;
-                        if self.closed.get() {
-                            return Err(HostError("core worker is closed".into()));
-                        }
-                        if let Some(reason) = fail_after_hold {
-                            return Err(HostError(reason));
-                        }
-                    }
-                }
-            }
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            let engine = self.engine.clone();
-            let closed = self.closed.clone();
-            let scripted_reply = self.scripted_reply.get();
-            let request = request.clone();
-            let (send, receive) = oneshot::channel();
-            // Match the worker boundary: Core must not run on the mounted test's poll stack.
-            wasm_bindgen_futures::spawn_local(async move {
-                let reply = if closed.get() {
-                    Err(HostError("core worker is closed".into()))
-                } else {
-                    Ok(scripted_reply
-                        .and_then(|reply| reply(&request))
-                        .unwrap_or_else(|| engine.borrow_mut().handle(request)))
-                };
-                let _ = send.send(reply);
-            });
-            let reply = receive
-                .await
-                .map_err(|_| HostError("in-process core reply was dropped".into()))??;
-            let value = serde_json::to_value(&reply)
-                .map_err(|error| HostError(format!("invalid core reply: {error}")))?;
-            if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
-                return Err(HostError("core reply id does not match request".into()));
-            }
-            Ok(reply)
-        })
-    }
-
-    fn artifact<'a>(
-        &'a self,
-        request_id: &'a str,
-        _executor_epoch: &'a str,
-        request: &'a ArtifactRequest,
-    ) -> CoreExecutorFuture<'a, ArtifactReply> {
-        Box::pin(async move {
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            let frame = serde_json::to_string(request).map_err(|error| {
-                HostError(format!("could not encode artifact request: {error}"))
-            })?;
-            let frame_id = serde_json::from_str::<serde_json::Value>(&frame)
-                .ok()
-                .and_then(|value| {
-                    value
-                        .get("id")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_owned)
-                });
-            if frame_id.as_deref() != Some(request_id) {
-                return Err(HostError(
-                    "artifact request id does not match worker request id".into(),
-                ));
-            }
-            let reply_json = artifact_request(&frame);
-            let value: serde_json::Value = serde_json::from_str(&reply_json)
-                .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
-            if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
-                return Err(HostError("artifact reply id does not match request".into()));
-            }
-            let reply: ArtifactReply = serde_json::from_value(value)
-                .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
-            Ok(reply)
-        })
-    }
-
-    fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()> {
-        Box::pin(async move {
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            Ok(())
-        })
-    }
-
-    fn close(&self) {
-        self.closed.set(true);
-        self.take_behavior();
-        self.fail_after_hold.borrow_mut().take();
-        self.gate.borrow_mut().take();
-    }
 }
 
 /// The test persistence port. Saves run through one target — the production browser store by
@@ -392,7 +171,6 @@ struct StoreReadGate {
 /// runtime restarts its executor) and the gated persistence port. Tests reach the gates and
 /// the saved copies through this handle.
 pub struct InProcessAdapters {
-    core: RefCell<Rc<InProcessCore>>,
     persistence: Rc<TestPersistence>,
     deliveries: RefCell<Vec<DeliveredArtifact>>,
     store_read_gate: RefCell<Option<StoreReadGate>>,
@@ -400,9 +178,8 @@ pub struct InProcessAdapters {
 }
 
 impl InProcessAdapters {
-    pub fn new(engine: boardstudio_core::CoreEngine, store: BrowserStore) -> Self {
+    pub fn new(store: BrowserStore) -> Self {
         Self {
-            core: RefCell::new(Rc::new(InProcessCore::new(engine))),
             persistence: Rc::new(TestPersistence::through_store(store)),
             deliveries: RefCell::new(Vec::new()),
             store_read_gate: RefCell::new(None),
@@ -428,10 +205,6 @@ impl InProcessAdapters {
 
     pub fn take_deliveries(&self) -> Vec<DeliveredArtifact> {
         std::mem::take(&mut *self.deliveries.borrow_mut())
-    }
-
-    pub fn current_core(&self) -> Rc<InProcessCore> {
-        self.core.borrow().clone()
     }
 
     pub fn use_memory_saves(&self) {

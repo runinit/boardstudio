@@ -424,11 +424,5 @@ async fn mounted_name_field(
     (runtime, root, mounted)
 }
 
-fn name_alert(root: &web_sys::Element) -> Option<String> {
-    root.query_selector("[role=alert]")
-        .unwrap()
-        .and_then(|alert| alert.text_content())
-}
-
 mod library_list;
 mod project_actions;

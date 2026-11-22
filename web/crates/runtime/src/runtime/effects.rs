@@ -222,7 +222,6 @@ impl Runtime {
                 for (_, worker) in std::mem::take(&mut *this.export_workers.borrow_mut()) {
                     worker.close();
                 }
-                this.core.borrow().close();
             }
             #[cfg(any(test, feature = "test-support"))]
             if let Some(finished) = finished {
@@ -448,7 +447,6 @@ impl Runtime {
                 let result = match kind.as_ref() {
                     Some(ExportKind::BoardOutline { dxf }) => {
                         self.board_outline_bytes(operation_id, &snapshot, &scope, *dxf)
-                            .await
                     }
                     Some(ExportKind::PcbHandoff { draft }) => {
                         self.pcb_handoff_bytes(operation_id, &snapshot, &scope, *draft)
@@ -464,7 +462,7 @@ impl Runtime {
                                     .await
                             }
                             ExportKind::Firmware => {
-                                self.firmware_bytes(operation_id, &snapshot, &scope).await
+                                self.firmware_bytes(operation_id, &snapshot, &scope)
                             }
                             ExportKind::Footprints => {
                                 self.footprint_export_bytes(operation_id, &snapshot, &scope)

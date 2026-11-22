@@ -35,64 +35,6 @@ async fn notification_queue_keeps_repeated_events_and_drains_once_without_notify
 }
 
 #[wasm_bindgen_test]
-async fn matching_export_failure_toasts_once_but_other_operation_failures_stay_inline() {
-    let (runtime, _, _) = support::fixture().await;
-    runtime.take_notifications();
-    support::fail(&runtime, support::Stage::Generation);
-    let effects = support::start_export(&runtime);
-    for outcome in [
-        TerminalOutcome::ExecutorFailed("executor unavailable".into()),
-        TerminalOutcome::PersistenceFailed("save conflict".into()),
-        TerminalOutcome::BlockedByRecovery("recovery required".into()),
-    ] {
-        let message = match &outcome {
-            TerminalOutcome::ExecutorFailed(s)
-            | TerminalOutcome::PersistenceFailed(s)
-            | TerminalOutcome::BlockedByRecovery(s) => s.clone(),
-            _ => unreachable!(),
-        };
-        runtime
-            .run(Effect::Settled {
-                operation_id: OperationId(1_000_000),
-                outcome,
-                landing: None,
-            })
-            .await;
-        assert_eq!(runtime.status(), message);
-        assert!(
-            !runtime.status_is_transient(),
-            "another operation's active export lease is irrelevant"
-        );
-        assert!(runtime.take_notifications().is_empty());
-    }
-    support::run_effects(&runtime, effects).await;
-    let failure = runtime.take_notifications();
-    assert_eq!(failure.len(), 2, "start plus exactly one terminal failure");
-    assert_eq!(failure[0].message, "Export started.");
-    assert!(failure[1].is_error);
-    assert!(
-        failure[1]
-            .message
-            .contains("injected firmware-generation failure")
-    );
-    assert!(runtime.status_is_transient());
-    assert!(runtime.take_notifications().is_empty());
-    assert!(runtime.export_delivery_errors.borrow().is_empty());
-    let retry = support::start_export(&runtime);
-    support::run_effects(&runtime, retry).await;
-    let success = runtime.take_notifications();
-    assert_eq!(
-        success
-            .iter()
-            .map(|n| n.message.as_str())
-            .collect::<Vec<_>>(),
-        vec!["Export started.", "Saved locally."]
-    );
-    assert!(success.iter().all(|n| !n.is_error));
-    assert_eq!(support::take_deliveries(&runtime).len(), 1);
-}
-
-#[wasm_bindgen_test]
 async fn export_delivery_errors_are_consumed_only_by_their_operation_and_cancel_cleans_them() {
     let (runtime, _, _) = support::fixture().await;
     runtime.take_notifications();

@@ -22,15 +22,11 @@ use boardstudio_model::model::{
     MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings,
     PcbPreview, PrepareExportRequest, ProjectDoc,
 };
-pub use boardstudio_web_host::host::CoreExecutor;
 
 /// The stable identity of the current Core executor: captures compare it to detect that the
 /// executor was replaced while their operation was in flight.
-fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
-    Rc::as_ptr(core) as *const () as usize
-}
 use boardstudio_web_host::host::{
-    BrowserStore, InProcessCoreExecutor, SaveError, SavedProject, StorageSession, StorageToken,
+    BrowserStore, SaveError, SavedProject, StorageSession, StorageToken,
 };
 use boardstudio_web_host::{
     cad_jobs::{
@@ -257,13 +253,6 @@ impl DocumentPersistence for BrowserStore {
     }
 }
 
-#[derive(Clone, Copy)]
-struct FirmwarePlanTarget<'a> {
-    board_id: &'a str,
-    instance_id: Option<&'a str>,
-    label: &'a str,
-}
-
 impl PartialEq for CadScene {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
@@ -322,7 +311,6 @@ pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
-    core: RefCell<Rc<dyn CoreExecutor>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     storage_session: RefCell<Option<StorageSession>>,
@@ -443,6 +431,23 @@ mod sources;
 
 use mechanical_export::authored_case_filename;
 
+pub(crate) fn artifact_reply(request: &ArtifactRequest) -> Result<ArtifactReply, String> {
+    let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
+    let reply = serde_json::from_str(&boardstudio_core::artifact_request(&request))
+        .map_err(|error| error.to_string())?;
+    match reply {
+        ArtifactReply::Error { error, .. } => {
+            let mut message = error.message;
+            for diagnostic in error.diagnostics {
+                message.push(' ');
+                message.push_str(&diagnostic.message);
+            }
+            Err(message)
+        }
+        reply => Ok(reply),
+    }
+}
+
 impl Runtime {
     /// Keep one injected engine for the document; scratch probes create their own engines.
     /// Archive and artifact operations also execute in process.
@@ -471,15 +476,10 @@ impl Runtime {
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
-        let core = Rc::new(InProcessCoreExecutor::new(
-            (core_services.open_scratch)(),
-            core_services.artifact,
-        ));
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
             core_services,
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
-            core: RefCell::new(core),
             persistence: RefCell::new(Rc::new(store.clone())),
             store,
             storage_session: RefCell::default(),
@@ -615,7 +615,7 @@ impl Runtime {
         self.session.borrow().scope()
     }
     pub fn electrical_preview_executor_epoch(&self) -> u64 {
-        core_executor_identity(&self.core.borrow()) as u64
+        1
     }
     /// The Core entry points the page injected (Open admission and scratch probes).
     pub fn core_services(&self) -> CoreServices {
@@ -667,7 +667,7 @@ impl Runtime {
             definition_id,
             source,
         };
-        match self.artifact_reply(&request)? {
+        match artifact_reply(&request)? {
             ArtifactReply::ImportFootprint { result, .. } => Ok(*result),
             _ => Err("Unexpected KiCad artifact reply.".into()),
         }
@@ -688,26 +688,9 @@ impl Runtime {
             mappings,
             max_deviation_mm,
         };
-        match self.artifact_reply(&request)? {
+        match artifact_reply(&request)? {
             ArtifactReply::ExtractMechanical { result, .. } => Ok(result),
             _ => Err("Unexpected KiCad artifact reply.".into()),
-        }
-    }
-
-    fn artifact_reply(&self, request: &ArtifactRequest) -> Result<ArtifactReply, String> {
-        let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
-        let reply = serde_json::from_str(&(self.core_services.artifact)(&request))
-            .map_err(|error| error.to_string())?;
-        match reply {
-            ArtifactReply::Error { error, .. } => {
-                let mut message = error.message;
-                for diagnostic in error.diagnostics {
-                    message.push(' ');
-                    message.push_str(&diagnostic.message);
-                }
-                Err(message)
-            }
-            reply => Ok(reply),
         }
     }
 
@@ -924,7 +907,6 @@ impl Drop for Runtime {
         for (_, worker) in std::mem::take(&mut *self.export_workers.borrow_mut()) {
             worker.close();
         }
-        self.core.borrow().close();
     }
 }
 
@@ -1016,9 +998,6 @@ pub mod test_hooks;
 
 #[cfg(test)]
 pub use crate::fixtures::{in_process_support, project_name_test_support};
-
-#[cfg(test)]
-mod firmware_export_tests;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod notification_tests;

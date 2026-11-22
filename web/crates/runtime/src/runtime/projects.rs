@@ -243,7 +243,7 @@ impl Runtime {
         sequence: u64,
     ) -> Result<(), String> {
         let (metadata, buffers) =
-            (self.core_services.archive)("{\"kind\":\"unpack-project\"}", &[bytes]);
+            boardstudio_core::archive::request("{\"kind\":\"unpack-project\"}", &[bytes]);
         let reply: ArchiveReply = serde_json::from_str(&metadata).map_err(|e| e.to_string())?;
         let ArchiveReply::Unpacked {
             project_json,
@@ -484,7 +484,7 @@ impl Runtime {
         )?;
         guard()?;
         let (metadata, buffers) =
-            (self.core_services.archive)(&prepared.metadata, &prepared.buffers);
+            boardstudio_core::archive::request(&prepared.metadata, &prepared.buffers);
         match serde_json::from_str::<ArchiveReply>(&metadata).map_err(|e| e.to_string())? {
             ArchiveReply::Packed => buffers
                 .into_iter()

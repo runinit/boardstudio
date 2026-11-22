@@ -440,7 +440,7 @@ impl Runtime {
         request: &ArtifactRequest,
         request_id: &str,
     ) -> Result<PcbPreview, String> {
-        match self.artifact_reply(request)? {
+        match artifact_reply(request)? {
             ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
             _ => Err("Core returned an unexpected board preview reply.".into()),
         }

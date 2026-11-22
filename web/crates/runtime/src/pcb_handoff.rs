@@ -4,14 +4,14 @@
 //! module owns only the single Core `ExportPcb` request
 //! and the two archive layers used by the reference handoff.
 
-use crate::{core_services::ArchiveHandler, portable_archive::pack_files};
+use crate::portable_archive::pack_files;
 use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_core_mechanical::electrical::ElectricalPlan;
 use boardstudio_model::model::{
     ArtifactReply, ArtifactRequest, ExportTarget, PrepareExportRequest,
 };
-use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
+use boardstudio_web_host::host::BrowserStore;
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -25,9 +25,7 @@ pub struct HandoffSource<'a> {
 }
 
 pub struct HandoffPorts<'a> {
-    pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
-    pub archive: ArchiveHandler,
 }
 
 pub async fn build_handoff(
@@ -43,11 +41,7 @@ pub async fn build_handoff(
         populations,
         draft,
     } = source;
-    let HandoffPorts {
-        core,
-        store,
-        archive,
-    } = ports;
+    let HandoffPorts { store } = ports;
     let document = snapshot.document.as_ref();
     let board = document
         .boards
@@ -96,10 +90,7 @@ pub async fn build_handoff(
         },
     };
     is_current()?;
-    let reply = core
-        .artifact(&request_id, "1", &request)
-        .await
-        .map_err(|error| format!("KiCad export failed: {error}"))?;
+    let reply = crate::runtime::artifact_reply(&request)?;
     is_current()?;
     let exported = match reply {
         ArtifactReply::ExportPcb { id, result } if id == request_id => result,
@@ -126,7 +117,7 @@ pub async fn build_handoff(
         board_file.content.as_bytes().to_vec(),
     )?;
     is_current()?;
-    let board_archive = pack_files(archive, model_files)?;
+    let board_archive = pack_files(model_files)?;
 
     let mut handoff = vec![(format!("{}-kicad.zip", board.name), board_archive)];
     let report = serde_json::to_vec_pretty(&json!({
@@ -168,7 +159,7 @@ pub async fn build_handoff(
         }
     }
     is_current()?;
-    pack_files(archive, handoff)
+    pack_files(handoff)
 }
 
 async fn load_model_files(

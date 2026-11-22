@@ -395,7 +395,7 @@ impl Runtime {
         });
     }
 
-    pub(super) async fn board_outline_bytes(
+    pub(super) fn board_outline_bytes(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
@@ -444,15 +444,11 @@ impl Runtime {
                 format,
             },
         };
-        let core = self.core.borrow().clone();
-        if !self.export_lease_is_current(operation_id, &lease, &core) {
+        if !self.export_lease_is_current(operation_id, &lease) {
             return Err("Outline export was cancelled, superseded, or its source changed.".into());
         }
-        let reply = core
-            .artifact(&request_id, "1", &request)
-            .await
-            .map_err(|error| format!("Outline export failed: {error}"))?;
-        if !self.export_lease_is_current(operation_id, &lease, &core) {
+        let reply = artifact_reply(&request)?;
+        if !self.export_lease_is_current(operation_id, &lease) {
             return Err("Outline export was cancelled, superseded, or its source changed.".into());
         }
         let file = match reply {
@@ -469,12 +465,9 @@ impl Runtime {
         &self,
         operation_id: OperationId,
         lease: &ExportLease,
-        worker: &Rc<dyn CoreExecutor>,
     ) -> bool {
-        let core = self.core.borrow().clone();
         self.export_leases.borrow().get(&operation_id) == Some(lease)
             && self.export_current(operation_id, lease.token(), lease.scope())
-            && Rc::ptr_eq(worker, &core)
     }
 
     pub(super) fn export_current(
@@ -483,7 +476,6 @@ impl Runtime {
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        let core = self.core.borrow().clone();
         let session = self.session.borrow();
         self.export_leases
             .borrow()
@@ -497,7 +489,6 @@ impl Runtime {
                         .require_current(
                             session_owns_export,
                             session.read_model().accepted.as_ref(),
-                            core_executor_identity(&core),
                         )
                         .is_ok()
             })
@@ -510,27 +501,16 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) {
-        let core = self.core.borrow().clone();
         self.export_leases.borrow_mut().insert(
             operation_id,
-            ExportLease::new(
-                kind,
-                snapshot.clone(),
-                scope.clone(),
-                core_executor_identity(&core),
-            ),
+            ExportLease::new(kind, snapshot.clone(), scope.clone()),
         );
     }
 
     pub(super) fn export_source_is_current(&self, lease: &ExportLease) -> bool {
         let model = self.model();
-        let core = self.core.borrow().clone();
         let session = self.session.borrow();
-        lease.source_is_current(
-            session.scope().as_ref(),
-            model.accepted.as_ref(),
-            core_executor_identity(&core),
-        )
+        lease.source_is_current(session.scope().as_ref(), model.accepted.as_ref())
     }
     pub(super) fn export_delivery_is_current(
         &self,
@@ -715,11 +695,8 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        worker: Option<&Rc<dyn CoreExecutor>>,
     ) -> Result<(), String> {
-        if self.export_current(operation_id, snapshot.token, scope)
-            && worker.is_none_or(|worker| Rc::ptr_eq(worker, &self.core.borrow()))
-        {
+        if self.export_current(operation_id, snapshot.token, scope) {
             Ok(())
         } else {
             Err("Export lease is no longer current.".into())

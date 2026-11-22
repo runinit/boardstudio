@@ -3,7 +3,6 @@
 //! The page injects typed handlers so the web crates can compile independently of the engine.
 use boardstudio_application::OpenValidator;
 use boardstudio_model::model::{CoreReply, CoreRequest};
-pub use boardstudio_web_host::in_process_core::{ArchiveHandler, ArtifactHandler};
 
 /// The page-owned engine for Session's document and history.
 pub type DocumentCore = Box<dyn FnMut(CoreRequest) -> CoreReply>;
@@ -21,10 +20,6 @@ pub struct CoreServices {
     /// Core's Open admission check, run before editor work is retired.
     pub validate_open: OpenValidator,
     pub open_scratch: OpenScratchCore,
-    /// Core's archive entry point, which the in-process executor runs.
-    pub archive: ArchiveHandler,
-    /// Core's stateless artifact entry point, which the in-process executor runs.
-    pub artifact: ArtifactHandler,
 }
 
 #[cfg(test)]
@@ -37,8 +32,6 @@ impl CoreServices {
                 let mut engine = boardstudio_core::CoreEngine::new();
                 Box::new(move |request| engine.handle(request))
             },
-            archive: boardstudio_core::archive::request,
-            artifact: boardstudio_core::artifact_request,
         }
     }
 }
