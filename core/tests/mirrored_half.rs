@@ -32,6 +32,8 @@ mod open_acceptance;
 mod parent_acceptance;
 #[path = "mirrored_half/replacement_pins.rs"]
 mod replacement_pins;
+#[path = "mirrored_half/sequence_invariants.rs"]
+mod sequence_invariants;
 fn request(engine: &mut CoreEngine, input: Value) -> Value {
     let reply: Value = serde_json::from_str(&engine.request(&input.to_string())).unwrap();
     assert_ne!(reply["kind"], "error", "{reply}");

@@ -20,51 +20,26 @@ pub(super) fn lifecycle_context(
         .ok_or("The exact lifecycle pair has no halves record")?;
 
     fn parent_ids(
+        document: &crate::model::ProjectDoc,
         halves: &crate::model::MirroredHalves,
         record: &crate::model::MirroredCorrespondence,
-    ) -> (Option<String>, Option<String>) {
-        if record.kind == MirroredItemKind::Part {
-            for matrix in halves
+    ) -> Result<(Option<String>, Option<String>), String> {
+        if let Some(owners) = super::super::matrix_owners(document, halves, record) {
+            let parent = owners.key.unwrap_or(owners.matrix);
+            return Ok((
+                Some(parent.source_id.clone()),
+                Some(parent.mirror_id.clone()),
+            ));
+        }
+        // An unowned pair of canonical slot IDs can be a stale durable association.
+        // Keep the same admission check for all records, including document replacement.
+        if record.kind == MirroredItemKind::Part
+            && halves
                 .correspondences
                 .iter()
-                .filter(|item| item.kind == MirroredItemKind::Matrix)
-            {
-                let Some(suffix) = record
-                    .source_id
-                    .strip_prefix(&format!("matrix/{}/", matrix.source_id))
-                else {
-                    continue;
-                };
-                let Some(mirror_suffix) = record
-                    .mirror_id
-                    .strip_prefix(&format!("matrix/{}/", matrix.mirror_id))
-                else {
-                    return (None, None);
-                };
-                if let Some((slot, _)) = suffix.split_once('/') {
-                    let Some((mirror_slot, _)) = mirror_suffix.split_once('/') else {
-                        return (None, None);
-                    };
-                    if slot == mirror_slot {
-                        return (
-                            Some(format!("matrix/{}/{}", matrix.source_id, slot)),
-                            Some(format!("matrix/{}/{}", matrix.mirror_id, mirror_slot)),
-                        );
-                    }
-                    return (None, None);
-                }
-                // A top-level key with an aligned slot inherits its matrix
-                // pair's state (spec §5): the matrix correspondence is its
-                // parent, so whole-matrix Local/Omitted transitions reach
-                // every member without per-key exception records.
-                if suffix == mirror_suffix {
-                    return (
-                        Some(matrix.source_id.clone()),
-                        Some(matrix.mirror_id.clone()),
-                    );
-                }
-                return (None, None);
-            }
+                .any(|matrix| claims_matrix_slot(matrix, &record.source_id, &record.mirror_id))
+        {
+            return Err("A matrix-owned Part lacks its exact source slot or assembly".into());
         }
         if matches!(record.kind, MirroredItemKind::Part | MirroredItemKind::Net) {
             for circuit in halves
@@ -81,30 +56,28 @@ pub(super) fn lifecycle_context(
                         .strip_prefix(&format!("embedded/{}/", circuit.mirror_id))
                         .is_some()
                 {
-                    return (
+                    return Ok((
                         Some(circuit.source_id.clone()),
                         Some(circuit.mirror_id.clone()),
-                    );
+                    ));
                 }
             }
         }
-        (None, None)
+        Ok((None, None))
     }
 
     let associations = halves
         .correspondences
         .iter()
         .map(|record| {
-            let exception = halves.exceptions.iter().find(|exception| {
-                exception.kind == record.kind && exception.mirror_id == record.mirror_id
-            });
+            let exception = halves.overlay_of(record);
             let state = match exception.map(|exception| exception.state) {
                 Some(MirroredExceptionState::Local) => TransitionState::Local,
                 Some(MirroredExceptionState::Omitted) => TransitionState::Omitted,
                 None => TransitionState::Linked,
             };
-            let (parent_source_id, parent_mirror_id) = parent_ids(halves, record);
-            TransitionAssociation {
+            let (parent_source_id, parent_mirror_id) = parent_ids(document, halves, record)?;
+            Ok(TransitionAssociation {
                 kind: record.kind,
                 source_id: record.source_id.clone(),
                 mirror_id: record.mirror_id.clone(),
@@ -116,9 +89,9 @@ pub(super) fn lifecycle_context(
                 raw_tweak: record.companion_tweak,
                 effective_mode: record.companion_mode.unwrap_or(halves.companion_mode),
                 effective_tweak: record.companion_tweak,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, String>>()?;
     let mut context = MembershipContext {
         pair_id: pair_id.to_owned(),
         source_board_id: halves.source_board_id.clone(),
@@ -160,6 +133,29 @@ pub(super) fn lifecycle_context(
     Ok(context)
 }
 
+// A matching pair of generated IDs claims a slot at admission. Only actual membership
+// establishes an owner for inheritance and inverse editing.
+fn claims_matrix_slot(
+    matrix: &crate::model::MirroredCorrespondence,
+    source_id: &str,
+    mirror_id: &str,
+) -> bool {
+    if matrix.kind != MirroredItemKind::Matrix {
+        return false;
+    }
+    let Some((row, column, assembly)) =
+        super::super::matrix_identity_slot(source_id, &matrix.source_id)
+    else {
+        return false;
+    };
+    let key = crate::matrix::member_id(&matrix.mirror_id, row, column);
+    if assembly.is_empty() {
+        mirror_id == key
+    } else {
+        mirror_id == crate::matrix::companion_id(&key, assembly)
+    }
+}
+
 pub(super) fn matrix_pair_for_association(
     document: &crate::model::ProjectDoc,
     halves: &crate::model::MirroredHalves,
@@ -180,19 +176,10 @@ pub(super) fn matrix_pair_for_association(
     let matrix_pairs: Vec<_> = halves
         .correspondences
         .iter()
-        .filter(|record| record.kind == MirroredItemKind::Matrix)
-        .filter_map(|record| {
-            let (row, column, suffix) =
-                super::super::matrix_identity_slot(source_id, &record.source_id)?;
-            let mirror_member = if suffix.is_empty() {
-                format!("matrix/{}/r{row}c{column}", record.mirror_id)
-            } else {
-                format!("matrix/{}/r{row}c{column}/{suffix}", record.mirror_id)
-            };
-            (mirror_member == mirror_id).then(|| super::super::MatrixPairContext {
-                source_id: record.source_id.clone(),
-                mirror_id: record.mirror_id.clone(),
-            })
+        .filter(|matrix| claims_matrix_slot(matrix, source_id, mirror_id))
+        .map(|matrix| super::super::MatrixPairContext {
+            source_id: matrix.source_id.clone(),
+            mirror_id: matrix.mirror_id.clone(),
         })
         .collect();
     let source_matrix_memberships: Vec<_> = document

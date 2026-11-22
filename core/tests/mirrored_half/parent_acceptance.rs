@@ -122,75 +122,6 @@ fn accepted_pair() -> (CoreEngine, Value) {
     (engine, document)
 }
 
-/// Local/Omitted independent-part associations survive a source edit and persisted-document
-/// reopen. Rejoin uses that edited source, and one Undo/Redo restores the complete pair state.
-#[test]
-fn parent19_independent_local_and_omitted_survive_edit_reopen_and_rejoin() {
-    const TARGET: &str = "right/RST";
-    const SOURCE: &str = "left/RST";
-    for state in ["local", "omitted"] {
-        let (mut engine, linked) = accepted_pair();
-        let expected_target = (state == "local").then(|| part(&linked, TARGET));
-        let localized = set_exception(&mut engine, &linked, TARGET, state);
-        assert_eq!(localized["kind"], "scene", "{localized}");
-        let after_exception = &localized["document"];
-        assert_eq!(exception(after_exception, TARGET).unwrap()["state"], state);
-
-        let moved = move_part(&mut engine, after_exception, SOURCE, -18.0, 35.0);
-        assert_eq!(moved["kind"], "scene", "{moved}");
-        let edited = &moved["document"];
-        assert_eq!(
-            part(edited, SOURCE)["pose"]["at"],
-            json!({"x":-18.0,"y":35.0})
-        );
-        assert_eq!(
-            pair(edited, PAIR_ID)["halves"]["correspondences"],
-            pair(&linked, PAIR_ID)["halves"]["correspondences"]
-        );
-
-        let (mut reopened_engine, reopened) = save_archive_and_open(edited);
-        let before_rejoin = snapshot(&mut reopened_engine);
-        let rejoined = set_exception(&mut reopened_engine, &before_rejoin, TARGET, "linked");
-        assert_eq!(rejoined["kind"], "scene", "{rejoined}");
-        let after_rejoin = &rejoined["document"];
-
-        let [undone, redone] =
-            [("undo", &before_rejoin), ("redo", after_rejoin)].map(|(action, expected)| {
-                let reply = request(
-                    &mut reopened_engine,
-                    json!({"id":format!("rejoin-{action}"),"kind":action}),
-                );
-                assert_eq!(reply["kind"], "scene", "{reply}");
-                assert_history_document(&reply["document"], expected, action);
-                reply["document"].clone()
-            });
-        for (stage, document) in [("edit", edited), ("open", &reopened), ("undo", &undone)] {
-            assert_eq!(
-                exception(document, TARGET).unwrap()["state"],
-                state,
-                "{stage}"
-            );
-            assert_eq!(
-                correspondence(document, TARGET)["sourceId"],
-                SOURCE,
-                "{stage}"
-            );
-            assert_eq!(
-                find_part(document, TARGET),
-                expected_target,
-                "{state} after {stage}"
-            );
-        }
-        for document in [after_rejoin, &redone] {
-            assert_eq!(
-                part(document, TARGET)["pose"]["at"],
-                json!({"x":218.0,"y":35.0})
-            );
-            assert!(exception(document, TARGET).is_none());
-        }
-    }
-}
-
 /// A matrix-owned companion exception changes only that child. Its configured companion mode
 /// and tweak, sibling correspondence, and unrelated matrix parts survive source edits and Rejoin.
 #[test]
@@ -692,47 +623,6 @@ fn parent19_replace_document_preserves_authored_local_companion_fields() {
     );
 }
 
-#[test]
-fn omitted_key_detaches_its_local_companion_through_reopen_and_rejoin() {
-    let (mut engine, doc) = accepted_pair();
-    let key = "matrix/right-synthetic-keys/r0c0";
-    let diode = "matrix/right-synthetic-keys/r0c0/diode";
-    let local = set_exception(&mut engine, &doc, diode, "local");
-    let moved = move_part(&mut engine, &local["document"], diode, 123.0, 47.0);
-    let expected = part(&moved["document"], diode).clone();
-    assert_eq!(expected["pose"]["at"], json!({"x":123.0,"y":47.0}));
-    let omitted = set_exception(&mut engine, &moved["document"], key, "omitted");
-    assert_eq!(omitted["kind"], "scene", "{omitted}");
-    let (mut engine, reopened) = save_archive_and_open(&omitted["document"]);
-    assert!(find_part(&reopened, key).is_none());
-    assert_eq!(part(&reopened, diode), &expected);
-    let membership = |doc: &Value| {
-        doc["matrices"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|matrix| matrix["id"] == "right-synthetic-keys")
-            .unwrap()["partIds"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|id| id == diode)
-    };
-    assert!(!membership(&reopened));
-    let rejoined = set_exception(&mut engine, &reopened, key, "linked");
-    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
-    assert!(membership(&rejoined["document"]));
-    assert!(find_part(&rejoined["document"], key).is_some());
-    assert_eq!(part(&rejoined["document"], diode), &expected);
-    assert_eq!(
-        exception(&rejoined["document"], diode).unwrap()["state"],
-        "local"
-    );
-    for (action, expected) in [("undo", &reopened), ("redo", &rejoined["document"])] {
-        let result = request(&mut engine, json!({"id":action, "kind":action}));
-        assert_history_document(&result["document"], expected, action);
-    }
-}
 fn select_matrix(engine: &mut CoreEngine, doc: &Value, state: &str) -> Value {
     let id = "right-synthetic-keys";
     let reply = commit_operation(
@@ -905,4 +795,89 @@ fn cutover_local_owner_rejoins_overlapping_growth() {
             }
         }
     }
+}
+
+/// Rename only the independent mirror Part and references to it in the persisted document.
+fn pair_with_decoy(id: &str) -> (CoreEngine, Value) {
+    let (_, linked) = accepted_pair();
+    let renamed = linked
+        .to_string()
+        .replace("\"right/RST\"", &json!(id).to_string());
+    open(&serde_json::from_str(&renamed).unwrap())
+}
+
+#[test]
+fn independent_decoy_is_not_the_parent_of_a_linked_key() {
+    let (mut engine, linked) = pair_with_decoy("matrix/right-synthetic-keys");
+    let local = set_exception(&mut engine, &linked, "matrix/right-synthetic-keys", "local");
+    let key = "matrix/right-synthetic-keys/r1c0";
+    let source = "matrix/left-synthetic-keys/r1c0";
+    let moved = move_part(&mut engine, &local["document"], key, 212., 12.);
+    assert_eq!(
+        part(&moved["document"], source)["pose"]["at"],
+        json!({"x":-12.0,"y":12.0})
+    );
+    assert_eq!(
+        part(&moved["document"], key)["pose"]["at"],
+        json!({"x":212.0,"y":12.0})
+    );
+}
+
+#[test]
+fn independent_decoy_is_not_a_matrix_companion() {
+    let id = "matrix/right-synthetic-keys/r9c9/spare";
+    let (mut engine, linked) = pair_with_decoy(id);
+    let source = "left/RST";
+    let authored = move_part(&mut engine, &linked, source, -8., 16.);
+    let (mut engine, reopened) = save_archive_and_open(&authored["document"]);
+    assert_history_document(&reopened, &authored["document"], "archive");
+    let moved = move_part(&mut engine, &reopened, id, 212., 12.);
+    assert_eq!(
+        part(&moved["document"], source)["pose"]["at"],
+        json!({"x":-12.0,"y":12.0})
+    );
+    assert_eq!(
+        part(&moved["document"], id)["pose"]["at"],
+        json!({"x":212.0,"y":12.0})
+    );
+    let undo = request(&mut engine, json!({"id":"undo","kind":"undo"}));
+    let redo = request(&mut engine, json!({"id":"redo","kind":"redo"}));
+    assert_history_document(&undo["document"], &reopened, "undo");
+    assert_history_document(&redo["document"], &moved["document"], "redo");
+    for reply in [&authored, &moved, &undo, &redo] {
+        let changed = reply["scene"]["changedIds"].as_array().unwrap();
+        assert!(
+            changed.contains(&json!(source)) && changed.contains(&json!(id)),
+            "{changed:?}"
+        );
+    }
+    // History invalidates the full scene. Committed moves report just affected entities.
+    for reply in [&authored, &moved] {
+        let changed = reply["scene"]["changedIds"].as_array().unwrap();
+        assert!(
+            !changed.contains(&json!("matrix/right-synthetic-keys/r1c0")),
+            "{changed:?}"
+        );
+    }
+}
+
+#[test]
+fn a_linked_independent_part_under_a_local_keys_prefix_still_edits_its_source() {
+    let id = "matrix/right-synthetic-keys/r1c0/spare";
+    let (mut engine, linked) = pair_with_decoy(id);
+    let local = set_exception(
+        &mut engine,
+        &linked,
+        "matrix/right-synthetic-keys/r1c0",
+        "local",
+    );
+    let moved = move_part(&mut engine, &local["document"], id, 212., 12.);
+    assert_eq!(
+        part(&moved["document"], "left/RST")["pose"]["at"],
+        json!({"x":-12.0,"y":12.0})
+    );
+    assert_eq!(
+        part(&moved["document"], id)["pose"]["at"],
+        json!({"x":212.0,"y":12.0})
+    );
 }

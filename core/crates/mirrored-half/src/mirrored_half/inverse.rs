@@ -576,27 +576,15 @@ impl<'a> Links<'a> {
         let Some(link) = found else {
             return Ok(Target::NotMirror);
         };
-        if let Some(overlay) = link.pair.halves.overlay_of(link.correspondence) {
+        if let Some(overlay) = super::reconcile::effective_overlay(
+            self.document,
+            link.pair.halves,
+            link.correspondence,
+        ) {
             return Ok(match overlay.state {
                 MirroredExceptionState::Local => Target::Local,
                 MirroredExceptionState::Omitted => Target::Omitted,
             });
-        }
-        // Children of a Local or Omitted matrix follow their owner's exception.
-        if kind == MirroredItemKind::Part {
-            for owner in &link.pair.halves.correspondences {
-                if owner.kind != MirroredItemKind::Matrix
-                    || !id.starts_with(&format!("matrix/{}/", owner.mirror_id))
-                {
-                    continue;
-                }
-                if let Some(overlay) = link.pair.halves.overlay_of(owner) {
-                    return Ok(match overlay.state {
-                        MirroredExceptionState::Local => Target::Local,
-                        MirroredExceptionState::Omitted => Target::Omitted,
-                    });
-                }
-            }
         }
         Ok(Target::Linked(link))
     }
@@ -988,7 +976,10 @@ impl<'a> Links<'a> {
         requested: &BTreeMap<&str, Vec2>,
     ) -> Result<Vec2, String> {
         let mapping = link.pair.mapping;
-        let Some((mirror_key_id, _assembly)) = self.companion_of(id) else {
+        let Some(key) =
+            super::reconcile::matrix_owners(self.document, link.pair.halves, link.correspondence)
+                .and_then(|owners| owners.key)
+        else {
             return Ok(pair::inverse(mapping, at));
         };
         let part = self.part(id)?;
@@ -999,7 +990,7 @@ impl<'a> Links<'a> {
             .correspondence
             .companion_mode
             .unwrap_or(link.pair.halves.companion_mode);
-        let mirror_key = self.part(&mirror_key_id)?;
+        let mirror_key = self.part(&key.mirror_id)?;
         let mirror_rotation = mirror_key.pose.rotation;
         match mode {
             MirroredCompanionMode::LiteralMirror => Ok(pair::inverse(mapping, at)),
@@ -1029,20 +1020,9 @@ impl<'a> Links<'a> {
                 ))
             }
             MirroredCompanionMode::DuplicatePosition => {
-                let source_key_id = link
-                    .pair
-                    .halves
-                    .correspondences
-                    .iter()
-                    .find(|correspondence| {
-                        correspondence.kind == MirroredItemKind::Part
-                            && correspondence.mirror_id == mirror_key_id
-                    })
-                    .map(|correspondence| correspondence.source_id.as_str())
-                    .ok_or_else(|| format!("The switch {mirror_key_id:?} has no source"))?;
-                let source_key = self.part(source_key_id)?;
+                let source_key = self.part(&key.source_id)?;
                 let mirror_key_at = requested
-                    .get(mirror_key_id.as_str())
+                    .get(key.mirror_id.as_str())
                     .copied()
                     .unwrap_or(mirror_key.pose.at);
                 let offset = rotate_about(
@@ -1069,21 +1049,6 @@ impl<'a> Links<'a> {
             .iter()
             .find(|part| part.id == id)
             .ok_or_else(|| format!("The part {id:?} is unavailable"))
-    }
-
-    /// The key id and assembly id when `id` is a matrix companion of some matrix.
-    fn companion_of(&self, id: &str) -> Option<(String, String)> {
-        for matrix in &self.document.matrices {
-            let Some(rest) = id.strip_prefix(&format!("matrix/{}/r", matrix.id)) else {
-                continue;
-            };
-            let (slot, assembly) = rest.split_once('/')?;
-            let (row, column) = slot.split_once('c')?;
-            row.parse::<u32>().ok()?;
-            column.parse::<u32>().ok()?;
-            return Some((format!("matrix/{}/r{slot}", matrix.id), assembly.to_owned()));
-        }
-        None
     }
 
     // ---- AddPart ---------------------------------------------------------------------------

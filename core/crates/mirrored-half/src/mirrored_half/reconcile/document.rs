@@ -97,14 +97,12 @@ pub(super) fn reconcile_canonical(
                 // Omitting a key under a Local matrix also removes its companions. The
                 // key owns the overlay, so its absent companion has no overlay of its own.
                 if source_is_matrix_member
-                    && let Some((source_key, assembly)) = correspondence.source_id.rsplit_once('/')
-                    && halves
-                        .overlay_for_source(MirroredItemKind::Part, source_key)
-                        .is_some_and(|key| {
-                            key.state == crate::model::MirroredExceptionState::Omitted
-                                && crate::matrix::companion_id(&key.mirror_id, assembly)
-                                    == correspondence.mirror_id
-                        })
+                    && super::effective_overlay(document, halves, correspondence).is_some_and(
+                        |overlay| {
+                            overlay.kind == MirroredItemKind::Part
+                                && overlay.state == crate::model::MirroredExceptionState::Omitted
+                        },
+                    )
                     && !document
                         .parts
                         .iter()

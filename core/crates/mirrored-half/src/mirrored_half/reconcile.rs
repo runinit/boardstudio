@@ -602,6 +602,80 @@ pub(super) fn matrix_identity_slot<'a>(
     Some((row.parse().ok()?, column.parse().ok()?, companion))
 }
 
+/// The source slot remains authoritative when omission removes the mirror geometry.
+pub(super) struct MatrixOwners<'a> {
+    pub(super) matrix: &'a MirroredCorrespondence,
+    pub(super) key: Option<&'a MirroredCorrespondence>,
+}
+
+pub(super) fn matrix_owners<'a>(
+    document: &ProjectDoc,
+    halves: &'a MirroredHalves,
+    part: &MirroredCorrespondence,
+) -> Option<MatrixOwners<'a>> {
+    if part.kind != MirroredItemKind::Part {
+        return None;
+    }
+    let source = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.part_ids.contains(&part.source_id))?;
+    let matrix = halves
+        .correspondences
+        .iter()
+        .find(|link| link.kind == MirroredItemKind::Matrix && link.source_id == source.id)?;
+    let (row, column, assembly) = matrix_identity_slot(&part.source_id, &source.id)?;
+    let cell = source
+        .cells
+        .iter()
+        .find(|cell| cell.row == row && cell.column == column);
+    if row >= source.rows
+        || column >= source.columns
+        || cell.is_some_and(|cell| !cell.enabled || cell.deleted)
+    {
+        return None;
+    }
+    let source_key = crate::matrix::member_id(&source.id, row, column);
+    let mirror_key = crate::matrix::member_id(&matrix.mirror_id, row, column);
+    if part.source_id == source_key && part.mirror_id == mirror_key {
+        return Some(MatrixOwners { matrix, key: None });
+    }
+    if !source.part_ids.contains(&source_key)
+        || !cell?.assemblies.iter().any(|item| item.id == assembly)
+        || part.source_id != crate::matrix::companion_id(&source_key, assembly)
+        || part.mirror_id != crate::matrix::companion_id(&mirror_key, assembly)
+    {
+        return None;
+    }
+    let key = halves.correspondences.iter().find(|link| {
+        link.kind == MirroredItemKind::Part
+            && link.source_id == source_key
+            && link.mirror_id == mirror_key
+    })?;
+    Some(MatrixOwners {
+        matrix,
+        key: Some(key),
+    })
+}
+
+/// An explicit overlay takes precedence over the owning key and then the paired matrix.
+pub(super) fn effective_overlay<'a>(
+    document: &ProjectDoc,
+    halves: &'a MirroredHalves,
+    record: &MirroredCorrespondence,
+) -> Option<&'a crate::model::MirroredException> {
+    if halves.exceptions.is_empty() {
+        return None;
+    }
+    halves.overlay_of(record).or_else(|| {
+        let owners = matrix_owners(document, halves, record)?;
+        owners
+            .key
+            .and_then(|key| halves.overlay_of(key))
+            .or_else(|| halves.overlay_of(owners.matrix))
+    })
+}
+
 fn deduplicate_outline_members(document: &mut ProjectDoc) {
     fn deduplicate(values: &mut Vec<String>) {
         let mut seen = BTreeSet::new();
