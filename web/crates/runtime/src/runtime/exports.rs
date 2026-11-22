@@ -36,12 +36,24 @@ impl Runtime {
     }
 
     fn start_export(self: &Rc<Self>, kind: ExportKind, snapshot: &AcceptedSnapshot, scope: Scope) {
-        self.clear_alert();
+        if !matches!(
+            kind,
+            ExportKind::BoardOutline { .. } | ExportKind::ProjectCopy { .. }
+        ) {
+            self.clear_alert();
+        }
         let operation_id = self.operation();
         if kind == ExportKind::Firmware {
             self.latest_firmware_export.set(Some(operation_id));
         }
-        self.begin_export_lease(operation_id, kind, snapshot, &scope);
+        self.exports.borrow_mut().insert(
+            operation_id,
+            ExportState {
+                kind,
+                token: snapshot.token,
+                scope: scope.clone(),
+            },
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -49,21 +61,13 @@ impl Runtime {
     }
 
     pub fn export_step(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before exporting authored case geometry.",
             ));
             return;
         };
-        let model = self.model();
-        let Some(snapshot) = model.accepted.as_ref() else {
-            self.apply_report(RuntimeReport::alert(
-                "Authored Case STEP requires a ready accepted snapshot.",
-            ));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || snapshot.scene.revision != snapshot.document.revision
+        if snapshot.scene.revision != snapshot.document.revision
             || !snapshot
                 .document
                 .boards
@@ -85,17 +89,14 @@ impl Runtime {
             ));
             return;
         }
-        self.start_export(ExportKind::Step, snapshot, scope);
+        self.start_export(ExportKind::Step, &snapshot, scope);
     }
 
     pub fn export_keycaps_stl(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before exporting keycaps.",
             ));
-            return;
-        };
-        let Some(snapshot) = self.model().accepted else {
             return;
         };
         if let Err(error) = self.ensure_keycaps_source_current(&snapshot, &scope) {
@@ -112,28 +113,20 @@ impl Runtime {
             ));
             return;
         }
-        let Some(scope) = self.scope() else {
+        let model = self.model();
+        let Some((snapshot, scope)) = model.accepted.as_ref().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a physical board before exporting the mechanical assembly.",
             ));
             return;
         };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Mechanical export requires a ready accepted snapshot.",
-            ));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || snapshot.scene.revision != snapshot.document.revision
-        {
+        if snapshot.scene.revision != snapshot.document.revision {
             self.apply_report(RuntimeReport::alert(
                 "The selected board is still resolving; export the current revision again.",
             ));
             return;
         }
-        let document = match captured_case_document(&snapshot, &scope) {
+        let document = match captured_case_document(snapshot, &scope) {
             Ok(document) => document,
             Err(error) => {
                 self.apply_report(RuntimeReport::alert(format!(
@@ -215,35 +208,23 @@ impl Runtime {
                     snapshot.document.name, instance_suffix
                 ),
             },
-            &snapshot,
+            snapshot,
             scope,
         );
     }
 
     pub fn export_firmware(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.report("Select a board before exporting ZMK source.");
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.report("Firmware export requires a ready accepted snapshot.");
             return;
         };
         self.start_export(ExportKind::Firmware, &snapshot, scope);
     }
 
     pub fn export_footprints(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Open a project before exporting its footprint library.",
-            ));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Footprint export requires a ready accepted snapshot.",
             ));
             return;
         };
@@ -257,15 +238,8 @@ impl Runtime {
     }
 
     pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "KiCad export requires a ready accepted snapshot.",
-            ));
             return;
         };
         let board_exists = snapshot
@@ -279,7 +253,7 @@ impl Runtime {
             .iter()
             .find(|readiness| readiness.board_id == scope.board_id)
             .map_or(snapshot.scene.readiness.pcb, |readiness| readiness.pcb);
-        if model.active_board_id != scope.board_id || !board_exists || !pcb_ready {
+        if !board_exists || !pcb_ready {
             self.apply_report(RuntimeReport::alert(
                 "Resolve PCB findings before exporting this board.",
             ));
@@ -289,80 +263,39 @@ impl Runtime {
     }
 
     pub fn export_project_copy(self: &Rc<Self>) {
-        let Some(snapshot) = self.model().accepted else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             return;
         };
-        let Some(scope) = self.scope() else {
-            return;
-        };
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
+        self.start_export(
             ExportKind::ProjectCopy {
                 embed_used_models: self.embed_used_models(),
             },
             &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
             scope,
-        });
+        );
     }
 
     pub fn export_board_outline(
         self: &Rc<Self>,
         format: boardstudio_model::model::OutlineExportFormat,
     ) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before outline export.",
             ));
             return;
         };
-        let Some(snapshot) = self.model().accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Outline export requires a ready accepted snapshot.",
-            ));
+        if let Err(error) = outline_geometry(&snapshot, &scope) {
+            self.apply_report(RuntimeReport::alert(error));
             return;
-        };
-        let Some(_board) = snapshot
-            .document
-            .boards
-            .iter()
-            .find(|board| board.id == scope.board_id)
-            .cloned()
-        else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a resolved board before outline export.",
-            ));
-            return;
-        };
-        let Some(_contours) = snapshot
-            .scene
-            .board_contours
-            .iter()
-            .find(|entry| entry.board_id == scope.board_id)
-            .map(|entry| entry.contours.clone())
-        else {
-            self.apply_report(RuntimeReport::alert(
-                "The selected board has no resolved outline.",
-            ));
-            return;
-        };
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
+        }
+        self.start_export(
             ExportKind::BoardOutline {
                 dxf: matches!(format, boardstudio_model::model::OutlineExportFormat::Dxf),
             },
             &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
             scope,
-        });
+        );
     }
 
     pub(super) fn board_outline_bytes(
@@ -371,44 +304,25 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         dxf: bool,
-    ) -> Result<(Vec<u8>, SnapshotToken), String> {
+    ) -> Result<Vec<u8>, String> {
         self.require_export_current(operation_id, snapshot, scope)?;
-        let board = snapshot
-            .document
-            .boards
-            .iter()
-            .find(|board| board.id == scope.board_id)
-            .cloned()
-            .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
-        let contours = snapshot
-            .scene
-            .board_contours
-            .iter()
-            .find(|entry| entry.board_id == scope.board_id)
-            .map(|entry| entry.contours.clone())
-            .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
+        let (board, contours) = outline_geometry(snapshot, scope)?;
         let format = if dxf {
             boardstudio_model::model::OutlineExportFormat::Dxf
         } else {
             boardstudio_model::model::OutlineExportFormat::Svg
         };
         let format_name = if dxf { "dxf" } else { "svg" };
-        let request_id = format!("export-outline-{}", operation_id.0);
-        let request = ArtifactRequest::ExportOutline {
-            id: request_id.clone(),
-            request: boardstudio_model::model::OutlineExportRequest {
+        boardstudio_core::artifact::outline::export_outline(
+            boardstudio_model::model::OutlineExportRequest {
                 filename: format!("{}.{}", snapshot.document.name, format_name),
-                board,
-                contours,
+                board: board.clone(),
+                contours: contours.to_vec(),
                 format,
             },
-        };
-        let reply = artifact_reply(&request)?;
-        let file = match reply {
-            ArtifactReply::ExportOutline { id, result } if id == request_id => result,
-            _ => return Err("Core returned an outline for another export request.".into()),
-        };
-        Ok((file.content.into_bytes(), snapshot.token))
+        )
+        .map(|file| file.content.into_bytes())
+        .map_err(|error| error.message)
     }
 
     pub(super) fn export_lease_is_current(
@@ -428,29 +342,11 @@ impl Runtime {
         self.session
             .borrow()
             .export_is_current(operation_id, token, scope)
-            && self.snapshot_current(token, scope)
             && self
                 .exports
                 .borrow()
                 .get(&operation_id)
                 .is_some_and(|state| state.token == token && &state.scope == scope)
-    }
-
-    pub(super) fn begin_export_lease(
-        &self,
-        operation_id: OperationId,
-        kind: ExportKind,
-        snapshot: &AcceptedSnapshot,
-        scope: &Scope,
-    ) {
-        self.exports.borrow_mut().insert(
-            operation_id,
-            ExportState {
-                kind,
-                token: snapshot.token,
-                scope: scope.clone(),
-            },
-        );
     }
 
     pub(super) fn export_source_is_current(&self, state: &ExportState) -> bool {
@@ -546,10 +442,22 @@ impl Runtime {
             false,
         )?;
         guard()?;
-        let worker = self
-            .model_worker(scope)
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            scope,
+            |worker| !worker.is_closed(),
+            || {
+                let url = resource_url("assets/cad-worker/entry.js")?;
+                CadWorker::new(&url)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )
+        .map_err(CadJobError::Failed)?;
+        worker
+            .ready()
             .await
-            .map_err(CadJobError::Failed)?;
+            .map_err(|error| CadJobError::Failed(error.to_string()))?;
         guard()?;
         let contours = captured_case_scene(snapshot, scope)?
             .board_contours
@@ -608,4 +516,24 @@ impl Runtime {
             Err("Export lease is no longer current.".into())
         }
     }
+}
+
+fn outline_geometry<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<(&'a Board, &'a [boardstudio_model::model::Contour]), String> {
+    let board = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == scope.board_id)
+        .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
+    let contours = snapshot
+        .scene
+        .board_contours
+        .iter()
+        .find(|entry| entry.board_id == scope.board_id)
+        .map(|entry| entry.contours.as_slice())
+        .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
+    Ok((board, contours))
 }

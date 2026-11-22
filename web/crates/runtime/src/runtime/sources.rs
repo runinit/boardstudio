@@ -35,7 +35,6 @@ impl Runtime {
             &scope,
         )
         .map_err(|error| format!("Could not project proposed mechanical settings: {error:?}"))?;
-        drop(proposal_projection_input);
         let configuration = effective_document
             .mechanical
             .clone()
@@ -59,9 +58,8 @@ impl Runtime {
             .find(|board| board.board_id == scope.board_id)
             .map_or_else(Vec::new, |board| board.contours);
 
-        let request_id = format!("mechanical-settings-{}", self.operation().0);
         let request = CoreRequest::ResolveMechanical {
-            id: request_id.clone(),
+            id: format!("mechanical-settings-{}", self.operation().0),
             document: effective_document,
             contours,
         };
@@ -137,14 +135,7 @@ impl Runtime {
         revision: u64,
         physical_case: bool,
     ) -> Result<boardstudio_model::model::KeycapResolution, String> {
-        let accepted = self
-            .model()
-            .accepted
-            .ok_or_else(|| "The accepted Keycaps source is no longer open.".to_owned())?;
-        if accepted.token != token || accepted.document.revision != revision {
-            return Err("The accepted Keycaps source changed before resolution started.".into());
-        }
-        self.ensure_keycaps_source_current(&accepted, &scope)?;
+        let accepted = self.keycaps_snapshot(&scope, token, revision)?;
         let case_preview = self.cad_scene().filter(|scene| {
             scene.exact
                 && scene.scope == scope
@@ -159,9 +150,8 @@ impl Runtime {
         } else {
             (*accepted.document).clone()
         };
-        let request_id = format!("keycaps-fit-{}", self.operation().0);
         let request = CoreRequest::ResolveKeycaps {
-            id: request_id.clone(),
+            id: format!("keycaps-fit-{}", self.operation().0),
             document,
             board_id: scope.board_id.clone(),
             cases,
@@ -176,6 +166,22 @@ impl Runtime {
             return Err("Core resolved keycap fit for another document revision.".into());
         }
         Ok(result)
+    }
+
+    fn keycaps_snapshot(
+        &self,
+        scope: &Scope,
+        token: SnapshotToken,
+        revision: u64,
+    ) -> Result<AcceptedSnapshot, String> {
+        self.model()
+            .accepted
+            .filter(|accepted| {
+                accepted.token == token
+                    && accepted.document.revision == revision
+                    && self.ensure_keycaps_source_current(accepted, scope).is_ok()
+            })
+            .ok_or_else(|| "The accepted Keycaps source changed.".into())
     }
 
     pub(super) fn ensure_keycaps_source_current(
@@ -205,26 +211,10 @@ impl Runtime {
             .checked_add(1)
             .ok_or_else(|| "Keycap CAD preview identity exhausted".to_owned())?;
         self.keycaps_preview_generation.set(generation);
-        if let Some((_, previous)) = self.keycaps_preview_worker.borrow_mut().take() {
-            previous.close();
-        }
+        self.close_keycaps_preview_worker();
 
-        let accepted = self
-            .model()
-            .accepted
-            .ok_or_else(|| "The accepted Keycaps source is no longer open.".to_owned())?;
-        self.ensure_keycaps_source_current(&accepted, &input.scope)?;
-        if accepted.token != input.token || accepted.document.revision != input.revision {
-            return Err("The accepted Keycaps source changed before CAD preview started.".into());
-        }
-        let identity = CadSnapshotIdentity {
-            token: accepted.token.0,
-            session_epoch: accepted.session_epoch.0,
-            document_id: accepted.document.id.clone(),
-            board_id: input.scope.board_id.clone(),
-            instance_id: input.scope.instance_id.clone(),
-            revision: accepted.document.revision,
-        };
+        let accepted = self.keycaps_snapshot(&input.scope, input.token, input.revision)?;
+        let identity = super::export_bytes::snapshot_identity(&accepted, &input.scope);
         let current = || {
             self.ensure_keycaps_source_current(&accepted, &input.scope)?;
             if self.keycaps_preview_generation.get() != generation {
@@ -271,7 +261,7 @@ impl Runtime {
             .keycaps_preview_worker
             .borrow()
             .as_ref()
-            .is_some_and(|(active, owner)| *active == generation && Rc::ptr_eq(owner, &worker))
+            .is_some_and(|(active, _)| *active == generation)
         {
             self.keycaps_preview_worker.borrow_mut().take();
         }
@@ -283,6 +273,10 @@ impl Runtime {
     pub fn cancel_keycaps_cad_preview(&self) {
         self.keycaps_preview_generation
             .set(self.keycaps_preview_generation.get().saturating_add(1));
+        self.close_keycaps_preview_worker();
+    }
+
+    fn close_keycaps_preview_worker(&self) {
         if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
             worker.close();
         }

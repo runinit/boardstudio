@@ -2,7 +2,7 @@
 use super::*;
 
 impl Runtime {
-    pub(super) async fn model_worker(&self, scope: &Scope) -> Result<Rc<CadWorker>, String> {
+    async fn model_worker(&self, scope: &Scope) -> Result<Rc<CadWorker>, String> {
         let worker = crate::case_model_lifecycle::case_model_worker(
             &self.cad_worker,
             scope,

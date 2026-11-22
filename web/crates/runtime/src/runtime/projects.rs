@@ -223,9 +223,12 @@ impl Runtime {
         bytes: Vec<u8>,
         sequence: u64,
     ) -> Result<(), String> {
+        if self.open_sequence.get() != sequence {
+            return Err("Open superseded by another import.".into());
+        }
         let (metadata, buffers) =
             boardstudio_core::archive::request("{\"kind\":\"unpack-project\"}", &[bytes]);
-        let reply: ArchiveReply = serde_json::from_str(&metadata).map_err(|e| e.to_string())?;
+        let reply = serde_json::from_str(&metadata).map_err(|error| error.to_string())?;
         let ArchiveReply::Unpacked {
             project_json,
             assets,
@@ -233,18 +236,16 @@ impl Runtime {
         else {
             return Err(format!("Archive rejected: {reply:?}"));
         };
-        let document: ProjectDoc =
-            serde_json::from_str(&project_json).map_err(|e| e.to_string())?;
-        let mut copied = BTreeMap::new();
-        for asset in assets {
-            let bytes = buffers
-                .get(asset.buffer_index as usize)
-                .ok_or("Archive omitted an asset buffer")?;
-            copied.insert(asset.sha256, bytes.to_vec());
-        }
-        if self.open_sequence.get() != sequence {
-            return Err("Open superseded by another import.".into());
-        }
+        let document = serde_json::from_str(&project_json).map_err(|error| error.to_string())?;
+        let copied = assets
+            .into_iter()
+            .map(|asset| {
+                buffers
+                    .get(asset.buffer_index as usize)
+                    .map(|bytes| (asset.sha256, bytes.clone()))
+                    .ok_or("Archive omitted an asset buffer")
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
         self.confirm_project_replacement(&document)?;
         self.assets.borrow_mut().extend(copied);
         self.open_document(document, false);
@@ -386,11 +387,9 @@ impl Runtime {
         let confirmed = web_sys::window()
             .and_then(|window| window.confirm_with_message(&message).ok())
             .unwrap_or(false);
-        if confirmed {
-            Ok(())
-        } else {
-            Err("Project switch canceled; your current work was kept.".into())
-        }
+        confirmed
+            .then_some(())
+            .ok_or_else(|| "Project switch canceled; your current work was kept.".into())
     }
 
     pub(super) async fn pack_archive(

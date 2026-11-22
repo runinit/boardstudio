@@ -1,14 +1,18 @@
 //! Session event submission and effect execution.
 use super::*;
-use boardstudio_application::{EditResolver, SnapshotToken};
+use boardstudio_application::{EditResolver, Landing, SnapshotToken};
 
-fn observed_outcome(effects: &[Effect], observe: Option<OperationId>) -> Option<TerminalOutcome> {
+fn observed_outcome(
+    effects: &[Effect],
+    observe: Option<OperationId>,
+) -> Option<(TerminalOutcome, Option<Landing>)> {
+    let observe = observe?;
     effects.iter().find_map(|effect| match effect {
         Effect::Settled {
             operation_id,
             outcome,
-            ..
-        } if observe == Some(*operation_id) => Some(outcome.clone()),
+            landing,
+        } if observe == *operation_id => Some((outcome.clone(), *landing)),
         _ => None,
     })
 }
@@ -53,6 +57,15 @@ impl Runtime {
         event: Event,
         observe: Option<OperationId>,
     ) -> Option<TerminalOutcome> {
+        self.submit_observed(event, observe)
+            .map(|(outcome, _)| outcome)
+    }
+
+    pub(crate) fn submit_observed(
+        self: &Rc<Self>,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         if self.project_deletion_pending.get() {
             let open_operation = match &event {
                 Event::Open { operation_id, .. }
@@ -80,13 +93,14 @@ impl Runtime {
         let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().submit(event);
         self.refresh_after_session(previous_scope, previous_snapshot);
+        let result = observed_outcome(&effects, observe);
         #[cfg(any(test, feature = "test-support"))]
         if self.in_process_adapters.borrow().is_some() {
-            let result = observed_outcome(&effects, observe);
             self.held_effects.borrow_mut().extend(effects);
             return result;
         }
-        self.drive_effects(effects, observe)
+        self.drive_effects(effects);
+        result
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -148,17 +162,15 @@ impl Runtime {
     }
 
     pub(super) fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
-        let previous_scope = self.scope();
-        let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().complete(event);
-        self.refresh_after_session(previous_scope, previous_snapshot);
+        self.changed();
         effects
     }
 
     fn refresh_after_session(
         &self,
         previous_scope: Option<Scope>,
-        previous_snapshot: Option<(SnapshotToken, u64)>,
+        previous_snapshot: Option<SnapshotToken>,
     ) {
         let scope_changed = self.scope() != previous_scope;
         if scope_changed {
@@ -179,27 +191,22 @@ impl Runtime {
         self.changed();
     }
 
-    fn accepted_identity(&self) -> Option<(SnapshotToken, u64)> {
+    fn accepted_identity(&self) -> Option<SnapshotToken> {
         self.session
             .borrow()
             .read_model()
             .accepted
             .as_ref()
-            .map(|snapshot| (snapshot.token, snapshot.document.revision))
+            .map(|snapshot| snapshot.token)
     }
 
     #[cfg(any(test, feature = "test-support"))]
     pub(super) fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
-        self.drive_effects(effects, None);
+        self.drive_effects(effects);
     }
 
-    fn drive_effects(
-        self: &Rc<Self>,
-        effects: Vec<Effect>,
-        observe: Option<OperationId>,
-    ) -> Option<TerminalOutcome> {
+    fn drive_effects(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
-        let result = observed_outcome(&effects, observe);
         let mut effects = VecDeque::from(effects);
         #[cfg(any(test, feature = "test-support"))]
         let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
@@ -219,7 +226,6 @@ impl Runtime {
                 let _ = finished.send(());
             }
         });
-        result
     }
 
     pub(super) async fn run(self: &Rc<Self>, effect: Effect) -> Vec<Effect> {
@@ -267,18 +273,16 @@ impl Runtime {
                     }
                     _ => {}
                 }
-                effects
+                return effects;
             }
             Effect::Settled {
                 operation_id,
                 outcome,
-                landing,
+                ..
             } => {
-                let observed = self.operation_outcomes.settle_with_landing(
-                    operation_id,
-                    outcome.clone(),
-                    landing,
-                );
+                let observed = self
+                    .operation_outcomes
+                    .settle(operation_id, outcome.clone());
                 let lease = self.exports.borrow_mut().remove(&operation_id);
                 let kind = lease.as_ref().map(|state| &state.kind);
                 let current = lease
@@ -294,27 +298,19 @@ impl Runtime {
                         self.apply_report(report);
                     }
                 }
-                vec![]
             }
-            Effect::CapturePointer { pointer_id } => {
-                if let Some(svg) = self.surface.borrow().as_ref()
-                    && let Ok(pointer) = i32::try_from(pointer_id)
+            Effect::CapturePointer { pointer_id } | Effect::ReleasePointer { pointer_id } => {
+                if let (Some(svg), Ok(pointer)) =
+                    (self.surface.borrow().as_ref(), i32::try_from(pointer_id))
                 {
-                    let result = svg.set_pointer_capture(pointer);
-                    if let Err(error) = result {
-                        self.report(format!("Pointer capture failed: {error:?}"));
+                    if matches!(effect, Effect::CapturePointer { .. }) {
+                        if let Err(error) = svg.set_pointer_capture(pointer) {
+                            self.report(format!("Pointer capture failed: {error:?}"));
+                        }
+                    } else if svg.has_pointer_capture(pointer) {
+                        let _ = svg.release_pointer_capture(pointer);
                     }
                 }
-                vec![]
-            }
-            Effect::ReleasePointer { pointer_id } => {
-                if let Some(svg) = self.surface.borrow().as_ref()
-                    && let Ok(pointer) = i32::try_from(pointer_id)
-                    && svg.has_pointer_capture(pointer)
-                {
-                    let _ = svg.release_pointer_capture(pointer);
-                }
-                vec![]
             }
             Effect::RequestFrame { generation } => {
                 if !self.frames.borrow().contains_key(&generation) {
@@ -343,7 +339,6 @@ impl Runtime {
                         Err(error) => self.report(error),
                     }
                 }
-                vec![]
             }
             Effect::CancelFrame { generation } => {
                 if let Some((handle, _)) = self.frames.borrow_mut().remove(&generation)
@@ -351,7 +346,6 @@ impl Runtime {
                 {
                     let _ = window.cancel_animation_frame(handle);
                 }
-                vec![]
             }
             Effect::RunExport {
                 operation_id,
@@ -371,7 +365,7 @@ impl Runtime {
                     let mut token = snapshot.token;
                     let (bytes, filename, media_type) = match kind {
                         ExportKind::BoardOutline { dxf } => {
-                            let (bytes, _) =
+                            let bytes =
                                 self.board_outline_bytes(operation_id, &snapshot, &scope, dxf)?;
                             let (ext, media) = if dxf {
                                 ("dxf", "application/dxf")
@@ -450,14 +444,14 @@ impl Runtime {
                         reason,
                     },
                 };
-                self.complete(completion)
+                return self.complete(completion);
             }
             Effect::RunGeneration {
                 job_id,
                 scope,
                 snapshot,
                 ..
-            } => self.generate(job_id, scope, snapshot).await,
+            } => return self.generate(job_id, scope, snapshot).await,
             Effect::CancelJob { job_id } => {
                 if let Some(cancelled) = self.cad_jobs.borrow_mut().remove(&job_id) {
                     cancelled.set(true);
@@ -467,15 +461,14 @@ impl Runtime {
                     // Scope replacement and close still terminate the departing worker.
                     let _ = worker.cancel(&format!("case-{}", job_id.0));
                 }
-                vec![]
             }
             Effect::CancelExport { operation_id } => {
                 self.exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
-                vec![]
             }
         }
+        Vec::new()
     }
 }

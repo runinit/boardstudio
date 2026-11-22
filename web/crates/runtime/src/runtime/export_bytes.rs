@@ -2,6 +2,22 @@
 use super::*;
 
 impl Runtime {
+    fn export_worker(&self, operation: OperationId) -> Result<Rc<CadWorker>, String> {
+        let worker = Rc::new(
+            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                .map_err(|error| error.to_string())?,
+        );
+        self.export_workers
+            .borrow_mut()
+            .insert(operation, worker.clone());
+        Ok(worker)
+    }
+
+    fn close_export_worker(&self, operation: OperationId, worker: Rc<CadWorker>) {
+        self.export_workers.borrow_mut().remove(&operation);
+        worker.close();
+    }
+
     pub(super) async fn step_bytes(
         &self,
         operation_id: OperationId,
@@ -57,22 +73,8 @@ impl Runtime {
         if prepared.bodies.is_empty() {
             return Err("Core prepared no authored case bodies.".into());
         }
-        let identity = CadSnapshotIdentity {
-            token: snapshot.token.0,
-            session_epoch: snapshot.session_epoch.0,
-            document_id: snapshot.document.id.clone(),
-            board_id: scope.board_id.clone(),
-            instance_id: scope.instance_id.clone(),
-            revision: snapshot.document.revision,
-        };
-        guard()?;
-        let worker = Rc::new(
-            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                .map_err(|e| e.to_string())?,
-        );
-        self.export_workers
-            .borrow_mut()
-            .insert(operation_id, worker.clone());
+        let identity = snapshot_identity(snapshot, scope);
+        let worker = self.export_worker(operation_id)?;
         let result = async {
             worker.ready().await.map_err(|e| e.to_string())?;
             guard()?;
@@ -99,8 +101,7 @@ impl Runtime {
                 .map_err(|e| format!("{e:?}"))
         }
         .await;
-        worker.close();
-        self.export_workers.borrow_mut().remove(&operation_id);
+        self.close_export_worker(operation_id, worker);
         result
     }
 
@@ -130,21 +131,8 @@ impl Runtime {
         if resolution.specs.is_empty() {
             return Err("Choose a keycap profile before exporting keycap STLs.".into());
         }
-        let identity = CadSnapshotIdentity {
-            token: snapshot.token.0,
-            session_epoch: snapshot.session_epoch.0,
-            document_id: snapshot.document.id.clone(),
-            board_id: scope.board_id.clone(),
-            instance_id: scope.instance_id.clone(),
-            revision: snapshot.document.revision,
-        };
-        let worker = Rc::new(
-            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                .map_err(|error| error.to_string())?,
-        );
-        self.export_workers
-            .borrow_mut()
-            .insert(operation_id, worker.clone());
+        let identity = snapshot_identity(snapshot, scope);
+        let worker = self.export_worker(operation_id)?;
         let result = async {
             worker.ready().await.map_err(|error| error.to_string())?;
             guard()?;
@@ -161,8 +149,7 @@ impl Runtime {
             crate::keycap_package::files(result)
         }
         .await;
-        worker.close();
-        self.export_workers.borrow_mut().remove(&operation_id);
+        self.close_export_worker(operation_id, worker);
         let files = result?;
         guard()?;
         crate::portable_archive::pack_files(files)
@@ -227,18 +214,14 @@ impl Runtime {
             &primary,
             secondary.as_ref(),
         )?;
-        let generate_id = format!("firmware-generate-{}", operation_id.0);
         let request = CoreRequest::GenerateFirmware {
-            id: generate_id.clone(),
+            id: format!("firmware-generate-{}", operation_id.0),
             request,
         };
         let generated = boardstudio_core::CoreEngine::new().handle(request);
         let package = match generated {
-            CoreReply::FirmwareGenerated { id, package } if id == generate_id => package,
-            CoreReply::Error { id, message, .. } if id == generate_id => return Err(message),
-            CoreReply::FirmwareGenerated { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a firmware reply for another request.".into());
-            }
+            CoreReply::FirmwareGenerated { package, .. } => package,
+            CoreReply::Error { message, .. } => return Err(message),
             _ => return Err("Core returned an unexpected firmware-generation reply.".into()),
         };
         let mut files = package.files;
@@ -293,7 +276,7 @@ impl Runtime {
                 configuration.and_then(|configuration| configuration.controller_part_id.clone())
             });
         let request = CoreRequest::ResolveElectrical {
-            id: request_id.clone(),
+            id: request_id,
             request: ElectricalPlanRequest {
                 document: (*snapshot.document).clone(),
                 instance_id: instance_id.map(str::to_owned),
@@ -309,11 +292,8 @@ impl Runtime {
         };
         let reply = boardstudio_core::CoreEngine::new().handle(request);
         let plan = match reply {
-            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned wiring for another request.".into());
-            }
+            CoreReply::ElectricalResolved { plan, .. } => plan,
+            CoreReply::Error { message, .. } => return Err(message),
             _ => {
                 return Err("Core returned an unexpected wiring reply.".into());
             }
@@ -325,5 +305,16 @@ impl Runtime {
             return Err("Core resolved wiring for another board, instance, or revision.".into());
         }
         Ok(plan)
+    }
+}
+
+pub(super) fn snapshot_identity(snapshot: &AcceptedSnapshot, scope: &Scope) -> CadSnapshotIdentity {
+    CadSnapshotIdentity {
+        token: snapshot.token.0,
+        session_epoch: snapshot.session_epoch.0,
+        document_id: snapshot.document.id.clone(),
+        board_id: scope.board_id.clone(),
+        instance_id: scope.instance_id.clone(),
+        revision: snapshot.document.revision,
     }
 }
