@@ -7,14 +7,14 @@ mod reflection;
 mod spacing;
 
 pub use adoption::{
-    adopt_half_frames, adopt_unrecorded_mirrors, evaluated_part, evaluated_part_pose,
-    is_member_or_companion, layout_half_offset, part_half_offset, set_pair_gap, unadopt_pair,
+    adopt_half_frames, evaluated_part, evaluated_part_pose, is_member_or_companion,
+    layout_half_offset, part_half_offset, set_pair_gap,
 };
 use keys::primary_member;
 pub use keys::{
-    AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception,
-    apply_exception_transitions, assembly_placements, companion_mode, edits_alone, is_matrix_key,
-    move_keys, plan_linked_matrix_removal, reconcile_constraint_keys, refuse_omitted_storage_edit,
+    AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception, assembly_placements,
+    companion_mode, edits_alone, is_matrix_key, move_keys, plan_linked_matrix_removal,
+    reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
 use reflection::{carrier_offset, remap_anchor_target};
 pub use reflection::{
@@ -245,40 +245,6 @@ fn is_excepted(exceptions: &[MirroredException], mirror_id: &str) -> bool {
     exceptions.iter().any(|exception| {
         exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
     })
-}
-
-pub fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
-    let Some(link) = &mut target.mirror_link else {
-        return Ok(());
-    };
-    if !link.correspondences.is_empty() {
-        return Ok(());
-    }
-    let source = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == link.source_id)
-        .ok_or("Linked layout is missing")?;
-    if source.matrix_ids.len() != 1 || target.matrix_ids.len() != 1 {
-        return Err("Linking matrix groups requires explicit matrix correspondences".into());
-    }
-    let source_id = &source.matrix_ids[0];
-    let mirror_id = &target.matrix_ids[0];
-    link.correspondences.push(MirroredCorrespondence {
-        kind: MirroredItemKind::Matrix,
-        source_id: source_id.clone(),
-        mirror_id: mirror_id.clone(),
-        companion_mode: None,
-        companion_tweak: None,
-    });
-    let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
-    let exceptions = link.exceptions.clone();
-    link.correspondences.extend(part_correspondences(
-        member_pairs(&matrix, mirror_id, None)
-            .into_iter()
-            .filter(|(_, mirror_id)| !is_excepted(&exceptions, mirror_id)),
-    ));
-    Ok(())
 }
 
 /// Membership edits maintain explicit identities; admission never repairs them.
