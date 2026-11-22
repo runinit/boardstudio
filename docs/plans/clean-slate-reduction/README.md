@@ -54,7 +54,22 @@ Read [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) FIRST �
 
 ---
 
-## 4. Recommended Wave Execution Schedule
+## 4. Multi-Provider Routing & Review Protocol
+
+Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Clean-Slate Rewriting**, and **Adversarial Review / Mechanical Deletion** across all three providers (`serviceTier: "default"`, `fastMode: false`):
+
+| Provider & Model | Role | Assigned Tracks | Guardrail |
+|---|---|---|---|
+| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, merges, `check_reduction.py`, full `check.py`, worktree cleanup | Owns all merges & vetoes scope creep; **pauses between waves** with a 5-line scoreboard for user approval |
+| **Claude — Opus 5.5** (`effort: "high"` / `"medium"`) | **Primary Architectural Rewriter** | Track 1 (`high`), Track 2 (`medium`), Track 4 (`high`) | Must pass `check_reduction.py` (negative Prod + Test LOC + empty `--must-delete`) before handback |
+| **Claude — Sonnet 5.5** (`effort: "medium"` / `"low"`) | **Declarative UI & Script Rewriter** | Track 3A (`medium`), Track 3B `case` (`medium`), Track 5B `scripts/` (`low`/`medium`) | Must pass `check_reduction.py` per sub-track |
+| **Codex — GPT-6.2 Sol** (`reasoningEffort: "high"` / `"medium"`) | **Read-Only Adversarial Diff Reviewer** | Reviews Track 1 (`high`), Track 2 (`medium`), Track 4 (`medium`) | Read-only review; Orchestrator applies real bug fixes (≤ 30 LOC) and **vetoes** any legacy-compat/bloat suggestions |
+| **Codex — GPT-6.1 Terra** (`reasoningEffort: "medium"` / `"low"`) | **Fenced Mechanical Deletion & Test-Port Worker** | Track 3C+3D (`medium`), Track 5A `core/tests/` & Chrome launches (`medium`), Track 6B `core/` trim (`low`/`medium`) | Strictly fenced by `check_reduction.py` manifest & negative LOC limits |
+| **Antigravity — Gemini 4 Neon** (`thought_level: "medium"`) | **Cross-Crate Web/3D Consolidation Worker** | Track 3E+3F (`medium`), Track 6A unified 3D host (`medium`) | Must pass `check_reduction.py` per sub-track |
+
+---
+
+## 5. Recommended Wave Execution Schedule
 
 ```mermaid
 flowchart TD
@@ -78,7 +93,7 @@ flowchart TD
 
 ---
 
-## 5. Mandatory Agent Handoff Prompt Template
+## 6. Mandatory Agent Handoff Prompt Template
 
 When launching **any** AI agent (coordinator or implementer) on a track, paste this block at the top of its prompt verbatim:
 
