@@ -1,39 +1,36 @@
 # boardstudio-application
 
-`boardstudio-application` is the headless, consumer-owned owner of editor session ordering. It depends on `boardstudio-model` for document/wire types, not on the Core engine: the host passes Core's Open admission check (`boardstudio_core::CoreEngine::validate_open`) to `Session::new`. The crate owns no Dioxus signal, browser handle, worker, IndexedDB transaction, CAD object, renderer object, URL, or file handle.
-
-## Host loop
-
-Create one `Session` for the application lifetime, read `core_executor_epoch()` when constructing the core worker, and feed user events through `submit`. Execute each returned effect, then return its identified completion through `complete`. The host should publish `read_model()` after each transition. A panel subscription may stop observing without dropping the session.
-
-```rust,ignore
-let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
-let core_epoch = session.core_executor_epoch();
-let effects = session.submit(Event::Open { operation_id, document });
-// For Effect::Core, move `*request` into the typed worker request call.
-// Return Completion::Core with its request_id and executor_epoch.
-// For Effect::Persist, commit document and all referenced assets atomically;
-// return only on IndexedDB transaction complete or abort.
-```
-
-The host dispatches `Effect::Core { request_id, executor_epoch, request: Box<CoreRequest>, .. }` to the long-lived CoreEngine worker. It returns `Completion::Core { request_id, executor_epoch, reply: Box<CoreReply> }`. `Completion::CoreFailed` means the mutation outcome may be unknown; the session emits `RestartCoreExecutor` and blocks dependent work. Reopen only after an explicit `RecoverWithDocument` choice.
-
-`Effect::Persist` carries the exact retained `Arc<ProjectDoc>`, `SaveAttemptId`, operation ID and each document asset's ID/hash/media type. The host resolves those references to original bytes and reports `Committed` only when the underlying transaction completes; request success is not enough. An abort enters `RecoveryRequired`. `RetrySave` emits another persistence effect for the same document and does not issue an engine request.
+The headless session owns browser-independent editor state and runs document edits through its
+in-process Core engine. The host supplies the Open admission check, dispatches events through
+`Session::submit`, and runs the returned effects. Effects that finish asynchronously return a
+`Completion` to the same session.
 
 ## Session events
 
-- `Open` queues an ordered provider open; the result is persisted before a new accepted snapshot and session epoch become visible. `Edit`, `Undo` and `Redo` are serialized and likewise publish only after save completion. A regular discrete edit is assigned the latest accepted revision when dequeued. Captured gesture edits retain their start revision.
-- `SelectParts`, `Navigate` and `SetCamera` update session-only read-model state; they do not write a document or storage. `SelectionMode` supports replace, add, toggle and ordered range selection.
-- `GestureBegin` captures pointer, target IDs, transaction, starting positions, pitch, grid snap fraction, geometry-snap and gap policy, and Alt state. Host converts DOM samples to world positions and sends `GestureSample` with the current CSS-pixel scale; one `RequestFrame` is emitted for the pending sample batch and the host returns `GestureFrame`. The session applies grid and physical envelope snapping, coalesces previews through Core, consumes the final pointer-up sample and sends one commit. `GestureCancel` releases capture and makes late replies inert. Host executes the returned capture/release/frame effects.
-- `ClearPreview` retires its captured Core preview transaction after queued edit-preview requests settle. A matching in-flight reply is marked cancelled, and the displayed scene clears only when its transaction still owns that preview; accepted token, revision and active board checks prevent stale cancellation from erasing another source or later gesture.
-- `StartGeneration` and `StartExport` are ordered behind pending document work. They capture an accepted-snapshot token and document/board/instance scope. Completions publish or deliver only while that identity remains current. `Navigate`, replacement open, accepted document change and `Close` cancel eligible work.
-- `Close` settles after an outstanding known save; a failed save leaves the session in recovery and reports that close is blocked.
+- `Open` validates a candidate in a fresh engine. It publishes the accepted snapshot and advances
+  the session epoch after the opened document is saved.
+- `ResolveEdit`, `Undo`, and `Redo` publish accepted state synchronously. A single in-flight save
+  coalesces edits made while it is pending and follows up with the latest accepted revision.
+- `Effect::Persist` carries the document and save attempt ID. The host atomically writes the
+  document and required assets and returns the transaction result. An aborted write leaves the
+  accepted edits available for `RetrySave`. `Close` waits for an in-flight save and stays open
+  if saving fails.
+- `SelectParts`, `SelectMatrixCell`, `Navigate`, and `SetCamera` change session state without
+  persisting a document.
+- A gesture captures its start revision, targets, pointer and snap options. Samples coalesce into
+  one preview per frame. Pointer-up commits the final position, and cancellation releases the
+  pointer and clears the gesture’s preview. `ClearPreview` clears only a matching transaction.
+- CAD generation requires a saved accepted snapshot. Exports can capture a ready accepted
+  snapshot while a save is pending. Both use identified completions and cancel when their scope
+  or source is superseded.
 
 ## Read model and IDs
 
-`ReadModel.accepted` contains the immutable durable `Arc<ProjectDoc>` and matching committed `Arc<SceneDelta>` with a session-local `SnapshotToken`. `display_preview` is transient and never becomes accepted state. The token changes on replacement open even when document ID and revision repeat; consumers must use it with document, session epoch, board and instance scope instead of comparing revision alone.
-
-IDs in events/effects are outside `CoreRequest`, `CoreReply`, `ProjectDoc` and persisted schema. `RequestId` identifies one core call, `ExecutorEpoch` fences a worker lifetime, `SaveAttemptId` identifies one atomic write attempt, `OperationId` identifies the caller, `JobId` identifies replaceable generation and `SnapshotToken` fences read/export scope. Every caller operation has at most one `Effect::Settled` terminal outcome.
+`ReadModel.accepted` holds the immutable document and committed scene. `Durability` records its
+persistence status, and `display_preview` holds transient geometry. Consumers can use
+`Session::snapshot_is_current` to check the token with the document, epoch, board and instance
+scope. Each caller supplies a fresh `OperationId`, and each admitted operation settles at most
+once.
 
 ## Verification and current limits
 

@@ -1,6 +1,6 @@
-#[cfg(target_arch = "wasm32")]
 //! Native-testable formatting for mechanical export package files.
 
+#[cfg(target_arch = "wasm32")]
 use boardstudio_model::model::{MechanicalAssembly, ProjectDoc};
 use std::collections::BTreeSet;
 
