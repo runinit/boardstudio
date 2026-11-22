@@ -36,5 +36,5 @@ pub(crate) use plan::PlacementIntent;
 mod key_component_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod plan_tests;
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod test_support;
