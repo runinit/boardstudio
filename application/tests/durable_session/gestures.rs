@@ -154,7 +154,7 @@ fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
     }
     assert!(effects.iter().any(|effect| matches!(effect,
         Effect::Settled { operation_id: OperationId(22), outcome: TerminalOutcome::Rejected(reason), .. }
-            if reason.contains("No conversion"))));
+            if reason.contains("Unsupported formatVersion: expected 8"))));
     assert!(!effects.iter().any(|effect| matches!(
         effect,
         Effect::Persist { .. } | Effect::ReleasePointer { .. }

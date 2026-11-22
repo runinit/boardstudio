@@ -316,7 +316,7 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
             }
         }
     }
-    assert_eq!(committed.format_version, 7);
+    assert_eq!(committed.format_version, 8);
     assert_eq!(committed.layouts.len(), 2);
     assert!(committed.layouts[1].mirror_link.is_some());
 

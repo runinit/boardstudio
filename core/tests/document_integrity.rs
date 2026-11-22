@@ -68,7 +68,7 @@ fn assert_refused(reply: &Value, reason: &str) {
 #[test]
 fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     let mut document = baseline();
-    document["formatVersion"] = json!(7);
+    document["formatVersion"] = json!(8);
     document["constraints"] = json!([]);
     document["matrices"][0]["columnLayout"] = json!([
         {"rotation": 90.0}, {"spread": 30.0, "stagger": 4.0, "offset": {"x": 2.0, "y": 0.0}}
@@ -84,7 +84,7 @@ fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     let reply = open(&mut engine, "grouped", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
     let saved = snapshot(&mut engine);
-    assert_eq!(saved["formatVersion"], 7);
+    assert_eq!(saved["formatVersion"], 8);
     assert_eq!(
         saved["matrices"][0]["columnLayout"],
         document["matrices"][0]["columnLayout"]
@@ -469,10 +469,16 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
         assert_eq!(committed["kind"], "scene", "{committed}");
         let accepted = snapshot(&mut engine);
         for (version, explanation) in [
-            (json!(CURRENT_VERSION - 1), "No conversion is available"),
-            (json!(CURRENT_VERSION + 1), "compatible newer build"),
-            (json!(0), "invalid formatVersion"),
-            (json!("7"), "invalid formatVersion"),
+            (
+                json!(CURRENT_VERSION - 1),
+                "Unsupported formatVersion: expected 8",
+            ),
+            (
+                json!(CURRENT_VERSION + 1),
+                "Unsupported formatVersion: expected 8",
+            ),
+            (json!(0), "Unsupported formatVersion: expected 8"),
+            (json!("7"), "Unsupported formatVersion: expected 8"),
         ] {
             let mut candidate = baseline();
             candidate["formatVersion"] = version;
@@ -515,17 +521,17 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
         let mut cases: Vec<(Value, &str)> = Vec::new();
         let mut missing = baseline();
         missing.as_object_mut().unwrap().remove("formatVersion");
-        cases.push((missing, "no formatVersion"));
+        cases.push((missing, "Unsupported formatVersion: expected 8"));
         for version in [json!(null), json!(7.5), json!(-1), json!(true), json!([7])] {
             let mut candidate = baseline();
             candidate["formatVersion"] = version;
-            cases.push((candidate, "invalid formatVersion"));
+            cases.push((candidate, "Unsupported formatVersion: expected 8"));
         }
         let mut foreign = baseline();
         foreign["format"] = json!("boardstudio/v1");
         foreign["formatVersion"] = json!(6);
         cases.push((foreign, "Unsupported"));
-        cases.push((json!([]), "must be an object"));
+        cases.push((json!([]), "Unsupported formatVersion: expected 8"));
         for (candidate, explanation) in cases {
             let reply = if route == "open" {
                 open(&mut engine, "refused", &candidate)

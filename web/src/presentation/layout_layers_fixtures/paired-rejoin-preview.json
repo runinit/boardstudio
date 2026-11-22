@@ -1349,7 +1349,7 @@
     ],
     "revision": 4,
     "scripts": [],
-    "formatVersion": 7
+    "formatVersion": 8
   },
   "netId": "right/omit-controller-net",
   "operation": {

@@ -147,7 +147,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 7,
+        "formatVersion": 8,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -3938,7 +3938,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 7,
+        "formatVersion": 8,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [

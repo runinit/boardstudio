@@ -22,7 +22,7 @@ use boardstudio_core::model::{
     PrepareExportRequest, ProjectDoc, Vec2,
 };
 use boardstudio_core::model::{CoreReply, CoreRequest};
-use boardstudio_core::{CoreEngine, migrate};
+use boardstudio_core::{CoreEngine, document_format};
 use serde_json::{Value, json};
 
 const SOURCE: &str = "ceoloide/mounting_hole_npth";
@@ -325,11 +325,8 @@ fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export(
     assert!(saved.to_string().contains("\"hole_drill\":\""));
 
     let original = saved.to_string();
-    let error = migrate::migrate_json(&original).unwrap_err();
-    assert!(
-        error.contains("format 3") && error.contains("No conversion"),
-        "{error}"
-    );
+    let error = document_format::require_current_value(&saved).unwrap_err();
+    assert!(error == "Unsupported formatVersion: expected 8", "{error}");
     assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {

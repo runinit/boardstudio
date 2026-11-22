@@ -1,6 +1,6 @@
 //! Reflection of companions and the pair sync/resolve pass.
 
-use super::{axis_mapping, companion_mode, pair_gap, partner, sync_components, validate};
+use super::{axis_mapping, companion_mode, pair_gap, partner, validate};
 use crate::{matrix, model::*};
 use boardstudio_model::mechanical::pair;
 use std::collections::BTreeMap;
@@ -502,7 +502,6 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
         sync(doc, &source)?;
     }
     refresh_existing(doc)?;
-    sync_components(doc)?;
     Ok(())
 }
 

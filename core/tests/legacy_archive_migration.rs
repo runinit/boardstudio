@@ -1,6 +1,6 @@
 //! Strict archive admission and deliberately authored current-schema assets.
 use boardstudio_core::model::{ArchiveReply, CoreReply, CoreRequest, ProjectDoc};
-use boardstudio_core::{CoreEngine, archive, generators, migrate};
+use boardstudio_core::{CoreEngine, archive, document_format, generators};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::io::{Cursor, Write};
@@ -96,7 +96,7 @@ fn an_unversioned_archive_is_refused_without_releasing_assets() {
     );
     match serde_json::from_str(&reply).unwrap() {
         ArchiveReply::Error { message } => assert!(
-            message.contains("legacy") && message.contains("No conversion"),
+            message == "Unsupported formatVersion: expected 8",
             "{message}"
         ),
         other => panic!("expected refusal, got {other:?}"),
@@ -146,13 +146,16 @@ fn the_rebuilt_current_project_opens_and_every_generated_part_renders() {
 #[test]
 fn an_unmigrated_document_is_refused_by_open() {
     let mut document: ProjectDoc = serde_json::from_str(&unpacked()).unwrap();
-    document.format_version = migrate::LEGACY_VERSION;
+    document.format_version = 7;
     match CoreEngine::new().handle(CoreRequest::Open {
         id: "synthetic-legacy".into(),
         document,
     }) {
         CoreReply::Error { message, .. } => {
-            assert!(message.contains("No conversion is available"), "{message}")
+            assert!(
+                message == "Unsupported formatVersion: expected 8",
+                "{message}"
+            )
         }
         other => panic!("expected a refusal, got {other:?}"),
     }

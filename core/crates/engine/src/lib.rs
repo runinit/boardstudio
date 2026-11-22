@@ -10,9 +10,10 @@ mod keycaps;
 use boardstudio_core_mechanical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
 use boardstudio_core_mechanical::modules;
-use boardstudio_core_mirrored_half::mirrored_half;
+use boardstudio_core_mirrored_half as mirrored_half;
 pub use boardstudio_model::document_format;
 pub use boardstudio_model::model;
+use std::sync::Arc;
 mod outline_validation;
 mod validate;
 
@@ -50,6 +51,7 @@ mod scene_reuse;
 pub use self::apply::{apply_for_test, apply_unscripted_for_test, apply_with_ledger_for_test};
 pub struct CoreEngine {
     document: ProjectDoc,
+    resolved: Arc<mirrored_half::ResolvedDoc>,
     undo: Vec<ProjectDoc>,
     redo: Vec<ProjectDoc>,
     contours: Vec<Contour>,
@@ -123,9 +125,15 @@ impl Default for CoreEngine {
 }
 
 impl CoreEngine {
+    fn refresh_resolved(&mut self) {
+        self.resolved = Arc::new(mirrored_half::project_document(&self.document));
+    }
+
     pub fn new() -> Self {
+        let document = ProjectDoc::empty("untitled", "Untitled");
         Self {
-            document: ProjectDoc::empty("untitled", "Untitled"),
+            resolved: Arc::new(mirrored_half::project_document(&document)),
+            document,
             undo: vec![],
             redo: vec![],
             contours: vec![],

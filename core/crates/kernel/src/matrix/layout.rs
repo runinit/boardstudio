@@ -2,7 +2,6 @@ use crate::{matrix, model::*};
 use std::collections::BTreeSet;
 
 mod adoption;
-mod components;
 mod keys;
 mod parts;
 mod reflection;
@@ -13,18 +12,12 @@ pub use adoption::{
     adopt_half_frames, adopt_unrecorded_mirrors, evaluated_part, evaluated_part_pose,
     is_member_or_companion, layout_half_offset, part_half_offset, set_pair_gap, unadopt_pair,
 };
-pub use components::{
-    mirrored_component_ids, move_linked_component, remove_matrix, retune_driven_constraint,
-    sync_components, unlink_components,
-};
-use components::{remove_component, set_component_pose, sync_component_nets};
 use keys::primary_member;
 pub use keys::{
     AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception,
     apply_exception_transitions, assembly_placements, companion_mode, edits_alone, is_matrix_key,
     move_keys, plan_linked_matrix_removal, reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
-use parts::materialize_unrecorded_partners;
 pub use parts::{
     clamp_part_to_half, ensure_part_mirror, mirror_new_pair_part, move_pair_part,
     reframe_moved_parts, retire_part_correspondences, set_detached_part_rotation,
@@ -64,7 +57,14 @@ pub fn validate(doc: &ProjectDoc) -> Result<(), String> {
             .iter()
             .find(|board| board.id == layout.board_id)
             .ok_or("Layout board is missing")?;
-        if layout.matrix_ids.is_empty() {
+        if layout.matrix_ids.is_empty()
+            && !doc.mirrored_pairs.iter().any(|pair| {
+                pair.destination
+                    == boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                        layout.id.clone(),
+                    )
+            })
+        {
             return Err("Layout matrix membership must be nonempty".into());
         }
         for id in &layout.matrix_ids {
@@ -477,97 +477,118 @@ pub fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
     })
 }
 
-#[cfg(test)]
-mod case_hardware_tests {
-    use super::components::adopt_unassigned_components;
-    use super::*;
-    use boardstudio_model::mechanical::pair;
-
-    #[test]
-    fn case_clearance_holes_are_not_adopted_by_linked_layouts() {
-        let mut doc = ProjectDoc::empty("case", "Case");
-        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
-        doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
-        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
-        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixIds":["matrix"],"partIds":[]}])).unwrap();
-        adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
-        assert!(doc.layouts[0].part_ids.is_empty());
+pub fn retune_driven_constraint(
+    doc: &mut ProjectDoc,
+    id: &str,
+    board: crate::model::Pose2,
+    turn: Option<f64>,
+) -> Result<bool, String> {
+    // A fresh partner has no drivers yet; the record below creates it.
+    let Some(current) = doc.parts.iter().find(|part| part.id == id) else {
+        return Ok(false);
+    };
+    let current_board = evaluated_part_pose(doc, current);
+    let Some(constraint_id) = doc
+        .constraint_driving_part(id)?
+        .map(crate::model::Constraint::id)
+        .map(str::to_owned)
+    else {
+        return Ok(false);
+    };
+    let constraint = doc
+        .constraints
+        .iter_mut()
+        .find(|constraint| constraint.id() == constraint_id)
+        .ok_or_else(|| format!("Constraint {constraint_id} disappeared"))?;
+    let delta = Vec2 {
+        x: board.at.x - current_board.at.x,
+        y: board.at.y - current_board.at.y,
+    };
+    if crate::constraints::retune_offset(&doc.parts, constraint, delta, turn)?
+        == crate::constraints::Retune::Mirror
+    {
+        return Err(format!(
+            "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
+        ));
     }
+    Ok(true)
+}
 
-    #[test]
-    fn linked_controller_mirror_keeps_world_heading() {
-        // Setup "Place controller": one controller source part at rotation 0 on a linked
-        // source layout. The derived mirror must share world rotation 0 (plain reflection
-        // `-r = 0`), not ADR-0010's `180 - r` half turn.
-        let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
-        doc.definitions = serde_json::from_value(serde_json::json!([
-            {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
-        ]))
-        .unwrap();
-        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
-        doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":0.0},"side":"front"}])).unwrap();
-        doc.matrices = serde_json::from_value(serde_json::json!([
-            {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
-            {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
-        ])).unwrap();
-        doc.layouts = serde_json::from_value(serde_json::json!([
-            {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
-            {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
-        ])).unwrap();
-        sync_components(&mut doc).unwrap();
-        let mirrored = doc
-            .parts
+fn set_component_pose(
+    doc: &mut ProjectDoc,
+    id: &str,
+    pose: crate::model::Pose2,
+) -> Result<(), String> {
+    // Ticket 12: poses arrive board-space; storage converts. The retune delta
+    // measures board-space against the evaluated pose.
+    let current_rotation = doc
+        .parts
+        .iter()
+        .find(|part| part.id == id)
+        .map(|part| evaluated_part_pose(doc, part).rotation);
+    let turn = current_rotation.map(|rotation| pose.rotation - rotation);
+    retune_driven_constraint(doc, id, pose, turn)?;
+    let stored = stored_part_pose(doc, id, pose);
+    let part = doc
+        .parts
+        .iter_mut()
+        .find(|part| part.id == id)
+        .ok_or("Mirrored component source is missing")?;
+    part.pose = stored;
+    Ok(())
+}
+
+fn sync_component_nets(doc: &mut ProjectDoc, source_id: &str, target_id: &str) {
+    for net in &mut doc.nets {
+        let source_pins: Vec<_> = net
+            .pins
             .iter()
-            .find(|part| {
-                part.properties
-                    .as_ref()
-                    .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
-                    .and_then(serde_json::Value::as_str)
-                    == Some("source/U1")
-            })
-            .expect("the linked controller mirror is materialized");
-        assert_eq!(mirrored.pose.at, Vec2 { x: 90.0, y: 5.0 });
-        assert!(
-            (mirrored.pose.rotation - 0.0).abs() < 1e-9,
-            "controller mirror keeps world heading 0, got {}",
-            mirrored.pose.rotation
-        );
-        for heading in [90.0f64, 180.0, 270.0] {
-            let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
-            doc.definitions = serde_json::from_value(serde_json::json!([
-                {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
-            ]))
-            .unwrap();
-            doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
-            doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":heading},"side":"front"}])).unwrap();
-            doc.matrices = serde_json::from_value(serde_json::json!([
-                {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
-                {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
-            ])).unwrap();
-            doc.layouts = serde_json::from_value(serde_json::json!([
-                {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
-                {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
-            ])).unwrap();
-            sync_components(&mut doc).unwrap();
-            let mirrored = doc
-                .parts
-                .iter()
-                .find(|part| {
-                    part.properties
-                        .as_ref()
-                        .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
-                        .and_then(serde_json::Value::as_str)
-                        == Some("source/U1")
-                })
-                .expect("the linked controller mirror is materialized");
-            let expected = (0.0 - heading).rem_euclid(360.0);
-            assert!(
-                (mirrored.pose.rotation - expected).abs() < 1e-9,
-                "controller heading {heading} mirrors to {expected}, got {}",
-                mirrored.pose.rotation
-            );
+            .filter(|pin| pin.part_id == source_id)
+            .cloned()
+            .collect();
+        net.pins.retain(|pin| pin.part_id != target_id);
+        net.pins.extend(source_pins.into_iter().map(|mut pin| {
+            pin.part_id = target_id.to_string();
+            pin
+        }));
+    }
+}
+
+fn remove_component(doc: &mut ProjectDoc, id: &str) {
+    doc.parts.retain(|part| part.id != id);
+    doc.constraints
+        .retain(|constraint| constraint.source() != id && constraint.target() != id);
+    for board in &mut doc.boards {
+        board.part_ids.retain(|part_id| part_id != id);
+    }
+    for layout in &mut doc.layouts {
+        layout.part_ids.retain(|part_id| part_id != id);
+    }
+    for matrix in &mut doc.matrices {
+        matrix.part_ids.retain(|part_id| part_id != id);
+    }
+    for net in &mut doc.nets {
+        net.pins.retain(|pin| pin.part_id != id);
+    }
+    for feature in &mut doc.outline {
+        if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature {
+            part_ids.retain(|part_id| part_id != id);
         }
     }
+}
+
+pub fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
+    doc.layouts
+        .retain(|layout| layout.matrix_ids != [matrix_id]);
+    for layout in &mut doc.layouts {
+        layout.matrix_ids.retain(|id| id != matrix_id);
+    }
+}
+
+#[cfg(test)]
+mod reflection_tests {
+    use super::*;
+    use boardstudio_model::mechanical::pair;
 
     fn matrix_with_companion() -> Matrix {
         serde_json::from_value(serde_json::json!({

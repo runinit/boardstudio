@@ -668,17 +668,7 @@ pub fn move_anchored(
     let mut edited = anchor;
     edited.spread = delta.x;
     edited.stagger = delta.y;
-    let mut changed = write_anchor(doc, part_id, &edited)?;
-    // Legacy property-linked partners resolve through the component sync,
-    // which reflects the clamped drop the dragged copy now realizes.
-    if layout::part_correspondence(doc, part_id).is_none()
-        && let Some(more) = layout::move_linked_component(doc, part_id, clamped)?
-    {
-        changed.extend(more);
-        changed.sort();
-        changed.dedup();
-    }
-    Ok(changed)
+    write_anchor(doc, part_id, &edited)
 }
 
 /// Anchor a drop to the nearest live key of the drop half's layout, keeping

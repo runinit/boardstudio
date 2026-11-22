@@ -8,29 +8,6 @@ pub(super) fn validate_project_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
-    if matches!(
-        operation,
-        EditOperation::AddMirrorOnlyPart { .. }
-            | EditOperation::SetCompanionPlacement { .. }
-            | EditOperation::SetHalfException { .. }
-            | EditOperation::UnlinkHalves { .. }
-    ) {
-        return true;
-    }
-    has_native_mirror_pair(document)
-}
-
-pub(super) fn has_native_mirror_pair(document: &ProjectDoc) -> bool {
-    document.hardware.as_ref().is_some_and(|hardware| {
-        hardware.pairs.iter().any(|pair| {
-            pair.halves
-                .as_ref()
-                .is_some_and(|halves| halves.source_board_id != halves.mirror_board_id)
-        })
-    })
-}
-
 pub(crate) fn affects_outline(op: &EditOperation) -> bool {
     if let EditOperation::ApplyMechanicalEdit { edit } = op {
         return crate::mechanical::edit::affects_outline(&edit.change);
@@ -241,13 +218,6 @@ pub(crate) fn apply(
         op,
         &mechanical::edit::MechanicalIdentityLedger::default(),
     )
-}
-
-pub(crate) fn edit_dispatch() -> mirrored_half::EditDispatch {
-    mirrored_half::EditDispatch {
-        apply_with_ledger,
-        apply_unscripted,
-    }
 }
 
 /// Staged-edit dispatch for the engine integration tests.
@@ -473,6 +443,17 @@ pub(crate) fn apply_with_ledger(
                 if handled.contains(&position.id) {
                     continue;
                 }
+                if let Some(part) = mirrored_half::local_part_mut(doc, &position.id) {
+                    if part.locked == Some(true) {
+                        return Err(format!("Part {} is locked", position.id));
+                    }
+                    if !position.at.x.is_finite() || !position.at.y.is_finite() {
+                        return Err("Position must be finite".into());
+                    }
+                    part.pose.at = position.at;
+                    changed.push(part.id.clone());
+                    continue;
+                }
                 let Some(index) = doc.parts.iter().position(|part| part.id == position.id) else {
                     return Err(format!("Unknown part {}", position.id));
                 };
@@ -515,10 +496,6 @@ pub(crate) fn apply_with_ledger(
                 // pair writes both copies through, so either copy edits both.
                 if let Some(mirrored) = layout::move_pair_part(doc, &position.id, at)? {
                     changed.extend(mirrored);
-                    continue;
-                }
-                if let Some(linked) = layout::move_linked_component(doc, &position.id, at)? {
-                    changed.extend(linked);
                     continue;
                 }
                 // Ticket 12: the drop commits board-space; storage converts.
@@ -662,7 +639,7 @@ pub(crate) fn apply_with_ledger(
                 .filter(|matrix| matrix.part_ids.iter().any(|id| ids.contains(id)))
                 .map(|matrix| matrix.id.clone())
                 .collect();
-            let ids = layout::mirrored_component_ids(doc, ids);
+            let ids = ids.clone();
             let ids = matrix::removed_members(doc, &ids);
             doc.constraints.retain(|constraint| {
                 !ids.iter()
@@ -872,78 +849,29 @@ pub(crate) fn apply_with_ledger(
                         .into(),
                 );
             }
-            // New pairs store the half frame directly: the source origin is
-            // re-expressed half-local and the mirror reflects it, so a later
-            // Split gap change moves both halves without rewriting storage.
-            // Anchored matrices stay legacy (no stored gap); their first edit
-            // adopts only when an unanchored source matrix exists.
-            // Ticket 11: the conversion still uses the requested placement,
-            // while the stored gap is max(requested, 40 mm, minimum), so the
-            // halves widen symmetrically to the stored gap on evaluation.
-            let requested_gap = if matrix.anchor.is_none() {
-                let gap = layout::implied_gap(link.axis_x, matrix);
-                if !gap.is_finite() {
-                    return Err("Split gap must be finite".into());
-                }
-                Some(gap)
-            } else {
-                None
-            };
-            let stored_gap = match requested_gap {
-                Some(_) => Some(layout::proposed_creation_gap(doc, matrix, link.axis_x)?),
-                None => None,
-            };
-            let mut source_half = matrix.as_ref().clone();
-            if let Some(gap) = requested_gap {
-                source_half.origin.x -= link.axis_x - gap / 2.0;
-            }
             let mut changed = apply_unscripted(
                 doc,
                 &EditOperation::SetMatrix {
-                    matrix: source_half.clone(),
+                    matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = source_half.clone();
-            target.id = right.matrix_ids[0].clone();
-            target.name = Some(right.name.clone());
-            for cell in &mut target.cells {
-                for assembly in &mut cell.assemblies {
-                    assembly.offset.x = -assembly.offset.x;
-                    assembly.rotation = assembly.rotation.map(|angle| -angle);
-                }
-            }
-            let target = layout::reflected(
-                &source_half,
-                &target,
-                layout::axis_mapping(link.axis_x),
-                false,
-                stored_gap.is_some(),
-            )?;
-            changed.extend(matrix::set_matrix(doc, &target)?);
-            let mut follower = right.clone();
-            let link = follower
-                .mirror_link
-                .as_mut()
-                .ok_or("A new mirrored pair must be linked")?;
-            link.split_gap = stored_gap;
-            link.correspondences.clear();
-            link.correspondences.push(MirroredCorrespondence {
-                kind: MirroredItemKind::Matrix,
-                source_id: matrix.id.clone(),
-                mirror_id: target.id.clone(),
-                companion_mode: None,
-                companion_tweak: None,
-            });
-            link.correspondences
-                .extend(layout::part_correspondences(layout::member_pairs(
-                    matrix,
-                    &target.id,
-                    Some(&target),
-                )));
-            doc.layouts.extend([left.clone(), follower]);
-            layout::validate(doc)?;
-            changed.extend([left.id.clone(), right.id.clone()]);
+            let mut target = right.clone();
+            target.mirror_link = None;
+            target.matrix_ids.clear();
+            doc.layouts.extend([left.clone(), target]);
+            changed.extend(mirrored_half::create_pair(
+                doc,
+                mirrored_half::MirroredPair {
+                    id: right.id.clone(),
+                    source: mirrored_half::MirrorDestination::SameBoardLayout(left.id.clone()),
+                    destination: mirrored_half::MirrorDestination::SameBoardLayout(
+                        right.id.clone(),
+                    ),
+                    mapping: layout::axis_mapping(link.axis_x),
+                    overrides: vec![],
+                },
+            )?);
             Ok(changed)
         }
         EditOperation::CreateMirroredHalf {
@@ -952,38 +880,17 @@ pub(crate) fn apply_with_ledger(
             mode,
             labels,
             physical_setup,
-            companion_mode,
-            companion_tweak,
             mapping,
-            id_rule,
-            mounting_hole,
-        } => match physical_setup {
-            Some(setup) => mirrored_half::create_with_physical_setup(
-                doc,
-                pair_id,
-                source_instance_id,
-                mode,
-                *mapping,
-                *id_rule,
-                mounting_hole.as_deref(),
-                *companion_mode,
-                *companion_tweak,
-                labels.as_ref(),
-                setup,
-            ),
-            None => mirrored_half::create(
-                doc,
-                pair_id,
-                source_instance_id,
-                mode,
-                *mapping,
-                *id_rule,
-                mounting_hole.as_deref(),
-                *companion_mode,
-                *companion_tweak,
-                labels.as_ref(),
-            ),
-        },
+            ..
+        } => mirrored_half::create_half(
+            doc,
+            pair_id,
+            source_instance_id,
+            mode,
+            labels.as_ref(),
+            physical_setup.as_ref(),
+            *mapping,
+        ),
         EditOperation::SetLayout { layout: incoming } => {
             let mut incoming = incoming.clone();
             if incoming.mirror_link.is_some()
@@ -995,7 +902,7 @@ pub(crate) fn apply_with_ledger(
             {
                 layout::populate_new_link(doc, &mut incoming)?;
             }
-            let (old_gap, was_linked_target, source_layout_id) = {
+            let old_gap = {
                 let current = doc
                     .layouts
                     .iter()
@@ -1006,21 +913,7 @@ pub(crate) fn apply_with_ledger(
                 {
                     return Err("Layout ownership cannot be reassigned".into());
                 }
-                let was_linked_target =
-                    current.mirror_link.is_some() && incoming.mirror_link.is_none();
-                let source_layout_id = was_linked_target
-                    .then(|| {
-                        current
-                            .mirror_link
-                            .as_ref()
-                            .map(|link| link.source_id.clone())
-                    })
-                    .flatten();
-                (
-                    current.mirror_link.as_ref().and_then(|link| link.split_gap),
-                    was_linked_target,
-                    source_layout_id,
-                )
+                current.mirror_link.as_ref().and_then(|link| link.split_gap)
             };
             // Half-frame gap transitions run before the record is replaced so
             // the conversion still sees the previous gap: adding a gap adopts
@@ -1061,19 +954,10 @@ pub(crate) fn apply_with_ledger(
             // transitions, Rejoin materialization) before resolve adopts the
             // current source state.
             let mut transitioned = layout::apply_exception_transitions(doc, &previous, &incoming)?;
-            let mut detached = if was_linked_target {
-                layout::unlink_components(doc, &incoming.id)
-            } else {
-                Vec::new()
-            };
-            if let Some(source_layout_id) = source_layout_id {
-                detached.extend(layout::unlink_components(doc, &source_layout_id));
-            }
             layout::resolve(doc)?;
             if !matches!((old_gap, new_gap), (Some(_), None)) {
                 transitioned.extend(layout::adopt_half_frames(doc)?);
             }
-            transitioned.append(&mut detached);
             Ok([
                 [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
                 transitioned,
@@ -1164,10 +1048,39 @@ pub(crate) fn apply_with_ledger(
             crate::mechanical::edit::apply_with_ledger(doc, board_contours, edit, identities)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
-        EditOperation::SetHalfException { .. }
-        | EditOperation::SetCompanionPlacement { .. }
-        | EditOperation::UnlinkHalves { .. } => {
-            Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
+        EditOperation::SetHalfException {
+            pair_id,
+            mirror_id,
+            state,
+            ..
+        } => mirrored_half::set_exception(doc, pair_id, mirror_id, *state),
+        EditOperation::UnlinkHalves { pair_id } => mirrored_half::unlink_pair(doc, pair_id),
+        EditOperation::SetCompanionPlacement {
+            pair_id,
+            targets,
+            tweak,
+            ..
+        } => {
+            let mut changed = Vec::new();
+            for target in targets {
+                if let (CompanionPlacementTarget::Item { mirror_id, .. }, Some(tweak)) =
+                    (target, tweak)
+                {
+                    changed.extend(mirrored_half::set_companion_pose(
+                        doc,
+                        pair_id,
+                        mirror_id,
+                        Pose2 {
+                            at: Vec2 {
+                                x: tweak.x,
+                                y: tweak.y,
+                            },
+                            rotation: tweak.rotation,
+                        },
+                    )?);
+                }
+            }
+            Ok(changed)
         }
         EditOperation::RenameProject { name } => {
             validate_project_name(name)?;

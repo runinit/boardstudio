@@ -10,7 +10,7 @@ pub use boardstudio_core_kernel::matrix::layout::{
     evaluated_part_pose, half_offset, is_matrix_key, layout_half_offset, part_correspondence,
     proposed_creation_gap,
 };
-pub use boardstudio_core_kernel::{generators, hash, migrate, outline_edit};
+pub use boardstudio_core_kernel::{document_format, generators, hash, outline_edit};
 pub use boardstudio_core_mechanical::{electrical, electrical_peripherals, mechanical};
 pub use boardstudio_model::case_readiness::{authored_case_geometry_ready, case_preparation_ready};
 pub use boardstudio_model::{electrical_jumpers, electrical_profiles, model};

@@ -945,63 +945,6 @@ pub fn set_part_mirrored(
 
 /// Fresh partner id on `other_layout_id` mirroring `part_id`, colliding past
 /// existing parts like the legacy component sync.
-/// Ticket 12: record default mirrors for unrecorded independent parts on the
-/// source half of a stored-gap pair. A part joins the mirror by default unless
-/// it is pinned local (substitute flag) or already recorded; matrix members
-/// and companions stay owned by the matrix sync. Mirror copies (carrying a
-/// mirror-source link) are never authorities. The ensure pass below realizes
-/// the recorded poses.
-pub(super) fn materialize_unrecorded_partners(
-    doc: &mut ProjectDoc,
-    source_layout_id: &str,
-    target_layout_id: &str,
-) -> Result<Vec<String>, String> {
-    let candidates: Vec<String> = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == source_layout_id)
-        .map(|layout| layout.part_ids.clone())
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|part_id| !is_member_or_companion(doc, part_id))
-        .filter(|part_id| part_correspondence(doc, part_id).is_none())
-        .filter(|part_id| {
-            doc.parts
-                .iter()
-                .find(|part| part.id.as_str() == part_id.as_str())
-                .is_some_and(|part| {
-                    part.properties.as_ref().is_none_or(|properties| {
-                        !properties.contains_key(MIRRORED_COMPONENT_SUBSTITUTE)
-                            && !properties.contains_key(MIRRORED_COMPONENT_SOURCE)
-                    })
-                })
-        })
-        .collect();
-    let mut created = Vec::new();
-    for part_id in candidates {
-        let mirror_id = mirror_part_id_for(target_layout_id, &part_id, doc);
-        if let Some(layout) = doc
-            .layouts
-            .iter_mut()
-            .find(|layout| layout.id == target_layout_id)
-            && let Some(link) = layout.mirror_link.as_mut()
-        {
-            link.correspondences.push(MirroredCorrespondence {
-                kind: MirroredItemKind::Part,
-                source_id: part_id.clone(),
-                mirror_id: mirror_id.clone(),
-                companion_mode: None,
-                companion_tweak: None,
-            });
-            created.push(part_id);
-            created.push(mirror_id);
-        }
-    }
-    Ok(created)
-}
-
-/// Fresh partner id on `other_layout_id` mirroring `part_id`, colliding past
-/// existing parts like the legacy component sync.
 pub(super) fn mirror_part_id_for(other_layout_id: &str, part_id: &str, doc: &ProjectDoc) -> String {
     let base = format!("{other_layout_id}::mirror::{part_id}");
     if doc.parts.iter().all(|part| part.id != base) {

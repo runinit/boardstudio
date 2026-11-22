@@ -13,7 +13,7 @@ use boardstudio_core::model::{
     Contour, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, ExportTarget, Finding,
     Matrix, Part, PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
 };
-use boardstudio_core::{CoreEngine, migrate};
+use boardstudio_core::{CoreEngine, document_format};
 use boardstudio_footprints::bundled;
 use serde_json::{Value, json};
 
@@ -371,9 +371,7 @@ fn current_document_with_unconvertible_text() -> Value {
     saved["formatVersion"] = json!(document_format::CURRENT_VERSION);
     saved["definitions"] = json!([definition]);
     saved["parts"] = json!([held]);
-    migrate::migrate_value(saved)
-        .expect("current schema is admitted unchanged")
-        .0
+    saved
 }
 
 #[test]

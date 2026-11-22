@@ -460,64 +460,6 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
 }
 
 #[test]
-fn legacy_mirror_adoption_preview_does_not_publish_copy_or_membership() {
-    let mut document = fixture();
-    let mut mirror = document.matrices[0].clone();
-    mirror.id = "mirror".into();
-    mirror.origin.x = 60.0;
-    mirror.mirror = Some(Mirror::X);
-    mirror.part_ids.clear();
-    document.matrices.push(mirror);
-    document.layouts.push(Layout {
-        id: "mirror-layout".into(),
-        name: "Mirror".into(),
-        board_id: "main".into(),
-        matrix_ids: vec!["mirror".into()],
-        part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: document.layouts[0].id.clone(),
-            axis_x: 30.0,
-            split_gap: None,
-            spacing: None,
-            correspondences: vec![MirroredCorrespondence {
-                kind: MirroredItemKind::Matrix,
-                source_id: "matrix".into(),
-                mirror_id: "mirror".into(),
-                companion_mode: None,
-                companion_tweak: None,
-            }],
-            exceptions: vec![],
-        }),
-    });
-    let (mut engine, mut cold) = open_preview_fixture(document);
-    let part_id = "main/SW2";
-    let copy_id = "mirror-layout::mirror::main/SW2";
-    assert!(
-        !engine
-            .document
-            .layouts
-            .iter()
-            .any(|layout| { layout.part_ids.iter().any(|id| id == part_id) })
-    );
-    assert!(engine.document.parts.iter().all(|part| part.id != copy_id));
-
-    let CoreReply::Preview { scene, .. } = engine.handle(preview_move(vec![Position {
-        id: part_id.into(),
-        at: Vec2 { x: 20.0, y: 10.0 },
-    }])) else {
-        panic!("move across the legacy split should preview");
-    };
-    assert!(scene.changed_ids.iter().any(|id| id == copy_id));
-    assert!(scene.transforms.iter().any(|transform| {
-        transform.id == copy_id && transform.pose.at == Vec2 { x: 40.0, y: 10.0 }
-    }));
-    assert_eq!(engine.document.parts.len(), cold.document.parts.len());
-    assert_eq!(engine.document.layouts, cold.document.layouts);
-    assert_eq!(engine.document.boards, cold.document.boards);
-    assert_preview_preserves_snapshot(&mut engine, &mut cold);
-}
-
-#[test]
 fn stagger_shares_only_the_same_ordered_outline_composition() {
     for (mut document, shares_composition) in [
         (fixture(), true),

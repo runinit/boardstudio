@@ -186,7 +186,7 @@ fn invalid_recovery_keeps_the_exact_failed_result_for_storage_only_retry() {
         document: invalid,
     });
     assert!(
-        matches!(settled_landing(&effects, OperationId(71)).0, TerminalOutcome::Rejected(reason) if reason.contains("No conversion"))
+        matches!(settled_landing(&effects, OperationId(71)).0, TerminalOutcome::Rejected(reason) if reason.contains("Unsupported formatVersion: expected 8"))
     );
     assert_eq!(session.read_model(), &before);
     let effects = session.submit(Event::RetrySave {

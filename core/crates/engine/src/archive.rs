@@ -89,7 +89,8 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             .map_err(|_| "Project JSON is not UTF-8")?;
             // Inspect the version before any schema-dependent interpretation.
             crate::document_format::require_current_value(
-                &serde_json::from_str(&project_json).map_err(|error| error.to_string())?,
+                &serde_json::from_str(&project_json)
+                    .map_err(|error| format!("Invalid project JSON: {error}"))?,
             )?;
             let references = asset_references(&project_json)?;
             let indexed = files
@@ -446,10 +447,7 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(
-            error.contains("legacy") && error.contains("No conversion"),
-            "{error}"
-        );
+        assert!(error == "Unsupported formatVersion: expected 8", "{error}");
     }
 
     #[test]
@@ -458,14 +456,17 @@ mod tests {
         for (version, explanation) in [
             (
                 Some(json!(CURRENT_VERSION - 1)),
-                "No conversion is available",
+                "Unsupported formatVersion: expected 8",
             ),
-            (Some(json!(CURRENT_VERSION + 1)), "compatible newer build"),
-            (Some(json!(0)), "invalid formatVersion"),
-            (Some(json!("7")), "invalid formatVersion"),
-            (Some(json!(7.5)), "invalid formatVersion"),
-            (Some(json!(null)), "invalid formatVersion"),
-            (None, "no formatVersion"),
+            (
+                Some(json!(CURRENT_VERSION + 1)),
+                "Unsupported formatVersion: expected 8",
+            ),
+            (Some(json!(0)), "Unsupported formatVersion: expected 8"),
+            (Some(json!("7")), "Unsupported formatVersion: expected 8"),
+            (Some(json!(7.5)), "Unsupported formatVersion: expected 8"),
+            (Some(json!(null)), "Unsupported formatVersion: expected 8"),
+            (None, "Unsupported formatVersion: expected 8"),
         ] {
             let mut document = json!({"format": "boardstudio/v2", "assets": "broken"});
             if let Some(version) = version {
@@ -480,7 +481,7 @@ mod tests {
 
     #[test]
     fn unpacking_an_unrecognized_format_is_unsupported_without_conversion() {
-        let json = json!({"format": "boardstudio/v1", "formatVersion": CURRENT_VERSION - 1,
+        let json = json!({"format": "boardstudio/v1", "formatVersion": CURRENT_VERSION,
             "parts": [], "boards": [], "assets": []})
         .to_string();
         let packed = vec![pack(&[("project.json", json.as_bytes())], None).unwrap()];
@@ -503,7 +504,10 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("compatible newer build"), "{error}");
+        assert!(
+            error.contains("Unsupported formatVersion: expected 8"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -556,10 +560,7 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(
-            error.contains("format 5") && error.contains("No conversion"),
-            "{error}"
-        );
+        assert!(error == "Unsupported formatVersion: expected 8", "{error}");
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&json).unwrap()["formatVersion"],
             5
