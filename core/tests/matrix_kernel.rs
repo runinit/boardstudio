@@ -416,6 +416,13 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                     &json!({"kind":"open","id":"fixture","document":document}).to_string(),
                 ))
                 .unwrap();
+                if case["links"].is_array() {
+                    assert_eq!(
+                        opened["message"],
+                        "Layout mirror links are unsupported; use a mirrored pair"
+                    );
+                    continue;
+                }
                 assert_eq!(opened["kind"], "scene", "{}: {opened}", case["id"]);
                 let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
                 assert_eq!(
@@ -485,7 +492,7 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
             }
         }
     }
-    assert_eq!(count, 401);
+    assert_eq!(count, 357);
 }
 
 #[test]
@@ -988,26 +995,9 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
     }
     let source = matrix("src", 0.0, &source_cell, &source_ids);
     let mirror = matrix("mir", 200.0, &source_cell, &mirror_ids);
-    let exceptions = if omit_mirror_first {
-        json!([{"kind":"part","mirrorId":"matrix/mir/r0c0","state":"omitted"}])
-    } else {
-        json!([])
-    };
-    let mut correspondences = vec![json!({"kind":"matrix","sourceId":"src","mirrorId":"mir"})];
-    if omit_mirror_first {
-        correspondences
-            .push(json!({"kind":"part","sourceId":"matrix/src/r0c0","mirrorId":"matrix/mir/r0c0"}));
-    }
     document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,"partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
     document["parts"] = json!(parts);
     document["matrices"] = json!([source, mirror]);
-    document["layouts"] = json!([
-        {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
-        {"id":"mirror","name":"Mirror","boardId":"board","partIds":[],"matrixIds":["mir"],
-         "mirrorLink":{"sourceId":"source","axisX":100.0,
-            "correspondences":correspondences,
-            "exceptions":exceptions}}
-    ]);
     document
 }
 
@@ -1049,14 +1039,10 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     disabled["enabled"] = json!(false);
     let mut deleted = carry.clone();
     deleted["deleted"] = json!(true);
-    for (state, cell, omit) in [
-        ("disabled", disabled, false),
-        ("deleted", deleted, false),
-        ("omitted", carry.clone(), true),
-    ] {
+    for (state, cell, omit) in [("disabled", disabled, false), ("deleted", deleted, false)] {
         let (actual, draft, parts) = open_and_project(states_document(cell, omit));
         for (scenes, base) in [(&actual, &base_actual), (&draft, &base_draft)] {
-            for matrix in ["src", "mir"] {
+            for matrix in ["src"] {
                 for column in [1, 2] {
                     assert_eq!(
                         carried(scenes, matrix, column),
@@ -1188,25 +1174,10 @@ fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() 
         document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,
             "partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
         document["parts"] = json!(parts);
-        // Open preserves Local parts and parts with layoutOverride == 1. Local is
-        // sufficient here; projection itself reads saved member poses regardless of Local.
-        // The fixture matrix shares the mirror layout with a dummy mirror of `src`.
-        let dummy = |id: &str, x: f64| {
-            json!({"id":id,"definitionId":"switch","boardId":"board","rows":1,"columns":1,
-                "pitch":{"x":19.0,"y":18.0},"origin":{"x":x,"y":0.0},"cells":[],"partIds":[]})
-        };
-        document["matrices"] = json!([matrix, dummy("src", 0.0), dummy("mir", 200.0)]);
-        let local: Vec<_> = parts
-            .iter()
-            .map(|part| json!({"kind":"part","mirrorId":part["id"],"state":"local"}))
-            .collect();
-        document["layouts"] = json!([
-            {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
-            {"id":"layout","name":"Layout","boardId":"board","partIds":[],"matrixIds":["fixture","mir"],
-             "mirrorLink":{"sourceId":"source","axisX":100.0,
-                "correspondences":[{"kind":"matrix","sourceId":"src","mirrorId":"mir"}],
-                "exceptions":local}}
-        ]);
+        for part in document["parts"].as_array_mut().unwrap() {
+            part["properties"] = json!({"layoutOverride":1});
+        }
+        document["matrices"] = json!([matrix]);
         let mut engine = CoreEngine::new();
         let opened: Value = serde_json::from_str(
             &engine.request(&json!({"kind":"open","id":"oracle","document":document}).to_string()),

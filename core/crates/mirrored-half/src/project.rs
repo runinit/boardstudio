@@ -122,14 +122,15 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
             if let Some(keycaps) = &mut geometry.keycaps {
                 for (source_id, target_id) in &ids {
                     if let Some(settings) = keycaps.keys.get(*source_id).cloned() {
-                        keycaps.keys.insert(target_id.clone(), settings);
+                        keycaps.keys.entry(target_id.clone()).or_insert(settings);
                     }
                 }
                 for matrix in &matrices {
                     if let Some(settings) = keycaps.matrices.get(&matrix.id).cloned() {
                         keycaps
                             .matrices
-                            .insert(entity_id(mirror, "matrix", &matrix.id), settings);
+                            .entry(entity_id(mirror, "matrix", &matrix.id))
+                            .or_insert(settings);
                     }
                 }
             }

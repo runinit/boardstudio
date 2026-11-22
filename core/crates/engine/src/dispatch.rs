@@ -27,6 +27,13 @@ impl CoreEngine {
         if let Some(message) = validate::duplicate_top_level_identity(document) {
             return Err(message);
         }
+        if document
+            .layouts
+            .iter()
+            .any(|layout| layout.mirror_link.is_some())
+        {
+            return Err("Layout mirror links are unsupported; use a mirrored pair".into());
+        }
         mirrored_half::validate_pairs(document)?;
         let mut canonical = document.clone();
         canonical.scripts.clear();
@@ -922,7 +929,7 @@ impl CoreEngine {
         .cloned() else {
             return self.error(id, "History is empty");
         };
-        let changed = changed_ids(&self.document, &next);
+        let mut changed = changed_ids(&self.document, &next);
         electrical::preserve_handoff(&self.document, &mut next);
         let (from, to) = match direction {
             History::Undo => (&mut self.undo, &mut self.redo),
@@ -934,6 +941,10 @@ impl CoreEngine {
         self.document = next;
         self.identity_ledger.capture(&self.document);
         self.recompute();
+        let targets: Vec<_> = self.resolved.affected_targets(&changed).cloned().collect();
+        changed.extend(targets);
+        changed.sort();
+        changed.dedup();
         let transaction = match direction {
             History::Undo => "undo",
             History::Redo => "redo",

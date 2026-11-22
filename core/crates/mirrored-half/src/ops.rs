@@ -71,6 +71,12 @@ pub fn admit_edit(doc: &ProjectDoc, operation: &EditOperation) -> Result<(), Mir
         | SetMatrixAnchor { matrix_id, .. }
         | DetachMatrixAnchor { matrix_id, .. }
         | DetachMatrixAnchorConfirmed { matrix_id, .. } => matrix_targets.push(matrix_id.as_str()),
+        ApplyMechanicalEdit { .. }
+        | ApplyOutlineEdit { .. }
+        | SetMountedModule { .. }
+        | RemoveMountedModule { .. } => {
+            return admit_geometry_edit(doc, operation);
+        }
         _ => return Ok(()),
     }
     for mirror in &doc.mirrored_pairs {
@@ -141,7 +147,11 @@ pub fn set_exception(
         .iter()
         .map(|part| &part.id)
         .chain(mirror.overrides.iter().map(|item| &item.source_id))
-        .find(|source_id| crate::project::part_id(doc, mirror, source_id) == target_id)
+        .find(|source_id| {
+            crate::project::part_id(doc, mirror, source_id) == target_id
+            || mirror.overrides.iter().any(|item| &item.source_id == *source_id
+                && matches!(&item.state, MirrorOverride::Local(part) if part.id == target_id))
+        })
         .cloned()
         .ok_or("Unknown mirror target")?;
     let replacement = match state {
@@ -156,6 +166,8 @@ pub fn set_exception(
             Some(MirrorOverride::Local(Box::new(part.clone())))
         }
         HalfExceptionState::Omitted => {
+            let resolved = project_document(doc);
+            let view = resolved.geometry();
             if let Some(constraint) = doc.constraints.iter().find(|constraint| {
                 constraint.source() == target_id || constraint.target() == target_id
             }) {
@@ -164,12 +176,12 @@ pub fn set_exception(
                     constraint.id()
                 ));
             }
-            for net in doc
+            for net in view
                 .nets
                 .iter()
                 .filter(|net| net.pins.iter().any(|pin| pin.part_id == target_id))
             {
-                if let Some(trace) = doc
+                if let Some(trace) = view
                     .boards
                     .iter()
                     .flat_map(|board| &board.traces)
@@ -177,7 +189,7 @@ pub fn set_exception(
                 {
                     return Err(format!("Mirror target is used by trace {}", trace.id));
                 }
-                if let Some(via) = doc
+                if let Some(via) = view
                     .boards
                     .iter()
                     .flat_map(|board| &board.vias)
@@ -218,6 +230,15 @@ pub fn set_companion_pose(
         .cloned()
         .ok_or("Unknown mirror target")?;
     let mirror = &mut doc.mirrored_pairs[index];
+    if mirror.overrides.iter().any(|item| {
+        item.source_id == source_id
+            && matches!(
+                item.state,
+                MirrorOverride::Local(_) | MirrorOverride::Omitted
+            )
+    }) {
+        return Err("The mirror companion must be linked".into());
+    }
     mirror.overrides.retain(|item| item.source_id != source_id);
     mirror.overrides.push(PartOverride {
         source_id,
@@ -397,4 +418,109 @@ pub fn companion_placement_disabled_reason(
         return Some("The mirror companion must be linked");
     }
     None
+}
+
+fn admit_geometry_edit(
+    doc: &ProjectDoc,
+    operation: &EditOperation,
+) -> Result<(), MirrorEditRefused> {
+    use crate::MirrorDestination;
+    use crate::project::entity_id;
+    use boardstudio_model::mechanical::change::MechanicalTarget;
+    use boardstudio_model::outline_edit::OutlineChange;
+
+    let (board, instance, module, outline) = match operation {
+        EditOperation::ApplyMechanicalEdit { edit } => match &edit.target {
+            MechanicalTarget::Board { board_id } => (Some(board_id.as_str()), None, None, None),
+            MechanicalTarget::Instance { instance_id } => (
+                doc.hardware
+                    .iter()
+                    .flat_map(|hw| &hw.instances)
+                    .find(|item| &item.id == instance_id)
+                    .map(|item| item.board_id.as_str()),
+                Some(instance_id.as_str()),
+                None,
+                None,
+            ),
+        },
+        EditOperation::ApplyOutlineEdit { edit } => {
+            let outline = match &edit.change {
+                OutlineChange::AddFeature { feature } | OutlineChange::SetFeature { feature } => {
+                    Some(feature.id())
+                }
+                OutlineChange::RemoveFeature { feature_id } => Some(feature_id.as_str()),
+                _ => None,
+            };
+            (Some(edit.target.board_id()), None, None, outline)
+        }
+        EditOperation::SetMountedModule { instance, .. } => (
+            Some(instance.host_board_id.as_str()),
+            None,
+            Some(instance.id.as_str()),
+            None,
+        ),
+        EditOperation::RemoveMountedModule { id } => (None, None, Some(id.as_str()), None),
+        _ => return Ok(()),
+    };
+
+    for pair in &doc.mirrored_pairs {
+        let (MirrorDestination::SecondBoard(source), MirrorDestination::SecondBoard(target)) =
+            (&pair.source, &pair.destination)
+        else {
+            continue;
+        };
+        let refusal = |target_id: &str, source_id: &str| {
+            Err(MirrorEditRefused::LinkedTarget {
+                target_id: target_id.into(),
+                source_id: source_id.into(),
+                pair_id: pair.id.clone(),
+            })
+        };
+        if let Some(id) = module
+            && let Some(authored) = doc.modules.iter().find(|item| {
+                &item.host_board_id == source && entity_id(pair, "module", &item.id) == id
+            })
+        {
+            return refusal(id, &authored.id);
+        }
+        if let Some(id) = outline
+            && let Some(authored) =
+                doc.boards
+                    .iter()
+                    .find(|item| &item.id == source)
+                    .and_then(|item| {
+                        item.outline_ids
+                            .iter()
+                            .find(|authored| entity_id(pair, "outline", authored) == id)
+                    })
+        {
+            return refusal(id, authored);
+        }
+        if board == Some(target.as_str()) {
+            if let Some(id) = instance {
+                let source_instance = doc
+                    .hardware
+                    .iter()
+                    .flat_map(|hw| &hw.instances)
+                    .find(|item| &item.board_id == source);
+                return refusal(
+                    id,
+                    source_instance.map_or(source.as_str(), |item| item.id.as_str()),
+                );
+            }
+            return refusal(target, source);
+        }
+    }
+    Ok(())
+}
+
+pub fn local_pair_id(doc: &ProjectDoc, target_id: &str) -> Option<String> {
+    doc.mirrored_pairs
+        .iter()
+        .find(|pair| {
+            pair.overrides.iter().any(
+                |item| matches!(&item.state, MirrorOverride::Local(part) if part.id == target_id),
+            )
+        })
+        .map(|pair| pair.id.clone())
 }

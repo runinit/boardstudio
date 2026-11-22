@@ -42,11 +42,5 @@ mod mounted_modules;
 mod splay_companions;
 #[path = "splay_reconciliation.rs"]
 mod splay_reconciliation;
-#[path = "split_adaptive_spacing.rs"]
-mod split_adaptive_spacing;
-#[path = "split_half_frame_parts.rs"]
-mod split_half_frame_parts;
-#[path = "split_part_anchoring.rs"]
-mod split_part_anchoring;
 #[path = "thqwgd001_library.rs"]
 mod thqwgd001_library;

@@ -20,8 +20,6 @@ mod generator_export;
 mod generator_parameters;
 #[path = "matrix_aggregate_anchors.rs"]
 mod matrix_aggregate_anchors;
-#[path = "matrix_aggregate_reflection.rs"]
-mod matrix_aggregate_reflection;
 #[path = "mechanical_identity_monotonic.rs"]
 mod mechanical_identity_monotonic;
 #[path = "mechanical_integration.rs"]

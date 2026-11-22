@@ -123,16 +123,6 @@ fn main_matrix() -> Matrix {
     }
 }
 
-fn mirror_kind(matrix: &str) -> MirroredCorrespondence {
-    MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: MirroredItemKind::Matrix,
-        source_id: matrix.into(),
-        mirror_id: format!("{matrix}2"),
-    }
-}
-
 /// Same-board linked layouts: `layout` holds Main plus a Thumb anchored to
 /// Main's last key; `mirror-layout` holds their reflected counterparts.
 fn anchored_mirrored_doc() -> ProjectDoc {
@@ -158,26 +148,6 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         follow: all,
         aggregate: None,
     });
-    let mut main2 = main_matrix();
-    main2.id = "main2".into();
-    main2.origin = Vec2 { x: 20.0, y: 0.0 };
-    main2.mirror = Some(Mirror::X);
-    main2.part_ids = vec![
-        member("main2", 0, 0),
-        member("main2", 0, 1),
-        member("main2", 0, 2),
-    ];
-    let mut thumb2 = thumb.clone();
-    thumb2.id = "thumb2".into();
-    thumb2.mirror = Some(Mirror::X);
-    thumb2.part_ids = vec![
-        member("thumb2", 0, 0),
-        member("thumb2", 0, 1),
-        member("thumb2", 0, 2),
-    ];
-    if let Some(anchor) = thumb2.anchor.as_mut() {
-        anchor.matrix_id = "main2".into();
-    }
     doc.parts = vec![
         key_part(&member("main", 0, 0), 0.0, 0.0),
         key_part(&member("main", 0, 1), 19.0, 0.0),
@@ -185,12 +155,6 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         key_part(&member("thumb", 0, 0), 38.0, -19.0),
         key_part(&member("thumb", 0, 1), 57.0, -19.0),
         key_part(&member("thumb", 0, 2), 76.0, -19.0),
-        key_part(&member("main2", 0, 0), 20.0, 0.0),
-        key_part(&member("main2", 0, 1), 1.0, 0.0),
-        key_part(&member("main2", 0, 2), -18.0, 0.0),
-        key_part(&member("thumb2", 0, 0), -18.0, -19.0),
-        key_part(&member("thumb2", 0, 1), 1.0, -19.0),
-        key_part(&member("thumb2", 0, 2), 20.0, -19.0),
     ];
     doc.boards.push(Board {
         id: "board".into(),
@@ -204,8 +168,6 @@ fn anchored_mirrored_doc() -> ProjectDoc {
     });
     doc.matrices.push(main_matrix());
     doc.matrices.push(thumb);
-    doc.matrices.push(main2);
-    doc.matrices.push(thumb2);
     doc.layouts.push(Layout {
         id: "layout".into(),
         name: "Layout".into(),
@@ -218,16 +180,20 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         id: "mirror-layout".into(),
         name: "Mirror".into(),
         board_id: "board".into(),
-        matrix_ids: vec!["main2".into(), "thumb2".into()],
+        matrix_ids: vec![],
         part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "layout".into(),
-            axis_x: 10.0,
-            split_gap: None,
-            spacing: None,
-            correspondences: vec![mirror_kind("main"), mirror_kind("thumb")],
-            exceptions: vec![],
-        }),
+        mirror_link: None,
+    });
+    use boardstudio_model::mirrored_half::{MirrorDestination, MirroredPair};
+    doc.mirrored_pairs.push(MirroredPair {
+        id: "mirror-layout".into(),
+        source: MirrorDestination::SameBoardLayout("layout".into()),
+        destination: MirrorDestination::SameBoardLayout("mirror-layout".into()),
+        mapping: Pose2 {
+            at: Vec2 { x: 20.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        overrides: vec![],
     });
     doc
 }
@@ -290,7 +256,9 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
         close(thumb_preview.at.y, 2.5 - 19.0),
         "thumb follows the anchor key: {thumb_preview:?}"
     );
-    let mirror_preview = scene_pose(&previewed, "main2", 0, 2);
+    let view = boardstudio_core::project_document(&doc);
+    let derived_matrix = &view.geometry().layouts[1].matrix_ids[0];
+    let mirror_preview = scene_pose(&previewed, derived_matrix, 0, 2);
     assert!(
         close(mirror_preview.at.x + anchor_preview.at.x, 2.0 * 10.0),
         "mirror reflects about the pair axis: {mirror_preview:?} vs {anchor_preview:?}"
@@ -318,7 +286,8 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
     }
     assert_eq!(committed.format_version, 8);
     assert_eq!(committed.layouts.len(), 2);
-    assert!(committed.layouts[1].mirror_link.is_some());
+    assert!(committed.layouts[1].matrix_ids.is_empty());
+    assert_eq!(committed.mirrored_pairs, doc.mirrored_pairs);
 
     // Undo restores the exact pre-commit observable state.
     let restored = undone(&mut engine);

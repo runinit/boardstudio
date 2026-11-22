@@ -207,8 +207,9 @@ fn routed_copper_and_constraints_block_omission_and_pose_overrides_are_sparse() 
 
     let mut value = serde_json::to_value(document()).unwrap();
     let target = "4/pair/part/switch";
-    value["nets"] = json!([{"id":"route","name":"Route","pins":[{"partId":target,"padId":"pad"}]}]);
-    value["boards"][1]["traces"] = json!([{"id":"trace-on-target","layer":"front","netId":"route","width":0.2,
+    value["nets"] =
+        json!([{"id":"route","name":"Route","pins":[{"partId":"switch","padId":"pad"}]}]);
+    value["boards"][1]["traces"] = json!([{"id":"trace-on-target","layer":"front","netId":"4/pair/net/route","width":0.2,
         "start":{"x":0,"y":0},"end":{"x":1,"y":1}}]);
     let mut doc: ProjectDoc = serde_json::from_value(value).unwrap();
     let original = doc.clone();
@@ -274,4 +275,203 @@ fn projection_reflects_hosted_modules_and_physical_mechanical_features() {
     assert_eq!(mechanical.board_id, "destination");
     assert_eq!(mechanical.mounts[0].at, Vec2 { x: 7.0, y: 4.0 });
     assert_eq!(projected, project_document(&doc));
+}
+
+#[test]
+fn local_part_rotation_source_deletion_and_removal_round_trip() {
+    use boardstudio_core_engine::model::{HalfExceptionState, MirroredItemKind};
+
+    let mut engine = CoreEngine::new();
+    let target = "4/pair/part/switch";
+    let mut reply = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: document(),
+    });
+    for operation in [
+        EditOperation::SetHalfException {
+            pair_id: "pair".into(),
+            kind: MirroredItemKind::Part,
+            mirror_id: target.into(),
+            state: HalfExceptionState::Local,
+        },
+        EditOperation::SetPartRotation {
+            part_id: target.into(),
+            rotation: 37.0,
+        },
+        EditOperation::RemoveParts {
+            ids: vec!["switch".into()],
+        },
+    ] {
+        let CoreReply::Scene { document, .. } = reply else {
+            panic!("{reply:?}")
+        };
+        reply = engine.handle(CoreRequest::Edit {
+            id: "edit".into(),
+            command: EditCommand {
+                base_revision: document.revision,
+                transaction_id: "edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
+            },
+        });
+    }
+    let CoreReply::Scene {
+        document, scene, ..
+    } = reply
+    else {
+        panic!("{reply:?}")
+    };
+    assert!(document.parts.is_empty());
+    assert_eq!(scene.transforms.len(), 1);
+    assert_eq!(scene.transforms[0].id, target);
+    assert_eq!(scene.transforms[0].pose.rotation, 37.0);
+    let result = engine.handle(CoreRequest::Edit {
+        id: "remove-local".into(),
+        command: EditCommand {
+            base_revision: document.revision,
+            transaction_id: "remove-local".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![target.into()],
+            operation: EditOperation::RemoveParts {
+                ids: vec![target.into()],
+            },
+        },
+    });
+    assert!(matches!(result, CoreReply::Scene { scene, .. } if scene.transforms.is_empty()));
+}
+
+#[test]
+fn derived_board_geometry_edits_refuse_without_publishing() {
+    let mut engine = CoreEngine::new();
+    let opened = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: document(),
+    });
+    let (original, _) = accepted(opened);
+    let candidate = json!({"kind":"edit","id":"outline","command":{
+        "baseRevision":original.revision,"transactionId":"outline","phase":"commit","targetIds":[],
+        "operation":{"kind":"apply-outline-edit","edit":{
+            "target":{"kind":"board","boardId":"destination"},"change":{"set-margin":{"margin":4}},
+            "seed":1
+        }}
+    }});
+    let refusal: serde_json::Value =
+        serde_json::from_str(&engine.request(&candidate.to_string())).unwrap();
+    assert_eq!(refusal["kind"], "error");
+    assert!(refusal["message"].as_str().unwrap().contains("edit source"));
+    let (snapshot, _) = accepted(engine.handle(CoreRequest::Snapshot {
+        id: "snapshot".into(),
+    }));
+    assert_eq!(snapshot, original);
+}
+
+#[test]
+fn mixed_lifecycle_history_and_two_board_unlink_preserve_geometry() {
+    use boardstudio_core_engine::model::{
+        CompanionPlacementTarget, HalfExceptionState, MirroredCompanionMode,
+        MirroredCompanionTweak, MirroredItemKind,
+    };
+
+    let target = "4/pair/part/switch";
+    let exception = |state| EditOperation::SetHalfException {
+        pair_id: "pair".into(),
+        kind: MirroredItemKind::Part,
+        mirror_id: target.into(),
+        state,
+    };
+    for seed in 0..8_u32 {
+        let mut engine = CoreEngine::new();
+        let mut current = accepted(engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document: document(),
+        }));
+        let mut random = seed + 1;
+        let mut local = false;
+        for _ in 0..40 {
+            random = random.wrapping_mul(1664525).wrapping_add(1013904223);
+            let x = f64::from(random >> 8) / 1024.0;
+            let operation = match (random >> 28) % 3 {
+                0 => EditOperation::MoveParts {
+                    positions: vec![Position {
+                        id: "switch".into(),
+                        at: Vec2 { x, y: 3.0 },
+                    }],
+                },
+                1 => {
+                    local = !local;
+                    exception(if local {
+                        HalfExceptionState::Local
+                    } else {
+                        HalfExceptionState::Linked
+                    })
+                }
+                _ if local => {
+                    local = false;
+                    exception(HalfExceptionState::Linked)
+                }
+                _ => EditOperation::SetCompanionPlacement {
+                    pair_id: "pair".into(),
+                    targets: vec![CompanionPlacementTarget::Item {
+                        item_kind: MirroredItemKind::Part,
+                        mirror_id: target.into(),
+                    }],
+                    mode: MirroredCompanionMode::LiteralMirrorWithTweak,
+                    tweak: Some(MirroredCompanionTweak {
+                        x,
+                        y: 3.0,
+                        rotation: 20.0,
+                    }),
+                },
+            };
+            let next = accepted(engine.handle(CoreRequest::Edit {
+                id: "edit".into(),
+                command: EditCommand {
+                    base_revision: current.0.revision,
+                    transaction_id: "edit".into(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![],
+                    operation,
+                },
+            }));
+            let mut undo = accepted(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+            undo.0.revision = current.0.revision;
+            assert_eq!(undo, current);
+            let redo = accepted(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+            let mut expected = next;
+            expected.0.revision = redo.0.revision;
+            assert_eq!(redo, expected);
+            current = redo;
+        }
+        let unlinked = engine.handle(CoreRequest::Edit {
+            id: "unlink".into(),
+            command: EditCommand {
+                base_revision: current.0.revision,
+                transaction_id: "unlink".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::UnlinkHalves {
+                    pair_id: "pair".into(),
+                },
+            },
+        });
+        let CoreReply::Scene {
+            document, scene, ..
+        } = unlinked
+        else {
+            panic!("{unlinked:?}")
+        };
+        assert!(document.mirrored_pairs.is_empty());
+        assert_eq!(document.parts.len(), 2);
+        assert_eq!(
+            scene
+                .transforms
+                .iter()
+                .find(|part| part.id == target)
+                .unwrap()
+                .pose
+                .at,
+            current.1
+        );
+    }
 }

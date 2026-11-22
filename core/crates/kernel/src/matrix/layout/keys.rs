@@ -2,7 +2,7 @@
 
 use super::{
     axis_mapping, exception_state, omitted, partner, reflected, remap_anchor_target,
-    set_component_pose, stored_part_pose, sync,
+    retune_driven_constraint, stored_part_pose, sync,
 };
 use crate::{matrix, model::*};
 use std::collections::{BTreeMap, BTreeSet};
@@ -163,7 +163,16 @@ pub fn move_keys(
         }
     }
     for (id, pose) in constrained.into_iter().chain(carried) {
-        set_component_pose(doc, &id, pose)?;
+        let turn = doc
+            .parts
+            .iter()
+            .find(|part| part.id == id)
+            .map(|part| pose.rotation - super::evaluated_part_pose(doc, part).rotation);
+        retune_driven_constraint(doc, &id, pose, turn)?;
+        let stored = stored_part_pose(doc, &id, pose);
+        if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
+            part.pose = stored;
+        }
         changed.push(id);
     }
     for matrix in matrices.values() {

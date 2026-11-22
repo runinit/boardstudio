@@ -3,11 +3,9 @@ use std::collections::BTreeSet;
 
 mod adoption;
 mod keys;
-mod parts;
 mod reflection;
 mod spacing;
 
-use adoption::strip_substitute_flag;
 pub use adoption::{
     adopt_half_frames, adopt_unrecorded_mirrors, evaluated_part, evaluated_part_pose,
     is_member_or_companion, layout_half_offset, part_half_offset, set_pair_gap, unadopt_pair,
@@ -18,15 +16,9 @@ pub use keys::{
     apply_exception_transitions, assembly_placements, companion_mode, edits_alone, is_matrix_key,
     move_keys, plan_linked_matrix_removal, reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
-pub use parts::{
-    clamp_part_to_half, ensure_part_mirror, mirror_new_pair_part, move_pair_part,
-    reframe_moved_parts, retire_part_correspondences, set_detached_part_rotation,
-    set_part_mirrored, stored_part_pose,
-};
-use reflection::{carrier_offset, pair_sides, remap_anchor_target};
+use reflection::{carrier_offset, remap_anchor_target};
 pub use reflection::{
-    exception_state, omitted, part_correspondence, reflect_half_part, reflected, refresh_existing,
-    resolve, sync,
+    exception_state, omitted, part_correspondence, reflected, refresh_existing, resolve, sync,
 };
 pub use spacing::{
     DEFAULT_CREATION_GAP_MM, DEFAULT_SPACING_MARGIN_MM, adapt_spacing, part_extent_offsets,
@@ -514,67 +506,47 @@ pub fn retune_driven_constraint(
     Ok(true)
 }
 
-fn set_component_pose(
+pub fn set_detached_part_rotation(
     doc: &mut ProjectDoc,
-    id: &str,
-    pose: crate::model::Pose2,
-) -> Result<(), String> {
-    // Ticket 12: poses arrive board-space; storage converts. The retune delta
-    // measures board-space against the evaluated pose.
-    let current_rotation = doc
+    part_id: &str,
+    rotation: f64,
+) -> Result<Vec<String>, String> {
+    if !rotation.is_finite() {
+        return Err("Part rotation must be finite".into());
+    }
+    let index = doc
         .parts
         .iter()
-        .find(|part| part.id == id)
-        .map(|part| evaluated_part_pose(doc, part).rotation);
-    let turn = current_rotation.map(|rotation| pose.rotation - rotation);
-    retune_driven_constraint(doc, id, pose, turn)?;
-    let stored = stored_part_pose(doc, id, pose);
-    let part = doc
-        .parts
-        .iter_mut()
-        .find(|part| part.id == id)
-        .ok_or("Mirrored component source is missing")?;
-    part.pose = stored;
-    Ok(())
+        .position(|part| part.id == part_id)
+        .ok_or_else(|| format!("Unknown part {part_id}"))?;
+    if doc.parts[index].locked == Some(true) {
+        return Err(format!("Part {part_id} is locked"));
+    }
+    if is_member_or_companion(doc, part_id) {
+        return Err(format!(
+            "Part {part_id} follows its matrix and cannot rotate"
+        ));
+    }
+    if doc.parts[index].anchor.is_some() {
+        return Err(format!(
+            "Part {part_id} is anchored; use SetPartAnchorValues"
+        ));
+    }
+    if doc.constraint_driving_part(part_id)?.is_some() {
+        return Err(format!(
+            "Part {part_id} is driven by a constraint and cannot rotate"
+        ));
+    }
+    doc.parts[index].pose.rotation = rotation;
+    Ok(vec![part_id.into()])
 }
 
-fn sync_component_nets(doc: &mut ProjectDoc, source_id: &str, target_id: &str) {
-    for net in &mut doc.nets {
-        let source_pins: Vec<_> = net
-            .pins
-            .iter()
-            .filter(|pin| pin.part_id == source_id)
-            .cloned()
-            .collect();
-        net.pins.retain(|pin| pin.part_id != target_id);
-        net.pins.extend(source_pins.into_iter().map(|mut pin| {
-            pin.part_id = target_id.to_string();
-            pin
-        }));
+pub fn stored_part_pose(doc: &ProjectDoc, part_id: &str, mut pose: Pose2) -> Pose2 {
+    if let Some(offset) = part_half_offset(doc, part_id) {
+        pose.at.x -= offset.x;
+        pose.at.y -= offset.y;
     }
-}
-
-fn remove_component(doc: &mut ProjectDoc, id: &str) {
-    doc.parts.retain(|part| part.id != id);
-    doc.constraints
-        .retain(|constraint| constraint.source() != id && constraint.target() != id);
-    for board in &mut doc.boards {
-        board.part_ids.retain(|part_id| part_id != id);
-    }
-    for layout in &mut doc.layouts {
-        layout.part_ids.retain(|part_id| part_id != id);
-    }
-    for matrix in &mut doc.matrices {
-        matrix.part_ids.retain(|part_id| part_id != id);
-    }
-    for net in &mut doc.nets {
-        net.pins.retain(|pin| pin.part_id != id);
-    }
-    for feature in &mut doc.outline {
-        if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature {
-            part_ids.retain(|part_id| part_id != id);
-        }
-    }
+    pose
 }
 
 pub fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {

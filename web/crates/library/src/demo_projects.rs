@@ -1,8 +1,8 @@
+use boardstudio_model::mirrored_half::{MirrorDestination, MirroredPair};
 use boardstudio_model::model::{
     Board, ColumnLayout, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Follow,
-    Layout, LayoutMirrorLink, Material, Matrix, MatrixAnchor, Mirror, MirroredCorrespondence,
-    MirroredItemKind, Operation, OutlineFeature, OutlineSettings, PartDefinition, PartKind,
-    ProjectDoc, RowLayout, Vec2,
+    Layout, Material, Matrix, MatrixAnchor, Mirror, Operation, OutlineFeature, OutlineSettings,
+    PartDefinition, PartKind, Pose2, ProjectDoc, RowLayout, Vec2,
 };
 use boardstudio_web_runtime::core_services::{OpenScratchCore, ScratchCore};
 
@@ -349,69 +349,24 @@ fn split42_build(name: &str, open_scratch: OpenScratchCore) -> Result<ProjectDoc
         definitions: None,
     })?;
 
-    // Right-side records carry identities and dimensions only. Core's
-    // linked-layout sync derives every right-side pose from the left source
-    // when the link lands, so no second right-side formula is authored here.
-    let mut right_main = demo_matrix("right-main", 3, 6);
-    right_main.name = Some("Right main".into());
-    builder.commit(EditOperation::SetMatrix {
-        matrix: right_main,
-        definitions: None,
-    })?;
-    let mut right_thumb = demo_matrix("right-thumb", 1, 3);
-    right_thumb.name = Some("Right thumb".into());
-    builder.commit(EditOperation::SetMatrix {
-        matrix: right_thumb,
-        definitions: None,
-    })?;
-
-    let mut correspondences = vec![
-        MirroredCorrespondence {
-            kind: MirroredItemKind::Matrix,
-            source_id: "left-main".into(),
-            mirror_id: "right-main".into(),
-            companion_mode: None,
-            companion_tweak: None,
-        },
-        MirroredCorrespondence {
-            kind: MirroredItemKind::Matrix,
-            source_id: "left-thumb".into(),
-            mirror_id: "right-thumb".into(),
-            companion_mode: None,
-            companion_tweak: None,
-        },
-    ];
-    for (source_id, mirror_id, rows, columns) in [
-        ("left-main", "right-main", 3u32, 6u32),
-        ("left-thumb", "right-thumb", 1u32, 3u32),
-    ] {
-        for row in 0..rows {
-            for column in 0..columns {
-                correspondences.push(MirroredCorrespondence {
-                    kind: MirroredItemKind::Part,
-                    source_id: format!("matrix/{source_id}/r{row}c{column}"),
-                    mirror_id: format!("matrix/{mirror_id}/r{row}c{column}"),
-                    companion_mode: None,
-                    companion_tweak: None,
-                });
-            }
-        }
-    }
     let mut document = builder.snapshot()?;
     document.layouts.push(Layout {
         id: "right".into(),
         name: "Right".into(),
         board_id: "demo-board".into(),
-        matrix_ids: vec!["right-main".into(), "right-thumb".into()],
-        part_ids: Vec::new(),
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "left".into(),
-            axis_x: 0.0,
-            split_gap: None,
-            spacing: None,
-            correspondences,
-            exceptions: Vec::new(),
-        }),
+        matrix_ids: vec![],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    document.mirrored_pairs.push(MirroredPair {
+        id: "right".into(),
+        source: MirrorDestination::SameBoardLayout("left".into()),
+        destination: MirrorDestination::SameBoardLayout("right".into()),
+        mapping: Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        },
+        overrides: vec![],
     });
     let mut document = builder.replace(document)?;
     document.revision = 0;
@@ -707,367 +662,23 @@ mod demo_rebuild_tests {
     }
 
     #[test]
-    fn split42_has_two_linked_layouts_with_four_matrices() {
-        use boardstudio_model::model::MirroredItemKind;
+    fn split42_projects_two_matrices_per_layout_from_one_authored_half() {
         let document = split42();
         assert_eq!(document.format_version, CURRENT_VERSION);
-        assert_eq!(document.layouts.len(), 2, "two linked Layouts");
-        let left = document
-            .layouts
-            .iter()
-            .find(|layout| layout.mirror_link.is_none())
-            .expect("left source Layout");
-        let right = document
-            .layouts
-            .iter()
-            .find(|layout| layout.mirror_link.is_some())
-            .expect("right derived Layout");
-        assert_eq!(left.board_id, "demo-board");
-        assert_eq!(right.board_id, "demo-board");
-        assert_eq!(left.matrix_ids.len(), 2, "left main + thumb");
-        assert_eq!(right.matrix_ids.len(), 2, "right main + thumb");
-        assert_eq!(document.matrices.len(), 4, "four matrices");
-        let link = right.mirror_link.as_ref().expect("right link");
-        assert_eq!(link.source_id, left.id);
-        assert_eq!(link.axis_x, 0.0, "reflection about X = 0");
-        assert!(link.exceptions.is_empty(), "no default exceptions");
-        let matrix_links: Vec<_> = link
-            .correspondences
-            .iter()
-            .filter(|record| record.kind == MirroredItemKind::Matrix)
-            .collect();
-        assert_eq!(matrix_links.len(), 2, "both matrix groups correspond");
-        for matrix in &document.matrices {
-            let in_left = left.matrix_ids.contains(&matrix.id);
-            let in_right = right.matrix_ids.contains(&matrix.id);
-            assert!(
-                in_left ^ in_right,
-                "{} owned by exactly one Layout",
-                matrix.id
-            );
-        }
-        let mains: Vec<_> = document
-            .matrices
-            .iter()
-            .filter(|matrix| matrix.rows == 3 && matrix.columns == 6)
-            .collect();
-        let thumbs: Vec<_> = document
-            .matrices
-            .iter()
-            .filter(|matrix| matrix.rows == 1 && matrix.columns == 3)
-            .collect();
-        assert_eq!(mains.len(), 2, "two 3x6 main matrices");
-        assert_eq!(thumbs.len(), 2, "two 1x3 thumb matrices");
-        assert_eq!(document.parts.len(), 42, "42 keys total");
-    }
-
-    #[test]
-    fn split42_keeps_approved_poses_with_matrix_identities() {
-        let document = split42();
-        let pose_of = |member: &str| {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == member)
-                .unwrap_or_else(|| panic!("missing member {member}"))
-                .pose
-        };
-        // Left keeps every legacy pose; both thumbs keep theirs; the right
-        // row 1 keeps its X. Only right-main rows 2/3 move, by -5/-10 mm.
-        let left_id = document
-            .layouts
-            .iter()
-            .find(|layout| layout.mirror_link.is_none())
-            .expect("left")
-            .id
-            .clone();
-        let left_main = document
-            .matrices
-            .iter()
-            .find(|matrix| left_has(&document, &left_id, &matrix.id) && matrix.rows == 3)
-            .expect("left main")
-            .id
-            .clone();
-        let left_thumb = document
-            .matrices
-            .iter()
-            .find(|matrix| left_has(&document, &left_id, &matrix.id) && matrix.rows == 1)
-            .expect("left thumb")
-            .id
-            .clone();
-        for row in 0..3 {
-            for column in 0..6 {
-                let legacy = Vec2 {
-                    x: -(31.0 + column as f64 * 19.05) + row as f64 * 2.5,
-                    y: (row as f64 - 1.0) * 19.05,
-                };
-                let pose = pose_of(&format!("matrix/{left_main}/r{row}c{column}"));
-                assert!(
-                    (pose.at.x - legacy.x).abs() < 1e-9 && (pose.at.y - legacy.y).abs() < 1e-9,
-                    "left main r{row}c{column} drifts: got {:?}, want {legacy:?}",
-                    pose.at
-                );
-                assert_eq!(pose.rotation, 0.0);
-            }
-        }
-        for thumb in 0..3 {
-            let legacy = Vec2 {
-                x: -(64.0 + thumb as f64 * 19.05),
-                y: 40.0 + thumb as f64 * 3.0,
-            };
-            let pose = pose_of(&format!("matrix/{left_thumb}/r0c{thumb}"));
-            assert!(
-                (pose.at.x - legacy.x).abs() < 1e-9 && (pose.at.y - legacy.y).abs() < 1e-9,
-                "left thumb {thumb} drifts: got {:?}, want {legacy:?}",
-                pose.at
-            );
-            assert_eq!(pose.rotation, 0.0);
-        }
-        let right_id = document
-            .layouts
-            .iter()
-            .find(|layout| layout.mirror_link.is_some())
-            .expect("right")
-            .id
-            .clone();
-        let right_main = document
-            .matrices
-            .iter()
-            .find(|matrix| {
-                document
-                    .layouts
-                    .iter()
-                    .find(|layout| layout.id == right_id)
-                    .expect("right")
-                    .matrix_ids
-                    .contains(&matrix.id)
-                    && matrix.rows == 3
-            })
-            .expect("right main")
-            .id
-            .clone();
-        let right_thumb: Vec<String> = document
-            .matrices
-            .iter()
-            .filter(|matrix| {
-                document
-                    .layouts
-                    .iter()
-                    .find(|layout| layout.id == right_id)
-                    .expect("right")
-                    .matrix_ids
-                    .contains(&matrix.id)
-                    && matrix.rows == 1
-            })
-            .map(|matrix| matrix.id.clone())
-            .collect();
-        assert_eq!(right_thumb.len(), 1);
-        for row in 0..3 {
-            for column in 0..6 {
-                let legacy_x = (31.0 + column as f64 * 19.05) + row as f64 * 2.5;
-                let approved = match row {
-                    0 => legacy_x,
-                    1 => legacy_x - 5.0,
-                    _ => legacy_x - 10.0,
-                };
-                let legacy_y = (row as f64 - 1.0) * 19.05;
-                let pose = pose_of(&format!("matrix/{right_main}/r{row}c{column}"));
-                assert!(
-                    (pose.at.x - approved).abs() < 1e-9 && (pose.at.y - legacy_y).abs() < 1e-9,
-                    "right main r{row}c{column}: got {:?}, want ({approved}, {legacy_y})",
-                    pose.at
-                );
-                assert_eq!(pose.rotation, 0.0);
-            }
-        }
-        for thumb in 0..3 {
-            let pose = pose_of(&format!("matrix/{}/r0c{thumb}", right_thumb[0]));
-            let want = Vec2 {
-                x: 64.0 + thumb as f64 * 19.05,
-                y: 40.0 + thumb as f64 * 3.0,
-            };
-            assert!(
-                (pose.at.x - want.x).abs() < 1e-9 && (pose.at.y - want.y).abs() < 1e-9,
-                "right thumb {thumb}: got {:?}, want {want:?}",
-                pose.at
-            );
-            assert_eq!(pose.rotation, 0.0);
-        }
+        assert_eq!(document.parts.len(), 21);
+        assert_eq!(document.matrices.len(), 2);
+        assert_eq!(document.layouts.len(), 2);
+        assert!(document.layouts[1].matrix_ids.is_empty());
         assert!(
             document
-                .parts
+                .layouts
                 .iter()
-                .all(|part| part.id.starts_with("matrix/")),
-            "matrix-coordinate identities only"
+                .all(|layout| layout.mirror_link.is_none())
         );
-    }
-
-    use boardstudio_model::model::Position;
-
-    struct Session {
-        engine: CoreEngine,
-        revision: u64,
-    }
-
-    impl Session {
-        fn open(document: ProjectDoc) -> Self {
-            let mut engine = CoreEngine::new();
-            let revision = match engine.handle(CoreRequest::Open {
-                id: "split-open".into(),
-                document,
-            }) {
-                CoreReply::Scene { scene, .. } => scene.revision,
-                reply => panic!("Split 42 Open failed: {reply:?}"),
-            };
-            Self { engine, revision }
-        }
-
-        fn commit(&mut self, operation: EditOperation) -> ProjectDoc {
-            let revision = self.revision;
-            match self.engine.handle(CoreRequest::Edit {
-                id: "split-edit".into(),
-                command: EditCommand {
-                    base_revision: revision,
-                    transaction_id: format!("split-{revision}"),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation,
-                },
-            }) {
-                CoreReply::Scene {
-                    scene, document, ..
-                } => {
-                    self.revision = scene.revision;
-                    *document
-                }
-                reply => panic!("Split 42 edit failed: {reply:?}"),
-            }
-        }
-
-        fn snapshot(&mut self) -> ProjectDoc {
-            match self.engine.handle(CoreRequest::Snapshot {
-                id: "split-snapshot".into(),
-            }) {
-                CoreReply::Scene { document, .. } => *document,
-                reply => panic!("Split 42 snapshot failed: {reply:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn split42_anchor_edit_moves_thumb_and_counterpart_with_one_undo() {
-        let template = split42();
-        let before = |document: &ProjectDoc, member: &str| {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == member)
-                .unwrap_or_else(|| panic!("missing member {member}"))
-                .pose
-                .at
-        };
-        let anchor = "matrix/left-main/r2c2";
-        let start = before(&template, anchor);
-        let mut session = Session::open(template.clone());
-        let moved = session.commit(EditOperation::MoveParts {
-            positions: vec![Position {
-                id: anchor.into(),
-                at: Vec2 {
-                    x: start.x + 10.0,
-                    y: start.y,
-                },
-            }],
-        });
-        // The anchored thumb follows its actual anchor key on the same half.
-        let thumb_start = before(&template, "matrix/left-thumb/r0c0");
-        let thumb = before(&moved, "matrix/left-thumb/r0c0");
-        assert!(
-            (thumb.x - (thumb_start.x + 10.0)).abs() < 1e-9,
-            "thumb follows X"
-        );
-        assert!((thumb.y - thumb_start.y).abs() < 1e-9, "thumb keeps Y");
-        // The linked counterpart moves through the reflection, not a second
-        // formula: +10 X on the left is -10 X on the right.
-        let mirror_start = before(&template, "matrix/right-main/r2c2");
-        let mirror = before(&moved, "matrix/right-main/r2c2");
-        assert!(
-            (mirror.x - (mirror_start.x - 10.0)).abs() < 1e-9,
-            "counterpart reflects X"
-        );
-        assert!(
-            (mirror.y - mirror_start.y).abs() < 1e-9,
-            "counterpart keeps Y"
-        );
-        let mirror_thumb_start = before(&template, "matrix/right-thumb/r0c0");
-        let mirror_thumb = before(&moved, "matrix/right-thumb/r0c0");
-        assert!((mirror_thumb.x - (mirror_thumb_start.x - 10.0)).abs() < 1e-9);
-        assert!((mirror_thumb.y - mirror_thumb_start.y).abs() < 1e-9);
-        // One Undo restores every pose; Redo reapplies the same edit.
-        let undone = match session.engine.handle(CoreRequest::Undo {
-            id: "split-undo".into(),
-        }) {
-            CoreReply::Scene {
-                scene, document, ..
-            } => {
-                session.revision = scene.revision;
-                *document
-            }
-            reply => panic!("Split 42 Undo failed: {reply:?}"),
-        };
-        assert_eq!(undone.parts, template.parts, "one Undo restores all poses");
-        let redone = match session.engine.handle(CoreRequest::Redo {
-            id: "split-redo".into(),
-        }) {
-            CoreReply::Scene {
-                scene, document, ..
-            } => {
-                session.revision = scene.revision;
-                *document
-            }
-            reply => panic!("Split 42 Redo failed: {reply:?}"),
-        };
-        assert_eq!(redone.parts, moved.parts, "Redo reapplies the edit");
-    }
-
-    #[test]
-    fn split42_right_half_edit_routes_to_the_left_counterpart() {
-        let template = split42();
-        let start = template
-            .parts
-            .iter()
-            .find(|part| part.id == "matrix/right-main/r0c0")
-            .expect("right key")
-            .pose
-            .at;
-        let mut session = Session::open(template.clone());
-        let moved = session.commit(EditOperation::MoveParts {
-            positions: vec![Position {
-                id: "matrix/right-main/r0c0".into(),
-                at: Vec2 {
-                    x: start.x,
-                    y: start.y + 5.0,
-                },
-            }],
-        });
-        let mirror = moved
-            .parts
-            .iter()
-            .find(|part| part.id == "matrix/left-main/r0c0")
-            .expect("left counterpart")
-            .pose
-            .at;
-        let mirror_start = template
-            .parts
-            .iter()
-            .find(|part| part.id == "matrix/left-main/r0c0")
-            .expect("left key")
-            .pose
-            .at;
-        assert!((mirror.x - mirror_start.x).abs() < 1e-9, "X unchanged");
-        assert!(
-            (mirror.y - (mirror_start.y + 5.0)).abs() < 1e-9,
-            "Y follows"
-        );
+        let geometry = boardstudio_core::project_document(&document);
+        assert_eq!(geometry.geometry().matrices.len(), 4);
+        assert_eq!(geometry.geometry().parts.len(), 42);
+        assert_eq!(geometry.geometry().layouts[1].matrix_ids.len(), 2);
     }
 
     #[test]
@@ -1118,16 +729,6 @@ mod demo_rebuild_tests {
             ),
             "no Undo entry from a preview"
         );
-    }
-
-    fn left_has(document: &ProjectDoc, left_id: &str, matrix_id: &str) -> bool {
-        document
-            .layouts
-            .iter()
-            .find(|layout| layout.id == left_id)
-            .expect("left")
-            .matrix_ids
-            .contains(&matrix_id.to_string())
     }
 
     #[test]

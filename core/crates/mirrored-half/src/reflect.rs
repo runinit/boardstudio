@@ -9,7 +9,7 @@ pub(crate) fn matrix(mirror: &MirroredPair, source: &Matrix, board_id: &str) -> 
     target.id = entity_id(mirror, "matrix", &source.id);
     target.board_id = Some(board_id.into());
     target.mirror = Some(match source.mirror {
-        Some(Mirror::X) => Mirror::None,
+        Some(Mirror::X | Mirror::Y) => Mirror::None,
         _ => Mirror::X,
     });
     if let Some(anchor) = &mut target.anchor {
@@ -22,6 +22,9 @@ pub(crate) fn matrix(mirror: &MirroredPair, source: &Matrix, board_id: &str) -> 
             mirror.mapping,
             source.rotation.unwrap_or_default(),
         ));
+    }
+    if source.mirror == Some(Mirror::Y) {
+        target.rotation = Some((target.rotation.unwrap_or_default() + 180.0).rem_euclid(360.0));
     }
     for cell in &mut target.cells {
         for assembly in &mut cell.assemblies {

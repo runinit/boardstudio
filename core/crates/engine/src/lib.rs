@@ -151,3 +151,5 @@ impl CoreEngine {
         }
     }
 }
+
+pub use boardstudio_core_mirrored_half::{ResolvedDoc, project_document};

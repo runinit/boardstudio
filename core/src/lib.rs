@@ -1,10 +1,12 @@
 //! Rust and WebAssembly entry points for BoardStudio Core.
 
 pub use boardstudio_core_artifact::artifact;
+pub use boardstudio_core_engine::{
+    ResolvedDoc, archive, companion_placement_disabled_reason, firmware, project_document,
+};
 #[cfg(feature = "test-support")]
 #[doc(hidden)]
 pub use boardstudio_core_engine::{apply_for_test, validate_document_for_test};
-pub use boardstudio_core_engine::{archive, companion_placement_disabled_reason, firmware};
 pub use boardstudio_core_kernel::matrix::kernel as layout_kernel;
 pub use boardstudio_core_kernel::matrix::layout::{
     evaluated_part_pose, half_offset, is_matrix_key, layout_half_offset, part_correspondence,

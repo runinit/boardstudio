@@ -632,7 +632,7 @@ pub fn move_anchored(
             member_id(&anchor.matrix_id, anchor.row, anchor.column)
         )
     })?;
-    let clamped = layout::clamp_part_to_half(doc, part_id, board_at);
+    let clamped = board_at;
     // Retune a correspondence partner before writing, mirroring the
     // unanchored move arm: the partner's board pose is the split-axis
     // reflection of the clamped drag and its rotation never changes here.
