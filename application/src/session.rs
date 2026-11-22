@@ -544,21 +544,9 @@ struct ExportCommitOwner {
     token: SnapshotToken,
     scope: Scope,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ActiveKind {
-    Open,
-    Commit,
-    ReviewElectricalRemap,
-    Preview,
-    Undo,
-    Redo,
-    GestureCommit,
-    ExportCommit,
-}
-#[derive(Clone, Debug)]
 struct CoreAction {
     operation_id: OperationId,
-    kind: ActiveKind,
+    opening: bool,
     gesture_generation: Option<u64>,
     preview_transaction_id: Option<String>,
     export_owner: Option<ExportCommitOwner>,
@@ -1219,116 +1207,59 @@ impl Session {
             DocumentCommand::ExportCommit { owner, .. } => Some(owner.clone()),
             _ => None,
         };
-        let (request, kind, gesture_generation) = match command {
-            DocumentCommand::ResolveEdit { .. } => {
-                unreachable!("resolved intents are handled before the request is built")
+        let opening = matches!(command, DocumentCommand::Open(_));
+        let gesture_generation = match &command {
+            DocumentCommand::GesturePreview(_) | DocumentCommand::GestureCommit(_) => {
+                self.gesture.as_ref().map(|gesture| gesture.generation)
             }
-            DocumentCommand::Open(document) => (
-                CoreRequest::Open {
-                    id: request_wire_id.clone(),
-                    document: *document,
-                },
-                ActiveKind::Open,
-                None,
-            ),
-            DocumentCommand::Edit(command) => {
-                let kind = if command.phase == EditPhase::Preview {
-                    ActiveKind::Preview
-                } else {
-                    ActiveKind::Commit
-                };
-                (
-                    CoreRequest::Edit {
-                        id: request_wire_id.clone(),
-                        command,
-                    },
-                    kind,
-                    None,
-                )
-            }
+            _ => None,
+        };
+        let id = request_wire_id.clone();
+        let request = match command {
+            DocumentCommand::Open(document) => CoreRequest::Open {
+                id,
+                document: *document,
+            },
+            DocumentCommand::Edit(command)
+            | DocumentCommand::GesturePreview(command)
+            | DocumentCommand::GestureCommit(command) => CoreRequest::Edit { id, command },
             DocumentCommand::ReviewElectricalRemap {
                 base_revision,
                 board_id,
                 expected_fingerprint,
-            } => (
-                CoreRequest::ReviewElectricalRemap {
-                    id: request_wire_id.clone(),
-                    base_revision,
-                    board_id,
-                    expected_fingerprint,
-                },
-                ActiveKind::ReviewElectricalRemap,
-                None,
-            ),
-            DocumentCommand::ExportCommit { owner, commit } => {
-                let request = match commit {
-                    ExportCommitRequest::ApplyElectrical { plan, draft } => {
-                        CoreRequest::ApplyElectrical {
-                            id: request_wire_id.clone(),
-                            base_revision: plan.revision,
-                            plan,
-                            draft,
-                        }
+            } => CoreRequest::ReviewElectricalRemap {
+                id,
+                base_revision,
+                board_id,
+                expected_fingerprint,
+            },
+            DocumentCommand::ExportCommit { owner, commit } => match commit {
+                ExportCommitRequest::ApplyElectrical { plan, draft } => {
+                    CoreRequest::ApplyElectrical {
+                        id,
+                        base_revision: plan.revision,
+                        plan,
+                        draft,
                     }
-                    ExportCommitRequest::ProtectElectricalHandoff { plan } => {
-                        CoreRequest::ProtectElectricalHandoff {
-                            id: request_wire_id.clone(),
-                            base_revision: plan.revision,
-                            board_id: owner.scope.board_id,
-                            plan,
-                        }
-                    }
-                };
-                (request, ActiveKind::ExportCommit, None)
-            }
-            DocumentCommand::Undo => (
-                CoreRequest::Undo {
-                    id: request_wire_id.clone(),
-                },
-                ActiveKind::Undo,
-                None,
-            ),
-            DocumentCommand::Redo => (
-                CoreRequest::Redo {
-                    id: request_wire_id.clone(),
-                },
-                ActiveKind::Redo,
-                None,
-            ),
-            DocumentCommand::GesturePreview(command) => (
-                CoreRequest::Edit {
-                    id: request_wire_id.clone(),
-                    command,
-                },
-                ActiveKind::Preview,
-                self.gesture.as_ref().map(|g| g.generation),
-            ),
-            DocumentCommand::ClearPreview { .. } => return,
-            DocumentCommand::GestureCommit(mut command) => {
-                if let Some(g) = &self.gesture {
-                    command.base_revision = g.base_revision;
-                    command.transaction_id = g.transaction_id.clone();
                 }
-                (
-                    CoreRequest::Edit {
-                        id: request_wire_id.clone(),
-                        command,
-                    },
-                    ActiveKind::GestureCommit,
-                    self.gesture.as_ref().map(|g| g.generation),
-                )
-            }
-        };
-        self.model.lifecycle = if kind == ActiveKind::Open {
-            Lifecycle::Opening
-        } else {
-            Lifecycle::Applying
+                ExportCommitRequest::ProtectElectricalHandoff { plan } => {
+                    CoreRequest::ProtectElectricalHandoff {
+                        id,
+                        base_revision: plan.revision,
+                        board_id: owner.scope.board_id,
+                        plan,
+                    }
+                }
+            },
+            DocumentCommand::Undo => CoreRequest::Undo { id },
+            DocumentCommand::Redo => CoreRequest::Redo { id },
+            _ => unreachable!("local commands are handled before calling Core"),
         };
         let reply = self.core.handle(request);
         self.apply_core_reply(
             CoreAction {
                 operation_id,
-                kind,
+                opening,
                 gesture_generation,
                 preview_transaction_id,
                 export_owner,
@@ -1966,33 +1897,18 @@ impl Session {
             );
             return;
         }
-        match (active.kind, reply) {
-            (ActiveKind::Preview, CoreReply::Preview { scene, .. }) => {
+        match reply {
+            CoreReply::Preview { scene, .. } if active.preview_transaction_id.is_some() => {
                 self.model.lifecycle = Lifecycle::Ready;
-                if active.gesture_generation.is_none_or(|generation| {
-                    self.gesture
-                        .as_ref()
-                        .is_some_and(|g| g.generation == generation)
-                }) {
-                    self.model.display_preview = Some(Arc::new(scene));
-                    self.display_preview_transaction_id = active.preview_transaction_id.clone();
-                }
+                self.model.display_preview = Some(Arc::new(scene));
+                self.display_preview_transaction_id = active.preview_transaction_id;
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
                 }
             }
-            (
-                ActiveKind::Open
-                | ActiveKind::Commit
-                | ActiveKind::ReviewElectricalRemap
-                | ActiveKind::ExportCommit
-                | ActiveKind::Undo
-                | ActiveKind::Redo
-                | ActiveKind::GestureCommit,
-                CoreReply::Scene {
-                    scene, document, ..
-                },
-            ) => {
+            CoreReply::Scene {
+                scene, document, ..
+            } if active.preview_transaction_id.is_none() => {
                 let document = Arc::new(*document);
                 if scene.revision != document.revision {
                     self.model.lifecycle = Lifecycle::RecoveryRequired;
@@ -2006,7 +1922,7 @@ impl Session {
                     );
                     return;
                 }
-                let is_open = active.kind == ActiveKind::Open;
+                let is_open = active.opening;
                 let epoch = if is_open {
                     SessionEpoch(self.epoch().0 + 1)
                 } else {
@@ -2056,7 +1972,7 @@ impl Session {
                 self.finish_gesture_commit(None, true, effects);
                 self.start_save(is_open.then_some(active.operation_id), effects);
             }
-            (_, CoreReply::Error { message, .. }) => {
+            CoreReply::Error { message, .. } => {
                 self.model.last_error = Some(message.clone());
                 self.settle(
                     active.operation_id,
