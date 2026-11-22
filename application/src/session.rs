@@ -460,7 +460,6 @@ pub enum Completion {
         operation_id: OperationId,
         token: SnapshotToken,
         scope: Scope,
-        artifact_id: String,
     },
     ExportFailed {
         operation_id: OperationId,
@@ -507,11 +506,6 @@ pub enum Effect {
         operation_id: OperationId,
         scope: Scope,
         snapshot: AcceptedSnapshot,
-    },
-    DeliverExport {
-        operation_id: OperationId,
-        artifact_id: String,
-        token: SnapshotToken,
     },
 }
 
@@ -1856,7 +1850,6 @@ impl Session {
                 operation_id,
                 token,
                 scope,
-                artifact_id,
             } => {
                 let valid = self
                     .exports
@@ -1867,11 +1860,6 @@ impl Session {
                     && self.snapshot_matches(token, &scope);
                 self.exports.retain(|(op, _, _)| *op != operation_id);
                 if valid {
-                    effects.push(Effect::DeliverExport {
-                        operation_id,
-                        artifact_id,
-                        token,
-                    });
                     self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
                 } else {
                     self.settle(operation_id, TerminalOutcome::Cancelled, &mut effects);

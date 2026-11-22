@@ -37,9 +37,6 @@ pub fn take_deliveries(runtime: &Runtime) -> Vec<DeliveredArtifact> {
 pub fn session_model(runtime: &Runtime) -> ReadModel {
     runtime.model()
 }
-pub fn has_artifacts(runtime: &Runtime) -> bool {
-    test_hooks::has_artifacts(runtime)
-}
 
 fn definition(
     id: &str,

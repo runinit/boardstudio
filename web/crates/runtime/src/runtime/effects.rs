@@ -281,10 +281,6 @@ impl Runtime {
                 );
                 let lease = self.exports.borrow_mut().remove(&operation_id);
                 let kind = lease.as_ref().map(|state| &state.kind);
-                let delivery_error = self
-                    .export_delivery_errors
-                    .borrow_mut()
-                    .remove(&operation_id);
                 let current = lease
                     .as_ref()
                     .is_none_or(|lease| self.export_source_is_current(lease))
@@ -294,7 +290,7 @@ impl Runtime {
                     if outcome == TerminalOutcome::Superseded && observed {
                         self.changed();
                     }
-                    if let Some(report) = terminal_report(outcome, kind, delivery_error) {
+                    if let Some(report) = terminal_report(outcome, kind) {
                         self.apply_report(report);
                     }
                 }
@@ -421,7 +417,6 @@ impl Runtime {
                 });
                 match result {
                     Ok((bytes, delivery_token)) => {
-                        let artifact_id = format!("archive-{}", operation_id.0);
                         let name = &snapshot.document.name;
                         let (filename, media_type) =
                             match kind.expect("successful export has a kind") {
@@ -459,62 +454,29 @@ impl Runtime {
                                     (crate::archive_export::archive_filename(name), None)
                                 }
                             };
-                        self.artifacts.borrow_mut().insert(
-                            artifact_id.clone(),
-                            Artifact {
+                        if let Err(reason) = self.deliver_export(&bytes, &filename, media_type) {
+                            return self.complete(Completion::ExportFailed {
                                 operation_id,
-                                bytes,
-                                filename,
-                                media_type: media_type.map(str::to_owned),
-                                scope: scope.clone(),
-                                token: delivery_token,
-                                board_outline: is_board_outline_export,
-                            },
-                        );
-                        self.complete(Completion::ExportFinished {
+                                reason,
+                            });
+                        }
+                        let effects = self.complete(Completion::ExportFinished {
                             operation_id,
                             token: delivery_token,
-                            scope: scope.clone(),
-                            artifact_id,
-                        })
+                            scope,
+                        });
+                        if is_board_outline_export {
+                            self.apply_report(
+                                RuntimeReport::status(format!("Saved {filename}.")).transient(),
+                            );
+                        }
+                        effects
                     }
                     Err(reason) => self.complete(Completion::ExportFailed {
                         operation_id,
                         reason,
                     }),
                 }
-            }
-            Effect::DeliverExport {
-                artifact_id, token, ..
-            } => {
-                let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
-                if let Some(artifact) = artifact
-                    && token == artifact.token
-                    && self.export_delivery_is_current(
-                        artifact.operation_id,
-                        token,
-                        &artifact.scope,
-                    )
-                {
-                    match self.deliver_artifact(&artifact) {
-                        Ok(()) if artifact.board_outline => {
-                            self.apply_report(
-                                RuntimeReport::status(format!("Saved {}.", artifact.filename))
-                                    .transient(),
-                            );
-                        }
-                        Ok(()) => {}
-                        Err(error) if artifact.board_outline => {
-                            self.apply_report(RuntimeReport::alert(error).transient());
-                        }
-                        Err(error) => {
-                            self.export_delivery_errors
-                                .borrow_mut()
-                                .insert(artifact.operation_id, error);
-                        }
-                    }
-                }
-                vec![]
             }
             Effect::RunGeneration {
                 job_id,
@@ -535,15 +497,9 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.exports.borrow_mut().remove(&operation_id);
-                self.export_delivery_errors
-                    .borrow_mut()
-                    .remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
-                self.artifacts
-                    .borrow_mut()
-                    .remove(&format!("archive-{}", operation_id.0));
                 vec![]
             }
         }

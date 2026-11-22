@@ -347,7 +347,6 @@ mod tests {
         );
         button.click();
         assert!(runtime_test::take_effects(&runtime).is_empty());
-        assert!(!runtime_test::has_artifacts(&runtime));
         root.remove();
     }
 

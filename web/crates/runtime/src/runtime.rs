@@ -102,16 +102,6 @@ use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
-struct Artifact {
-    operation_id: OperationId,
-    bytes: Vec<u8>,
-    filename: String,
-    media_type: Option<String>,
-    scope: Scope,
-    token: SnapshotToken,
-    board_outline: bool,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeReportSeverity {
     Status,
@@ -167,18 +157,11 @@ impl RuntimeReport {
     }
 }
 
-fn terminal_report(
-    outcome: TerminalOutcome,
-    export: Option<&ExportKind>,
-    delivery_error: Option<String>,
-) -> Option<RuntimeReport> {
+fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Option<RuntimeReport> {
     let (message, alert, transient) = match outcome {
         TerminalOutcome::Completed => match export? {
             ExportKind::BoardOutline { .. } => return None,
             kind => {
-                if let Some(error) = delivery_error {
-                    return Some(RuntimeReport::alert(error).transient());
-                }
                 let status = match kind {
                     ExportKind::Firmware => "Saved locally.",
                     ExportKind::ProjectCopy { .. } => "Project copy downloaded.",
@@ -358,7 +341,6 @@ pub struct Runtime {
     before_unload: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
-    artifacts: RefCell<BTreeMap<String, Artifact>>,
     exports: RefCell<BTreeMap<OperationId, ExportState>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
@@ -377,7 +359,6 @@ pub struct Runtime {
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     latest_firmware_export: Cell<Option<OperationId>>,
-    export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
@@ -527,7 +508,6 @@ impl Runtime {
             before_unload: RefCell::default(),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
-            artifacts: RefCell::new(BTreeMap::new()),
             exports: RefCell::default(),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
@@ -547,7 +527,6 @@ impl Runtime {
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
-            export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),

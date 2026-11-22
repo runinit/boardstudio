@@ -25,9 +25,6 @@ pub fn store(runtime: &Runtime) -> BrowserStore {
 pub fn clear_saved_tokens(runtime: &Runtime) {
     runtime.saved_tokens.borrow_mut().clear();
 }
-pub fn has_artifacts(runtime: &Runtime) -> bool {
-    !runtime.artifacts.borrow().is_empty()
-}
 
 pub fn install(
     runtime: &Runtime,

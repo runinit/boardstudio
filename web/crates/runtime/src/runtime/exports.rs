@@ -523,21 +523,18 @@ impl Runtime {
                 .as_ref()
                 .is_some_and(|s| s.token == token)
     }
-    pub(super) fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
+    pub(super) fn deliver_export(
+        &self,
+        bytes: &[u8],
+        filename: &str,
+        media_type: Option<&str>,
+    ) -> Result<(), String> {
         #[cfg(any(test, feature = "test-support"))]
         if let Some(adapters) = self.in_process_adapters.borrow().as_ref() {
-            adapters.deliver(
-                &artifact.bytes,
-                &artifact.filename,
-                artifact.media_type.as_deref(),
-            );
+            adapters.deliver(bytes, filename, media_type);
             return Ok(());
         }
-        deliver(
-            &artifact.bytes,
-            &artifact.filename,
-            artifact.media_type.as_deref(),
-        )
+        deliver(bytes, filename, media_type)
     }
     pub(super) async fn generate(
         self: &Rc<Self>,
