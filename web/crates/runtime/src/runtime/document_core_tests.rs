@@ -18,6 +18,34 @@ fn runtime_with_core(core: DocumentCore) -> Rc<Runtime> {
 
 pub(super) mod profile;
 
+#[wasm_bindgen_test]
+async fn public_constructor_keeps_document_core_when_auxiliary_worker_is_closed() {
+    let runtime = Runtime::new(CoreServices::engine()).unwrap();
+    runtime.core.borrow().close();
+    for _ in 0..200 {
+        if !runtime.storage_initializing.get() {
+            break;
+        }
+        TimeoutFuture::new(1).await;
+    }
+    assert!(!runtime.storage_initializing.get());
+    let id = format!("public-constructor-{}", browser_uuid().unwrap());
+    assert_eq!(
+        wait_for_outcome(&open(&runtime, &id)).await,
+        TerminalOutcome::Completed
+    );
+    let edit = rename(&runtime, "Public constructor edit");
+    assert_eq!(
+        wait_for_outcome(&runtime.observe_operation(edit.operation())).await,
+        TerminalOutcome::Completed
+    );
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.name,
+        "Public constructor edit"
+    );
+    runtime.store.delete_project(id).await.unwrap();
+}
+
 async fn wait_for_outcome(outcome: &crate::operation_outcomes::OutcomeSlot) -> TerminalOutcome {
     for _ in 0..200 {
         if let Some(outcome) = outcome.borrow().clone() {

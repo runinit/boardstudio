@@ -11,8 +11,8 @@ pub type DocumentCore = Box<dyn FnMut(CoreRequest) -> CoreReply>;
 /// the Session or the worker executor.
 pub type ScratchCore = DocumentCore;
 
-/// Opens a fresh [`ScratchCore`] for a read-only probe (a reviewed link's two-half result or
-/// an anchor pick's post-commit poses).
+/// Creates a fresh engine for the document or a read-only scratch probe (a reviewed link's
+/// two-half result or an anchor pick's post-commit poses).
 pub type OpenScratchCore = fn() -> ScratchCore;
 
 #[derive(Clone, Copy)]

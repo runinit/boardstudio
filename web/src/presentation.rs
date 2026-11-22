@@ -229,13 +229,7 @@ pub(crate) fn core_services() -> CoreServices {
 
 #[component]
 fn WorkbenchApp() -> Element {
-    let runtime = use_hook(|| {
-        let mut engine = boardstudio_core::CoreEngine::new();
-        Runtime::new_with_document_core(
-            core_services(),
-            Box::new(move |request| engine.handle(request)),
-        )
-    });
+    let runtime = use_hook(|| Runtime::new(core_services()));
     let runtime = match runtime {
         Ok(runtime) => runtime,
         Err(error) => return rsx! { main { role: "alert", "Browser startup failed: {error}" } },

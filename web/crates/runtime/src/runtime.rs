@@ -422,16 +422,10 @@ mod sources;
 use mechanical_export::authored_case_filename;
 
 impl Runtime {
+    /// Keep one injected engine for the document; scratch probes create their own engines.
+    /// Archive and artifact work remains on the auxiliary Core worker.
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
-        Self::new_with_restoration(true, core_services, None)
-    }
-
-    /// Host Session's document and history in the page's injected Core. The worker
-    /// continues to run requests that carry their own inputs, archives and artifacts.
-    pub fn new_with_document_core(
-        core_services: CoreServices,
-        document_core: DocumentCore,
-    ) -> Result<Rc<Self>, String> {
+        let document_core = (core_services.open_scratch)();
         Self::new_with_restoration(true, core_services, Some(document_core))
     }
 
