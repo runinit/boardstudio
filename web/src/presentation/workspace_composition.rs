@@ -67,72 +67,62 @@ pub(super) enum WorkspaceInspectorInput {
     Parts(Box<super::parts_workspace::InspectorInput>),
 }
 
-pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
-    match input {
-        WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(*input),
-        WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(*input),
-        WorkspaceObjectsInput::Keymap(input) => super::keymap_workspace::objects(input),
-        WorkspaceObjectsInput::Keycaps(input) => super::keycaps_workspace::objects(input),
-        WorkspaceObjectsInput::Case(input) => super::case_workspace::objects(*input),
-        WorkspaceObjectsInput::Parts(input) => super::parts_workspace::objects(input),
+pub(super) fn objects(i: WorkspaceObjectsInput<'_>) -> Element {
+    match i {
+        WorkspaceObjectsInput::Layout(i) => super::layout_workspace::objects(*i),
+        WorkspaceObjectsInput::Pcb(i) => super::pcb_workspace::objects(*i),
+        WorkspaceObjectsInput::Keymap(i) => super::keymap_workspace::objects(i),
+        WorkspaceObjectsInput::Keycaps(i) => super::keycaps_workspace::objects(i),
+        WorkspaceObjectsInput::Case(i) => super::case_workspace::objects(*i),
+        WorkspaceObjectsInput::Parts(i) => super::parts_workspace::objects(i),
     }
 }
 
-pub(super) fn toolbar(input: WorkspaceToolbarInput) -> Element {
-    match input {
-        WorkspaceToolbarInput::Layout(input) => super::layout_workspace::toolbar(*input),
-        WorkspaceToolbarInput::Pcb(input) => super::pcb_workspace::toolbar(*input),
-        WorkspaceToolbarInput::Keymap(input) => super::keymap_workspace::toolbar(input),
-        WorkspaceToolbarInput::Keycaps(input) => super::keycaps_workspace::toolbar(input),
+pub(super) fn toolbar(i: WorkspaceToolbarInput) -> Element {
+    match i {
+        WorkspaceToolbarInput::Layout(i) => super::layout_workspace::toolbar(*i),
+        WorkspaceToolbarInput::Pcb(i) => super::pcb_workspace::toolbar(*i),
+        WorkspaceToolbarInput::Keymap(i) => super::keymap_workspace::toolbar(i),
+        WorkspaceToolbarInput::Keycaps(i) => super::keycaps_workspace::toolbar(i),
         WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
         WorkspaceToolbarInput::Parts => super::parts_workspace::toolbar(),
         WorkspaceToolbarInput::Export | WorkspaceToolbarInput::Other => rsx! {},
     }
 }
 
-/// Layout's pointer-transaction SVG stays inline with its existing Editor-owned
-/// handlers. Other workspaces mount their current content here.
-pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
-    match input {
-        WorkspaceCanvasInput::Pcb(input) => super::pcb_workspace::canvas(*input),
-        WorkspaceCanvasInput::Keymap(input) => super::keymap_workspace::canvas(*input),
-        WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(*input),
-        WorkspaceCanvasInput::Case(input) => super::case_workspace::canvas(*input),
-        WorkspaceCanvasInput::Parts(input) => super::parts_workspace::preview(input),
-        WorkspaceCanvasInput::Other(input) => super::parts_workspace::canvas(input),
+pub(super) fn canvas(i: WorkspaceCanvasInput) -> Element {
+    match i {
+        WorkspaceCanvasInput::Pcb(i) => super::pcb_workspace::canvas(*i),
+        WorkspaceCanvasInput::Keymap(i) => super::keymap_workspace::canvas(*i),
+        WorkspaceCanvasInput::Keycaps(i) => super::keycaps_workspace::canvas(*i),
+        WorkspaceCanvasInput::Case(i) => super::case_workspace::canvas(*i),
+        WorkspaceCanvasInput::Parts(i) => super::parts_workspace::preview(i),
+        WorkspaceCanvasInput::Other(i) => super::parts_workspace::canvas(i),
     }
 }
 
-pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
-    match input {
-        WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(*input),
-        WorkspaceInspectorInput::Pcb(Some(input)) => rsx! {
-            super::pcb_workspace::PcbInspector { selected: input.source.active_part_id.is_some(),
-            super::pcb_wiring::PcbWiringInspector {
-                board_overview: true,
-                source: input.source,
-                resolution: input.resolution,
-                firmware_positions: input.firmware_positions,
-                firmware_feedback: input.firmware_feedback,
-                firmware_controls: input.firmware_controls,
-                part_net_actions: input.part_net_actions,
-                part_input_actions: input.part_input_actions,
-                on_firmware_edit: input.on_firmware_edit,
-                on_resolve: input.on_resolve,
-                on_choose_controller: input.on_choose_controller,
-                on_edit_board_wiring: input.on_edit_board_wiring,
-                mode_actions: input.mode_actions,
-                pin_actions: input.pin_actions,
-                apply_actions: input.apply_actions,
-                protected_remap_actions: input.protected_remap_actions,
-            }
+pub(super) fn inspector(i: WorkspaceInspectorInput) -> Element {
+    match i {
+        WorkspaceInspectorInput::Layout(i) => super::layout_workspace::inspector(*i),
+        WorkspaceInspectorInput::Pcb(Some(i)) => rsx! {
+            super::pcb_workspace::PcbInspector { selected: i.source.active_part_id.is_some(),
+                super::pcb_wiring::PcbWiringInspector {
+                    board_overview: true, source: i.source, resolution: i.resolution,
+                    firmware_positions: i.firmware_positions, firmware_feedback: i.firmware_feedback,
+                    firmware_controls: i.firmware_controls, part_net_actions: i.part_net_actions,
+                    part_input_actions: i.part_input_actions, on_firmware_edit: i.on_firmware_edit,
+                    on_resolve: i.on_resolve, on_choose_controller: i.on_choose_controller,
+                    on_edit_board_wiring: i.on_edit_board_wiring, mode_actions: i.mode_actions,
+                    pin_actions: i.pin_actions, apply_actions: i.apply_actions,
+                    protected_remap_actions: i.protected_remap_actions,
+                }
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),
-        WorkspaceInspectorInput::PcbModule(input) => super::pcb_module_inspector::inspector(*input),
-        WorkspaceInspectorInput::Keymap(input) => super::keymap_workspace::inspector(*input),
-        WorkspaceInspectorInput::Keycaps(input) => super::keycaps_workspace::inspector(*input),
-        WorkspaceInspectorInput::Case(input) => super::case_workspace::inspector(*input),
-        WorkspaceInspectorInput::Parts(input) => super::parts_workspace::inspector(*input),
+        WorkspaceInspectorInput::PcbModule(i) => super::pcb_module_inspector::inspector(*i),
+        WorkspaceInspectorInput::Keymap(i) => super::keymap_workspace::inspector(*i),
+        WorkspaceInspectorInput::Keycaps(i) => super::keycaps_workspace::inspector(*i),
+        WorkspaceInspectorInput::Case(i) => super::case_workspace::inspector(*i),
+        WorkspaceInspectorInput::Parts(i) => super::parts_workspace::inspector(*i),
     }
 }

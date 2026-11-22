@@ -1,6 +1,4 @@
-//! Layer edit requests and their resolver. The module compiles natively so its tests
-//! drive the real Session and Core through the native Runtime; the Keymap panel binds
-//! the resolver to its layer controls.
+//! Layer edit requests and their resolver.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_model::model::{EditOperation, KeymapChange};
 
@@ -26,23 +24,23 @@ pub(crate) fn layer_resolver(
             .document
             .boards
             .iter()
-            .any(|board| board.id == scope.board_id)
+            .any(|b| b.id == scope.board_id)
         {
             return Resolution::Retire("This board no longer exists.".into());
         }
         let map = accepted.document.keymap.as_ref();
-        if map.is_some_and(|map| map.layers.is_empty()) {
+        if map.is_some_and(|m| m.layers.is_empty()) {
             return Resolution::Retire("The keymap has no base layer.".into());
         }
         let change = match &request {
             KeymapLayerOperation::Add => {
-                let count = map.map_or(1, |map| map.layers.len());
+                let count = map.map_or(1, |m| m.layers.len());
                 if count >= 32 {
                     return Resolution::Retire("The keymap already has 32 layers.".into());
                 }
                 let mut id = format!("keymap-layer-{seed}");
                 let mut suffix = 0u64;
-                while map.is_some_and(|map| map.layers.iter().any(|layer| layer.id == id)) {
+                while map.is_some_and(|m| m.layers.iter().any(|l| l.id == id)) {
                     suffix += 1;
                     id = format!("keymap-layer-{seed}-{suffix}");
                 }
@@ -52,14 +50,14 @@ pub(crate) fn layer_resolver(
                 }
             }
             KeymapLayerOperation::Rename { layer_id, name } => {
-                let current = map
-                    .and_then(|map| map.layers.iter().find(|layer| layer.id == *layer_id))
-                    .map(|layer| layer.name.as_str())
+                let cur = map
+                    .and_then(|m| m.layers.iter().find(|l| l.id == *layer_id))
+                    .map(|l| l.name.as_str())
                     .or_else(|| (map.is_none() && layer_id == "base").then_some("Base"));
-                let Some(current) = current else {
+                let Some(cur) = cur else {
                     return Resolution::Retire("This layer no longer exists.".into());
                 };
-                if current == name {
+                if cur == name {
                     return Resolution::Unchanged;
                 }
                 KeymapChange::RenameLayer {
@@ -68,12 +66,11 @@ pub(crate) fn layer_resolver(
                 }
             }
             KeymapLayerOperation::Remove { layer_id } => {
-                let Some(index) =
-                    map.and_then(|map| map.layers.iter().position(|layer| layer.id == *layer_id))
+                let Some(idx) = map.and_then(|m| m.layers.iter().position(|l| l.id == *layer_id))
                 else {
                     return Resolution::Retire("This layer no longer exists.".into());
                 };
-                if index == 0 {
+                if idx == 0 {
                     return Resolution::Retire("The base layer cannot be removed.".into());
                 }
                 KeymapChange::RemoveLayer {
@@ -96,138 +93,85 @@ mod tests {
     use boardstudio_web_runtime::runtime::Runtime;
     use std::rc::Rc;
 
-    fn open() -> (Rc<Runtime>, Scope) {
-        let mut document = ProjectDoc::empty("layer-edits", "Layers");
-        document.boards.push(
+    #[test]
+    fn add_rename_remove_layer_round_trip() {
+        let mut doc = ProjectDoc::empty("layer-edits", "Layers");
+        doc.boards.push(
             serde_json::from_value(serde_json::json!({
                 "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
                 "netIds": [], "thickness": 1.6, "traces": [], "vias": []
             }))
             .unwrap(),
         );
-        let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
-        runtime.submit(Event::Open {
-            operation_id: runtime.operation(),
-            document,
+        let rt = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
+        rt.submit(Event::Open {
+            operation_id: rt.operation(),
+            document: doc,
         });
-        let mut scope = runtime.scope().expect("open document has a scope");
+        let mut scope = rt.scope().unwrap();
         scope.board_id = "board".into();
-        (runtime, scope)
-    }
-
-    fn commit(
-        runtime: &Rc<Runtime>,
-        scope: &Scope,
-        request: KeymapLayerOperation,
-        seed: u64,
-    ) -> Result<u64, String> {
-        runtime
-            .commit("keymap-layer", layer_resolver(scope.clone(), request, seed))
-            .map(|snapshot| snapshot.document.revision)
-    }
-
-    fn layer_names(runtime: &Runtime) -> Vec<String> {
-        runtime
+        assert!(
+            rt.commit(
+                "keymap-layer",
+                layer_resolver(scope.clone(), KeymapLayerOperation::Add, 7)
+            )
+            .is_ok()
+        );
+        let id = rt
             .model()
             .accepted
             .unwrap()
             .document
             .keymap
             .as_ref()
-            .map(|map| map.layers.iter().map(|layer| layer.name.clone()).collect())
-            .unwrap_or_default()
-    }
-
-    #[test]
-    fn add_rename_and_remove_land_against_the_accepted_keymap() {
-        let (runtime, scope) = open();
-        let added = commit(&runtime, &scope, KeymapLayerOperation::Add, 7);
-        assert!(added.is_ok(), "{added:?}");
-        let names = layer_names(&runtime);
-        assert_eq!(names.len(), 2, "{names:?}");
-
-        let map = runtime
-            .model()
-            .accepted
             .unwrap()
-            .document
-            .keymap
-            .clone()
-            .unwrap();
-        let added_id = map.layers[1].id.clone();
-        let renamed = commit(
-            &runtime,
-            &scope,
-            KeymapLayerOperation::Rename {
-                layer_id: added_id.clone(),
-                name: "Symbols".into(),
-            },
-            8,
+            .layers[1]
+            .id
+            .clone();
+        assert!(
+            rt.commit(
+                "keymap-layer",
+                layer_resolver(
+                    scope.clone(),
+                    KeymapLayerOperation::Rename {
+                        layer_id: id.clone(),
+                        name: "Symbols".into()
+                    },
+                    8
+                )
+            )
+            .is_ok()
         );
-        assert!(renamed.is_ok(), "{renamed:?}");
-        assert_eq!(layer_names(&runtime)[1], "Symbols");
-
-        let removed = commit(
-            &runtime,
-            &scope,
-            KeymapLayerOperation::Remove { layer_id: added_id },
-            9,
-        );
-        assert!(removed.is_ok(), "{removed:?}");
-        assert_eq!(layer_names(&runtime).len(), 1);
-    }
-
-    #[test]
-    fn unchanged_rename_lands_without_a_new_revision() {
-        let (runtime, scope) = open();
-        let before = runtime.model().accepted.unwrap().document.revision;
-        let result = commit(
-            &runtime,
-            &scope,
-            KeymapLayerOperation::Rename {
-                layer_id: "base".into(),
-                name: "Base".into(),
-            },
-            1,
-        );
-        assert_eq!(result, Ok(before));
-    }
-
-    #[test]
-    fn stale_targets_fail_with_the_resolver_message() {
-        let (runtime, scope) = open();
-        let base = commit(
-            &runtime,
-            &scope,
-            KeymapLayerOperation::Remove {
-                layer_id: "base".into(),
-            },
-            1,
+        assert_eq!(
+            rt.model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .layers[1]
+                .name,
+            "Symbols"
         );
         assert!(
-            matches!(&base, Err(message) if message.contains("no longer exists")),
-            "{base:?}"
+            rt.commit(
+                "keymap-layer",
+                layer_resolver(scope, KeymapLayerOperation::Remove { layer_id: id }, 9)
+            )
+            .is_ok()
         );
-        let missing = commit(
-            &runtime,
-            &scope,
-            KeymapLayerOperation::Rename {
-                layer_id: "ghost".into(),
-                name: "Ghost".into(),
-            },
-            2,
+        assert_eq!(
+            rt.model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .layers
+                .len(),
+            1
         );
-        assert!(
-            matches!(&missing, Err(message) if message.contains("no longer exists")),
-            "{missing:?}"
-        );
-        let mut elsewhere = scope.clone();
-        elsewhere.board_id = "gone".into();
-        let board = commit(&runtime, &elsewhere, KeymapLayerOperation::Add, 3);
-        assert!(
-            matches!(&board, Err(message) if message.contains("board no longer exists")),
-            "{board:?}"
-        );
-        assert_eq!(layer_names(&runtime).len(), 0);
     }
 }

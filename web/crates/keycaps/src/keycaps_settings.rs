@@ -1,880 +1,21 @@
-//! Editor-owned keycap settings edits and exact-operation feedback.
-use super::keycaps_scene::{self, KeycapsKey, KeycapsView};
+//! Declarative keycap settings editors backed directly by synchronous `runtime.commit`.
+use super::keycaps_scene::{KeycapsKey, KeycapsView};
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::input::InputType;
-use dioxus::prelude::*;
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
-
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub enum KeycapEditField {
-    BoardColor,
-    BoardLegendColor,
-    BoardClearance,
-    MatrixProfile,
-    MatrixMount,
-    MatrixFirstRow,
-    MatrixWallThickness,
-    Legend,
-    Color,
-    Profile,
-    Mount,
-    Row,
-    UnitsWidth,
-    UnitsDepth,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum KeycapEditChange {
-    BoardColor(String),
-    BoardLegendColor(String),
-    BoardClearance(f64),
-    MatrixProfile(Option<KeycapProfile>),
-    MatrixMount(Option<KeycapMount>),
-    MatrixFirstRow(u8),
-    MatrixWallThickness(f64),
-    Legend(Option<String>),
-    Color(Option<String>),
-    Profile(Option<KeycapProfile>),
-    Mount(Option<KeycapMount>),
-    Row(Option<u8>),
-    UnitsWidth(f64),
-    UnitsDepth(f64),
-    ClearUnits(KeycapEditField),
-}
-
-impl KeycapEditChange {
-    fn field(&self) -> KeycapEditField {
-        match self {
-            Self::BoardColor(_) => KeycapEditField::BoardColor,
-            Self::BoardLegendColor(_) => KeycapEditField::BoardLegendColor,
-            Self::BoardClearance(_) => KeycapEditField::BoardClearance,
-            Self::MatrixProfile(_) => KeycapEditField::MatrixProfile,
-            Self::MatrixMount(_) => KeycapEditField::MatrixMount,
-            Self::MatrixFirstRow(_) => KeycapEditField::MatrixFirstRow,
-            Self::MatrixWallThickness(_) => KeycapEditField::MatrixWallThickness,
-            Self::Legend(_) => KeycapEditField::Legend,
-            Self::Color(_) => KeycapEditField::Color,
-            Self::Profile(_) => KeycapEditField::Profile,
-            Self::Mount(_) => KeycapEditField::Mount,
-            Self::Row(_) => KeycapEditField::Row,
-            Self::UnitsWidth(_) => KeycapEditField::UnitsWidth,
-            Self::UnitsDepth(_) => KeycapEditField::UnitsDepth,
-            Self::ClearUnits(field) => field.clone(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub enum KeycapsEditTarget {
-    Board,
-    Matrix(String),
-    Key(String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum KeycapsEditBaseline {
-    Board(KeycapBoardSettings),
-    Matrix(KeycapMatrixSettings),
-    Key(KeycapKeySettings),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeycapsEditSource {
-    pub scope: Scope,
-    pub token: SnapshotToken,
-    pub revision: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeycapsEditRequest {
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-    pub editor_instance_id: u64,
-    pub request_id: u64,
-    pub admission_token: SnapshotToken,
-    pub admission_revision: u64,
-    pub target: KeycapsEditTarget,
-    pub baseline: KeycapsEditBaseline,
-    pub change: KeycapEditChange,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeycapsRetryDraft {
-    pub editor_instance_id: u64,
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-    pub target: KeycapsEditTarget,
-    pub request_id: u64,
-    pub field: KeycapEditField,
-    pub change: KeycapEditChange,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct KeycapsRetryIdentity {
-    pub editor_instance_id: u64,
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-    pub target: KeycapsEditTarget,
-    pub request_id: u64,
-    pub field: KeycapEditField,
-}
-
-#[derive(Props, Clone, PartialEq)]
-pub struct KeycapsSettingsActions {
-    pub editor_instance_id: u64,
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
-    pub token: SnapshotToken,
-    pub revision: u64,
-    pub selected_key_id: String,
-    pub accepted_settings: KeycapKeySettings,
-    pub request_sequence: Signal<u64>,
-    pub retry_drafts: Rc<[KeycapsRetryDraft]>,
-    pub on_change: EventHandler<KeycapsEditRequest>,
-    pub on_retry: EventHandler<KeycapsRetryIdentity>,
-    pub on_discard: EventHandler<KeycapsRetryIdentity>,
-}
-
-#[derive(Clone, Copy)]
-struct KeycapsEditsContext {
-    legend_draft: Signal<String>,
-    legend_failure: Signal<Option<String>>,
-}
-
-/// The legend text an accepted keycap shows; none is the empty draft.
-fn accepted_legend_text(document: &ProjectDoc, key_id: &str) -> String {
-    settings_for_key(document, key_id)
-        .legend
-        .unwrap_or_default()
-}
-
-#[derive(Default)]
-struct OwnerTracker {
-    owner: Option<(Option<Scope>, u64, &'static str, Option<String>)>,
-    generation: u64,
-}
-
-impl OwnerTracker {
-    fn observe(
-        &mut self,
-        scope: Option<&Scope>,
-        scope_generation: u64,
-        workspace: &'static str,
-        selected_key_id: Option<&str>,
-    ) -> u64 {
-        let next = (
-            scope.cloned(),
-            scope_generation,
-            workspace,
-            selected_key_id.map(str::to_owned),
-        );
-        if self.owner.as_ref() != Some(&next) {
-            self.generation = self.generation.saturating_add(1);
-            self.owner = Some(next);
-        }
-        self.generation
-    }
-}
-
-/// Owns keycap edit admission for the Editor lifetime, including while the Keycaps workspace is
-/// hidden. Root calls this unconditionally and mounts the returned view actions in its Inspector.
-pub fn use_keycaps_settings_actions(
-    runtime: Rc<Runtime>,
-    source: Option<KeycapsEditSource>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-) -> Option<KeycapsSettingsActions> {
-    let editor_instance_id = use_hook({
-        let runtime = runtime.clone();
-        move || runtime.operation().0
-    });
-    let request_sequence = use_signal(|| 0_u64);
-    let last_request_id = use_signal(|| 0_u64);
-    let legend_draft = use_signal(String::new);
-    let legend_failure = use_signal(|| None::<String>);
-    use_context_provider(|| KeycapsEditsContext {
-        legend_draft,
-        legend_failure,
-    });
-    let mut retry_drafts =
-        use_signal(BTreeMap::<(KeycapsEditTarget, KeycapEditField), KeycapsRetryDraft>::new);
-    let owner_tracker = use_hook(|| Rc::new(RefCell::new(OwnerTracker::default())));
-    let selected_key_id = live_selected_key_id(&runtime);
-    let current_scope = runtime.scope();
-    let current_scope_generation = scope_generation();
-    let current_workspace = workspace();
-    let selection_generation = owner_tracker.borrow_mut().observe(
-        current_scope.as_ref(),
-        current_scope_generation,
-        current_workspace,
-        selected_key_id.as_deref(),
-    );
-    let obsolete_retry_fields: Vec<_> = {
-        let drafts = retry_drafts.read();
-        if let Some(scope) = current_scope.as_ref() {
-            drafts
-                .iter()
-                .filter(|(_, draft)| {
-                    draft_owner_mismatch(
-                        draft,
-                        editor_instance_id,
-                        scope,
-                        current_scope_generation,
-                        selection_generation,
-                        selected_key_id.as_deref(),
-                        current_workspace,
-                    )
-                })
-                .map(|(key, _)| key.clone())
-                .collect()
-        } else {
-            drafts.keys().cloned().collect()
-        }
-    };
-    if !obsolete_retry_fields.is_empty() {
-        let mut drafts = retry_drafts.write();
-        for field in obsolete_retry_fields {
-            drafts.remove(&field);
-        }
-    }
-    let active_source = source.clone();
-    let accepted_settings = runtime
-        .model()
-        .accepted
-        .map(|snapshot| {
-            settings_for_key(
-                &snapshot.document,
-                selected_key_id.as_deref().unwrap_or_default(),
-            )
-        })
-        .unwrap_or_default();
-
-    let on_change = use_callback({
-        let runtime = runtime.clone();
-        let source = active_source.clone();
-        let owner_tracker = owner_tracker.clone();
-        let mut legend_draft = legend_draft;
-        let mut legend_failure = legend_failure;
-        let mut retry_drafts = retry_drafts;
-        let mut last_request_id = last_request_id;
-        move |request: KeycapsEditRequest| {
-            if request.request_id <= last_request_id() {
-                return;
-            }
-            last_request_id.set(request.request_id);
-            let live_key_id = live_selected_key_id(&runtime);
-            let live_scope = runtime.scope();
-            let live_scope_generation = scope_generation();
-            let live_workspace = workspace();
-            let live_selection_generation = owner_tracker.borrow_mut().observe(
-                live_scope.as_ref(),
-                live_scope_generation,
-                live_workspace,
-                live_key_id.as_deref(),
-            );
-            if !request_owner_is_current(
-                &request,
-                editor_instance_id,
-                live_scope.as_ref(),
-                live_scope_generation,
-                live_selection_generation,
-                live_key_id.as_deref(),
-                live_workspace,
-            ) {
-                return;
-            }
-            let Some(snapshot) = current_saved_snapshot(
-                &runtime,
-                source.as_ref(),
-                &request,
-                live_workspace,
-                live_selection_generation,
-            ) else {
-                return;
-            };
-            if !valid_edit_target(&snapshot, &request.scope, &request.target) {
-                return;
-            }
-            if edit_operation(
-                &snapshot.document,
-                &request.scope,
-                &request.target,
-                &request.change,
-            )
-            .is_none()
-            {
-                return;
-            }
-            remove_retry_draft_through(
-                &mut retry_drafts,
-                &request.target,
-                &request.change.field(),
-                request.request_id,
-            );
-            let result = commit_keycap_edit(&runtime, request.clone());
-            if let (KeycapsEditTarget::Key(id), KeycapEditChange::Legend(_)) =
-                (&request.target, &request.change)
-            {
-                if let Some(snapshot) = runtime.model().accepted {
-                    legend_draft.set(accepted_legend_text(&snapshot.document, id));
-                }
-                legend_failure.set(result.as_ref().err().cloned());
-            }
-            if let Err(message) = result {
-                keep_retry_draft(&mut retry_drafts, &request, message);
-            }
-        }
-    });
-
-    let on_retry = use_callback({
-        let mut request_sequence = request_sequence;
-        let retry_drafts = retry_drafts;
-        let source = active_source.clone();
-        let owner_tracker = owner_tracker.clone();
-        let runtime = runtime.clone();
-        move |identity: KeycapsRetryIdentity| {
-            let Some(draft) = retry_drafts
-                .read()
-                .get(&(identity.target.clone(), identity.field.clone()))
-                .cloned()
-            else {
-                return;
-            };
-            if !retry_identity_matches(&draft, &identity) {
-                return;
-            }
-            let live_key_id = live_selected_key_id(&runtime);
-            let live_scope = runtime.scope();
-            let live_scope_generation = scope_generation();
-            let live_workspace = workspace();
-            let live_selection_generation = owner_tracker.borrow_mut().observe(
-                live_scope.as_ref(),
-                live_scope_generation,
-                live_workspace,
-                live_key_id.as_deref(),
-            );
-            let (Some(scope), Some(source)) = (live_scope, source.as_ref()) else {
-                return;
-            };
-            if live_workspace != "Keycaps"
-                || source.scope != scope
-                || draft_owner_mismatch(
-                    &draft,
-                    editor_instance_id,
-                    &scope,
-                    live_scope_generation,
-                    live_selection_generation,
-                    live_key_id.as_deref(),
-                    live_workspace,
-                )
-            {
-                return;
-            }
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted else {
-                return;
-            };
-            if !valid_edit_target(&snapshot, &scope, &draft.target) {
-                return;
-            }
-            let Some(request_id) = request_sequence().checked_add(1) else {
-                return;
-            };
-            request_sequence.set(request_id);
-            let baseline = baseline_for_target(&snapshot.document, &scope, &draft.target);
-            on_change.call(KeycapsEditRequest {
-                scope: scope.clone(),
-                scope_generation: live_scope_generation,
-                selection_generation: live_selection_generation,
-                editor_instance_id,
-                request_id,
-                admission_token: snapshot.token,
-                admission_revision: snapshot.document.revision,
-                target: draft.target.clone(),
-                baseline,
-                change: draft.change,
-            });
-        }
-    });
-
-    let on_discard = use_callback({
-        let mut retry_drafts = retry_drafts;
-        let mut legend_failure = legend_failure;
-        let runtime = runtime.clone();
-        let owner_tracker = owner_tracker.clone();
-        move |identity: KeycapsRetryIdentity| {
-            let live_key_id = live_selected_key_id(&runtime);
-            let live_scope = runtime.scope();
-            let live_scope_generation = scope_generation();
-            let live_selection_generation = owner_tracker.borrow_mut().observe(
-                live_scope.as_ref(),
-                live_scope_generation,
-                workspace(),
-                live_key_id.as_deref(),
-            );
-            let Some(scope) = live_scope else {
-                return;
-            };
-            if !retry_identity_is_current(
-                &identity,
-                editor_instance_id,
-                &scope,
-                live_scope_generation,
-                live_selection_generation,
-                live_key_id.as_deref(),
-                workspace(),
-            ) {
-                return;
-            }
-            let mut drafts = retry_drafts.write();
-            if drafts
-                .get(&(identity.target.clone(), identity.field.clone()))
-                .is_some_and(|draft| retry_identity_matches(draft, &identity))
-            {
-                drafts.remove(&(identity.target.clone(), identity.field.clone()));
-            }
-            drop(drafts);
-            if identity.field == KeycapEditField::Legend {
-                legend_failure.set(None);
-            }
-        }
-    });
-
-    let source = source.filter(|source| {
-        current_workspace == "Keycaps" && current_scope.as_ref() == Some(&source.scope)
-    })?;
-    let drafts: Vec<_> = retry_drafts.read().values().cloned().collect();
-    Some(KeycapsSettingsActions {
-        editor_instance_id,
-        scope: source.scope,
-        scope_generation: current_scope_generation,
-        selection_generation,
-        token: source.token,
-        revision: source.revision,
-        selected_key_id: selected_key_id.unwrap_or_default(),
-        accepted_settings,
-        request_sequence,
-        retry_drafts: Rc::from(drafts),
-        on_change,
-        on_retry,
-        on_discard,
-    })
-}
-
-fn live_selected_key_id(runtime: &Runtime) -> Option<String> {
-    runtime.model().selected_part_ids.first().cloned()
-}
-
-fn settings_for_key(document: &ProjectDoc, key_id: &str) -> KeycapKeySettings {
-    document
-        .keycaps
-        .as_ref()
-        .and_then(|keycaps| keycaps.keys.get(key_id))
-        .cloned()
-        .unwrap_or_default()
-}
-
-fn baseline_for_target(
-    document: &ProjectDoc,
-    scope: &Scope,
-    target: &KeycapsEditTarget,
-) -> KeycapsEditBaseline {
-    match target {
-        KeycapsEditTarget::Board => KeycapsEditBaseline::Board(
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.boards.get(&scope.board_id))
-                .cloned()
-                .unwrap_or_default(),
-        ),
-        KeycapsEditTarget::Matrix(id) => KeycapsEditBaseline::Matrix(
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.matrices.get(id))
-                .cloned()
-                .unwrap_or_default(),
-        ),
-        KeycapsEditTarget::Key(id) => KeycapsEditBaseline::Key(settings_for_key(document, id)),
-    }
-}
-
-fn target_id(target: &KeycapsEditTarget, scope: &Scope) -> String {
-    match target {
-        KeycapsEditTarget::Board => scope.board_id.clone(),
-        KeycapsEditTarget::Matrix(id) | KeycapsEditTarget::Key(id) => id.clone(),
-    }
-}
-
-fn request_owner_is_current(
-    request: &KeycapsEditRequest,
-    editor_instance_id: u64,
-    scope: Option<&Scope>,
-    scope_generation: u64,
-    selection_generation: u64,
-    selected_key_id: Option<&str>,
-    workspace: &'static str,
-) -> bool {
-    let target_is_current = match &request.target {
-        KeycapsEditTarget::Board => {
-            request.scope.board_id == scope.map_or("", |s| s.board_id.as_str())
-        }
-        KeycapsEditTarget::Matrix(_) => {
-            request.scope.board_id == scope.map_or("", |s| s.board_id.as_str())
-        }
-        KeycapsEditTarget::Key(key_id) => {
-            request.selection_generation == selection_generation
-                && selected_key_id == Some(key_id.as_str())
-        }
-    };
-    workspace == "Keycaps"
-        && request.editor_instance_id == editor_instance_id
-        && scope == Some(&request.scope)
-        && request.scope_generation == scope_generation
-        && target_is_current
-}
-
-fn current_saved_snapshot(
-    runtime: &Runtime,
-    expected_source: Option<&KeycapsEditSource>,
-    request: &KeycapsEditRequest,
-    workspace: &'static str,
-    selection_generation: u64,
-) -> Option<AcceptedSnapshot> {
-    if workspace != "Keycaps"
-        || (matches!(request.target, KeycapsEditTarget::Key(_))
-            && request.selection_generation != selection_generation)
-    {
-        return None;
-    }
-    let expected = expected_source?;
-    let model = runtime.model();
-    let snapshot = model.accepted?;
-    (runtime.scope().as_ref() == Some(&request.scope)
-        && request.scope == expected.scope
-        && request.scope.session_epoch == snapshot.session_epoch
-        && request.scope.document_id == snapshot.document.id
-        && request.scope.board_id == model.active_board_id
-        && request.scope.instance_id == model.active_instance_id
-        && snapshot.token == request.admission_token
-        && snapshot.document.revision == request.admission_revision
-        && snapshot.token == expected.token
-        && snapshot.document.revision == expected.revision
-        && matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        )
-        && matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        && model.display_preview.is_none()
-        && model.gesture.is_none())
-    .then_some(snapshot)
-}
-
-fn valid_key_member(snapshot: &AcceptedSnapshot, scope: &Scope, key_id: &str) -> bool {
-    keycaps_scene::project(snapshot, scope, &scope.board_id)
-        .is_some_and(|view| view.keys.iter().any(|key| key.id.as_ref() == key_id))
-}
-
-fn valid_edit_target(
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-    target: &KeycapsEditTarget,
-) -> bool {
-    match target {
-        KeycapsEditTarget::Board => snapshot
-            .document
-            .boards
-            .iter()
-            .any(|b| b.id == scope.board_id),
-        KeycapsEditTarget::Matrix(matrix_id) => {
-            keycaps_scene::project(snapshot, scope, &scope.board_id).is_some_and(|view| {
-                view.matrices
-                    .iter()
-                    .any(|matrix| matrix.id.as_ref() == matrix_id)
-            })
-        }
-        KeycapsEditTarget::Key(key_id) => valid_key_member(snapshot, scope, key_id),
-    }
-}
-
-fn edit_operation(
-    document: &ProjectDoc,
-    scope: &Scope,
-    target: &KeycapsEditTarget,
-    change: &KeycapEditChange,
-) -> Option<EditOperation> {
-    match (target, change) {
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardColor(value)) => {
-            Some(EditOperation::SetKeycapBoard {
-                board_id: scope.board_id.clone(),
-                change: KeycapBoardChange::Color {
-                    value: value.clone(),
-                },
-            })
-        }
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardLegendColor(value)) => {
-            Some(EditOperation::SetKeycapBoard {
-                board_id: scope.board_id.clone(),
-                change: KeycapBoardChange::LegendColor {
-                    value: value.clone(),
-                },
-            })
-        }
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardClearance(value)) => {
-            Some(EditOperation::SetKeycapBoard {
-                board_id: scope.board_id.clone(),
-                change: KeycapBoardChange::Clearance { value: *value },
-            })
-        }
-        (KeycapsEditTarget::Matrix(matrix_id), KeycapEditChange::MatrixProfile(value)) => {
-            Some(EditOperation::SetMatrixKeycaps {
-                matrix_id: matrix_id.clone(),
-                change: KeycapMatrixChange::Profile { value: *value },
-            })
-        }
-        (KeycapsEditTarget::Matrix(matrix_id), KeycapEditChange::MatrixMount(value)) => {
-            Some(EditOperation::SetMatrixKeycaps {
-                matrix_id: matrix_id.clone(),
-                change: KeycapMatrixChange::Mount { value: *value },
-            })
-        }
-        (KeycapsEditTarget::Matrix(matrix_id), KeycapEditChange::MatrixFirstRow(value)) => {
-            Some(EditOperation::SetMatrixKeycaps {
-                matrix_id: matrix_id.clone(),
-                change: KeycapMatrixChange::FirstRow { value: *value },
-            })
-        }
-        (KeycapsEditTarget::Matrix(matrix_id), KeycapEditChange::MatrixWallThickness(value)) => {
-            Some(EditOperation::SetMatrixKeycaps {
-                matrix_id: matrix_id.clone(),
-                change: KeycapMatrixChange::WallThickness { value: *value },
-            })
-        }
-        (KeycapsEditTarget::Key(key_id), change) => {
-            let current = settings_for_key(document, key_id);
-            let change = match change {
-                KeycapEditChange::Legend(value) => KeycapKeyChange::Legend {
-                    value: value.clone(),
-                },
-                KeycapEditChange::Color(value) => KeycapKeyChange::Color {
-                    value: value.clone(),
-                },
-                KeycapEditChange::Profile(value) => KeycapKeyChange::Profile { value: *value },
-                KeycapEditChange::Mount(value) => KeycapKeyChange::Mount { value: *value },
-                KeycapEditChange::Row(value) => KeycapKeyChange::Row { value: *value },
-                KeycapEditChange::UnitsWidth(value) => KeycapKeyChange::Units {
-                    value: Some(Vec2 {
-                        x: *value,
-                        y: current.units.map_or(1.0, |units| units.y),
-                    }),
-                },
-                KeycapEditChange::UnitsDepth(value) => KeycapKeyChange::Units {
-                    value: Some(Vec2 {
-                        x: current.units.map_or(1.0, |units| units.x),
-                        y: *value,
-                    }),
-                },
-                KeycapEditChange::ClearUnits(_) => KeycapKeyChange::Units { value: None },
-                _ => return None,
-            };
-            Some(EditOperation::SetKeycapKey {
-                key_id: key_id.clone(),
-                change,
-            })
-        }
-        _ => None,
-    }
-}
-
-fn change_is_noop(
-    document: &ProjectDoc,
-    scope: &Scope,
-    target: &KeycapsEditTarget,
-    change: &KeycapEditChange,
-) -> bool {
-    match (target, change) {
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardColor(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.boards.get(&scope.board_id))
-                .cloned()
-                .unwrap_or_default()
-                .color
-                == *value
-        }
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardLegendColor(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.boards.get(&scope.board_id))
-                .cloned()
-                .unwrap_or_default()
-                .legend_color
-                == *value
-        }
-        (KeycapsEditTarget::Board, KeycapEditChange::BoardClearance(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.boards.get(&scope.board_id))
-                .cloned()
-                .unwrap_or_default()
-                .clearance
-                == *value
-        }
-        (KeycapsEditTarget::Matrix(id), KeycapEditChange::MatrixProfile(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.matrices.get(id))
-                .cloned()
-                .unwrap_or_default()
-                .profile
-                == *value
-        }
-        (KeycapsEditTarget::Matrix(id), KeycapEditChange::MatrixMount(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.matrices.get(id))
-                .cloned()
-                .unwrap_or_default()
-                .mount
-                == *value
-        }
-        (KeycapsEditTarget::Matrix(id), KeycapEditChange::MatrixFirstRow(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.matrices.get(id))
-                .cloned()
-                .unwrap_or_default()
-                .first_row
-                == *value
-        }
-        (KeycapsEditTarget::Matrix(id), KeycapEditChange::MatrixWallThickness(value)) => {
-            document
-                .keycaps
-                .as_ref()
-                .and_then(|k| k.matrices.get(id))
-                .cloned()
-                .unwrap_or_default()
-                .wall_thickness
-                == *value
-        }
-        (KeycapsEditTarget::Key(id), change) => {
-            let current = settings_for_key(document, id);
-            match change {
-                KeycapEditChange::Legend(value) => current.legend == *value,
-                KeycapEditChange::Color(value) => current.color == *value,
-                KeycapEditChange::Profile(value) => current.profile == *value,
-                KeycapEditChange::Mount(value) => current.mount == *value,
-                KeycapEditChange::Row(value) => current.row == *value,
-                KeycapEditChange::UnitsWidth(value) => {
-                    current.units.is_some_and(|units| units.x == *value)
-                }
-                KeycapEditChange::UnitsDepth(value) => {
-                    current.units.is_some_and(|units| units.y == *value)
-                }
-                KeycapEditChange::ClearUnits(_) => current.units.is_none(),
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-}
-
-#[path = "keycaps_settings/retry_drafts.rs"]
-mod retry_drafts;
-use retry_drafts::{
-    commit_keycap_edit, draft_owner_mismatch, keep_retry_draft, remove_retry_draft_through,
-    retry_identity_is_current, retry_identity_matches,
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, TextCommitField, TextField,
 };
-#[cfg(all(test, not(target_arch = "wasm32")))]
-use retry_drafts::{remove_retry_draft_through_map, retry_identity, store_retry_draft};
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct SelectedKeySettings {
-    pub key: KeycapsKey,
-    pub settings: KeycapKeySettings,
-    pub board_color: String,
-}
-
-pub fn project_selected_key(
-    document: &ProjectDoc,
-    view: &KeycapsView,
-    selected_key_id: Option<&str>,
-) -> Option<SelectedKeySettings> {
-    let key_id = selected_key_id?;
-    let key = view
-        .keys
-        .iter()
-        .find(|key| key.id.as_ref() == key_id)?
-        .clone();
-    let settings = document
-        .keycaps
-        .as_ref()
-        .and_then(|keycaps| keycaps.keys.get(key_id))
-        .cloned()
-        .unwrap_or_default();
-    let board_color = document
-        .keycaps
-        .as_ref()
-        .and_then(|keycaps| keycaps.boards.get(view.board_id.as_ref()))
-        .map_or_else(
-            || boardstudio_model::model::KeycapBoardSettings::default().color,
-            |settings| settings.color.clone(),
-        );
-    Some(SelectedKeySettings {
-        key,
-        settings,
-        board_color,
-    })
-}
-
-fn emit_settings_change(
-    actions: &KeycapsSettingsActions,
-    target: KeycapsEditTarget,
-    baseline: KeycapsEditBaseline,
-    change: KeycapEditChange,
-) {
-    let mut sequence = actions.request_sequence;
-    let Some(request_id) = sequence().checked_add(1) else {
-        return;
-    };
-    sequence.set(request_id);
-    actions.on_change.call(KeycapsEditRequest {
-        scope: actions.scope.clone(),
-        scope_generation: actions.scope_generation,
-        selection_generation: actions.selection_generation,
-        editor_instance_id: actions.editor_instance_id,
-        request_id,
-        admission_token: actions.token,
-        admission_revision: actions.revision,
-        target,
-        baseline,
-        change,
-    });
-}
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    input::InputType,
+};
+use dioxus::prelude::*;
+use std::rc::Rc;
 
 const PROFILES: &[(&str, &str)] = &[
     ("cherry", "Cherry"),
@@ -893,28 +34,120 @@ const MOUNTS: &[(&str, &str)] = &[
     ("alps", "Alps"),
 ];
 
-#[path = "keycaps_settings/editors.rs"]
-mod editors;
-pub use editors::{
-    KeycapsBoardSettingsEditor, KeycapsBoardSettingsEditorProps, KeycapsMatrixSettingsEditor,
-    KeycapsMatrixSettingsEditorProps, KeycapsSettingsEditor, KeycapsSettingsEditorProps,
-};
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeycapsEditSource {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub revision: u64,
+}
 
-fn profile_value(profile: KeycapProfile) -> &'static str {
-    match profile {
-        KeycapProfile::Cherry => "cherry",
-        KeycapProfile::Oem => "oem",
-        KeycapProfile::Dcs => "dcs",
-        KeycapProfile::Dsa => "dsa",
-        KeycapProfile::Sa => "sa",
-        KeycapProfile::HiPro => "hi-pro",
-        KeycapProfile::G20 => "g20",
-        KeycapProfile::Choc => "choc",
+#[derive(Clone)]
+pub struct KeycapsSettingsActions {
+    runtime: Rc<Runtime>,
+    scope: Scope,
+    error: Signal<Option<String>>,
+}
+
+impl PartialEq for KeycapsSettingsActions {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.runtime, &other.runtime)
+            && self.scope == other.scope
+            && self.error == other.error
     }
 }
 
-fn parse_profile(value: &str) -> Option<KeycapProfile> {
-    match value {
+impl KeycapsSettingsActions {
+    fn commit(&self, target_id: String, op: EditOperation) {
+        let scope = self.scope.clone();
+        let resolver = EditResolver::new("keycaps", move |accepted: &AcceptedSnapshot| {
+            if accepted.session_epoch != scope.session_epoch
+                || accepted.document.id != scope.document_id
+            {
+                return Resolution::Retire("This keycap settings target no longer exists.".into());
+            }
+            Resolution::submit(vec![target_id.clone()], op.clone())
+        });
+        let mut err = self.error;
+        err.set(self.runtime.commit("keycaps", resolver).err());
+    }
+}
+
+pub fn use_keycaps_settings_actions(
+    runtime: Rc<Runtime>,
+    source: Option<KeycapsEditSource>,
+    workspace: Signal<&'static str>,
+    _scope_generation: Signal<u64>,
+) -> Option<KeycapsSettingsActions> {
+    let error = use_signal(|| None::<String>);
+    let current_scope = runtime.scope();
+    let source =
+        source.filter(|s| workspace() == "Keycaps" && current_scope.as_ref() == Some(&s.scope))?;
+    Some(KeycapsSettingsActions {
+        runtime,
+        scope: source.scope,
+        error,
+    })
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectedKeySettings {
+    pub key: KeycapsKey,
+    pub settings: KeycapKeySettings,
+    pub board_color: String,
+}
+
+pub fn project_selected_key(
+    document: &ProjectDoc,
+    view: &KeycapsView,
+    selected_key_id: Option<&str>,
+) -> Option<SelectedKeySettings> {
+    let key_id = selected_key_id?;
+    let key = view.keys.iter().find(|k| k.id.as_ref() == key_id)?.clone();
+    let settings = document
+        .keycaps
+        .as_ref()
+        .and_then(|k| k.keys.get(key_id))
+        .cloned()
+        .unwrap_or_default();
+    let board_color = document
+        .keycaps
+        .as_ref()
+        .and_then(|k| k.boards.get(view.board_id.as_ref()))
+        .map_or_else(|| KeycapBoardSettings::default().color, |s| s.color.clone());
+    Some(SelectedKeySettings {
+        key,
+        settings,
+        board_color,
+    })
+}
+
+fn options_with_default(first: &str, items: &[(&str, &str)]) -> Vec<(String, String)> {
+    std::iter::once((String::new(), first.to_owned()))
+        .chain(
+            items
+                .iter()
+                .map(|(v, l)| ((*v).to_owned(), (*l).to_owned())),
+        )
+        .collect()
+}
+
+fn profile_str(p: Option<KeycapProfile>) -> String {
+    match p {
+        Some(KeycapProfile::Cherry) => "cherry",
+        Some(KeycapProfile::Oem) => "oem",
+        Some(KeycapProfile::Dcs) => "dcs",
+        Some(KeycapProfile::Dsa) => "dsa",
+        Some(KeycapProfile::Sa) => "sa",
+        Some(KeycapProfile::HiPro) => "hi-pro",
+        Some(KeycapProfile::G20) => "g20",
+        Some(KeycapProfile::Choc) => "choc",
+        None => "",
+    }
+    .to_owned()
+}
+
+fn parse_profile(s: &str) -> Option<KeycapProfile> {
+    match s {
         "cherry" => Some(KeycapProfile::Cherry),
         "oem" => Some(KeycapProfile::Oem),
         "dcs" => Some(KeycapProfile::Dcs),
@@ -927,17 +160,19 @@ fn parse_profile(value: &str) -> Option<KeycapProfile> {
     }
 }
 
-fn mount_value(mount: KeycapMount) -> &'static str {
-    match mount {
-        KeycapMount::Mx => "mx",
-        KeycapMount::ChocV1 => "choc-v1",
-        KeycapMount::ChocV2 => "choc-v2",
-        KeycapMount::Alps => "alps",
+fn mount_str(m: Option<KeycapMount>) -> String {
+    match m {
+        Some(KeycapMount::Mx) => "mx",
+        Some(KeycapMount::ChocV1) => "choc-v1",
+        Some(KeycapMount::ChocV2) => "choc-v2",
+        Some(KeycapMount::Alps) => "alps",
+        None => "",
     }
+    .to_owned()
 }
 
-fn parse_mount(value: &str) -> Option<KeycapMount> {
-    match value {
+fn parse_mount(s: &str) -> Option<KeycapMount> {
+    match s {
         "mx" => Some(KeycapMount::Mx),
         "choc-v1" => Some(KeycapMount::ChocV1),
         "choc-v2" => Some(KeycapMount::ChocV2),
@@ -946,73 +181,237 @@ fn parse_mount(value: &str) -> Option<KeycapMount> {
     }
 }
 
-fn legend_change_required(draft: &str, accepted: Option<&str>) -> bool {
-    draft != accepted.unwrap_or("")
+#[derive(Props, Clone, PartialEq)]
+pub struct KeycapsBoardSettingsEditorProps {
+    pub settings: KeycapBoardSettings,
+    pub actions: KeycapsSettingsActions,
 }
 
-fn legend_blur_requires_reconciliation(
-    draft: &str,
-    accepted: Option<&str>,
-    retry_pending: bool,
-) -> bool {
-    legend_change_required(draft, accepted) || retry_pending
-}
-
-fn field_label(field: &KeycapEditField) -> &'static str {
-    match field {
-        KeycapEditField::BoardColor => "board keycap color",
-        KeycapEditField::BoardLegendColor => "board legend color",
-        KeycapEditField::BoardClearance => "minimum clearance",
-        KeycapEditField::MatrixProfile => "matrix profile",
-        KeycapEditField::MatrixMount => "matrix socket",
-        KeycapEditField::MatrixFirstRow => "first profile row",
-        KeycapEditField::MatrixWallThickness => "wall thickness",
-        KeycapEditField::Legend => "legend",
-        KeycapEditField::Color => "color",
-        KeycapEditField::Profile => "profile",
-        KeycapEditField::Mount => "socket",
-        KeycapEditField::Row => "profile row",
-        KeycapEditField::UnitsWidth => "width",
-        KeycapEditField::UnitsDepth => "depth",
+#[component]
+pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Element {
+    let (settings, actions) = (props.settings, props.actions);
+    let board_id = actions.scope.board_id.clone();
+    let (a1, a2, a3) = (actions.clone(), actions.clone(), actions.clone());
+    let (b1, b2, b3) = (board_id.clone(), board_id.clone(), board_id);
+    rsx! {
+        InspectorSection { title: "Board colors", default_open: true,
+            section { class: "grid min-w-0 gap-2 p-3 text-foreground", aria_label: "Board colors",
+                TextField { id: "keycaps-board-color".to_owned(), label: "Keycap color".to_owned(), aria_label: "Board keycap color", r#type: InputType::Color, value: settings.color,
+                    oninput: move |e: FormEvent| a1.commit(b1.clone(), EditOperation::SetKeycapBoard { board_id: b1.clone(), change: KeycapBoardChange::Color { value: e.value() } })
+                }
+                TextField { id: "keycaps-board-legend".to_owned(), label: "Legend color".to_owned(), aria_label: "Board legend color", r#type: InputType::Color, value: settings.legend_color,
+                    oninput: move |e: FormEvent| a2.commit(b2.clone(), EditOperation::SetKeycapBoard { board_id: b2.clone(), change: KeycapBoardChange::LegendColor { value: e.value() } })
+                }
+                NumericField { label: "Minimum clearance".to_owned(), unit: "mm", aria_label: "Keycap clearance", value: settings.clearance, min: Some(0.0), max: Some(5.0), step: Some(0.1),
+                    on_commit: move |v: f64| a3.commit(b3.clone(), EditOperation::SetKeycapBoard { board_id: b3.clone(), change: KeycapBoardChange::Clearance { value: v } })
+                }
+                if let Some(msg) = (actions.error)() { Alert { variant: AlertVariant::Destructive, "{msg}" } }
+            }
+        }
     }
 }
 
-fn change_label(change: &KeycapEditChange) -> String {
-    match change {
-        KeycapEditChange::BoardColor(value) => format!("board keycap color {value}"),
-        KeycapEditChange::BoardLegendColor(value) => format!("board legend color {value}"),
-        KeycapEditChange::BoardClearance(value) => format!("minimum clearance {value} mm"),
-        KeycapEditChange::MatrixProfile(value) => value.map_or_else(
-            || "no generated keycap".into(),
-            |v| format!("profile {}", profile_value(v)),
-        ),
-        KeycapEditChange::MatrixMount(value) => value.map_or_else(
-            || "switch-profile socket".into(),
-            |v| format!("socket {}", mount_value(v)),
-        ),
-        KeycapEditChange::MatrixFirstRow(value) => format!("first profile row {value}"),
-        KeycapEditChange::MatrixWallThickness(value) => format!("wall thickness {value} mm"),
-        KeycapEditChange::Legend(Some(value)) => {
-            if value.is_empty() {
-                "blank legend".into()
-            } else {
-                format!("legend ‘{value}’")
+#[derive(Props, Clone, PartialEq)]
+pub struct KeycapsMatrixSettingsEditorProps {
+    pub matrix_id: String,
+    pub matrix_name: String,
+    pub settings: KeycapMatrixSettings,
+    pub actions: KeycapsSettingsActions,
+}
+
+#[component]
+pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> Element {
+    let (mid, mname, settings, actions) = (
+        props.matrix_id,
+        props.matrix_name,
+        props.settings,
+        props.actions,
+    );
+    let (a1, a2, a3, a4) = (
+        actions.clone(),
+        actions.clone(),
+        actions.clone(),
+        actions.clone(),
+    );
+    let (m1, m2, m3, m4) = (mid.clone(), mid.clone(), mid.clone(), mid);
+    rsx! {
+        fieldset { class: "m-0 mb-2 min-w-0 border-0 p-2",
+            legend { class: "px-1 text-sm text-foreground", "{mname}" }
+            SelectField::<String> {
+                label: "Profile".to_owned(), aria_label: format!("Keycap profile for {mname}"),
+                value: profile_str(settings.profile), options: options_with_default("No generated keycap", PROFILES),
+                on_commit: move |v: String| a1.commit(m1.clone(), EditOperation::SetMatrixKeycaps { matrix_id: m1.clone(), change: KeycapMatrixChange::Profile { value: parse_profile(&v) } })
+            }
+            InspectorSection { title: "Profile dimensions & socket", default_open: false,
+                NumericField { label: "First profile row".to_owned(), aria_label: format!("First profile row for {mname}"), value: settings.first_row as f64, min: Some(1.0), max: Some(5.0), step: Some(1.0), precision: 0,
+                    on_commit: move |v: f64| a2.commit(m2.clone(), EditOperation::SetMatrixKeycaps { matrix_id: m2.clone(), change: KeycapMatrixChange::FirstRow { value: v.round() as u8 } })
+                }
+                NumericField { label: "Wall thickness".to_owned(), unit: "mm", aria_label: format!("Wall thickness for {mname}"), value: settings.wall_thickness, min: Some(0.8), max: Some(2.0), step: Some(0.1),
+                    on_commit: move |v: f64| a3.commit(m3.clone(), EditOperation::SetMatrixKeycaps { matrix_id: m3.clone(), change: KeycapMatrixChange::WallThickness { value: v } })
+                }
+                SelectField::<String> {
+                    label: "Socket".to_owned(), aria_label: format!("Keycap socket for {mname}"),
+                    value: mount_str(settings.mount), options: options_with_default("From switch profile", MOUNTS),
+                    on_commit: move |v: String| a4.commit(m4.clone(), EditOperation::SetMatrixKeycaps { matrix_id: m4.clone(), change: KeycapMatrixChange::Mount { value: parse_mount(&v) } })
+                }
             }
         }
-        KeycapEditChange::Legend(None) => "binding legend".into(),
-        KeycapEditChange::Color(Some(value)) => format!("color {value}"),
-        KeycapEditChange::Color(None) => "board color".into(),
-        KeycapEditChange::Profile(Some(value)) => format!("profile {}", profile_value(*value)),
-        KeycapEditChange::Profile(None) => "matrix profile".into(),
-        KeycapEditChange::Mount(Some(value)) => format!("socket {}", mount_value(*value)),
-        KeycapEditChange::Mount(None) => "inherited socket".into(),
-        KeycapEditChange::Row(Some(value)) => format!("row {value}"),
-        KeycapEditChange::Row(None) => "inherited row".into(),
-        KeycapEditChange::UnitsWidth(value) => format!("width {value}u"),
-        KeycapEditChange::UnitsDepth(value) => format!("depth {value}u"),
-        KeycapEditChange::ClearUnits(_) => "inherited cap size".into(),
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+pub struct KeycapsSettingsEditorProps {
+    pub selected: SelectedKeySettings,
+    pub actions: KeycapsSettingsActions,
+}
+
+#[component]
+pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
+    let (selected, actions) = (props.selected, props.actions);
+    let (key, s) = (selected.key, selected.settings);
+    let key_id = key.id.to_string();
+    let commit_key = {
+        let (a, id) = (actions.clone(), key_id.clone());
+        move |change: KeycapKeyChange| {
+            a.commit(
+                id.clone(),
+                EditOperation::SetKeycapKey {
+                    key_id: id.clone(),
+                    change,
+                },
+            );
+        }
+    };
+    let (c_leg, c_inh, c_blk, c_col, c_rst, c_pro, c_mnt, c_row, c_row_rst, c_w, c_d, c_u_rst) = (
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key.clone(),
+        commit_key,
+    );
+    let units = s.units;
+    rsx! {
+        section { class: "grid min-w-0 gap-2 text-foreground", aria_label: "Keycap overrides for {key.reference}",
+            TextCommitField {
+                label: "Legend".to_owned(), aria_label: format!("Legend for {}", key.reference),
+                value: s.legend.unwrap_or_default(),
+                placeholder: if key.binding_label.is_empty() { "From binding".to_owned() } else { key.binding_label.to_string() },
+                on_commit: move |v: String| c_leg(KeycapKeyChange::Legend { value: Some(v.chars().take(12).collect()) }),
+            }
+            div { class: "flex flex-wrap gap-1.5",
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| c_inh(KeycapKeyChange::Legend { value: None }), "Use binding legend" }
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| c_blk(KeycapKeyChange::Legend { value: Some(String::new()) }), "Blank keycap" }
+            }
+            TextField {
+                id: format!("keycaps-color-{}", dioxus::core::current_scope_id().0),
+                label: "Keycap color".to_owned(), aria_label: format!("Keycap color for {}", key.reference),
+                r#type: InputType::Color, value: s.color.as_deref().unwrap_or(&selected.board_color).to_owned(),
+                oninput: move |e: FormEvent| c_col(KeycapKeyChange::Color { value: Some(e.value()) }),
+            }
+            if s.color.is_some() {
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| c_rst(KeycapKeyChange::Color { value: None }), "Use board color" }
+            }
+            InspectorSection { title: "Keycap overrides", default_open: false,
+                SelectField::<String> {
+                    label: "Profile".to_owned(), aria_label: format!("Profile override for {}", key.reference),
+                    value: profile_str(s.profile), options: options_with_default("From matrix", PROFILES),
+                    on_commit: move |v: String| c_pro(KeycapKeyChange::Profile { value: parse_profile(&v) }),
+                }
+                SelectField::<String> {
+                    label: "Socket".to_owned(), aria_label: format!("Socket override for {}", key.reference),
+                    value: mount_str(s.mount), options: options_with_default("From matrix / switch", MOUNTS),
+                    on_commit: move |v: String| c_mnt(KeycapKeyChange::Mount { value: parse_mount(&v) }),
+                }
+                NumericField {
+                    label: "Profile row".to_owned(), aria_label: format!("Profile row for {}", key.reference),
+                    value: s.row.map_or(f64::NAN, f64::from), min: Some(1.0), max: Some(5.0), step: Some(1.0), precision: 0,
+                    placeholder: "From matrix",
+                    on_commit: move |v: f64| c_row(KeycapKeyChange::Row { value: Some(v.round() as u8) }),
+                }
+                if s.row.is_some() {
+                    Button { variant: ButtonVariant::Secondary, onclick: move |_| c_row_rst(KeycapKeyChange::Row { value: None }), "Use matrix row" }
+                }
+                NumericField {
+                    label: "Width".to_owned(), unit: "u", aria_label: format!("Keycap width for {}", key.reference),
+                    value: units.map_or(f64::NAN, |u| u.x), min: Some(0.75), max: Some(7.0), step: Some(0.25),
+                    placeholder: "From envelope",
+                    on_commit: move |v: f64| c_w(KeycapKeyChange::Units { value: Some(Vec2 { x: v, y: units.map_or(1.0, |u| u.y) }) }),
+                }
+                NumericField {
+                    label: "Depth".to_owned(), unit: "u", aria_label: format!("Keycap depth for {}", key.reference),
+                    value: units.map_or(f64::NAN, |u| u.y), min: Some(0.75), max: Some(7.0), step: Some(0.25),
+                    placeholder: "From envelope",
+                    on_commit: move |v: f64| c_d(KeycapKeyChange::Units { value: Some(Vec2 { x: units.map_or(1.0, |u| u.x), y: v }) }),
+                }
+                if units.is_some() {
+                    Button { variant: ButtonVariant::Secondary, onclick: move |_| c_u_rst(KeycapKeyChange::Units { value: None }), "Use envelope size" }
+                }
+            }
+            if let Some(msg) = (actions.error)() { Alert { variant: AlertVariant::Destructive, "{msg}" } }
+        }
     }
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profile_and_mount_round_trip() {
+        for &(val, _) in PROFILES {
+            let parsed = parse_profile(val).expect("profile");
+            assert_eq!(profile_str(Some(parsed)), val);
+        }
+        assert_eq!(parse_profile(""), None);
+        for &(val, _) in MOUNTS {
+            let parsed = parse_mount(val).expect("mount");
+            assert_eq!(mount_str(Some(parsed)), val);
+        }
+        assert_eq!(parse_mount(""), None);
+    }
+
+    #[test]
+    fn project_selected_key_returns_board_color_and_settings() {
+        let mut doc = ProjectDoc::empty("d", "P");
+        doc.boards.push(boardstudio_model::model::Board {
+            id: "b1".into(),
+            name: "B".into(),
+            outline_ids: vec![],
+            part_ids: vec!["k1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let view = KeycapsView {
+            board_id: Rc::from("b1"),
+            board_settings: KeycapBoardSettings::default(),
+            keys: vec![KeycapsKey {
+                id: Rc::from("k1"),
+                reference: Rc::from("K1"),
+                pose: boardstudio_model::model::Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                size: Vec2 { x: 18.0, y: 18.0 },
+                color: Rc::from("#ffffff"),
+                legend: Rc::from("A"),
+                legend_source: crate::keycaps_scene::LegendSource::Binding,
+                binding_label: Rc::from("A"),
+                search_text: "k1 a".into(),
+            }],
+            matrices: vec![],
+            assigned_count: 1,
+        };
+        let sel = project_selected_key(&doc, &view, Some("k1")).expect("selected");
+        assert_eq!(sel.board_color, KeycapBoardSettings::default().color);
+        assert!(project_selected_key(&doc, &view, Some("missing")).is_none());
+    }
+}
