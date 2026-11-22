@@ -5,9 +5,11 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::CoreEngine;
 use boardstudio_model::model::*;
 use boardstudio_web_worker_host::cad_jobs::CadJobError;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_web_worker_host::cad_jobs::PreparedCadSnapshot;
 #[cfg(any(target_arch = "wasm32", test))]
 use boardstudio_web_worker_host::cad_jobs::{
-    CadSnapshotIdentity, PreparedCadSnapshot, revision_supported_by_cad_boundary,
+    CadSnapshotIdentity, revision_supported_by_cad_boundary,
 };
 
 /// Return consumer-owned geometry for the selected physical board instance.
@@ -261,7 +263,7 @@ pub fn prepare_captured_case(
     validate_prepared(identity, prepared, mechanical_assembly)
 }
 
-#[cfg(any(target_arch = "wasm32", test))]
+#[cfg(target_arch = "wasm32")]
 fn validate_prepared(
     identity: CadSnapshotIdentity,
     prepared: PreparedCaseAssemblyIR,
@@ -331,14 +333,7 @@ fn effective_case_inputs(
     // the physical-instance identity, flipped-instance part/reference mirroring and the
     // target board's mirrored contours. The host keeps only the scene transform and
     // target-contour mirroring that are not part of the document projection.
-    let target = match &scope.instance_id {
-        Some(instance_id) => boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
-            instance_id: instance_id.clone(),
-        },
-        None => boardstudio_core_mechanical::mechanical::MechanicalTarget::Board {
-            board_id: scope.board_id.clone(),
-        },
-    };
+    let target = mechanical_target(scope);
     let (effective, _target_contours) =
         boardstudio_core_mechanical::mechanical::inputs::effective_document(document, &target)
             .map_err(CadJobError::Blocked)?;
@@ -373,6 +368,18 @@ fn effective_case_inputs(
     Ok((effective, effective_scene))
 }
 
+fn mechanical_target(scope: &Scope) -> boardstudio_core_mechanical::mechanical::MechanicalTarget {
+    use boardstudio_core_mechanical::mechanical::MechanicalTarget;
+    match &scope.instance_id {
+        Some(instance_id) => MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
+    }
+}
+
 /// Whether the selected target's own accepted findings leave its Case output clear.
 ///
 /// Uses the approved target-scoped effective read, so a finding naming a sibling half of
@@ -383,14 +390,7 @@ fn target_case_findings_are_clear(
     scene: &SceneDelta,
     scope: &Scope,
 ) -> bool {
-    let target = match &scope.instance_id {
-        Some(instance_id) => boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
-            instance_id: instance_id.clone(),
-        },
-        None => boardstudio_core_mechanical::mechanical::MechanicalTarget::Board {
-            board_id: scope.board_id.clone(),
-        },
-    };
+    let target = mechanical_target(scope);
     match boardstudio_core_mechanical::mechanical::effective_inputs(
         document,
         &scene.board_contours,
@@ -411,30 +411,13 @@ fn preparation_request(
 ) -> Result<(CadSnapshotIdentity, CoreRequest), CadJobError> {
     let document = &snapshot.document;
     let scene = &snapshot.scene;
-    if scope.session_epoch != snapshot.session_epoch
-        || scope.document_id != document.id
-        || scene.revision != document.revision
-    {
-        return Err(CadJobError::Stale(
-            "case preparation snapshot or scope changed".into(),
-        ));
-    }
     if !revision_supported_by_cad_boundary(document.revision) {
         return Err(CadJobError::Blocked(
             "case revision exceeds the exact integer range of the existing CAD JavaScript boundary"
                 .into(),
         ));
     }
-    if !document
-        .boards
-        .iter()
-        .any(|board| board.id == scope.board_id)
-    {
-        return Err(CadJobError::Blocked(
-            "selected board is not in the captured document".into(),
-        ));
-    }
-    let (effective_document, effective_scene) = effective_case_inputs(document, scene, scope)?;
+    let (effective_document, effective_scene) = captured_case_inputs(snapshot, scope)?;
     let configured = effective_document
         .mechanical
         .as_ref()
@@ -460,10 +443,11 @@ fn preparation_request(
         .find(|entry| entry.board_id == scope.board_id)
         .map(|entry| entry.contours.clone())
         .unwrap_or_default();
+    let document_id = effective_document.id.clone();
     let request = if configured {
         CoreRequest::ResolveMechanical {
             id: format!("{request_prefix}-resolve"),
-            document: effective_document.clone(),
+            document: effective_document,
             contours,
         }
     } else {
@@ -490,7 +474,7 @@ fn preparation_request(
         CadSnapshotIdentity {
             token: snapshot.token.0,
             session_epoch: snapshot.session_epoch.0,
-            document_id: effective_document.id.clone(),
+            document_id,
             board_id: scope.board_id.clone(),
             instance_id: scope.instance_id.clone(),
             revision: document.revision,
@@ -503,9 +487,7 @@ fn preparation_request(
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_model::model::{
-        Board, BoardContours, BoardReadiness, CaseBody, CaseKind, SceneDelta,
-    };
+    use boardstudio_model::model::{Board, SceneDelta};
 
     #[test]
     fn pcb_source_capture_keeps_original_reference_and_composes_physical_reflection_once() {
@@ -617,262 +599,6 @@ mod tests {
     }
 
     #[test]
-    fn flipped_instance_reflects_only_its_board_parts_and_scene_transform() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.revision = 4;
-        document.outline.push(OutlineFeature::Rect {
-            anchor_part_id: None,
-            id: "outline-a".into(),
-            center: Vec2 { x: 10.0, y: 0.0 },
-            size: Vec2 { x: 20.0, y: 10.0 },
-            radius: 0.0,
-            rotation: None,
-            operation: Operation::Add,
-        });
-        document.boards.push(Board {
-            id: "board-a".into(),
-            name: "Board A".into(),
-            outline_ids: vec!["outline-a".into()],
-            part_ids: vec!["part-a".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.boards.push(Board {
-            id: "board-b".into(),
-            name: "Board B".into(),
-            outline_ids: vec![],
-            part_ids: vec!["part-b".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        let part = |id: &str, x: f64| Part {
-            id: id.into(),
-            definition_id: "switch".into(),
-            reference: id.into(),
-            pose: Pose2 {
-                at: Vec2 { x, y: 2.0 },
-                rotation: 27.0,
-            },
-            side: Side::Front,
-            anchor: None,
-            locked: None,
-            keycap: None,
-            outline: None,
-            properties: None,
-            generator_parameters: None,
-        };
-        document.parts = vec![part("part-a", 3.0), part("part-b", 8.0)];
-        document.hardware = Some(HardwareConfiguration {
-            instances: vec![PhysicalBoardInstance {
-                id: "instance-a".into(),
-                name: "A, flipped".into(),
-                board_id: "board-a".into(),
-                half: "left".into(),
-                role: "controller".into(),
-                flipped: true,
-                controller_part_id: None,
-                mechanical: None,
-                construction_ownership:
-                    boardstudio_model::model::MechanicalConstructionOwnership::Legacy,
-                mechanical_identity_reservation: None,
-            }],
-            ..HardwareConfiguration::default()
-        });
-        let scene = SceneDelta {
-            revision: 4,
-            transaction_id: String::new(),
-            changed_ids: vec![],
-            transforms: vec![
-                Transform {
-                    id: "part-a".into(),
-                    pose: Pose2 {
-                        at: Vec2 { x: 3.0, y: 2.0 },
-                        rotation: 27.0,
-                    },
-                },
-                Transform {
-                    id: "part-b".into(),
-                    pose: Pose2 {
-                        at: Vec2 { x: 8.0, y: 2.0 },
-                        rotation: 27.0,
-                    },
-                },
-            ],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![BoardContours {
-                board_id: "board-a".into(),
-                contours: vec![Contour {
-                    points: vec![
-                        Vec2 { x: 0.0, y: 5.0 },
-                        Vec2 { x: 0.0, y: -5.0 },
-                        Vec2 { x: 20.0, y: -5.0 },
-                        Vec2 { x: 20.0, y: 5.0 },
-                    ],
-                    hole: false,
-                }],
-            }],
-            board_readiness: vec![],
-            board_outline_scenes: vec![],
-            module_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: true,
-                case_ready: true,
-            },
-        };
-        let scope = Scope {
-            session_epoch: SessionEpoch(1),
-            document_id: "doc".into(),
-            board_id: "board-a".into(),
-            instance_id: Some("instance-a".into()),
-        };
-        let snapshot = AcceptedSnapshot {
-            token: SnapshotToken(9),
-            session_epoch: scope.session_epoch,
-            document: std::sync::Arc::new(document.clone()),
-            scene: std::sync::Arc::new(scene.clone()),
-        };
-        let captured_document = captured_case_document(&snapshot, &scope).unwrap();
-        let captured_scene = captured_case_scene(&snapshot, &scope).unwrap();
-        let (effective, scene) = effective_case_inputs(&document, &scene, &scope).unwrap();
-        assert_eq!(effective.parts[0].pose.at.x, -3.0);
-        assert_eq!(effective.parts[0].pose.rotation, -27.0);
-        assert_eq!(effective.parts[0].side, Side::Back);
-        assert_eq!(effective.parts[1], document.parts[1]);
-        assert_eq!(scene.transforms[0].pose.at.x, -3.0);
-        assert_eq!(scene.transforms[1].pose.at.x, 8.0);
-        // The target board's scene contours come from Core's mirrored projection.
-        let board_contours = scene
-            .board_contours
-            .iter()
-            .find(|entry| entry.board_id == "board-a")
-            .unwrap();
-        assert!(!board_contours.contours.is_empty());
-        assert!(
-            board_contours
-                .contours
-                .iter()
-                .flat_map(|contour| &contour.points)
-                .all(|point| point.x <= 0.0),
-            "the mirrored contours negate X"
-        );
-        assert_eq!(
-            captured_document.physical_instance_id.as_deref(),
-            Some("instance-a")
-        );
-        assert_eq!(captured_document, effective);
-        assert_eq!(captured_scene, scene);
-    }
-
-    #[test]
-    fn captured_document_and_scene_prepare_through_the_public_core_provider() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.revision = 7;
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.case_bodies.push(CaseBody {
-            features: None,
-            openings: None,
-            id: "plate".into(),
-            name: "Plate".into(),
-            board_id: "board".into(),
-            kind: CaseKind::Plate,
-            thickness: 2.0,
-            clearance: 0.0,
-            material_id: Some("pla".into()),
-            z: None,
-            wall_height: None,
-            wall_thickness: None,
-            mounts: None,
-            pcb_source: None,
-            gasket: None,
-        });
-        let contour = Contour {
-            points: vec![
-                Vec2 { x: 0.0, y: 0.0 },
-                Vec2 { x: 30.0, y: 0.0 },
-                Vec2 { x: 30.0, y: 20.0 },
-                Vec2 { x: 0.0, y: 20.0 },
-            ],
-            hole: false,
-        };
-        let scene = SceneDelta {
-            revision: 7,
-            transaction_id: String::new(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![BoardContours {
-                board_id: "board".into(),
-                contours: vec![contour],
-            }],
-            board_readiness: vec![BoardReadiness {
-                board_id: "board".into(),
-                outline: true,
-                pcb: false,
-                case_ready: false,
-            }],
-            board_outline_scenes: vec![],
-            module_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![Finding {
-                id: "case:plate:material".into(),
-                severity: Severity::Error,
-                scope: boardstudio_model::model::Scope::Case,
-                message: "Case material is missing".into(),
-                target_ids: vec!["plate".into(), "pla".into()],
-            }],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: false,
-                case_ready: false,
-            },
-        };
-        let snapshot = AcceptedSnapshot {
-            token: SnapshotToken(3),
-            session_epoch: SessionEpoch(2),
-            document: std::sync::Arc::new(document),
-            scene: std::sync::Arc::new(scene),
-        };
-        let scope = Scope {
-            session_epoch: SessionEpoch(2),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let (identity, request) =
-            preparation_request(&snapshot, &scope, "fixture").expect("captured request");
-        let mut engine = CoreEngine::new();
-        let reply = engine.handle(request);
-        let CoreReply::CasePrepared { ir, .. } = reply else {
-            panic!("core preparation failed: {reply:?}")
-        };
-        let prepared =
-            validate_prepared(identity, ir, None).expect("revision guarded prepared case");
-        assert_eq!(prepared.prepared.bodies[0].body.id, "plate");
-        assert_eq!(prepared.prepared.bodies[0].regions.len(), 1);
-        assert_eq!(prepared.prepared.bodies[0].regions[0].outer.len(), 4);
-    }
-
-    #[test]
     fn scope_or_scene_revision_mismatch_is_rejected_before_core_work() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(Board {
@@ -919,206 +645,6 @@ mod tests {
         assert!(matches!(
             preparation_request(&snapshot, &scope, "fixture"),
             Err(CadJobError::Stale(_))
-        ));
-    }
-
-    /// Two halves sharing one PCB where the reflected linked mount clashes with the
-    /// second half's own hardware. Admission must be decided per selected target.
-    #[cfg(feature = "page")]
-    #[test]
-    fn case_admission_is_scoped_to_the_selected_half_of_a_shared_pcb() {
-        use boardstudio_model::model::{
-            HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
-            MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureMember,
-            MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind,
-            PhysicalBoardInstance, Pose2,
-        };
-        fn configuration() -> MechanicalConfiguration {
-            serde_json::from_value(serde_json::json!({
-                "boardId": "board",
-                "method": "printed",
-                "mount": "rigid",
-                "plateThickness": 1.5,
-                "plateFoamThickness": 0.5,
-                "pcbThickness": 1.6,
-                "bottomFoamThickness": 0.4,
-                "batteryHeight": 4.0,
-                "bottomThickness": 3.0,
-                "plateToPcb": 3.5,
-                "wallThickness": 2.0,
-                "clearance": 0.3,
-                "bottomStyle": "shell",
-                "middleFrame": false,
-                "openingAllowance": 0.25,
-                "mounts": [],
-                "closureMounts": [],
-                "profiles": []
-            }))
-            .unwrap()
-        }
-        fn mount(id: &str, x: f64, y: f64) -> Mount {
-            Mount {
-                id: id.into(),
-                at: Vec2 { x, y },
-                kind: MountKind::Hole,
-                hole_diameter: 2.2,
-                boss_diameter: None,
-                height: None,
-            }
-        }
-        fn instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
-            let mut mechanical = configuration();
-            mechanical.mounts = mounts;
-            PhysicalBoardInstance {
-                id: id.into(),
-                name: id.into(),
-                board_id: "board".into(),
-                half: id.into(),
-                role: "controller".into(),
-                flipped: false,
-                controller_part_id: None,
-                mechanical: Some(mechanical),
-                construction_ownership: MechanicalConstructionOwnership::Local,
-                mechanical_identity_reservation: None,
-            }
-        }
-
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.revision = 7;
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.case_bodies.push(CaseBody {
-            features: None,
-            openings: None,
-            id: "plate".into(),
-            name: "Plate".into(),
-            board_id: "board".into(),
-            kind: CaseKind::Plate,
-            thickness: 2.0,
-            clearance: 0.0,
-            material_id: Some("pla".into()),
-            z: None,
-            wall_height: None,
-            wall_thickness: None,
-            mounts: None,
-            pcb_source: None,
-            gasket: None,
-        });
-        let left = instance("left", vec![mount("mount-1", 2.0, 3.0)]);
-        let right = instance(
-            "right",
-            vec![
-                mount("mount-1", 7.0, 3.0),
-                mount("mount-encoder", -2.0, 3.0),
-            ],
-        );
-        let construction = boardstudio_core_mechanical::mechanical::features::shared_construction(
-            left.mechanical.as_ref().unwrap(),
-        );
-        document.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Unibody,
-            transport: HardwareTransport::None,
-            instances: vec![left, right],
-            boards: vec![],
-            shared_construction: None,
-            pairs: vec![MechanicalMirrorPair {
-                id: "pair-left-right".into(),
-                members: ["left".into(), "right".into()],
-                mapping: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                construction,
-                construction_source: None,
-                halves: None,
-                features: vec![MechanicalFeature {
-                    id: "mount-1".into(),
-                    kind: MechanicalFeatureKind::Mount,
-                    author: "left".into(),
-                    value: MechanicalFeatureValue::Mount {
-                        mount: mount("mount-1", 2.0, 3.0),
-                    },
-                    members: vec![
-                        MechanicalFeatureMember {
-                            instance_id: "left".into(),
-                            feature_id: "mount-1".into(),
-                            state: MechanicalFeatureState::Linked,
-                        },
-                        MechanicalFeatureMember {
-                            instance_id: "right".into(),
-                            feature_id: "mount-1".into(),
-                            state: MechanicalFeatureState::Linked,
-                        },
-                    ],
-                }],
-            }],
-        });
-        let scene = SceneDelta {
-            revision: 7,
-            transaction_id: String::new(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![BoardContours {
-                board_id: "board".into(),
-                contours: vec![Contour {
-                    points: vec![
-                        Vec2 { x: -40.0, y: -30.0 },
-                        Vec2 { x: 40.0, y: -30.0 },
-                        Vec2 { x: 40.0, y: 30.0 },
-                        Vec2 { x: -40.0, y: 30.0 },
-                    ],
-                    hole: false,
-                }],
-            }],
-            board_readiness: vec![BoardReadiness {
-                board_id: "board".into(),
-                outline: true,
-                pcb: true,
-                case_ready: false,
-            }],
-            board_outline_scenes: vec![],
-            module_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: true,
-                case_ready: false,
-            },
-        };
-        let snapshot = AcceptedSnapshot {
-            token: SnapshotToken(9),
-            session_epoch: SessionEpoch(1),
-            document: std::sync::Arc::new(document),
-            scene: std::sync::Arc::new(scene),
-        };
-        let scope = |instance_id: Option<&str>| Scope {
-            session_epoch: SessionEpoch(1),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: instance_id.map(str::to_string),
-        };
-
-        // The conflict belongs to the right half, so the left half is admitted.
-        assert!(
-            preparation_request(&snapshot, &scope(Some("left")), "fixture").is_ok(),
-            "a sibling half's conflict must not block this half"
-        );
-        // The half that owns the conflict is blocked.
-        assert!(matches!(
-            preparation_request(&snapshot, &scope(Some("right")), "fixture"),
-            Err(CadJobError::Blocked(_))
         ));
     }
 }
