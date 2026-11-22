@@ -15,19 +15,23 @@ In `refactor/simplify-implementation-wave`, `web/crates/case/src/mechanical_sett
 
 ## 2. Sub-Track Partition (100% File-Disjoint After 3A Lands)
 
-Execute **3A first** (tiny 1-commit foundation), then fan out **3B, 3C, 3D, 3E, 3F** in up to 4 parallel worktrees:
+Execute **3A first** (tiny foundation), then fan out **3B, 3C+3D, 3E+3F** in parallel worktrees alongside Track 4 (never exceeding 4 active worktrees).
 
-| Sub-Track | Owned Paths | `dev` LOC (Prod / Test) | Hard Ending Ceiling (Total) | Min Net Reduction |
+**Gate Model (Updated):**
+- **Hard Gate:** Delete every Mandatory Deletion Manifest path, remove all `Draft*` compat helpers and 4-layer mount/controller/projection stacks, keep `net Production Rust < 0` and `net Test Rust < 0` vs. the track base, and **preserve 100% of user-facing [PRODUCT.md](../../../PRODUCT.md) features, specialist controls, saved parameters, and pure-Rust domain unit tests**.
+- **Advisory Targets:** The ceilings and deltas below are stretch benchmarks to verify boilerplate elimination — **never** drop user-facing features or valid domain tests solely to cross a line-count number.
+
+| Sub-Track | Owned Paths | `dev` LOC (Prod / Test) | Advisory Target Total | Advisory Net Delta |
 |---|---|---:|---:|---:|
-| **3A** `ui-shared` molecules | `web/crates/ui-shared/src/inspector_fields.rs`, `choice_field.rs`, `footprint_forms.rs` | 14,406 *(7,549 / 6,857)* | ≤ 10,500 *(delete bloat tests)* | **−3,900** |
-| **3B** `case` inspector | `web/crates/case/src/mechanical_settings*`, `mechanical_rules.rs`, `mechanical_pair*`, `mechanical_session_tests.rs`, `case_bodies.rs`, `case_controller.rs` *(exclude `shared_viewer`/`case_viewer` → Track 6)* | ~24,400 *(13,800 / 10,600)* | ≤ 6,000 | **−18,400** |
-| **3C** `parts` inspector | `web/crates/parts/**` | 23,559 *(14,197 / 9,362)* | ≤ 8,000 | **−15,500** |
-| **3D** `pcb` inspector | `web/crates/pcb/**` | 16,068 *(9,172 / 6,896)* | ≤ 6,000 | **−10,000** |
-| **3E** `keycaps` + `keymap` + `library` | `web/crates/keycaps/**`, `web/crates/keymap/**`, `web/crates/library/**` | 22,614 *(11,963 / 10,651)* | ≤ 8,500 | **−14,100** |
-| **3F** `web/src/presentation` inspectors & shells | `web/src/presentation/{inspector*,case_workspace*,export_workspace.rs,command_palette.rs,keycaps_workspace.rs,keymap_workspace.rs,parts_workspace.rs,setup_*}` *(exclude `editor*`/`layout*` → Track 4)* | ~19,000 *(12,500 / 6,500)* | ≤ 7,500 | **−11,500** |
-| **Track 3 Total** | — | **~120,000** | **≤ 46,500** | **≥ −73,400** |
+| **3A** `ui-shared` molecules | `web/crates/ui-shared/src/inspector_fields.rs`, `choice_field.rs`, `footprint_forms.rs` | 14,406 *(7,549 / 6,857)* | ≤ 10,500 *(delete DOM mount bloat)* | **−3,900** |
+| **3B** `case` inspector | `web/crates/case/src/{mechanical_settings*,mechanical_rules.rs,mechanical_pair*,mechanical_session_tests.rs,case_bodies.rs,case_controller.rs}` *(exclude `shared_viewer`/`case_viewer`/`cad_presentation.rs` → Track 6)* | ~24,400 *(13,800 / 10,600)* | ≤ 9,000 | **−15,400** |
+| **3C** `parts` inspector | `web/crates/parts/**` | 23,559 *(14,197 / 9,362)* | ≤ 10,000 | **−13,500** |
+| **3D** `pcb` inspector | `web/crates/pcb/**` | 16,068 *(9,172 / 6,896)* | ≤ 7,500 | **−8,500** |
+| **3E** `keycaps` + `keymap` + `library` | `web/crates/keycaps/**`, `web/crates/keymap/**`, `web/crates/library/**` | 22,614 *(11,963 / 10,651)* | ≤ 10,500 | **−12,100** |
+| **3F** `web/src/presentation` inspectors & shells | Non-layout files in `web/src/presentation/**` *(exclude `presentation.rs`, `editor*`, `layout_*`, `inspector/layout_component_inspector*` → Track 4)* | ~19,000 *(12,500 / 6,500)* | ≤ 9,500 | **−9,500** |
+| **Track 3 Total** | — | **~120,000** | **≤ 57,000** | **~ −63,000** |
 
-*Note: Exact `check_reduction.py` deltas for 3B–3E are measured against the post-Wave-1 base (where Track 2 already deleted ~4.3k of queued/settlement test files in these crates; adjust each sub-track's `--max-test-delta` accordingly so the cumulative Track 3 reduction hits ≥ −73,000 LOC).*
+*Note: Check `check_reduction.py` deltas for 3B–3F against the Wave 2 post-3A base commit (`e5035558`). Track 2 already deleted queued/settlement boilerplate in Wave 1.*
 
 ---
 
@@ -48,77 +52,73 @@ In `web/crates/ui-shared/src/inspector_fields.rs`, provide **exactly four** comp
 
 ---
 
-## 4. Per-Crate Collapse Rules & Mandatory Deletion Manifests
+## 4. Per-Crate Collapse Rules, Feature Preservation & Mandatory Deletions
 
-### Sub-Track 3B: `web/crates/case` (`mechanical_settings*`: 12,975 → ≤ 2,500 LOC)
-- **Delete completely:**
-  - `web/crates/case/src/mechanical_settings_mount.rs` *(841 LOC)* & `mechanical_settings_mount/` *(882 LOC)*
-  - `web/crates/case/src/mechanical_settings_controller.rs` *(763 LOC)* & `mechanical_settings_controller/` *(1,162 LOC)*
-  - `web/crates/case/src/mechanical_settings/tests_mounted.rs`, `tests_flows.rs`, `tests_contextual.rs` *(~3,400 LOC)*
-  - `web/crates/case/src/mechanical_session_tests.rs` *(1,388 LOC)*
-  - Split `mechanical_settings/` 11-file maze (9,219 LOC) → replace with **3 clean files** (≤ 1,800 Prod LOC + ≤ 600 Native Test LOC):
-    - `mechanical_settings.rs` — declarative sections (Construction, Dimensions, Clearances, Mounts, Hardware, Openings, Battery) using `NumericField`/`SelectField`/`ToggleField` directly on `&MechanicalSettings` → `runtime.commit(EditOperation::UpdateMechanicalSettings(...))`.
-    - `pair_controls.rs` — mirrored-pair actions (Make Local / Rejoin / Unlink).
-    - `case_controller.rs` — slimmed body/export/CAD trigger (≤ 600 LOC).
-- **Hard Sub-Track 3B Budget:** Prod `<= -8,500`, Test `<= -8,000`.
+### Sub-Track 3B: `web/crates/case` (Declarative Collapse With Full Feature Parity)
+- **Delete completely (`--must-delete`):**
+  - `web/crates/case/src/mechanical_settings_mount.rs` & `mechanical_settings_mount/`
+  - `web/crates/case/src/mechanical_settings_controller.rs` & `mechanical_settings_controller/`
+  - `web/crates/case/src/mechanical_session_tests.rs`, `mechanical_feedback.rs`, `examples/settings.rs`
+  - Mounted DOM boilerplate (`tests_mounted.rs`, `tests_flows.rs`, `tests_contextual.rs`)
+- **Rearchitect declaratively (ALL user-facing capabilities preserved):**
+  - `mechanical_settings.rs` — build directly on `ui_shared::inspector_fields::{NumericField, TextCommitField, SelectField, ToggleField, InspectorSection}` + synchronous `Runtime::commit`, preserving ALL user-facing sections (Construction, Dimensions, Clearances, Mounts, Closure mounts & closure hardware, Hardware, Openings, Battery, Profile geometry & manufacturing editors, Stabilizer fits, Process targets, Critical fits, Layer/stack inspector, Gasket support editing & body-level gasket placement previews, Findings).
+  - `pair_controls.rs` — full mirrored-pair lifecycle (reviewed **Link** flow alongside Make Local, Rejoin, and Unlink).
+  - `case_controller.rs` / `case_bodies.rs` / `case_collision.rs` — direct declarative field bindings preserving `[data-case-collision-findings]`, `[aria-label="Collision check"]`, and `[aria-label="Witness identity"]`.
+  - Keep concise pure-Rust unit tests covering mechanical rules, pair projection/link flow, and case body validation.
+- **Anti-bloat floor & Advisory Target:** Hard `--max-prod-delta -1 --max-test-delta -1`; advisory stretch `--target-prod-delta -7500 --target-test-delta -4800`.
 
-### Sub-Track 3C: `web/crates/parts` (23,559 → ≤ 8,000 LOC)
-- **Delete completely:**
-  - `web/crates/parts/src/parts_definition_name/` *(1,881 LOC — replace with a 40-line `TextField` + rename commit)*
-  - `web/crates/parts/src/parts/generator_settings/tests.rs` *(1,282 LOC → replace with ≤ 250 LOC native schema tests)*
-  - Separate `*_editor.rs` / `*_ui.rs` duplicate splits (`mechanical_profile.rs` + `mechanical_profile_editor.rs` + `mechanical_profile_ui` → ONE file ≤ 700 LOC; `assembly_editor.rs` + `assembly_presets.rs` → ONE file ≤ 700 LOC; `parts_custom_definition.rs` + `parts_custom_definition/` 2,069 LOC → ≤ 700 LOC).
-  - Keep specialized workflows intact (STEP/footprint import, generator parameter schema rendering, preview, placement) — just collapse form boilerplate and per-field mounted DOM tests.
-- **Hard Sub-Track 3C Budget:** Prod `<= -7,500`, Test `<= -6,500`.
+### Sub-Track 3C: `web/crates/parts`
+- **Delete completely (`--must-delete`):**
+  - `web/crates/parts/src/parts_definition_name` (fold rename directly into `TextCommitField` + commit)
+  - Separate `*_editor.rs` / `*_ui.rs` duplicate layers, internal controller/mount/state-bag boilerplate, and bloated DOM mounted tests (`parts/generator_settings/tests.rs`, etc.).
+- **Feature Preservation (NON-NEGOTIABLE):** Rearchitect ALL user-facing Parts workflows declaratively on `ui-shared::inspector_fields` — assembly selector & presets, mechanical profile parameters, footprint catalog, custom footprint editor, STEP/footprint import, generator parameter schema rendering, pinout/module inspector, preview, and placement — plus pure-Rust domain unit tests.
+- **Anti-bloat floor & Advisory Target:** Hard `--max-prod-delta -1 --max-test-delta -1`; combined 3C+3D advisory stretch `--target-prod-delta -12500 --target-test-delta -7500`.
 
-### Sub-Track 3D: `web/crates/pcb` (16,068 → ≤ 6,000 LOC)
-- **Collapse:**
-  - `pcb_wiring/` (16 files, 6,832 LOC) + `pcb_wiring.rs` (1,244 LOC) → ≤ 2,500 LOC (keep net/pin assignment & destructive remap confirmation; delete multi-layer draft/controller indirection and duplicated tests).
-  - `pcb_physical_setup/` (1,669 LOC) + `pcb_module_inspector*` (1,882 LOC) + `pcb_board_reference*` (1,680 LOC) → declarative `ui-shared` fields (≤ 1,800 LOC combined).
-  - Keep `pcb_scene.rs` SVG rendering clean and compact (≤ 600 LOC).
-- **Hard Sub-Track 3D Budget:** Prod `<= -5,000`, Test `<= -4,000`.
+### Sub-Track 3D: `web/crates/pcb`
+- **Collapse & Feature Preservation:** Flatten multi-layer draft/controller/settlement-polling stacks across `pcb_wiring*`, `pcb_physical_setup*`, `pcb_module_inspector*`, and `pcb_board_reference*` into clean declarative `ui-shared` field sections calling `Runtime::commit` directly, while keeping `pcb_scene.rs` SVG rendering crisp and preserving **100% of PCB capabilities** (physical setup, board reference, wiring editor, net/pin assignment & destructive remap confirmation, module/pinout inspector, ZMK/KiCad controls) and pure-Rust wiring/net/pin unit tests.
 
-### Sub-Track 3E: `web/crates/keycaps` + `keymap` + `library` (22,614 → ≤ 8,500 LOC)
-- `keycaps`: Collapse `keycaps_settings.rs` + `keycaps_settings/` (3,061 → ≤ 800 LOC) using declarative `NumericField`/`SelectField` with inherited placeholder support; slim `keycaps_fit*` (2,104 → ≤ 900 LOC) and `keycaps_navigation.rs` (1,236 → ≤ 500 LOC).
-- `keymap`: Collapse `keymap/` (13 files, 7,742 → ≤ 2,500 LOC) — keep layer list, binding variant picker, encoder targets, and macro step editor; delete redundant wrapper controllers and mounted DOM boilerplate.
-- `library`: Collapse `library/mounted_tests/` (2,067 LOC!) and `library.rs` (1,320 → ≤ 700 LOC) — keep import/open/rename/delete/export commands and ≤ 300 LOC of focused tests.
-- **Hard Sub-Track 3E Budget:** Prod `<= -6,000`, Test `<= -6,500`.
+### Sub-Track 3E: `web/crates/keycaps` + `keymap` + `library`
+- **Collapse & Feature Preservation:** Collapse `keycaps_settings*`, `keycaps_fit*`, `keycaps_navigation.rs`, `keymap/` wrapper controllers (`*_controller.rs`, redundant `*_editor.rs`), and `library/mounted_tests/` into declarative `ui-shared` components with pure-Rust domain tests, preserving **every user-facing workflow**: keycap profile/inherited fit & settings editing, navigation/scene overlays, keymap layer list, binding variant picker, encoder targets, macro step editor, library import/open/rename/delete/export actions, and demo projects.
+- **Anti-bloat floor & Advisory Target:** Hard `--max-prod-delta -1 --max-test-delta -1`; combined 3E+3F advisory stretch `--target-prod-delta -11500 --target-test-delta -7000`.
 
 ### Sub-Track 3F: `web/src/presentation/` Non-Layout Inspectors & Shells
-- Remove redundant inspector wrapper glue in `web/src/presentation/inspector*` (3,085 → ≤ 800 LOC), `case_workspace*` (2,097 → ≤ 800 LOC), `export_workspace.rs` (793 → ≤ 400 LOC), and `command_palette.rs` (817 → ≤ 400 LOC).
-- Delete all remaining raw HTML `<button>`, `<input>`, `<select>`, `<textarea>` stragglers in favor of `ui-shared::ui::*`.
-- **Hard Sub-Track 3F Budget:** Prod `<= -5,500`, Test `<= -4,500`.
+- **Collapse & Feature Preservation:** Remove prop-forwarding glue and legacy wrapper layers in non-layout `web/src/presentation/` files (`inspector*`, `case_workspace*`, `export_workspace.rs`, `zmk_firmware_export.rs`, `command_palette.rs`, `keycaps_workspace.rs`, `keymap_workspace.rs`, `parts_workspace.rs`, `pcb_workspace.rs`, `setup_*`, `header.rs`, `workbench.rs`) using `ui-shared::ui::*` directly — **preserving every user-facing workspace panel, command palette action, ZMK/KiCad/STEP export option, header save indicator (`.header-save`), `[aria-label="Case assembly"]`, and `[aria-label="Witness identity"]`**.
 
 ---
 
 ## 5. Banned Patterns (Automatic Rejection)
 
-- **DO NOT** keep `*_mount.rs` + `*_controller.rs` + `*_projection.rs` + `*_view.rs` 4-file stacks for simple forms. Every form section MUST go directly from `&ResolvedDoc` → `NumericField`/`SelectField`/`ToggleField` → `runtime.commit(op)`.
+- **DO NOT** keep `*_mount.rs` + `*_controller.rs` + `*_projection.rs` + `*_view.rs` 4-file stacks for simple forms. Every form section MUST go directly from `&ResolvedDoc` → `NumericField`/`TextCommitField`/`SelectField`/`ToggleField` → `runtime.commit(op)`.
+- **DO NOT** silently drop user-facing features, specialist sections, or saved-parameter controls to hit an advisory LOC number.
 - **DO NOT** add new `#[wasm_bindgen_test]` mounted tests for field parsing, clamping, or enable/disable rules — test those natively in `#[test]`.
-- **DO NOT** leave unused `ui-shared` wrappers behind after migrating callers.
+- **DO NOT** leave temporary `Draft*` compat wrappers (`DraftNumericField`, `DraftSelectField`, etc.) behind in `ui-shared` after migrating callers.
 
 ---
 
 ## 6. Verification & Mechanical Gate Commands
 
-Run `check_reduction.py` per sub-track against the post-Wave-1 base commit (`<WAVE1_SHA>`):
+Run `check_reduction.py` against the post-Wave-1 base commit (`0c41526d0`):
 
 ```bash
-# Example for Track 3 combined gate against <WAVE1_SHA>:
+# Track 3 combined gate against 0c41526d0 (hard anti-bloat floor + advisory targets):
 python3 docs/plans/clean-slate-reduction/check_reduction.py \
-  --base <WAVE1_SHA> \
+  --base 0c41526d0 \
   --head HEAD \
-  --max-prod-delta -35000 \
-  --max-test-delta -33000 \
+  --max-prod-delta -1 \
+  --max-test-delta -1 \
+  --target-prod-delta -35000 \
+  --target-test-delta -33000 \
   --max-script-delta 0 \
   --max-other-delta 200 \
   --must-delete web/crates/case/src/mechanical_settings_mount.rs \
   --must-delete web/crates/case/src/mechanical_settings_mount \
   --must-delete web/crates/case/src/mechanical_settings_controller.rs \
-  --must-delete web/crates/case/src/mechanical_settings_controller \
-  --must-delete web/crates/case/src/mechanical_session_tests.rs \
   --must-delete web/crates/parts/src/parts_definition_name \
   --must-delete web/crates/ui-shared/src/choice_field.rs \
-  --must-delete web/crates/ui-shared/src/footprint_forms.rs
+  --must-delete web/crates/ui-shared/src/footprint_forms.rs \
+  --forbid-symbol DraftNumericField \
+  --forbid-symbol DraftSelectField \
+  --forbid-symbol mechanical_settings_mount
 
 # Focused checks per crate:
 cargo fmt --all --check

@@ -1,8 +1,8 @@
 # BoardStudio Clean-Slate Codebase Reduction Program
 
 **Required Git Base:** `dev` (`5aae86ff4b6d8cb05fae8e5d9ec71818ddf64bf4`)  
-**Status:** Active — replaces the "Remaining implementation program" section of [aaa-simplification-roadmap.md](../aaa-simplification-roadmap.md) and supersedes the unmerged `refactor/simplify-implementation-wave` branch (`85278fa21`).  
-**Primary Objective:** Reduce BoardStudio from **565,286 LOC** on `dev` to **≤ 230,000 LOC** (**≥ −335,000 net LOC**), cut full `check.py` wall time to **≤ 60–75s**, and ensure build times, WASM bundle sizes, and startup latency are strictly **better than `dev`**.
+**Status:** Active — Wave 1 (`0c41526d0`) **COMPLETED** (`-30,354` Prod Rust, `-79,456` Test Rust, `24.94 MB` release page WASM, zero `m1_core_worker_bg.wasm`, Neon High `APPROVE`). Wave 2 & Wave 3 updated to enforce clean architecture, full feature parity, CI/runtime velocity, and hard anti-bloat (`net < 0` / `--must-delete`) with advisory numeric LOC stretch targets.  
+**Primary Objective:** Replace multi-layer plumbing, workers, prop-bags, and redundant test/script chrome with clean, maintainable Rust/Dioxus architecture while **preserving 100% of user-facing `PRODUCT.md` capabilities and domain invariants**; cut full `check.py` wall time to **≤ 60–75s**; ensure build times, WASM bundle sizes, and startup latency are strictly **better than `dev`**; and eliminate all bloat strictly (`--must-delete`, `--forbid-symbol`, net `< 0`), targeting **~230,000–255,000 LOC** as an advisory stretch ceiling.
 
 ---
 
@@ -20,11 +20,11 @@ Before starting any track, every orchestrator and implementer MUST understand th
 
 ---
 
-## 2. Exact Baseline on `dev` (`5aae86ff4`) vs. Program Targets
+## 2. Exact Baseline on `dev` (`5aae86ff4`) vs. Advisory Program Targets
 
-Measured on `dev` (`5aae86ff4`) across all tracked `.rs` files and `scripts/*.{py,sh}`:
+Measured on `dev` (`5aae86ff4`) across all tracked `.rs` files and `scripts/*.{py,sh}`. Numeric ceilings below are **advisory stretch targets** (never chase them by dropping user-facing features or domain tests); the **hard gate** is architectural replacement + feature parity + net non-growth / `--must-delete` / CI & release velocity:
 
-| Bucket | `dev` Prod | `dev` Test | `dev` Total | Target Total | Target Net Delta |
+| Bucket | `dev` Prod | `dev` Test | `dev` Total | Advisory Stretch Total | Advisory Net Delta |
 |---|---:|---:|---:|---:|---:|
 | `core/` | 77,335 | 101,416 | 178,751 | ≤ 72,000 | **−106,751** |
 | `web/` | 159,229 | 113,833 | 273,062 | ≤ 90,000 | **−183,062** |
@@ -32,7 +32,7 @@ Measured on `dev` (`5aae86ff4`) across all tracked `.rs` files and `scripts/*.{p
 | `scripts/` | — | — | 26,263 | ≤ 8,000 | **−18,263** |
 | `cad/` *(already reduced from 172k)* | 24,567 | 16,360 | 40,927 | ≤ 32,000 | **−8,927** |
 | `footprints/` + `renderer/` + `contracts/` | 25,490 | 12,694 | 38,184 | ≤ 24,500 | **−13,684** |
-| **TOTAL** | **290,116** | **248,907** | **565,286** | **≤ 230,000** | **≥ −335,286 (−59%)** |
+| **TOTAL** | **290,116** | **248,907** | **565,286** | **≤ 230,000–255,000** | **≥ −310,000–−335,286** |
 
 ---
 
@@ -40,15 +40,15 @@ Measured on `dev` (`5aae86ff4`) across all tracked `.rs` files and `scripts/*.{p
 
 Read [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) FIRST — it is mandatory for every track.
 
-| Track | Plan Document | Owned Domain | `dev` LOC | Hard Ceiling | Min Net Reduction | Depends On |
+| Track | Plan Document | Owned Domain | `dev` LOC | Advisory Target Total | Advisory Net Reduction | Depends On / Status |
 |---|---|---|---:|---:|---:|---|
-| **0** | [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) | Non-negotiable rules & [check_reduction.py](check_reduction.py) | — | — | — | Required by all |
-| **1** | [01-derived-mirroring-replacement.md](01-derived-mirroring-replacement.md) | `core/crates/mirrored-half`, mirror glue in `engine`/`model`/`kernel`, mirror tests | ~52,000 | ≤ 5,000 | **≥ −47,000** | None (Wave 1) |
-| **2** | [02-sync-main-thread-core-and-runtime-collapse.md](02-sync-main-thread-core-and-runtime-collapse.md) | `web/src/core_worker.rs`, `web/crates/runtime`, `web/crates/host`, `application`, `ui-shared/src/draft_edits*`, `*_queued_edit_tests` | ~50,000 | ≤ 18,000 | **≥ −32,000** | None (Wave 1) |
-| **3** | [03-declarative-rust-ui-inspectors.md](03-declarative-rust-ui-inspectors.md) | `ui-shared` schema molecules + `case`, `parts`, `pcb`, `keycaps`, `keymap`, `library`, `web/src/presentation/inspector*` | ~113,000 | ≤ 40,000 | **≥ −73,000** | Track 2 (sync commit API) |
-| **4** | [04-layout-canvas-and-gizmo-collapse.md](04-layout-canvas-and-gizmo-collapse.md) | `layout-objects`, `layout`, `layout-core`, `web/src/presentation/editor*` | ~85,000 | ≤ 28,000 | **≥ −57,000** | Track 1 & Track 2 |
-| **5** | [05-test-suite-and-ci-collapse.md](05-test-suite-and-ci-collapse.md) | `core/tests/`, 12 per-crate Chrome launches in `scripts/check.py`, `scripts/` bloat | ~110,000* | ≤ 30,000* | **≥ −80,000*** | Tracks 1–4 (incremental per wave, finalized in Wave 3) |
-| **6** | [06-shared-3d-host-and-final-cleanup.md](06-shared-3d-host-and-final-cleanup.md) | 3D WebGL2 viewer unification, `core/crates/{mechanical,kernel,artifact}` trim, worktree hygiene, final release audit | ~60,000* | ≤ 30,000* | **≥ −30,000*** | Tracks 1–5 |
+| **0** | [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) | Hard anti-bloat + feature preservation rules & [check_reduction.py](check_reduction.py) | — | — | — | Required by all |
+| **1** | [01-derived-mirroring-replacement.md](01-derived-mirroring-replacement.md) | `core/crates/mirrored-half`, mirror glue in `engine`/`model`/`kernel`, mirror tests | ~52,000 | ≤ 5,000 | **≥ −47,000** | **COMPLETED** (`0c41526d0`, Wave 1) |
+| **2** | [02-sync-main-thread-core-and-runtime-collapse.md](02-sync-main-thread-core-and-runtime-collapse.md) | `web/src/core_worker.rs`, `web/crates/runtime`, `web/crates/host`, `application`, `ui-shared/src/draft_edits*`, `*_queued_edit_tests` | ~50,000 | ≤ 18,000 | **≥ −32,000** | **COMPLETED** (`0c41526d0`, Wave 1) |
+| **3** | [03-declarative-rust-ui-inspectors.md](03-declarative-rust-ui-inspectors.md) | `ui-shared` schema molecules + `case`, `parts`, `pcb`, `keycaps`, `keymap`, `library`, `web/src/presentation/inspector*` | ~113,000 | ≤ 40,000 | **≥ −73,000** | Track 2 (Wave 2A — **FEATURE PARITY REQUIRED**) |
+| **4** | [04-layout-canvas-and-gizmo-collapse.md](04-layout-canvas-and-gizmo-collapse.md) | `layout-objects`, `layout`, `layout-core`, `web/src/presentation/editor*` | ~85,000 | ≤ 28,000 | **≥ −57,000** | Track 1 & 2 (Wave 2B — **FEATURE PARITY REQUIRED**) |
+| **5** | [05-test-suite-and-ci-collapse.md](05-test-suite-and-ci-collapse.md) | `core/tests/`, 10–12 per-crate Chrome launches in `scripts/check.py`, `scripts/` bloat | ~110,000* | ≤ 30,000* | **≥ −80,000*** | Tracks 1–4 (Wave 3A — **COVERAGE PRESERVED**) |
+| **6** | [06-shared-3d-host-and-final-cleanup.md](06-shared-3d-host-and-final-cleanup.md) | 3D WebGL2 viewer unification, `core/crates/{mechanical,kernel,artifact}` trim, worktree hygiene, final release audit | ~60,000* | ≤ 30,000* | **≥ −30,000*** | Tracks 1–5 (Wave 3B) |
 
 *\*Track 5 and Track 6 counts exclude lines already deleted inside Tracks 1–4 so totals are not double-counted.*
 
@@ -56,16 +56,15 @@ Read [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) FIRST �
 
 ## 4. Multi-Provider Routing & Review Protocol
 
-Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Clean-Slate Rewriting**, and **Adversarial Review / Mechanical Deletion** across all three providers (`serviceTier: "default"`, `fastMode: false`):
+Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Clean-Slate Rewriting**, and **Adversarial Review / Mechanical Consolidation** across all three providers (`serviceTier: "default"`, `fastMode: false`). *Observed Wave 1–2 routing note: do not assign unattended full-track rewrites to `gpt-6.1-terra` (use `claude-sonnet-5-5`, `gpt-6.2-sol` at `medium`, or `gemini-4-neon` at `medium` for implementation; keep cross-provider review independence):*
 
 | Provider & Model | Role | Assigned Tracks | Guardrail |
 |---|---|---|---|
-| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, merges, `check_reduction.py`, full `check.py`, worktree cleanup | Owns all merges & vetoes scope creep; **pauses between waves** with a 5-line scoreboard for user approval |
-| **Claude — Opus 5.5** (`effort: "high"` / `"medium"`) | **Primary Architectural Rewriter** | Track 1 (`high`), Track 2 (`medium`), Track 4 (`high`) | Must pass `check_reduction.py` (negative Prod + Test LOC + empty `--must-delete`) before handback |
-| **Claude — Sonnet 5.5** (`effort: "medium"` / `"low"`) | **Declarative UI & Script Rewriter** | Track 3A (`medium`), Track 3B `case` (`medium`), Track 5B `scripts/` (`low`/`medium`) | Must pass `check_reduction.py` per sub-track |
-| **Codex — GPT-6.2 Sol** (`reasoningEffort: "high"` / `"medium"`) | **Read-Only Adversarial Diff Reviewer** | Reviews Track 1 (`high`), Track 2 (`medium`), Track 4 (`medium`) | Read-only review; Orchestrator applies real bug fixes (≤ 30 LOC) and **vetoes** any legacy-compat/bloat suggestions |
-| **Codex — GPT-6.1 Terra** (`reasoningEffort: "medium"` / `"low"`) | **Fenced Mechanical Deletion & Test-Port Worker** | Track 3C+3D (`medium`), Track 5A `core/tests/` & Chrome launches (`medium`), Track 6B `core/` trim (`low`/`medium`) | Strictly fenced by `check_reduction.py` manifest & negative LOC limits |
-| **Antigravity — Gemini 4 Neon** (`thought_level: "medium"`) | **Cross-Crate Web/3D Consolidation Worker** | Track 3E+3F (`medium`), Track 6A unified 3D host (`medium`) | Must pass `check_reduction.py` per sub-track |
+| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"` / planning coordinator) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, merges, `check_reduction.py`, full `check.py`, worktree cleanup | Owns all merges, preserves feature parity, enforces hard `--must-delete` / anti-bloat floors |
+| **Claude — Opus 5.5** (`effort: "medium"`) | **Architectural Rewriter & Track 4 Diff Reviewer** | Track 1 (`high`), Track 2, **Track 4 Read-Only Diff Review** | Reviews invariants + feature parity; never self-reviews own implementation |
+| **Claude — Sonnet 5.5** (`effort: "medium"` / `"high"`) | **Declarative UI, Layout & Script Rewriter** | Track 3B `case`, Track 4 (`high`), Track 5B `scripts/` | Preserves all user-facing features declaratively; passes `check_reduction.py` (`net < 0` + `--must-delete`) |
+| **Codex — GPT-6.2 Sol** (`reasoningEffort: "medium"`) | **Architectural Rewriter / Reviewer** | Track 2 (`0c41526d`), Track 3C+3D (`parts` + `pcb`), Track 6B `core/` trim / Track 1 review | Must preserve features & domain invariants; passes `check_reduction.py` |
+| **Antigravity — Gemini 4 Neon** (`thought_level: "medium"` impl / `"high"` gate) | **Cross-Crate Web/3D Consolidation & Wave-End Auditor** | Track 3E+3F (`medium`), Track 6A unified 3D host (`medium`), **Wave-End Gate Audit (`high`, read-only)** | Wave-end audits explicitly verify Feature Parity + runtime/bundle/gate health before auto-approving next wave |
 
 ---
 
@@ -73,23 +72,23 @@ Never let one provider both invent policy and self-grade its own diffs. Split **
 
 ```mermaid
 flowchart TD
-    DEV["dev (5aae86ff4) — 565,286 LOC"] --> T1["Wave 1A: Track 1 — Derived Mirroring (-47k LOC)"]
-    DEV --> T2["Wave 1B: Track 2 — Sync Core & Runtime Collapse (-32k LOC)"]
-    T1 --> M1["Merge Wave 1 + Reduction Gate + Full check.py"]
+    DEV["dev (5aae86ff4) — 565,286 LOC"] --> T1["Wave 1A: Track 1 — Derived Mirroring (DONE)"]
+    DEV --> T2["Wave 1B: Track 2 — Sync Core & Runtime Collapse (DONE)"]
+    T1 --> M1["Wave 1 Integrated (0c41526d0) — Gate + check.py + Release PASS"]
     T2 --> M1
-    M1 --> T3["Wave 2A: Track 3 — Declarative rust-ui Inspectors (-73k LOC, sharded by crate)"]
-    M1 --> T4["Wave 2B: Track 4 — Layout Canvas & Gizmo Collapse (-57k LOC)"]
-    T3 --> M2["Merge Wave 2 + Reduction Gate + Full check.py"]
+    M1 --> T3["Wave 2A: Track 3 — Declarative rust-ui Inspectors (Advisory -73k, Full Parity)"]
+    M1 --> T4["Wave 2B: Track 4 — Layout Canvas & Gizmo Collapse (Advisory -57k, Full Parity)"]
+    T3 --> M2["Merge Wave 2 + Opus Track 4 Review + Full check.py + Neon High Audit"]
     T4 --> M2
-    M2 --> T5["Wave 3A: Track 5 — Test Suite, Chrome Launches & Scripts Collapse (-80k LOC)"]
-    M2 --> T6["Wave 3B: Track 6 — Unified 3D Host, Core Cleanup & Final Audit (-30k LOC)"]
-    T5 --> FINAL["Final Merge: <= 230,000 LOC, check.py <= 75s, Release <= dev"]
+    M2 --> T5["Wave 3A: Track 5 — Retire 10-12 Chrome Launches, Scripts & Test Consolidation"]
+    M2 --> T6["Wave 3B: Track 6 — Unified 3D Host, Core Cleanup & Worktree Hygiene"]
+    T5 --> FINAL["Final Merge: Clean Architecture, Full Feature Parity, check.py <= 75s, Release <= dev"]
     T6 --> FINAL
 ```
 
-- **Wave 1 (2 parallel worktrees):** Track 1 (Core) and Track 2 (Runtime/Worker) are file-disjoint except for the thin `CoreEngine` call boundary. Integrate and pass `check_reduction.py` + `check.py` before starting Wave 2.
-- **Wave 2 (3–4 parallel worktrees):** Track 3A (`ui-shared` schema molecules, fast first commit), then fan out Track 3B (`case`), Track 3C (`parts` + `pcb`), Track 3D (`keycaps` + `keymap` + `library`), and Track 4 (`layout*`). Never exceed 4 active worktrees.
-- **Wave 3 (2 parallel worktrees):** Track 5 (retire remaining Chrome launches, prune `core/tests/`, slim `scripts/`) and Track 6 (unify 3D viewer, trim `core/crates/{mechanical,kernel,artifact}`, prune stale worktrees).
+- **Wave 1 (COMPLETED at `0c41526d0`):** Track 1 (Core) and Track 2 (Runtime/Worker) landed cleanly and passed `check_reduction.py`, full `check.py`, `check.py release`, and Neon High review.
+- **Wave 2 (4 parallel worktrees):** Track 3A (`ui-shared` schema molecules at `e5035558`), then fan out Track 3B (`case`), Track 3C+3D (`parts` + `pcb`), Track 3E+3F (`keycaps` + `keymap` + `library` + non-layout `presentation/`), and Track 4 (`layout*`). Never exceed 4 active worktrees; review Track 4 on `claude-opus-5-5` and audit feature parity + full `check.py` before Wave 3.
+- **Wave 3 (4 file-disjoint worktrees max):** Track 5A (`core/tests/` + retired crate browser test modules), Track 5B (`scripts/` + retire per-crate Chrome launches in `check.py`), Track 6A (unified `<Viewport3D />` + `renderer_host.rs`), Track 6B (`core/crates/{mechanical,kernel,artifact}` trim) + worktree pruning and final release/latency audit.
 
 ---
 
@@ -101,24 +100,28 @@ When launching **any** AI agent (coordinator or implementer) on a track, paste t
 You are executing Track <N> of BoardStudio's Clean-Slate Codebase Reduction Program.
 Base commit: <SHA> (must be clean dev or the merged prior wave).
 
-MANDATORY READING (read both completely before editing a single file):
+MANDATORY READING (read completely before editing a single file):
 1. docs/plans/clean-slate-reduction/00-agent-guardrails-and-gate.md
 2. docs/plans/clean-slate-reduction/<TRACK_FILE>.md
 3. AGENTS.md and CODING_STANDARDS.md
 
 NON-NEGOTIABLE COMPLETION CONTRACT:
-- This is a DELETION-FIRST clean-slate rewrite. BoardStudio is pre-release (not live).
+- This is a clean-slate architectural rewrite. BoardStudio is pre-release (not live).
   ZERO backward-compatibility shims, ZERO v7 migration/recovery code, ZERO dual-path wrappers.
-- You MUST delete every file listed in the track's Mandatory Deletion Manifest.
-- You MUST pass docs/plans/clean-slate-reduction/check_reduction.py against <BASE_SHA>
-  with strictly NEGATIVE net Production Rust LOC and strictly NEGATIVE net Test Rust LOC
-  meeting the track's Hard Budget.
-- Do NOT rewrite scope, add "preserve legacy quirk" requirements, or treat deleted subsystem
-  narrative tests as untouchable oracles. If a legacy quirk would cost >100 LOC to preserve,
-  STOP and ask the user in 3 lines — never silently build machinery for it.
+- FEATURE PRESERVATION (NON-NEGOTIABLE): Do NOT drop user-facing PRODUCT.md capabilities,
+  specialist inspector sections, saved-parameter controls, or key domain test invariants solely to
+  chase an advisory LOC target. Rearchitect and refactor them cleanly into the target architecture.
+- You MUST delete every file listed in the track's Mandatory Deletion Manifest using soft-delete
+  (mkdir -p $HOME/.cache/tmp/boardstudio-trash/<track> && mv <paths> ... && git add -u; NEVER rm/git rm).
+- You MUST pass docs/plans/clean-slate-reduction/check_reduction.py against <BASE_SHA> with hard
+  anti-bloat floors (--max-prod-delta -1 or <= 0, --max-test-delta -1, --max-script-delta <= 0,
+  --max-other-delta <= 200) and all --must-delete / --forbid-symbol checks; treat --target-* LOC
+  figures as advisory stretch benchmarks, NOT reasons to amputate features.
+- Do NOT expand scope with obscure legacy internal quirks (if an obscure quirk would cost >100 LOC
+  or force keeping a manifest deletion alive, STOP and ask the user in 3 lines).
 - Do NOT commit exploratory scripts, benchmark harnesses, or >100-line .evidence/ inventories.
 - Run focused crate tests in your worktree under the shared build lock
   (~/.cache/tmp/boardstudio-build.lock, BOARDSTUDIO_BUILD_LOCK_FD=9, TMPDIR="$HOME/.cache/tmp").
   Reserve full check.py for integration after the wave merges.
-- Your final report MUST paste the raw output of check_reduction.py.
+- Your final report MUST paste the raw output of check_reduction.py and a Feature Parity summary.
 ```

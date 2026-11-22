@@ -63,14 +63,15 @@ Delete over-engineered script infrastructure and meta-tests while keeping the re
 
 ---
 
-## 3. Hard LOC Budget (Whole-Repo `check_reduction.py` Gate vs. Post-Wave-2 Base)
+## 3. Hard Architectural, Velocity & Coverage Gate + Advisory LOC Targets
 
-- **Mandatory Net Production Rust Delta:** **`<= 0` LOC** (no production bloat added)
-- **Mandatory Net Test Rust Delta:** **`<= -50,000` LOC** (across `core/tests/`, `web/tests/`, and retired WASM crate tests)
-- **Mandatory Net Scripts Delta:** **`<= -15,000` LOC** (`scripts/` finishes **≤ 8,000 LOC** total)
-- **Mandatory Net Other Delta:** **`<= 0` LOC**
-- **Mandatory Browser Launch Cap:** `scripts/check.py` launches **≤ 2** per-crate Chrome processes (down from 12).
-- **Mandatory Wall-Time Target:** Full `python3 scripts/check.py` finishes in **≤ 75 seconds** (warm target dir).
+- **Hard Architectural & Velocity Requirements:**
+  - **Browser Launch Cap:** `scripts/check.py` launches **≤ 2** per-crate Chrome processes (retire all 10 presentation/runtime per-crate Chrome launches cleanly).
+  - **Mandatory Deletion Manifest:** Delete every listed over-engineered script and brittle static regex UI test (`scripts/verification_receipt.py`, `scripts/test-verification-receipt.py`, the 7 regex UI checks, `scripts/test-parallel-interrupt.py`).
+  - **Anti-Bloat Floors:** `--max-prod-delta 0`, `--max-test-delta -1`, `--max-script-delta -1`, `--max-other-delta 0`.
+  - **Full Verification & Wall-Time Target:** Full `python3 scripts/check.py` passes cleanly, targeting **≤ 75 seconds** warm.
+- **Hard Coverage Preservation Rule:** When consolidating `core/tests/` into parameterized tables and property sweeps, **NEVER drop a unique domain invariant or regression class** (mechanical tolerances, STEP/KiCad/ZMK export accuracy, outline boolean validity, matrix geometry, mirror projection, Undo/Redo, malformed-input refusal). Deduplicate repeated scenario scaffolding — do not blind-delete unique behavioral coverage to chase a numeric delta.
+- **Advisory Stretch Targets:** `--target-test-delta -50000 --target-script-delta -15000` (with `scripts/ <= 8,000` LOC directional goal).
 
 ---
 
@@ -106,8 +107,10 @@ python3 docs/plans/clean-slate-reduction/check_reduction.py \
   --base <WAVE2_SHA> \
   --head HEAD \
   --max-prod-delta 0 \
-  --max-test-delta -50000 \
-  --max-script-delta -15000 \
+  --max-test-delta -1 \
+  --max-script-delta -1 \
+  --target-test-delta -50000 \
+  --target-script-delta -15000 \
   --max-other-delta 0 \
   --must-delete scripts/verification_receipt.py \
   --must-delete scripts/test-verification-receipt.py \
@@ -117,7 +120,8 @@ python3 docs/plans/clean-slate-reduction/check_reduction.py \
   --must-delete scripts/test-dock-layout.py \
   --must-delete scripts/test-parts-library.py \
   --must-delete scripts/test-header.py \
-  --must-delete scripts/test-layout-review-regressions.py
+  --must-delete scripts/test-layout-review-regressions.py \
+  --must-delete scripts/test-parallel-interrupt.py
 
 # 2. Full gate & wall-time check (under shared flock)
 time python3 scripts/check.py
