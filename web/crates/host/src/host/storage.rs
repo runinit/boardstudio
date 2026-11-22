@@ -793,10 +793,9 @@ fn decode_document(value: JsValue) -> Result<(ProjectDoc, bool), PersistError> {
     };
     let value: serde_json::Value =
         serde_wasm_bindgen::from_value(value).map_err(|error| invalid(error.to_string()))?;
-    let (value, migrated) =
-        boardstudio_core_kernel::migrate::migrate_value(value).map_err(invalid)?;
+    boardstudio_core_kernel::document_format::require_current_value(&value).map_err(invalid)?;
     let document = serde_json::from_value(value).map_err(|error| invalid(error.to_string()))?;
-    Ok((document, migrated))
+    Ok((document, false))
 }
 
 async fn load_value(

@@ -88,7 +88,9 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             )
             .map_err(|_| "Project JSON is not UTF-8")?;
             // Inspect the version before any schema-dependent interpretation.
-            let (project_json, _) = crate::migrate::migrate_json(&project_json)?;
+            crate::document_format::require_current_value(
+                &serde_json::from_str(&project_json).map_err(|error| error.to_string())?,
+            )?;
             let references = asset_references(&project_json)?;
             let indexed = files
                 .iter()
@@ -406,7 +408,7 @@ fn read_bounded(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrate::CURRENT_VERSION;
+    use crate::document_format::CURRENT_VERSION;
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {

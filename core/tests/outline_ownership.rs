@@ -9,7 +9,7 @@ use boardstudio_core::{CoreEngine, model::*};
 fn fixture() -> ProjectDoc {
     let mut document: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+    document.format_version = boardstudio_core::document_format::CURRENT_VERSION;
     document
 }
 

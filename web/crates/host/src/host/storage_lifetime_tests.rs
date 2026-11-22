@@ -1,5 +1,5 @@
 use super::*;
-use boardstudio_core_kernel::migrate::CURRENT_VERSION;
+use boardstudio_core_kernel::document_format::CURRENT_VERSION;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);

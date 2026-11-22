@@ -52,7 +52,7 @@ fn archive_bytes(current: bool) -> Vec<u8> {
 
     if current {
         // Rebuilt current fixture: identities and back-side placement are authored, not migrated.
-        document["formatVersion"] = json!(migrate::CURRENT_VERSION);
+        document["formatVersion"] = json!(document_format::CURRENT_VERSION);
         document["definitions"][0]["id"] = json!("generator:ceoloide/switch_mx");
         document["definitions"][0]["models"][0]["assetId"] =
             json!("bundled-model:synthetic/switch.step");

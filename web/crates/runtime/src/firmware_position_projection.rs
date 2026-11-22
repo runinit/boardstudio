@@ -228,7 +228,7 @@ mod tests {
             "../../../../core/tests/fixtures/synthetic-outline.json"
         ))
         .expect("synthetic outline fixture is a valid saved project");
-        document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
+        document.format_version = boardstudio_core_kernel::document_format::CURRENT_VERSION;
         let switch = document
             .definitions
             .iter_mut()

@@ -1,6 +1,6 @@
 //! Helpers shared by the native integration test modules.
 
-use boardstudio_core::migrate::CURRENT_VERSION;
+use boardstudio_core::document_format::CURRENT_VERSION;
 
 pub(crate) mod replacement_electrical;
 pub(crate) mod synthetic_half;

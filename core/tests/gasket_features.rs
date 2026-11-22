@@ -291,7 +291,7 @@ fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
     let mut original =
         serde_json::to_value(serde_json::from_value::<ProjectDoc>(internal_document()).unwrap())
             .unwrap();
-    original["formatVersion"] = json!(boardstudio_core::migrate::CURRENT_VERSION);
+    original["formatVersion"] = json!(boardstudio_core::document_format::CURRENT_VERSION);
     // Ticket 37: raw SetMechanical is deleted. The case mechanical is setup, not
     // behavior: open the document with it in place instead of writing it by edit.
     let mut authored = original.clone();

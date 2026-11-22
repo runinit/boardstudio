@@ -1178,7 +1178,7 @@ pub(crate) fn apply_with_ledger(
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
             }
-            migrate::require_current_version(document.format_version)?;
+            document_format::require_current_version(document.format_version)?;
             let accepted = doc.clone();
             let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();

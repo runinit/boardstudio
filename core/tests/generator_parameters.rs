@@ -49,7 +49,7 @@ fn part(id: &str, definition: &str, parameters: Value) -> Part {
 
 fn document(parts: Vec<Part>) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("generators", "Generators");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(HOLE));
     doc.definitions.push(catalogue_definition(MCU));
     doc.parts = parts;
@@ -368,7 +368,7 @@ fn current_document_with_unconvertible_text() -> Value {
         json!({ "hole_size": " 3.5 ", "not_a_parameter": "4" }),
     );
     let mut saved = serde_json::to_value(ProjectDoc::empty("saved", "Saved")).unwrap();
-    saved["formatVersion"] = json!(migrate::CURRENT_VERSION);
+    saved["formatVersion"] = json!(document_format::CURRENT_VERSION);
     saved["definitions"] = json!([definition]);
     saved["parts"] = json!([held]);
     migrate::migrate_value(saved)
@@ -497,7 +497,7 @@ fn a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not() {
 fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_declare() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("keys", "Keys");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(CHOC));
     doc.definitions.push(catalogue_definition(ENCODER));
     assert!(matches!(open(&mut engine, doc), CoreReply::Scene { .. }));
@@ -706,7 +706,7 @@ fn saved_flipped_and_board_export_documents_validate_generator_jobs() {
 #[test]
 fn applying_synthetic_matrix_wiring_writes_the_declared_column_terminal_net() {
     let mut doc = ProjectDoc::empty("synthetic-wiring", "Synthetic wiring");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(MCU));
     let mut switch: PartDefinition = serde_json::from_value(json!({
         "id": "synthetic/switch", "name": "Synthetic switch", "kind": "switch",

@@ -454,7 +454,7 @@ fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records(
 
 #[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
-    use boardstudio_core::migrate::CURRENT_VERSION;
+    use boardstudio_core::document_format::CURRENT_VERSION;
 
     for route in ["open", "replace"] {
         let mut engine = CoreEngine::new();

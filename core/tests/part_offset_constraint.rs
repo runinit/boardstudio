@@ -496,7 +496,7 @@ fn the_part_offset_kind_is_persisted_under_the_current_format_version() {
     let encoded = serde_json::to_value(document).unwrap();
     assert_eq!(
         encoded["formatVersion"],
-        boardstudio_core::migrate::CURRENT_VERSION
+        boardstudio_core::document_format::CURRENT_VERSION
     );
 }
 

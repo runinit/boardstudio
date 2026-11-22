@@ -432,7 +432,7 @@ impl DemoProject {
 mod demo_rebuild_tests {
     use super::*;
     use boardstudio_core::CoreEngine;
-    use boardstudio_core_kernel::migrate::CURRENT_VERSION;
+    use boardstudio_core_kernel::document_format::CURRENT_VERSION;
 
     fn studio60() -> ProjectDoc {
         DEMO_PROJECTS

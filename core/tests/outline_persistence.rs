@@ -59,7 +59,7 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
     let mut document: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json"))
             .expect("synthetic outline fixture");
-    document.format_version = migrate::CURRENT_VERSION;
+    document.format_version = document_format::CURRENT_VERSION;
     let asset_bytes = b"synthetic persistence asset".to_vec();
     let hash = Sha256::digest(&asset_bytes)
         .iter()
@@ -231,7 +231,7 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
     let document: ProjectDoc = serde_json::from_str(&stored).unwrap();
     assert_eq!(
         document.format_version,
-        migrate::CURRENT_VERSION,
+        document_format::CURRENT_VERSION,
         "a new project writes the integrated current format"
     );
     assert_eq!(
@@ -244,7 +244,7 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
     let mut engine = CoreEngine::new();
     let empty = ProjectDoc::empty("new-project", "New project");
     let text = serde_json::to_string(&empty).unwrap();
-    assert_eq!(empty.format_version, migrate::CURRENT_VERSION);
+    assert_eq!(empty.format_version, document_format::CURRENT_VERSION);
     assert_eq!(migrate::migrate_json(&text).unwrap(), (text.clone(), false));
     scene(engine.handle(CoreRequest::Open {
         id: "new".into(),
@@ -255,7 +255,7 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
     let mut engine = CoreEngine::new();
     let mut fixture: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    fixture.format_version = migrate::CURRENT_VERSION;
+    fixture.format_version = document_format::CURRENT_VERSION;
     let opened = scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
         document: fixture,

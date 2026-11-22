@@ -1,5 +1,5 @@
 use boardstudio_core::{
-    migrate::CURRENT_VERSION,
+    document_format::CURRENT_VERSION,
     model::{MechanicalConfiguration, PartDefinition},
 };
 

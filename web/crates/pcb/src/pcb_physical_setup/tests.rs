@@ -142,7 +142,7 @@ fn fixture_document(id: &str, revision: u64) -> boardstudio_model::model::Projec
         "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .expect("synthetic outline fixture is a valid saved project");
-    document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
+    document.format_version = boardstudio_core_kernel::document_format::CURRENT_VERSION;
     document.id = id.into();
     document.revision = revision;
     document

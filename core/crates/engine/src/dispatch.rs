@@ -23,7 +23,7 @@ impl CoreEngine {
         if document.format != "boardstudio/v2" {
             return Err("Unsupported document format".into());
         }
-        migrate::require_current_version(document.format_version)?;
+        document_format::require_current_version(document.format_version)?;
         if document.revision == u64::MAX {
             return Err("Document revision is exhausted".into());
         }

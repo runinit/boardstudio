@@ -1,13 +1,10 @@
-//! Mirrored-half lifecycle for BoardStudio Core.
+//! Deterministic projection of canonical mirror pairs.
 
+pub use boardstudio_model::mirrored_half::*;
 pub use boardstudio_model::model;
 
-#[allow(unused_imports)]
-pub(crate) use boardstudio_core_kernel::{
-    constraints, generators, geometry, matrix, outline_controls, outline_edit, outline_versions,
-};
-#[allow(unused_imports)]
-pub(crate) use boardstudio_core_mechanical::mechanical;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_core_mechanical::{electrical, electrical_peripherals, keymap, modules};
-pub mod mirrored_half;
+mod project;
+pub use project::{ResolvedDoc, project_document};
+
+#[cfg(test)]
+mod invariants_tests;

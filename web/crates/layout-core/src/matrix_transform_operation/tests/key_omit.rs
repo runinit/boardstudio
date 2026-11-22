@@ -15,7 +15,7 @@ fn pair_doc() -> ProjectDoc {
     serde_json::from_value(serde_json::json!({
         "id": "omit", "name": "Omit", "format": "boardstudio/v2", "revision": 0,
         "parameters": {},
-        "formatVersion": boardstudio_model::migrate::CURRENT_VERSION,
+        "formatVersion": boardstudio_model::document_format::CURRENT_VERSION,
         "boards": [
             {"id": "source-board", "name": "Source", "partIds": ["source-key"],
              "outlineIds": [], "netIds": [], "thickness": 1.6},

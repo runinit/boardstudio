@@ -7,11 +7,11 @@ pub use boardstudio_model::electrical_jumpers;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
 mod keycaps;
-pub use boardstudio_core_kernel::migrate;
 use boardstudio_core_mechanical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
 use boardstudio_core_mechanical::modules;
 use boardstudio_core_mirrored_half::mirrored_half;
+pub use boardstudio_model::document_format;
 pub use boardstudio_model::model;
 mod outline_validation;
 mod validate;
@@ -83,7 +83,7 @@ impl CoreEngine {
                 } else {
                     None
                 };
-                candidate.map_or(Ok(()), migrate::require_current_value)
+                candidate.map_or(Ok(()), document_format::require_current_value)
             });
         if let Err(message) = preflight {
             return boardstudio_model::wire::encode_core_reply(&CoreReply::Error {

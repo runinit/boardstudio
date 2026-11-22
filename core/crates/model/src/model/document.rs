@@ -2,6 +2,12 @@ use super::*;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {
+    #[serde(
+        rename = "mirroredPairs",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub mirrored_pairs: Vec<crate::mirrored_half::MirroredPair>,
     /// View-only physical context used by Rust assembly preparation; canonical edits omit it.
     #[serde(
         rename = "physicalInstanceId",
@@ -40,8 +46,7 @@ pub struct ProjectDoc {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub assemblies: Vec<AssemblyDefinition>,
     pub format: String,
-    /// Schema version of the document; a document without one is version 1.
-    #[serde(rename = "formatVersion", default = "legacy_format_version")]
+    #[serde(rename = "formatVersion")]
     pub format_version: u32,
     pub id: String,
     pub name: String,
@@ -70,9 +75,6 @@ pub struct ProjectDoc {
     #[serde(default)]
     pub constraints: Vec<Constraint>,
 }
-fn legacy_format_version() -> u32 {
-    crate::migrate::LEGACY_VERSION
-}
 
 // Field-wise clone identical to the former derive, kept out of line: every core
 // crate clones whole documents for drafts, and an inlined derived clone was
@@ -82,6 +84,7 @@ impl Clone for ProjectDoc {
     #[inline(never)]
     fn clone(&self) -> Self {
         Self {
+            mirrored_pairs: self.mirrored_pairs.clone(),
             physical_instance_id: self.physical_instance_id.clone(),
             module_definitions: self.module_definitions.clone(),
             modules: self.modules.clone(),
@@ -126,6 +129,7 @@ impl ProjectDoc {
 
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
+            mirrored_pairs: vec![],
             module_definitions: vec![],
             physical_instance_id: None,
             modules: vec![],
@@ -137,7 +141,7 @@ impl ProjectDoc {
             board_references: vec![],
             assemblies: vec![],
             format: "boardstudio/v2".into(),
-            format_version: crate::migrate::CURRENT_VERSION,
+            format_version: crate::document_format::CURRENT_VERSION,
             id: id.into(),
             name: name.into(),
             revision: 0,
