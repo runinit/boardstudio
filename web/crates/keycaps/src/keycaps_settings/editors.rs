@@ -1,7 +1,7 @@
 use super::retry_drafts::retry_identity;
 use super::*;
 use boardstudio_web_ui_shared::inspector_fields::{
-    InspectorSection, NumericField, SelectField, TextField,
+    DraftNumericField as NumericField, DraftSelectField as SelectField, InspectorSection, TextField,
 };
 
 #[component]

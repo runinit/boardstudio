@@ -6,7 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

@@ -1,6 +1,6 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
 use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
-use crate::footprint_forms::Shape;
+use crate::footprint_graphics::Shape;
 use crate::presentation::footprint_graphics::{self, GraphicElement};
 use crate::preview_logic::*;
 use boardstudio_application::{Scope, SnapshotToken};

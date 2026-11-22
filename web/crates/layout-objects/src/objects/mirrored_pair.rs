@@ -7,7 +7,7 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

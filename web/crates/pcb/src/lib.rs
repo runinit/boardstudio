@@ -36,11 +36,11 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 #[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_shared::footprint_forms;
+pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_shared::{
-    board_reference_effect, canvas_layers, footprint_graphics, model_asset_import,
+    board_reference_effect, canvas_layers, model_asset_import,
 };
 
 #[allow(unused_imports)]

@@ -29,11 +29,11 @@ pub(crate) use boardstudio_web_ui_model::selection::{self, SelectionAdapter};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 #[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_shared::footprint_forms;
+pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_shared::{
-    footprint_graphics, model_asset_import, panels,
+    model_asset_import, panels,
     panels::browse_parts_workspace,
     panels::{PanelMode, PanelSettings},
 };

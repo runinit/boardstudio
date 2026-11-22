@@ -1,4 +1,4 @@
-use crate::footprint_forms::{Graphic, Shape};
+use crate::footprint_graphics::{Graphic, Shape};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{EnvelopeOrigin, Pad, PartDefinition, Side, Vec2};
 use std::{
@@ -237,7 +237,7 @@ impl Bounds {
 }
 
 fn include_graphic_bounds(bounds: &mut Bounds, graphic: &Graphic) {
-    let include = |bounds: &mut Bounds, point: &crate::footprint_forms::Point| {
+    let include = |bounds: &mut Bounds, point: &crate::footprint_graphics::Point| {
         // `footprint_forms::point` already converts native Y into the preview
         // frame. GraphicElement consumes that value under the one outer flip;
         // use the same point here rather than applying a second conversion.
@@ -513,8 +513,8 @@ mod tests {
         let drawings = vec![Graphic {
             layer: "B.SilkS".into(),
             shape: Shape::Line(
-                crate::footprint_forms::Point(-2.0, -3.0),
-                crate::footprint_forms::Point(2.0, -3.0),
+                crate::footprint_graphics::Point(-2.0, -3.0),
+                crate::footprint_graphics::Point(2.0, -3.0),
             ),
         }];
         let outline = PreviewOutline {
@@ -545,8 +545,8 @@ mod tests {
         let drawings = vec![Graphic {
             layer: "B.SilkS".into(),
             shape: Shape::Line(
-                crate::footprint_forms::Point(-11.0, -14.0),
-                crate::footprint_forms::Point(11.0, -14.0),
+                crate::footprint_graphics::Point(-11.0, -14.0),
+                crate::footprint_graphics::Point(11.0, -14.0),
             ),
         }];
         let outline = PreviewOutline {
@@ -575,8 +575,8 @@ mod tests {
         let drawings = vec![Graphic {
             layer: "F.SilkS".into(),
             shape: Shape::Line(
-                crate::footprint_forms::Point(5.0, 4.0),
-                crate::footprint_forms::Point(8.0, 7.0),
+                crate::footprint_graphics::Point(5.0, 4.0),
+                crate::footprint_graphics::Point(8.0, 7.0),
             ),
         }];
         let member = PreviewGeometry {
@@ -602,8 +602,8 @@ mod tests {
         let drawings = vec![Graphic {
             layer: "B.SilkS".into(),
             shape: Shape::Line(
-                crate::footprint_forms::Point(0.0, 0.0),
-                crate::footprint_forms::Point(1.0, -1.0),
+                crate::footprint_graphics::Point(0.0, 0.0),
+                crate::footprint_graphics::Point(1.0, -1.0),
             ),
         }];
         let layers = preview_layers(&definition, &drawings, None, &Side::Front);

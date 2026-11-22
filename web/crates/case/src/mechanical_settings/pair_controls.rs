@@ -18,7 +18,7 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -320,35 +320,32 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
             p { class: "text-muted-foreground text-sm leading-normal",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
-            ChoiceField {
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
-                mode: ChoiceFieldMode::Indexed { placeholder: None },
+            SelectField::<String> {
                 label: "Link with",
                 aria_label: "Link with",
                 disabled: !props.editable,
                 value: selected().to_string(),
                 options: options.iter().enumerate().map(|(candidate, item)| (candidate.to_string(), item.other_name.clone())).collect::<Vec<_>>(),
-                on_value_change: {
+                on_commit: {
                         let mut selected = selected;
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             if let Some(next) = next && let Ok(value) = next.parse::<usize>() {
                                 selected.set(value);
                             }
                         }
                     },
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Construction from",
                 aria_label: "Pair construction source",
                 disabled: !props.editable,
                 value: (if construction_from_other_value { "other" } else { "this" }).to_owned(),
-                on_value_change: {
+                on_commit: {
                         let mut construction_from_other = construction_from_other;
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             construction_from_other.set(next.as_deref() == Some("other"));
                         }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("this".into(), option.instance_id.clone()),
                     ("other".into(), option.other_instance_id.clone()),
@@ -408,21 +405,20 @@ pub(crate) fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps)
                         fieldset { key: "{row_id}",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
-                            ChoiceField {
+                            SelectField::<String> {
                                 label: "Shared geometry from",
                                 aria_label: "Source for {key}",
                                 disabled: !props.editable,
                                 value: chosen.clone(),
-                                on_value_change: {
+                                on_commit: {
                                         let mut sources = sources;
                                         let key = key.clone();
-                                        move |next: Option<String>| {
+                                        move |next_val: String| { let next = Some(next_val);
                                             if let Some(next) = next {
                                                 sources.write().insert(key.clone(), next);
                                             }
                                         }
                                     },
-                                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                                 options: vec![
                                     (matched.source_instance_id.clone(), format!("{} · {first_label}", matched.source_instance_id)),
                                     (option.other_instance_id.clone(), format!("{} · {second_label}", option.other_instance_id)),
@@ -634,15 +630,15 @@ pub(crate) fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Elem
                                 }
                             } else {
                                 if offers_own_source {
-                                    ChoiceField {
+                                    SelectField::<String> {
                                         label: "Rejoin from",
                                         aria_label: "Rejoin source for {row.feature_id}",
                                         disabled: !props.editable,
                                         value: chosen_source.clone(),
-                                        on_value_change: {
+                                        on_commit: {
                                                 let mut rejoin_sources = rejoin_sources;
                                                 let feature_id = row.feature_id.clone();
-                                                move |next: Option<String>| {
+                                                move |next_val: String| { let next = Some(next_val);
                                                     if let Some(next) = next {
                                                         rejoin_sources
                                                             .write()
@@ -650,7 +646,6 @@ pub(crate) fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Elem
                                                     }
                                                 }
                                             },
-                                        layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                                         options: vec![
                                             (row.instance_id.clone(), format!("this half · {}", row.own_geometry.clone().unwrap_or_default())),
                                             (row.counterpart_instance_id.clone(), format!("the other half · {}", row.preview.clone().unwrap_or_else(|| "no geometry".to_owned()))),

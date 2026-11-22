@@ -4,7 +4,7 @@ use crate::{
     model_delivery::*,
     runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},

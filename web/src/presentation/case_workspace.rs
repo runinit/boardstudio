@@ -13,8 +13,7 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
 pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, SelectField, TextField};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
@@ -1010,8 +1009,8 @@ fn CaseInspectorSelect(
     on_change: EventHandler<Option<String>>,
 ) -> Element {
     rsx! {
-        ChoiceField { label, value, options, disabled, layout: ChoiceFieldLayout::StackedNarrow,
-            on_value_change: on_change,
+        SelectField::<String> { label, value, options, disabled,
+            on_commit: move |next: String| on_change.call(Some(next)),
         }
     }
 }

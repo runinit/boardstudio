@@ -18,8 +18,8 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
 use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -84,21 +84,20 @@ pub(crate) fn GasketClosureControls(props: GasketClosureControlsProps) -> Elemen
             CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Closure hardware · {hardware.thread}" }
             CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             p { class: "text-muted-foreground text-sm leading-normal", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Insert size",
                 aria_label: "Insert size",
                 disabled: !props.editable,
                 value: (selected_preset.unwrap_or("custom")).to_string(),
-                on_value_change: {
+                on_commit: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             if let Some(id) = next && id != "custom" {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInsertPreset(id));
                             }
                         }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("custom".into(), "Custom dimensions".into()),
                     ("m2-3".into(), "M2 × L3 × OD3.2".into()),
@@ -109,55 +108,51 @@ pub(crate) fn GasketClosureControls(props: GasketClosureControlsProps) -> Elemen
                     ("m3-3".into(), "M3 × L3 × OD4.2".into()),
                 ],
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Screw drive",
                 disabled: !props.editable,
                 value: (if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" }).to_string(),
-                on_value_change: {
+                on_commit: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             let drive = if next.as_deref() == Some("torx") { ScrewDrive::Torx } else { ScrewDrive::Hex };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureDrive(drive));
                         }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("hex".into(), "Hex socket".into()),
                     ("torx".into(), "Torx".into()),
                 ],
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Insert installation",
                 disabled: !props.editable,
                 value: (if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" }).to_string(),
-                on_value_change: {
+                on_commit: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             let installation = if next.as_deref() == Some("tapped") { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInstallation(installation));
                         }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("heat-set".into(), "Heat-set · printed top".into()),
                     ("tapped".into(), "Tapped · machined top".into()),
                 ],
             }
-            ChoiceField {
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
-                mode: ChoiceFieldMode::Indexed { placeholder: None },
+            SelectField::<String> {
                 label: "Screw length",
                 aria_label: "Screw length",
                 disabled: !props.editable,
                 value: selected_length.clone(),
                 options: std::iter::once(("auto".to_owned(), "Automatic from available lengths".to_owned())).chain(hardware.screw_lengths.iter().map(|length| (length.to_string(), format!("{length} mm · fixed")))).collect::<Vec<_>>(),
-                on_value_change: {
+                on_commit: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         let lengths = hardware.screw_lengths.clone();
-                        move |next: Option<String>| {
+                        move |next_val: String| { let next = Some(next_val);
                             let fixed = next.as_deref().unwrap_or_default().parse::<f64>().ok();
                             if fixed.is_none() || fixed.is_some_and(|length| lengths.contains(&length)) {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureFixedLength(fixed));
@@ -190,25 +185,24 @@ pub(crate) fn GasketClosureControls(props: GasketClosureControlsProps) -> Elemen
                     intent: MechanicalTextIntent::ClosureThread,
                     editable: props.editable,
                 } } }
-                ChoiceField {
+                SelectField::<String> {
                     label: "Screw head profile",
                     disabled: !props.editable,
                     value: (if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" }).to_string(),
-                    on_value_change: {
+                    on_commit: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |next: Option<String>| {
+                            move |next_val: String| { let next = Some(next_val);
                                 let profile = if next.as_deref() == Some("countersunk") { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureHeadProfile(profile));
                             }
                         },
-                    layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                     options: vec![
                         ("flat".into(), "Flat bearing surface".into()),
                         ("countersunk".into(), "Countersunk".into()),
                     ],
                 }
-                ChoiceField {
+                SelectField::<String> {
                     label: "Screw length measured from",
                     disabled: !props.editable,
                     value: (match hardware.length_datum {
@@ -216,10 +210,10 @@ pub(crate) fn GasketClosureControls(props: GasketClosureControlsProps) -> Elemen
                             ScrewLengthDatum::Overall => "overall",
                             ScrewLengthDatum::Unresolved => "unresolved",
                         }).to_string(),
-                    on_value_change: {
+                    on_commit: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |next: Option<String>| {
+                            move |next_val: String| { let next = Some(next_val);
                                 let datum = match next.as_deref().unwrap_or_default() {
                                     "overall" => ScrewLengthDatum::Overall,
                                     "unresolved" => ScrewLengthDatum::Unresolved,
@@ -228,7 +222,6 @@ pub(crate) fn GasketClosureControls(props: GasketClosureControlsProps) -> Elemen
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureLengthDatum(datum));
                             }
                         },
-                    layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                     options: vec![
                         ("under-head".into(), "Under the head".into()),
                         ("overall".into(), "Top of head · overall".into()),
@@ -433,20 +426,19 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        ChoiceField {
-                            layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
+                        SelectField::<String> {
                             label: "Mount link",
                             aria_label: "Mount link for hardware {item.id}",
-                            mode: ChoiceFieldMode::Indexed { placeholder: Some("Choose generated mount…".into()) },
+                            placeholder: "Choose generated mount…",
                             disabled: !props.editable,
                             value: mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default(),
                             options: mount_choices.iter().enumerate().map(|(index, choice)| (index.to_string(), format!("{} · {} · {:.1}, {:.1} mm", choice.part_name, mount_kind_label(&choice.kind), choice.x, choice.y))).collect::<Vec<_>>(),
-                            on_value_change: {
+                            on_commit: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let hardware_id = item.id.clone();
                                     let mount_choices = mount_choices.clone();
-                                    move |next: Option<String>| if let Some(next) = next && let Ok(index) = next.parse::<usize>()
+                                    move |next_val: String| { let next = Some(next_val); if let Some(next) = next && let Ok(index) = next.parse::<usize>()
                                         && let Some(choice) = mount_choices.get(index) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetHardwareMount {
                                                 hardware_id: hardware_id.clone(),
@@ -454,6 +446,7 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                                 feature_id: choice.feature_id.clone(),
                                             });
                                         }
+                                    }
                                 },
                         }
                         for (suffix, label, value, field, multiline) in [
@@ -533,24 +526,23 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        ChoiceField {
-                            layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
-                            mode: ChoiceFieldMode::Indexed { placeholder: None },
+                        SelectField::<String> {
                             label: "Generated part",
                             aria_label: "Part for critical fit {fit.id}",
                             disabled: !props.editable,
                             value: fit.part_id.clone(),
                             options: parts.iter().map(|part| (part.id.clone(), part.name.clone())).collect::<Vec<_>>(),
-                            on_value_change: {
+                            on_commit: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let fit_id = fit.id.clone();
-                                    move |next: Option<String>| if let Some(part_id) = next { send_request(
+                                    move |next_val: String| { let next = Some(next_val); if let Some(part_id) = next { send_request(
                                         &mut sequence,
                                         &identity,
                                         on_request,
                                         MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id },
                                     ) }
+                                    }
                                 },
                         }
                         for (suffix, label, value, field) in [
@@ -881,20 +873,20 @@ pub(crate) fn MountRow(props: MountRowProps) -> Element {
     rsx! {
         fieldset { disabled: !props.editable,
             legend { "{label} {props.index}" }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Mount type",
                 value: (if mount.kind == MountKind::Boss { "boss" } else { "hole" }).to_string(),
-                on_value_change: {
+                on_commit: {
                         let mut sequence = props.request_sequence;
                         let identity = props.identity.clone();
                         let callback = props.on_request;
                         let collection = props.collection;
                         let mount_id = mount.id.clone();
-                        move |next: Option<String>| if let Some(kind) = parse_mount_kind(&next.unwrap_or_default()) {
+                        move |next_val: String| { let next = Some(next_val); if let Some(kind) = parse_mount_kind(&next.unwrap_or_default()) {
                             send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountKind { collection, mount_id: mount_id.clone(), kind });
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("hole".into(), "Hole".into()),
                     ("boss".into(), "Boss".into()),

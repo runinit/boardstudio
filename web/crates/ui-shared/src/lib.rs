@@ -1,6 +1,6 @@
 //! Page UI shared by several workspaces: panels, canvas layers, the layout camera,
-//! footprint forms and graphics, geometry scripts, model import and board-reference
-//! effects. Depends on `ui-model` only, never on a workspace crate or the page shell.
+//! footprint graphics, geometry scripts, model import and board-reference effects.
+//! Depends on `ui-model` only, never on a workspace crate or the page shell.
 //!
 //! Browser-only modules are `wasm32`-only; the rest also compile natively so their
 //! unit tests run under `cargo test`.
@@ -18,25 +18,19 @@ pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
-pub mod footprint_forms;
-#[cfg(any(test, target_arch = "wasm32"))]
-mod generator_preview_defaults;
-pub mod inspector_fields;
-pub mod layout_camera;
-pub mod ui;
-
 pub mod board_layer;
 pub mod board_reference_effect;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
-pub mod choice_field;
-#[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
+mod generator_preview_defaults;
+pub mod inspector_fields;
 #[cfg(target_arch = "wasm32")]
 pub mod layer_dock;
+pub mod layout_camera;
 #[cfg(target_arch = "wasm32")]
 pub mod model_asset_import;
 #[cfg(target_arch = "wasm32")]
@@ -45,6 +39,8 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
+pub mod ui;
+
 // Bounded waits for the browser tests of the workspace crates (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_mount;
@@ -63,6 +59,3 @@ mod panels {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod toolbar_toggle_slider_toast_tests;

@@ -2,9 +2,9 @@
 //!
 //! Each owner keeps its own drafts, validation, blur commits and key handling;
 //! label/input/error structure lives once in `ui-shared::inspector_fields`.
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
 use boardstudio_web_ui_shared::inspector_fields::{
-    NumericField, SelectField, TextField, TextareaField,
+    DraftNumericField as NumericField, DraftSelectField as SelectField,
+    SelectField as SharedChoiceSelectField, TextField, TextareaField,
 };
 use dioxus::prelude::*;
 
@@ -125,8 +125,6 @@ pub(crate) fn EditorChoiceField(
     on_select: EventHandler<String>,
 ) -> Element {
     rsx! {
-        ChoiceField { label, value, options, aria_label, disabled, layout: ChoiceFieldLayout::WrappedTight,
-            on_value_change: move |next: Option<String>| if let Some(next) = next { on_select.call(next) },
-        }
+        SharedChoiceSelectField::<String> { label, value, options, aria_label, disabled, on_commit: on_select }
     }
 }

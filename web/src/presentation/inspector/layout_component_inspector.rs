@@ -10,7 +10,9 @@ use boardstudio_web_layout::component_offset::{
     default_axes_for_source, offset_axes_from_value, offset_axes_value, offset_drafts,
     offset_values, position_commit_value, position_input_disabled,
 };
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    CheckboxField, DraftNumericField as NumericField, DraftSelectField as SelectField,
+};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;

@@ -1,6 +1,6 @@
 //! The board-outline (non-perimeter) section of the outline Inspector.
 use super::*;
-use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{DraftSelectField as SelectField, TextField};
 
 pub(super) struct BoardInspectorView {
     pub(super) projection: OutlineInspectorProjection,

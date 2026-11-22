@@ -18,8 +18,8 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout, ChoiceFieldMode};
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -83,20 +83,20 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                             if target.part_id.ends_with("foam") {
                                 output { "Cut sheet" }
                             } else {
-                                ChoiceField {
+                                SelectField::<String> {
                                     label: "Method",
                                     disabled: !props.editable,
                                     value: method_id(&process.method).to_string(),
-                                    on_value_change: {
+                                    on_commit: {
                                         let part_id = target.part_id.clone();
                                         let identity = props.identity.clone();
                                         let mut sequence = props.request_sequence;
                                         let on_request = props.on_request;
-                                        move |next: Option<String>| if let Some(method) = parse_method(&next.unwrap_or_default()) {
+                                        move |next_val: String| { let next = Some(next_val); if let Some(method) = parse_method(&next.unwrap_or_default()) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
                                         }
+                                        }
                                     },
-                                    layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                                     options: vec![
                                         ("pcb-fr4".into(), "PCB FR-4".into()),
                                         ("printed".into(), "3D printed".into()),
@@ -105,20 +105,18 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                                     ],
                                 }
                             }
-                            ChoiceField {
-                                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
-                                mode: ChoiceFieldMode::Indexed { placeholder: None },
+                            SelectField::<String> {
                                 label: "Material",
                                 aria_label: "Material",
                                 disabled: !props.editable,
                                 value: process.material.clone(),
                                 options: process_material_options(&target.part_id, &process.method).iter().map(|material| (material.to_string(), material.to_string())).collect::<Vec<_>>(),
-                                on_value_change: {
+                                on_commit: {
                                         let part_id = target.part_id.clone();
                                         let identity = props.identity.clone();
                                         let mut sequence = props.request_sequence;
                                         let on_request = props.on_request;
-                                        move |next: Option<String>| if let Some(material) = next { send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material }) }
+                                        move |next_val: String| { let next = Some(next_val); if let Some(material) = next { send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material }) } }
                                     },
                             }
                             DimensionField {
@@ -162,22 +160,22 @@ pub(crate) fn ManufacturingControls(props: ManufacturingControlsProps) -> Elemen
                 for stabilizer in props.stabilizers.iter() {
                     div { class: "grid gap-1.5", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
-                        ChoiceField {
+                        SelectField::<String> {
                             label: "Stabilizer",
                             aria_label: "Stabilizer for {stabilizer.reference}",
                             disabled: !props.editable,
                             value: stabilizer_kind_id(&stabilizer.current.kind).to_string(),
-                            on_value_change: {
+                            on_commit: {
                                     let mut current = stabilizer.current.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |next: Option<String>| if let Some(kind) = parse_stabilizer_kind(&next.unwrap_or_default()) {
+                                    move |next_val: String| { let next = Some(next_val); if let Some(kind) = parse_stabilizer_kind(&next.unwrap_or_default()) {
                                         current.kind = kind;
                                         send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
                                     }
+                                    }
                                 },
-                            layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                             options: {
                                 let mut options = vec![
                                     ("pcb-mount".into(), format!("Cherry PCB mount · {}u", stabilizer.default.units)),
@@ -234,22 +232,21 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
-                        ChoiceField {
+                        SelectField::<String> {
                             label: "Switch fit family",
                             disabled: !props.editable,
                             value: (profile.family.map(family_id).unwrap_or("")).to_string(),
-                            on_value_change: {
+                            on_commit: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |event: Option<String>| {
+                                    move |event_val: String| { let event = Some(event_val);
                                         if let Some(family) = parse_family(&event.clone().unwrap_or_default()) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetSwitchFamily { definition_id: definition_id.clone(), family });
                                         }
                                     }
                                 },
-                            layout: ChoiceFieldLayout::StackedNarrow,
                             options: vec![
                                 ("".into(), "Choose switch family…".into()),
                                 ("mx".into(), "MX".into()),
@@ -298,13 +295,12 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
             }
             if props.targets.iter().any(|target| target.switch_profile) {
                 div {
-                    ChoiceField {
+                    SelectField::<String> {
                         label: "Library fit profile",
                         aria_label: "Library fit profile",
                         disabled: !props.editable,
                         value: (selected_family()).to_string(),
-                        on_value_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
-                        layout: ChoiceFieldLayout::StackedNarrow,
+                        on_commit: move |event: String| selected_family.set(event),
                         options: vec![
                             ("".into(), "Choose a switch family…".into()),
                             ("mx".into(), "MX switch".into()),
@@ -312,19 +308,18 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                             ("choc-v2".into(), "Choc v2 switch".into()),
                         ],
                     }
-                    ChoiceField {
-                        layout: ChoiceFieldLayout::StackedNarrow,
-                        value: "",
+                    SelectField::<String> {
+                        value: String::new(),
                         label: "Assign library fit profile to",
                         aria_label: "Assign library fit profile to",
                         disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
 
-                        on_value_change: {
+                        on_commit: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_family = selected_family;
-                                move |event: Option<String>| {
+                                move |event_val: String| { let event = Some(event_val);
                                     let definition_id = event.clone().unwrap_or_default();
                                     if !definition_id.is_empty()
                                         && let Some(family) = parse_family(&selected_family())
@@ -341,37 +336,35 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                        mode: ChoiceFieldMode::Prompt { placeholder: "Choose a placed switch type…".into() },
+                        placeholder: "Choose a placed switch type…",
                         options: props.targets.iter().filter(|target| target.switch_profile).map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
                 }
                 div {
-                    ChoiceField {
+                    SelectField::<String> {
                         label: "Library stabilizer profile",
                         aria_label: "Library stabilizer profile",
                         disabled: !props.editable,
                         value: (selected_stabilizer()).to_string(),
-                        on_value_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
-                        layout: ChoiceFieldLayout::StackedNarrow,
+                        on_commit: move |event: String| selected_stabilizer.set(event),
                         options: vec![
                             ("".into(), "Choose a stabilizer size…".into()),
                             ("mx-stab2u".into(), "MX stabilizer · 2u".into()),
                             ("mx-stab625u".into(), "MX stabilizer · 6.25u".into()),
                         ],
                     }
-                    ChoiceField {
-                        layout: ChoiceFieldLayout::StackedNarrow,
-                        value: "",
+                    SelectField::<String> {
+                        value: String::new(),
                         label: "Assign library stabilizer profile to",
                         aria_label: "Assign library stabilizer profile to",
                         disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
 
-                        on_value_change: {
+                        on_commit: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_stabilizer = selected_stabilizer;
-                                move |event: Option<String>| {
+                                move |event_val: String| { let event = Some(event_val);
                                     let source = match selected_stabilizer().as_str() {
                                         "mx-stab2u" => Some(MechanicalBuiltinProfile::MxStab2u),
                                         "mx-stab625u" => Some(MechanicalBuiltinProfile::MxStab625u),
@@ -392,24 +385,23 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                        mode: ChoiceFieldMode::Prompt { placeholder: "Choose a placed switch type…".into() },
+                        placeholder: "Choose a placed switch type…",
                         options: props.targets.iter().map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
                 }
             }
             if props.targets.iter().any(|target| target.imported_geometry) {
-                ChoiceField {
-                    layout: ChoiceFieldLayout::StackedNarrow,
-                    value: "",
+                SelectField::<String> {
+                    value: String::new(),
                     label: "Custom KiCad geometry",
                     aria_label: "Assign custom geometry profile to",
                     disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
 
-                    on_value_change: {
+                    on_commit: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
-                            move |event: Option<String>| {
+                            move |event_val: String| { let event = Some(event_val);
                                 if !event.clone().unwrap_or_default().is_empty() {
                                     send_request(
                                         &mut sequence,
@@ -422,7 +414,7 @@ pub(crate) fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                 }
                             }
                         },
-                    mode: ChoiceFieldMode::Prompt { placeholder: "Choose imported part type…".into() },
+                    placeholder: "Choose imported part type…",
                     options: props.targets.iter().filter(|target| target.imported_geometry).map(|target| (target.definition_id.clone(), target.name.clone())).collect::<Vec<_>>(),
                     }
             }
@@ -516,15 +508,15 @@ pub(crate) fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Elemen
                                     }
                                     span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
                                 }
-                                ChoiceField {
+                                SelectField::<String> {
                                     label: "Purpose",
                                     aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
                                     disabled: !props.editable || busy(),
                                     value: (purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose))).to_string(),
-                                    on_value_change: {
+                                    on_commit: {
                                             let id = primitive.id.clone();
                                             let mut purposes = purposes;
-                                            move |event: Option<String>| {
+                                            move |event_val: String| { let event = Some(event_val);
                                                 let Some(purpose) = parse_purpose(&event.clone().unwrap_or_default()) else { return; };
                                                 let mut entries = purposes().clone();
                                                 entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
@@ -532,7 +524,6 @@ pub(crate) fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Elemen
                                                 purposes.set(entries);
                                             }
                                         },
-                                    layout: ChoiceFieldLayout::StackedNarrow,
                                     options: vec![
                                         ("plate-cutout".into(), "Plate cutout".into()),
                                         ("electrical-pcb-mounting-hole".into(), "PCB mounting hole".into()),

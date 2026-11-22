@@ -1,7 +1,9 @@
 use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    CheckboxField, DraftNumericField as NumericField, DraftSelectField as SelectField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

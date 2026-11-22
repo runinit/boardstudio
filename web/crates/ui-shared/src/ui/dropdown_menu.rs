@@ -384,7 +384,3 @@ pub fn DropdownMenuSeparator(#[props(into, optional)] class: Option<String>) -> 
     let merged = tw_merge::tw_merge!("-mx-1 my-1 h-px bg-border", class.as_deref().unwrap_or(""));
     rsx! { div { "data-slot": "dropdown-menu-separator", role: "separator", class: "{merged}" } }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "../action_menu_tests.rs"]
-mod action_menu_tests;

@@ -18,8 +18,8 @@ use boardstudio_model::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
-use boardstudio_web_ui_shared::choice_field::{ChoiceField, ChoiceFieldLayout};
 use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     badge::{Badge, BadgeVariant},
@@ -725,20 +725,20 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
     };
     rsx! {
         section { class: "grid gap-4 border-0 bg-transparent p-0", aria_label: "Basic case setup",
-            ChoiceField {
+            SelectField::<String> {
                 label: "Mounting style",
                 aria_label: "Case mounting style",
                 value: mount_id(&values.mount).to_string(),
                 disabled: !settings.editable,
-                on_value_change: {
+                on_commit: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
-                        move |next: Option<String>| if let Some(mount) = parse_mount(&next.unwrap_or_default()) {
+                        move |next_val: String| { let next = Some(next_val); if let Some(mount) = parse_mount(&next.unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("tray".into(), "Tray mount".into()),
                     ("rigid".into(), "Rigid mount".into()),
@@ -759,20 +759,20 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                     move |state: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)))
                 },
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Case process",
                 aria_label: "Case fabrication process",
                 value: method_id(&values.method).to_string(),
                 disabled: !settings.editable,
-                on_value_change: {
+                on_commit: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
-                        move |next: Option<String>| if let Some(method) = parse_method(&next.unwrap_or_default()) {
+                        move |next_val: String| { let next = Some(next_val); if let Some(method) = parse_method(&next.unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrowTouchOptions,
                 options: vec![
                     ("printed".into(), "3D printed".into()),
                     ("cnc".into(), "CNC machined".into()),
@@ -839,18 +839,18 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
     rsx! {
         fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Construction" }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Plate method", disabled: !props.editable,
                 value: "{method_id(&values.method)}",
-                on_value_change: {
+                on_commit: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: Option<String>| if let Some(method) = parse_method(&event.clone().unwrap_or_default()) {
+                        move |event_val: String| { let event = Some(event_val); if let Some(method) = parse_method(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrow,
                 options: vec![
                     ("pcb-fr4".into(), "PCB FR-4".into()),
                     ("printed".into(), "3D printed".into()),
@@ -858,37 +858,37 @@ pub(crate) fn ConstructionControls(props: ConstructionControlsProps) -> Element 
                     ("cut-sheet".into(), "Cut sheet".into()),
                 ],
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Mount style", disabled: !props.editable,
                 value: "{mount_id(&values.mount)}",
-                on_value_change: {
+                on_commit: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: Option<String>| if let Some(mount) = parse_mount(&event.clone().unwrap_or_default()) {
+                        move |event_val: String| { let event = Some(event_val); if let Some(mount) = parse_mount(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrow,
                 options: vec![
                     ("tray".into(), "Tray".into()),
                     ("rigid".into(), "Rigid mount".into()),
                     ("gasket".into(), "Gasket mount".into()),
                 ],
             }
-            ChoiceField {
+            SelectField::<String> {
                 label: "Bottom construction",
                 disabled: !props.editable || values.mount == MechanicalMount::Gasket,
                 value: "{bottom_style_id(&values.bottom_style)}",
-                on_value_change: {
+                on_commit: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: Option<String>| if let Some(style) = parse_bottom_style(&event.clone().unwrap_or_default()) {
+                        move |event_val: String| { let event = Some(event_val); if let Some(style) = parse_bottom_style(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
+                        }
                     },
-                layout: ChoiceFieldLayout::StackedNarrow,
                 options: vec![
                     ("shell".into(), "Tray shell".into()),
                     ("sheet".into(), "Flat sheet".into()),

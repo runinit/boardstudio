@@ -1,5 +1,7 @@
 //! Private compositions of the shared controls for PCB inspectors.
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    CheckboxField, DraftNumericField as NumericField, TextField,
+};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
 use boardstudio_web_ui_shared::ui::collapsible::{

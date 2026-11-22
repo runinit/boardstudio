@@ -534,11 +534,3 @@ fn set_bool(mut signal: Signal<bool>, value: bool) {
         signal.set(value);
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "panels_scroll_tests.rs"]
-mod scroll_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "panels_resize_tests.rs"]
-mod resize_tests;

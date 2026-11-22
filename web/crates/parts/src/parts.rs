@@ -9,7 +9,7 @@ pub use boardstudio_web_catalogue::bundled::{
     prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
-use boardstudio_web_ui_shared::choice_field::ChoiceField;
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -79,9 +79,7 @@ fn PartsChoiceField(
     on_value_change: EventHandler<String>,
 ) -> Element {
     rsx! {
-        ChoiceField { label, value, options, aria_label: Some(aria_label), disabled,
-            on_value_change: move |next: Option<String>| if let Some(next) = next { on_value_change.call(next) },
-        }
+        SelectField::<String> { label, value, options, aria_label: Some(aria_label), disabled, on_commit: on_value_change }
     }
 }
 

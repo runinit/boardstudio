@@ -1,7 +1,9 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
-use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    DraftNumericField as NumericField, DraftSelectField as SelectField, TextField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
