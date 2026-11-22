@@ -1,9 +1,8 @@
 use super::*;
 use crate::viewport_geometry::{
-    layout_module_bodies, transformed_module_mesh, transformed_module_points,
+    board_packet, keycap_style, layout_module_bodies, reference_packet, transformed_module_mesh,
+    transformed_module_points,
 };
-
-use boardstudio_model::model::BoardReference;
 
 pub(super) fn project_source(
     source: &ViewerSource,
@@ -106,23 +105,15 @@ pub(super) fn project_source(
         "keepCamera": true,
         "selectedLayer": selected_layer,
         "hidden": [],
-        "board": {
-            "revision": identity.renderer_sequence,
-            "thickness": thickness,
-            "contours": contours,
-            "surfaces": pcb.map_or(&[][..], |pcb| &pcb.surfaces),
-            "holes": pcb.map_or(&[][..], |pcb| &pcb.holes),
-            "models": pcb.map_or(&[][..], |pcb| &pcb.models)
-        },
-        "reference": reference.map(|reference: &BoardReference| {
-            serde_json::json!({ "pose": &reference.pose, "elevation": reference.elevation })
-        }),
+        "board": board_packet(identity.renderer_sequence, thickness, contours, pcb),
+        "reference": reference.map(reference_packet),
         "mechanicalStack": stack,
         "moduleBodies": module_bodies
     });
     let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
     Reflect::set(&input, &"bodies".into(), &bodies).map_err(js_error)?;
-    Reflect::set(&input, &"models".into(), &loaded_model_inputs(model_rows)).map_err(js_error)?;
+    let models = loaded_model_inputs(model_rows)?;
+    Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
     Ok(RendererSceneProjection {
         identity,
         input,
@@ -136,21 +127,27 @@ fn body_layer(body: &serde_json::Value) -> (String, String) {
     (id.to_owned(), name.to_owned())
 }
 
+fn mesh_packet(
+    positions: &[f32],
+    normals: &[f32],
+    colors: Option<&[f32]>,
+) -> Result<Object, String> {
+    let mesh = Object::new();
+    for (field, values) in [
+        ("positions", Some(positions)),
+        ("normals", Some(normals)),
+        ("colors", colors),
+    ] {
+        if let Some(values) = values {
+            Reflect::set(&mesh, &field.into(), &Float32Array::from(values)).map_err(js_error)?;
+        }
+    }
+    Ok(mesh)
+}
+
 fn body_value(body: &boardstudio_web_host::cad_jobs::CadBodyMesh) -> Result<JsValue, String> {
     let value = Object::new();
-    let mesh = Object::new();
-    Reflect::set(
-        &mesh,
-        &"positions".into(),
-        &Float32Array::from(body.positions.as_slice()),
-    )
-    .map_err(js_error)?;
-    Reflect::set(
-        &mesh,
-        &"normals".into(),
-        &Float32Array::from(body.normals.as_slice()),
-    )
-    .map_err(js_error)?;
+    let mesh = mesh_packet(&body.positions, &body.normals, None)?;
     Reflect::set(&value, &"id".into(), &body.id.as_str().into()).map_err(js_error)?;
     Reflect::set(&value, &"name".into(), &body.name.as_str().into()).map_err(js_error)?;
     Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
@@ -172,30 +169,8 @@ fn append_keycap_bodies(
             return Err("Keycap preview does not match the current viewer source".into());
         }
         for body in &keycaps.bodies {
-            let (color, label) = if let Some(id) = body.id.strip_prefix("keycap-legend:") {
-                let spec = keycaps
-                    .specs
-                    .iter()
-                    .find(|spec| spec.id == id)
-                    .ok_or_else(|| {
-                        "Keycap legend preview does not match its accepted specification".to_owned()
-                    })?;
-                (
-                    spec.legend_color.as_str(),
-                    format!("{} legend", spec.reference),
-                )
-            } else if let Some(id) = body.id.strip_prefix("keycap:") {
-                let spec = keycaps
-                    .specs
-                    .iter()
-                    .find(|spec| spec.id == id)
-                    .ok_or_else(|| {
-                        "Keycap preview does not match its accepted specification".to_owned()
-                    })?;
-                (spec.color.as_str(), spec.reference.clone())
-            } else {
-                return Err("Keycap preview returned an unknown body identity".into());
-            };
+            let (color, label) = keycap_style(&body.id, &keycaps.specs)
+                .ok_or("Keycap preview body does not match its accepted specification")?;
             let value = body_value(body)?;
             Reflect::set(&value, &"color".into(), &color.into()).map_err(js_error)?;
             bodies.push(&value);
@@ -252,45 +227,28 @@ fn layout_module_model_bodies(
         .collect()
 }
 
-pub(super) fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Array {
+fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Result<Array, String> {
     let loaded = Array::new();
-    if let Some(rows) = rows {
-        for model in &rows.delivered {
-            if model.matrix.is_some() {
-                continue;
-            }
-            let value = Object::new();
-            let mesh = Object::new();
-            let _ = Reflect::set(&value, &"id".into(), &model.id.clone().into());
-            let _ = Reflect::set(
-                &mesh,
-                &"positions".into(),
-                &Float32Array::from(model.mesh.positions.as_ref()),
-            );
-            let _ = Reflect::set(
-                &mesh,
-                &"normals".into(),
-                &Float32Array::from(model.mesh.normals.as_ref()),
-            );
-            if let Some(colors) = &model.mesh.colors {
-                let _ = Reflect::set(
-                    &mesh,
-                    &"colors".into(),
-                    &Float32Array::from(colors.as_ref()),
-                );
-            }
-            let _ = Reflect::set(&value, &"mesh".into(), &mesh);
-            if let Some(vendor_step) = &model.mesh.vendor_step
-                && !vendor_step.line_render_positions.is_empty()
-            {
-                let _ = Reflect::set(
-                    &value,
-                    &"lines".into(),
-                    &Float32Array::from(vendor_step.line_render_positions.as_slice()),
-                );
-            }
-            loaded.push(&value);
+    for model in rows
+        .into_iter()
+        .flat_map(|rows| &rows.delivered)
+        .filter(|model| model.matrix.is_none())
+    {
+        let value = Object::new();
+        let mesh = mesh_packet(
+            &model.mesh.positions,
+            &model.mesh.normals,
+            model.mesh.colors.as_deref(),
+        )?;
+        Reflect::set(&value, &"id".into(), &model.id.as_str().into()).map_err(js_error)?;
+        Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
+        if let Some(step) = &model.mesh.vendor_step
+            && !step.line_render_positions.is_empty()
+        {
+            let lines = Float32Array::from(step.line_render_positions.as_slice());
+            Reflect::set(&value, &"lines".into(), &lines).map_err(js_error)?;
         }
+        loaded.push(&value);
     }
-    loaded
+    Ok(loaded)
 }

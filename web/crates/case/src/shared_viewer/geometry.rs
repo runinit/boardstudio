@@ -1,3 +1,36 @@
+use boardstudio_model::model::{BoardReference, Contour, KeycapSpec, PcbPreview};
+use serde_json::{Value, json};
+
+pub(super) fn board_packet(
+    revision: u64,
+    thickness: f64,
+    contours: &[Contour],
+    pcb: Option<&PcbPreview>,
+) -> Value {
+    json!({
+        "revision": revision,
+        "thickness": thickness,
+        "contours": contours,
+        "surfaces": pcb.map_or(&[][..], |pcb| &pcb.surfaces),
+        "holes": pcb.map_or(&[][..], |pcb| &pcb.holes),
+        "models": pcb.map_or(&[][..], |pcb| &pcb.models)
+    })
+}
+
+pub(super) fn reference_packet(reference: &BoardReference) -> Value {
+    json!({ "pose": reference.pose, "elevation": reference.elevation })
+}
+
+pub(super) fn keycap_style<'a>(body: &str, specs: &'a [KeycapSpec]) -> Option<(&'a str, String)> {
+    let (kind, id) = body.split_once(':')?;
+    let spec = specs.iter().find(|spec| spec.id == id)?;
+    match kind {
+        "keycap" => Some((&spec.color, spec.reference.clone())),
+        "keycap-legend" => Some((&spec.legend_color, format!("{} legend", spec.reference))),
+        _ => None,
+    }
+}
+
 /// Apply Core's column-major affine transform exactly once before generic mesh
 /// bodies enter the renderer. Core owns module pose and model offsets.
 pub(super) fn transformed_module_points(source_positions: &[f32], matrix: &[f64; 16]) -> Vec<f32> {
@@ -136,6 +169,79 @@ pub(super) fn layout_module_bodies(
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_board_preserves_contours_and_reference_transform() {
+        use boardstudio_model::model::{Pose2, Vec2};
+        let contours = [Contour {
+            points: vec![Vec2 { x: 10., y: 20. }],
+            hole: true,
+        }];
+        let reference = BoardReference {
+            id: "ref".into(),
+            board_id: "board".into(),
+            asset_id: "asset".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 17.25, y: -8.5 },
+                rotation: 31.,
+            },
+            elevation: 4.75,
+            model_assets: Default::default(),
+        };
+        assert_eq!(
+            board_packet(8, 1.6, &contours, None)["contours"],
+            json!(contours)
+        );
+        assert_eq!(
+            reference_packet(&reference),
+            json!({
+                "pose": { "at": { "x": 17.25, "y": -8.5 }, "rotation": 31.0 },
+                "elevation": 4.75
+            })
+        );
+    }
+
+    #[test]
+    fn keycap_and_legend_use_their_qualified_specification() {
+        use boardstudio_model::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
+        let point = Vec2 { x: 1., y: 1. };
+        let spec = KeycapSpec {
+            id: "left:part".into(),
+            reference: "SW1".into(),
+            profile: KeycapProfile::Sa,
+            mount: KeycapMount::Mx,
+            row: 1,
+            size: point,
+            top_size: point,
+            height: 3.,
+            tilt: 0.,
+            dish_depth: 0.,
+            spherical: true,
+            wall_thickness: 1.,
+            pose: Pose2 {
+                at: point,
+                rotation: 0.,
+            },
+            side: Side::Front,
+            z: 2.,
+            travel: 4.,
+            legend: "A".into(),
+            color: "#000000".into(),
+            legend_color: "#ffffff".into(),
+        };
+        let specs = [spec];
+        assert_eq!(
+            keycap_style("keycap:left:part", &specs),
+            Some(("#000000", "SW1".into()))
+        );
+        assert_eq!(
+            keycap_style("keycap-legend:left:part", &specs),
+            Some(("#ffffff", "SW1 legend".into()))
+        );
+        assert!(keycap_style("keycap:right:part", &specs).is_none());
+        assert!(keycap_style("other:left:part", &specs).is_none());
+    }
 
     #[test]
     fn generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids() {

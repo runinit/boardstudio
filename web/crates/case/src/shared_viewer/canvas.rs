@@ -1,5 +1,6 @@
 use super::*;
 use crate::mechanical_settings;
+use boardstudio_web_host::renderer_host::{RendererStatus, renderer_module};
 
 #[derive(Props, Clone, PartialEq)]
 pub(super) struct ViewportCanvas {
@@ -34,10 +35,7 @@ pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
         let owner = props.owner.clone();
         move || owner.active.set(true)
     });
-    use_viewport_canvas(props)
-}
 
-pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
     let ViewportCanvas {
         projection,
         assembly_layers,
@@ -60,305 +58,237 @@ pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
         handle_preview,
         gesture_message,
         focus_request,
-    } = canvas;
+    } = props;
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
-    let mut editing_gaskets = use_signal(|| false);
-    let mut editing_mounts = use_signal(|| false);
-    let host = use_hook(|| Rc::new(RefCell::new(None::<Rc<RendererPageHost>>)));
-    let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
-    let live_projection = use_hook(|| Rc::new(RefCell::new(projection.clone())));
-    *live_projection.borrow_mut() = projection.clone();
-    let live_source = use_hook(|| Rc::new(RefCell::new(current_source.clone())));
-    *live_source.borrow_mut() = current_source.clone();
-    let mounted = use_signal(|| false);
+    let mut edit_mode = use_signal(|| None::<usize>);
+    let editing_gaskets = || edit_mode() == Some(0);
+    let editing_mounts = || edit_mode() == Some(1);
     let mut status = use_signal(|| "Starting 3D preview…".to_owned());
     let mut transient = use_signal(TransientView::default);
+    let mut mounted = use_signal(|| false);
+    let host = use_hook(|| Rc::new(RefCell::new(None::<Rc<RendererPageHost>>)));
+    let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
     let pointer = use_hook(|| Rc::new(RefCell::new(None::<PointerOwner>)));
-    let applied_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
-    let applied_identity = use_hook(|| Rc::new(RefCell::new(None::<ViewerIdentity>)));
-    #[cfg(all(test, target_arch = "wasm32"))]
-    if let Some(probe) = try_consume_context::<SharedViewerEscapeProbe>() {
-        let pointer = pointer.clone();
-        let identity = projection.identity.clone();
-        let handle_projection = handle_projection.clone();
-        *probe.0.borrow_mut() = Some(Rc::new(move |handle_id| {
-            *pointer.borrow_mut() = Some(PointerOwner::Handle {
-                identity: identity.clone(),
-                projection: handle_projection.clone(),
-                pointer_id: 13,
-                z: 0.8,
-                id: handle_id,
-            });
-        }));
-    }
+    let applied = use_hook(|| Rc::new(RefCell::new(None::<ViewerIdentity>)));
+    let submitted = use_hook(|| Rc::new(Cell::new(0)));
+    let live = use_hook(|| Rc::new(RefCell::new((projection.clone(), current_source.clone()))));
+    *live.borrow_mut() = (projection.clone(), current_source.clone());
 
-    use_effect(use_reactive((&projection, &handle_projection), {
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
-        let owner = owner.clone();
-        let live_source = live_source.clone();
-        move |(_projection, handle_projection)| {
-            cancel_superseded_pointer(
-                &pointer,
-                &canvas,
-                &owner,
-                handle_projection.as_ref(),
-                (live_source.borrow().0)(),
-            );
-        }
-    }));
-
+    let interaction = super::interaction::ViewportInteraction {
+        host: host.clone(),
+        canvas: canvas.clone(),
+        pointer: pointer.clone(),
+        owner: owner.clone(),
+        identity: projection.identity.clone(),
+        source: current_source.clone(),
+        applied,
+        handles: active_case_handles(
+            &handles,
+            handle_preview.as_deref(),
+            editing_gaskets(),
+            editing_mounts(),
+        ),
+        handle_projection: handle_projection.clone(),
+        on_signal,
+        status,
+    };
     use_drop({
-        let host = host.clone();
-        let owner = owner.clone();
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
+        let interaction = interaction.clone();
         move || {
-            owner.active.set(false);
-            if let Some(pointer_id) = pointer
-                .borrow_mut()
-                .take()
-                .map(|active| active.pointer_id())
-            {
-                release_pointer_capture(&canvas, pointer_id);
-            }
-            if let Some(host) = host.borrow_mut().take() {
+            interaction.owner.active.set(false);
+            interaction.owner.identity.borrow_mut().take();
+            interaction.cancel_capture();
+            if let Some(host) = interaction.host.borrow_mut().take() {
                 let _ = host.dispose();
             }
         }
     });
-
-    use_effect(use_reactive((&projection, &mounted()), {
-        let host = host.clone();
-        let applied_sequence = applied_sequence.clone();
-        let applied_identity = applied_identity.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let mut status = status;
-        move |(projection, mounted)| {
-            if !mounted || !owner.active.get() || !(current_source.0)() {
+    let mount_host = {
+        let runtime = runtime.clone();
+        let interaction = interaction.clone();
+        let submitted = submitted.clone();
+        move |event: MountedEvent| {
+            let Ok(element) = event
+                .data()
+                .try_as_web_event()
+                .ok_or(())
+                .and_then(|element| element.dyn_into::<HtmlCanvasElement>().map_err(|_| ()))
+            else {
+                interaction.fail("3D canvas could not be attached.".into());
                 return;
-            }
-            let identity = projection.identity.clone();
-            if owner.identity.borrow().as_ref() != Some(&identity) {
-                return;
-            }
-            if applied_sequence.get() >= identity.renderer_sequence {
-                return;
-            }
-            let result = host
-                .borrow()
-                .as_ref()
-                .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                .and_then(|host| {
-                    host.submit_scene(projection.input.clone(), identity.renderer_sequence)
-                });
-            match result {
-                Ok(accepted) => {
-                    applied_sequence.set(identity.renderer_sequence);
-                    if accepted {
-                        *applied_identity.borrow_mut() = Some(identity.clone());
-                    }
-                    if owner_is_current(&owner, &identity) && (current_source.0)() {
-                        status.set(if accepted {
-                            "3D preview updated.".to_owned()
-                        } else {
-                            "A stale 3D scene update was ignored.".to_owned()
-                        });
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &identity,
-                            ViewerSignalKind::SceneAccepted(accepted),
-                        );
-                    }
+            };
+            *interaction.canvas.borrow_mut() = Some(element.clone());
+            let interaction = interaction.clone();
+            let live = live.clone();
+            let submitted = submitted.clone();
+            let runtime = runtime.clone();
+            spawn(async move {
+                let loaded = renderer_module().await;
+                if !interaction.owner.active.get() {
+                    return;
                 }
-                Err(error) => {
-                    if owner_is_current(&owner, &identity) && (current_source.0)() {
-                        status.set(error.clone());
+                let projection = live.borrow().0.clone();
+                if runtime.scope().as_ref() != Some(&projection.identity.scope) {
+                    return;
+                }
+                let identity = projection.identity.clone();
+                let report = {
+                    let owner = Rc::downgrade(&interaction.owner);
+                    let pointer = interaction.pointer.clone();
+                    let canvas = interaction.canvas.clone();
+                    let live = live.clone();
+                    Rc::new(move |event| {
+                        let mut mounted = mounted;
+                        let mut status = status;
+                        let Some(owner) = owner.upgrade().filter(|owner| owner.active.get()) else {
+                            return;
+                        };
+                        let (projection, source) = live.borrow().clone();
+                        match event {
+                            RendererStatus::ContextRestored => {
+                                mounted.set(true);
+                                status.set("3D preview ready.".into());
+                            }
+                            RendererStatus::ContextLost => {
+                                mounted.set(false);
+                                status.set("WebGL context lost. Waiting for 3D recovery…".into());
+                                if let Some(captured) = release_capture(&pointer, &canvas)
+                                    && let PointerOwner::Handle { identity, id, .. } = captured
+                                {
+                                    emit_signal(
+                                        &owner,
+                                        on_signal,
+                                        &identity,
+                                        ViewerSignalKind::HandleGesture {
+                                            phase: HandleGesturePhase::Cancel,
+                                            handle_id: id,
+                                            point: None,
+                                        },
+                                    );
+                                }
+                            }
+                            RendererStatus::Error(error) if (source.0)() => {
+                                status.set(error.clone());
+                                emit_signal(
+                                    &owner,
+                                    on_signal,
+                                    &projection.identity,
+                                    ViewerSignalKind::Failed(error),
+                                );
+                            }
+                            RendererStatus::Error(_) => {}
+                        }
+                    })
+                };
+                match loaded.and_then(|module| {
+                    RendererPageHost::mount(
+                        &module,
+                        element,
+                        projection.input.clone(),
+                        identity.renderer_sequence,
+                        report,
+                    )
+                }) {
+                    Ok(host) => {
+                        *interaction.host.borrow_mut() = Some(Rc::new(host));
+                        submitted.set(identity.renderer_sequence);
+                        *interaction.applied.borrow_mut() = Some(identity);
+                        mounted.set(true);
+                        status.set("3D preview ready.".into());
+                    }
+                    Err(error) => {
+                        status.set(format!("3D preview unavailable: {error}"));
                         emit_signal(
-                            &owner,
+                            &interaction.owner,
                             on_signal,
                             &identity,
                             ViewerSignalKind::Failed(error),
                         );
                     }
                 }
-            }
+            });
         }
-    }));
-
+    };
     use_effect(use_reactive(
         (
             &projection,
-            &selected_layer,
+            &handle_projection,
             &display,
+            &selected_layer,
             &theme,
             &transient(),
+            &interaction.handles,
             &mounted(),
         ),
         {
-            let host = host.clone();
-            let owner = owner.clone();
-            let current_source = current_source.clone();
-            let on_signal = on_signal;
-            let mut status = status;
-            move |(projection, selected_layer, display, theme, transient, mounted)| {
-                if !mounted
-                    || !owner.active.get()
-                    || owner.identity.borrow().as_ref() != Some(&projection.identity)
-                {
+            let interaction = interaction.clone();
+            move |(
+                projection,
+                handle_projection,
+                display,
+                layer,
+                theme,
+                transient,
+                handles,
+                mounted,
+            )| {
+                let current = (interaction.source.0)();
+                cancel_superseded_pointer(
+                    &interaction.pointer,
+                    &interaction.canvas,
+                    &interaction.owner,
+                    handle_projection.as_ref(),
+                    current,
+                );
+                if !mounted || !current || !interaction.current() {
                     return;
                 }
-                let result =
-                    display_state(&display, &selected_layer, &theme, transient).and_then(|state| {
-                        host.borrow()
-                            .as_ref()
-                            .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                            .and_then(|host| host.set_display_state(state))
-                    });
-                if let Err(error) = result
-                    && owner_is_current(&owner, &projection.identity)
-                    && (current_source.0)()
-                {
-                    status.set(error.clone());
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &projection.identity,
-                        ViewerSignalKind::Failed(error),
-                    );
+                let Some(host) = interaction.host.borrow().clone() else {
+                    return;
+                };
+                let identity = &projection.identity;
+                let result = (|| {
+                    if submitted.get() < identity.renderer_sequence {
+                        submitted.set(identity.renderer_sequence);
+                        if host
+                            .submit_scene(projection.input.clone(), identity.renderer_sequence)?
+                        {
+                            *interaction.applied.borrow_mut() = Some(identity.clone());
+                        }
+                    }
+                    host.set_display_state(display_state(&display, &layer, &theme, transient)?)?;
+                    host.set_handles(handles_value(&handles)?)
+                })();
+                if let Err(error) = result {
+                    interaction.fail(error);
                 }
             }
         },
     ));
-
     use_effect(use_reactive((&projection, &focus_request, &mounted()), {
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let mut status = status;
+        let interaction = interaction.clone();
         move |(projection, request, mounted)| {
-            if !mounted
-                || !owner.active.get()
-                || owner.identity.borrow().as_ref() != Some(&projection.identity)
-                || !(current_source.0)()
-            {
+            if !mounted || !interaction.current() || !interaction.can_select() {
                 return;
             }
-            let target_ids = request
-                .filter(|request| focus_request_matches(request, &projection.identity))
-                .map_or_else(Vec::new, |request| request.target_ids.clone());
-            let result = host
-                .borrow()
+            let Some(host) = interaction.host.borrow().clone() else {
+                return;
+            };
+            let request =
+                request.filter(|request| focus_request_matches(request, &projection.identity));
+            let ids = request
                 .as_ref()
-                .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                .and_then(|host| host.focus_objects(&target_ids));
-            match result {
-                Ok(true) => {}
+                .map_or(&[][..], |request| request.target_ids.as_slice());
+            match host.focus_objects(ids) {
                 Ok(false) => {
                     status.set("Finding geometry is not available in this 3D scene.".into())
                 }
-                Err(error) => {
-                    status.set(error.clone());
-                    if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &projection.identity,
-                            ViewerSignalKind::Failed(error),
-                        );
-                    }
-                }
+                Ok(true) => {}
+                Err(error) => interaction.fail(error),
             }
         }
     }));
 
-    use_effect(use_reactive(
-        (
-            &projection,
-            &mounted(),
-            &editing_gaskets(),
-            &editing_mounts(),
-            &handles,
-            &handle_preview,
-        ),
-        {
-            let host = host.clone();
-            let owner = owner.clone();
-            let current_source = current_source.clone();
-            let on_signal = on_signal;
-            let mut status = status;
-            move |(projection, mounted, edit_gaskets, edit_mounts, handles, preview)| {
-                if !mounted
-                    || !owner.active.get()
-                    || !(current_source.0)()
-                    || owner.identity.borrow().as_ref() != Some(&projection.identity)
-                {
-                    return;
-                }
-                let active =
-                    active_case_handles(&handles, preview.as_deref(), edit_gaskets, edit_mounts);
-                let result = handles_value(&active).and_then(|handles| {
-                    host.borrow()
-                        .as_ref()
-                        .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                        .and_then(|host| host.set_handles(handles).map(|_| ()))
-                });
-                if let Err(error) = result
-                    && owner_is_current(&owner, &projection.identity)
-                    && (current_source.0)()
-                {
-                    status.set(error.clone());
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &projection.identity,
-                        ViewerSignalKind::Failed(error),
-                    );
-                }
-            }
-        },
-    ));
-
-    let mount_host = super::mount::RendererMount {
-        projection: projection.clone(),
-        host: host.clone(),
-        canvas_state: canvas.clone(),
-        pointer: pointer.clone(),
-        owner: owner.clone(),
-        runtime: runtime.clone(),
-        live_projection: live_projection.clone(),
-        live_source: live_source.clone(),
-        applied_identity: applied_identity.clone(),
-        on_signal,
-        status,
-        applied_sequence: applied_sequence.clone(),
-        mounted,
-    }
-    .handler();
-
-    let active_handles = active_case_handles(
-        &handles,
-        handle_preview.as_deref(),
-        editing_gaskets(),
-        editing_mounts(),
-    );
-    let interaction = super::interaction::ViewportInteraction {
-        host: host.clone(),
-        canvas,
-        pointer,
-        owner: owner.clone(),
-        identity: projection.identity.clone(),
-        source: current_source.clone(),
-        applied: applied_identity,
-        handles: active_handles,
-        handle_projection,
-        on_signal,
-        status,
-    };
     let on_pointer_down = {
         let interaction = interaction.clone();
         move |event: dioxus::prelude::PointerEvent| {
@@ -400,44 +330,32 @@ pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
     };
 
     let select_layer = {
-        let projection = projection.clone();
+        let interaction = current_source.clone();
         let owner = owner.clone();
-        let runtime = runtime.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        move |id: String| {
-            if (current_source.0)()
-                && runtime.scope().as_ref() == Some(&projection.identity.scope)
-                && owner_is_current(&owner, &projection.identity)
-            {
+        let identity = projection.identity.clone();
+        move |id| {
+            if (interaction.0)() {
                 emit_signal(
                     &owner,
                     on_signal,
-                    &projection.identity,
+                    &identity,
                     ViewerSignalKind::LayerSelected(id),
                 );
             }
         }
     };
-
     let change_display = {
-        let projection = projection.clone();
+        let source = current_source.clone();
         let owner = owner.clone();
-        let runtime = runtime.clone();
-        let current_source = current_source.clone();
-        move |next: CaseDisplay| {
-            let identity = projection.identity.clone();
-            if !(current_source.0)()
-                || !owner_is_current(&owner, &identity)
-                || runtime.scope().as_ref() != Some(&identity.scope)
-            {
-                return;
+        let identity = projection.identity.clone();
+        move |display| {
+            if (source.0)() && owner_is_current(&owner, &identity) {
+                on_display_change.call(ScopedDisplayChange {
+                    identity: identity.clone(),
+                    display,
+                    owner: Rc::downgrade(&owner),
+                });
             }
-            on_display_change.call(ScopedDisplayChange {
-                identity,
-                display: next,
-                owner: Rc::downgrade(&owner),
-            });
         }
     };
 
@@ -453,28 +371,19 @@ pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
                     || selected_layer == format!("gasket:{}:upper", support.id))
         })
     });
-    let can_edit_gaskets = mechanical_settings.as_ref().is_some_and(|settings| {
-        handles
-            .iter()
-            .any(|handle| matches!(&handle.target, ViewerHandleTarget::Gasket { .. }))
-            && settings.identity.scope == projection.identity.scope
-            && settings.identity.snapshot_token == projection.identity.snapshot_token
-            && settings.editable
-    });
-    let can_edit_mounts = mechanical_settings.as_ref().is_some_and(|settings| {
-        handles.iter().any(|handle| {
-            matches!(
-                &handle.target,
-                ViewerHandleTarget::Mount { .. } | ViewerHandleTarget::AuthoredMount { .. }
-            )
-        }) && settings.identity.scope == projection.identity.scope
-            && settings.identity.snapshot_token == projection.identity.snapshot_token
-            && settings.editable
-    }) || handles
+    let can_edit_gaskets = handles
         .iter()
-        .any(|handle| matches!(&handle.target, ViewerHandleTarget::AuthoredMount { .. }));
-    let unlink_request = selected_support.and_then(|support| {
-        mechanical_settings.as_ref().map(|settings| {
+        .any(|handle| matches!(handle.target, ViewerHandleTarget::Gasket { .. }));
+    let can_edit_mounts = handles
+        .iter()
+        .any(|handle| !matches!(handle.target, ViewerHandleTarget::Gasket { .. }));
+    let unlink = selected_support
+        .zip(mechanical_settings.as_ref())
+        .map(|(support, settings)| {
+            let guard = current_source.clone();
+            let owner = owner.clone();
+            let identity = projection.identity.clone();
+            let settings = settings.clone();
             let anchors = settings
                 .gasket_supports
                 .iter()
@@ -483,49 +392,47 @@ pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
                         || candidate.pair_id.as_deref() == Some(support.id.as_str())
                 })
                 .map(mechanical_settings::MechanicalGasketSupportRow::saved_anchor)
-                .collect::<Vec<_>>();
-            (
-                support.id.clone(),
-                support.pair_id.clone(),
+                .collect();
+            let patch = mechanical_settings::MechanicalSettingsPatch::SetGasketSupportUnlinked {
+                support_id: support.id.clone(),
+                pair_id: support.pair_id.clone(),
                 anchors,
-                settings.identity.clone(),
-                settings.request_sequence,
-                settings.on_request,
-                settings.editable,
-            )
-        })
-    });
-    let unlink_feedback = selected_support.and_then(|support| {
-        mechanical_settings.as_ref().and_then(|settings| {
-            let field_id = format!("gasket-support:{}:link", support.id);
-            settings
+            };
+            let field_id = patch.field_id();
+            let feedback = settings
                 .feedback
                 .iter()
                 .rev()
                 .find(|feedback| feedback.field_id == field_id)
-                .cloned()
-        })
-    });
-    let unlink_message = unlink_feedback
-        .as_ref()
-        .and_then(|feedback| match feedback.state {
-            mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
-            mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some((
-                true,
-                feedback
-                    .message
-                    .clone()
-                    .unwrap_or_else(|| "The support could not be unlinked.".to_owned()),
-            )),
+                .filter(|feedback| {
+                    feedback.state == mechanical_settings::MechanicalSettingsFeedbackState::Failed
+                })
+                .map(|feedback| {
+                    feedback
+                        .message
+                        .clone()
+                        .unwrap_or_else(|| "The support could not be unlinked.".into())
+                });
+            let unlinked = support.unlinked;
+            let disabled = !settings.editable || unlinked;
+            let on_click = move |_| {
+                if (guard.0)()
+                    && owner_is_current(&owner, &identity)
+                    && settings.identity.scope == identity.scope
+                {
+                    case::submit_settings_patch(&settings, patch.clone());
+                }
+            };
+            rsx! {
+                UiButton { variant: UiButtonVariant::Secondary, button_type: "button",
+                    class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                    disabled, onclick: on_click, "Unlink selected support"
+                }
+                if let Some(message) = feedback { p { role: "alert", "{message}" } }
+                if unlinked { p { "This gasket is unlinked from its pair." } }
+            }
         });
-    let unlink_source = current_source.clone();
-    let unlink_owner = owner.clone();
-    let unlink_projection = projection.clone();
-    let unlink_runtime = runtime.clone();
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
-    let gaskets_edit_disabled = mechanical_settings
-        .as_ref()
-        .is_none_or(|settings| !settings.editable);
     let select_assembly_layer = select_layer.clone();
 
     let display_mode = view_choices(
@@ -697,83 +604,20 @@ pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
                 if can_edit_gaskets || can_edit_mounts {
                     ToggleGroup {
                         aria_label: "Edit mode",
-                        pressed: Some({
-                            let mut pressed: std::collections::HashSet<usize> = Default::default();
-                            if editing_gaskets() { pressed.insert(0); }
-                            if editing_mounts() { pressed.insert(1); }
-                            pressed
-                        }),
+                        pressed: Some(edit_mode().into_iter().collect()),
                         on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            let enable_gaskets = next.contains(&0);
-                            let enable_mounts = !enable_gaskets && next.contains(&1);
-                            if enable_gaskets != editing_gaskets() || enable_mounts != editing_mounts() {
-                                editing_gaskets.set(enable_gaskets);
-                                editing_mounts.set(enable_mounts);
-                                if enable_gaskets || enable_mounts {
-                                    camera.call(CAMERA_VIEWS[0].2);
-                                }
+                            let next = next.into_iter().min();
+                            if next != edit_mode() {
+                                edit_mode.set(next);
+                                if next.is_some() { camera.call(CAMERA_VIEWS[0].2); }
                             }
                         },
-                        if can_edit_gaskets {
-                            Tooltip {
-                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                                    ToggleItem { index: 0usize, aria_label: "Edit gaskets",
-                                        disabled: gaskets_edit_disabled,
-                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                        attributes,
-                                        {viewer_control_icon("Edit gaskets")}
-                                    }
-                                } }
-                                TooltipContent { "Edit gaskets" }
-                            }
-                        }
-                        if can_edit_mounts {
-                            Tooltip {
-                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                                    ToggleItem { index: 1usize, aria_label: "Edit mounts",
-                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                        attributes,
-                                        {viewer_control_icon("Edit mounts")}
-                                    }
-                                } }
-                                TooltipContent { "Edit mounts" }
-                            }
-                        }
+                        if can_edit_gaskets { {icon_toggle(0, "Edit gaskets")} }
+                        if can_edit_mounts { {icon_toggle(1, "Edit mounts")} }
                     }
                 }
                 if editing_gaskets() {
-                    if let Some((support_id, pair_id, anchors, identity, mut sequence, on_request, editable)) = unlink_request.clone() {
-                        UiButton { variant: UiButtonVariant::Secondary, button_type: "button",
-                            class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
-                            disabled: !editable || selected_support.is_some_and(|support| support.unlinked),
-                            onclick: move |_| {
-                                if !(unlink_source.0)()
-                                    || !owner_is_current(&unlink_owner, &unlink_projection.identity)
-                                    || unlink_runtime.scope().as_ref() != Some(&identity.scope)
-                                {
-                                    return;
-                                }
-                                let Some(request_id) = sequence().checked_add(1) else { return };
-                                sequence.set(request_id);
-                                let patch = mechanical_settings::MechanicalSettingsPatch::SetGasketSupportUnlinked {
-                                    support_id: support_id.clone(), pair_id: pair_id.clone(), anchors: anchors.clone(),
-                                };
-                                on_request.call(mechanical_settings::MechanicalSettingsRequest {
-                                    identity: identity.clone(),
-                                    request_id,
-                                    field_id: patch.field_id(),
-                                    edit: mechanical_settings::MechanicalSettingsEdit::Change(patch),
-                                });
-                            },
-                            "Unlink selected support"
-                        }
-                        if let Some((alert, message)) = unlink_message {
-                            p { role: if alert { "alert" } else { "status" }, "{message}" }
-                        }
-                        if selected_support.is_some_and(|support| support.unlinked) {
-                            p { "This gasket is unlinked from its pair." }
-                        }
-                    } else {
+                    if let Some(unlink) = unlink { {unlink} } else {
                         p { "Select a gasket in Objects to unlink its mirrored support pair." }
                     }
                 }
@@ -900,18 +744,24 @@ fn view_choices<T: Copy + PartialEq + 'static>(
             },
             for (index, (name, _)) in choices.into_iter().enumerate() {
                 if inline {
-                    Tooltip {
-                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                            ToggleItem { index, aria_label: name, class: ICON_CONTROL, attributes,
-                                {viewer_control_icon(name)}
-                            }
-                        } }
-                        TooltipContent { "{name}" }
-                    }
+                    {icon_toggle(index, name)}
                 } else {
                     ToggleItem { index, "{name.to_ascii_lowercase()}" }
                 }
             }
+        }
+    }
+}
+
+fn icon_toggle(index: usize, name: &'static str) -> Element {
+    rsx! {
+        Tooltip {
+            TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                ToggleItem { index, aria_label: name, class: ICON_CONTROL, attributes,
+                    {viewer_control_icon(name)}
+                }
+            } }
+            TooltipContent { "{name}" }
         }
     }
 }

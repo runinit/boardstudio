@@ -17,11 +17,11 @@ pub(super) struct ViewportInteraction {
 }
 
 impl ViewportInteraction {
-    fn current(&self) -> bool {
+    pub(super) fn current(&self) -> bool {
         owner_is_current(&self.owner, &self.identity)
     }
 
-    fn can_select(&self) -> bool {
+    pub(super) fn can_select(&self) -> bool {
         (self.source.0)() && self.applied.borrow().as_ref() == Some(&self.identity)
     }
 
@@ -29,7 +29,7 @@ impl ViewportInteraction {
         emit_signal(&self.owner, self.on_signal, &self.identity, kind);
     }
 
-    fn fail(&self, error: String) {
+    pub(super) fn fail(&self, error: String) {
         let mut status = self.status;
         status.set(error.clone());
         if (self.source.0)() {
@@ -38,12 +38,15 @@ impl ViewportInteraction {
     }
 
     fn handle_event(&self, phase: HandleGesturePhase, handle_id: String, point: Option<[f32; 3]>) {
-        self.emit(ViewerSignalKind::WorldPoint(point));
         self.emit(ViewerSignalKind::HandleGesture {
             phase,
             handle_id,
             point,
         });
+    }
+
+    pub(super) fn cancel_capture(&self) {
+        release_capture(&self.pointer, &self.canvas);
     }
 
     pub fn down(&self, event: &PointerEvent) {
