@@ -4,7 +4,6 @@ use crate::pcb_controls::PcbCheck;
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
-    SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
@@ -349,6 +348,7 @@ fn setup_options_group(
 #[cfg(test)]
 mod mounted_setup_tests {
     use super::*;
+    use boardstudio_application::SnapshotToken;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;
