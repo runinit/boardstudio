@@ -18,7 +18,6 @@ pub struct ExportSource<'a> {
     pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
     pub archive: ArchiveHandler,
-    pub executor_epoch: u64,
 }
 
 pub async fn build_zip(
@@ -31,7 +30,6 @@ pub async fn build_zip(
         core,
         store,
         archive,
-        executor_epoch,
     } = source;
     let document = snapshot.document.as_ref();
     is_current()?;
@@ -65,9 +63,7 @@ pub async fn build_zip(
         },
     };
     is_current()?;
-    let reply = core
-        .artifact(&request_id, &executor_epoch.to_string(), &request)
-        .await;
+    let reply = core.artifact(&request_id, "1", &request).await;
     is_current()?;
     let reply = reply.map_err(|error| format!("Footprint export failed: {error}"))?;
     let exported = match reply {

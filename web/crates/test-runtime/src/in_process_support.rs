@@ -463,23 +463,12 @@ pub fn board_document() -> ProjectDoc {
 
 pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
     let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
-    let mut core = boardstudio_core::CoreEngine::new();
     let mut effects = session.submit(Event::Open {
         operation_id: OperationId(1),
         document: board_document(),
     });
     while let Some(effect) = effects.pop() {
         match effect {
-            Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } => effects.extend(session.complete(Completion::Core {
-                request_id,
-                executor_epoch,
-                reply: Box::new(core.handle(*request)),
-            })),
             Effect::Persist {
                 save_attempt_id, ..
             } => {

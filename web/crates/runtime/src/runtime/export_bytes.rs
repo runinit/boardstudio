@@ -206,7 +206,7 @@ impl Runtime {
         let primary_instance_id = central.map_or(scope.instance_id.as_deref(), |instance| {
             Some(instance.id.as_str())
         });
-        let (core, executor_epoch) = self.current_firmware_executor();
+        let core = self.core.borrow().clone();
         self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let primary = self
             .resolve_firmware_plan(
@@ -214,7 +214,6 @@ impl Runtime {
                 snapshot,
                 scope,
                 &core,
-                executor_epoch,
                 FirmwarePlanTarget {
                     board_id: primary_board_id,
                     instance_id: primary_instance_id,
@@ -229,7 +228,6 @@ impl Runtime {
                     snapshot,
                     scope,
                     &core,
-                    executor_epoch,
                     FirmwarePlanTarget {
                         board_id: &instance.board_id,
                         instance_id: Some(&instance.id),
@@ -252,9 +250,7 @@ impl Runtime {
             id: generate_id.clone(),
             request,
         };
-        let generated = core
-            .request(&generate_id, &executor_epoch.0.to_string(), &request)
-            .await;
+        let generated = core.request(&generate_id, "1", &request).await;
         self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let generated =
             generated.map_err(|error| format!("Firmware generation failed: {error}"))?;
@@ -298,7 +294,6 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         core: &Rc<dyn CoreExecutor>,
-        executor_epoch: boardstudio_application::ExecutorEpoch,
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
         self.require_export_current(operation_id, snapshot, scope, Some(core))?;
@@ -306,7 +301,6 @@ impl Runtime {
             .resolve_export_wiring(
                 snapshot,
                 core,
-                executor_epoch,
                 target.board_id,
                 target.instance_id,
                 format!("firmware-electrical-{}-{}", operation_id.0, target.label),
@@ -320,7 +314,6 @@ impl Runtime {
         &self,
         snapshot: &AcceptedSnapshot,
         core: &Rc<dyn CoreExecutor>,
-        executor_epoch: boardstudio_application::ExecutorEpoch,
         board_id: &str,
         instance_id: Option<&str>,
         request_id: String,
@@ -360,9 +353,7 @@ impl Runtime {
                 controller_part_id,
             },
         };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await;
+        let reply = core.request(&request_id, "1", &request).await;
         let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
         let plan = match reply {
             CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,

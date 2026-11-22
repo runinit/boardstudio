@@ -110,7 +110,6 @@ impl Runtime {
                 core: core.as_ref(),
                 store: &self.store,
                 archive: self.core_services.archive,
-                executor_epoch: capture.executor_epoch().0,
             },
             || self.require_pcb_handoff_current(operation_id, &capture, &core),
         )
@@ -604,14 +603,7 @@ impl Runtime {
             instance_id.unwrap_or("board")
         );
         let plan = self
-            .resolve_export_wiring(
-                snapshot,
-                core,
-                capture.executor_epoch(),
-                &scope.board_id,
-                instance_id,
-                request_id,
-            )
+            .resolve_export_wiring(snapshot, core, &scope.board_id, instance_id, request_id)
             .await;
         self.require_pcb_handoff_current(operation_id, capture, core)?;
         plan
@@ -711,7 +703,6 @@ impl Runtime {
                 core: core.as_ref(),
                 store: &self.store,
                 archive: self.core_services.archive,
-                executor_epoch: capture.executor_epoch().0,
             },
             ensure_current,
         )

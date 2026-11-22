@@ -3,7 +3,7 @@
 //! A lease is valid only while Session still owns the export and the accepted project,
 //! scope, Core executor epoch, and worker identity remain the ones captured at start.
 
-use boardstudio_application::{AcceptedSnapshot, ExecutorEpoch, Scope, SnapshotToken};
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExportKind {
@@ -22,7 +22,6 @@ pub(crate) struct ExportLease {
     kind: ExportKind,
     snapshot: AcceptedSnapshot,
     scope: Scope,
-    executor_epoch: ExecutorEpoch,
     worker_identity: usize,
 }
 
@@ -31,14 +30,12 @@ impl ExportLease {
         kind: ExportKind,
         snapshot: AcceptedSnapshot,
         scope: Scope,
-        executor_epoch: ExecutorEpoch,
         worker_identity: usize,
     ) -> Self {
         Self {
             kind,
             snapshot,
             scope,
-            executor_epoch,
             worker_identity,
         }
     }
@@ -59,20 +56,14 @@ impl ExportLease {
         self.snapshot.token
     }
 
-    pub(crate) fn executor_epoch(&self) -> ExecutorEpoch {
-        self.executor_epoch
-    }
-
     pub(crate) fn source_is_current(
         &self,
         current_scope: Option<&Scope>,
         current_snapshot: Option<&AcceptedSnapshot>,
-        executor_epoch: ExecutorEpoch,
         worker_identity: usize,
     ) -> bool {
         current_scope == Some(&self.scope)
             && current_snapshot.is_some_and(|current| self.accepted_snapshot_matches(current))
-            && executor_epoch == self.executor_epoch
             && worker_identity == self.worker_identity
     }
 
@@ -95,16 +86,10 @@ impl ExportLease {
         &self,
         session_owns_export: bool,
         current_snapshot: Option<&AcceptedSnapshot>,
-        executor_epoch: ExecutorEpoch,
         worker_identity: usize,
     ) -> Result<(), String> {
         if session_owns_export
-            && self.source_is_current(
-                Some(&self.scope),
-                current_snapshot,
-                executor_epoch,
-                worker_identity,
-            )
+            && self.source_is_current(Some(&self.scope), current_snapshot, worker_identity)
         {
             Ok(())
         } else {
@@ -160,7 +145,7 @@ mod tests {
             board_id: "board-a".into(),
             instance_id: None,
         };
-        ExportLease::new(kind, snapshot, scope, ExecutorEpoch(11), 123)
+        ExportLease::new(kind, snapshot, scope, 123)
     }
 
     #[test]
@@ -180,47 +165,28 @@ mod tests {
             ExportKind::BoardOutline { dxf: true },
         ] {
             let lease = captured(kind);
-            assert!(lease.source_is_current(
-                Some(lease.scope()),
-                Some(lease.snapshot()),
-                ExecutorEpoch(11),
-                123,
-            ));
+            assert!(lease.source_is_current(Some(lease.scope()), Some(lease.snapshot()), 123,));
             let mut changed_scope = lease.scope().clone();
             changed_scope.board_id = "board-b".into();
-            assert!(!lease.source_is_current(
-                Some(&changed_scope),
-                Some(lease.snapshot()),
-                ExecutorEpoch(11),
-                123,
-            ));
+            assert!(!lease.source_is_current(Some(&changed_scope), Some(lease.snapshot()), 123,));
             assert!(
                 lease
-                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(11), 123)
+                    .require_current(true, Some(lease.snapshot()), 123)
                     .is_ok()
             );
             assert!(
                 lease
-                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(12), 123)
+                    .require_current(true, Some(lease.snapshot()), 456)
                     .is_err()
             );
             assert!(
                 lease
-                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(11), 456)
-                    .is_err()
-            );
-            assert!(
-                lease
-                    .require_current(false, Some(lease.snapshot()), ExecutorEpoch(11), 123)
+                    .require_current(false, Some(lease.snapshot()), 123)
                     .is_err()
             );
             let mut changed = lease.snapshot().clone();
             changed.token = SnapshotToken(18);
-            assert!(
-                lease
-                    .require_current(true, Some(&changed), ExecutorEpoch(11), 123)
-                    .is_err()
-            );
+            assert!(lease.require_current(true, Some(&changed), 123).is_err());
         }
     }
 

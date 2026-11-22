@@ -16,8 +16,7 @@ async fn wait_for_save(runtime: &Runtime, revision: u64) {
 #[wasm_bindgen_test]
 async fn commits_publish_before_the_latest_revision_is_durable() {
     let services = CoreServices::engine();
-    let runtime =
-        Runtime::new_with_restoration(false, services, Some((services.open_scratch)())).unwrap();
+    let runtime = Runtime::new_with_restoration(false, services).unwrap();
     let id = "coalesced-rename";
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),

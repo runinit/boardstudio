@@ -253,23 +253,10 @@ fn submit(
     slot
 }
 
-fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
+fn advance(session: &mut Session, initial: Vec<Effect>) {
     let mut pending = initial;
     while let Some(effect) = pending.pop() {
         match effect {
-            Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } => {
-                let reply = core.handle(*request);
-                pending.extend(session.complete(Completion::Core {
-                    request_id,
-                    executor_epoch,
-                    reply: Box::new(reply),
-                }));
-            }
             Effect::Persist {
                 save_attempt_id, ..
             } => {
@@ -285,12 +272,12 @@ fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
 
 fn accepted(document: ProjectDoc) -> (Session, CoreEngine) {
     let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
-    let mut core = CoreEngine::new();
+    let core = CoreEngine::new();
     let effects = session.submit(boardstudio_application::Event::Open {
         operation_id: OperationId(40),
         document,
     });
-    advance(&mut session, &mut core, effects);
+    advance(&mut session, effects);
     assert!(session.read_model().accepted.is_some());
     (session, core)
 }

@@ -1,6 +1,17 @@
 //! Session event submission and effect execution.
 use super::*;
-use boardstudio_application::{EditResolver, ExecutorEpoch, RequestId, SnapshotToken};
+use boardstudio_application::{EditResolver, SnapshotToken};
+
+fn observed_outcome(effects: &[Effect], observe: Option<OperationId>) -> Option<TerminalOutcome> {
+    effects.iter().find_map(|effect| match effect {
+        Effect::Settled {
+            operation_id,
+            outcome,
+            ..
+        } if observe == Some(*operation_id) => Some(outcome.clone()),
+        _ => None,
+    })
+}
 
 impl Runtime {
     pub fn submit(self: &Rc<Self>, event: Event) {
@@ -74,6 +85,7 @@ impl Runtime {
         }
         self.invalidate_stale_native_case_preview();
         if scope_changed || self.accepted_identity() != previous_snapshot {
+            self.cancel_collision_checks();
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
@@ -86,8 +98,9 @@ impl Runtime {
         self.changed();
         #[cfg(any(test, feature = "test-support"))]
         if self.in_process_adapters.borrow().is_some() {
+            let result = observed_outcome(&effects, observe);
             self.held_effects.borrow_mut().extend(effects);
-            return None;
+            return result;
         }
         self.drive_effects(effects, observe)
     }
@@ -160,6 +173,7 @@ impl Runtime {
         }
         self.invalidate_stale_native_case_preview();
         if scope_changed || self.accepted_identity() != previous_snapshot {
+            self.cancel_collision_checks();
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
@@ -187,39 +201,8 @@ impl Runtime {
         observe: Option<OperationId>,
     ) -> Option<TerminalOutcome> {
         let this = self.clone();
+        let result = observed_outcome(&effects, observe);
         let mut effects = VecDeque::from(effects);
-        let mut deferred = VecDeque::new();
-        let mut result = None;
-        while let Some(effect) = effects.pop_front() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } if let Some(document_core) = &self.document_core => {
-                    effects.extend(self.run_document_core(
-                        document_core,
-                        request_id,
-                        executor_epoch,
-                        *request,
-                    ));
-                }
-                effect => {
-                    if let Effect::Settled {
-                        operation_id,
-                        outcome,
-                        ..
-                    } = &effect
-                        && observe == Some(*operation_id)
-                    {
-                        result = Some(outcome.clone());
-                    }
-                    deferred.push_back(effect);
-                }
-            }
-        }
-        let mut effects = deferred;
         #[cfg(any(test, feature = "test-support"))]
         let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
             let (finished, receive) = futures_channel::oneshot::channel();
@@ -249,65 +232,8 @@ impl Runtime {
         result
     }
 
-    fn run_document_core(
-        self: &Rc<Self>,
-        document_core: &RefCell<DocumentCore>,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        request: CoreRequest,
-    ) -> Vec<Effect> {
-        if !self
-            .session
-            .borrow()
-            .core_request_is_current(request_id, executor_epoch)
-        {
-            return vec![];
-        }
-        let reply = (document_core.borrow_mut())(request);
-        self.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        })
-    }
-
     pub(super) async fn run(self: &Rc<Self>, effect: Effect) -> Vec<Effect> {
         match effect {
-            Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } => {
-                if let Some(document_core) = &self.document_core {
-                    return self.run_document_core(
-                        document_core,
-                        request_id,
-                        executor_epoch,
-                        *request,
-                    );
-                }
-                let core = self.core.borrow().clone();
-                match core
-                    .request(
-                        &format!("m1-{}", request_id.0),
-                        &executor_epoch.0.to_string(),
-                        &request,
-                    )
-                    .await
-                {
-                    Ok(reply) => self.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }),
-                    Err(error) => self.complete(Completion::CoreFailed {
-                        request_id,
-                        executor_epoch,
-                        reason: error.to_string(),
-                    }),
-                }
-            }
             Effect::Persist {
                 document,
                 save_attempt_id,

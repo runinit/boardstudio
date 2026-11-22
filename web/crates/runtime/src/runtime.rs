@@ -1,6 +1,5 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 pub use crate::core_services::CoreServices;
-use crate::core_services::DocumentCore;
 use crate::export_lease::{ExportKind, ExportLease};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
@@ -322,7 +321,6 @@ fn generated_analysis_cache_key(
 pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
-    document_core: Option<RefCell<DocumentCore>>,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
     pub store: BrowserStore,
@@ -449,14 +447,12 @@ impl Runtime {
     /// Keep one injected engine for the document; scratch probes create their own engines.
     /// Archive and artifact operations also execute in process.
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
-        let document_core = (core_services.open_scratch)();
-        Self::new_with_restoration(true, core_services, Some(document_core))
+        Self::new_with_restoration(true, core_services)
     }
 
     fn new_with_restoration(
         restore_active_project: bool,
         core_services: CoreServices,
-        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let store = if restore_active_project {
@@ -465,14 +461,13 @@ impl Runtime {
             BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
         }
         .map_err(|e| e.to_string())?;
-        Self::new_with_store(restore_active_project, store, core_services, document_core)
+        Self::new_with_store(restore_active_project, store, core_services)
     }
 
     fn new_with_store(
         restore_active_project: bool,
         store: BrowserStore,
         core_services: CoreServices,
-        document_core: Option<DocumentCore>,
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
@@ -483,7 +478,6 @@ impl Runtime {
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
             core_services,
-            document_core: document_core.map(RefCell::new),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core),
             persistence: RefCell::new(Rc::new(store.clone())),
@@ -621,7 +615,7 @@ impl Runtime {
         self.session.borrow().scope()
     }
     pub fn electrical_preview_executor_epoch(&self) -> u64 {
-        self.session.borrow().core_executor_epoch().0
+        core_executor_identity(&self.core.borrow()) as u64
     }
     /// The Core entry points the page injected (Open admission and scratch probes).
     pub fn core_services(&self) -> CoreServices {
@@ -724,30 +718,15 @@ impl Runtime {
         base_revision: u64,
         matrices: Vec<boardstudio_model::model::Matrix>,
     ) -> Result<Vec<boardstudio_model::model::MatrixScene>, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request_id = format!("matrix-projection-{}", self.operation().0);
         let expected_ids: Vec<_> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
-        let request = CoreRequest::ProjectMatrices {
-            id: request_id.clone(),
-            base_revision,
-            matrices,
-        };
-        let reply = if let Some(document_core) = &self.document_core {
-            if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
-                return Err("Matrix preview failed: editor is closed".into());
-            }
-            (document_core.borrow_mut())(request)
-        } else {
-            core.request(&request_id, &executor_epoch.0.to_string(), &request)
-                .await
-                .map_err(|error| format!("Matrix preview failed: {error}"))?
-        };
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("The Core worker changed during matrix preview.".into());
+        if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
+            return Err("Matrix preview failed: editor is closed".into());
         }
+        let reply =
+            self.session
+                .borrow_mut()
+                .project_matrices(request_id.clone(), base_revision, matrices);
         match reply {
             CoreReply::MatrixProjections {
                 id,

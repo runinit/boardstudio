@@ -13,10 +13,6 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OperationId(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RequestId(pub u64);
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ExecutorEpoch(pub u64);
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SaveAttemptId(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SessionEpoch(pub u64);
@@ -430,19 +426,9 @@ pub enum SaveResult {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Completion {
-    Core {
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        reply: Box<CoreReply>,
-    },
     Persist {
         save_attempt_id: SaveAttemptId,
         result: SaveResult,
-    },
-    CoreFailed {
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        reason: String,
     },
     GenerationProgress {
         job_id: JobId,
@@ -478,12 +464,6 @@ pub enum Completion {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Effect {
-    Core {
-        operation_id: OperationId,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        request: Box<CoreRequest>,
-    },
     Persist {
         save_attempt_id: SaveAttemptId,
         document: Arc<ProjectDoc>,
@@ -576,14 +556,11 @@ enum ActiveKind {
     ExportCommit,
 }
 #[derive(Clone, Debug)]
-struct ActiveCore {
-    request_id: RequestId,
-    executor_epoch: ExecutorEpoch,
+struct CoreAction {
     operation_id: OperationId,
     kind: ActiveKind,
     gesture_generation: Option<u64>,
     preview_transaction_id: Option<String>,
-    preview_cancelled: bool,
     export_owner: Option<ExportCommitOwner>,
 }
 #[derive(Debug)]
@@ -612,13 +589,11 @@ struct Gesture {
     alt: bool,
     frame_pending: bool,
     changed: bool,
-    preview_in_flight: bool,
-    final_positions: Option<Vec<Position>>,
 }
 
 pub struct Session {
     model: ReadModel,
-    active_core: Option<ActiveCore>,
+    core: boardstudio_core::CoreEngine,
     display_preview_transaction_id: Option<String>,
     pending_save: Option<PendingSave>,
     next_request: u64,
@@ -626,7 +601,6 @@ pub struct Session {
     next_token: u64,
     next_gesture: u64,
     next_job: u64,
-    core_epoch: ExecutorEpoch,
     active_job: Option<(JobId, OperationId, Scope)>,
     exports: Vec<(OperationId, Scope, SnapshotToken)>,
     settled: HashSet<OperationId>,
@@ -644,7 +618,7 @@ impl Session {
     pub fn new(validate_open: OpenValidator) -> Self {
         Self {
             model: ReadModel::default(),
-            active_core: None,
+            core: boardstudio_core::CoreEngine::new(),
             display_preview_transaction_id: None,
             pending_save: None,
             next_request: 1,
@@ -652,7 +626,6 @@ impl Session {
             next_token: 1,
             next_gesture: 1,
             next_job: 1,
-            core_epoch: ExecutorEpoch(1),
             active_job: None,
             exports: vec![],
             settled: HashSet::new(),
@@ -664,22 +637,20 @@ impl Session {
     pub fn read_model(&self) -> &ReadModel {
         &self.model
     }
-    pub fn core_executor_epoch(&self) -> ExecutorEpoch {
-        self.core_epoch
+
+    pub fn project_matrices(
+        &mut self,
+        id: String,
+        base_revision: u64,
+        matrices: Vec<boardstudio_model::model::Matrix>,
+    ) -> CoreReply {
+        self.core.handle(CoreRequest::ProjectMatrices {
+            id,
+            base_revision,
+            matrices,
+        })
     }
 
-    /// Check before executing a deferred Core effect. A rejected stale reply alone
-    /// cannot protect an in-process engine from a stale request mutating it.
-    pub fn core_request_is_current(
-        &self,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-    ) -> bool {
-        self.core_epoch == executor_epoch
-            && self.active_core.as_ref().is_some_and(|active| {
-                active.request_id == request_id && active.executor_epoch == executor_epoch
-            })
-    }
     pub fn scope(&self) -> Option<Scope> {
         let accepted = self.model.accepted.as_ref()?;
         Some(Scope {
@@ -747,22 +718,18 @@ impl Session {
                 });
         self.model.snap_guide = guide;
         g.changed = positions != g.start;
-        g.latest = positions.clone();
-        if end {
-            g.final_positions = Some(positions);
-        }
+        g.latest = positions;
         let generation = g.generation;
         let changed = g.changed;
         if !g.frame_pending && !end {
             g.frame_pending = true;
             effects.push(Effect::RequestFrame { generation });
         }
-        let preview_in_flight = g.preview_in_flight;
         self.model.gesture = self.gesture.as_ref().map(gesture_view);
         if end && !changed {
             self.invalidate_gesture(effects);
-        } else if end && !preview_in_flight {
-            self.dispatch_latest_gesture_preview(effects);
+        } else if end {
+            self.apply_gesture(true, effects);
         }
     }
     fn gesture_frame(&mut self, generation: u64, effects: &mut Vec<Effect>) {
@@ -773,22 +740,16 @@ impl Session {
             return;
         }
         g.frame_pending = false;
-        self.dispatch_latest_gesture_preview(effects);
+        self.apply_gesture(false, effects);
     }
-    fn dispatch_latest_gesture_preview(&mut self, effects: &mut Vec<Effect>) {
+    fn apply_gesture(&mut self, is_commit: bool, effects: &mut Vec<Effect>) {
         let Some(g) = &mut self.gesture else {
             return;
         };
-        if g.preview_in_flight
-            || (!g.changed && g.final_positions.is_none() && g.sent_positions.is_none())
-        {
+        if !is_commit && !g.changed && g.sent_positions.is_none() {
             return;
         }
-        let is_commit = g.final_positions.is_some();
-        let positions = g
-            .final_positions
-            .clone()
-            .unwrap_or_else(|| g.latest.clone());
+        let positions = g.latest.clone();
         if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
             return;
         }
@@ -808,14 +769,12 @@ impl Session {
             },
         };
         if is_commit {
-            g.final_positions = None;
             self.run_command(
                 operation_id,
                 DocumentCommand::GestureCommit(command),
                 effects,
             );
         } else {
-            g.preview_in_flight = true;
             g.sent_positions = Some(positions);
             self.run_command(
                 OperationId(u64::MAX - generation),
@@ -830,14 +789,6 @@ impl Session {
                 effects.push(Effect::CancelFrame {
                     generation: g.generation,
                 });
-            }
-            if self
-                .active_core
-                .as_ref()
-                .is_some_and(|active| active.gesture_generation == Some(g.generation))
-                && let Some(active) = &self.active_core
-            {
-                self.settle(active.operation_id, TerminalOutcome::Cancelled, effects);
             }
             self.settle(g.operation_id, TerminalOutcome::Cancelled, effects);
             effects.push(Effect::ReleasePointer {
@@ -1020,7 +971,7 @@ impl Session {
             );
             return;
         }
-        if self.pending_save.is_some() || self.active_core.is_some() {
+        if self.pending_save.is_some() {
             self.close_operation = Some(operation_id);
             self.model.lifecycle = Lifecycle::Closing;
         } else {
@@ -1069,7 +1020,7 @@ fn gesture_view(g: &Gesture) -> GestureView {
         alt: g.alt,
     }
 }
-fn event_operation(event: &Event) -> Option<OperationId> {
+pub fn event_operation(event: &Event) -> Option<OperationId> {
     match event {
         Event::Open { operation_id, .. }
         | Event::GestureBegin { operation_id, .. }
@@ -1144,9 +1095,7 @@ impl Session {
         command: DocumentCommand,
         effects: &mut Vec<Effect>,
     ) {
-        if self.active_core.is_some()
-            || matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed)
-        {
+        if matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed) {
             self.settle(
                 operation_id,
                 TerminalOutcome::Rejected("another document operation is active".into()),
@@ -1256,9 +1205,9 @@ impl Session {
             return;
         }
 
-        let request_id = RequestId(self.next_request);
+        let request_id = self.next_request;
         self.next_request += 1;
-        let request_wire_id = format!("m1-{}", request_id.0);
+        let request_wire_id = format!("m1-{request_id}");
         let preview_transaction_id = match &command {
             DocumentCommand::Edit(command) if command.phase == EditPhase::Preview => {
                 Some(command.transaction_id.clone())
@@ -1375,22 +1324,19 @@ impl Session {
         } else {
             Lifecycle::Applying
         };
-        self.active_core = Some(ActiveCore {
-            request_id,
-            executor_epoch: self.core_epoch,
-            operation_id,
-            kind,
-            gesture_generation,
-            preview_transaction_id,
-            preview_cancelled: false,
-            export_owner,
-        });
-        effects.push(Effect::Core {
-            operation_id,
-            request_id,
-            executor_epoch: self.core_epoch,
-            request: Box::new(request),
-        });
+        let reply = self.core.handle(request);
+        self.apply_core_reply(
+            CoreAction {
+                operation_id,
+                kind,
+                gesture_generation,
+                preview_transaction_id,
+                export_owner,
+            },
+            &request_wire_id,
+            reply,
+            effects,
+        );
     }
 }
 
@@ -1490,23 +1436,16 @@ impl Session {
                 revision,
                 board_id,
                 transaction_id,
-            } => {
-                if let Some(active) = self.active_core.as_mut().filter(|active| {
-                    active.preview_transaction_id.as_deref() == Some(transaction_id.as_str())
-                }) {
-                    active.preview_cancelled = true;
-                }
-                self.run_command(
-                    operation_id,
-                    DocumentCommand::ClearPreview {
-                        token,
-                        revision,
-                        board_id,
-                        transaction_id,
-                    },
-                    &mut effects,
-                )
-            }
+            } => self.run_command(
+                operation_id,
+                DocumentCommand::ClearPreview {
+                    token,
+                    revision,
+                    board_id,
+                    transaction_id,
+                },
+                &mut effects,
+            ),
             Event::ReviewElectricalRemap {
                 operation_id,
                 base_revision,
@@ -1812,8 +1751,6 @@ impl Session {
                         alt,
                         frame_pending: false,
                         changed: false,
-                        preview_in_flight: false,
-                        final_positions: None,
                     });
                     self.model.gesture = self.gesture.as_ref().map(gesture_view);
                     effects.push(Effect::CapturePointer { pointer_id });
@@ -1903,20 +1840,10 @@ impl Session {
     pub fn complete(&mut self, completion: Completion) -> Vec<Effect> {
         let mut effects = Vec::new();
         match completion {
-            Completion::Core {
-                request_id,
-                executor_epoch,
-                reply,
-            } => self.core_completed(request_id, executor_epoch, *reply, &mut effects),
             Completion::Persist {
                 save_attempt_id,
                 result,
             } => self.persist_completed(save_attempt_id, result, &mut effects),
-            Completion::CoreFailed {
-                request_id,
-                executor_epoch,
-                reason,
-            } => self.core_failed(request_id, executor_epoch, reason, &mut effects),
             Completion::GenerationProgress {
                 job_id,
                 scope,
@@ -2012,8 +1939,7 @@ impl Session {
                 );
             }
         }
-        if self.active_core.is_none()
-            && self.pending_save.is_none()
+        if self.pending_save.is_none()
             && let Some(operation_id) = self.close_operation.take()
         {
             self.finish_close(operation_id, &mut effects);
@@ -2023,24 +1949,14 @@ impl Session {
 }
 
 impl Session {
-    pub(super) fn core_completed(
+    fn apply_core_reply(
         &mut self,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
+        active: CoreAction,
+        request_id: &str,
         reply: CoreReply,
         effects: &mut Vec<Effect>,
     ) {
-        let Some(active) = self.active_core.take() else {
-            return;
-        };
-        if active.request_id != request_id
-            || active.executor_epoch != executor_epoch
-            || executor_epoch != self.core_epoch
-        {
-            self.active_core = Some(active);
-            return;
-        }
-        if reply_id(&reply) != format!("m1-{}", request_id.0) {
+        if reply_id(&reply) != request_id {
             self.model.lifecycle = Lifecycle::RecoveryRequired;
             self.model.last_error = Some("core reply ID did not match request".into());
             self.settle(
@@ -2053,25 +1969,17 @@ impl Session {
         match (active.kind, reply) {
             (ActiveKind::Preview, CoreReply::Preview { scene, .. }) => {
                 self.model.lifecycle = Lifecycle::Ready;
-                if !active.preview_cancelled
-                    && active.gesture_generation.is_none_or(|generation| {
-                        self.gesture
-                            .as_ref()
-                            .is_some_and(|g| g.generation == generation)
-                    })
-                {
+                if active.gesture_generation.is_none_or(|generation| {
+                    self.gesture
+                        .as_ref()
+                        .is_some_and(|g| g.generation == generation)
+                }) {
                     self.model.display_preview = Some(Arc::new(scene));
                     self.display_preview_transaction_id = active.preview_transaction_id.clone();
                 }
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
                 }
-                if let Some(g) = &mut self.gesture
-                    && active.gesture_generation == Some(g.generation)
-                {
-                    g.preview_in_flight = false;
-                }
-                self.dispatch_latest_gesture_preview(effects);
             }
             (
                 ActiveKind::Open
@@ -2267,39 +2175,6 @@ impl Session {
         }
     }
 
-    pub(super) fn core_failed(
-        &mut self,
-        request_id: RequestId,
-        executor_epoch: ExecutorEpoch,
-        reason: String,
-        effects: &mut Vec<Effect>,
-    ) {
-        let Some(active) = self.active_core.take() else {
-            return;
-        };
-        if active.request_id != request_id || active.executor_epoch != executor_epoch {
-            self.active_core = Some(active);
-            return;
-        }
-        self.core_epoch = ExecutorEpoch(self.core_epoch.0 + 1);
-        self.model.lifecycle = Lifecycle::RecoveryRequired;
-        self.model.last_error = Some(reason.clone());
-        self.settle(
-            active.operation_id,
-            TerminalOutcome::ExecutorFailed(reason.clone()),
-            effects,
-        );
-        if let Some(close_operation) = self.close_operation.take() {
-            self.settle(
-                close_operation,
-                TerminalOutcome::BlockedByRecovery(
-                    "core outcome is unknown; explicit reopen required".into(),
-                ),
-                effects,
-            );
-        }
-        self.finish_gesture_commit(active.gesture_generation, false, effects);
-    }
     pub(super) fn settle(
         &mut self,
         operation_id: OperationId,

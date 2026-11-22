@@ -28,7 +28,6 @@ pub struct HandoffPorts<'a> {
     pub core: &'a dyn CoreExecutor,
     pub store: &'a BrowserStore,
     pub archive: ArchiveHandler,
-    pub executor_epoch: u64,
 }
 
 pub async fn build_handoff(
@@ -48,7 +47,6 @@ pub async fn build_handoff(
         core,
         store,
         archive,
-        executor_epoch,
     } = ports;
     let document = snapshot.document.as_ref();
     let board = document
@@ -99,7 +97,7 @@ pub async fn build_handoff(
     };
     is_current()?;
     let reply = core
-        .artifact(&request_id, &executor_epoch.to_string(), &request)
+        .artifact(&request_id, "1", &request)
         .await
         .map_err(|error| format!("KiCad export failed: {error}"))?;
     is_current()?;

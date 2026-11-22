@@ -449,7 +449,7 @@ impl Runtime {
             return Err("Outline export was cancelled, superseded, or its source changed.".into());
         }
         let reply = core
-            .artifact(&request_id, &lease.executor_epoch().0.to_string(), &request)
+            .artifact(&request_id, "1", &request)
             .await
             .map_err(|error| format!("Outline export failed: {error}"))?;
         if !self.export_lease_is_current(operation_id, &lease, &core) {
@@ -497,7 +497,6 @@ impl Runtime {
                         .require_current(
                             session_owns_export,
                             session.read_model().accepted.as_ref(),
-                            session.core_executor_epoch(),
                             core_executor_identity(&core),
                         )
                         .is_ok()
@@ -512,14 +511,12 @@ impl Runtime {
         scope: &Scope,
     ) {
         let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
         self.export_leases.borrow_mut().insert(
             operation_id,
             ExportLease::new(
                 kind,
                 snapshot.clone(),
                 scope.clone(),
-                executor_epoch,
                 core_executor_identity(&core),
             ),
         );
@@ -532,7 +529,6 @@ impl Runtime {
         lease.source_is_current(
             session.scope().as_ref(),
             model.accepted.as_ref(),
-            session.core_executor_epoch(),
             core_executor_identity(&core),
         )
     }
@@ -559,13 +555,6 @@ impl Runtime {
                 .accepted
                 .as_ref()
                 .is_some_and(|s| s.token == token)
-    }
-    pub(super) fn current_firmware_executor(
-        &self,
-    ) -> (Rc<dyn CoreExecutor>, boardstudio_application::ExecutorEpoch) {
-        let core = self.core.borrow().clone();
-        let executor: Rc<dyn CoreExecutor> = core;
-        (executor, self.session.borrow().core_executor_epoch())
     }
     pub(super) fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
         #[cfg(any(test, feature = "test-support"))]

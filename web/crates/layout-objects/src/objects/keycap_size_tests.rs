@@ -336,28 +336,9 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
         });
     }
     let mut session = Session::new(CoreEngine::validate_open);
-    let mut engine = CoreEngine::new();
     let effects = session.submit(SessionEvent::Open {
         operation_id: OperationId(900),
         document,
-    });
-    let (request_id, executor_epoch, request) = effects
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } => Some((*request_id, *executor_epoch, (**request).clone())),
-            _ => None,
-        })
-        .unwrap();
-    let reply = engine.handle(request);
-    let effects = session.complete(Completion::Core {
-        request_id,
-        executor_epoch,
-        reply: Box::new(reply),
     });
     let save_attempt_id = effects
         .iter()
