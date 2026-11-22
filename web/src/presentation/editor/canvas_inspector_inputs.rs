@@ -281,7 +281,7 @@ pub(super) struct CaseInspectorArgs<'a> {
     pub instance_scope_pending: bool,
     pub current_scope: Option<Scope>,
     pub case_scene: Option<Rc<crate::runtime::CadScene>>,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
     pub case_selected_layer_id: String,
     pub case_selected_context: Option<objects::ScopedTreeContext>,
     pub model: &'a ReadModel,

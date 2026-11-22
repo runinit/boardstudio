@@ -3,10 +3,10 @@ use super::{
     InstanceSelection, MechanicalSettings, MechanicalSettingsProps, MechanicalSettingsState,
     case_controller::CaseBodyInspector,
     case_display::{is_inspector_visible, is_visible, preference_ids},
-    case_viewer::{BodySelection, CaseSelection},
     objects::{ScopedTreeContext, TreeSelectRequest},
     selection::SelectionAdapter,
     shared_viewer::CaseDisplay,
+    shared_viewer::{BodySelection, CaseSelection},
 };
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
@@ -36,10 +36,10 @@ pub(super) struct CaseWorkspaceState {
 pub(super) fn use_case_workspace_state() -> CaseWorkspaceState {
     let selection = CaseSelection {
         body: use_signal(|| None::<BodySelection>),
-        layer: use_signal(|| None::<super::case_viewer::LayerSelection>),
+        layer: use_signal(|| None::<super::shared_viewer::LayerSelection>),
         display: use_signal(std::collections::BTreeMap::new),
-        body_edit_portal: super::case_viewer::CaseBodyEditPortal {
-            dispatch: use_signal(|| None::<super::case_viewer::CaseBodyEditDispatch>),
+        body_edit_portal: super::shared_viewer::CaseBodyEditPortal {
+            dispatch: use_signal(|| None::<super::shared_viewer::CaseBodyEditDispatch>),
             editable: use_signal(|| false),
         },
     };

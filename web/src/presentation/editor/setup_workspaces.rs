@@ -341,7 +341,7 @@ pub(super) struct OnShowMechanicalFindingArgs<'a> {
     pub adapter_generation: Signal<u64>,
     pub workspace: Signal<&'static str>,
     pub inspect_open: Signal<bool>,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
     pub instance_selection: InstanceSelection,
 }
 
@@ -429,7 +429,7 @@ pub(super) fn on_show_mechanical_finding_handler(
             .find(|body| body.board_id == scope.board_id && finding.target_ids.contains(&body.id))
         {
             case_selection.focus_layer(scope.clone(), token, revision, body.id.clone());
-            case_selection.body.set(Some(case_viewer::BodySelection {
+            case_selection.body.set(Some(shared_viewer::BodySelection {
                 scope: scope.clone(),
                 body_id: body.id.clone(),
             }));

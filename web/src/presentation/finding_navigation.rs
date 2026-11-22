@@ -59,8 +59,8 @@ pub(crate) struct LayoutFindingNavigationContext {
     pub(super) keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub(crate) svg: Rc<RefCell<Option<SvgElement>>>,
     pub(crate) alive: Rc<Cell<bool>>,
-    pub(crate) body_selection: Signal<Option<case_viewer::BodySelection>>,
-    pub(crate) case_selection: case_viewer::CaseSelection,
+    pub(crate) body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    pub(crate) case_selection: shared_viewer::CaseSelection,
     pub(crate) select_tree: EventHandler<objects::TreeSelectRequest>,
     pub(crate) resumed_after_board_navigation: bool,
 }
@@ -170,8 +170,8 @@ pub(crate) fn current_keycaps_navigation_owner(
     workspace: Signal<&'static str>,
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
-    body_selection: Signal<Option<case_viewer::BodySelection>>,
-    case_selection: case_viewer::CaseSelection,
+    body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    case_selection: shared_viewer::CaseSelection,
 ) -> keycaps_navigation::LiveNavigationOwner {
     let (scope, model) = (runtime.scope(), runtime.model());
     let (token, revision) = model

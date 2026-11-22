@@ -8,7 +8,6 @@ pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
 mod canvas_status_footer;
 pub(crate) use boardstudio_web_case::case_controller;
 pub(crate) use boardstudio_web_case::case_display;
-pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
 mod command_palette;
 mod companion_placement;

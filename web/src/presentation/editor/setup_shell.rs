@@ -19,7 +19,7 @@ pub(super) struct WorkspaceShell {
     pub instance_preference: Signal<Option<instance_selection::Preference>>,
     pub instance_selection: InstanceSelection,
     pub case_workspace_state: case_workspace::CaseWorkspaceState,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
     pub case_tree_expanded: Signal<std::collections::BTreeSet<String>>,
     pub workspace: Signal<&'static str>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,

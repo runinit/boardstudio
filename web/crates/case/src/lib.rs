@@ -22,15 +22,12 @@ pub(crate) use boardstudio_web_runtime::{
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{case_gesture_preview, renderer_host_page, runtime};
+pub(crate) use boardstudio_web_runtime::{case_gesture_preview, runtime};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, selection};
-#[cfg(target_arch = "wasm32")]
-#[allow(unused_imports)]
-pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
@@ -71,8 +68,6 @@ pub mod case_controller;
 pub mod case_preview_lifecycle;
 pub mod case_selection;
 #[cfg(target_arch = "wasm32")]
-pub mod case_viewer;
-#[cfg(target_arch = "wasm32")]
 mod mechanical_fits;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_layers;
@@ -89,3 +84,11 @@ pub mod test_contexts;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+#[cfg(any(test, target_arch = "wasm32"))]
+#[path = "shared_viewer/camera.rs"]
+mod viewport_camera;
+
+#[cfg(any(test, target_arch = "wasm32"))]
+#[path = "shared_viewer/geometry.rs"]
+mod viewport_geometry;
