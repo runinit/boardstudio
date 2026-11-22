@@ -111,8 +111,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
         if selected.next().is_some() {
             return Err("The exact lifecycle association is ambiguous".into());
         }
-        let matrix_pair =
-            matrix_pair_for_association(before, halves, *kind, &association.source_id, mirror_id)?;
+        let matrix_pair = matrix_pair_for_association(before, halves, association)?;
         let context = lifecycle_context(before, pair_id, matrix_pair)?;
         let prior_state = context
             .associations

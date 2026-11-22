@@ -215,6 +215,11 @@ pub(super) fn prepare_lifecycle_projection(
             }
             continue;
         };
+        if association.state == TransitionState::Omitted {
+            // Slot materialization cannot remove a previously detached companion.
+            removed.insert(association.mirror_id.clone());
+            continue;
+        }
         let matrix_owned = matrix_members.contains(&association.source_id)
             || matrix_members.contains(&association.mirror_id);
         if (context.matrix_pair.is_none()
@@ -223,9 +228,7 @@ pub(super) fn prepare_lifecycle_projection(
         {
             continue;
         }
-        if association.state == TransitionState::Omitted {
-            removed.insert(association.mirror_id.clone());
-        } else if context.pending_rejoins.contains_key(&association.source_id) {
+        if context.pending_rejoins.contains_key(&association.source_id) {
             if sources.next().is_some() {
                 return Err("The exact Rejoin source Part is ambiguous".into());
             }
@@ -482,12 +485,10 @@ pub(super) fn prepare_lifecycle_projection(
             super::super::source_members(&output.draft, &pair.source_id, &output.context, false)?;
         let mirrors =
             super::super::source_members(&output.draft, &pair.mirror_id, &output.context, false)?;
-        let prefix = format!("matrix/{}/", pair.source_id);
-        let slots = output
-            .context
-            .associations
-            .iter()
-            .filter(|a| a.kind == MirroredItemKind::Part && a.source_id.starts_with(&prefix));
+        let slots = output.context.associations.iter().filter(|a| {
+            a.kind == MirroredItemKind::Part
+                && (sources.contains(&a.source_id) || mirrors.contains(&a.mirror_id))
+        });
         super::super::transition_checks::validate_emitted_slots(
             &output.draft,
             &output.context,

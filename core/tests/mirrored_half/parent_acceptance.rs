@@ -853,11 +853,7 @@ fn independent_decoy_is_not_a_matrix_companion() {
     }
     // History invalidates the full scene. Committed moves report just affected entities.
     for reply in [&authored, &moved] {
-        let changed = reply["scene"]["changedIds"].as_array().unwrap();
-        assert!(
-            !changed.contains(&json!("matrix/right-synthetic-keys/r1c0")),
-            "{changed:?}"
-        );
+        assert_eq!(reply["scene"]["changedIds"], json!([source, id]));
     }
 }
 
@@ -880,4 +876,60 @@ fn a_linked_independent_part_under_a_local_keys_prefix_still_edits_its_source() 
         part(&moved["document"], id)["pose"]["at"],
         json!({"x":212.0,"y":12.0})
     );
+}
+
+#[test]
+fn ownership_review_noncanonical_slot_spelling_remains_independent() {
+    let source = "matrix/left-synthetic-keys/r01c0/spare";
+    let mirror = "matrix/right-synthetic-keys/r1c0/spare";
+    let (_, linked) = accepted_pair();
+    let renamed = linked
+        .to_string()
+        .replace("\"left/RST\"", &json!(source).to_string())
+        .replace("\"right/RST\"", &json!(mirror).to_string());
+    let (mut engine, accepted) = open(&serde_json::from_str(&renamed).unwrap());
+    let moved = move_part(&mut engine, &accepted, "left/U1", -22.0, 4.0);
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    let moved = &moved["document"];
+    let mut replacement = moved.clone();
+    replacement["name"] = json!("Independent slot-like names");
+    let reply = commit_operation(
+        &mut engine,
+        moved,
+        "replace-with-independent-slot-like-names",
+        &[],
+        json!({"kind":"replace-document","document":replacement}),
+    );
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    for id in [source, mirror] {
+        assert_eq!(part(&reply["document"], id), part(moved, id));
+    }
+}
+
+#[test]
+fn ownership_review_detached_local_companion_can_be_omitted() {
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let diode = "matrix/right-synthetic-keys/r0c0/diode";
+    let (mut engine, linked) = accepted_pair();
+    let local = set_exception(&mut engine, &linked, diode, "local");
+    assert_eq!(local["kind"], "scene", "{local}");
+    let moved = move_part(&mut engine, &local["document"], diode, 123.0, 47.0);
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    let detached = set_exception(&mut engine, &moved["document"], key, "omitted");
+    assert_eq!(detached["kind"], "scene", "{detached}");
+    let detached = &detached["document"];
+    assert_eq!(part(detached, diode), part(&moved["document"], diode));
+    let (mut engine, reopened) = save_archive_and_open(detached);
+    let omitted = set_exception(&mut engine, &reopened, diode, "omitted");
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    let omitted = &omitted["document"];
+    assert!(find_part(omitted, diode).is_none());
+    assert_eq!(exception(omitted, diode).unwrap()["state"], "omitted");
+    assert_eq!(exception(omitted, key).unwrap()["state"], "omitted");
+    let undo = request(&mut engine, json!({"id":"undo","kind":"undo"}));
+    let redo = request(&mut engine, json!({"id":"redo","kind":"redo"}));
+    assert_history_document(&undo["document"], &reopened, "undo");
+    assert_history_document(&redo["document"], omitted, "redo");
+    let (_, reopened) = save_archive_and_open(&redo["document"]);
+    assert_history_document(&reopened, omitted, "archive");
 }

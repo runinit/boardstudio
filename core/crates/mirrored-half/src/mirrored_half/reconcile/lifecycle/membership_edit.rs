@@ -2,7 +2,7 @@
 
 use super::super::{MembershipContext, TransitionState};
 use super::effective;
-use crate::model::{MirroredExceptionState, MirroredItemKind};
+use crate::model::{MirroredCorrespondence, MirroredExceptionState, MirroredItemKind};
 
 pub(super) fn lifecycle_context(
     document: &crate::model::ProjectDoc,
@@ -148,21 +148,29 @@ fn claims_matrix_slot(
     else {
         return false;
     };
-    let key = crate::matrix::member_id(&matrix.mirror_id, row, column);
-    if assembly.is_empty() {
-        mirror_id == key
-    } else {
-        mirror_id == crate::matrix::companion_id(&key, assembly)
-    }
+    [
+        (&matrix.source_id, source_id),
+        (&matrix.mirror_id, mirror_id),
+    ]
+    .into_iter()
+    .all(|(matrix_id, part_id)| {
+        let key = crate::matrix::member_id(matrix_id, row, column);
+        if assembly.is_empty() {
+            part_id == key
+        } else {
+            part_id == crate::matrix::companion_id(&key, assembly)
+        }
+    })
 }
 
 pub(super) fn matrix_pair_for_association(
     document: &crate::model::ProjectDoc,
     halves: &crate::model::MirroredHalves,
-    kind: crate::model::MirroredItemKind,
-    source_id: &str,
-    mirror_id: &str,
+    association: &MirroredCorrespondence,
 ) -> Result<Option<super::super::MatrixPairContext>, String> {
+    let kind = association.kind;
+    let source_id = association.source_id.as_str();
+    let mirror_id = association.mirror_id.as_str();
     if kind == MirroredItemKind::Matrix {
         return Ok(Some(super::super::MatrixPairContext {
             source_id: source_id.to_owned(),
@@ -232,12 +240,14 @@ pub(super) fn matrix_pair_for_association(
             && exception.state == MirroredExceptionState::Omitted
             && halves.overlay_source(exception) == Some(matrix_pair.source_id.as_str())
     });
-    let omitted_part = halves.exceptions.iter().any(|exception| {
-        exception.kind == MirroredItemKind::Part
-            && exception.mirror_id == mirror_id
-            && exception.state == MirroredExceptionState::Omitted
-            && halves.overlay_source(exception) == Some(source_id)
-    });
+    let omitted_part = halves
+        .overlay_of(association)
+        .is_some_and(|exception| exception.state == MirroredExceptionState::Omitted);
+    // An Omitted key detaches its explicit Local companions from the mirror matrix.
+    let omitted_key = super::super::matrix_owners(document, halves, association)
+        .and_then(|owners| owners.key)
+        .and_then(|key| halves.overlay_of(key))
+        .is_some_and(|exception| exception.state == MirroredExceptionState::Omitted);
     if let Some(mirror_matrix) = mirror_matrix {
         if mirror_matrix.board_id.as_deref() != Some(mirror_board_id.as_str())
             || mirror_matrix_memberships
@@ -245,7 +255,8 @@ pub(super) fn matrix_pair_for_association(
                 .any(|matrix| matrix.id != mirror_matrix.id)
             || (!mirror_matrix.part_ids.iter().any(|id| id == mirror_id)
                 && !omitted_owner
-                && !omitted_part)
+                && !omitted_part
+                && !omitted_key)
         {
             return Err("The mirror Part lacks actual membership in its exact Matrix".into());
         }

@@ -275,6 +275,24 @@ pub(super) fn exact_omitted_matrix_companions(
                 })
                 .collect();
             let [mirror_cell] = mirror_cells.as_slice() else {
+                if mirror_cells.is_empty()
+                    && source.part_ids.contains(&source_id)
+                    && source.part_ids.contains(&source_key_id)
+                    && mirror.cells.iter().any(|cell| {
+                        cell.deleted
+                            && (cell.row, cell.column) == (source_cell.row, source_cell.column)
+                    })
+                    && halves
+                        .overlay_for_source(MirroredItemKind::Part, &source_key_id)
+                        .is_some_and(|key| {
+                            key.mirror_id == mirror_key_id
+                                && key.state == MirroredExceptionState::Omitted
+                        })
+                {
+                    // The omitted key suppresses the whole slot. Its child overlay stays
+                    // durable and needs no exclusion from active matrix membership.
+                    continue;
+                }
                 return Err("An omitted matrix companion has no unique active mirror slot".into());
             };
             if !mirror_cell
