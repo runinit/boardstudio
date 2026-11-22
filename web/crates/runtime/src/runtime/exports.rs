@@ -34,7 +34,8 @@ impl Runtime {
             kind,
             ExportKind::BoardOutline { .. } | ExportKind::ProjectCopy { .. }
         ) {
-            self.clear_alert();
+            self.status.borrow_mut().clear_alert();
+            self.changed();
         }
         let operation_id = self.operation();
         if kind == ExportKind::Firmware {

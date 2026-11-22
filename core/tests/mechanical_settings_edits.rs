@@ -9,8 +9,6 @@
 //! method/mount/frame switches, dimensions, processes, profiles, stabilizers and
 //! the switch family.
 
-use crate::fixtures::mechanical_configuration as configuration;
-use crate::fixtures::mounting_hole_template as template;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
@@ -29,6 +27,7 @@ use boardstudio_core::model::{
     PartGenerator, PartKind, PhysicalBoardInstance, PlateMethod, Pose2, ProjectDoc, ScrewDrive,
     ScrewHeadProfile, ScrewLengthDatum, Side, Vec2, Vec3,
 };
+use serde_json::json;
 use std::collections::BTreeMap;
 
 fn board(id: &str, part_ids: Vec<String>) -> Board {
@@ -48,6 +47,29 @@ fn board(id: &str, part_ids: Vec<String>) -> Board {
 ///
 /// `closureMounts` is a deliberate explicit empty collection, so an unrelated
 /// settings change never triggers closure initialization or its required template.
+fn configuration() -> MechanicalConfiguration {
+    serde_json::from_value(json!({
+        "boardId": "board",
+        "method": "printed",
+        "mount": "rigid",
+        "plateThickness": 1.5,
+        "plateFoamThickness": 0.5,
+        "pcbThickness": 1.6,
+        "bottomFoamThickness": 0.4,
+        "batteryHeight": 4.0,
+        "bottomThickness": 3.0,
+        "plateToPcb": 3.5,
+        "wallThickness": 2.0,
+        "clearance": 0.3,
+        "bottomStyle": "shell",
+        "middleFrame": false,
+        "openingAllowance": 0.25,
+        "mounts": [],
+        "closureMounts": [],
+        "profiles": []
+    }))
+    .unwrap()
+}
 
 /// The same configuration with absent closure mounts, for initialization tests.
 fn configuration_without_closures() -> MechanicalConfiguration {
@@ -57,6 +79,18 @@ fn configuration_without_closures() -> MechanicalConfiguration {
 }
 
 /// The normalized bundled mounting-hole catalogue entry projection expects.
+fn template() -> PartDefinition {
+    serde_json::from_value(json!({
+        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+        "envelopeSource":{"courtyard":"generated"},
+        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+    }))
+    .unwrap()
+}
 
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");

@@ -56,15 +56,9 @@ pub(crate) fn install_source_pcb(
     {
         return Err("Core returned incomplete PCB source geometry.".into());
     }
-    if body
-        .features
-        .as_ref()
-        .is_some_and(|items| !items.is_empty())
-        || body
-            .openings
-            .as_ref()
-            .is_some_and(|items| !items.is_empty())
-        || body.mounts.as_ref().is_some_and(|items| !items.is_empty())
+    if body.features.iter().flatten().next().is_some()
+        || body.openings.iter().flatten().next().is_some()
+        || body.mounts.iter().flatten().next().is_some()
         || body.gasket.is_some()
         || body.pcb_source.is_some()
     {
@@ -86,14 +80,13 @@ pub(crate) fn install_source_pcb(
         contours,
     };
     let request_id = format!("{request_prefix}-pcb-prepare");
-    let request = CoreRequest::PrepareCase {
+    let mut ir = match open_scratch()(CoreRequest::PrepareCase {
         id: request_id.clone(),
         ir: CaseAssemblyIR {
             revision: source_ir.revision,
             bodies: vec![source_ir.clone()],
         },
-    };
-    let mut ir = match open_scratch()(request) {
+    }) {
         CoreReply::CasePrepared { id, ir } if id == request_id => ir,
         CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
         _ => return Err("Core returned an unexpected source PCB preparation.".into()),

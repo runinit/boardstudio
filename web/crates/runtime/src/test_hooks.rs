@@ -22,12 +22,6 @@ pub fn new_runtime(services: CoreServices) -> Result<Rc<Runtime>, String> {
 pub fn store(runtime: &Runtime) -> BrowserStore {
     runtime.store.clone()
 }
-pub fn set_cad_worker(runtime: &Runtime, worker: Option<(Scope, Rc<CadWorker>)>) {
-    if let Some((_, previous)) = runtime.cad_worker.replace(worker) {
-        previous.close();
-    }
-}
-
 pub fn cache_asset(runtime: &Runtime, sha256: String, bytes: Vec<u8>) {
     runtime.assets.borrow_mut().insert(sha256, bytes);
 }

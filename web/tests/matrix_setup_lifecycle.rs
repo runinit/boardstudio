@@ -54,6 +54,6 @@ fn open_document(runtime: &runtime::Runtime, id: &str, revision: u64, with_insta
     });
 }
 
-#[path = "support/matrix_catalogue.rs"]
+#[path = "../crates/catalogue/src/matrix_setup_operation/test_catalogue.rs"]
 mod matrix_catalogue;
 use matrix_catalogue::catalogue;

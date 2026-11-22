@@ -8,12 +8,14 @@
 //! replacement document.
 use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{OutlineEdit as OutlineSettingEdit, generated_feature};
-use boardstudio_application::{AcceptedSnapshot, Resolution};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, Lifecycle, ReadModel, Resolution, Scope,
+};
 use boardstudio_core_kernel::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget,
 };
 use boardstudio_model::model::{
-    Board, Contour, EditOperation, OutlineConnection, OutlineFeature, ProjectDoc,
+    Board, Contour, EditOperation, EditPhase, OutlineConnection, OutlineFeature, ProjectDoc,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -598,4 +600,90 @@ pub enum Admission {
     Ignore,
     /// The submitted geometry is malformed: submit so Core's own error surfaces.
     Malformed,
+}
+
+pub(super) fn outline_action_matches_saved_owner(
+    action: &OutlineAction,
+    model: &ReadModel,
+    current_scope: Option<&Scope>,
+    generation: u64,
+) -> bool {
+    let (scope, token, revision, captured_generation, board_id) = action.envelope();
+    let perimeter_edit = matches!(
+        action,
+        OutlineAction::EditPerimeter {
+            phase: EditPhase::Preview | EditPhase::Commit,
+            ..
+        }
+    );
+    let lifecycle_current = model.lifecycle == Lifecycle::Ready
+        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
+    generation == captured_generation
+        && current_scope == Some(scope)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.token == *token
+                && snapshot.document.revision == revision
+                && snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
+        && scope.board_id == *board_id
+        && lifecycle_current
+        && model.durability == (Durability::Saved { revision })
+        && (model.display_preview.is_none() || perimeter_edit)
+        && model.gesture.is_none()
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use boardstudio_application::{Event, SessionEpoch, SnapshotToken};
+    use boardstudio_web_test_runtime::new_native_runtime;
+
+    #[test]
+    fn outline_copy_requires_the_captured_saved_owner() {
+        let runtime = new_native_runtime();
+        let mut document = ProjectDoc::empty("outline", "Outline");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
+        });
+        let mut model = runtime.model();
+        let scope = runtime.scope().unwrap();
+        let snapshot = model.accepted.as_ref().unwrap();
+        let revision = snapshot.document.revision;
+        let token = snapshot.token;
+        let action = OutlineAction::Copy {
+            scope: scope.clone(),
+            token,
+            revision,
+            generation: 2,
+            board_id: scope.board_id.clone(),
+        };
+        let admitted = |model: &ReadModel, scope: Option<&Scope>, generation| {
+            outline_action_matches_saved_owner(&action, model, scope, generation)
+        };
+        assert!(admitted(&model, Some(&scope), 2));
+        assert!(!admitted(&model, Some(&scope), 3));
+        assert!(!admitted(&model, None, 2));
+        let replacement = Scope {
+            session_epoch: SessionEpoch(scope.session_epoch.0 + 1),
+            ..scope.clone()
+        };
+        assert!(!admitted(&model, Some(&replacement), 2));
+        model.durability = Durability::Saving { revision };
+        assert!(!admitted(&model, Some(&scope), 2));
+        model.durability = Durability::Saved { revision };
+        model.accepted.as_mut().unwrap().token = SnapshotToken(token.0 + 1);
+        assert!(!admitted(&model, Some(&scope), 2));
+    }
 }

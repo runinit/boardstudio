@@ -1,10 +1,11 @@
 //! Ticket 01: document admission rejects ambiguous identities and revision
 //! exhaustion before any accepted state or history changes.
-use crate::fixtures::json_open as open;
-use crate::fixtures::json_request as request;
-use crate::fixtures::json_snapshot as snapshot;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
+
+fn request(engine: &mut CoreEngine, input: Value) -> Value {
+    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
+}
 
 fn baseline() -> Value {
     let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
@@ -34,6 +35,14 @@ fn baseline() -> Value {
         "offset":{"x":19,"y":0},"rotation":0
     }]);
     document
+}
+
+fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
+    request(engine, json!({"kind":"open","id":id,"document":document}))
+}
+
+fn snapshot(engine: &mut CoreEngine) -> Value {
+    request(engine, json!({"kind":"snapshot","id":"snapshot"}))["document"].clone()
 }
 
 fn duplicate(document: &mut Value, collection: &str) {
@@ -470,8 +479,7 @@ fn malformed_json_text_is_refused_without_changing_accepted_state() {
 }
 
 #[test]
-fn duplicate_identities_are_refused_on_open_and_replacement() {
-    let document = baseline();
+fn duplicate_identity_in_each_collection_is_rejected_on_open() {
     for collection in [
         "parts",
         "definitions",
@@ -480,27 +488,53 @@ fn duplicate_identities_are_refused_on_open_and_replacement() {
         "nets",
         "constraints",
     ] {
-        let mut candidate = document.clone();
-        duplicate(&mut candidate, collection);
+        let mut document = baseline();
+        duplicate(&mut document, collection);
         let mut engine = CoreEngine::new();
-        let assert_duplicate = |reply: Value| {
-            assert_error(&reply);
-            assert!(
-                reply["message"].as_str().unwrap().contains("Duplicate"),
-                "{collection}: {reply}"
-            );
-        };
-        assert_duplicate(open(&mut engine, "duplicate", &candidate));
+        let reply = open(&mut engine, "duplicate", &document);
+        assert_error(&reply);
+        assert!(
+            reply["message"].as_str().unwrap().contains("Duplicate"),
+            "{collection}: {}",
+            reply["message"]
+        );
         assert_eq!(snapshot(&mut engine)["revision"], 0);
+    }
+}
 
-        assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
+#[test]
+fn duplicate_identity_is_rejected_on_replacement_and_preserves_accepted_state() {
+    for collection in [
+        "parts",
+        "definitions",
+        "boards",
+        "matrices",
+        "nets",
+        "constraints",
+    ] {
+        let mut engine = CoreEngine::new();
+        assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
         let accepted = snapshot(&mut engine);
-        candidate["revision"] = accepted["revision"].clone();
-        assert_duplicate(edit(
+
+        let mut replacement = baseline();
+        replacement["revision"] = accepted["revision"].clone();
+        duplicate(&mut replacement, collection);
+        let reply = request(
             &mut engine,
-            accepted["revision"].as_u64().unwrap(),
-            json!({"kind":"replace-document","document":candidate}),
-        ));
+            json!({
+                "kind":"edit","id":"replace",
+                "command":{
+                    "baseRevision":accepted["revision"],"transactionId":"replace","phase":"commit",
+                    "targetIds":[],"operation":{"kind":"replace-document","document":replacement}
+                }
+            }),
+        );
+        assert_error(&reply);
+        assert!(
+            reply["message"].as_str().unwrap().contains("Duplicate"),
+            "{collection}: {}",
+            reply["message"]
+        );
         assert_eq!(snapshot(&mut engine), accepted, "{collection} state moved");
     }
 }
@@ -1036,20 +1070,45 @@ fn with_dimensions(document: &Value, rows: u32, columns: u32) -> Value {
 }
 
 #[test]
-fn oversized_matrices_are_refused_on_every_route_without_changing_state() {
+fn a_matrix_of_u32_max_rows_is_refused_on_open_before_any_row_walk() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let huge = with_dimensions(&document, u32::MAX, 2);
+    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn a_matrix_of_u32_max_columns_is_refused_on_open_before_any_column_walk() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let huge = with_dimensions(&document, 1, u32::MAX);
+    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn a_matrix_one_over_the_part_limit_is_refused_on_open() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let over = with_dimensions(&document, ONE_OVER_PART_LIMIT, 1);
+    assert_refused(&open(&mut engine, "over", &over), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn oversized_matrices_are_refused_through_set_matrix_and_project_matrices_with_state_unchanged() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
     for (rows, columns) in [(u32::MAX, 2), (1, u32::MAX), (ONE_OVER_PART_LIMIT, 1)] {
-        let mut engine = CoreEngine::new();
-        let document = anchored_document();
-        assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-        let accepted = snapshot(&mut engine);
-
-        let oversized = with_dimensions(&document, rows, columns);
-        assert_refused(
-            &open(&mut engine, "oversized", &oversized),
-            DIMENSION_REFUSAL,
-        );
-        assert_eq!(snapshot(&mut engine), accepted, "open {rows}x{columns}");
-
         let mut matrix = accepted["matrices"][0].clone();
         matrix["rows"] = json!(rows);
         matrix["columns"] = json!(columns);

@@ -1,6 +1,3 @@
-#[path = "../crates/runtime/src/firmware_request_adapter.rs"]
-mod firmware_request_adapter;
-
 use boardstudio_core::{
     electrical::{ElectricalAssignment, ElectricalDiagnostic, ElectricalMode, ElectricalPlan},
     electrical_peripherals::PeripheralRequirement,
@@ -81,9 +78,8 @@ fn plan(mode: ElectricalMode) -> ElectricalPlan {
 #[test]
 fn matrix_and_direct_plans_keep_scan_rows_keys_and_bindings() {
     let document = document();
-    let (matrix, _) =
-        firmware_request_adapter::firmware_request(&document, &plan(ElectricalMode::Matrix), None)
-            .expect("matrix firmware request");
+    let (matrix, _) = super::firmware_request(&document, &plan(ElectricalMode::Matrix), None)
+        .expect("matrix firmware request");
     assert_eq!(matrix.mode, FirmwareScanMode::Matrix);
     assert_eq!(
         matrix.rows,
@@ -102,9 +98,8 @@ fn matrix_and_direct_plans_keep_scan_rows_keys_and_bindings() {
     assert_eq!(matrix.key_bindings, ["&kp A"]);
     assert_eq!(matrix.board_name, "left");
 
-    let (direct, _) =
-        firmware_request_adapter::firmware_request(&document, &plan(ElectricalMode::Direct), None)
-            .expect("direct firmware request");
+    let (direct, _) = super::firmware_request(&document, &plan(ElectricalMode::Direct), None)
+        .expect("direct firmware request");
     assert_eq!(direct.mode, FirmwareScanMode::Direct);
     assert!(direct.rows.is_empty());
     assert!(direct.columns.is_empty());
@@ -150,9 +145,8 @@ fn split_wired_request_preserves_peripheral_offset_and_reverses_uart() {
         .peripheral_terminals
         .insert("split-rx".into(), "RX".into());
 
-    let (request, _) =
-        firmware_request_adapter::firmware_request(&document, &central, Some(&peripheral))
-            .expect("wired split request");
+    let (request, _) = super::firmware_request(&document, &central, Some(&peripheral))
+        .expect("wired split request");
     assert_eq!(request.transport, Some(SplitTransport::WiredUart));
     assert_eq!(
         request.uart_tx,
@@ -209,8 +203,8 @@ fn peripheral_helper_emits_source_verified_display_overlay_and_config() {
     accepted
         .peripheral_pins
         .insert("display-1/i2c/SCL".into(), "P0.27".into());
-    let (request, _) = firmware_request_adapter::firmware_request(&document, &accepted, None)
-        .expect("display request");
+    let (request, _) =
+        super::firmware_request(&document, &accepted, None).expect("display request");
     assert_eq!(
         request.peripheral_config,
         [
@@ -235,7 +229,7 @@ fn module_diagnostics_are_forwarded_while_other_plan_errors_block_export() {
         message: "Choose a host connector".into(),
         key_id: Some("left".into()),
     });
-    let (request, _) = firmware_request_adapter::firmware_request(&document, &accepted, None)
+    let (request, _) = super::firmware_request(&document, &accepted, None)
         .expect("module findings are presented by the worker, not rejected here");
     assert_eq!(
         request.hardware.unwrap().module_findings[0].message,
@@ -249,7 +243,7 @@ fn module_diagnostics_are_forwarded_while_other_plan_errors_block_export() {
         key_id: None,
     });
     assert_eq!(
-        firmware_request_adapter::firmware_request(&document, &accepted, None)
+        super::firmware_request(&document, &accepted, None)
             .expect_err("unresolved electrical plans block export"),
         "No resolved row pin"
     );
@@ -294,8 +288,7 @@ fn split_profiled_encoders_keep_each_plans_identity_and_gpio() {
         let left = encoder_plan(left_id, "P0.02", "P0.03", Some("C"));
         let mut right = encoder_plan(right_id, "P1.12", "P1.13", Some("C"));
         right.instance_id = Some("right-half".into());
-        let (request, _) =
-            firmware_request_adapter::firmware_request(&document, &left, Some(&right)).unwrap();
+        let (request, _) = super::firmware_request(&document, &left, Some(&right)).unwrap();
         assert_eq!(
             request.encoder_ids,
             [left_id],
@@ -339,10 +332,10 @@ fn mixed_encoder_profile_failure_is_not_replaced_by_empty_peripheral_overlays() 
     // This reviewed rotary profile is valid by itself, but cannot use the legacy
     // EC11 C-terminal overlay required by a mixed legacy/profiled split.
     let peripheral = encoder_plan("right-knob", "P0.12", "P0.13", Some("D"));
-    firmware_request_adapter::firmware_request(&document, &peripheral, None).expect(
+    super::firmware_request(&document, &peripheral, None).expect(
         "the recursive profiled peripheral request succeeds before the outer legacy override",
     );
-    let error = firmware_request_adapter::firmware_request(&document, &central, Some(&peripheral))
+    let error = super::firmware_request(&document, &central, Some(&peripheral))
         .expect_err("React throws when the outer peripheral legacy overlay cannot be built");
     assert_eq!(
         error,
@@ -368,12 +361,9 @@ fn legacy_encoder_uses_resolved_c_terminal_and_shared_sensor_overlay_order() {
         ]);
         value
     };
-    let (request, _) = firmware_request_adapter::firmware_request(
-        &document,
-        &legacy("left-knob"),
-        Some(&legacy("right-knob")),
-    )
-    .expect("source-matched legacy C terminal is supported");
+    let (request, _) =
+        super::firmware_request(&document, &legacy("left-knob"), Some(&legacy("right-knob")))
+            .expect("source-matched legacy C terminal is supported");
     assert_eq!(request.encoder_ids, ["left-knob"]);
     let peer = request.peripheral.unwrap();
     assert_eq!(peer.encoder_ids, ["right-knob"]);

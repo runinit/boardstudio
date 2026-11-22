@@ -1,6 +1,6 @@
 //! Shared fixtures for the placement plan (native) and hook (browser) tests.
 
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, OutlineFeature, OutlineSettings, Part, PartDefinition, Pose2, ProjectDoc, Side, Vec2,
 };
 
@@ -45,7 +45,7 @@ pub(crate) fn fixture() -> ProjectDoc {
         id: "envelope-main".into(),
         part_ids: vec![],
         margin: 4.0,
-        operation: boardstudio_core::model::Operation::Add,
+        operation: boardstudio_model::model::Operation::Add,
     });
     document.boards.push(Board {
         id: "board-main".into(),
@@ -122,7 +122,7 @@ pub(crate) fn mirrored_fixture() -> ProjectDoc {
     document
 }
 
-pub(crate) fn matrix_fixture() -> boardstudio_core::model::Matrix {
+pub(crate) fn matrix_fixture() -> boardstudio_model::model::Matrix {
     serde_json::from_value(serde_json::json!({
         "id": "matrix-main",
         "rows": 2,
@@ -149,7 +149,7 @@ pub(crate) fn accepted(
         token: SnapshotToken(token),
         session_epoch: SessionEpoch(7),
         document: Arc::new(document),
-        scene: Arc::new(boardstudio_core::model::SceneDelta {
+        scene: Arc::new(boardstudio_model::model::SceneDelta {
             module_scenes: vec![],
             revision,
             transaction_id: "controller-placement-test".into(),
@@ -162,7 +162,7 @@ pub(crate) fn accepted(
             board_outline_scenes: vec![],
             finding_markers: vec![],
             findings: vec![],
-            readiness: boardstudio_core::model::Readiness {
+            readiness: boardstudio_model::model::Readiness {
                 layout: false,
                 outline: false,
                 pcb: false,
@@ -192,8 +192,8 @@ pub(crate) fn part(definition_id: &str, id: &str, reference: &str) -> Part {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn replacement(operation: boardstudio_core::model::EditOperation) -> ProjectDoc {
-    use boardstudio_core::model::EditOperation;
+pub(crate) fn replacement(operation: boardstudio_model::model::EditOperation) -> ProjectDoc {
+    use boardstudio_model::model::EditOperation;
     let EditOperation::ReplaceDocument { document } = operation else {
         panic!("placement must be one ReplaceDocument edit");
     };

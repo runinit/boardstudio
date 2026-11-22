@@ -41,7 +41,7 @@ mod source_pcb_export_tests;
 pub mod case_gesture_preview;
 #[cfg(target_arch = "wasm32")]
 pub mod export_footprints;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod firmware_request_adapter;
 #[cfg(target_arch = "wasm32")]
 pub mod pcb_handoff;

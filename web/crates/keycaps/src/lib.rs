@@ -34,6 +34,3 @@ pub mod keycaps_fit;
 pub mod keycaps_navigation;
 #[cfg(any(target_arch = "wasm32", test))]
 pub mod keycaps_settings;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

@@ -1,10 +1,13 @@
-use crate::fixtures::json_request as request;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 const HAPTIC_SOURCE: &str = include_str!(
     "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
 );
+
+fn request(engine: &mut CoreEngine, value: Value) -> Value {
+    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
+}
 
 fn imported_haptic(id: &str) -> Value {
     let source = json!({

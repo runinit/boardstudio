@@ -1,6 +1,5 @@
 //! Native tests for applying a component to a selected matrix key and for the
-//! captured placement owner. The browser hook keeps its mounted coverage; these
-//! pure operation and owner checks run under `cargo test`.
+//! captured placement owner.
 
 use super::test_support::*;
 use super::*;

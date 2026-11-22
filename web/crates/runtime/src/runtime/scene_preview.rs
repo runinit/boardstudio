@@ -250,10 +250,7 @@ impl Runtime {
     pub fn native_case_preview_error(&self) -> Option<String> {
         self.native_case_preview
             .borrow()
-            .error
-            .as_ref()
-            .filter(|(owner, _)| self.preview_owner_is_current(owner))
-            .map(|(_, error)| error.clone())
+            .current_error(|owner| self.preview_owner_is_current(owner))
     }
 
     pub fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {

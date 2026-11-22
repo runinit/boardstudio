@@ -1,21 +1,15 @@
 //! Layout findings presentation state and return-focus lifecycle.
 
+use crate::LayoutOwnerIdentity;
 use crate::presentation::SelectionAdapter;
 use crate::runtime::Runtime;
-use crate::{LayoutOwnerIdentity, objects};
 use boardstudio_application::ReadModel;
-use boardstudio_web_ui_model::selection;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReturnTarget {
-    pub owner: LayoutOwnerIdentity,
-    pub selection: objects::ScopedTreeContext,
-    pub destination: objects::TreeContext,
-}
+pub use crate::findings_return::{ReturnTarget, layout_finding_return_is_current};
 
 #[derive(Clone, Copy)]
 pub struct LayoutFindingsState {
@@ -174,36 +168,6 @@ pub fn layout_finding_is_live(
             &request.target,
             &snapshot.document,
         )
-}
-
-pub fn layout_finding_return_is_current(
-    model: &ReadModel,
-    owner: &LayoutOwnerIdentity,
-    current_selection: Option<&objects::ScopedTreeContext>,
-    target: &ReturnTarget,
-) -> bool {
-    if owner != &target.owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    let saved_selection_is_live =
-        selection::context_is_current(model, scope, &target.selection.context)
-            && match &target.selection.context {
-                objects::TreeContext::Component {
-                    part_id: Some(_), ..
-                } => selection::resolve_context(model, &target.selection.context)
-                    .is_some_and(|part_ids| !part_ids.is_empty()),
-                _ => true,
-            };
-    target.selection.scope == *scope
-        && saved_selection_is_live
-        && current_selection.is_some_and(|selected| {
-            selected.scope == *scope
-                && selected.context == target.destination
-                && selection::context_is_current(model, scope, &selected.context)
-        })
 }
 
 pub fn focus_layout_finding_return_destination() -> bool {

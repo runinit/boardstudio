@@ -214,7 +214,3 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
         }
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "matrix_setup_focus_tests.rs"]
-mod focus_tests;

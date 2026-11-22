@@ -31,7 +31,7 @@ pub mod inspector_fields;
 #[cfg(target_arch = "wasm32")]
 pub mod layer_dock;
 pub mod layout_camera;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod model_asset_import;
 #[cfg(target_arch = "wasm32")]
 pub mod object_options;

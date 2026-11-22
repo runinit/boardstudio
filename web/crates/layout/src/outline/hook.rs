@@ -309,37 +309,12 @@ pub fn outline_action_is_current(
     runtime: &Runtime,
     generation: u64,
 ) -> bool {
-    let (scope, token, revision, captured_generation, board_id) = action.envelope();
-    let model = runtime.model();
-    let perimeter_edit = matches!(
+    adapter::outline_action_matches_saved_owner(
         action,
-        OutlineAction::EditPerimeter {
-            phase: EditPhase::Preview | EditPhase::Commit,
-            ..
-        }
-    );
-    let lifecycle_current = model.lifecycle == Lifecycle::Ready
-        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
-    generation == captured_generation
-        && runtime.scope().as_ref() == Some(scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.token == *token
-                && snapshot.document.revision == revision
-                && snapshot.document.id == scope.document_id
-                && snapshot.session_epoch == scope.session_epoch
-        })
-        && scope.board_id == *board_id
-        && lifecycle_current
-        && model.durability == (Durability::Saved { revision })
-        && (model.display_preview.is_none()
-            || matches!(
-                action,
-                OutlineAction::EditPerimeter {
-                    phase: EditPhase::Preview | EditPhase::Commit,
-                    ..
-                }
-            ))
-        && model.gesture.is_none()
+        &runtime.model(),
+        runtime.scope().as_ref(),
+        generation,
+    )
 }
 
 pub fn use_outline_lifecycle(

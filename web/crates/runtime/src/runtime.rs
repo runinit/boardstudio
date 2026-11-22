@@ -117,15 +117,10 @@ fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Opt
         TerminalOutcome::Closed => ("Editor closed.".into(), false, false),
         TerminalOutcome::Superseded => return None,
     };
-    let report = if alert {
-        RuntimeReport::alert(message)
-    } else {
-        RuntimeReport::status(message)
-    };
-    Some(if transient {
-        report.transient()
-    } else {
-        report
+    Some(RuntimeReport {
+        message,
+        is_alert: alert,
+        notification_error: transient.then_some(alert),
     })
 }
 
@@ -714,10 +709,6 @@ impl Runtime {
     }
     fn apply_report(&self, report: RuntimeReport) {
         publish(&self.status, &self.notifications, report, || self.changed());
-    }
-    fn clear_alert(&self) {
-        self.status.borrow_mut().clear_alert();
-        self.changed();
     }
     fn changed(&self) {
         if let Some(notify) = self.notify.borrow().as_ref().cloned() {

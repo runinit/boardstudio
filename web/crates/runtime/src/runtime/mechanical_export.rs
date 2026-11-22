@@ -120,11 +120,9 @@ impl Runtime {
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PhysicalStepAssembly, String> {
         let ensure_current = || {
-            if is_current() {
-                Ok(())
-            } else {
-                Err("Physical PCB preparation was cancelled or became stale.".to_owned())
-            }
+            is_current()
+                .then_some(())
+                .ok_or("Physical PCB preparation was cancelled or became stale.")
         };
         ensure_current()?;
         let mut prepared = prepare_captured_case(
@@ -140,9 +138,8 @@ impl Runtime {
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
         let mut pcb_source_thickness = None;
         if let Some(source) = &pcb_source {
-            let source_is_current = is_current.clone();
             let bytes = self
-                .load_preview_document_asset(&source.asset, source_is_current)
+                .load_preview_document_asset(&source.asset, is_current.clone())
                 .await?;
             ensure_current()?;
             pcb_source_thickness = install_source_pcb(

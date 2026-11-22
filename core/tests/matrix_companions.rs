@@ -1,11 +1,74 @@
 //! Core publishes each generated companion's placement mode so presentation reads
 //! the same precedence the solver uses: explicit constraint, authored pose, then
 //! follow the key.
-use crate::fixtures::matrix_companion as piece;
-use crate::fixtures::part_position as at;
-use crate::fixtures::{edit, open};
-use crate::fixtures::{matrix, matrix_definitions as definitions};
 use boardstudio_core::{CoreEngine, model::*};
+
+fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
+    match reply {
+        CoreReply::Scene {
+            scene, document, ..
+        } => (scene, *document),
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
+    let mut engine = CoreEngine::new();
+    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    (engine, scene, doc)
+}
+
+fn edit(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    operation: EditOperation,
+) -> (SceneDelta, ProjectDoc) {
+    scene(engine.handle(CoreRequest::Edit {
+        id: "edit".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    }))
+}
+
+fn definitions() -> Vec<PartDefinition> {
+    serde_json::from_value(serde_json::json!([
+        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
+        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
+        {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]},
+        {"id":"sensor","name":"Sensor","kind":"passive","courtyard":[],"pads":[]}
+    ]))
+    .unwrap()
+}
+
+fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
+    Matrix {
+        id: id.into(),
+        name: None,
+        rows,
+        columns,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "switch".into(),
+        part_ids: vec![],
+        board_id: None,
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![],
+    }
+}
 
 fn cell(assemblies: Vec<MatrixAssembly>) -> MatrixCell {
     MatrixCell {
@@ -102,6 +165,15 @@ fn companion(matrix: &str, row: u32, column: u32, name: &str) -> String {
     format!("{}/{name}", member(matrix, row, column))
 }
 
+fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
+    doc.parts
+        .iter()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+        .pose
+        .at
+}
+
 fn pose(doc: &ProjectDoc, id: &str) -> Pose2 {
     doc.parts
         .iter()
@@ -112,6 +184,14 @@ fn pose(doc: &ProjectDoc, id: &str) -> Pose2 {
 
 fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
+}
+
+fn piece<'a>(scene: &'a SceneDelta, id: &str) -> &'a MatrixScene {
+    scene
+        .matrix_scenes
+        .iter()
+        .find(|item| item.matrix_id == id)
+        .unwrap_or_else(|| panic!("missing matrix scene {id}"))
 }
 
 fn entry<'a>(scene: &'a SceneDelta, part_id: &str) -> &'a MatrixCompanionPlacement {

@@ -1,4 +1,3 @@
-use crate::fixtures::json_request as request;
 use boardstudio_core::{CoreEngine, model::ProjectDoc};
 use serde_json::{Value, json};
 
@@ -16,6 +15,10 @@ fn contours() -> Value {
     json!([{"hole":false,"points":[{"x":0,"y":0},{"x":60,"y":0},{"x":60,"y":40},{"x":0,"y":40}]},
     {"hole":true,"points":[{"x":10,"y":10},{"x":20,"y":10},{"x":20,"y":20},{"x":10,"y":20}]}])
 }
+fn request(engine: &mut CoreEngine, input: Value) -> Value {
+    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
+}
+
 #[test]
 fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
     let mut engine = CoreEngine::new();

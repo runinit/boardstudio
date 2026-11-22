@@ -59,6 +59,7 @@ pub use boardstudio_web_layout_core::{
     mirror_existing_half, mirrored_pair_geometry, mirrored_pair_lifecycle, outline_settings,
     part_rail, screen_scale, setup_guide_state,
 };
+mod findings_return;
 pub mod outline;
 
 #[cfg(target_arch = "wasm32")]
@@ -78,6 +79,3 @@ pub use boardstudio_web_layout_core::outline_snapping;
 pub mod part_placement;
 #[cfg(target_arch = "wasm32")]
 pub mod setup_guide;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

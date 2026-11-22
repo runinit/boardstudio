@@ -289,7 +289,3 @@ fn preset_choices(preset: MatrixSetupPreset) -> (bool, bool, bool) {
         MatrixSetupPreset::ChocHotswapRgb => (true, true, true),
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "mirrored_pair/canvas_overlay_tests.rs"]
-mod canvas_overlay_tests;

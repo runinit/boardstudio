@@ -11,13 +11,20 @@
 //! Board "board": part a at (0,0), part b at (14,0); board outline feature "gen";
 //! active version "refined" (linked) and fixed version "edited" (30x30 fixed square
 //! polygon, bounds -30..30).
-use crate::fixtures::linked_outline_settings as settings;
-use crate::fixtures::outline_snapshot as document;
-use crate::fixtures::scene_only as scene;
 use boardstudio_core::{CoreEngine, model::*};
 
 const ENVELOPE: &str = "board:board:version:refined:contour:0";
 const CUTOUT: &str = "board:board:version:refined:cutout:0";
+
+fn settings() -> serde_json::Value {
+    serde_json::json!({
+        "corners": "sharp", "size": 2.0, "bridgeWidth": 10.0,
+        "repair": {
+            "enabled": true, "maximumGapSpan": 20.0,
+            "minimumConnectionWidth": 2.0, "edgeClearance": 0.0, "keepGaps": []
+        }
+    })
+}
 
 fn switch_definition(courtyard: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
@@ -120,6 +127,13 @@ fn open(engine: &mut CoreEngine, document: serde_json::Value) -> SceneDelta {
     }))
 }
 
+fn scene(reply: CoreReply) -> SceneDelta {
+    match reply {
+        CoreReply::Scene { scene, .. } => scene,
+        reply => panic!("{reply:?}"),
+    }
+}
+
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
     scene(engine.handle(CoreRequest::Edit {
@@ -132,6 +146,15 @@ fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) ->
             operation,
         },
     }))
+}
+
+fn document(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Snapshot {
+        id: "snapshot".into(),
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        reply => panic!("{reply:?}"),
+    }
 }
 
 fn saved(engine: &mut CoreEngine) -> serde_json::Value {

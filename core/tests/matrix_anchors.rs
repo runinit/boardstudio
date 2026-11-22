@@ -1,13 +1,6 @@
 //! Ticket 19: Core-owned single-key anchor evaluation and typed Add/change/detach
 //! edits. All behavior runs through public Core routes (`Open` / `Edit`), never
 //! graph helpers alone.
-use crate::fixtures::authored_main_matrix as main_matrix;
-use crate::fixtures::key_part;
-use crate::fixtures::matrix_member as member;
-use crate::fixtures::matrix_snapshot as snapshot;
-use crate::fixtures::preview;
-use crate::fixtures::undone;
-use crate::fixtures::{edit, open};
 use boardstudio_core::{CoreEngine, model::*};
 
 #[path = "matrix_anchors/anchor_chunk0.rs"]
@@ -16,6 +9,57 @@ mod anchor_chunk0;
 mod anchor_chunk1;
 #[path = "matrix_anchors/anchor_chunk2.rs"]
 mod anchor_chunk2;
+fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
+    match reply {
+        CoreReply::Scene {
+            scene, document, ..
+        } => (scene, *document),
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
+    let mut engine = CoreEngine::new();
+    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    (engine, scene, doc)
+}
+
+fn edit(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    operation: EditOperation,
+) -> (SceneDelta, ProjectDoc) {
+    scene(engine.handle(CoreRequest::Edit {
+        id: "edit".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    }))
+}
+
+fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
+    match engine.handle(CoreRequest::Edit {
+        id: "preview".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "preview".into(),
+            phase: EditPhase::Preview,
+            target_ids: vec![],
+            operation,
+        },
+    }) {
+        CoreReply::Preview { scene, .. } => scene,
+        other => panic!("expected preview: {other:?}"),
+    }
+}
+
 fn error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
     match engine.handle(CoreRequest::Edit {
         id: "edit".into(),
@@ -37,6 +81,51 @@ fn definitions() -> Vec<PartDefinition> {
         {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}
     ]))
     .unwrap()
+}
+
+fn key_part(id: &str, x: f64, y: f64) -> Part {
+    Part {
+        anchor: None,
+        id: id.into(),
+        definition_id: "switch".into(),
+        reference: id.into(),
+        pose: Pose2 {
+            at: Vec2 { x, y },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        keycap: None,
+        outline: None,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+    }
+}
+
+fn main_matrix() -> Matrix {
+    Matrix {
+        id: "main".into(),
+        name: None,
+        rows: 1,
+        columns: 3,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "switch".into(),
+        part_ids: vec![
+            member("main", 0, 0),
+            member("main", 0, 1),
+            member("main", 0, 2),
+        ],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![],
+    }
 }
 
 fn fixture() -> (CoreEngine, ProjectDoc) {
@@ -80,6 +169,10 @@ fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
 
 fn assert_at(doc: &ProjectDoc, id: &str, x: f64, y: f64) {
     assert_eq!(at(doc, id), Vec2 { x, y }, "position of {id}");
+}
+
+fn member(matrix: &str, row: u32, column: u32) -> String {
+    format!("matrix/{matrix}/r{row}c{column}")
 }
 
 fn anchored_fixture() -> (CoreEngine, ProjectDoc) {
@@ -156,11 +249,22 @@ fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
         .and_then(|matrix| matrix.anchor.clone())
 }
 
+fn undone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
 fn redone(engine: &mut CoreEngine) -> ProjectDoc {
     match engine.handle(CoreRequest::Redo { id: "redo".into() }) {
         CoreReply::Scene { document, .. } => *document,
         other => panic!("expected scene: {other:?}"),
     }
+}
+
+fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
+    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
 }
 
 fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {

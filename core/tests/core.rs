@@ -1,4 +1,3 @@
-use crate::fixtures::matrix_doc;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
@@ -49,6 +48,52 @@ fn edit(base: u64, phase: EditPhase, op: EditOperation) -> CoreRequest {
             operation: op,
         },
     }
+}
+
+fn matrix_doc() -> ProjectDoc {
+    let mut doc = ProjectDoc::empty("p", "Project");
+    doc.definitions.push(PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        mechanical_profile: None,
+        id: "switch".into(),
+        name: "Switch".into(),
+        kind: PartKind::Switch,
+        courtyard: vec![
+            Vec2 { x: -7.0, y: -7.0 },
+            Vec2 { x: 7.0, y: -7.0 },
+            Vec2 { x: 7.0, y: 7.0 },
+            Vec2 { x: -7.0, y: 7.0 },
+        ],
+        pads: vec![],
+        models: None,
+        keycap: None,
+        envelope_source: None,
+        kicad_source: None,
+        terminals: Default::default(),
+        matrix_terminals: None,
+        envelope_notice: None,
+        generator: None,
+    });
+    doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
+        id: "edge".into(),
+        part_ids: vec![],
+        settings: Default::default(),
+        margin: 3.0,
+        operation: Operation::Add,
+    });
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec!["edge".into()],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    doc
 }
 
 fn mirrored_pair_request(base: u64, phase: &str) -> String {

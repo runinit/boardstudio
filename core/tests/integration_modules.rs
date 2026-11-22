@@ -6,10 +6,6 @@
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
 mod support;
 
-#[path = "support.rs"]
-#[allow(dead_code)] // Each shard uses a subset of the fixtures.
-mod fixtures;
-
 #[path = "electrical_wiring.rs"]
 mod electrical_wiring;
 #[path = "encoder_inputs.rs"]

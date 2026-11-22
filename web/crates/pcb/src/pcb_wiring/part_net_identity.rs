@@ -17,6 +17,15 @@ pub(super) fn request_matches_current_part(
     rendered == current
 }
 
+pub(super) fn admit_classified_part_net_edit(
+    in_current_workspace: bool,
+    rendered: &PartNetEditIdentity,
+    current: impl FnOnce() -> Option<PartNetEditIdentity>,
+) -> bool {
+    in_current_workspace
+        && current().is_some_and(|current| request_matches_current_part(rendered, &current))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,6 +51,21 @@ mod tests {
             revision,
             generation,
         }
+    }
+
+    #[test]
+    fn classified_part_edit_requires_a_live_pcb_owner() {
+        let rendered = identity("left", "left-J2", 7, 12, 4);
+        assert!(!admit_classified_part_net_edit(false, &rendered, || {
+            panic!("departed workspace must be rejected before resolving its owner")
+        }));
+        assert!(!admit_classified_part_net_edit(true, &rendered, || None));
+        assert!(!admit_classified_part_net_edit(true, &rendered, || {
+            Some(identity("left", "left-J2", 7, 12, 5))
+        }));
+        assert!(admit_classified_part_net_edit(true, &rendered, || Some(
+            rendered.clone()
+        )));
     }
 
     #[test]

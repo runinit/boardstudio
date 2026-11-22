@@ -1,8 +1,12 @@
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc, time::Duration};
+use std::{
+    cell::Cell,
+    future::Future,
+    rc::Rc,
+    task::{Context, Waker},
+};
 
-#[path = "../src/presentation/board_reference_effect.rs"]
-mod board_reference_effect;
+use super::clear_missing_reference;
 
 #[derive(Clone)]
 struct Probe {
@@ -34,7 +38,7 @@ fn MissingReferenceEffect(probe: Probe) -> Element {
         move |(has_reference, already_busy)| {
             if !has_reference && !already_busy {
                 runs.set(runs.get() + 1);
-                board_reference_effect::clear_missing_reference(
+                clear_missing_reference(
                     model_paths,
                     paths_asset_id,
                     attempted_discovery,
@@ -48,8 +52,8 @@ fn MissingReferenceEffect(probe: Probe) -> Element {
     rsx! { div { "Paths: {model_paths().len()}" } }
 }
 
-#[tokio::test]
-async fn mounted_missing_reference_reset_invalidates_once_and_settles() {
+#[test]
+fn mounted_missing_reference_reset_invalidates_once_and_settles() {
     let probe = Probe {
         runs: Rc::new(Cell::new(0)),
         epoch: Rc::new(Cell::new(None)),
@@ -64,10 +68,13 @@ async fn mounted_missing_reference_reset_invalidates_once_and_settles() {
     );
     dom.rebuild_in_place();
     for _ in 0..8 {
-        if tokio::time::timeout(Duration::from_millis(10), dom.wait_for_work())
-            .await
-            .is_err()
-        {
+        let work = {
+            let mut pending = std::pin::pin!(dom.wait_for_work());
+            pending
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop()))
+        };
+        if work.is_pending() {
             break;
         }
         dom.render_immediate_to_vec();

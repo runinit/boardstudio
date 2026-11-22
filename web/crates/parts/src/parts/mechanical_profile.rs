@@ -42,6 +42,15 @@ pub fn standard_profile_controls(
     )
 }
 
+fn profile_editor_is_current(
+    workspace: &str,
+    captured_generation: (u64, u64),
+    current_generation: impl FnOnce() -> (u64, u64),
+    owner_matches: impl FnOnce() -> bool,
+) -> bool {
+    workspace == "Parts" && captured_generation == current_generation() && owner_matches()
+}
+
 pub fn merge_standard_profile(
     draft: &mut MechanicalPartProfile,
     mut loaded: MechanicalPartProfile,
@@ -253,11 +262,16 @@ pub(crate) mod ui {
         let current = {
             let runtime = runtime.clone();
             move || {
-                workspace() == "Parts"
-                    && generation == (scope_generation(), selection_generation())
-                    && runtime.model().accepted.as_ref().is_some_and(|snapshot| {
-                        capture.owner_matches(snapshot, runtime.scope(), selection())
-                    })
+                profile_editor_is_current(
+                    workspace(),
+                    generation,
+                    || (scope_generation(), selection_generation()),
+                    || {
+                        runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                            capture.owner_matches(snapshot, runtime.scope(), selection())
+                        })
+                    },
+                )
             }
         };
         let mut draft =
@@ -496,6 +510,49 @@ mod tests {
             "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
         }))
         .expect("switch fixture")
+    }
+
+    #[test]
+    fn standard_fit_controls_distinguish_switches_from_saved_family() {
+        let mut definition = switch();
+        let mut draft = initial_profile(&definition, None);
+        draft.switch_family = None;
+        assert_eq!(
+            standard_profile_controls(&definition, &draft),
+            (true, false)
+        );
+        draft.switch_family = Some(MechanicalSwitchFamily::ChocV1);
+        assert_eq!(standard_profile_controls(&definition, &draft), (true, true));
+        definition.kind = boardstudio_model::model::PartKind::Passive;
+        assert_eq!(
+            standard_profile_controls(&definition, &draft),
+            (false, true)
+        );
+    }
+
+    #[test]
+    fn delayed_geometry_requires_the_same_live_profile_editor() {
+        let generation = (2, 3);
+        assert!(profile_editor_is_current(
+            "Parts",
+            generation,
+            || generation,
+            || true
+        ));
+        assert!(!profile_editor_is_current(
+            "Parts",
+            generation,
+            || generation,
+            || false
+        ));
+        for (workspace, active) in [("Layout", generation), ("Parts", (3, 3)), ("Parts", (2, 4))] {
+            assert!(!profile_editor_is_current(
+                workspace,
+                generation,
+                || active,
+                || { panic!("obsolete editor must be rejected before resolving the owner") }
+            ));
+        }
     }
 
     #[test]

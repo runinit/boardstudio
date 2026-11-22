@@ -1,4 +1,3 @@
-use crate::fixtures::json_request as request;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -20,6 +19,10 @@ fn definition() -> Value {
         "interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
         "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]
     })
+}
+
+fn request(engine: &mut CoreEngine, value: Value) -> Value {
+    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
 }
 
 fn placement(face: &str, facing: &str, gap: f64) -> Value {

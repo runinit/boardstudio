@@ -30,7 +30,7 @@ struct CheckState {
 }
 
 #[component]
-pub fn CaseCollisionChecks(
+pub(crate) fn CaseCollisionChecks(
     scene: Rc<CadScene>,
     preview: Option<Rc<NativePreviewSnapshot>>,
     model_rows: Option<ModelDeliveryRows>,
@@ -174,10 +174,7 @@ pub fn CaseCollisionChecks(
 }
 
 #[component]
-pub fn CollisionFindingView(
-    finding: CadCollisionPairFinding,
-    clearance_threshold_mm: f64,
-) -> Element {
+fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm: f64) -> Element {
     rsx! {
         Item { size: ItemSize::Sm, class: "items-start",
             p { "{finding.summary(clearance_threshold_mm)}" }

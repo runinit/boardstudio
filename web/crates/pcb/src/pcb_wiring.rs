@@ -34,7 +34,7 @@ use mode::pcb_source;
 pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
 use part_connections::PartNetIntent;
 pub use part_input_settings::PartInputActions;
-use part_net_identity::request_matches_current_part;
+use part_net_identity::{admit_classified_part_net_edit, request_matches_current_part};
 pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 
@@ -1202,13 +1202,11 @@ pub fn use_pcb_part_net_edits(
                 if create {
                     preparing_create.set(false);
                 }
-                if workspace() != "PCB"
-                    || scope_generation() != generation
-                    || current_part_net_identity(&runtime, generation, instance_is_current())
-                        .is_none_or(|current| {
-                            !request_matches_current_part(&request.identity, &current)
-                        })
-                {
+                if !admit_classified_part_net_edit(
+                    workspace() == "PCB" && scope_generation() == generation,
+                    &request.identity,
+                    || current_part_net_identity(&runtime, generation, instance_is_current()),
+                ) {
                     return;
                 }
                 let result = classified.and_then(|is_generator_source| {

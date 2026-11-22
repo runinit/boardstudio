@@ -5,12 +5,10 @@
 
 use super::case_assembly_projection::case_display_selection_id;
 pub use super::case_assembly_projection::{
-    CaseAssemblyLayer, LayerAvailability, assembly_layers_with_stack, standard_assembly_layers,
+    CaseAssemblyLayer, CaseComponentLayer, LayerAvailability, assembly_layers_with_stack,
+    physical_component_layers, standard_assembly_layers,
 };
-#[cfg(feature = "test-support")]
-pub use super::case_collision::{CaseCollisionChecks, CollisionFindingView};
-use super::{case_display::CaseDisplay, model_delivery::ModelDeliveryRows};
-use boardstudio_model::model::PcbModel;
+use super::case_display::CaseDisplay;
 use boardstudio_web_ui_shared::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     icons::ChevronDown,
@@ -20,54 +18,6 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use std::collections::HashSet;
 use wasm_bindgen::JsCast;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CaseComponentLayer {
-    pub id: String,
-    pub reference: String,
-    pub filename: String,
-    pub availability: LayerAvailability,
-}
-
-impl CaseComponentLayer {
-    fn label(&self) -> String {
-        format!("{} · {}", self.reference, self.filename)
-    }
-}
-
-/// Project the accepted preview rows into layer controls without changing their
-/// order or substituting references/asset paths for renderer model IDs.
-pub fn physical_component_layers(
-    models: &[PcbModel],
-    delivery: Option<&ModelDeliveryRows>,
-) -> Vec<CaseComponentLayer> {
-    models
-        .iter()
-        .map(|model| {
-            let availability = match delivery {
-                Some(rows) if rows.delivered.iter().any(|row| row.id == model.id) => {
-                    LayerAvailability::Available
-                }
-                Some(rows) if rows.pending.iter().any(|id| id == &model.id) => {
-                    LayerAvailability::Pending
-                }
-                Some(_) => LayerAvailability::Unavailable("Model is not available".to_owned()),
-                None => LayerAvailability::Pending,
-            };
-            CaseComponentLayer {
-                id: model.id.clone(),
-                reference: model.reference.clone(),
-                filename: model
-                    .path
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or(&model.path)
-                    .to_owned(),
-                availability,
-            }
-        })
-        .collect()
-}
 
 #[component]
 pub fn CaseAssemblyLayers(
@@ -252,7 +202,7 @@ fn ComponentLayerButton(
         LayerAvailability::Unavailable(_) => Some("Missing model"),
     };
     let id = layer.id.clone();
-    let label = layer.label();
+    let label = layer.label;
     let toggle_label = if visible {
         format!("Hide {label}")
     } else {

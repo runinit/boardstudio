@@ -2,12 +2,16 @@
 //! public Core routes. Aggregate anchors resolve N single-key parts to one
 //! pose before the matrix Origin/Rotation and Follow apply, exactly as
 //! upstream Ergogen resolves `aggregate` before `affect`.
-use crate::fixtures::json_open as open;
-use crate::fixtures::json_request as request;
-use crate::fixtures::part_position as at;
-use crate::fixtures::undone;
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
+
+fn request(engine: &mut CoreEngine, input: Value) -> Value {
+    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
+}
+
+fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
+    request(engine, json!({"kind":"open","id":id,"document":document}))
+}
 
 fn json_snapshot(engine: &mut CoreEngine) -> Value {
     request(engine, json!({"kind":"snapshot","id":"snap"}))["document"].clone()
@@ -346,6 +350,15 @@ fn average_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
             parts,
         }),
     }
+}
+
+fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
+    doc.parts
+        .iter()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+        .pose
+        .at
 }
 
 #[test]
@@ -722,6 +735,13 @@ fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
         .iter()
         .find(|matrix| matrix.id == id)
         .and_then(|matrix| matrix.anchor.clone())
+}
+
+fn undone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
 }
 
 /// A refused edit pushes no history entry: nothing remains to undo.
