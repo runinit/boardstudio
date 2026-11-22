@@ -933,3 +933,22 @@ fn ownership_review_detached_local_companion_can_be_omitted() {
     let (_, reopened) = save_archive_and_open(&redo["document"]);
     assert_history_document(&reopened, omitted, "archive");
 }
+
+#[test]
+fn an_unrelated_move_preserves_the_saved_binding_of_an_omitted_key() {
+    let key = "matrix/right-synthetic-keys/r0c0";
+    let (mut engine, linked) = accepted_pair();
+    let mut omitted = set_exception(&mut engine, &linked, key, "omitted")["document"].clone();
+    assert!(find_part(&omitted, key).is_none());
+    omitted["keymap"] = json!({
+        "layers":[{"id":"base","name":"Base","bindings":{
+            key:{"kind":"key-press","keycode":"W"}
+        },"sensors":{}}],
+        "macros":[]
+    });
+    let (mut engine, reopened) = save_archive_and_open(&omitted);
+    assert_eq!(reopened["keymap"], omitted["keymap"]);
+    let moved = move_part(&mut engine, &reopened, "left/U1", -22.0, 4.0);
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    assert_eq!(moved["document"]["keymap"], reopened["keymap"]);
+}

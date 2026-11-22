@@ -215,20 +215,27 @@ pub(super) fn prepare_lifecycle_projection(
             }
             continue;
         };
-        if association.state == TransitionState::Omitted {
-            // Slot materialization cannot remove a previously detached companion.
-            removed.insert(association.mirror_id.clone());
-            continue;
-        }
         let matrix_owned = matrix_members.contains(&association.source_id)
             || matrix_members.contains(&association.mirror_id);
         if (context.matrix_pair.is_none()
             || matrix_owner.is_some_and(|owner| owner.state == TransitionState::Linked))
             && matrix_owned
         {
+            // An explicitly omitted, detached companion can survive slot
+            // materialization. Absence alone does not retire saved bindings.
+            if association.state == TransitionState::Omitted
+                && draft
+                    .parts
+                    .iter()
+                    .any(|part| part.id == association.mirror_id)
+            {
+                removed.insert(association.mirror_id.clone());
+            }
             continue;
         }
-        if context.pending_rejoins.contains_key(&association.source_id) {
+        if association.state == TransitionState::Omitted {
+            removed.insert(association.mirror_id.clone());
+        } else if context.pending_rejoins.contains_key(&association.source_id) {
             if sources.next().is_some() {
                 return Err("The exact Rejoin source Part is ambiguous".into());
             }
