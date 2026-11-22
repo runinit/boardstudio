@@ -43,22 +43,20 @@ mod layout_canvas_controls;
 mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_toolbar_logic;
-mod layout_transform_toolbar;
-mod matrix_departure_actions;
-mod matrix_edit_test_support;
 mod matrix_inspector;
-mod matrix_inspector_controller;
-mod matrix_inspector_logic;
+mod matrix_preset;
+mod matrix_transform;
+mod layout_anchor_pick;
+mod layout_rail;
+mod layout_rail_chrome;
+mod layout_rail_menu;
 mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
-mod matrix_transform_controller;
-mod matrix_transform_logic;
 mod mirrored_pair;
 mod mirrored_pair_controller;
-mod transform_properties;
 mod tree_projection_logic;
 pub use add_matrix_surface::{AddMatrixMode, AddMatrixSurface};
 pub use board_setup_controller::{BoardSetupMount, use_board_setup};
@@ -77,33 +75,27 @@ pub use layout_toolbar::{
     context_for_selection_kind, gesture_snap_inputs, layout_canvas_grid_style,
     snap_label as layout_snap_label,
 };
-pub use layout_transform_toolbar::LayoutPartToolOverlay;
-pub use layout_transform_toolbar::LayoutTransformToolOverlay;
-pub use layout_transform_toolbar::{
-    AnchorPickOwner, LayoutAnchorPickOverlay, LayoutTransformMenuMount, LayoutTransformRuntime,
-    LayoutTransformSvg, LayoutTransformTool, ToolActivation, activate_transform_tool,
+pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
+pub use layout_rail::{
+    LayoutRailOverlay, LayoutTransformRuntime, LayoutTransformTool, RailTarget, ToolActivation, activate_transform_tool,
 };
-pub use matrix_departure_actions::DepartureControl;
-pub use matrix_inspector::MatrixInspector;
-pub use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
-pub use matrix_inspector_controller::matrix_with_preset;
-pub use matrix_inspector_controller::{MatrixInspectorMount, use_matrix_inspector};
+pub use layout_rail_menu::{LayoutContextActionToolbar, LayoutTransformMenuMount, LayoutTransformToolbar};
+pub use matrix_inspector::{MatrixInspector, MatrixInspectorMount, use_matrix_inspector};
+pub use matrix_preset::{MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset};
 pub use matrix_placement_controller::use_matrix_placement;
 pub use matrix_setup::{
     MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementSource,
     MatrixSetup, MatrixSetupMount,
 };
 pub use matrix_setup_controller::use_matrix_setup;
-pub use matrix_transform_controller::{
-    MatrixTransformInspectorMount, use_workspace_matrix_transform,
+pub use matrix_transform::{
+    DepartureControl, MatrixTransformInspector, MatrixTransformInspectorMount, MatrixTransformInspectorOwner,
+    MatrixTransformProjection, SelectionDeleteControl, use_workspace_matrix_transform,
 };
 pub use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
 pub use mirrored_pair_controller::use_mirrored_pair;
-pub use transform_properties::{
-    MatrixTransformInspector, MatrixTransformInspectorOwner, SelectionDeleteControl,
-};
 use tree::TreeKind;
 pub use tree::{ScopedTreeContext, TreeContext};
 
@@ -737,30 +729,14 @@ fn AddObjectEntry(
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
     let existing_half_open = (existing_half.can_open, existing_half.on_open);
-    let matrix_actions = matrix_inspector
-        .as_ref()
-        .and_then(|mount| {
-            mount.projection.as_ref().map(|projection| {
-                (
-                    projection.matrix_label.clone(),
-                    mount.on_add_row,
-                    mount.on_add_column,
-                    None,
-                    (mount.add_row_pending, mount.add_column_pending),
-                )
-            })
-        })
-        .or_else(|| {
-            let (scope, matrix_id, label) = selected_matrix_action?;
-            let mount = matrix_inspector.as_ref()?;
-            Some((
-                label,
-                mount.on_add_row,
-                mount.on_add_column,
-                Some((scope, matrix_id)),
-                (mount.add_row_pending, mount.add_column_pending),
-            ))
-        });
+    // The selected matrix's label and id, plus the scope to select first when the matrix is only named.
+    let matrix_actions = matrix_inspector.as_ref().and_then(|mount| {
+        let id = mount.selected_matrix_id().filter(|_| mount.is_active())?;
+        Some((format!("Matrix {id}"), id, None, mount.clone()))
+    }).or_else(|| {
+        let (scope, matrix_id, label) = selected_matrix_action?;
+        Some((label, matrix_id.clone(), Some((scope, matrix_id)), matrix_inspector.clone()?))
+    });
     rsx! {
             if show_trigger || open_menu {
                 div { class: if show_trigger { "relative shrink-0 border-b border-border px-2.5 py-2 [&>button]:min-h-[38px] [&>button]:w-full" } else { "relative shrink-0" },
@@ -858,17 +834,11 @@ fn AddObjectEntry(
                                     }
                                 }
                             }
-                            if let Some(
-                                (
-                                    matrix_label,
-                                    on_add_row,
-                                    on_add_column,
-                                    selection,
-                                    (add_row_pending, add_column_pending),
-                                ),
-                            ) = matrix_actions
+                            if let Some((matrix_label, matrix_id, selection, mount)) = matrix_actions
                             {
                                 {
+                                    let (row_mount, column_mount) = (mount.clone(), mount);
+                                    let (row_id, column_id) = (matrix_id.clone(), matrix_id);
                                     let add_row_selection = selection.clone();
                                     let add_column_selection = selection.clone();
                                     let select_matrix_for_row = on_select;
@@ -886,7 +856,6 @@ fn AddObjectEntry(
                                                 Item { class: "p-0",
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: add_row_pending,
     onclick: move |_| {
                                                     menu_open.set(false);
                                                     if let Some((scope, matrix_id)) = add_row_selection.clone() {
@@ -897,7 +866,7 @@ fn AddObjectEntry(
                                                             outline_action: None,
                                                         });
                                                     }
-                                                    on_add_row.call(());
+                                                    report_grow(&row_mount, row_mount.grow(&row_id, true));
                                                 },
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
@@ -908,7 +877,6 @@ fn AddObjectEntry(
                                                 Item { class: "p-0",
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: add_column_pending,
     onclick: move |_| {
                                                     menu_open.set(false);
                                                     if let Some((scope, matrix_id)) = add_column_selection.clone() {
@@ -919,7 +887,7 @@ fn AddObjectEntry(
                                                             outline_action: None,
                                                         });
                                                     }
-                                                    on_add_column.call(());
+                                                    report_grow(&column_mount, column_mount.grow(&column_id, false));
                                                 },
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
@@ -1073,3 +1041,9 @@ fn tree_glyph(kind: TreeKind) -> Element {
 }
 
 pub(crate) use tree_projection_logic::grouped_part_tree;
+
+fn report_grow(mount: &MatrixInspectorMount, result: Result<(), String>) {
+    if let Err(message) = result {
+        mount.runtime.0.report(message);
+    }
+}

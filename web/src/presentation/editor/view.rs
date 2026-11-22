@@ -698,7 +698,6 @@ where
                             runtime: input.setup_a.runtime.clone(),
                             canvas_interaction: input.setup_a.canvas_interaction.clone(),
                             svg: input.cam.svg_surface.svg.clone(),
-                            rail: input.cam.svg_surface.rail.clone(),
                             outline_snap_settings: &input.guide.outline_snap_settings,
                             outline_pitch: input.guide.outline_pitch,
                             outline_snap_origins: &input.guide.outline_snap_origins,

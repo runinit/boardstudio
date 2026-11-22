@@ -25,8 +25,6 @@ pub(super) struct LayoutSvgInput<'a> {
     pub runtime: Rc<Runtime>,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    /// W3-C: canvas-owned rail mount sets shared by one canvas's overlays.
-    pub rail: objects::LayoutTransformSvg,
     pub outline_snap_settings: &'a objects::LayoutSnapSettings,
     pub outline_pitch: Vec2,
     pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
@@ -112,7 +110,6 @@ where
         runtime,
         canvas_interaction,
         svg,
-        rail,
         outline_snap_settings,
         outline_pitch,
         outline_snap_origins,
@@ -237,12 +234,8 @@ where
                 layout_state,
                 runtime: runtime.clone(),
                 svg: svg.clone(),
-                rail: rail.clone(),
                 canvas_interaction: canvas_interaction.clone(),
-                layout_owner: layout_owner.clone(),
-                adapter: adapter.clone(),
                 zoom_surface_size,
-                workspace,
                 layout_snap_settings,
                 outline_snap_origins,
                 matrix_splay_affect,
@@ -261,12 +254,8 @@ where
                 layout_state,
                 runtime: runtime.clone(),
                 svg: svg.clone(),
-                rail: rail.clone(),
                 canvas_interaction: canvas_interaction.clone(),
-                layout_owner: layout_owner.clone(),
-                adapter: adapter.clone(),
                 zoom_surface_size,
-                workspace,
                 document,
                 split_focus,
                 view_x,
@@ -459,7 +448,7 @@ pub(super) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
     rsx! {
         if let Some((x, y, scale)) = selection_geometry_anchor
             && let Some(tools) = canvas_transform_menu.clone()
-            && matrix_transform_inspector.projection.is_some()
+            && matrix_transform_inspector.is_active()
         {
             g {
                 foreignObject { class: "overflow-visible", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
@@ -523,13 +512,8 @@ pub(super) struct TransformOverlaysInput<'a> {
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    /// W3-C: canvas-owned rail mount sets shared by one canvas's overlays.
-    pub rail: objects::LayoutTransformSvg,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub adapter: SelectionAdapter,
     pub zoom_surface_size: Signal<(f64, f64)>,
-    pub workspace: Signal<&'static str>,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
     pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
     pub matrix_splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
@@ -547,13 +531,9 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
         mut layout_transform_tool,
         layout_state,
         runtime,
-        svg: _svg,
-        rail,
+        svg,
         canvas_interaction,
-        layout_owner,
-        adapter,
         zoom_surface_size,
-        workspace,
         layout_snap_settings,
         outline_snap_origins,
         matrix_splay_affect,
@@ -567,57 +547,40 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
             && !layout_assembly_3d()
             && let Some((matrix, projection, context)) = layout_transform_target.clone()
         {
-            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
-            // Ticket 08: the anchored matrix's Anchor token
-            // arms canvas pick mode instead of a drag; an
-            // unanchored matrix offers no token.
-            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
-            objects::LayoutAnchorPickOverlay {
-                key: "{tool:?}",
-                runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                svg: rail.clone(),
-                arbiter: canvas_interaction.clone(),
-                owner: layout_owner.clone(),
-                selected_context: adapter.selected_context,
-                scope_generation: adapter.generation,
-                surface_size: Some(zoom_surface_size),
-                workspace,
-                pick_owner: objects::AnchorPickOwner::Matrix {
-                    matrix: matrix.clone(),
-                    projection: projection.clone(),
-                    context: context.clone(),
-                },
-                view_x,
-                view_y,
-                width,
-                height,
-            }
-            }
-            if tool != objects::LayoutTransformTool::Anchor {
-            objects::LayoutTransformToolOverlay {
-                key: "{tool:?}",
-                runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                svg: rail.clone(),
-                arbiter: canvas_interaction.clone(),
-                owner: layout_owner.clone(),
-                selected_context: adapter.selected_context,
-                scope_generation: adapter.generation,
-                surface_size: Some(zoom_surface_size),
-                workspace,
-                matrix: matrix.clone(),
-                projection: projection.clone(),
-                context: context.clone(),
-                tool,
-                snap_settings: layout_snap_settings.read().clone(),
-                snap_origins: outline_snap_origins.clone(),
-                splay_affect: matrix_splay_affect,
-                view_x,
-                view_y,
-                width,
-                height,
-                on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
-            }
-            }
+            {
+                // The matrix rail ends in the Anchor token only while the matrix is anchored.
+                let tools: Vec<_> = layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None)
+                    .into_iter()
+                    .filter(|tool| *tool != objects::LayoutTransformTool::Anchor || matrix.anchor.is_some())
+                    .collect();
+                let anchored = tools.contains(&objects::LayoutTransformTool::Anchor);
+                let slots = tools.len();
+                rsx! {
+                    objects::LayoutRailOverlay {
+                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                        surface: svg.clone(),
+                        arbiter: canvas_interaction.clone(),
+                        target: objects::RailTarget::Matrix { matrix: matrix.clone(), projection: projection.clone(), context: context.clone() },
+                        tools,
+                        snap_settings: layout_snap_settings.read().clone(),
+                        snap_origins: outline_snap_origins.clone(),
+                        splay_affect: matrix_splay_affect,
+                        surface_size: Some(zoom_surface_size),
+                        view_x, view_y, width, height,
+                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                    }
+                    if anchored {
+                        objects::LayoutAnchorPickOverlay {
+                            runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                            surface: svg.clone(),
+                            arbiter: canvas_interaction.clone(),
+                            pick_owner: objects::AnchorPickOwner::Matrix { matrix: matrix.clone(), projection: projection.clone(), context: context.clone() },
+                            rail_slots: slots,
+                            surface_size: Some(zoom_surface_size),
+                            view_x, view_y, width, height,
+                        }
+                    }
+                }
             }
         }
     }
@@ -633,13 +596,8 @@ pub(super) struct PartRailInput<'a> {
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    /// W3-C: canvas-owned rail mount sets shared by one canvas's overlays.
-    pub rail: objects::LayoutTransformSvg,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub adapter: SelectionAdapter,
     pub zoom_surface_size: Signal<(f64, f64)>,
-    pub workspace: Signal<&'static str>,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
     pub view_x: f64,
@@ -658,13 +616,9 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
         mut layout_transform_tool,
         layout_state,
         runtime,
-        svg: _svg,
-        rail,
+        svg,
         canvas_interaction,
-        layout_owner,
-        adapter,
         zoom_surface_size,
-        workspace,
         document,
         split_focus,
         view_x,
@@ -673,11 +627,8 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
         height,
     } = input;
     rsx! {
-        // Ticket 07: the independent part's own rail. Move and
-        // Rotate edit the local Offset and Rotation; Spread and
-        // Stagger edit the values carried from the anchor key.
-        // The strip above is unchanged: it keeps offering
-        // Position for a part selection.
+        // The independent part's own rail: Move and Rotate edit the local Offset and Rotation (or
+        // the pose, while detached); Spread and Stagger edit the values carried from the anchor key.
         if active_workspace == "Layout"
             && !layout_assembly_3d()
             && let Some((part_id, facts)) = part_rail_selection.clone()
@@ -686,64 +637,45 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
         {
             {
                 let part_context = selected.context.clone();
+                let tools = layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts));
+                let slots = tools.len();
+                let anchored = tools.contains(&objects::LayoutTransformTool::Anchor);
+                let on_focus_half = {
+                    let document = document.clone();
+                    let mut split_focus = split_focus;
+                    let part_context = part_context.clone();
+                    EventHandler::new(move |_| {
+                        if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
+                            && half != split_focus()
+                        {
+                            split_focus.set(half);
+                        }
+                    })
+                };
                 rsx! {
-                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
-                    // Ticket 08: the part rail ends in the
-                    // Anchor token, which arms canvas pick
-                    // mode instead of a drag.
-                    if tool == objects::LayoutTransformTool::Anchor {
-                    objects::LayoutAnchorPickOverlay {
-                        key: "{tool:?}",
+                    objects::LayoutRailOverlay {
                         runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                        svg: rail.clone(),
+                        surface: svg.clone(),
                         arbiter: canvas_interaction.clone(),
-                        owner: layout_owner.clone(),
-                        selected_context: adapter.selected_context,
-                        scope_generation: adapter.generation,
-                        workspace,
+                        target: objects::RailTarget::Part { part_id: part_id.clone(), snap: part_snap, on_focus_half },
+                        tools,
+                        snap_settings: Default::default(),
+                        snap_origins: std::rc::Rc::new(Vec::new()),
+                        splay_affect: layout_state.splay_affect(),
                         surface_size: Some(zoom_surface_size),
-                        pick_owner: objects::AnchorPickOwner::Part {
-                            part_id: part_id.clone(),
-                        },
-                        view_x,
-                        view_y,
-                        width,
-                        height,
-                    }
-                    }
-                    if tool != objects::LayoutTransformTool::Anchor {
-                    objects::LayoutPartToolOverlay {
-                        key: "{tool:?}",
-                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                        svg: rail.clone(),
-                        arbiter: canvas_interaction.clone(),
-                        owner: layout_owner.clone(),
-                        selected_context: adapter.selected_context,
-                        scope_generation: adapter.generation,
-                        workspace,
-                        surface_size: Some(zoom_surface_size),
-                        part_id: part_id.clone(),
-                        tool,
-                        snap: part_snap,
-                        view_x,
-                        view_y,
-                        width,
-                        height,
+                        view_x, view_y, width, height,
                         on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
-                        on_focus_half: {
-                            let document = document.clone();
-                            let mut split_focus = split_focus;
-                            let part_context = part_context.clone();
-                            EventHandler::new(move |_| {
-                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
-                                    && half != split_focus()
-                                {
-                                    split_focus.set(half);
-                                }
-                            })
-                        },
                     }
-                    }
+                    if anchored {
+                        objects::LayoutAnchorPickOverlay {
+                            runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                            surface: svg.clone(),
+                            arbiter: canvas_interaction.clone(),
+                            pick_owner: objects::AnchorPickOwner::Part { part_id: part_id.clone() },
+                            rail_slots: slots,
+                            surface_size: Some(zoom_surface_size),
+                            view_x, view_y, width, height,
+                        }
                     }
                 }
             }

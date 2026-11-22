@@ -670,13 +670,13 @@ pub(super) fn layout_inspector_input(
                 let mut pending = pending_splay_origin_pick;
                 let mut anchor_pending = pending_anchor_pick;
                 EventHandler::new(move |()| {
-                    let Some(projection) = mount.projection.as_ref() else {
+                    let Some(projection) = mount.projection() else {
                         return;
                     };
                     if matches!(
                         &projection.owner.context,
                         objects::TreeContext::Column { .. }
-                    ) && mount.editable
+                    ) && mount.editable()
                     {
                         anchor_pending.set(None);
                         pending.set(Some(projection.owner.clone()));
@@ -688,13 +688,13 @@ pub(super) fn layout_inspector_input(
                 let mut pending = pending_anchor_pick;
                 let mut splay_pending = pending_splay_origin_pick;
                 EventHandler::new(move |()| {
-                    let Some(projection) = mount.projection.as_ref() else {
+                    let Some(projection) = mount.projection() else {
                         return;
                     };
                     if matches!(
                         &projection.owner.context,
                         objects::TreeContext::Matrix { .. }
-                    ) && mount.editable
+                    ) && mount.editable()
                     {
                         splay_pending.set(None);
                         mount.clear_aggregate_pick();

@@ -622,7 +622,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
     let matrix_context_tabs = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()
-        && input.matrix_transform_inspector.projection.is_some();
+        && input.matrix_transform_inspector.is_active();
     let properties = rsx! {
         if input.outline_inspector.is_none() {
             if let Some(projection) = input.component_inspector {
@@ -649,20 +649,8 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 on_apply: input.on_companion_placement_action,
             }
         }
-        if let Some(projection) = input.matrix_inspector.projection.clone() {
-            objects::MatrixInspector {
-                projection,
-                request_sequence: input.matrix_inspector.request_sequence,
-                editable: input.matrix_inspector.editable,
-                busy: input.matrix_inspector.busy,
-                inspector_mounted: input.matrix_inspector.inspector_mounted,
-                feedback: input.matrix_inspector.feedback.clone(),
-                on_edit: input.matrix_inspector.on_edit,
-                on_apply_preset: input.matrix_inspector.on_apply_preset,
-                on_delete: input.matrix_inspector.on_delete,
-                on_unlink: input.matrix_inspector.on_unlink,
-                on_duplicate: input.matrix_inspector.on_duplicate,
-            }
+        if input.matrix_inspector.is_active() {
+            objects::MatrixInspector { mount: input.matrix_inspector.clone() }
         }
         if input.key_size.projection.is_some() {
             Collapsible {
@@ -682,7 +670,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 }
             }
         }
-        if input.matrix_transform_inspector.projection.is_some() {
+        if input.matrix_transform_inspector.is_active() {
             objects::MatrixTransformInspector {
                 mount: input.matrix_transform_inspector.clone(),
                 on_pick_splay_origin: input.on_pick_splay_origin,

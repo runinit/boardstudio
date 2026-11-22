@@ -41,8 +41,7 @@ pub(crate) fn apply_pending_splay_origin_pick(
                 )
         });
     let inspector_is_current = inspector
-        .projection
-        .as_ref()
+        .projection()
         .is_some_and(|projection| projection.owner == picked_owner);
     if !layout_owner_is_current(runtime, workspace, adapter, owner)
         || !selected_is_current
@@ -98,8 +97,7 @@ pub(crate) fn apply_pending_anchor_pick(
                 )
         });
     let inspector_is_current = inspector
-        .projection
-        .as_ref()
+        .projection()
         .is_some_and(|projection| projection.owner == picked_owner);
     if !layout_owner_is_current(runtime, workspace, adapter, owner)
         || !selected_is_current

@@ -93,7 +93,7 @@ pub(super) fn matrix_pointer_down_handler(
             // stays armed for the next key.
             pointer.prevent_default();
             pointer.stop_propagation();
-            let aggregate_armed = transform_inspector.projection.as_ref().is_some_and(
+            let aggregate_armed = transform_inspector.projection().is_some_and(
                 |projection| {
                     matches!(
                         &projection.fields,

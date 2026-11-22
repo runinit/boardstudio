@@ -1,5 +1,34 @@
 //! The contextual action toolbar and the Transform command menu.
-use super::*;
+use super::layout_rail::LayoutTransformTool;
+use super::layout_selection_kind::LayoutSelectionKind;
+use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
+use boardstudio_web_ui_shared::ui::{
+    callout::Callout,
+    dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
+    kbd::Kbd,
+    toolbar::{Toolbar, ToolbarButton},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
+use dioxus::prelude::*;
+use wasm_bindgen::JsCast;
+
+/// What the Transform menu and the contextual strip need from the workspace.
+#[derive(Clone, PartialEq)]
+pub struct LayoutTransformMenuMount {
+    pub properties_available: bool,
+    pub column_available: bool,
+    pub row_available: bool,
+    pub pointer_tools_visible: bool,
+    pub pointer_tools_available: bool,
+    pub active_tool: Option<LayoutTransformTool>,
+    /// `None` when the selection is not a Matrix; otherwise whether the matrix follows rotation,
+    /// which decides whether Rotate is offered enabled or disabled with an explanation.
+    pub matrix_rotate_followed: Option<bool>,
+    pub on_selection_kind: EventHandler<LayoutSelectionKind>,
+    pub on_show_properties: EventHandler<()>,
+    pub on_transform_tool: EventHandler<LayoutTransformTool>,
+}
+
 
 /// One contextual pointer tool: the shared source data both the menu-item and the toolbar
 /// presentations render, so their labels, names and order cannot drift.
@@ -267,7 +296,7 @@ pub fn LayoutContextActionToolbar(
 }
 
 #[component]
-pub(super) fn LayoutContextToolButton(
+fn LayoutContextToolButton(
     index: usize,
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
@@ -324,7 +353,7 @@ pub(super) fn LayoutContextToolButton(
     }
 }
 
-pub(super) fn focus_empty_transform_menu(content: &web_sys::Element) {
+fn focus_empty_transform_menu(content: &web_sys::Element) {
     let Some(document) = content.owner_document() else {
         return;
     };
@@ -406,7 +435,7 @@ pub fn LayoutTransformToolbar(
                         "Origin"
                     }
                 } else {
-                    for (index, (tool, label)) in LayoutTransformTool::ALL.into_iter().enumerate() {
+                    for (index, (tool, label)) in LayoutTransformTool::MENU.into_iter().enumerate() {
                         if mount.pointer_tools_visible {
                             DropdownMenuItem {
                                 index, value: tool, role: "menuitemradio", aria_checked: mount.active_tool == Some(tool),
