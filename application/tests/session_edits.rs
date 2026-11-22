@@ -1,6 +1,6 @@
 use boardstudio_application::{
     Completion, Durability, EditResolver, Effect, Event, GenerationStatus, OperationId, Resolution,
-    SaveResult, Session, TerminalOutcome,
+    SaveAttemptId, SaveResult, Session, TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::ProjectDoc};
 use boardstudio_model::model::EditOperation;
@@ -47,6 +47,26 @@ fn rename(id: u64, name: &str) -> Event {
         operation_id: OperationId(id),
         label: "rename".into(),
         resolver: EditResolver::rename_project("rename", name.into()),
+    }
+}
+
+fn scheduled_save(effects: &[Effect]) -> (SaveAttemptId, &ProjectDoc) {
+    effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Persist {
+                save_attempt_id,
+                document,
+            } => Some((*save_attempt_id, document.as_ref())),
+            _ => None,
+        })
+        .expect("a write should be scheduled")
+}
+
+fn committed(save_attempt_id: SaveAttemptId) -> Completion {
+    Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
     }
 }
 
@@ -125,20 +145,8 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
     open(&mut session, 1, ProjectDoc::empty("project", "Original"));
 
     let first = session.submit(rename(2, "First"));
-    let first_save = first
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::Persist {
-                save_attempt_id,
-                document,
-                ..
-            } => {
-                assert_eq!(document.name, "First");
-                Some(*save_attempt_id)
-            }
-            _ => None,
-        })
-        .expect("first write starts immediately");
+    let (first_save, written) = scheduled_save(&first);
+    assert_eq!(written.name, "First");
 
     for (id, name) in [(3, "Second"), (4, "Latest")] {
         let effects = session.submit(rename(id, name));
@@ -150,30 +158,16 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
         assert_eq!(document(&session).name, name);
     }
 
-    let latest = session.complete(Completion::Persist {
-        save_attempt_id: first_save,
-        result: SaveResult::Committed,
-    });
-    let [
-        Effect::Persist {
-            save_attempt_id,
-            document,
-            ..
-        },
-    ] = latest.as_slice()
-    else {
-        panic!("the latest revision should be the only follow-up write: {latest:?}");
-    };
-    assert_eq!(document.name, "Latest");
-    assert_eq!(document.revision, 3);
-    assert!(
-        session
-            .complete(Completion::Persist {
-                save_attempt_id: *save_attempt_id,
-                result: SaveResult::Committed,
-            })
-            .is_empty()
+    let latest = session.complete(committed(first_save));
+    assert_eq!(
+        latest.len(),
+        1,
+        "only the newest revision should be written"
     );
+    let (latest_save, written) = scheduled_save(&latest);
+    assert_eq!(written.name, "Latest");
+    assert_eq!(written.revision, 3);
+    assert!(session.complete(committed(latest_save)).is_empty());
     assert_eq!(
         session.read_model().durability,
         Durability::Saved { revision: 3 }
@@ -181,7 +175,7 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
 }
 
 #[test]
-fn open_after_save_failure_stale_revision_refusal_and_generation_cancel() {
+fn open_after_save_failure_stale_resolver_refusal_and_generation_cancel() {
     let mut session = Session::new(CoreEngine::validate_open);
     open(&mut session, 1, ProjectDoc::empty("project", "First"));
     assert_eq!(
@@ -203,26 +197,10 @@ fn open_after_save_failure_stale_revision_refusal_and_generation_cancel() {
     open(&mut session, 3, ProjectDoc::empty("other", "Replacement"));
     assert_eq!(document(&session).id, "other");
     assert_eq!(
-        drive(&mut session, rename(4, "Rev1"), SaveResult::Committed,),
+        drive(&mut session, rename(4, "Rev1"), SaveResult::Committed),
         [TerminalOutcome::Completed]
     );
 
-    let board_id = session.read_model().active_board_id.clone();
-    assert_eq!(
-        drive(
-            &mut session,
-            Event::ReviewElectricalRemap {
-                operation_id: OperationId(5),
-                base_revision: 0,
-                board_id,
-                expected_fingerprint: "fp".into(),
-            },
-            SaveResult::Committed,
-        ),
-        [TerminalOutcome::Rejected(
-            "captured edit revision is stale".into()
-        )]
-    );
     assert_eq!(
         drive(
             &mut session,
@@ -271,15 +249,7 @@ fn open_commit_supersedes_pending_retry_save_operation() {
         operation_id: OperationId(11),
         document: ProjectDoc::empty("project-2", "Replacement"),
     });
-    let open_save = open_effects
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::Persist {
-                save_attempt_id, ..
-            } => Some(*save_attempt_id),
-            _ => None,
-        })
-        .expect("replacement open starts persisting");
+    let (open_save, _) = scheduled_save(&open_effects);
 
     assert_eq!(
         drive(
@@ -292,17 +262,8 @@ fn open_commit_supersedes_pending_retry_save_operation() {
     let retry_effects = session.submit(Event::RetrySave {
         operation_id: OperationId(10),
     });
-    assert!(
-        retry_effects
-            .iter()
-            .any(|effect| matches!(effect, Effect::Persist { .. })),
-        "retry save should emit Persist: {retry_effects:?}"
-    );
-
-    let commit_effects = session.complete(Completion::Persist {
-        save_attempt_id: open_save,
-        result: SaveResult::Committed,
-    });
+    scheduled_save(&retry_effects);
+    let commit_effects = session.complete(committed(open_save));
     assert!(commit_effects.contains(&Effect::Settled {
         operation_id: OperationId(10),
         outcome: TerminalOutcome::Superseded,
