@@ -378,14 +378,7 @@ pub(crate) fn part_id(doc: &ProjectDoc, mirror: &MirroredPair, source_id: &str) 
 
 pub(crate) fn entity_id(mirror: &MirroredPair, kind: &str, source_id: &str) -> String {
     if kind == "matrix" {
-        use std::fmt::Write;
-        let mut id = String::from("mirror_");
-        for byte in mirror.id.bytes() {
-            write!(id, "{byte:02x}").unwrap();
-        }
-        id.push('_');
-        id.push_str(source_id);
-        return id;
+        return boardstudio_model::mirrored_half::mirrored_matrix_id(&mirror.id, source_id);
     }
     format!("{}/{}/{kind}/{source_id}", mirror.id.len(), mirror.id)
 }

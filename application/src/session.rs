@@ -1085,11 +1085,10 @@ impl Session {
         export_owner: Option<OperationId>,
         effects: &mut Vec<Effect>,
     ) {
-        let opening = matches!(request, CoreRequest::Open { .. });
-        if matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed)
-            || !opening
-                && (self.model.accepted.is_none()
-                    || self.model.lifecycle == Lifecycle::RecoveryRequired)
+        if matches!(
+            self.model.lifecycle,
+            Lifecycle::Closing | Lifecycle::Closed | Lifecycle::RecoveryRequired
+        ) || self.model.accepted.is_none()
         {
             self.reject(operation_id, "no editable project is open", effects);
             return;
@@ -1132,7 +1131,7 @@ impl Session {
                 scene, document, ..
             } if preview_transaction_id.is_none() && scene.revision == document.revision => {
                 let document = Arc::new(*document);
-                let epoch = SessionEpoch(self.epoch().0 + u64::from(opening));
+                let epoch = self.epoch();
                 self.cancel_job(effects);
                 self.retain_export(export_owner, effects);
                 let token = SnapshotToken(self.next_token);
@@ -1154,18 +1153,11 @@ impl Session {
                 self.display_preview_transaction_id = None;
                 self.model.durability = Durability::Saving { revision };
                 self.model.last_error = None;
-                if opening {
-                    self.pending_save = None;
-                    self.model.selected_part_ids.clear();
-                    self.model.active_instance_id = None;
-                }
                 self.reconcile_selection_and_board();
                 self.model.lifecycle = Lifecycle::Ready;
-                if !opening {
-                    self.settle_landed(operation_id, landing, effects);
-                }
+                self.settle_landed(operation_id, landing, effects);
                 self.invalidate_gesture(effects);
-                self.start_save(opening.then_some(operation_id), effects);
+                self.start_save(None, effects);
                 return;
             }
             CoreReply::Error { message, .. } => {
@@ -1792,7 +1784,11 @@ impl Session {
                     self.cancel_job(effects);
                     self.retain_export(None, effects);
                     self.core = pending.core;
-                    self.pending_save = None;
+                    if let Some(operation) =
+                        self.pending_save.take().and_then(|save| save.operation)
+                    {
+                        self.settle(operation, TerminalOutcome::Superseded, effects);
+                    }
                     let revision = pending.document.revision;
                     let epoch = SessionEpoch(self.epoch().0 + 1);
                     let token = SnapshotToken(self.next_token);

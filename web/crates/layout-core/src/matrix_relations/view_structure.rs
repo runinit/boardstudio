@@ -305,15 +305,7 @@ impl View<'_> {
             else {
                 continue;
             };
-            let prefix = {
-                use std::fmt::Write;
-                let mut value = String::from("mirror_");
-                for byte in pair.id.bytes() {
-                    write!(value, "{byte:02x}").unwrap();
-                }
-                value.push('_');
-                value
-            };
+            let prefix = boardstudio_model::mirrored_half::mirrored_matrix_id_prefix(&pair.id);
             let (partner_layout_id, partner_matrix_id) = if owner.id == *source_id {
                 (dest_id.as_str(), format!("{prefix}{}", self.matrix.id))
             } else if owner.id == *dest_id {

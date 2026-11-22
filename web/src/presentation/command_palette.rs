@@ -517,7 +517,8 @@ pub(super) fn editor_commands(
     let Some(snapshot) = &model.accepted else {
         return commands;
     };
-    let document = &snapshot.document;
+    let resolved = boardstudio_application::resolved_document(&snapshot.document);
+    let document = resolved.as_ref();
     let mut targets = Vec::new();
     for matrix in &document.matrices {
         if objects::matrix_visible_on_board(document, &scope.board_id, &matrix.id) {

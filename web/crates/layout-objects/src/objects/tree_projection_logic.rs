@@ -15,6 +15,7 @@ pub(crate) fn grouped_part_tree(
         return Vec::new();
     };
     let flat = tree::build_pcb_tree(model, expanded);
+    let document = boardstudio_application::resolved_document(&snapshot.document);
     let mut result: Vec<_> = flat
         .iter()
         .filter(|row| row.kind != TreeKind::Component)
@@ -28,10 +29,9 @@ pub(crate) fn grouped_part_tree(
         let definition = row
             .primary_id
             .as_ref()
-            .and_then(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
+            .and_then(|id| document.parts.iter().find(|part| &part.id == id))
             .and_then(|part| {
-                snapshot
-                    .document
+                document
                     .definitions
                     .iter()
                     .find(|definition| definition.id == part.definition_id)
@@ -197,5 +197,48 @@ mod tests {
     fn empty_model_projects_no_groups() {
         let model = ReadModel::default();
         assert!(grouped_part_tree(&model, &BTreeSet::new()).is_empty());
+    }
+
+    #[test]
+    fn grouped_part_tree_buckets_derived_mirrored_parts() {
+        let mut doc = document();
+        doc.boards.push(Board {
+            id: "board-2".into(),
+            name: "Right".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        doc.mirrored_pairs
+            .push(boardstudio_model::mirrored_half::MirroredPair {
+                id: "pair-1".into(),
+                source: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
+                    "board-1".into(),
+                ),
+                destination: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
+                    "board-2".into(),
+                ),
+                mapping: Pose2 {
+                    at: boardstudio_model::model::Vec2 { x: 100.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                overrides: vec![],
+            });
+        let mut model = snapshot(doc);
+        model.active_board_id = "board-2".into();
+        let expanded = BTreeSet::from(["board:board-2".to_owned(), "category:Switches".to_owned()]);
+        let items = grouped_part_tree(&model, &expanded);
+        let switches = items
+            .iter()
+            .find(|item| item.id == "category:Switches")
+            .expect("derived mirrored switch should be bucketed under Switches");
+        assert_eq!(switches.detail.as_deref(), Some("1 parts"));
+        assert!(
+            items.iter().all(|item| item.id != "category:Other"),
+            "derived mirrored switch must not fall back to Other: {items:?}"
+        );
     }
 }

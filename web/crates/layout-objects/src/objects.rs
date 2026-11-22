@@ -210,7 +210,8 @@ pub fn Objects(
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
-    let document = &snapshot.document;
+    let resolved = boardstudio_application::resolved_document(&snapshot.document);
+    let document = resolved.as_ref();
     let board_id = model.active_board_id.clone();
     let active_scope = runtime.scope();
     let instance_scope = active_scope.clone();
@@ -279,7 +280,8 @@ pub fn Objects(
             #[cfg(test)]
             TREE_BUILDS.set(TREE_BUILDS.get() + 1);
             let snapshot = &source.0;
-            let document = &snapshot.document;
+            let resolved = boardstudio_application::resolved_document(&snapshot.document);
+            let document = resolved.as_ref();
             let mut items = if by_part {
                 grouped_part_tree(
                     &ReadModel {

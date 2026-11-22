@@ -39,3 +39,20 @@ pub enum MirrorOverride {
     Omitted,
     CompanionPose(Pose2),
 }
+
+pub fn mirrored_matrix_id_prefix(pair_id: &str) -> String {
+    use std::fmt::Write;
+    let mut prefix = String::with_capacity(8 + pair_id.len() * 2);
+    prefix.push_str("mirror_");
+    for byte in pair_id.bytes() {
+        let _ = write!(prefix, "{byte:02x}");
+    }
+    prefix.push('_');
+    prefix
+}
+
+pub fn mirrored_matrix_id(pair_id: &str, source_id: &str) -> String {
+    let mut id = mirrored_matrix_id_prefix(pair_id);
+    id.push_str(source_id);
+    id
+}

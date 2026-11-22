@@ -351,3 +351,70 @@ fn open_after_save_failure_stale_revision_refusal_and_generation_cancel() {
         GenerationStatus::Cancelled { job_id }
     );
 }
+
+#[test]
+fn open_commit_supersedes_pending_retry_save_operation() {
+    let mut session = Session::new(CoreEngine::validate_open);
+    assert_eq!(
+        drive(
+            &mut session,
+            Event::Open {
+                operation_id: OperationId(1),
+                document: ProjectDoc::empty("project-1", "First"),
+            },
+            SaveResult::Committed,
+        ),
+        [TerminalOutcome::Completed]
+    );
+
+    let open_effects = session.submit(Event::Open {
+        operation_id: OperationId(11),
+        document: ProjectDoc::empty("project-2", "Replacement"),
+    });
+    let open_save = open_effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Persist {
+                save_attempt_id, ..
+            } => Some(*save_attempt_id),
+            _ => None,
+        })
+        .expect("replacement open starts persisting");
+
+    assert_eq!(
+        drive(
+            &mut session,
+            Event::ResolveEdit {
+                operation_id: OperationId(2),
+                label: "rename".into(),
+                resolver: EditResolver::rename_project("rename", "Unsaved".into()),
+            },
+            SaveResult::Aborted("storage full".into()),
+        ),
+        [TerminalOutcome::Completed]
+    );
+    let retry_effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(10),
+    });
+    assert!(
+        retry_effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. })),
+        "retry save should emit Persist: {retry_effects:?}"
+    );
+
+    let commit_effects = session.complete(Completion::Persist {
+        save_attempt_id: open_save,
+        result: SaveResult::Committed,
+    });
+    assert!(commit_effects.contains(&Effect::Settled {
+        operation_id: OperationId(10),
+        outcome: TerminalOutcome::Superseded,
+        landing: None,
+    }));
+    assert!(commit_effects.contains(&Effect::Settled {
+        operation_id: OperationId(11),
+        outcome: TerminalOutcome::Completed,
+        landing: None,
+    }));
+}
