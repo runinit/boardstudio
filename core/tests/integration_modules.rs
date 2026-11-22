@@ -44,10 +44,6 @@ mod splay_companions;
 mod splay_reconciliation;
 #[path = "split_adaptive_spacing.rs"]
 mod split_adaptive_spacing;
-#[path = "split_creation_gap.rs"]
-mod split_creation_gap;
-#[path = "split_half_frame.rs"]
-mod split_half_frame;
 #[path = "split_half_frame_parts.rs"]
 mod split_half_frame_parts;
 #[path = "split_part_anchoring.rs"]

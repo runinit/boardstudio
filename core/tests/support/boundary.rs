@@ -6,7 +6,6 @@
 //! Ported from `scripts/check-rust-boundaries.mjs`.
 #![allow(dead_code)]
 
-use crate::support::{replacement_electrical, synthetic_half};
 use boardstudio_core::model::ProjectDoc;
 use serde_json::{Value, json};
 
@@ -18,8 +17,8 @@ mod scenarios;
 #[path = "boundary/transcript.rs"]
 mod transcript;
 
-pub use self::cases::{core_requests, mirror_addition_boundary_case, paired_preview_history_case};
-pub use self::scenarios::electrical_mirror_replacement_case;
+pub use self::cases::core_requests;
+pub use self::scenarios::derived_mirror_case;
 #[allow(unused_imports)]
 pub use self::transcript::{assert_golden, equivalent, run};
 pub const ASSET: &[u8] = b"STEP fixture bytes\n";
@@ -103,213 +102,8 @@ fn move_command(phase: &str) -> Value {
 /// boundary tests. `synthetic_half` is also used by Core integration tests, but
 /// the boundary support module must not depend on the test crate's `support`
 /// namespace because it is included from the separate host crate.
-fn supported_synthetic_half() -> Value {
-    let mut source = synthetic_half::document();
-    for cell in source["matrices"][0]["cells"].as_array_mut().unwrap() {
-        let object = cell.as_object_mut().unwrap();
-        object.remove("assembliesLocal");
-        object.remove("definitionId");
-    }
-    source
-}
-
-fn boundary_exception(pair_id: &str, mirror_id: &str, state: &str) -> Value {
-    json!({
-        "kind":"set-half-exception",
-        "pairId":pair_id,
-        "itemKind":"part",
-        "mirrorId":mirror_id,
-        "state":state
-    })
-}
-
-fn electrical_notice_id(kind: &str, identities: &[&str]) -> String {
-    let mut id = format!("preview:electrical:{kind}");
-    for identity in identities {
-        id.push_str(&format!(":{}-", identity.len()));
-        for byte in identity.as_bytes() {
-            id.push_str(&format!("{byte:02x}"));
-        }
-    }
-    id
-}
-
-fn replacement_catalogue_definition(source: &str) -> boardstudio_core::model::PartDefinition {
-    boardstudio_core::generators::catalogue()
-        .expect("the bundled hardware catalogue is available")
-        .into_iter()
-        .find(|definition| {
-            definition
-                .generator
-                .as_ref()
-                .is_some_and(|generator| generator.source == source)
-        })
-        .unwrap_or_else(|| panic!("bundled definition {source} exists"))
-}
-
-fn replacement_core_call(core: &mut dyn FnMut(&str) -> String, request: Value) -> Value {
-    serde_json::from_str(&core(&request.to_string())).expect("Core replies with JSON")
-}
-
-fn replacement_edit(
-    transaction_id: &str,
-    base_revision: &Value,
-    phase: &str,
-    operation: Value,
-) -> Value {
-    json!({
-        "id":transaction_id,"kind":"edit",
-        "command":{"baseRevision":base_revision,"transactionId":transaction_id,
-            "phase":phase,"targetIds":[],"operation":operation}
-    })
-}
-
-fn replacement_pair_fixture(
-    core: &mut dyn FnMut(&str) -> String,
-    id_prefix: &str,
-) -> (Value, String, String, String) {
-    let mut source = replacement_electrical::supported_source_document();
-    let nice_view = replacement_catalogue_definition("ceoloide/display_nice_view");
-    let ssd1306 = replacement_catalogue_definition("ceoloide/display_ssd1306");
-    let nice_view_id = nice_view.id.clone();
-    let ssd1306_id = ssd1306.id.clone();
-    source["definitions"]
-        .as_array_mut()
-        .expect("fixture definitions")
-        .push(serde_json::to_value(nice_view).expect("serialize Nice View definition"));
-    source["definitions"]
-        .as_array_mut()
-        .expect("fixture definitions")
-        .push(serde_json::to_value(ssd1306).expect("serialize SSD1306 definition"));
-
-    let opened = replacement_core_call(
-        core,
-        json!({"id":format!("{id_prefix}-open"),
-        "kind":"open","document":source}),
-    );
-    assert_eq!(opened["kind"], "scene", "{opened}");
-    let pair_id = format!("{id_prefix}-pair");
-    let paired = replacement_core_call(
-        core,
-        replacement_edit(
-            &format!("{id_prefix}-create-pair"),
-            &opened["document"]["revision"],
-            "commit",
-            synthetic_half::create_mirrored_half_operation(&pair_id, "right"),
-        ),
-    );
-    assert_eq!(paired["kind"], "scene", "{paired}");
-
-    // A source-linked SPI display gives the Rejoin a distinct CS function. Its
-    // shared SPI bus functions stay locked while omitted; only its per-Part CS
-    // pin is available for the mirror-only I2C display to consume.
-    let added = replacement_core_call(
-        core,
-        replacement_edit(
-            &format!("{id_prefix}-add-source-spi"),
-            &paired["document"]["revision"],
-            "commit",
-            json!({"kind":"add-part","boardId":"left","layoutId":null,
-                "part":{"id":"left/NICEVIEW","definitionId":nice_view_id,
-                    "reference":"OLED1","pose":{"at":{"x":-42.0,"y":-22.0},
-                        "rotation":0.0},"side":"front"}}),
-        ),
-    );
-    assert_eq!(added["kind"], "scene", "{added}");
-
-    let resolved = replacement_core_call(
-        core,
-        json!({"id":format!("{id_prefix}-resolve-source"),"kind":"resolve-electrical",
-            "request":{"document":added["document"],"boardId":"left","instanceId":"left",
-                "mode":"matrix","locks":{},"controllerPartId":"left/U1",
-                "controllerProfile":"ceoloide/mcu_nice_nano"}}),
-    );
-    assert_eq!(resolved["kind"], "electrical-resolved", "{resolved}");
-    assert!(
-        resolved["plan"]["diagnostics"]
-            .as_array()
-            .expect("resolver diagnostics")
-            .iter()
-            .all(|diagnostic| diagnostic["severity"] != "error"),
-        "the bundled Nice Nano source fixture must be fully resolvable: {resolved}"
-    );
-    let applied = replacement_core_call(
-        core,
-        json!({"id":format!("{id_prefix}-apply-source"),"kind":"apply-electrical",
-            "baseRevision":added["document"]["revision"],"plan":resolved["plan"],
-            "draft":false}),
-    );
-    assert_eq!(applied["kind"], "scene", "{applied}");
-    (
-        applied["document"].clone(),
-        pair_id,
-        nice_view_id,
-        ssd1306_id,
-    )
-}
-
-fn replacement_board_config(document: &Value, board_id: &str) -> Value {
-    document["hardware"]["boards"]
-        .as_array()
-        .expect("electrical board configurations")
-        .iter()
-        .find(|configuration| configuration["boardId"] == board_id)
-        .unwrap_or_else(|| panic!("electrical config for {board_id} exists"))
-        .clone()
-}
-
-fn replacement_generated_electrical_nets(document: &Value, board_id: &str) -> Vec<Value> {
-    let prefix = format!("generated/electrical/{board_id}/");
-    document["nets"]
-        .as_array()
-        .expect("nets")
-        .iter()
-        .filter(|net| net["id"].as_str().is_some_and(|id| id.starts_with(&prefix)))
-        .cloned()
-        .collect()
-}
-
-fn replacement_generator_parameters(document: &Value, part_id: &str) -> Value {
-    document["parts"]
-        .as_array()
-        .expect("parts")
-        .iter()
-        .find(|part| part["id"] == part_id)
-        .unwrap_or_else(|| panic!("controller Part {part_id} exists"))["generatorParameters"]
-        .clone()
-}
-
-fn replacement_source_projection(document: &Value) -> Value {
-    let board = document["boards"]
-        .as_array()
-        .expect("boards")
-        .iter()
-        .find(|board| board["id"] == "left")
-        .expect("source board");
-    let net_ids = board["netIds"].as_array().expect("source net membership");
-    json!({
-        "board":board,
-        "electrical":replacement_board_config(document,"left"),
-        "parts":document["parts"].as_array().unwrap().iter()
-            .filter(|part| board["partIds"].as_array().unwrap().contains(&part["id"]))
-            .cloned().collect::<Vec<_>>(),
-        "nets":document["nets"].as_array().unwrap().iter()
-            .filter(|net| net_ids.contains(&net["id"])).cloned().collect::<Vec<_>>()
-    })
-}
-
-fn mirror_only_display_operation(board_id: &str, part_id: &str, definition_id: &str) -> Value {
-    json!({"kind":"add-mirror-only-part","boardId":board_id,"layoutId":null,
-        "definition":null,
-        "part":{"id":part_id,"definitionId":definition_id,"reference":"OLED2",
-            "pose":{"at":{"x":-40.0,"y":-12.0},"rotation":0.0},"side":"front"}})
-}
-
-/// The board's generated envelope identity, derived by Core from the captured seed 1.
 const GENERATED: &str = "board:board:automatic:outline:1";
-/// The fixed copy `edit-generated-perimeter` created for the board (seed 12).
 const EDITED: &str = "outline-version-12";
-/// The linked refinement created from the board's current components.
 const REFINED: &str = "v-refined";
 
 fn board_target() -> Value {

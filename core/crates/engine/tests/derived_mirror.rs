@@ -62,6 +62,12 @@ fn move_part(engine: &mut CoreEngine, revision: u64, part: &str, x: f64) -> Core
 
 #[test]
 fn linked_edit_refusal_and_seeded_undo_redo_keep_canonical_geometry_exact() {
+    for seed in 0..32 {
+        exercise_history(seed);
+    }
+}
+
+fn exercise_history(seed: u32) {
     let mut engine = CoreEngine::new();
     let (mut canonical, initial) = accepted(engine.handle(CoreRequest::Open {
         id: "open".into(),
@@ -75,7 +81,7 @@ fn linked_edit_refusal_and_seeded_undo_redo_keep_canonical_geometry_exact() {
         CoreReply::Error { .. }
     ));
 
-    let mut seed = 0x84ba_318a_u32;
+    let mut seed = 0x84ba_318a_u32 ^ seed;
     let mut previous = initial;
     for _ in 0..40 {
         seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -111,4 +117,161 @@ fn linked_edit_refusal_and_seeded_undo_redo_keep_canonical_geometry_exact() {
     }));
     assert_eq!(serde_json::to_vec(&reopened).unwrap(), saved);
     assert_eq!(geometry, previous);
+}
+
+#[test]
+fn version_and_linked_target_errors_preserve_the_accepted_snapshot() {
+    use boardstudio_core_mirrored_half::{MirrorEditRefused, admit_edit};
+
+    let mut engine = CoreEngine::new();
+    let (accepted_doc, accepted_pose) = accepted(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: document(),
+    }));
+    for version in [0, 7, 9, u32::MAX] {
+        let mut rejected = accepted_doc.clone();
+        rejected.format_version = version;
+        assert!(matches!(
+            engine.handle(CoreRequest::Open { id: "bad-version".into(), document: rejected }),
+            CoreReply::Error { message, .. } if message == "Unsupported formatVersion: expected 8"
+        ));
+    }
+    let target_id = "4/pair/part/switch".to_owned();
+    assert_eq!(
+        admit_edit(
+            &accepted_doc,
+            &EditOperation::RemoveParts {
+                ids: vec![target_id.clone()]
+            }
+        ),
+        Err(MirrorEditRefused::LinkedTarget {
+            target_id,
+            source_id: "switch".into(),
+            pair_id: "pair".into(),
+        })
+    );
+    assert_eq!(
+        accepted(engine.handle(CoreRequest::Snapshot {
+            id: "snapshot".into()
+        })),
+        (accepted_doc, accepted_pose)
+    );
+    assert!(matches!(
+        engine.handle(CoreRequest::Undo { id: "undo".into() }),
+        CoreReply::Error { .. }
+    ));
+}
+
+#[test]
+fn projection_reflects_matrix_geometry_outline_and_keycap_settings() {
+    use boardstudio_core_mirrored_half::project_document;
+
+    let mut value = serde_json::to_value(document()).unwrap();
+    value["matrices"] = json!([{
+        "id":"keys","rows":2,"columns":3,"pitch":{"x":19,"y":20},
+        "origin":{"x":3,"y":4},"rotation":20,"definitionId":"switch",
+        "partIds":[],"boardId":"source",
+        "cells":[{"row":1,"column":2,"enabled":false}]
+    }]);
+    value["boards"][0]["outlineIds"] = json!(["perimeter"]);
+    value["outline"] = json!([{"kind":"polygon","id":"perimeter","operation":"add",
+        "points":[{"x":0,"y":0},{"x":3,"y":0},{"x":0,"y":4}]}]);
+    value["keycaps"] = json!({"keys":{"switch":{"legend":"A"}}});
+    let canonical: ProjectDoc = serde_json::from_value(value).unwrap();
+    let projection = project_document(&canonical);
+    assert_eq!(projection, project_document(&canonical));
+    let geometry = projection.geometry();
+    let reflected = &geometry.matrices[1];
+    assert_eq!((reflected.rows, reflected.columns), (2, 3));
+    assert_eq!(reflected.origin, Vec2 { x: 7.0, y: 4.0 });
+    assert_eq!(reflected.rotation, Some(-20.0));
+    assert_eq!(reflected.cells, canonical.matrices[0].cells);
+    let outline = &geometry.outline[1];
+    assert_eq!(geometry.boards[1].outline_ids, [outline.id()]);
+    assert!(
+        matches!(outline, boardstudio_core_engine::model::OutlineFeature::Polygon {points, ..}
+        if points == &[Vec2 {x:10.0,y:4.0}, Vec2 {x:7.0,y:0.0}, Vec2{x:10.0,y:0.0}])
+    );
+    assert_eq!(
+        geometry.keycaps.as_ref().unwrap().keys["4/pair/part/switch"]
+            .legend
+            .as_deref(),
+        Some("A")
+    );
+}
+
+#[test]
+fn routed_copper_and_constraints_block_omission_and_pose_overrides_are_sparse() {
+    use boardstudio_core_engine::model::{HalfExceptionState, Pose2};
+    use boardstudio_core_mirrored_half::{project_document, set_companion_pose, set_exception};
+
+    let mut value = serde_json::to_value(document()).unwrap();
+    let target = "4/pair/part/switch";
+    value["nets"] = json!([{"id":"route","name":"Route","pins":[{"partId":target,"padId":"pad"}]}]);
+    value["boards"][1]["traces"] = json!([{"id":"trace-on-target","layer":"front","netId":"route","width":0.2,
+        "start":{"x":0,"y":0},"end":{"x":1,"y":1}}]);
+    let mut doc: ProjectDoc = serde_json::from_value(value).unwrap();
+    let original = doc.clone();
+    let error = set_exception(&mut doc, "pair", target, HalfExceptionState::Omitted).unwrap_err();
+    assert!(error.contains("trace-on-target"));
+    assert_eq!(doc, original);
+
+    doc.boards[1].traces.clear();
+    doc.constraints = serde_json::from_value(json!([{
+        "kind":"offset","id":"held-target","sourcePartId":"switch","targetPartId":target,"offset":{"x":0,"y":0},"rotation":0
+    }]))
+    .unwrap();
+    let error = set_exception(&mut doc, "pair", target, HalfExceptionState::Omitted).unwrap_err();
+    assert!(error.contains("held-target"));
+    doc.constraints.clear();
+
+    let pose = Pose2 {
+        at: Vec2 { x: 7.0, y: 8.0 },
+        rotation: 22.0,
+    };
+    set_companion_pose(&mut doc, "pair", target, pose).unwrap();
+    assert_eq!(project_document(&doc).geometry().parts[1].pose, pose);
+    assert_eq!(doc.parts, original.parts);
+    set_exception(&mut doc, "pair", target, HalfExceptionState::Linked).unwrap();
+    assert_eq!(
+        project_document(&doc).geometry().parts[1].pose.at,
+        Vec2 { x: 8.0, y: 3.0 }
+    );
+}
+
+#[test]
+fn projection_reflects_hosted_modules_and_physical_mechanical_features() {
+    use boardstudio_core_mirrored_half::project_document;
+
+    let mut value = serde_json::to_value(document()).unwrap();
+    value["modules"] = json!([{
+        "id":"daughter","definitionId":"daughter","hostBoardId":"source",
+        "hostFace":"front","facingFace":"back","at":{"x":3,"y":4},"rotation":20,
+        "gap":1,"attachment":"board"
+    }]);
+    value["hardware"] = json!({"instances":[
+        {"id":"left","name":"Left","boardId":"source","half":"left","role":"controller",
+         "flipped":false,"mechanical":{
+            "boardId":"source","method":"printed","mount":"rigid","plateThickness":1.5,
+            "plateFoamThickness":0.5,"pcbThickness":1.6,"bottomFoamThickness":0.4,
+            "batteryHeight":4,"bottomThickness":3,"plateToPcb":3.5,"wallThickness":2,
+            "clearance":0.3,"profiles":[],
+            "mounts":[{"id":"mount","at":{"x":3,"y":4},"kind":"hole","holeDiameter":2.2}]
+         }},
+        {"id":"right","name":"Right","boardId":"destination","half":"right","role":"peripheral","flipped":false}
+    ]});
+    let doc: ProjectDoc = serde_json::from_value(value).unwrap();
+    let projected = project_document(&doc);
+    let geometry = projected.geometry();
+    let module = &geometry.modules[1];
+    assert_eq!(module.host_board_id, "destination");
+    assert_eq!(module.at, Vec2 { x: 7.0, y: 4.0 });
+    assert_eq!(module.rotation, -20.0);
+    let mechanical = geometry.hardware.as_ref().unwrap().instances[1]
+        .mechanical
+        .as_ref()
+        .unwrap();
+    assert_eq!(mechanical.board_id, "destination");
+    assert_eq!(mechanical.mounts[0].at, Vec2 { x: 7.0, y: 4.0 });
+    assert_eq!(projected, project_document(&doc));
 }

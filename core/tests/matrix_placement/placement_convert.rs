@@ -60,31 +60,6 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
     assert_eq!(snapshot(&mut engine), before);
 }
 
-#[test]
-fn convert_applies_to_both_linked_halves() {
-    let (mut engine, doc) = linked_pair();
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrixPlacement {
-            matrix_id: "left-matrix".into(),
-            change: MatrixPlacementChange::ColumnOffset {
-                column: 1,
-                value: Vec2 { x: 0.0, y: -9.525 },
-            },
-        },
-    );
-    let (_, after) = edit(&mut engine, &doc, convert("left-matrix", 1));
-    assert_same_poses(&doc, &after, "linked");
-    for id in ["left-matrix", "right-matrix"] {
-        let matrix = after.matrices.iter().find(|item| item.id == id).unwrap();
-        assert_eq!(matrix.column_layout[1].offset.y, 0.0, "{id}");
-        assert_eq!(matrix.column_layout[1].stagger, -9.525, "{id}");
-        assert_eq!(matrix.column_layout[2].stagger, 9.525, "{id}");
-    }
-    assert_reflected_keys(&after);
-}
-
 /// Save and reopen: the placement parameters survive a JSON round trip through a fresh
 /// engine with nothing normalized, including an old-toolbar `column_offsets[c].y`.
 #[test]

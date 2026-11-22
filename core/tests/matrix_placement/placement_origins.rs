@@ -202,49 +202,6 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
 }
 
 #[test]
-fn exact_align_refuses_to_move_a_local_key_without_changing_state() {
-    let (_, mut doc) = linked_pair();
-    doc.layouts
-        .iter_mut()
-        .find_map(|l| l.mirror_link.as_mut())
-        .unwrap()
-        .exceptions
-        .push(MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: member("right-matrix", 0, 1),
-            state: MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    let (mut engine, _, before) = open(doc);
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "align".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "align".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetMatrixPlacement {
-                matrix_id: "right-matrix".into(),
-                change: MatrixPlacementChange::ColumnTranslation {
-                    column: 1,
-                    delta: Vec2 { x: 4.0, y: -3.0 },
-                },
-            },
-        },
-    });
-    assert!(
-        matches!(&reply,CoreReply::Error {message,..} if message.contains("Local")),
-        "{reply:?}"
-    );
-    assert_eq!(snapshot(&mut engine), before);
-    assert!(
-        matches!(engine.handle(CoreRequest::Undo {id:"undo".into()}),CoreReply::Error {message,..} if message.contains("History is empty"))
-    );
-}
-
-#[test]
 fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomically() {
     let (mut engine, _, before) = fixture(3, 3);
     for change in [

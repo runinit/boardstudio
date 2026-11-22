@@ -392,20 +392,6 @@ fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<Str
     )
 }
 
-/// A linked pair whose record names `mirror_board` as the mirror half's board.
-fn paired_document_with_halves(mirror_board: &str) -> ProjectDoc {
-    let mut document = pair_document();
-    link_pair(&mut document);
-    document.hardware.as_mut().unwrap().pairs[0].halves = Some(
-        serde_json::from_value(json!({
-            "sourceBoardId": "board", "mirrorBoardId": mirror_board,
-            "correspondences": [], "exceptions": []
-        }))
-        .unwrap(),
-    );
-    document
-}
-
 /// Gives the fixture board a real outline so export readiness is meaningful.
 fn with_board_outline(document: &mut ProjectDoc) {
     document.outline.push(OutlineFeature::Rect {

@@ -405,7 +405,6 @@ impl CoreEngine {
             return self.error(id, &refusal.to_string());
         }
         if command.phase == EditPhase::Preview
-            && self.document.mirrored_pairs.is_empty()
             && matches!(
                 &command.operation,
                 EditOperation::MoveParts { .. }
@@ -805,18 +804,37 @@ impl CoreEngine {
                 )?;
                 Ok((changed, layout_settled))
             });
-        let (changed, layout_settled) = match result {
+        let (mut changed, layout_settled) = match result {
             Ok(applied) => applied,
             Err(message) => return self.error(id, &message),
         };
-        let ((cache, contours, findings), board_geometry) =
-            self.edited_outlines(&draft, &command, layout_settled);
+        let resolved_draft = mirrored_half::project_document(&draft);
+        if let Some(message) = validate::duplicate_top_level_identity(resolved_draft.geometry()) {
+            return self.error(id, &message);
+        }
+        let affected: Vec<_> = self
+            .resolved
+            .affected_targets(&changed)
+            .chain(resolved_draft.affected_targets(&changed))
+            .cloned()
+            .collect();
+        changed.extend(affected);
+        changed.sort();
+        changed.dedup();
+        let ((cache, contours, mut findings), board_geometry) =
+            self.edited_outlines(resolved_draft.geometry(), &command, layout_settled);
+        if !draft.mirrored_pairs.is_empty() {
+            findings.extend(preview_electrical_loss_findings(
+                self.resolved.geometry(),
+                resolved_draft.geometry(),
+            ));
+        }
         let reply = self.scene_with_board_geometry(
             id,
             SceneInput {
                 transaction: &command.transaction_id,
                 changed,
-                document: &draft,
+                document: resolved_draft.geometry(),
                 contours: &contours,
                 geom_findings: &findings,
                 cache: &cache,

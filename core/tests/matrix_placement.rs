@@ -331,51 +331,6 @@ fn matrix_doc() -> ProjectDoc {
     doc
 }
 
-fn mirrored_pair_request(base: u64, phase: &str) -> String {
-    serde_json::json!({
-        "kind": "edit", "id": "pair",
-        "command": {"baseRevision": base, "transactionId": "pair", "phase": phase, "targetIds": [],
-            "operation": {"kind": "create-mirrored-pair",
-                "matrix": {"id": "left-matrix", "rows": 2, "columns": 3, "pitch": {"x": 19, "y": 19},
-                    "origin": {"x": -20, "y": 5}, "mirror": "x", "definitionId": "switch", "boardId": "board", "partIds": []},
-                "left": {"id": "left-layout", "name": "Left half", "boardId": "board", "matrixIds": ["left-matrix"], "partIds": []},
-                "right": {"id": "right-layout", "name": "Right half", "boardId": "board", "matrixIds": ["right-matrix"], "partIds": [],
-                    "mirrorLink": {"sourceId": "left-layout", "axisX": 10}}
-            }
-        }
-    })
-    .to_string()
-}
-
-fn linked_pair() -> (CoreEngine, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
-    let response = engine.request(&mirrored_pair_request(0, "commit"));
-    let (_, doc) = scene(serde_json::from_str(&response).unwrap());
-    (engine, doc)
-}
-
-fn assert_reflected_keys(doc: &ProjectDoc) {
-    for left in doc.parts.iter().filter(|part| {
-        part.id.starts_with("matrix/left-matrix/") && part.id.matches('/').count() == 2
-    }) {
-        let right = doc
-            .parts
-            .iter()
-            .find(|part| part.id == left.id.replace("left-matrix", "right-matrix"))
-            .unwrap();
-        assert!(
-            (left.pose.at.x + right.pose.at.x - 20.0).abs() < 1e-8,
-            "{left:?} {right:?}"
-        );
-        assert!((left.pose.at.y - right.pose.at.y).abs() < 1e-8);
-        assert!((left.pose.rotation + right.pose.rotation).abs() < 1e-8);
-    }
-}
-
 fn poses(doc: &ProjectDoc) -> Vec<(String, Vec2, f64)> {
     doc.parts
         .iter()

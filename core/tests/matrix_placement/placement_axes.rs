@@ -210,24 +210,6 @@ fn companions_follow_placement_changes() {
 }
 
 #[test]
-fn linked_halves_sync() {
-    for (matrix_id, value) in [("left-matrix", 3.0), ("right-matrix", 4.0)] {
-        let (mut engine, before) = linked_pair();
-        let (_, after) = edit(
-            &mut engine,
-            &before,
-            EditOperation::SetMatrixPlacement {
-                matrix_id: matrix_id.into(),
-                change: MatrixPlacementChange::ColumnStagger { column: 0, value },
-            },
-        );
-        assert_eq!(after.matrices[0].column_layout[0].stagger, value);
-        assert_eq!(after.matrices[1].column_layout[0].stagger, value);
-        assert_reflected_keys(&after);
-    }
-}
-
-#[test]
 fn invalid_changes_error() {
     let (mut engine, _, doc) = fixture(1, 3);
     let before = snapshot(&mut engine);
