@@ -3,6 +3,16 @@
 **Baseline:** `dev` (`28e08ac7f`, plus Wave 4 `refactor/cold-build-dependency-graph`)  
 **Target State:** 100% Rust + Dioxus (`rust-ui.com` component architecture), zero Monstertruck, synchronous main-thread Core edits, derived bilateral symmetry, native-first testing, and ~400,000+ fewer lines of code.
 
+## Implementation checkpoint, 2026-11-21
+
+The wave tables below record the original estimates. Use this checkpoint to choose the next work.
+
+- **CAD.** Generated case and PCB geometry use the native mesher and analytical STEP exporter. Imported STEP uses patched cadmpeg in `cad/core`. Monstertruck is gone. The release corpus admitted all 75 former successes and two additional models. `KS33.stp` and `SK6812MINI-E v1.step` still refuse. The 49 bundled previews total 2,277,862 compressed bytes against a 2,883,584-byte budget. The CAD workspace has a separate lockfile. Applying the repository license policy to it still rejects Inflector through step-p21 and clipper2-rust through manifold-rust.
+- **Document edits.** The page already gives Runtime a main-thread document Core. The ticket and pending-edit registry files are gone. Preserve save-before-publication, save-only retry, and explicit recovery on unknown outcomes under [ADR-0013](../adr/0013-save-before-publication-and-explicit-recovery.md). Matching-preview commits met the original latency target in the paired run. Fresh previews retain the cost of the exact outline union. Further work should remove duplicated routing while keeping expensive archive and CAD work off the UI thread. The experimental worker-retirement branch moves ZIP operations onto the page.
+- **Web and verification.** Catalogue and UI-model no longer need dedicated Chrome launches. The Space-pan listener runs in the page suite. Twelve crate launches remain alongside the page, drag and CAD checks. The latest shared-control sweep changed 20 fixture buttons and two production file inputs. For the next native batch, extract the pure Parts add-menu and PCB reassignment decisions from their WASM-only parents, verify native discovery by test name, and keep mounted interactions in Chrome.
+- **Packaged smoke.** Level 3A uses the shared Python WebDriver client and one project for trusted drag, Undo, Escape and Case collision findings. The committed smoke uses a 2×2 matrix. The planned 4×6 scenario needs its own passing result before claiming that workload is covered. Keep the collision observation, findings scroll and viewport assertions.
+- **Mirrored halves.** Hosted edits, matrix membership and sparse exception transitions share more production logic. The before/after reconciler is still live. The next deletion should consolidate the exception lookup used by forward projection and inverse editing for keys and companions. Verify Local/Omitted/Linked from both authoring halves, exact Local payload, changed IDs, reopen and Undo/Redo before removing a duplicate implementation. Preserve separate input checks for Open and document replacement.
+
 ---
 
 ## 1. Architectural Pillars
