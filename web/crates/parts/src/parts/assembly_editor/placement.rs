@@ -64,7 +64,7 @@ pub(super) fn begin_place_assembly_on_board(
 
     let operation_id = runtime.operation();
     let placement_id = format!("assembly-{}-{}", draft.value.id, operation_id.0);
-    let (mut proposal, part_ids) = match super::super::assembly_presets::document_with_assembly(
+    let (mut proposal, part_ids) = match document_with_assembly(
         &accepted.document,
         &draft.value,
         &definitions,
@@ -84,7 +84,7 @@ pub(super) fn begin_place_assembly_on_board(
     let definition_prefix = format!("{placement_id}/definition/");
     preparing.set(true);
     feedback.set(None);
-    spawn_local(async move {
+    spawn(async move {
         let normalized = async {
             for definition in proposal
                 .definitions
@@ -242,9 +242,9 @@ pub(super) fn begin_apply_assembly_to_matrix(
     let operation_id = runtime.operation();
     preparing.set(true);
     feedback.set(None);
-    spawn_local(async move {
+    spawn(async move {
         let prepared = async {
-            let (matrix, mut definitions) = super::super::assembly_presets::matrix_with_assembly(
+            let (matrix, mut definitions) = matrix_with_assembly(
                 &matrix,
                 &assembly,
                 &catalogue_definitions,

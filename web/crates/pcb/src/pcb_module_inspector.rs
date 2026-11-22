@@ -1,6 +1,5 @@
 //! Private editor for the placement of one accepted mounted-module instance.
 //! Module source definitions and their footprint/circuit ownership remain untouched.
-use crate::pcb_controls::PcbInput;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
@@ -9,10 +8,11 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
-use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    NumericField, SelectField, TextCommitField, ToggleField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -578,20 +578,24 @@ fn PcbMountedModuleInspector(
                         on_commit: move |next: String| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.module_port_id = next; }),
                         options: definition.interfaces.iter().filter(|port| port.role == VikRole::Module).map(|port| (port.id.clone(), port.id.clone())).collect(),
                     }
-                    PcbInput { label: "Bus name", r#type: InputType::Text, aria_label: "Module bus name", value: "{connection.bus_id}", disabled: !editable,
-                        oninput: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.bus_id = event.value(); })
+                    TextCommitField { label: "Bus name", aria_label: "Module bus name", value: "{connection.bus_id}",
+                        disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                        on_commit: move |name| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.bus_id = name; })
                     }
                     p { "12 contacts · 0.5 mm pitch · Type A cable · 3.3 V logic. Enter actual MCU terminals; shared buses are checked by their wiring." }
                     div {
                         for (signal, label) in vik_signals() {
-                            PcbInput { key: "{label}", label: label.to_owned(), r#type: InputType::Text, aria_label: format!("VIK {label} terminal"), value: "{connection.assignments.get(&signal).cloned().unwrap_or_default()}", disabled: !editable,
-                                    oninput: move |event: FormEvent| {
-                                        let terminal = event.value().trim().to_owned();
-                                        edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection {
-                                            if terminal.is_empty() { connection.assignments.remove(&signal); }
-                                            else { connection.assignments.insert(signal, terminal); }
-                                        });
-                                    }
+                            TextCommitField { key: "{label}", label: label.to_owned(), aria_label: format!("VIK {label} terminal"),
+                                value: connection.assignments.get(&signal).cloned().unwrap_or_default(),
+                                disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                                on_commit: move |terminal| edit_module_draft(draft, draft_dirty, |value| {
+                                    if let Some(connection) = &mut value.connection { connection.assignments.insert(signal, terminal); }
+                                }),
+                            }
+                            if connection.assignments.contains_key(&signal) {
+                                Button { disabled: !editable, onclick: move |_| edit_module_draft(draft, draft_dirty, |value| {
+                                    if let Some(connection) = &mut value.connection { connection.assignments.remove(&signal); }
+                                }), "Clear {label} terminal" }
                             }
                         }
                     }

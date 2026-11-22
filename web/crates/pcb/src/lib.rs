@@ -64,7 +64,12 @@ pub mod connector_admission;
 pub mod firmware_position_choices;
 mod pcb_layer_inventory;
 mod pcb_layer_projection;
+#[cfg(target_arch = "wasm32")]
 pub mod pcb_physical_setup;
+
+#[cfg(all(not(target_arch = "wasm32"), test))]
+#[path = "pcb_physical_setup/reassignment_owner.rs"]
+mod physical_setup_owner_tests;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_owner;

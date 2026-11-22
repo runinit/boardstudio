@@ -1,7 +1,6 @@
 //! Parts catalogue, selected-definition editing and placement presentation.
 mod add_object_logic;
 mod assembly_editor;
-mod assembly_presets;
 use add_object_logic::{add_object_choices, add_object_groups, add_object_search_results};
 pub use boardstudio_web_catalogue::bundled::{
     generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
@@ -26,14 +25,13 @@ use boardstudio_web_ui_shared::ui::{
 mod component_model_editor;
 mod details;
 mod details_logic;
-pub(crate) mod editor_fields;
 mod generator_settings;
 mod module_profile_editor;
 mod modules_catalogue;
 mod modules_catalogue_logic;
 pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
 mod preview;
-pub use assembly_presets::MatrixPresetId;
+pub use assembly_editor::MatrixPresetId;
 
 /// Data source for the existing Layout matrix-placement lifecycle. Saved
 /// assembly recipes carry only their source definitions; Core still validates
@@ -85,14 +83,14 @@ pub enum MatrixPlacementSource {
     },
 }
 
-pub use assembly_presets::SwitchOrientation;
-pub use assembly_presets::matrix_with_assembly;
+pub use assembly_editor::SwitchOrientation;
+pub use assembly_editor::matrix_with_assembly;
 
 pub fn matrix_setup_preset(
-    preset: assembly_presets::MatrixPresetId,
+    preset: assembly_editor::MatrixPresetId,
 ) -> crate::matrix_setup_operation::MatrixSetupPreset {
     use crate::matrix_setup_operation::MatrixSetupPreset as SetupPreset;
-    use assembly_presets::MatrixPresetId as PartsPreset;
+    use assembly_editor::MatrixPresetId as PartsPreset;
     match preset {
         PartsPreset::MxSolder => SetupPreset::MxSolder,
         PartsPreset::MxHotswap => SetupPreset::MxHotswap,
@@ -124,10 +122,10 @@ pub type PartsQuery = Signal<String>;
 pub type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 
 #[derive(Clone, Copy)]
-pub struct PartsAssemblySelection(pub Signal<Option<assembly_presets::MatrixPresetId>>);
+pub struct PartsAssemblySelection(pub Signal<Option<assembly_editor::MatrixPresetId>>);
 
 #[derive(Clone, Copy)]
-pub struct PartsAssemblyOrientation(pub Signal<assembly_presets::SwitchOrientation>);
+pub struct PartsAssemblyOrientation(pub Signal<assembly_editor::SwitchOrientation>);
 
 #[derive(Clone, Copy)]
 pub struct PartsSelectionGeneration(pub Signal<u64>);
@@ -145,8 +143,8 @@ struct AssemblyRecipeRequest {
     selection: Option<(Option<Scope>, String)>,
     selection_generation: u64,
     scope_generation: u64,
-    preset: Option<assembly_presets::MatrixPresetId>,
-    orientation: assembly_presets::SwitchOrientation,
+    preset: Option<assembly_editor::MatrixPresetId>,
+    orientation: assembly_editor::SwitchOrientation,
     reversible: bool,
     entries: Option<Rc<Vec<CatalogEntry>>>,
     preview_definition: Option<boardstudio_model::model::PartDefinition>,
@@ -377,9 +375,9 @@ pub fn AddObjectComponentChooser(
     }
 }
 
-fn matching_assembly_presets(search: &str) -> Vec<assembly_presets::Preset> {
+fn matching_assembly_presets(search: &str) -> Vec<assembly_editor::Preset> {
     let search = search.trim().to_lowercase();
-    assembly_presets::PRESETS
+    assembly_editor::PRESETS
         .iter()
         .copied()
         .filter(|preset| {
@@ -692,7 +690,7 @@ pub fn PartsPreviewWorkspace(
     };
     let recipe_resource = use_resource(use_reactive(&request, |request| async move {
         let result = match (request.preset, request.entries.as_deref()) {
-            (Some(preset), Some(entries)) => assembly_presets::resolve(
+            (Some(preset), Some(entries)) => assembly_editor::resolve(
                 preset,
                 entries,
                 request.reversible,
@@ -717,7 +715,7 @@ pub fn PartsPreviewWorkspace(
         .unwrap_or_default();
     let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
     let recipe_identity = request.identity();
-    let preview_title = active_assembly.map(|preset| assembly_presets::name(preset).to_owned());
+    let preview_title = active_assembly.map(|preset| assembly_editor::name(preset).to_owned());
     if let Some(module_id) = selected_module_id.as_deref() {
         if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| {
             entries

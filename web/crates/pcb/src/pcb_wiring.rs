@@ -1,12 +1,8 @@
-//! PCB wiring preview plus contextual selected-part connection projection.
-//!
-//! Root owns the accepted-source controller and Runtime request. This leaf receives only a
-//! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
-use crate::pcb_controls::PcbInput;
-use boardstudio_application::Scope;
+//! PCB wiring controls and accepted board-plan edits.
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
-use boardstudio_model::model::{Net, PartDefinition, PartKind, ProjectDoc};
-use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField};
+use boardstudio_model::model::{EditOperation, Net, PartDefinition, PartKind, ProjectDoc};
+use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField, TextField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -19,28 +15,26 @@ pub use boardstudio_web_ui_model::wiring::{PcbWiringResolution, PcbWiringSource}
 
 mod apply;
 mod connections;
-mod controller;
 mod mode;
 mod part_connections;
 mod part_input_projection;
 mod part_input_settings;
-mod part_net_admission;
 mod part_net_identity;
 pub use part_net_identity::PartNetEditIdentity;
 mod pins;
 mod remap;
-use crate::firmware_position_projection;
+use crate::firmware_position_projection::{self, FirmwarePositionAdmission, admits_edit};
 pub use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
+use crate::runtime::Runtime;
 pub use apply::{BoardWiringApplyActions, use_board_wiring_apply};
-pub use controller::{
-    WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
-    use_pcb_wiring_controller, wiring_resolution_notice,
-};
+use mode::pcb_source;
 pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
+use part_connections::PartNetIntent;
 pub use part_input_settings::PartInputActions;
+use part_net_identity::request_matches_current_part;
 pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 
@@ -604,7 +598,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 },
             }
             form { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground !items-center !gap-2 mt-2.5", onsubmit: add_net,
-                PcbInput { label: "New net name", aria_label: "New net name", r#type: InputType::Text,
+                TextField { id: "pcb-new-net".to_owned(), label: "New net name", r#type: InputType::Text,
                     placeholder: Some("New net name".into()), value: new_net_name(),
                     disabled: !actions.editable || identity.is_none(),
                     oninput: move |event: FormEvent| new_net_name.set(event.value()),
@@ -987,4 +981,507 @@ fn used_pins(plan: &ElectricalPlan) -> Vec<String> {
 
 fn pin_lock_action(locked: bool) -> &'static str {
     if locked { "Unlock" } else { "Lock" }
+}
+
+/// The stable presentation target of one firmware key's edits, without plan tokens.
+fn firmware_key_target(
+    identity: &crate::firmware_position_projection::FirmwarePositionIdentity,
+    key_id: &str,
+) -> FirmwarePositionFeedbackTarget {
+    FirmwarePositionFeedbackTarget {
+        ui_scope: identity.ui_scope.clone(),
+        scope_generation: identity.scope_generation,
+        key_id: key_id.to_owned(),
+    }
+}
+
+pub struct FirmwarePositionActions {
+    pub feedback: Option<FirmwarePositionFeedback>,
+    pub editable: bool,
+    pub on_edit: EventHandler<FirmwarePositionEditRequest>,
+}
+
+/// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
+pub fn use_firmware_position_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+    resolution: Signal<PcbWiringResolution>,
+) -> FirmwarePositionActions {
+    let _ = version();
+    let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let mut feedback = feedback;
+        let instance_is_current = instance_is_current.clone();
+        move |request: FirmwarePositionEditRequest| {
+            let Some((snapshot, source)) = pcb_source(&runtime, scope_generation()) else {
+                return;
+            };
+            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
+                return;
+            };
+            let current = firmware_position_projection::project(
+                &snapshot.document,
+                &source.identity,
+                &source.ui_scope,
+                source.scope_generation,
+                PlanLifecycle::Current(identity, plan),
+            );
+            if !admits_edit(
+                &request.identity,
+                &request.key_id,
+                FirmwarePositionAdmission {
+                    workspace: workspace(),
+                    current_generation: scope_generation(),
+                    instance_is_current: instance_is_current(),
+                    runtime_scope: Some(&source.ui_scope),
+                    accepted: &snapshot,
+                    current_plan: Some(identity),
+                    current_projection: &current,
+                },
+            ) {
+                return;
+            }
+            let target = firmware_key_target(&request.identity, &request.key_id);
+            let result = runtime.commit("firmware-position", firmware_position_resolver(request));
+            feedback.set(result.err().map(|message| FirmwarePositionFeedback {
+                target,
+                state: FirmwarePositionFeedbackState::Failed(message),
+            }));
+        }
+    });
+
+    let editable = workspace() == "PCB"
+        && instance_is_current()
+        && pcb_source(&runtime, scope_generation()).is_some_and(|(snapshot, source)| {
+            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
+                return false;
+            };
+            let projection = firmware_position_projection::project(
+                &snapshot.document,
+                &source.identity,
+                &source.ui_scope,
+                source.scope_generation,
+                PlanLifecycle::Current(identity, plan),
+            );
+            projection.identity.is_some() && !projection.keys.is_empty()
+        });
+    FirmwarePositionActions {
+        feedback: feedback(),
+        editable,
+        on_edit,
+    }
+}
+
+fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
+    EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
+        let scope = &request.identity.ui_scope;
+        let boardstudio_model::model::CoreRequest::ResolveElectrical {
+            request: electrical_request,
+            ..
+        } = boardstudio_web_runtime::electrical_preview_request(
+            "firmware-position",
+            &accepted.document,
+            &scope.board_id,
+        )
+        else {
+            unreachable!()
+        };
+        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
+        let identity = WiringPlanIdentity {
+            token: accepted.token,
+            revision: accepted.document.revision,
+            ..request.identity.plan.clone()
+        };
+        let projection = firmware_position_projection::project(
+            &accepted.document,
+            &identity,
+            scope,
+            request.identity.scope_generation,
+            PlanLifecycle::Current(&identity, &plan),
+        );
+        if !projection.keys.iter().any(|key| key.id == request.key_id) {
+            return Resolution::Retire(
+                "The firmware key was deleted or is no longer eligible on this board.".into(),
+            );
+        }
+        if projection
+            .bindings
+            .get(&request.key_id)
+            .map(String::as_str)
+            .unwrap_or("&none")
+            == request.binding
+        {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![scope.board_id.clone(), request.key_id.clone()],
+            EditOperation::SetKeyBinding {
+                board_id: scope.board_id.clone(),
+                key_id: request.key_id.clone(),
+                binding: request.binding.clone(),
+            },
+        )
+    })
+}
+
+pub fn use_pcb_part_net_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+) -> PartNetActions {
+    let _ = version();
+    let feedback = use_signal(|| None::<PartNetFeedback>);
+    let preparing_create = use_signal(|| false);
+    let generation = scope_generation();
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let instance_is_current = instance_is_current.clone();
+        move |request: PartNetEditRequest| {
+            if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
+                return;
+            }
+            let Some(current) =
+                current_part_net_identity(&runtime, generation, instance_is_current())
+            else {
+                return;
+            };
+            if !request_matches_current_part(&request.identity, &current) {
+                return;
+            }
+            let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
+            if create && *preparing_create.peek() {
+                return;
+            }
+            let accepted = runtime.model().accepted.unwrap();
+            let part = accepted
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == request.identity.part_id)
+                .unwrap();
+            let definition = accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .unwrap();
+            let definition_id = definition.id.clone();
+            let source = definition
+                .generator
+                .as_ref()
+                .map(|generator| generator.source.clone());
+            let mut feedback = feedback;
+            let target = PartNetTarget::of(&request.identity);
+            let seed = runtime.operation().0;
+            if source.is_none() {
+                let resolver = part_net_resolver(request, definition_id, None, false, seed);
+                feedback.set(
+                    runtime
+                        .commit("pcb-part-net", resolver)
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
+                return;
+            }
+
+            let mut preparing_create = preparing_create;
+            if create {
+                preparing_create.set(true);
+            }
+            let runtime = runtime.clone();
+            let instance_is_current = instance_is_current.clone();
+            spawn(async move {
+                let classified =
+                    crate::presentation::parts::is_generator_source(source.clone().unwrap()).await;
+                if create {
+                    preparing_create.set(false);
+                }
+                if workspace() != "PCB"
+                    || scope_generation() != generation
+                    || current_part_net_identity(&runtime, generation, instance_is_current())
+                        .is_none_or(|current| {
+                            !request_matches_current_part(&request.identity, &current)
+                        })
+                {
+                    return;
+                }
+                let result = classified.and_then(|is_generator_source| {
+                    let resolver = part_net_resolver(
+                        request,
+                        definition_id,
+                        source,
+                        is_generator_source,
+                        seed,
+                    );
+                    runtime.commit("pcb-part-net", resolver)
+                });
+                feedback.set(
+                    result
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
+            });
+        }
+    });
+    let identity = current_part_net_identity(&runtime, generation, instance_is_current());
+    let editable = identity.is_some() && workspace() == "PCB";
+    let create_pending = preparing_create();
+    let visible_feedback = feedback().filter(|feedback| {
+        identity
+            .as_ref()
+            .is_some_and(|identity| feedback.target.matches(identity))
+    });
+    PartNetActions {
+        identity,
+        editable,
+        feedback: visible_feedback,
+        create_pending,
+        on_edit,
+    }
+}
+
+fn part_net_resolver(
+    request: PartNetEditRequest,
+    definition_id: String,
+    source: Option<String>,
+    is_generator_source: bool,
+    seed: u64,
+) -> EditResolver {
+    EditResolver::new("pcb-part-net", move |accepted: &AcceptedSnapshot| {
+        let part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == request.identity.part_id);
+        let definition = part.and_then(|part| {
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+        });
+        if definition.is_none_or(|definition| {
+            definition.id != definition_id
+                || definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| &generator.source)
+                    != source.as_ref()
+        }) {
+            return Resolution::Retire("The part was deleted or its definition changed.".into());
+        }
+        let intent = match &request.action {
+            PartNetEditAction::AssignPads { pad_ids, net_id } => PartNetIntent::AssignPads {
+                pad_ids: pad_ids.clone(),
+                net_id: net_id.clone(),
+            },
+            PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
+                net_id: fresh_net_id(&accepted.document, seed),
+                name: name.clone(),
+            },
+        };
+        let proposal = match part_connections::propose(
+            &accepted.document,
+            &request.identity.board_id,
+            &request.identity.part_id,
+            is_generator_source,
+            intent,
+        ) {
+            Ok(proposal) => proposal,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![
+                request.identity.board_id.clone(),
+                request.identity.part_id.clone(),
+            ],
+            EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        )
+    })
+}
+
+fn current_part_net_identity(
+    runtime: &Runtime,
+    generation: u64,
+    instance_is_current: bool,
+) -> Option<PartNetEditIdentity> {
+    if !instance_is_current {
+        return None;
+    }
+    let (accepted, source) = pcb_source(runtime, generation)?;
+    let scope = source.ui_scope;
+    let model = runtime.model();
+    let [part_id] = model.selected_part_ids.as_slice() else {
+        return None;
+    };
+    if !accepted
+        .document
+        .boards
+        .iter()
+        .any(|board| board.id == scope.board_id && board.part_ids.contains(part_id))
+    {
+        return None;
+    }
+    let part = accepted
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == *part_id)?;
+    let definition = accepted
+        .document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)?;
+    if matches!(
+        &definition.kind,
+        boardstudio_model::model::PartKind::Switch | boardstudio_model::model::PartKind::Controller
+    ) {
+        return None;
+    }
+    Some(PartNetEditIdentity {
+        board_id: scope.board_id.clone(),
+        ui_scope: scope,
+        part_id: part_id.clone(),
+        token: accepted.token,
+        revision: accepted.document.revision,
+        generation,
+    })
+}
+
+fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {
+    let mut suffix = 0u64;
+    loop {
+        let id = format!("pcb-net-{operation}-{suffix}");
+        if !document.nets.iter().any(|net| net.id == id) {
+            return id;
+        }
+        suffix = suffix.checked_add(1).expect("net identity space exhausted");
+    }
+}
+
+#[derive(Clone)]
+pub struct PcbWiringMount {
+    pub resolution: PcbWiringResolution,
+    pub resolution_signal: Signal<PcbWiringResolution>,
+    pub on_resolve: EventHandler<()>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WiringResolutionNotice {
+    Pending,
+    Failed(String),
+    Waiting,
+}
+
+impl WiringResolutionNotice {
+    pub fn role(&self) -> &'static str {
+        match self {
+            Self::Pending | Self::Waiting => "status",
+            Self::Failed(_) => "alert",
+        }
+    }
+}
+
+pub fn wiring_resolution_notice(
+    resolution: &PcbWiringResolution,
+    identity: &WiringPlanIdentity,
+) -> WiringResolutionNotice {
+    match resolution {
+        PcbWiringResolution::Pending { identity: owner } if owner == identity => {
+            WiringResolutionNotice::Pending
+        }
+        PcbWiringResolution::Failed {
+            identity: owner,
+            message,
+        } if owner == identity => WiringResolutionNotice::Failed(message.clone()),
+        PcbWiringResolution::Current {
+            identity: owner, ..
+        } if owner == identity => WiringResolutionNotice::Waiting,
+        _ => WiringResolutionNotice::Waiting,
+    }
+}
+
+/// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
+/// or which workspace is currently visible. Call this hook unconditionally in the page parent.
+pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> PcbWiringMount {
+    let _ = version();
+    let input = current_input(&runtime);
+    let identity = input.as_ref().map(|(identity, _, _)| identity.clone());
+    let mut resolution = use_signal(|| PcbWiringResolution::Idle);
+    let resolve = use_callback(move |()| {
+        resolution.set(resolve_current_plan(&runtime));
+    });
+    use_effect(use_reactive((&identity,), move |_| resolve.call(())));
+    let visible = resolution();
+    let visible = match &visible {
+        PcbWiringResolution::Current {
+            identity: resolved, ..
+        }
+        | PcbWiringResolution::Failed {
+            identity: resolved, ..
+        } if Some(resolved) == identity.as_ref() => visible,
+        _ => PcbWiringResolution::Idle,
+    };
+    PcbWiringMount {
+        resolution: visible,
+        resolution_signal: resolution,
+        on_resolve: resolve,
+    }
+}
+
+fn resolve_current_plan(runtime: &Runtime) -> PcbWiringResolution {
+    let Some((identity, accepted, scope)) = current_input(runtime) else {
+        return PcbWiringResolution::Idle;
+    };
+    match runtime.resolve_electrical_preview(accepted, scope) {
+        Ok(plan) => PcbWiringResolution::Current {
+            identity,
+            plan: Rc::new(plan),
+        },
+        Err(message) => PcbWiringResolution::Failed { identity, message },
+    }
+}
+
+fn current_input(runtime: &Runtime) -> Option<(WiringPlanIdentity, AcceptedSnapshot, Scope)> {
+    let model = runtime.model();
+    if matches!(
+        model.lifecycle,
+        Lifecycle::Empty | Lifecycle::Opening | Lifecycle::Closing | Lifecycle::Closed
+    ) {
+        return None;
+    }
+    let accepted = model.accepted?;
+    let mut scope = runtime.scope()?;
+    // The electrical preview is a board plan with React's instanceId=null. Normalize away a
+    // physical-instance selection so Case/Layout instance changes don't churn the board query.
+    scope.instance_id = None;
+    if scope.session_epoch != accepted.session_epoch
+        || scope.document_id != accepted.document.id
+        || model.active_board_id != scope.board_id
+        || accepted.scene.revision != accepted.document.revision
+        || !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+    {
+        return None;
+    }
+    let identity = WiringPlanIdentity {
+        scope: scope.clone(),
+        token: accepted.token,
+        revision: accepted.document.revision,
+    };
+    Some((identity, accepted, scope))
 }

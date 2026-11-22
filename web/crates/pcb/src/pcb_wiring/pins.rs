@@ -376,3 +376,47 @@ fn peripheral_label(id: &str) -> String {
         })
         .unwrap_or_else(|| id.to_owned())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matrix_pins_accept_the_current_and_free_pins_for_existing_assignments() {
+        let plan: ElectricalPlan = serde_json::from_value(serde_json::json!({
+            "mode": "matrix", "boardId": "left", "revision": 3, "assignments": [],
+            "rowPins": ["P0", "P1"], "columnPins": ["P2"], "freePins": ["P3"],
+            "diagnostics": [], "fingerprint": "", "nets": [], "diodeDirection": "",
+            "jumpers": [], "moduleAliases": {}, "peripherals": [], "peripheralPins": {},
+            "peripheralTerminals": {}
+        }))
+        .expect("matrix plan fixture");
+        let document = ProjectDoc::empty("fixture", "Pin assignment");
+        for pin in ["P0", "P3"] {
+            assert!(pin_edit_is_available(
+                &document,
+                &plan,
+                "left",
+                "row/0",
+                Some(pin)
+            ));
+        }
+        assert!(!pin_edit_is_available(
+            &document,
+            &plan,
+            "left",
+            "row/0",
+            Some("P1")
+        ));
+        assert!(!pin_edit_is_available(
+            &document,
+            &plan,
+            "left",
+            "row/2",
+            Some("P3")
+        ));
+        assert!(!pin_edit_is_available(
+            &document, &plan, "left", "row/0", None
+        ));
+    }
+}

@@ -1,27 +1,7 @@
 //! Private compositions of the shared controls for PCB inspectors.
-use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
-
-/// Text input for staged forms that accept a blank value.
-#[component]
-pub(crate) fn PcbInput(
-    label: String,
-    aria_label: String,
-    value: String,
-    r#type: InputType,
-    #[props(default)] placeholder: Option<String>,
-    #[props(default)] disabled: bool,
-    oninput: EventHandler<FormEvent>,
-) -> Element {
-    let id = format!("pcb-input-{}", dioxus::core::current_scope_id().0);
-    let aria_label = Some(aria_label);
-    rsx! {
-        TextField { id, label, value, r#type, aria_label, placeholder, disabled, oninput }
-    }
-}
 
 /// Native file inputs stay hidden; a named shared button opens the browser picker.
 #[component]

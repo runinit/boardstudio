@@ -1,5 +1,4 @@
 //! Definition-level module profile draft and accepted edit path.
-use super::editor_fields::EditorTextField;
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::WorkspaceState, runtime::Runtime};
@@ -9,7 +8,7 @@ use boardstudio_model::model::{
     PartModel, RotaryProfile, Vec2, Vec3,
 };
 use boardstudio_web_ui_shared::inspector_fields::{
-    InspectorSection, NumericField, SelectField, ToggleField,
+    InspectorSection, NumericField, SelectField, TextCommitField, ToggleField,
 };
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -592,9 +591,9 @@ pub fn ModuleProfileEditor(
                     legend { "Rotary encoder profile" }
                     p { "The source identifies its terminals and EC11 driver. Enter confirmed pulses and actions per rotation before expecting firmware export to qualify this module." }
                     div { class: "grid gap-2",
-                        EditorTextField { label: "A terminal", aria_label: "Rotary A terminal", value: "{rotary().a}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.a = event.value()); } }
-                        EditorTextField { label: "B terminal", aria_label: "Rotary B terminal", value: "{rotary().b}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.b = event.value()); } }
-                        EditorTextField { label: "Common terminal", aria_label: "Rotary common terminal", value: "{rotary().common}", oninput: move |event: FormEvent| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.common = event.value()); } }
+                        TextCommitField { label: "A terminal", aria_label: "Rotary A terminal", value: "{rotary().a}", on_commit: move |value| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.a = value); } }
+                        TextCommitField { label: "B terminal", aria_label: "Rotary B terminal", value: "{rotary().b}", on_commit: move |value| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.b = value); } }
+                        TextCommitField { label: "Common terminal", aria_label: "Rotary common terminal", value: "{rotary().common}", on_commit: move |value| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.common = value); } }
                         SelectField::<String> {
                             label: "Driver",
                             aria_label: "Rotary driver",
@@ -643,7 +642,7 @@ pub fn ModuleProfileEditor(
                 NumericField { label: "Z from midplane · mm", aria_label: "Module volume Z", step: Some(0.1), value: shape().z.parse::<f64>().unwrap_or_default(), mixed: shape().z.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.z = number.to_string()) }
                 NumericField { label: "Height · mm", aria_label: "Module volume height", min: Some(0.1), step: Some(0.1), value: shape().height.parse::<f64>().unwrap_or_default(), mixed: shape().height.is_empty(), placeholder: "Enter a number", on_commit: move |number: f64| shape.with_mut(|shape| shape.height = number.to_string()) }
             }
-            EditorTextField { label: "Dimension evidence", aria_label: "Module volume evidence", value: "{shape().source}", oninput: move |event: FormEvent| shape.with_mut(|shape| shape.source = event.value()) }
+            TextCommitField { label: "Dimension evidence", aria_label: "Module volume evidence", value: "{shape().source}", on_commit: move |value| shape.with_mut(|shape| shape.source = value) }
             ToggleField {
                 label: "Dimensions and datum reviewed", checked: shape().qualified,
                 on_commit: move |checked| shape.with_mut(|shape| shape.qualified = checked),

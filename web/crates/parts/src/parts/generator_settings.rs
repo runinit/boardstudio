@@ -1,12 +1,11 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
-use super::editor_fields::{EditorTextField, EditorTextarea};
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Asset, PartDefinition};
-use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, ToggleField};
-use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField};
+use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, TextareaField, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -707,7 +706,7 @@ fn GeneratorParameterField(
         });
         return rsx! {
             div { class: "grid gap-2",
-                EditorTextField { label: "{label}", aria_label: "{key}", value: "{current}", readonly: true }
+                p { "{label}: {current}" }
                 Button {
                     variant: ButtonVariant::Secondary,
                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -782,9 +781,9 @@ fn GeneratorParameterField(
         "array" | "object" | "anchor" => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                EditorTextarea {
+                TextareaField {
                     label: "{label}",
-                    aria_label: "{key}",
+                    aria_label: Some(key.clone()),
                     rows: 3,
                     spellcheck: false,
                     value: "{current}",
@@ -807,11 +806,12 @@ fn GeneratorParameterField(
         _ => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                EditorTextField {
-                    label: "{label}",
-                    aria_label: "{key}",
-                    value: "{current}",
-                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
+                TextCommitField {
+                    label: "{label}", aria_label: "{key}", value: "{current}",
+                    on_commit: move |value: String| on_change.call(Value::String(value)),
+                }
+                if !current.is_empty() {
+                    Button { onclick: move |_| on_change.call(Value::String(String::new())), "Clear {label}" }
                 }
             }
         }

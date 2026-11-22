@@ -65,7 +65,7 @@ pub(super) fn AssemblyDraftFields(
         section { class: "grid gap-3", "aria-label": "Assembly editor",
             h3 { "Assembly editor" }
             { let name_draft = draft.clone();
-              rsx! { EditorTextField { label: "Name", value: "{render_value.name}", disabled: controls_disabled, oninput: move |event: FormEvent| { let mut value = value; value.with_mut(|value| value.name = event.value()); publish_draft(value, assets, &name_draft, on_change); } } }
+              rsx! { TextCommitField { label: "Name", value: "{render_value.name}", disabled_reason: controls_disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |name| { let mut value = value; value.with_mut(|value| value.name = name); publish_draft(value, assets, &name_draft, on_change); } } }
             }
             for member in render_value.members.clone() {
                 AssemblyMemberFields {
