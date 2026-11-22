@@ -7,16 +7,15 @@
 
 use std::collections::BTreeMap;
 
+use crate::common::qualification::{self, footprint, layers, near as close, number, scalar};
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::export::export_forms;
-use boardstudio_footprints::nets::NetAllocator;
 use boardstudio_footprints::sexpr::{self, Expr};
-use boardstudio_footprints::types::{GeneratorRef, PadShape, PartRef, Pose2, Side, Vec2};
+use boardstudio_footprints::types::{GeneratorRef, PadShape, Side, Vec2};
 use boardstudio_footprints::{bundled, generators};
 use serde_json::{Value, json};
 
 const SOURCE: &str = "ceoloide/rotary_encoder_ec11_ec12";
-const EPSILON: f64 = 1.0e-6;
 const SENTINELS: [(&str, &str); 5] = [
     ("A", "ENCODER_B_SENTINEL"),
     ("B", "ENCODER_COMMON_SENTINEL"),
@@ -48,58 +47,20 @@ fn parameters() -> Value {
 }
 
 fn generator() -> GeneratorRef {
-    GeneratorRef {
-        source: SOURCE.into(),
-        version: "bundled-1".into(),
-        parameters: serde_json::from_value(parameters()).expect("generator parameters"),
-    }
+    qualification::generator(SOURCE, parameters())
 }
 
 fn render(rotation: f64) -> Vec<Expr> {
-    let part = PartRef {
-        id: "ec11-qualification".into(),
-        reference: "RE1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 13.25, y: -8.75 },
-            rotation,
-        },
-        side: Side::Front,
-        generator_parameters: None,
-    };
-    let mut nets = NetAllocator::new(&[], 1);
-    bundled()
-        .render("ec11-qualification", &generator(), Some(&part), &mut nets)
-        .expect("explicit front encoder fixture renders")
-}
-
-fn named<'a>(items: &'a [Expr], name: &str) -> Option<&'a [Expr]> {
-    items.iter().find_map(|item| {
-        let list = item.as_list()?;
-        (list.first()?.value().ok()? == name).then_some(list)
-    })
-}
-
-fn scalar(items: &[Expr], index: usize) -> &str {
-    items
-        .get(index)
-        .expect("field value")
-        .value()
-        .expect("scalar")
-}
-
-fn number(items: &[Expr], index: usize) -> f64 {
-    scalar(items, index).parse().expect("numeric field")
-}
-
-fn close(actual: f64, expected: f64, label: &str) {
-    assert!(
-        (actual - expected).abs() <= EPSILON,
-        "{label}: expected {expected}, found {actual}"
+    let id = "ec11-qualification";
+    let part = qualification::part(
+        id,
+        "RE1",
+        Side::Front,
+        Vec2 { x: 13.25, y: -8.75 },
+        rotation,
     );
-}
-
-fn footprint(forms: &[Expr]) -> &[Expr] {
-    named(forms, "footprint").expect("rendered footprint")
+    qualification::render(id, &generator(), Some(&part))
+        .expect("explicit front encoder fixture renders")
 }
 
 fn pad<'a>(forms: &'a [Expr], id: &str) -> &'a [Expr] {
@@ -116,15 +77,6 @@ fn pad<'a>(forms: &'a [Expr], id: &str) -> &'a [Expr] {
 fn pad_at(pad: &[Expr]) -> (f64, f64, f64) {
     let at = sexpr::child(pad, "at").expect("pad at");
     (number(at, 1), number(at, 2), number(at, 3))
-}
-
-fn layers(pad: &[Expr]) -> Vec<&str> {
-    sexpr::child(pad, "layers")
-        .expect("pad layers")
-        .iter()
-        .skip(1)
-        .map(|layer| layer.value().expect("layer name"))
-        .collect()
 }
 
 fn net(pad: &[Expr]) -> Option<(&str, f64)> {

@@ -175,10 +175,6 @@ pub fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec<String
     removed.into_iter().collect()
 }
 
-pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
-    validate_matrix_projection(matrix, doc).map(|_| ())
-}
-
 fn validate_matrix_projection(
     matrix: &Matrix,
     doc: &ProjectDoc,

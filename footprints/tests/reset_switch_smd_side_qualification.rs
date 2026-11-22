@@ -1,8 +1,9 @@
+use crate::common::qualification::{
+    self, field as form, layers, near as close, net_name, number, scalar, xyz as vec3,
+};
 use boardstudio_footprints::{
-    generators::bundled,
-    nets::NetAllocator,
     sexpr::{self, Expr},
-    types::{GeneratorRef, PartRef, Pose2, Side, Vec2},
+    types::{Side, Vec2},
 };
 use serde_json::{Value, json};
 
@@ -47,59 +48,11 @@ fn render(side: &str, part_side: Side, at: Vec2, rotation: f64, overrides: Value
         parameters.extend(overrides.clone());
     }
 
-    let generator = GeneratorRef {
-        source: SOURCE.into(),
-        version: "bundled-1".into(),
-        parameters: parameters.into_iter().collect(),
-    };
-    let part = PartRef {
-        id: "reset-switch-side-qualification".into(),
-        reference: "SW_RST_QUAL".into(),
-        pose: Pose2 { at, rotation },
-        side: part_side,
-        generator_parameters: None,
-    };
-    let mut nets = NetAllocator::new(&[], 1);
-    bundled()
-        .render(
-            "reset-switch-side-qualification",
-            &generator,
-            Some(&part),
-            &mut nets,
-        )
+    let generator = qualification::generator(SOURCE, Value::Object(parameters));
+    let id = "reset-switch-side-qualification";
+    let part = qualification::part(id, "SW_RST_QUAL", part_side, at, rotation);
+    qualification::render(id, &generator, Some(&part))
         .expect("the bundled side-reset switch renders")
-}
-
-fn named<'a>(items: &'a [Expr], name: &str) -> Option<&'a [Expr]> {
-    items.iter().find_map(|item| {
-        let list = item.as_list()?;
-        (list.first()?.value().ok()? == name).then_some(list)
-    })
-}
-
-fn scalar(items: &[Expr], index: usize) -> &str {
-    items
-        .get(index)
-        .unwrap_or_else(|| panic!("missing item {index} in {items:?}"))
-        .value()
-        .unwrap_or_else(|_| panic!("item {index} is not scalar in {items:?}"))
-}
-
-fn number(items: &[Expr], index: usize) -> f64 {
-    scalar(items, index)
-        .parse()
-        .unwrap_or_else(|_| panic!("item {index} is not a number in {items:?}"))
-}
-
-fn close(actual: f64, expected: f64, context: &str) {
-    assert!(
-        (actual - expected).abs() <= EPSILON_MM,
-        "{context}: expected {expected}, found {actual} (numeric epsilon {EPSILON_MM} mm)"
-    );
-}
-
-fn form<'a>(forms: &'a [Expr], name: &str) -> &'a [Expr] {
-    named(forms, name).unwrap_or_else(|| panic!("missing {name} form"))
 }
 
 fn pads(footprint: &[Expr]) -> Vec<Pad<'_>> {
@@ -126,19 +79,6 @@ fn pad_number<'a>(pads: &'a [Pad<'a>], number: &str) -> &'a Pad<'a> {
     pads.iter()
         .find(|pad| pad.number == number)
         .unwrap_or_else(|| panic!("missing numbered pad {number}"))
-}
-
-fn layer_names<'a>(pad: &'a Pad<'_>) -> Vec<&'a str> {
-    sexpr::child(pad.items, "layers")
-        .expect("pad has a layers field")
-        .iter()
-        .skip(1)
-        .map(|layer| layer.value().expect("layer name is scalar"))
-        .collect()
-}
-
-fn net_name<'a>(pad: &'a Pad<'_>) -> Option<&'a str> {
-    sexpr::child(pad.items, "net").map(|net| scalar(net, 2))
 }
 
 fn assert_land_pattern(pads: &[Pad<'_>]) {
@@ -247,14 +187,14 @@ fn assert_case(side: &str, part_side: Side, rotation: f64) {
         let pad = pad_number(&all_pads, number);
         assert_eq!(pad.kind, "smd");
         assert_eq!(pad.shape, "rect");
-        assert_eq!(layer_names(pad), expected_layers);
+        assert_eq!(layers(pad.items), expected_layers);
         let expected_net = if number == "1" || number == "3" {
             FROM_NET
         } else {
             TO_NET
         };
         assert_eq!(
-            net_name(pad),
+            net_name(pad.items),
             Some(expected_net),
             "terminal {number} contact group"
         );
@@ -286,9 +226,9 @@ fn assert_case(side: &str, part_side: Side, rotation: f64) {
         .filter(|pad| pad.number.is_empty() && pad.kind == "np_thru_hole" && pad.shape == "circle")
         .collect();
     assert_eq!(holes.len(), 2, "two unnumbered circular NPTH boss holes");
-    assert_eq!(layer_names(holes[0]), ["*.Cu", "*.Mask"]);
-    assert_eq!(layer_names(holes[1]), ["*.Cu", "*.Mask"]);
-    assert!(holes.iter().all(|hole| net_name(hole).is_none()));
+    assert_eq!(layers(holes[0].items), ["*.Cu", "*.Mask"]);
+    assert_eq!(layers(holes[1].items), ["*.Cu", "*.Mask"]);
+    assert!(holes.iter().all(|hole| net_name(hole.items).is_none()));
 
     let upper = holes
         .iter()
@@ -358,12 +298,6 @@ fn assert_case(side: &str, part_side: Side, rotation: f64) {
     close(number(footprint_at, 1), pose.x, "footprint pose x");
     close(number(footprint_at, 2), -pose.y, "footprint down-Y pose y");
     close(number(footprint_at, 3), rotation, "footprint pose rotation");
-}
-
-fn vec3(parent: &[Expr], name: &str) -> [f64; 3] {
-    let vector = sexpr::child(parent, name).expect("model vector exists");
-    let xyz = sexpr::child(vector, "xyz").expect("model vector has xyz values");
-    [number(xyz, 1), number(xyz, 2), number(xyz, 3)]
 }
 
 fn model(footprint: &[Expr]) -> &[Expr] {

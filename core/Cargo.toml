@@ -7,9 +7,6 @@ license = "MIT OR Apache-2.0"
 # Integration tests are listed below so the per-file tests link as one binary.
 autotests = false
 
-[features]
-test-support = ["boardstudio-core-engine/test-support"]
-
 [[example]]
 name = "dump_firmware"
 
@@ -47,14 +44,6 @@ path = "tests/integration_mechanical.rs"
 [[test]]
 name = "integration_modules"
 path = "tests/integration_modules.rs"
-
-[[test]]
-name = "matrix_performance"
-path = "tests/matrix_performance.rs"
-
-[[test]]
-name = "performance"
-path = "tests/performance.rs"
 
 [lints]
 workspace = true

@@ -186,71 +186,6 @@ fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
     assert_eq!(part_ids.last(), Some(&missing));
 }
 
-#[test]
-#[ignore = "Focused native phase comparison; run with --ignored --nocapture"]
-fn settled_stagger_layout_profile() {
-    use std::{hint::black_box, time::Instant};
-
-    for large in [false, true] {
-        let mut engine = CoreEngine::new();
-        assert!(matches!(
-            engine.handle(CoreRequest::Open {
-                id: "profile".into(),
-                document: stagger_profile_document(large),
-            }),
-            CoreReply::Scene { .. }
-        ));
-        let columns = engine.document.matrices[0].columns;
-        for column in [0, columns - 1] {
-            let operation = stagger(column, 4.0);
-            let mut samples = [Vec::new(), Vec::new()];
-            for i in 0..124 {
-                let mut results = [None, None];
-                for route in [i % 2, (i + 1) % 2] {
-                    let mut draft = engine.document.clone();
-                    let start = Instant::now();
-                    let changed = if route == 0 {
-                        // The parent profile measured apply followed by full layout resolve.
-                        let changed =
-                            apply_with_ledger(&mut draft, &[], &operation, &engine.identity_ledger)
-                                .unwrap();
-                        layout::resolve(&mut draft).unwrap();
-                        changed
-                    } else {
-                        let (changed, settled) = engine
-                            .apply_layout_edit(&mut draft, &[], &operation)
-                            .unwrap();
-                        assert!(settled);
-                        changed
-                    };
-                    let elapsed = start.elapsed();
-                    if i >= 24 {
-                        samples[route].push(elapsed.as_secs_f64() * 1_000.0);
-                    }
-                    results[route] = Some((black_box(changed), draft));
-                }
-                let [(changed_full, full), (changed_settled, settled)] =
-                    results.map(Option::unwrap);
-                assert_eq!(changed_settled, changed_full);
-                assert_eq!(
-                    serde_json::to_vec(&settled).unwrap(),
-                    serde_json::to_vec(&full).unwrap()
-                );
-            }
-            for (label, samples) in ["full", "targeted"].into_iter().zip(&mut samples) {
-                samples.sort_by(f64::total_cmp);
-                eprintln!(
-                    "{} keys, column {column}, {label}, n={}: p50={:.3} ms p95={:.3} ms",
-                    engine.document.matrices[0].part_ids.len(),
-                    samples.len(),
-                    samples[49],
-                    samples[94]
-                );
-            }
-        }
-    }
-}
-
 fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
     CoreRequest::Edit {
         id: "edit".into(),
@@ -336,6 +271,163 @@ fn preview_move(positions: Vec<Position>) -> CoreRequest {
             operation: EditOperation::MoveParts { positions },
         },
     }
+}
+
+#[test]
+fn plain_move_commit_reuses_only_a_matching_preview() {
+    for mismatch in [
+        None,
+        Some("position"),
+        Some("transaction"),
+        Some("targets"),
+        Some("edit"),
+    ] {
+        let document = fixture();
+        let (mut engine, mut cold) = open_preview_fixture(document);
+        let request = preview_move(vec![Position {
+            id: "matrix/matrix/r0c1".into(),
+            at: Vec2 { x: 22.0, y: 4.0 },
+        }]);
+        assert!(matches!(
+            engine.handle(request.clone()),
+            CoreReply::Preview { .. }
+        ));
+        assert!(engine.move_preview.is_some());
+        let CoreRequest::Edit { id, mut command } = request else {
+            unreachable!()
+        };
+        command.phase = EditPhase::Commit;
+        match mismatch {
+            Some("position") => {
+                let EditOperation::MoveParts { positions } = &mut command.operation else {
+                    unreachable!()
+                };
+                positions[0].at.y += 1.0;
+            }
+            Some("transaction") => command.transaction_id.push_str(" other"),
+            Some("targets") => command.target_ids.push("other".into()),
+            Some("edit") => {
+                let CoreRequest::Edit { mut command, id } = edit(0, rename("draft")) else {
+                    unreachable!()
+                };
+                command.phase = EditPhase::Preview;
+                assert!(matches!(
+                    engine.handle(CoreRequest::Edit { id, command }),
+                    CoreReply::Preview { .. }
+                ));
+                assert!(engine.move_preview.is_none());
+            }
+            _ => {}
+        }
+        let projections = engine.full_scene_projections.get();
+        let CoreReply::Scene { scene, .. } =
+            compare(&mut engine, &mut cold, CoreRequest::Edit { id, command })
+        else {
+            panic!("the move should commit");
+        };
+        assert_eq!(scene.revision, 1);
+        assert!(
+            scene
+                .changed_ids
+                .iter()
+                .any(|id| id == "matrix/matrix/r0c1")
+        );
+        assert_eq!(
+            engine.full_scene_projections.get() - projections,
+            usize::from(mismatch.is_some())
+        );
+        assert!(engine.move_preview.is_none());
+    }
+}
+
+#[test]
+fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
+    use mirrored_half::{MirrorDestination, MirroredPair};
+
+    let mut document = fixture();
+    let source = document.boards[0].id.clone();
+    document.boards.push(Board {
+        id: "other-half".into(),
+        name: "Other half".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.mirrored_pairs.push(MirroredPair {
+        id: "pair".into(),
+        source: MirrorDestination::SecondBoard(source),
+        destination: MirrorDestination::SecondBoard("other-half".into()),
+        mapping: Pose2 {
+            at: Vec2 { x: 100.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        overrides: vec![],
+    });
+    let open = CoreRequest::Open {
+        id: "open".into(),
+        document,
+    };
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    for session in [&mut engine, &mut cold] {
+        assert!(matches!(
+            session.handle(open.clone()),
+            CoreReply::Scene { .. }
+        ));
+    }
+    let source_id = String::from("matrix/matrix/r0c1");
+    let sources = [source_id.clone()];
+    let target_id = engine
+        .resolved
+        .affected_targets(&sources)
+        .next()
+        .unwrap()
+        .clone();
+    let request = preview_move(vec![Position {
+        id: source_id.clone(),
+        at: Vec2 { x: 22.0, y: 4.0 },
+    }]);
+    assert!(matches!(
+        engine.handle(request.clone()),
+        CoreReply::Preview { .. }
+    ));
+    assert!(engine.move_preview.is_none());
+    let projections = engine.full_scene_projections.get();
+    let CoreRequest::Edit { id, mut command } = request else {
+        unreachable!()
+    };
+    command.phase = EditPhase::Commit;
+    let commit = CoreRequest::Edit { id, command };
+    let actual = engine.handle(commit.clone());
+    assert_eq!(engine.full_scene_projections.get(), projections + 1);
+    assert_eq!(
+        boardstudio_model::wire::encode_core_reply(&actual),
+        boardstudio_model::wire::encode_core_reply(&cold.handle(commit)),
+    );
+    let CoreReply::Scene { scene, .. } = actual else {
+        panic!("expected mirrored move scene")
+    };
+    let at = |id| {
+        scene
+            .transforms
+            .iter()
+            .find(|item| item.id == id)
+            .unwrap()
+            .pose
+            .at
+    };
+    let source = at(source_id);
+    let target = at(target_id);
+    assert_eq!(
+        target,
+        Vec2 {
+            x: 100.0 - source.x,
+            y: source.y
+        }
+    );
 }
 
 fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
@@ -1215,167 +1307,3 @@ fn stagger_diagnostics_match_cold_wire_and_history() {
         }
     }
 }
-
-#[test]
-#[ignore = "Local paired native stage measurement"]
-fn stagger_preview_stage_profile() {
-    use std::{hint::black_box, time::Instant};
-
-    for diagnostics in [false, true] {
-        for large in [false, true] {
-            let document = if diagnostics {
-                stagger_diagnostics_document(large)
-            } else {
-                stagger_profile_document(large)
-            };
-            let (mut engine, _) = open_preview_fixture(document);
-            let keys = engine.document.matrices[0].part_ids.len();
-            for column in [0, engine.document.matrices[0].columns - 1] {
-                let mut samples: [Vec<f64>; 4] = Default::default();
-                let mut envelopes = geometry::EnvelopeCache::default();
-                for i in 0..224 {
-                    // Each settled draft differs from the previous request and the accepted scene.
-                    let operation = stagger(column, [0.25, 1.25, 2.75, 4.0][i % 4]);
-                    let mut request = edit(0, operation.clone());
-                    let CoreRequest::Edit { command, .. } = &mut request else {
-                        unreachable!();
-                    };
-                    command.phase = EditPhase::Preview;
-                    let start = Instant::now();
-                    let reply = engine.handle(request);
-                    let full = start.elapsed();
-                    let CoreReply::Preview { scene: reply, .. } = black_box(reply) else {
-                        panic!("expected stagger preview");
-                    };
-                    if diagnostics {
-                        assert!(reply.finding_markers.iter().any(|marker| {
-                            marker.finding_id.starts_with("board:main:outline:body:")
-                        }));
-                    }
-
-                    let mut draft = engine.document.clone();
-                    let (changed, settled) = engine
-                        .apply_layout_edit(&mut draft, &[], &operation)
-                        .unwrap();
-                    assert!(settled);
-                    let moved =
-                        settled_outline_changes(&engine.document, &draft, &operation).unwrap();
-
-                    let start = Instant::now();
-                    let ((cache, contours, geom_findings), geometry) =
-                        geometry::outlines_with_board_reuse(
-                            &draft,
-                            &engine.outline_cache,
-                            &moved,
-                            &mut envelopes,
-                        );
-                    let outline = start.elapsed();
-                    let geometry = geometry.unwrap();
-                    let start = Instant::now();
-                    let board = ValidatedBoardScene::new(&draft, geometry);
-                    let fabrication = start.elapsed();
-                    let start = Instant::now();
-                    let reply = engine.scene_with_board_geometry(
-                        "profile".into(),
-                        SceneInput {
-                            transaction: "project edit",
-                            changed,
-                            document: &draft,
-                            contours: &contours,
-                            geom_findings: &geom_findings,
-                            cache: &cache,
-                            kind: SceneKind::Preview,
-                        },
-                        Some(board),
-                    );
-                    let scene = start.elapsed();
-                    assert!(matches!(black_box(reply), CoreReply::Preview { .. }));
-
-                    if i >= 24 {
-                        for (samples, duration) in
-                            samples.iter_mut().zip([outline, fabrication, scene, full])
-                        {
-                            samples.push(duration.as_secs_f64() * 1e3);
-                        }
-                    }
-                }
-                for (label, samples) in ["outline", "fabrication", "scene", "full"]
-                    .into_iter()
-                    .zip(&mut samples)
-                {
-                    samples.sort_by(f64::total_cmp);
-                    let n = samples.len();
-                    eprintln!(
-                        "{keys} keys column {column} diagnostics={diagnostics} / {label}: n={n} p50={:.3}ms p95={:.3}ms",
-                        samples[n / 2 - 1],
-                        samples[n * 95 / 100 - 1]
-                    );
-                }
-            }
-        }
-    }
-}
-
-#[test]
-#[ignore = "Local paired native preview/commit measurement"]
-fn stagger_preview_commit_profile() {
-    use std::{hint::black_box, time::Instant};
-
-    for large in [false, true] {
-        let document = stagger_profile_document(large);
-        for column in [0, document.matrices[0].columns - 1] {
-            let mut samples = [vec![], vec![], vec![], vec![]];
-            for i in 0..124 {
-                let mut engine = CoreEngine::new();
-                let CoreReply::Scene { .. } = engine.handle(CoreRequest::Open {
-                    id: "profile-open".into(),
-                    document: document.clone(),
-                }) else {
-                    panic!("could not open profile fixture");
-                };
-                let start_pair = Instant::now();
-                for (index, value) in [1.25, 2.75, 4.0].into_iter().enumerate() {
-                    let mut request = edit(0, stagger(column, value));
-                    let CoreRequest::Edit { command, .. } = &mut request else {
-                        unreachable!()
-                    };
-                    command.phase = EditPhase::Preview;
-                    let start = Instant::now();
-                    let reply = engine.handle(request);
-                    if i >= 24 {
-                        samples[usize::from(index > 0)].push(start.elapsed().as_secs_f64() * 1e3);
-                    }
-                    assert!(matches!(black_box(reply), CoreReply::Preview { .. }));
-                }
-                let request = edit(0, stagger(column, 4.0));
-                let start = Instant::now();
-                let reply = engine.handle(request);
-                if i >= 24 {
-                    samples[2].push(start.elapsed().as_secs_f64() * 1e3);
-                    samples[3].push(start_pair.elapsed().as_secs_f64() * 1e3);
-                }
-                assert!(matches!(black_box(reply), CoreReply::Scene { .. }));
-            }
-            for (label, samples) in [
-                "first preview",
-                "subsequent distinct previews",
-                "matching commit",
-                "3 previews + commit",
-            ]
-            .into_iter()
-            .zip(&mut samples)
-            {
-                samples.sort_by(f64::total_cmp);
-                let n = samples.len();
-                eprintln!(
-                    "{} keys column {column} / {label}: n={n} p50={:.3}ms p95={:.3}ms",
-                    document.matrices[0].part_ids.len(),
-                    samples[n / 2 - 1],
-                    samples[n * 95 / 100 - 1]
-                );
-            }
-        }
-    }
-}
-
-mod stagger_geometry;

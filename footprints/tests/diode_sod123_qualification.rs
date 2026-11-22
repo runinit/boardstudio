@@ -1,8 +1,8 @@
 //! Qualification of the explicitly selected Vishay 1N4148W SOD-123 land pattern.
 //! The selected left-land height and centered origin are BoardStudio choices.
+use crate::common::qualification::{self, footprint};
 use boardstudio_footprints::geometry::geometry;
 use boardstudio_footprints::models::model_bindings;
-use boardstudio_footprints::nets::NetAllocator;
 use boardstudio_footprints::sexpr::{Expr, child, children};
 use boardstudio_footprints::types::{GeneratorRef, PartRef};
 use boardstudio_footprints::{GeneratorError, bundled};
@@ -13,11 +13,7 @@ const FLAG: &str = "use_vishay_1n4148w_land_pattern";
 const EPSILON: f64 = 1e-9;
 
 fn generator(parameters: Value) -> GeneratorRef {
-    GeneratorRef {
-        source: SOURCE.into(),
-        version: "bundled-1".into(),
-        parameters: serde_json::from_value(parameters).expect("generator parameters"),
-    }
+    qualification::generator(SOURCE, parameters)
 }
 
 fn part(face: &str, rotation: f64, parameters: Value) -> PartRef {
@@ -32,19 +28,7 @@ fn part(face: &str, rotation: f64, parameters: Value) -> PartRef {
 }
 
 fn render(parameters: Value, placed: Option<&PartRef>) -> Result<Vec<Expr>, GeneratorError> {
-    let registry = bundled();
-    let mut nets = NetAllocator::new(&[], 1);
-    registry.render("diode-1", &generator(parameters), placed, &mut nets)
-}
-
-fn footprint(forms: &[Expr]) -> &[Expr] {
-    forms
-        .iter()
-        .find_map(|form| {
-            let items = form.as_list()?;
-            matches!(items.first(), Some(Expr::Atom(name)) if name == "footprint").then_some(items)
-        })
-        .expect("rendered footprint")
+    qualification::render("diode-1", &generator(parameters), placed)
 }
 
 fn number(node: Option<&Expr>) -> f64 {

@@ -4,24 +4,19 @@
 //! upstream Ergogen resolves `aggregate` before `affect`.
 use crate::support::fixture::{
     self, key_part as typed_key, part_at as at, scene_and_document as typed_scene,
+    wire_open as open,
 };
+use crate::support::query::{arr, empty_project};
+use crate::support::session::{Session, error};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
-
-fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    fixture::wire_open(engine, id, &document)
-}
 
 fn json_snapshot(engine: &mut CoreEngine) -> Value {
     fixture::wire_snapshot(engine, "snap")["document"].clone()
 }
 
 fn document() -> Value {
-    let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
-        "aggregate-anchors",
-        "Aggregate anchors",
-    ))
-    .unwrap();
+    let mut document = empty_project("aggregate-anchors", "Aggregate anchors");
     document["definitions"] = json!([{
         "id": "def", "name": "Switch", "kind": "switch",
         "courtyard": [], "pads": []
@@ -80,15 +75,11 @@ fn thumb(document: &mut Value, aggregate: Value) {
 }
 
 fn scene_cell(reply: &Value, matrix: &str, row: u64, column: u64) -> (f64, f64, f64) {
-    let scene = reply["scene"]["matrixScenes"]
-        .as_array()
-        .unwrap()
+    let scene = arr(&reply["scene"]["matrixScenes"])
         .iter()
         .find(|scene| scene["matrixId"] == matrix)
         .unwrap_or_else(|| panic!("missing scene {matrix}"));
-    let cell = scene["cells"]
-        .as_array()
-        .unwrap()
+    let cell = arr(&scene["cells"])
         .iter()
         .find(|cell| cell["row"] == row && cell["column"] == column)
         .unwrap_or_else(|| panic!("missing cell ({row},{column}) in {scene}"));
@@ -178,29 +169,16 @@ fn aggregate_intersect_anchor_opens_with_the_heading_crossing_pose() {
     assert_cell(&reply, "thumb", 0, 0, 0.0, -9.0, 0.0);
 }
 
-fn typed_open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = typed_scene(engine.handle(fixture::open(doc)));
-    (engine, scene, doc)
-}
-
 fn typed_edit(
-    engine: &mut CoreEngine,
+    session: &mut Session,
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    typed_scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
+    typed_scene(session.commit(doc.revision, operation))
 }
 
-fn typed_error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
-    match engine.handle(fixture::commit("edit", "edit", doc.revision, operation)) {
-        CoreReply::Error { message, .. } => message,
-        other => panic!("expected error: {other:?}"),
-    }
-}
-
-fn typed_snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    typed_scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
+fn typed_error(session: &mut Session, doc: &ProjectDoc, operation: EditOperation) -> String {
+    error(&session.commit(doc.revision, operation)).to_owned()
 }
 
 fn all() -> Follow {
@@ -285,7 +263,7 @@ fn average_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
 
 #[test]
 fn aggregate_average_follows_part_moves_through_the_mean() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = typed_edit(
         &mut engine,
         &doc,
@@ -320,7 +298,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
         anchor: Some(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)])),
         ..fixture::matrix("thumb", 1, 3)
     };
-    let (_, ordered_scene, _) = typed_open(typed_doc(
+    let (_, ordered_scene, _) = Session::opened(typed_doc(
         typed_main(vec![]),
         vec![thumb.clone()],
         vec!["main", "thumb"],
@@ -336,7 +314,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
         .unwrap();
     let thumb = doc.matrices.remove(thumb_index);
     doc.matrices.insert(0, thumb);
-    let (_, reversed_scene, _) = typed_open(doc);
+    let (_, reversed_scene, _) = Session::opened(doc);
     let order_of = |scene: &SceneDelta| {
         scene
             .matrix_scenes
@@ -393,7 +371,7 @@ fn aggregate_two_cycle_refuses_naming_the_matrix() {
 
 #[test]
 fn aggregate_self_part_and_two_cycle_edits_refuse_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = typed_edit(
         &mut engine,
         &doc,
@@ -415,7 +393,7 @@ fn aggregate_self_part_and_two_cycle_edits_refuse_atomically() {
         message.contains("cannot anchor to itself"),
         "unexpected message: {message:?}"
     );
-    assert_eq!(typed_snapshot(&mut engine), doc);
+    assert_eq!(engine.snapshot(), doc);
     // Closing a 2-cycle through an aggregate part refuses naming the matrix.
     let message = typed_error(
         &mut engine,
@@ -429,12 +407,12 @@ fn aggregate_self_part_and_two_cycle_edits_refuse_atomically() {
         message.contains("Matrix anchor cycle at main"),
         "unexpected message: {message:?}"
     );
-    assert_eq!(typed_snapshot(&mut engine), doc);
+    assert_eq!(engine.snapshot(), doc);
 }
 
 #[test]
 fn aggregate_parallel_intersect_refuses_without_mutation() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = typed_edit(
         &mut engine,
         &doc,
@@ -458,7 +436,7 @@ fn aggregate_parallel_intersect_refuses_without_mutation() {
         message.contains("do not intersect"),
         "unexpected message: {message:?}"
     );
-    assert_eq!(typed_snapshot(&mut engine), doc);
+    assert_eq!(engine.snapshot(), doc);
 }
 
 #[test]
@@ -506,7 +484,7 @@ fn aggregate_follow_filters_the_completed_candidate() {
         at: Vec2 { x: 20.0, y: 40.0 },
         rotation: 60.0,
     };
-    let (_, scene, _) = typed_open(doc);
+    let (_, scene, _) = Session::opened(doc);
     let cell = scene
         .matrix_scenes
         .iter()
@@ -620,27 +598,18 @@ fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
         .and_then(|matrix| matrix.anchor.clone())
 }
 
-fn undone(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("expected scene: {other:?}"),
-    }
-}
-
 /// A refused edit pushes no history entry: nothing remains to undo.
-fn assert_no_history_entry(engine: &mut CoreEngine) {
+fn assert_no_history_entry(engine: &mut Session) {
     assert!(
         matches!(
-            engine.handle(CoreRequest::Undo {
-                id: "refusal-history".into()
-            }),
+            engine.undo(),
             CoreReply::Error { message, .. } if message.contains("History is empty")
         ),
         "refused edit must leave no history entry"
     );
 }
 
-fn added_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> (SceneDelta, ProjectDoc) {
+fn added_thumb(engine: &mut Session, doc: &ProjectDoc) -> (SceneDelta, ProjectDoc) {
     typed_edit(
         engine,
         doc,
@@ -652,128 +621,71 @@ fn added_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> (SceneDelta, Projec
 }
 
 #[test]
-fn aggregate_add_refuses_unknown_part_matrix_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let message = typed_error(
-        &mut engine,
-        &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor: average_anchor(vec![part("main", 0, 0), part("ghost", 0, 0)]),
-        },
-    );
-    assert!(
-        message.contains("anchor target ghost is missing"),
-        "unexpected message: {message:?}"
-    );
-    assert_eq!(typed_snapshot(&mut engine), doc);
-    assert_no_history_entry(&mut engine);
+fn aggregate_add_refuses_unknown_matrix_and_out_of_range_key_atomically() {
+    for (target, explanation) in [
+        (part("ghost", 0, 0), "anchor target ghost is missing"),
+        (part("main", 0, 9), "anchor key matrix/main/r0c9 is missing"),
+    ] {
+        let (mut engine, _, doc) =
+            Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+        let message = typed_error(
+            &mut engine,
+            &doc,
+            EditOperation::AddAnchoredMatrix {
+                id: "thumb".into(),
+                anchor: average_anchor(vec![part("main", 0, 0), target]),
+            },
+        );
+        assert!(
+            message.contains(explanation),
+            "unexpected message: {message:?}"
+        );
+        assert_eq!(engine.snapshot(), doc);
+        assert_no_history_entry(&mut engine);
+    }
 }
 
 #[test]
-fn aggregate_add_refuses_out_of_range_part_key_atomically() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let message = typed_error(
-        &mut engine,
-        &doc,
-        EditOperation::AddAnchoredMatrix {
-            id: "thumb".into(),
-            anchor: average_anchor(vec![part("main", 0, 0), part("main", 0, 9)]),
-        },
-    );
-    assert!(
-        message.contains("anchor key matrix/main/r0c9 is missing"),
-        "unexpected message: {message:?}"
-    );
-    assert_eq!(typed_snapshot(&mut engine), doc);
-    assert_no_history_entry(&mut engine);
-}
-
-#[test]
-fn aggregate_set_anchor_refuses_empty_parts_atomically() {
-    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &opened);
-    let message = typed_error(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrixAnchor {
-            matrix_id: "thumb".into(),
-            anchor: average_anchor(vec![]),
-        },
-    );
-    assert!(
-        message.contains("needs at least one part"),
-        "unexpected message: {message:?}"
-    );
-    assert_eq!(typed_snapshot(&mut engine), doc);
-    // The refusal adds no history entry: one Undo returns to the opened
-    // document, and nothing remains to undo.
-    let undone_doc = undone(&mut engine);
-    assert_eq!(undone_doc.matrices, opened.matrices);
-    assert_eq!(undone_doc.layouts, opened.layouts);
-    assert_eq!(undone_doc.parts, opened.parts);
-    assert_no_history_entry(&mut engine);
-}
-
-#[test]
-fn aggregate_set_anchor_refuses_intersect_with_one_part_atomically() {
-    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &opened);
-    let message = typed_error(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrixAnchor {
-            matrix_id: "thumb".into(),
-            anchor: intersect_anchor(vec![part("main", 0, 0)]),
-        },
-    );
-    assert!(
-        message.contains("intersect aggregate needs exactly two parts, got 1"),
-        "unexpected message: {message:?}"
-    );
-    assert_eq!(typed_snapshot(&mut engine), doc);
-    // The refusal adds no history entry: one Undo returns to the opened
-    // document, and nothing remains to undo.
-    let undone_doc = undone(&mut engine);
-    assert_eq!(undone_doc.matrices, opened.matrices);
-    assert_eq!(undone_doc.layouts, opened.layouts);
-    assert_eq!(undone_doc.parts, opened.parts);
-    assert_no_history_entry(&mut engine);
-}
-
-#[test]
-fn aggregate_set_anchor_refuses_intersect_with_three_parts_atomically() {
-    let (mut engine, _, opened) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
-    let (_, doc) = added_thumb(&mut engine, &opened);
-    let message = typed_error(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrixAnchor {
-            matrix_id: "thumb".into(),
-            anchor: intersect_anchor(vec![
-                part("main", 0, 0),
-                part("main", 0, 1),
-                part("main", 0, 2),
-            ]),
-        },
-    );
-    assert!(
-        message.contains("intersect aggregate needs exactly two parts, got 3"),
-        "unexpected message: {message:?}"
-    );
-    assert_eq!(typed_snapshot(&mut engine), doc);
-    // The refusal adds no history entry: one Undo returns to the opened
-    // document, and nothing remains to undo.
-    let undone_doc = undone(&mut engine);
-    assert_eq!(undone_doc.matrices, opened.matrices);
-    assert_eq!(undone_doc.layouts, opened.layouts);
-    assert_eq!(undone_doc.parts, opened.parts);
-    assert_no_history_entry(&mut engine);
+fn aggregate_set_anchor_refuses_invalid_cardinality_atomically() {
+    for (anchor, explanation) in [
+        (average_anchor(vec![]), "needs at least one part"),
+        (
+            intersect_anchor(vec![part("main", 0, 0)]),
+            "intersect aggregate needs exactly two parts, got 1",
+        ),
+        (
+            intersect_anchor((0..3).map(|column| part("main", 0, column)).collect()),
+            "intersect aggregate needs exactly two parts, got 3",
+        ),
+    ] {
+        let (mut engine, _, opened) =
+            Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+        let (_, doc) = added_thumb(&mut engine, &opened);
+        let message = typed_error(
+            &mut engine,
+            &doc,
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor,
+            },
+        );
+        assert!(
+            message.contains(explanation),
+            "unexpected message: {message:?}"
+        );
+        assert_eq!(engine.snapshot(), doc);
+        // One Undo returns to the opened document, and nothing remains to undo.
+        let undone = fixture::document(engine.undo());
+        assert_eq!(undone.matrices, opened.matrices);
+        assert_eq!(undone.layouts, opened.layouts);
+        assert_eq!(undone.parts, opened.parts);
+        assert_no_history_entry(&mut engine);
+    }
 }
 
 #[test]
 fn aggregate_compaction_remaps_every_part_onto_surviving_keys() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = added_thumb(&mut engine, &doc);
     // Removing the middle column strands no part: (0,0) stays, (0,2) follows
     // its physical key to (0,1). Nothing detaches.
@@ -803,7 +715,7 @@ fn aggregate_compaction_remaps_every_part_onto_surviving_keys() {
 
 #[test]
 fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = added_thumb(&mut engine, &doc);
     let poses_before: Vec<(String, Pose2)> = doc
         .parts
@@ -843,14 +755,14 @@ fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
     }
     // The detach rides the same edit: one Undo restores the aggregate anchor.
     assert_eq!(
-        anchor_of(&undone(&mut engine), "thumb"),
+        anchor_of(&fixture::document(engine.undo()), "thumb"),
         anchor_of(&doc, "thumb")
     );
 }
 
 #[test]
 fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
-    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (mut engine, _, doc) = Session::opened(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
     let (_, doc) = added_thumb(&mut engine, &doc);
     let poses_before: Vec<(String, Pose2)> = doc
         .parts
@@ -890,7 +802,7 @@ fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
     }
     // The detach rides the same edit: one Undo restores the aggregate anchor.
     assert_eq!(
-        anchor_of(&undone(&mut engine), "thumb"),
+        anchor_of(&fixture::document(engine.undo()), "thumb"),
         anchor_of(&doc, "thumb")
     );
 }
@@ -927,7 +839,7 @@ fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "legacy-single", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let stored = typed_snapshot(&mut engine);
+    let stored = fixture::outline_snapshot(&mut engine);
     let stored_anchor = stored
         .matrices
         .iter()

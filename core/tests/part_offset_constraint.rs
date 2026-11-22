@@ -577,6 +577,92 @@ fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
 /// heading is normalized to `[0, 360)` by the shared mirror-heading helper, i.e. 340 for
 /// -20, matching the long-standing `derive::pose` convention.
 #[test]
+fn dragging_the_authority_retunes_a_saved_linked_target() {
+    // The saved target is on the beta half, but alpha/T owns its placement.
+    // This pair reflects x about 10 and preserves y.
+    let document: ProjectDoc = serde_json::from_value(serde_json::json!({
+        "format": "boardstudio/v2",
+        "formatVersion": boardstudio_core::document_format::CURRENT_VERSION,
+        "revision": 0,
+        "id": "framed", "name": "Framed drag",
+        "parameters": {}, "matrices": [], "nets": [], "outline": [], "boards": [],
+        "caseBodies": [], "materials": [], "assets": [],
+        "definitions": [{"id": "d", "name": "Fixture", "kind": "custom", "pads": [], "courtyard": []}],
+        "parts": [
+            {"id": "source", "definitionId": "d", "reference": "S1", "side": "front",
+             "pose": {"at": {"x": 1, "y": 2}, "rotation": 0}},
+            {"id": "alpha/T", "definitionId": "d", "reference": "T1", "side": "front",
+             "pose": {"at": {"x": 16, "y": 4}, "rotation": 180}},
+            {"id": "beta/T", "definitionId": "d", "reference": "T2", "side": "front",
+             "pose": {"at": {"x": 4, "y": 4}, "rotation": 0}}
+        ],
+        "constraints": [{
+            "kind": "framed", "id": "drag",
+            "source": {"kind": "part", "partId": "source"},
+            "target": {"kind": "linked-mirror", "pairId": "pair", "sourcePartId": "alpha/T", "mirrorPartId": "beta/T"},
+            "relation": {"kind": "offset", "offset": {"x": 3, "y": 2}, "rotation": -0.0}
+        }],
+        "hardware": {
+            "topology": "split", "transport": "none", "boards": [],
+            "instances": [
+                {"id": "alpha-instance", "name": "Alpha", "boardId": "alpha", "half": "left", "role": "primary", "flipped": false},
+                {"id": "beta-instance", "name": "Beta", "boardId": "beta", "half": "right", "role": "secondary", "flipped": true}
+            ],
+            "pairs": [{
+                "id": "pair", "members": ["alpha-instance", "beta-instance"], "constructionSource": "alpha-instance",
+                "mapping": {"at": {"x": 20, "y": 0}, "rotation": 0},
+                "construction": {"method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0, "bottomFoamThickness": 0,
+                    "bottomThickness": 1.5, "plateToPcb": 5, "wallThickness": 2, "clearance": 0.2},
+                "halves": {"sourceBoardId": "alpha", "mirrorBoardId": "beta",
+                    "correspondences": [{"kind": "part", "sourceId": "alpha/T", "mirrorId": "beta/T"}]}
+            }]
+        }
+    })).unwrap();
+    let mut engine = CoreEngine::new();
+    let (_, opened) = fixture::scene_and_document(engine.handle(fixture::open(document)));
+    assert_eq!(part(&opened, "alpha/T").pose.at, Vec2 { x: 16.0, y: 4.0 });
+    let at = Vec2 { x: 13.0, y: 8.0 };
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "alpha/T".into(),
+            at,
+        }],
+    };
+    let CoreReply::Preview { scene, .. } = engine.handle(fixture::edit(
+        "drag",
+        "drag",
+        opened.revision,
+        EditPhase::Preview,
+        operation.clone(),
+    )) else {
+        panic!("expected a preview of the linked target");
+    };
+    assert!(
+        scene
+            .transforms
+            .iter()
+            .any(|transform| transform.id == "alpha/T" && transform.pose.at == at)
+    );
+    let (_, committed) = fixture::scene_and_document(engine.handle(fixture::commit(
+        "drag",
+        "drag",
+        opened.revision,
+        operation,
+    )));
+    assert_eq!(part(&committed, "alpha/T").pose.at, at);
+    let Constraint::Framed {
+        relation: ConstraintRelation::Offset { offset, rotation },
+        ..
+    } = &committed.constraints[0]
+    else {
+        panic!("expected the framed offset to survive the drag")
+    };
+    assert_eq!(*offset, Vec2 { x: 6.0, y: 6.0 });
+    assert_eq!(rotation.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
 fn a_cell_key_is_a_matrix_key_and_its_companion_is_not() {
     let (_, doc) = fixture(held_by_part_axes);
     assert!(boardstudio_core::is_matrix_key(&doc, KEY));

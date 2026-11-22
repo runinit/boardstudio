@@ -425,35 +425,13 @@ pub fn retune_driven_constraint(
     board: crate::model::Pose2,
     turn: Option<f64>,
 ) -> Result<bool, String> {
-    // A fresh partner has no drivers yet; the record below creates it.
-    let Some(current) = doc.parts.iter().find(|part| part.id == id) else {
-        return Ok(false);
-    };
-    let current_board = evaluated_part_pose(doc, current);
-    let Some(constraint_id) = doc
-        .constraint_driving_part(id)?
-        .map(crate::model::Constraint::id)
-        .map(str::to_owned)
-    else {
-        return Ok(false);
-    };
-    let constraint = doc
-        .constraints
-        .iter_mut()
-        .find(|constraint| constraint.id() == constraint_id)
-        .ok_or_else(|| format!("Constraint {constraint_id} disappeared"))?;
-    let delta = Vec2 {
-        x: board.at.x - current_board.at.x,
-        y: board.at.y - current_board.at.y,
-    };
-    if crate::constraints::retune_offset(&doc.parts, constraint, delta, turn)?
-        == crate::constraints::Retune::Mirror
-    {
-        return Err(format!(
+    match crate::constraints::retune_offset(doc, id, board.at, turn)? {
+        None => Ok(false),
+        Some(crate::constraints::Retune::Applied) => Ok(true),
+        Some(crate::constraints::Retune::Mirror) => Err(format!(
             "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
-        ));
+        )),
     }
-    Ok(true)
 }
 
 pub fn set_detached_part_rotation(

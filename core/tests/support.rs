@@ -8,6 +8,11 @@ mod shared;
 )]
 pub(crate) use shared::*;
 
+#[path = "support/query.rs"]
+pub(crate) mod query;
+#[path = "support/session.rs"]
+pub(crate) mod session;
+
 pub(crate) mod fixture {
     use boardstudio_core::{CoreEngine, model::*};
     use serde::Serialize;

@@ -1,4 +1,4 @@
-use crate::support::fixture::{self, scene_and_document as scene};
+use crate::support::fixture::{self, request, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -578,47 +578,44 @@ fn press_only_profiles_obey_matrix_direct_and_unassigned_modes() {
     );
     let mut engine = CoreEngine::new();
     scene(engine.handle(fixture::open(doc)));
-    let change = |engine: &mut CoreEngine, revision, mode: &str| {
-        scene(serde_json::from_str(&engine.request(&json!({
-        "id":"mode","kind":"edit","command":{"baseRevision":revision,"transactionId":"mode","phase":"commit",
-        "targetIds":["matrix/main/r0c0"],"operation":{"kind":"set-input-scan-mode","partId":"matrix/main/r0c0","mode":mode}}
-    }).to_string())).unwrap()).1
-    };
-    let unassigned = change(&mut engine, 0, "unassigned");
-    let plan = boardstudio_core::electrical::resolve(
-        serde_json::from_value(json!({"document":unassigned,"boardId":"board","mode":"matrix"}))
-            .unwrap(),
-    );
-    assert!(
-        plan.assignments.is_empty(),
-        "Unassigned presses must not be scanned: {:?}",
-        plan.assignments
-    );
-    assert!(plan.peripherals.is_empty());
-    let direct = change(&mut engine, 1, "direct");
-    let plan = boardstudio_core::electrical::resolve(
-        serde_json::from_value(json!({"document":direct,"boardId":"board","mode":"matrix"}))
-            .unwrap(),
-    );
-    assert!(plan.assignments.is_empty());
-    let press = plan
-        .peripherals
-        .iter()
-        .find(|p| p.part_id == "matrix/main/r0c0")
-        .expect("Direct press needs a GPIO requirement");
-    assert_eq!(
-        press.gpio_terminals,
-        vec![("S1".into(), "matrix/main/r0c0/input-push".into())]
-    );
-    assert_eq!(press.fixed_terminals, vec![("S2".into(), "GND".into())]);
-    assert!(press.rotary.is_none());
-    let matrix = change(&mut engine, 2, "matrix");
-    let plan = boardstudio_core::electrical::resolve(
-        serde_json::from_value(json!({"document":matrix,"boardId":"board","mode":"matrix"}))
-            .unwrap(),
-    );
-    assert_eq!(plan.assignments.len(), 1);
-    assert!(plan.peripherals.is_empty());
+    let key = "matrix/main/r0c0";
+    for (revision, mode, assignments) in [(0, "unassigned", 0), (1, "direct", 0), (2, "matrix", 1)]
+    {
+        let reply = request(
+            &mut engine,
+            json!({"kind":"edit","id":"mode","command":{
+                "baseRevision":revision,"transactionId":"mode","phase":"commit","targetIds":[key],
+                "operation":{"kind":"set-input-scan-mode","partId":key,"mode":mode}
+            }}),
+        );
+        let document = &reply["document"];
+        assert_eq!(reply["kind"], "scene", "{reply}");
+        let plan = boardstudio_core::electrical::resolve(
+            serde_json::from_value(json!({"document":document,"boardId":"board","mode":"matrix"}))
+                .unwrap(),
+        );
+        assert_eq!(
+            plan.assignments.len(),
+            assignments,
+            "{mode:?}: {:?}",
+            plan.assignments
+        );
+        if mode == "direct" {
+            let press = plan
+                .peripherals
+                .iter()
+                .find(|p| p.part_id == key)
+                .expect("Direct press needs a GPIO requirement");
+            assert_eq!(
+                press.gpio_terminals,
+                vec![("S1".into(), "matrix/main/r0c0/input-push".into())]
+            );
+            assert_eq!(press.fixed_terminals, vec![("S2".into(), "GND".into())]);
+            assert!(press.rotary.is_none());
+        } else {
+            assert!(plan.peripherals.is_empty(), "{mode:?}");
+        }
+    }
 }
 
 #[test]
