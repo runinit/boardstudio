@@ -6,6 +6,8 @@
 //! same behavior through `CoreEngine` `Edit`/`Undo` and the public mechanical
 //! module functions.
 
+use crate::fixtures::mechanical_configuration as configuration;
+use crate::fixtures::mounting_hole_template as template;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalFeatureCorrespondence,
     MechanicalMountCollection, MechanicalTarget,
@@ -21,7 +23,7 @@ use boardstudio_core::model::{
     Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
     HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
     MechanicalFeatureKind, MechanicalFeatureValue, MechanicalOpening, Mount, MountKind, Operation,
-    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
+    OutlineFeature, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -39,29 +41,6 @@ fn board(id: &str) -> Board {
 }
 
 /// The stored configuration the evaluator cases start from.
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board",
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "mounts": [],
-        "closureMounts": [],
-        "profiles": []
-    }))
-    .unwrap()
-}
 
 fn hardware(instances: Vec<PhysicalBoardInstance>) -> HardwareConfiguration {
     HardwareConfiguration {
@@ -167,19 +146,6 @@ fn instance_target(id: &str) -> MechanicalTarget {
     MechanicalTarget::Instance {
         instance_id: id.into(),
     }
-}
-
-fn template() -> PartDefinition {
-    serde_json::from_value(json!({
-        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-    }))
-    .unwrap()
 }
 
 fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {

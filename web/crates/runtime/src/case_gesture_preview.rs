@@ -4,6 +4,7 @@
 //! state can publish only a disposable, same-revision scene for the active
 //! gesture and retires it as soon as that gesture moves on or ends.
 
+use crate::case_generation_lifecycle::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use std::rc::Rc;
 
@@ -19,10 +20,9 @@ pub struct CaseGesturePreviewOwner {
 pub struct CaseGesturePreviewState {
     generation: u64,
     active: Option<CaseGesturePreviewOwner>,
-    pending: Option<CaseGesturePreviewOwner>,
-    published: Option<(CaseGesturePreviewOwner, Rc<crate::runtime::CadScene>)>,
-    displayed: Option<(Scope, SnapshotToken, u64, Rc<crate::runtime::CadScene>)>,
-    error: Option<(CaseGesturePreviewOwner, String)>,
+    pending: bool,
+    displayed: Option<(CaseGesturePreviewOwner, Rc<CadScene>)>,
+    error: Option<String>,
 }
 
 impl CaseGesturePreviewState {
@@ -43,20 +43,15 @@ impl CaseGesturePreviewState {
             revision,
             generation,
         };
-        if self
-            .displayed
-            .as_ref()
-            .is_some_and(|(scope, token, revision, _)| {
-                scope != &owner.scope
-                    || *token != owner.snapshot_token
-                    || *revision != owner.revision
-            })
-        {
+        if self.displayed.as_ref().is_some_and(|(shown, _)| {
+            shown.scope != owner.scope
+                || shown.snapshot_token != owner.snapshot_token
+                || shown.revision != owner.revision
+        }) {
             self.displayed = None;
         }
         self.active = Some(owner.clone());
-        self.pending = Some(owner.clone());
-        self.published = None;
+        self.pending = true;
         self.error = None;
         Ok(owner)
     }
@@ -70,33 +65,23 @@ impl CaseGesturePreviewState {
     }
 
     pub fn pending(&self, owner: &CaseGesturePreviewOwner) -> bool {
-        self.is_current(owner) && self.pending.as_ref() == Some(owner)
+        self.pending && self.is_current(owner)
     }
 
-    pub fn publish(
-        &mut self,
-        owner: &CaseGesturePreviewOwner,
-        scene: Rc<crate::runtime::CadScene>,
-    ) -> bool {
+    pub fn publish(&mut self, owner: &CaseGesturePreviewOwner, scene: Rc<CadScene>) -> bool {
         if !self.pending(owner) {
             return false;
         }
-        self.pending = None;
+        self.pending = false;
         self.error = None;
-        self.displayed = Some((
-            owner.scope.clone(),
-            owner.snapshot_token,
-            owner.revision,
-            scene.clone(),
-        ));
-        self.published = Some((owner.clone(), scene));
+        self.displayed = Some((owner.clone(), scene));
         true
     }
 
     pub fn fail(&mut self, owner: &CaseGesturePreviewOwner, error: String) {
         if self.pending(owner) {
-            self.pending = None;
-            self.error = Some((owner.clone(), error));
+            self.pending = false;
+            self.error = Some(error);
         }
     }
 
@@ -105,16 +90,15 @@ impl CaseGesturePreviewState {
         scope: &Scope,
         snapshot_token: SnapshotToken,
         revision: u64,
-    ) -> Option<Rc<crate::runtime::CadScene>> {
+    ) -> Option<Rc<CadScene>> {
         self.displayed
             .as_ref()
-            .filter(|(owner_scope, owner_token, owner_revision, _)| {
-                self.active.is_some()
-                    && owner_scope == scope
-                    && *owner_token == snapshot_token
-                    && *owner_revision == revision
+            .filter(|(shown, _)| {
+                &shown.scope == scope
+                    && shown.snapshot_token == snapshot_token
+                    && shown.revision == revision
             })
-            .map(|(_, _, _, scene)| scene.clone())
+            .map(|(_, scene)| scene.clone())
     }
 
     pub fn message(&self, owner: &CaseGesturePreviewOwner) -> Option<String> {
@@ -126,8 +110,7 @@ impl CaseGesturePreviewState {
         }
         self.error
             .as_ref()
-            .filter(|(current, _)| current == owner)
-            .map(|(_, error)| format!("Case preview update failed: {error}"))
+            .map(|error| format!("Case preview update failed: {error}"))
     }
 
     /// Retire only the specified gesture. A late cleanup from an old viewer
@@ -137,8 +120,7 @@ impl CaseGesturePreviewState {
             return false;
         }
         self.active = None;
-        self.pending = None;
-        self.published = None;
+        self.pending = false;
         self.displayed = None;
         self.error = None;
         self.generation = self.generation.saturating_add(1);
@@ -149,13 +131,11 @@ impl CaseGesturePreviewState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::CadScene;
     use boardstudio_application::AcceptedSnapshot;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_model::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
     use boardstudio_web_host::cad_jobs::CadResult;
     use std::sync::Arc;
-    use wasm_bindgen_test::wasm_bindgen_test;
 
     fn scope() -> Scope {
         Scope {
@@ -210,7 +190,7 @@ mod tests {
         })
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn a_newer_move_retires_the_prior_preview_owner_and_cleanup_is_scoped() {
         let mut state = CaseGesturePreviewState::default();
         let first = state.begin(scope(), SnapshotToken(7), 12).unwrap();

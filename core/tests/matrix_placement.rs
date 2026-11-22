@@ -1,78 +1,13 @@
 //! Core owns the named matrix placement parameters (`SetMatrixPlacement`) and the
 //! per-column stagger axis it publishes in the scene. These tests pin the axis
 //! maths to the same `location` Core uses to place keys.
+use crate::fixtures::matrix_companion as piece;
+use crate::fixtures::matrix_doc;
+use crate::fixtures::matrix_snapshot as snapshot;
+use crate::fixtures::part_position as at;
+use crate::fixtures::{edit, open, scene};
+use crate::fixtures::{matrix, matrix_definitions as definitions};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
-
-fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
-    let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    (engine, scene, doc)
-}
-
-fn edit(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    operation: EditOperation,
-) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
-
-fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
-}
-
-fn definitions() -> Vec<PartDefinition> {
-    serde_json::from_value(serde_json::json!([
-        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
-        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]},
-        {"id":"sensor","name":"Sensor","kind":"passive","courtyard":[],"pads":[]}
-    ]))
-    .unwrap()
-}
-
-fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
-    Matrix {
-        id: id.into(),
-        name: None,
-        rows,
-        columns,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: None,
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
-    }
-}
 
 fn fixture(rows: u32, columns: u32) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut doc = ProjectDoc::empty("placement", "Placement");
@@ -97,15 +32,6 @@ fn companion(matrix: &str, row: u32, column: u32, name: &str) -> String {
     format!("{}/{name}", member(matrix, row, column))
 }
 
-fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-        .at
-}
-
 fn delta(before: Vec2, after: Vec2) -> Vec2 {
     Vec2 {
         x: after.x - before.x,
@@ -115,14 +41,6 @@ fn delta(before: Vec2, after: Vec2) -> Vec2 {
 
 fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
-}
-
-fn piece<'a>(scene: &'a SceneDelta, id: &str) -> &'a MatrixScene {
-    scene
-        .matrix_scenes
-        .iter()
-        .find(|item| item.matrix_id == id)
-        .unwrap_or_else(|| panic!("missing matrix scene {id}"))
 }
 
 fn stagger(column: u32, value: f64) -> EditOperation {
@@ -283,52 +201,6 @@ fn companion_fixture() -> (CoreEngine, ProjectDoc) {
         },
     );
     (engine, doc)
-}
-
-fn matrix_doc() -> ProjectDoc {
-    let mut doc = ProjectDoc::empty("p", "Project");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![
-            Vec2 { x: -7.0, y: -7.0 },
-            Vec2 { x: 7.0, y: -7.0 },
-            Vec2 { x: 7.0, y: 7.0 },
-            Vec2 { x: -7.0, y: 7.0 },
-        ],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.outline.push(OutlineFeature::PartEnvelope {
-        connections: vec![],
-        id: "edge".into(),
-        part_ids: vec![],
-        settings: Default::default(),
-        margin: 3.0,
-        operation: Operation::Add,
-    });
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    doc
 }
 
 fn poses(doc: &ProjectDoc) -> Vec<(String, Vec2, f64)> {

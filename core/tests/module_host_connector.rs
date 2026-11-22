@@ -1,3 +1,4 @@
+use crate::fixtures::json_request as request;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{
     ExportTarget, FinishExportRequest, PrepareExportRequest, ProjectDoc,
@@ -6,10 +7,6 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 const LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn export_host_board(document: &Value, scene: &Value) -> String {
     let document: ProjectDoc = serde_json::from_value(document.clone()).unwrap();

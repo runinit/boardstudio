@@ -42,81 +42,67 @@ fn support_owner_case(points: &[[f64; 2]], contours: Vec<Value>) -> CaseAssembly
 #[test]
 fn support_owner_cutoff_is_exact_and_strict_for_prepared_inputs() {
     let exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
-    for edge in [1e-8, f64::from_bits(1e-8_f64.to_bits() + 1)] {
+    for (edge, accepted) in [
+        (0.0, true),
+        (5e-9, true),
+        (1e-8, false),
+        (f64::from_bits(1e-8_f64.to_bits() + 1), false),
+    ] {
         let support = [[-1.0, 2.0], [edge, 2.0], [edge, 3.0], [-1.0, 3.0]];
-        let error = prepare(support_owner_case(
+        let result = prepare(support_owner_case(
             &support,
             vec![support_owner_contour(false, &exterior)],
-        ))
-        .unwrap_err();
-        assert!(error.contains("owner-support"), "{error}");
-        assert!(error.contains("one case exterior"), "{error}");
+        ));
+        if accepted {
+            assert!(result.is_ok(), "edge {edge}: {result:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("owner-support") && error.contains("one case exterior"),
+                "{error}"
+            );
+        }
     }
-
-    let below = [[-1.0, 2.0], [5e-9, 2.0], [5e-9, 3.0], [-1.0, 3.0]];
-    assert!(
-        prepare(support_owner_case(
-            &below,
-            vec![support_owner_contour(false, &exterior)]
-        ))
-        .is_ok()
-    );
-    let touching = [[-1.0, 2.0], [0.0, 2.0], [0.0, 3.0], [-1.0, 3.0]];
-    assert!(
-        prepare(support_owner_case(
-            &touching,
-            vec![support_owner_contour(false, &exterior)]
-        ))
-        .is_ok()
-    );
 }
 
 #[test]
 fn support_owner_keeps_concavity_multiple_owners_and_hole_contract() {
     let concave = [
-        [0.0, 0.0],
-        [10.0, 0.0],
-        [10.0, 3.0],
-        [3.0, 3.0],
-        [3.0, 10.0],
-        [0.0, 10.0],
+        [0., 0.],
+        [10., 0.],
+        [10., 3.],
+        [3., 3.],
+        [3., 10.],
+        [0., 10.],
     ];
-    let crossing_notch = [[2.5, 2.5], [3.5, 2.5], [3.5, 3.5], [2.5, 3.5]];
-    assert!(
-        prepare(support_owner_case(
-            &crossing_notch,
-            vec![support_owner_contour(false, &concave)]
-        ))
-        .is_err()
-    );
-
-    let overlap_support = [[6.0, 2.0], [7.0, 2.0], [7.0, 3.0], [6.0, 3.0]];
-    let left = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
-    let right = [[5.0, 0.0], [15.0, 0.0], [15.0, 10.0], [5.0, 10.0]];
-    assert!(
-        prepare(support_owner_case(
-            &overlap_support,
-            vec![
-                support_owner_contour(false, &left),
-                support_owner_contour(false, &right)
-            ]
-        ))
-        .is_err()
-    );
-
-    let hole_exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
-    let hole = [[-0.75, 4.0], [-0.25, 4.0], [-0.25, 6.0], [-0.75, 6.0]];
-    let in_hole = [[-0.6, 4.5], [-0.4, 4.5], [-0.4, 5.5], [-0.6, 5.5]];
-    assert!(
-        prepare(support_owner_case(
-            &in_hole,
-            vec![
-                support_owner_contour(false, &hole_exterior),
-                support_owner_contour(true, &hole)
-            ]
-        ))
-        .is_ok()
-    );
+    let left = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
+    let right = [[5., 0.], [15., 0.], [15., 10.], [5., 10.]];
+    let exterior = [[-2., 0.], [0., 0.], [0., 10.], [-2., 10.]];
+    let hole = [[-0.75, 4.], [-0.25, 4.], [-0.25, 6.], [-0.75, 6.]];
+    let outer = |points: &[[f64; 2]]| support_owner_contour(false, points);
+    for (name, support, contours, accepted) in [
+        (
+            "crossing notch",
+            [[2.5, 2.5], [3.5, 2.5], [3.5, 3.5], [2.5, 3.5]],
+            vec![outer(&concave)],
+            false,
+        ),
+        (
+            "overlapping exteriors",
+            [[6., 2.], [7., 2.], [7., 3.], [6., 3.]],
+            vec![outer(&left), outer(&right)],
+            false,
+        ),
+        (
+            "inside owned hole",
+            [[-0.6, 4.5], [-0.4, 4.5], [-0.4, 5.5], [-0.6, 5.5]],
+            vec![outer(&exterior), support_owner_contour(true, &hole)],
+            true,
+        ),
+    ] {
+        let result = prepare(support_owner_case(&support, contours));
+        assert_eq!(result.is_ok(), accepted, "{name}: {result:?}");
+    }
 }
 
 #[test]
@@ -165,30 +151,9 @@ fn support_prism_keeps_existing_finite_and_height_errors_before_topology() {
             }
         })
         .collect::<Vec<_>>();
-    let invalid_height = serde_json::from_value::<CaseAssemblyIR>(json!({
-        "revision":1,
-        "bodies":[{
-            "revision":1,
-            "contours":[{"hole":false,"points":[{"x":0.0,"y":0.0},{"x":30.0,"y":0.0},{"x":30.0,"y":20.0},{"x":0.0,"y":20.0}]}],
-            "body":{"id":"bottom","name":"Tray","boardId":"board","kind":"tray","thickness":2.0,"clearance":0.0,"z":0.0,"wallHeight":8.0,"wallThickness":2.0,
-                "features":[{"kind":"support-prism","id":"bad-height-support","points":crossed,"z":1.0,"height":0.0}]}
-        }]
-    })).unwrap();
-    let height_error = match CoreEngine::new().handle(CoreRequest::PrepareCase {
-        id: "features".into(),
-        ir: invalid_height,
-    }) {
-        CoreReply::Error { message, .. } => message,
-        other => panic!("invalid support height was accepted: {other:?}"),
-    };
-    assert!(
-        height_error.contains("bad-height-support"),
-        "{height_error}"
-    );
-    assert!(
-        height_error.contains("finite positive geometry"),
-        "{height_error}"
-    );
+    let invalid_height = assembly(json!([{
+        "kind":"support-prism","id":"bad-height-support","points":crossed,"z":1.0,"height":0.0
+    }]));
 
     let mut invalid_coordinate = assembly(json!([{
         "kind":"support-prism","id":"bad-coordinate-support","points":[
@@ -200,15 +165,16 @@ fn support_prism_keeps_existing_finite_and_height_errors_before_topology() {
     {
         points[0].x = f64::NAN;
     }
-    let coordinate_error = prepare(invalid_coordinate).unwrap_err();
-    assert!(
-        coordinate_error.contains("bad-coordinate-support"),
-        "{coordinate_error}"
-    );
-    assert!(
-        coordinate_error.contains("finite positive geometry"),
-        "{coordinate_error}"
-    );
+    for (input, id) in [
+        (invalid_height, "bad-height-support"),
+        (invalid_coordinate, "bad-coordinate-support"),
+    ] {
+        let error = prepare(input).unwrap_err();
+        assert!(
+            error.contains(id) && error.contains("finite positive geometry"),
+            "{error}"
+        );
+    }
 }
 
 #[test]
@@ -456,21 +422,21 @@ fn check_authored_opening_reachability(id: &str, original: &str, removed_volume:
 }
 
 #[test]
-fn adoption_reachability_authored_sealed_opening_survives_real_tray_preparation() {
-    check_authored_opening_reachability(
-        "sealed-opening",
-        include_str!("../../cad/core/tests/fixtures/adoption/sealed-opening.json"),
-        16.,
-    );
-}
-
-#[test]
-fn adoption_reachability_authored_ring_island_survives_real_tray_preparation() {
-    check_authored_opening_reachability(
-        "opening-ring-island",
-        include_str!("../../cad/core/tests/fixtures/adoption/opening-ring-island.json"),
-        164.,
-    );
+fn adoption_reachability_authored_openings_survive_real_tray_preparation() {
+    for (id, fixture, removed_volume) in [
+        (
+            "sealed-opening",
+            include_str!("../../cad/core/tests/fixtures/adoption/sealed-opening.json"),
+            16.,
+        ),
+        (
+            "opening-ring-island",
+            include_str!("../../cad/core/tests/fixtures/adoption/opening-ring-island.json"),
+            164.,
+        ),
+    ] {
+        check_authored_opening_reachability(id, fixture, removed_volume);
+    }
 }
 
 #[test]

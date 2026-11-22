@@ -1,11 +1,14 @@
-use super::super::OutlineVersionInspector;
-use super::super::objects::{ScopedTreeContext, TreeContext};
-use super::*;
 use boardstudio_application::{Event, TerminalOutcome};
-use boardstudio_model::model::{
+use boardstudio_core::model::{
     Board, BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     ProjectDoc,
 };
+use boardstudio_web_layout::outline::{
+    OutlineAction, OutlineInspectorProjection, OutlineVersionInspector, outline_action_is_current,
+    use_outline_lifecycle,
+};
+use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
+use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -13,8 +16,6 @@ use std::{
     task::{Context, Waker},
 };
 use wasm_bindgen_test::wasm_bindgen_test;
-
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[derive(Clone)]
 struct Probe {
@@ -41,11 +42,28 @@ impl Probe {
             .observe_operation(boardstudio_application::OperationId(seed.0 + 2))
     }
 
+    fn copy_action(&self, projection: &OutlineInspectorProjection) -> OutlineAction {
+        let accepted = self.runtime.model().accepted.unwrap();
+        OutlineAction::Copy {
+            scope: projection.scope.clone(),
+            token: accepted.token,
+            revision: accepted.document.revision,
+            generation: self.generation.get(),
+            board_id: projection.board_id.clone(),
+        }
+    }
+
     fn delete(&self) {
         let projection = self.projection();
-        projection
-            .on_action
-            .call(projection.delete_action().unwrap());
+        let accepted = self.runtime.model().accepted.unwrap();
+        projection.on_action.call(OutlineAction::Delete {
+            scope: projection.scope,
+            token: accepted.token,
+            revision: accepted.document.revision,
+            generation: self.generation.get(),
+            board_id: projection.board_id,
+            version_id: projection.active_version_id.unwrap(),
+        });
     }
 }
 
@@ -149,7 +167,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
-            ownership: boardstudio_model::model::OutlineOwnership::Fixed,
+            ownership: boardstudio_core::model::OutlineOwnership::Fixed,
         }],
     }];
 }
@@ -210,7 +228,7 @@ fn activate_generated(probe: &Probe) {
 async fn stale_rendered_copy_generation_is_rejected_after_callback_refresh() {
     let (probe, mut dom) = mounted().await;
     let old = probe.projection();
-    let action = old.copy_action();
+    let action = probe.copy_action(&old);
     probe.generation.set(2);
     flush(&probe, &mut dom);
     old.on_action.call(action);
@@ -235,7 +253,7 @@ async fn stale_rendered_copy_generation_is_rejected_after_callback_refresh() {
 async fn different_context_hides_inspector_and_rejects_retained_copy() {
     let (probe, mut dom) = mounted().await;
     let old = probe.projection();
-    let request = old.copy_action();
+    let request = probe.copy_action(&old);
     let before = probe.runtime.model().accepted.unwrap().document;
     *probe.context.borrow_mut() = TreeContext::Component {
         part_id: Some("part".into()),
@@ -287,7 +305,7 @@ async fn activation_rejects_stale_rendered_token() {
         .clone();
     replace_document(&probe, replacement).await;
     flush(&probe, &mut dom);
-    assert!(!super::outline_action_is_current(
+    assert!(!outline_action_is_current(
         &old,
         &probe.runtime,
         probe.generation.get()

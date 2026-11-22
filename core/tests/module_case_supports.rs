@@ -1,9 +1,6 @@
+use crate::fixtures::json_request as request;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn document(supports: Value, above: bool) -> (Value, Value) {
     let mut doc = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(

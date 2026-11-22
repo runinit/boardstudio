@@ -4,6 +4,10 @@
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
 mod support;
 
+#[path = "support.rs"]
+#[allow(dead_code)] // Each shard uses a subset of the fixtures.
+mod fixtures;
+
 #[path = "matrix_anchors.rs"]
 mod matrix_anchors;
 #[path = "matrix_companions.rs"]

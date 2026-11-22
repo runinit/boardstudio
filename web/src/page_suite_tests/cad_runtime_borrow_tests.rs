@@ -1,7 +1,10 @@
-use super::*;
-use crate::runtime::project_name_test_support as support;
+use crate::runtime::{KeycapsPreviewInput, test_hooks};
+use boardstudio_application::{Durability, Event, Session};
+use boardstudio_core::model::ProjectDoc;
+use boardstudio_web_test_runtime::{in_process_support, project_name_test_support as support};
 use futures_channel::oneshot;
 use std::task::{Context, Poll, Waker};
+use std::{cell::RefCell, future::Future, rc::Rc};
 use wasm_bindgen_test::wasm_bindgen_test;
 
 #[wasm_bindgen_test]
@@ -56,7 +59,8 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
         Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
-    let stored_id = new_project_id().unwrap();
+    let store = test_hooks::store(&runtime);
+    let stored_id = crate::runtime::new_project_id().unwrap();
     let mut target_captured = Box::pin(support::track_next_persist_target(&runtime));
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
@@ -81,8 +85,7 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
         Durability::Saved { .. }
     ));
     assert_eq!(
-        runtime
-            .store
+        store
             .load_document(stored_id.clone())
             .await
             .unwrap()
@@ -92,7 +95,7 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
     );
     assert!(support::saved_document(&runtime, &stored_id).is_none());
 
-    let memory_id = new_project_id().unwrap();
+    let memory_id = crate::runtime::new_project_id().unwrap();
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
         document: ProjectDoc::empty(&memory_id, "Subsequent memory save"),
@@ -103,13 +106,6 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
         support::saved_document(&runtime, &memory_id).unwrap().name,
         "Subsequent memory save"
     );
-    assert!(
-        runtime
-            .store
-            .load_document(memory_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
-    runtime.store.delete_project(stored_id).await.unwrap();
+    assert!(store.load_document(memory_id).await.unwrap().is_none());
+    store.delete_project(stored_id).await.unwrap();
 }

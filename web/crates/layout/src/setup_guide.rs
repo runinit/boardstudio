@@ -674,9 +674,6 @@ pub fn focus_settings(workspace: &str) {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 /// Physical topology only: these are schematic boards, not generated outlines.
 #[component]
 pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {

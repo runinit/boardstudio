@@ -59,7 +59,7 @@ pub async fn build_zip(
         },
     };
     is_current()?;
-    let reply = crate::runtime::artifact_reply(&request)?;
+    let reply = crate::physical_pcb::artifact_reply(&request)?;
     is_current()?;
     let exported = match reply {
         ArtifactReply::ExportPcb { id, result } if id == request_id => result,

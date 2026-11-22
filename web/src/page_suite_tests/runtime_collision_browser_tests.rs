@@ -1,73 +1,43 @@
-use super::*;
 use crate::model_delivery::{
     CadCollisionAssessment, CadCollisionSubject, IDENTITY_ROW_TRANSFORM_F64,
 };
+use crate::runtime::{CadScene, Runtime, test_hooks};
+use boardstudio_core::model::PreparedCaseIR;
+use boardstudio_web_host::{cad_jobs::CadResult, cad_worker::CadWorker};
+use boardstudio_web_test_runtime::{in_process_support, project_name_test_support};
+use gloo_timers::future::TimeoutFuture;
+use js_sys::Array;
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_test::wasm_bindgen_test;
 use web_sys::{Blob, BlobPropertyBag, Url};
 
 async fn fixture() -> (Rc<Runtime>, Rc<CadScene>, String) {
-    fixture_document(in_process_support::board_document()).await
-}
-
-async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, String) {
-    fixture_document_mode(document, "unknown").await
-}
-
-async fn fixture_document_scene(
-    document: ProjectDoc,
-) -> (Rc<Runtime>, Rc<CadScene>, serde_json::Value) {
     let runtime = project_name_test_support::new_runtime();
-    project_name_test_support::open_document(&runtime, document).await;
+    project_name_test_support::open_document(&runtime, in_process_support::board_document()).await;
     project_name_test_support::navigate(&runtime, "main-board").await;
     let snapshot = runtime.model().accepted.unwrap();
     let scope = runtime.scope().unwrap();
     let data: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        "../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
     ))
     .unwrap();
-    let mut body: boardstudio_model::model::PreparedCaseIR =
-        serde_json::from_value(data["preparedBody"].clone()).unwrap();
+    let mut body: PreparedCaseIR = serde_json::from_value(data["preparedBody"].clone()).unwrap();
     body.revision = snapshot.document.revision;
-    let prepared = if snapshot.document.mechanical.is_some() {
-        Some(
-            prepare_captured_case(
-                (runtime.core_services.open_scratch)(),
-                "collision-mechanical-fixture",
-                &snapshot,
-                &scope,
-                false,
-            )
-            .unwrap(),
-        )
-    } else {
-        None
-    };
     let scene = Rc::new(CadScene {
         scope: scope.clone(),
         token: snapshot.token,
         snapshot,
-        prepared: prepared
-            .as_ref()
-            .map(|prepared| prepared.prepared.clone())
-            .unwrap_or(boardstudio_model::model::PreparedCaseAssemblyIR {
-                revision: body.revision,
-                bodies: vec![body],
-            }),
+        prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+            revision: body.revision,
+            bodies: vec![body],
+        },
         result: CadResult::default(),
         physical_fingerprint: None,
-        mechanical: prepared.and_then(|prepared| prepared.mechanical_assembly),
+        mechanical: None,
         exact: true,
         contours: vec![],
     });
     runtime.set_cad_scene_test(Some(scene.clone()));
-    (runtime, scene, data)
-}
-
-async fn fixture_document_mode(
-    document: ProjectDoc,
-    mode: &str,
-) -> (Rc<Runtime>, Rc<CadScene>, String) {
-    let (runtime, scene, data) = fixture_document_scene(document).await;
     // Real Runtime/CadWorker client and transferable messages, with a controlled
     // provider reply. The parent owns combined acceptance against the CAD WASM.
     let source = format!(
@@ -127,9 +97,7 @@ async fn fixture_document_mode(
             }}, 20);
         }};
     "#,
-        data["directPayload"],
-        data["qualificationV2"]["activation"],
-        serde_json::to_string(mode).unwrap()
+        data["directPayload"], data["qualificationV2"]["activation"], r#""unknown""#
     );
     let properties = BlobPropertyBag::new();
     properties.set_type("text/javascript");
@@ -138,7 +106,7 @@ async fn fixture_document_mode(
     let url = Url::create_object_url_with_blob(&blob).unwrap();
     let worker = Rc::new(CadWorker::new(&url).unwrap());
     worker.ready().await.unwrap();
-    *runtime.cad_worker.borrow_mut() = Some((scene.scope.clone(), worker));
+    test_hooks::set_cad_worker(&runtime, Some((scene.scope.clone(), worker)));
     (runtime, scene, url)
 }
 
@@ -197,6 +165,6 @@ async fn collision_worker_observation_stays_uncertain_and_rejects_a_late_result(
     active.set(false);
     let result = receive.await.unwrap();
     assert!(matches!(result, Err(reason) if reason.contains("stale after")));
-    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    test_hooks::set_cad_worker(&runtime, None);
     Url::revoke_object_url(&url).unwrap();
 }

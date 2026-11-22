@@ -1147,7 +1147,3 @@ impl OutlineInspectorProjection {
         })
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "hook_tests.rs"]
-mod hook_tests;

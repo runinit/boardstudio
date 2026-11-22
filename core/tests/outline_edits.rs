@@ -4,22 +4,15 @@
 //! validation, identity allocation from the captured seed, mutation and the single Undo
 //! step. Expectations here are hand-derived from the fixture's millimetre geometry
 //! (a switch courtyard of 14x14 with margin 1 gives a 16x16 envelope centred on its pose).
+use crate::fixtures::linked_outline_settings as settings;
+use crate::fixtures::outline_snapshot as document;
+use crate::fixtures::scene_only as scene;
 use boardstudio_core::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget, evaluate,
 };
 use boardstudio_core::{CoreEngine, model::*};
 
 const ENVELOPE: &str = "board:board:version:refined:contour:0";
-
-fn settings() -> serde_json::Value {
-    serde_json::json!({
-        "corners": "sharp", "size": 2.0, "bridgeWidth": 10.0,
-        "repair": {
-            "enabled": true, "maximumGapSpan": 20.0,
-            "minimumConnectionWidth": 2.0, "edgeClearance": 0.0, "keepGaps": []
-        }
-    })
-}
 
 fn definition() -> serde_json::Value {
     serde_json::json!({
@@ -71,13 +64,6 @@ fn fixture_without_generated() -> serde_json::Value {
     document
 }
 
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
-
 fn open(b_at: (f64, f64)) -> (CoreEngine, SceneDelta) {
     let mut engine = CoreEngine::new();
     let opened = scene(engine.handle(CoreRequest::Open {
@@ -121,15 +107,6 @@ fn raw_edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value
             operation,
         },
     }))
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
 }
 
 fn board_state(doc: &ProjectDoc) -> Option<&BoardOutline> {

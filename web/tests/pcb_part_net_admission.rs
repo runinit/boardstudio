@@ -5,8 +5,6 @@ extern crate self as wasm_bindgen_futures;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
-    future::Future,
-    pin::Pin,
     rc::Rc,
     task::{Context, Poll, Waker},
 };
@@ -14,20 +12,10 @@ use std::{
 #[path = "../src/presentation/pcb_wiring/part_net_admission.rs"]
 mod part_net_admission;
 
-type Detached = Pin<Box<dyn Future<Output = ()>>>;
-thread_local! { static TASKS: RefCell<Vec<Detached>> = RefCell::default(); }
-pub fn spawn_local(task: impl Future<Output = ()> + 'static) {
-    TASKS.with_borrow_mut(|tasks| tasks.push(Box::pin(task)));
-}
-fn poll_detached() {
-    TASKS.with_borrow_mut(|tasks| {
-        tasks.retain_mut(|task| {
-            task.as_mut()
-                .poll(&mut Context::from_waker(Waker::noop()))
-                .is_pending()
-        })
-    });
-}
+#[path = "support/detached.rs"]
+mod detached;
+use detached::poll_detached;
+pub use detached::spawn_local;
 
 #[derive(Clone)]
 struct Probe {

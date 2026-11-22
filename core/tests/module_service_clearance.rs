@@ -1,10 +1,7 @@
+use crate::fixtures::json_request as request;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn splitter() -> Value {
     let catalogue: Value = serde_json::from_str(include_str!(

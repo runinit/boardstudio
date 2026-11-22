@@ -1,17 +1,20 @@
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+use wasm_bindgen_test::wasm_bindgen_test;
 
-use super::test_support::*;
-use super::*;
-use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
-use crate::objects::{self, LayoutSnapSettings};
+#[path = "../../crates/layout/src/part_placement/test_support.rs"]
+mod test_support;
 use crate::runtime::Runtime;
-use crate::selection::SelectionAdapter;
-use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
 use boardstudio_application::TerminalOutcome;
 use boardstudio_application::{Event, Lifecycle};
-use boardstudio_model::model::{
+use boardstudio_core::model::{
     MatrixAssembly, MatrixCell, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
+use boardstudio_web_layout::objects::{self, LayoutSnapSettings};
+use boardstudio_web_layout::part_placement::*;
+use boardstudio_web_layout::setup_guide::{SetupGuidePreferences, SetupGuideStage};
+use boardstudio_web_ui_model::canvas_interaction::{
+    CanvasInteractionArbiter, CanvasInteractionOwner,
+};
+use boardstudio_web_ui_model::selection::SelectionAdapter;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -19,6 +22,7 @@ use std::{
     cell::{Cell, RefCell},
     task::{Context, Waker},
 };
+use test_support::*;
 
 #[derive(Clone)]
 struct HookProbe {
@@ -123,11 +127,11 @@ fn HookMounted() -> Element {
         on_commit: EventHandler::new(|_| {}),
         on_cancel: EventHandler::new(|_| {}),
     };
-    *probe.view_mode.borrow_mut() = Some(crate::presentation::layout_view_mode_handler(
+    *probe.view_mode.borrow_mut() = Some(layout_view_mode_handler(
         || true,
         assembly_3d_read,
         move |value| assembly_3d_write.set(value),
-        crate::presentation::LayoutPlacementCancellation {
+        LayoutPlacementCancellation {
             parts: mount,
             matrices: matrix_placement,
             interactions: probe.canvas_interaction.clone(),
@@ -377,7 +381,7 @@ async fn start_hook_placement(probe: &HookProbe, dom: &mut VirtualDom) -> PartPl
     mount
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn general_component_placement_starts_without_the_setup_guide_and_uses_kind_reference() {
     let (probe, mut dom) = hook_mounted().await;
     clear_guide(&probe, &mut dom);
@@ -405,7 +409,7 @@ async fn general_component_placement_starts_without_the_setup_guide_and_uses_kin
     assert_eq!(workspace(&probe), "Layout");
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn accepted_general_placement_selects_the_component_and_part_tool_context() {
     let (probe, mut dom) = hook_mounted().await;
     clear_guide(&probe, &mut dom);
@@ -452,29 +456,20 @@ async fn accepted_general_placement_selects_the_component_and_part_tool_context(
     assert_eq!(probe.runtime.model().selected_part_ids, vec![part_id]);
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_parts() {
     let mut fixture = mirrored_fixture();
     let mirror_map_x = 200.0;
-    fixture
-        .mirrored_pairs
-        .push(boardstudio_model::mirrored_half::MirroredPair {
-            id: "pair".into(),
-            source: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
-                "board-main".into(),
-            ),
-            destination: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
-                "board-mirror".into(),
-            ),
-            mapping: boardstudio_model::model::Pose2 {
-                at: Vec2 {
-                    x: mirror_map_x,
-                    y: 0.0,
-                },
-                rotation: 0.0,
-            },
-            overrides: vec![],
-        });
+    fixture.mirrored_pairs.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "pair",
+            "source": {"kind":"secondBoard", "id":"board-main"},
+            "destination": {"kind":"secondBoard", "id":"board-mirror"},
+            "mapping": {"at":{"x":mirror_map_x,"y":0.0},"rotation":0.0},
+            "overrides": [],
+        }))
+        .unwrap(),
+    );
     let before_parts = fixture.parts.len();
     let before_resolved = boardstudio_application::resolved_document(&fixture)
         .parts
@@ -522,7 +517,7 @@ async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_
     assert!(resolved.boards[1].part_ids.contains(&mirror_part.id));
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn mirror_only_action_flows_through_owner_commit_without_changing_source() {
     let (probe, mut dom) = hook_mounted_with_document(mirrored_fixture()).await;
     clear_guide_no_flush(&probe);
@@ -576,11 +571,11 @@ async fn mirror_only_action_flows_through_owner_commit_without_changing_source()
     );
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn parts_inspector_action_applies_selected_key_through_production_edit_handler() {
     let (probe, mut dom) = hook_mounted().await;
     let selected = select_matrix_key(&probe, &mut dom, 1, 2, true).await;
-    assert!(crate::selection::context_is_current(
+    assert!(boardstudio_web_ui_model::selection::context_is_current(
         &probe.runtime.model(),
         &selected.scope,
         &selected.context,
@@ -637,7 +632,7 @@ async fn parts_inspector_action_applies_selected_key_through_production_edit_han
     assert!(mount.error.is_none());
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn delayed_selected_key_load_error_is_ignored_after_accepted_snapshot_refresh() {
     let (probe, mut dom) = hook_mounted().await;
     select_matrix_key(&probe, &mut dom, 0, 0, false).await;
@@ -661,7 +656,7 @@ async fn delayed_selected_key_load_error_is_ignored_after_accepted_snapshot_refr
     assert!(probe.runtime.model().selected_part_ids.is_empty());
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn retained_component_action_cannot_retarget_a_new_owner_or_wrong_workspace() {
     let (probe, mut dom) = hook_mounted().await;
     let retained = latest(&probe).on_place_component;
@@ -687,7 +682,7 @@ async fn retained_component_action_cannot_retarget_a_new_owner_or_wrong_workspac
     assert!(!latest(&probe).busy);
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_started() {
     let (probe, mut dom) = hook_mounted().await;
     select_matrix_key(&probe, &mut dom, 1, 2, false).await;
@@ -716,7 +711,7 @@ async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_s
     );
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn selected_key_edit_rejection_is_reported_to_the_current_parts_owner() {
     let (probe, mut dom) = hook_mounted().await;
     select_matrix_key(&probe, &mut dom, 1, 2, false).await;
@@ -758,7 +753,7 @@ fn observe_next_operation(
     boardstudio_web_test_runtime::project_name_test_support::observe_next(&probe.runtime)
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide() {
     let (probe, mut dom) = hook_mounted().await;
     let mount = latest(&probe);
@@ -771,7 +766,7 @@ async fn production_hook_owns_canvas_during_definition_preparation_and_escape_re
     flush_tasks(&mut dom).await;
     let preparing = latest(&probe);
     assert!(preparing.busy);
-    assert!(preparing.owns_canvas());
+    assert!(preparing.busy || preparing.projection.is_some());
     assert!(
         probe
             .canvas_interaction
@@ -808,7 +803,7 @@ async fn production_hook_owns_canvas_during_definition_preparation_and_escape_re
         active.error,
         workspace(&probe)
     );
-    assert!(active.owns_canvas());
+    assert!(active.busy || active.projection.is_some());
     active.on_cancel.call(());
     flush_hook(&mut dom);
     assert_eq!(workspace(&probe), "Layout");
@@ -819,7 +814,7 @@ async fn production_hook_owns_canvas_during_definition_preparation_and_escape_re
     assert_eq!(probe.canvas_interaction.current(), None);
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn layout_3d_transition_cancels_suspended_component_preparation_without_ghost() {
     let (probe, mut dom) = hook_mounted().await;
     latest(&probe)
@@ -864,7 +859,7 @@ async fn layout_3d_transition_cancels_suspended_component_preparation_without_gh
     );
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas() {
     let (probe, mut dom) = hook_mounted().await;
     probe
@@ -897,7 +892,7 @@ async fn mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canva
     );
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn production_hook_registers_before_submit_and_retains_outcome_after_unmount() {
     let (probe, mut dom) = hook_mounted().await;
     resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
@@ -929,7 +924,7 @@ async fn production_hook_registers_before_submit_and_retains_outcome_after_unmou
     assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn production_hook_returns_to_wiring_only_after_matching_ready_saved_commit() {
     let (probe, mut dom) = hook_mounted().await;
     let active = start_hook_placement(&probe, &mut dom).await;
@@ -953,7 +948,7 @@ async fn production_hook_returns_to_wiring_only_after_matching_ready_saved_commi
     assert_eq!(probe.canvas_interaction.current(), None);
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn production_hook_routes_persistence_failure_but_close_drains_pending_save() {
     for fail_save in [true, false] {
         let (probe, mut dom) = hook_mounted().await;
@@ -1046,7 +1041,7 @@ async fn production_hook_routes_persistence_failure_but_close_drains_pending_sav
     }
 }
 
-#[wasm_bindgen_test::wasm_bindgen_test]
+#[wasm_bindgen_test]
 async fn production_hook_retires_stale_preparation_and_accepts_a_fresh_place_request() {
     let (probe, mut dom) = hook_mounted().await;
     latest(&probe).on_choose_controller.call(());
@@ -1055,14 +1050,16 @@ async fn production_hook_retires_stale_preparation_and_accepts_a_fresh_place_req
         .on_place_controller
         .call("catalog:controller".into());
     flush_tasks(&mut dom).await;
-    assert!(latest(&probe).owns_canvas());
+    let current = latest(&probe);
+    assert!(current.busy || current.projection.is_some());
 
     let mut next = accepted_document(&probe);
     next.name.push_str(" refreshed");
     replace_accepted_document(&probe, next).await;
     probe.version.set(probe.version.get() + 1);
     flush_hook(&mut dom);
-    assert!(!latest(&probe).owns_canvas());
+    let current = latest(&probe);
+    assert!(!current.busy && current.projection.is_none());
 
     resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
     flush_tasks(&mut dom).await;

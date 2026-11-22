@@ -1,4 +1,5 @@
-use super::*;
+use boardstudio_core::model::Board;
+use boardstudio_web_test_runtime::{in_process_support, project_name_test_support};
 use wasm_bindgen_test::wasm_bindgen_test;
 
 #[wasm_bindgen_test]
@@ -17,13 +18,13 @@ async fn imported_capture_failure_is_visible_only_to_its_current_case_owner() {
     });
     document
         .board_references
-        .push(boardstudio_model::model::BoardReference {
+        .push(boardstudio_core::model::BoardReference {
             id: "missing-routed-source".into(),
             board_id: document.boards[0].id.clone(),
             asset_id: "missing-asset".into(),
             enabled: true,
-            pose: boardstudio_model::model::Pose2 {
-                at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
+            pose: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
             elevation: 0.0,

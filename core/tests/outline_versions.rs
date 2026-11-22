@@ -1,41 +1,8 @@
+use crate::fixtures::{
+    outline_document as fixture, outline_edit as edit, outline_snapshot as document,
+    scene_only as scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn fixture() -> ProjectDoc {
-    let mut document: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::document_format::CURRENT_VERSION;
-    document
-}
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
-
-fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
-    let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
-}
 
 #[test]
 fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available() {

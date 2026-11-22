@@ -1,65 +1,18 @@
-#[path = "../src/matrix_setup_operation.rs"]
+#[path = "../crates/catalogue/src/matrix_setup_operation.rs"]
 mod matrix_setup_operation;
 
 use boardstudio_application::{
-    Completion, Durability, Effect, Event, OperationId, SaveResult,
-    SelectionMode, Session, TerminalOutcome,
+    Completion, Durability, Effect, Event, OperationId, SaveResult, SelectionMode, Session,
+    TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::*};
 use matrix_setup_operation::{
     MatrixSetupPreset, MatrixSetupRequest, next_matrix_id, prepare_matrix,
 };
-use std::collections::BTreeMap;
 
-fn definition(id: &str, source: &str, kind: PartKind) -> PartDefinition {
-    PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: BTreeMap::new(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        generator: Some(PartGenerator {
-            source: source.into(),
-            version: "fixture".into(),
-            parameters: BTreeMap::new(),
-        }),
-    }
-}
-
-fn catalogue() -> Vec<PartDefinition> {
-    vec![
-        definition(
-            "ergogen:ceoloide/switch_mx",
-            "ceoloide/switch_mx",
-            PartKind::Switch,
-        ),
-        definition(
-            "ergogen:ceoloide/switch_choc_v1_v2",
-            "ceoloide/switch_choc_v1_v2",
-            PartKind::Switch,
-        ),
-        definition(
-            "ergogen:ceoloide/diode_tht_sod123",
-            "ceoloide/diode_tht_sod123",
-            PartKind::Passive,
-        ),
-        definition(
-            "ergogen:ceoloide/led_sk6812mini-e",
-            "ceoloide/led_sk6812mini-e",
-            PartKind::Passive,
-        ),
-    ]
-}
+#[path = "support/matrix_catalogue.rs"]
+mod matrix_catalogue;
+use matrix_catalogue::{catalogue, definition};
 
 fn session_document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("matrix-session", "Matrix session");
@@ -100,11 +53,7 @@ fn persist_session_committed(session: &mut Session, effects: Vec<Effect>) -> Vec
     })
 }
 
-fn open_session_saved(
-    session: &mut Session,
-    document: ProjectDoc,
-    id: u64,
-) {
+fn open_session_saved(session: &mut Session, document: ProjectDoc, id: u64) {
     let effects = session.submit(Event::Open {
         operation_id: OperationId(id),
         document,
@@ -425,9 +374,10 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
     let edit_effects = session.submit(Event::ResolveEdit {
         operation_id: OperationId(2),
         label: "fixed matrix setup test".into(),
-        resolver: boardstudio_application::EditResolver::new("fixed matrix setup test", move |_| {
-            resolution.clone()
-        }),
+        resolver: boardstudio_application::EditResolver::new(
+            "fixed matrix setup test",
+            move |_| resolution.clone(),
+        ),
     });
     persist_session_committed(&mut session, edit_effects.clone());
     let completion_effects = edit_effects;
@@ -437,7 +387,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
             operation_id: OperationId(2),
             outcome: TerminalOutcome::Completed,
 
-        ..}
+            ..
+        }
     )));
 
     let accepted = session
@@ -482,7 +433,8 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
                 operation_id: OperationId(3),
                 outcome: TerminalOutcome::Completed,
 
-            ..}
+                ..
+            }
         )),
         "selection settles synchronously in Session"
     );
@@ -532,11 +484,7 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
 
     let durable_document = (*redone.document).clone();
     let mut reopened_session = Session::new(boardstudio_core::CoreEngine::validate_open);
-    open_session_saved(
-        &mut reopened_session,
-        durable_document,
-        6,
-    );
+    open_session_saved(&mut reopened_session, durable_document, 6);
     let reopened = reopened_session
         .read_model()
         .accepted

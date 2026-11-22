@@ -1,12 +1,12 @@
-use super::*;
-use crate::presentation::panels::{self, InspectorPanel, ObjectsPanel, PanelSettings};
+use boardstudio_core::model::ProjectDoc;
+use boardstudio_web_layout::setup_guide::*;
+use boardstudio_web_ui_shared::panels::{self, InspectorPanel, ObjectsPanel, PanelSettings};
 use boardstudio_web_ui_shared::{
     test_mount::{MountedFixture, SavedLocalStorage},
     test_wait::wait_until,
 };
-use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
+use dioxus::prelude::*;
+use wasm_bindgen_test::wasm_bindgen_test;
 
 fn panel_composition() -> Element {
     let mut workspace = use_signal(|| "Layout");

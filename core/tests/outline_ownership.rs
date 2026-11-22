@@ -4,35 +4,11 @@
 //! from origin provenance. A linked refinement records that it follows the board's
 //! current included components; an edited copy stays fixed. Documents written before
 //! this state existed keep their serialized shape and never gain a link.
+use crate::fixtures::{
+    outline_document as fixture, outline_edit as edit, outline_snapshot as document,
+    scene_only as scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn fixture() -> ProjectDoc {
-    let mut document: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::document_format::CURRENT_VERSION;
-    document
-}
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
-
-fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
-    let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
 
 fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
     document["boardOutlines"][0]["versions"]
@@ -41,15 +17,6 @@ fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Val
         .iter()
         .find(|version| version["id"] == id)
         .expect("the named version exists")
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
 }
 
 /// Two fixed versions created by this build; the serialized document is exactly the

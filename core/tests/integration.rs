@@ -13,6 +13,10 @@
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
 mod support;
 
+#[path = "support.rs"]
+#[allow(dead_code)] // Each shard uses a subset of the fixtures.
+mod fixtures;
+
 #[path = "constraint_depth.rs"]
 mod constraint_depth;
 #[path = "contracts.rs"]

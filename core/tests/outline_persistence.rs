@@ -5,19 +5,13 @@
 //! accepted document, exactly as an archive round trip does. Both must reproduce the
 //! same explicit ownership and geometry, and a document this build writes must already
 //! be at the current integrated format version.
+use crate::fixtures::scene_only as scene;
 use boardstudio_core::model::{
     ArchiveAssetBuffer, ArchiveReply, CoreReply, CoreRequest, EditCommand, EditPhase, ProjectDoc,
     SceneDelta,
 };
 use boardstudio_core::{CoreEngine, archive, document_format};
 use sha2::{Digest, Sha256};
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
 
 fn accepted(engine: &mut CoreEngine) -> ProjectDoc {
     match engine.handle(CoreRequest::Snapshot {

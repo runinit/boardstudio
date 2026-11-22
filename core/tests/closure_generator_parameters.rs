@@ -7,6 +7,7 @@
 //! then render every generator-backed definition and part, preview the board and
 //! export it through the same entry points the engine uses.
 
+use crate::fixtures::mechanical_configuration as configuration;
 use std::collections::BTreeMap;
 
 use boardstudio_core::artifact::kicad;
@@ -17,9 +18,9 @@ use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::model::{
     Board, Contour, ExportTarget, HardwareConfiguration, HardwareTopology, HardwareTransport,
-    MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalFeatureKind, Mount,
-    MountKind, Operation, OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2,
-    PrepareExportRequest, ProjectDoc, Vec2,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, Mount, MountKind, Operation,
+    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, PrepareExportRequest, ProjectDoc,
+    Vec2,
 };
 use boardstudio_core::model::{CoreReply, CoreRequest};
 use boardstudio_core::{CoreEngine, document_format};
@@ -40,18 +41,6 @@ fn board(id: &str) -> Board {
     serde_json::from_value(json!({
         "id": id, "name": id, "outlineIds": ["outline"], "partIds": [], "netIds": [],
         "thickness": 1.6,
-    }))
-    .unwrap()
-}
-
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board", "method": "printed", "mount": "rigid",
-        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4, "batteryHeight": 4.0, "bottomThickness": 3.0,
-        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
-        "bottomStyle": "shell", "middleFrame": false, "openingAllowance": 0.25,
-        "mounts": [], "closureMounts": [], "profiles": []
     }))
     .unwrap()
 }

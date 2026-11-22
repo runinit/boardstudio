@@ -5,52 +5,11 @@ impl Runtime {
     pub fn cad_scene(&self) -> Option<Rc<CadScene>> {
         let current_scope = self.scope()?;
         let accepted = self.model().accepted?;
-        let mut cached = self.cad_scene.borrow_mut();
-        let scene = cached.as_ref()?;
-        if scene.scope != current_scope {
-            return None;
-        }
-        if scene.token != accepted.token
-            && crate::case_generation_lifecycle::may_rebind_completed_case_result(
-                scene.exact,
-                &scene.scope,
-                scene.token,
-                scene.physical_fingerprint,
-                &current_scope,
-                accepted.token,
-                crate::case_generation_lifecycle::physical_case_fingerprint(
-                    &accepted,
-                    &current_scope,
-                ),
-            )
-        {
-            let mut rebound = CadScene {
-                scope: scene.scope.clone(),
-                token: accepted.token,
-                snapshot: accepted.clone(),
-                result: scene.result.clone(),
-                prepared: scene.prepared.clone(),
-                physical_fingerprint: scene.physical_fingerprint,
-                mechanical: scene.mechanical.clone(),
-                exact: scene.exact,
-                contours: scene.contours.clone(),
-            };
-            let revision = accepted.document.revision;
-            rebound.result.revision = revision;
-            rebound.prepared.revision = revision;
-            for body in &mut rebound.prepared.bodies {
-                body.revision = revision;
-            }
-            if let Some(mechanical) = &mut rebound.mechanical {
-                mechanical.revision = revision;
-                mechanical.case.revision = revision;
-                for body in &mut mechanical.case.bodies {
-                    body.revision = revision;
-                }
-            }
-            *cached = Some(Rc::new(rebound));
-        }
-        cached.as_ref().cloned()
+        crate::case_generation_lifecycle::current_cad_scene(
+            &mut self.cad_scene.borrow_mut(),
+            &current_scope,
+            &accepted,
+        )
     }
 
     pub fn case_gesture_preview_scene(&self, source: &CadScene) -> Option<Rc<CadScene>> {
