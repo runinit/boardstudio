@@ -326,6 +326,8 @@ struct ExportState {
     scope: Scope,
 }
 
+type BeforeUnloadClosure = Closure<dyn FnMut(web_sys::Event)>;
+
 pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
@@ -336,7 +338,7 @@ pub struct Runtime {
     storage_initializing: Cell<bool>,
     storage_error: RefCell<Option<String>>,
     saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
-    before_unload: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>>,
+    before_unload: RefCell<Option<BeforeUnloadClosure>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     exports: RefCell<BTreeMap<OperationId, ExportState>>,

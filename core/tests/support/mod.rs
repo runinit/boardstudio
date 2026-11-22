@@ -2,7 +2,15 @@
 
 use boardstudio_core::document_format::CURRENT_VERSION;
 
+#[allow(
+    dead_code,
+    reason = "the web host includes this module without calling every core test helper"
+)]
 pub(crate) mod replacement_electrical;
+#[allow(
+    dead_code,
+    reason = "the web host includes this module without calling every core test helper"
+)]
 pub(crate) mod synthetic_half;
 
 /// A `Command` for a KiCad tool. A test process started from an AppImage-hosted terminal

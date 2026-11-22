@@ -404,7 +404,7 @@ impl Runtime {
                 snapshot: snapshot.clone(),
                 result,
                 prepared: prepared.prepared.clone(),
-                physical_fingerprint: physical_fingerprint.clone(),
+                physical_fingerprint,
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
                 contours: contours.clone(),

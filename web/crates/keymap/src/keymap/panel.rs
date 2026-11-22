@@ -374,8 +374,8 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
     let layer_id = props.layer_id.clone();
     let name_id = format!("keymap-layer-name-{}", dioxus::core::current_scope_id().0);
     let error_id = format!("{name_id}-error");
-    let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
-        KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
+    let feedback_error = props.feedback.as_ref().map(|feedback| match feedback {
+        KeymapLayerFeedback::Failed(message) => message.as_str(),
     });
     let field_error = if feedback_error.is_none() {
         name_failure()

@@ -241,16 +241,14 @@ pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
         document: board_document(),
     });
     while let Some(effect) = effects.pop() {
-        match effect {
-            Effect::Persist {
-                save_attempt_id, ..
-            } => {
-                effects.extend(session.complete(Completion::Persist {
-                    save_attempt_id,
-                    result: SaveResult::Committed,
-                }));
-            }
-            _ => {}
+        if let Effect::Persist {
+            save_attempt_id, ..
+        } = effect
+        {
+            effects.extend(session.complete(Completion::Persist {
+                save_attempt_id,
+                result: SaveResult::Committed,
+            }));
         }
     }
     let accepted = session.read_model().accepted.clone().unwrap();

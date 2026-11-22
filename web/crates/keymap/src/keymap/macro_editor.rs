@@ -170,8 +170,8 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
                     )
             })
     });
-    let feedback_text = feedback.and_then(|feedback| match &feedback.status {
-        MacroEditStatus::Failed(message) => Some(message.clone()),
+    let feedback_text = feedback.map(|feedback| match &feedback.status {
+        MacroEditStatus::Failed(message) => message.clone(),
     });
 
     let add_context = MacroRequestContext::from(&props);

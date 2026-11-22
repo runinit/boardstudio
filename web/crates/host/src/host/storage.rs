@@ -247,7 +247,7 @@ impl BrowserStore {
     ) -> Result<Option<SavedProject>, PersistError> {
         let database_name = self.database_name.clone();
         storage_task(async move {
-            let result = load_value(&database_name, PROJECT_STORE, project_id.into())
+            load_value(&database_name, PROJECT_STORE, project_id.into())
                 .await
                 .and_then(|value| {
                     value
@@ -259,8 +259,7 @@ impl BrowserStore {
                             Ok(SavedProject { document, token })
                         })
                         .transpose()
-                });
-            result
+                })
         })
         .await
     }
@@ -273,7 +272,7 @@ impl BrowserStore {
         let database_name = self.database_name.clone();
         let observed = self.observed.clone();
         storage_task(async move {
-            let result = list_project_values(&database_name).await.map(|records| {
+            list_project_values(&database_name).await.map(|records| {
                 let mut listing = ProjectListing::default();
                 for (key, value) in records {
                     match decode_document(value.clone()) {
@@ -300,8 +299,7 @@ impl BrowserStore {
                     }
                 }
                 listing
-            });
-            result
+            })
         })
         .await
     }
@@ -355,7 +353,7 @@ impl BrowserStore {
     pub async fn load_asset(&self, sha256: String) -> Result<Option<Uint8Array>, PersistError> {
         let database_name = self.database_name.clone();
         storage_task(async move {
-            let result = load_value(&database_name, ASSET_STORE, JsValue::from_str(&sha256))
+            load_value(&database_name, ASSET_STORE, JsValue::from_str(&sha256))
                 .await
                 .and_then(|value| {
                     value
@@ -374,8 +372,7 @@ impl BrowserStore {
                             Ok(bytes)
                         })
                         .transpose()
-                });
-            result
+                })
         })
         .await
     }

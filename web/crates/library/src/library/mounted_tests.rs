@@ -256,16 +256,14 @@ fn submit(
 fn advance(session: &mut Session, initial: Vec<Effect>) {
     let mut pending = initial;
     while let Some(effect) = pending.pop() {
-        match effect {
-            Effect::Persist {
-                save_attempt_id, ..
-            } => {
-                pending.extend(session.complete(Completion::Persist {
-                    save_attempt_id,
-                    result: SaveResult::Committed,
-                }));
-            }
-            _ => {}
+        if let Effect::Persist {
+            save_attempt_id, ..
+        } = effect
+        {
+            pending.extend(session.complete(Completion::Persist {
+                save_attempt_id,
+                result: SaveResult::Committed,
+            }));
         }
     }
 }
