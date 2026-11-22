@@ -358,11 +358,8 @@ impl Ctl {
             .and_then(|(point, _)| {
                 make(snapshot, point, pointer.ctrl_key()).map(|start| (start, point))
             });
-        let (Some(capture), Some((start, point))) = (capture, started) else {
-            if let Some(capture) = pointer
-                .target()
-                .and_then(|t| t.dyn_into::<SvgElement>().ok())
-            {
+        let (Some(capture), Some((start, point))) = (capture.clone(), started) else {
+            if let Some(capture) = capture {
                 let _ = capture.release_pointer_capture(pointer.pointer_id());
             }
             self.arbiter
@@ -1422,7 +1419,9 @@ pub fn LayoutRailOverlay(
     };
 
     rsx! {
-        {rail_backdrop(&layout, slots, px)}
+        if slots > 0 {
+            {rail_backdrop(&layout, slots, px)}
+        }
         if let Some(point) = guide() {
             g { class: "pointer-events-none fill-none stroke-primary stroke-[0.45] [&_circle]:fill-card", "aria-hidden": "true",
                 circle { cx: "{point.x}", cy: "{point.y}", r: "{width / 170.0}" }
