@@ -1,4 +1,4 @@
-//! Header presentation of Library operations. Drafts and the project browser stay in Library.
+//! Header presentation of Library operations.
 use super::*;
 use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
 use boardstudio_web_ui_shared::ui::dropdown_menu::{
@@ -6,10 +6,9 @@ use boardstudio_web_ui_shared::ui::dropdown_menu::{
 };
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 
-/// Shell wiring only. Library remains the sole owner of drafts and tool presentation.
+/// Shell wiring only. Library remains the sole owner of tool presentation.
 pub fn use_project_tools() {
-    let request = ProjectToolRequest(use_signal(|| None));
-    use_context_provider(|| request);
+    use_context_provider(|| ProjectToolRequest(use_signal(|| None)));
 }
 
 #[component]
@@ -27,15 +26,11 @@ pub fn ProjectHeaderMenu(
     let mut guide = use_context::<Signal<Option<SetupGuideRequest>>>();
     let mut guide_counter = use_signal(|| 0_u64);
     let mut file_input = use_signal(|| None::<HtmlInputElement>);
-    let version = use_context::<Signal<u64>>();
-    let _ = version();
-    let current = runtime.model().accepted;
-    let has_current = current.is_some();
-    let project_id = current.map(|snapshot| snapshot.document.id.clone());
-    let create = runtime.clone();
-    let copy = runtime.clone();
-    let import = runtime.clone();
+    let _ = use_context::<Signal<u64>>()();
+    let project_id = runtime.model().accepted.map(|s| s.document.id.clone());
+    let has_current = project_id.is_some();
     let tool_request = try_use_context::<ProjectToolRequest>();
+    let (create, copy, import) = (runtime.clone(), runtime.clone(), runtime.clone());
     let new_project = use_callback(move |()| {
         start_new_keyboard(
             create.clone(),
@@ -52,95 +47,61 @@ pub fn ProjectHeaderMenu(
     let save_copy = use_callback(move |()| copy.export_project_copy());
     let setup_id = project_id.clone();
     let setup = use_callback(move |()| {
-        if let Some(project_id) = &setup_id {
+        if let Some(id) = &setup_id {
             guide_counter += 1;
             guide.set(Some(SetupGuideRequest {
-                project_id: project_id.clone(),
-                request_id: format!("{}-guide-{}", project_id, guide_counter()),
+                project_id: id.clone(),
+                request_id: format!("{id}-guide-{}", guide_counter()),
                 start_at_project: false,
             }));
             browser.set(false);
         }
     });
-    let rename_project = use_memo(use_reactive((&project_id,), {
-        let rename_runtime = runtime.clone();
-        move |(rename_id,)| {
-            let rename_runtime = rename_runtime.clone();
-            EventHandler::new(move |()| {
-                if let Some(mut request) = tool_request
-                    && let Some(id) = &rename_id
-                    && rename_runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.document.id == *id)
-                {
-                    request.0.set(Some(ProjectTool::Rename(id.clone())));
-                    browser.set(true);
-                }
-            })
-        }
-    }));
-    let open_demo = use_callback(move |()| {
-        if let Some(mut request) = tool_request {
-            request.0.set(Some(ProjectTool::Demo));
+    let rename_rt = runtime.clone();
+    let rename_id = project_id.clone();
+    let rename_project = EventHandler::new(move |()| {
+        if let (Some(mut req), Some(id)) = (tool_request, &rename_id)
+            && rename_rt
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|s| s.document.id == *id)
+        {
+            req.0.set(Some(ProjectTool::Rename(id.clone())));
             browser.set(true);
         }
     });
+    let open_demo = use_callback(move |()| {
+        if let Some(mut req) = tool_request {
+            req.0.set(Some(ProjectTool::Demo));
+            browser.set(true);
+        }
+    });
+    let no_proj = (!has_current).then(|| "Open a project first.".into());
+    let cmd = |group, label: &str, reason, on_select| Command {
+        group,
+        label: label.into(),
+        reason,
+        hint: None,
+        on_select,
+    };
     let mut commands = vec![
-        Command {
-            group: "Project",
-            label: "New project".into(),
-            reason: pending_new()
+        cmd(
+            "Project",
+            "New project",
+            pending_new()
                 .is_some()
                 .then(|| "A new keyboard is being created.".into()),
-            hint: None,
-            on_select: new_project,
-        },
-        Command {
-            group: "Project",
-            label: "Open project…".into(),
-            reason: None,
-            hint: None,
-            on_select: open_project,
-        },
-        Command {
-            group: "Project",
-            label: "Save project copy…".into(),
-            reason: (!has_current).then(|| "Open a project first.".into()),
-            hint: None,
-            on_select: save_copy,
-        },
-        Command {
-            group: "Go to",
-            label: "Setup guide".into(),
-            reason: (!has_current).then(|| "Open a project first.".into()),
-            hint: None,
-            on_select: setup,
-        },
-        Command {
-            group: "Project",
-            label: "Workspace settings".into(),
-            reason: None,
-            hint: None,
-            on_select: on_settings,
-        },
+            new_project,
+        ),
+        cmd("Project", "Open project…", None, open_project),
+        cmd("Project", "Save project copy…", no_proj.clone(), save_copy),
+        cmd("Go to", "Setup guide", no_proj.clone(), setup),
+        cmd("Project", "Workspace settings", None, on_settings),
     ];
     if tool_request.is_some() {
-        commands.push(Command {
-            group: "Project",
-            label: "Rename project".into(),
-            reason: (!has_current).then(|| "Open a project first.".into()),
-            hint: None,
-            on_select: rename_project(),
-        });
-        commands.push(Command {
-            group: "Project",
-            label: "Open demo".into(),
-            reason: None,
-            hint: None,
-            on_select: open_demo,
-        });
+        commands.push(cmd("Project", "Rename project", no_proj, rename_project));
+        commands.push(cmd("Project", "Open demo", None, open_demo));
     }
     use_commands(commands);
     rsx! {
@@ -150,13 +111,9 @@ pub fn ProjectHeaderMenu(
                 ChevronDown {}
             }
             DropdownMenuContent { aria_label: "Project",
-                DropdownMenuItem::<()> { value: (), index: 0usize, disabled: pending_new().is_some(),
-                    on_select: move |_| new_project.call(()),
-                    "New project"
-                }
+                DropdownMenuItem::<()> { value: (), index: 0usize, disabled: pending_new().is_some(), on_select: move |_| new_project.call(()), "New project" }
                 DropdownMenuItem::<()> { value: (), index: 1usize, on_select: move |_| open_project.call(()), "Open project…" }
-                DropdownMenuItem::<()> { value: (), index: 2usize, disabled: !has_current,
-                    aria_label: "Save project copy…", on_select: move |_| save_copy.call(()), "Save project copy…" }
+                DropdownMenuItem::<()> { value: (), index: 2usize, disabled: !has_current, aria_label: "Save project copy…", on_select: move |_| save_copy.call(()), "Save project copy…" }
                 DropdownMenuItem::<()> { value: (), index: 3usize, on_select: move |_| browser.set(true), "Browse projects" }
                 if browser() && has_current {
                     DropdownMenuItem::<()> { value: (), index: 4usize, on_select: move |_| browser.set(false), "Return to editor" }
@@ -170,15 +127,15 @@ pub fn ProjectHeaderMenu(
             }
         }
         input { id: "header-open-project", r#type: "file", hidden: true, accept: ".boardstudio",
-            onmounted: move |event: MountedEvent| {
-                file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
-            },
-            onchange: move |event: FormEvent| {
-                let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
-                let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                import.import_file(file);
-                browser.set(false);
-                input.set_value("");
+            onmounted: move |e: MountedEvent| file_input.set(e.data().downcast::<web_sys::Element>().and_then(|el| el.dyn_ref::<HtmlInputElement>()).cloned()),
+            onchange: move |e: FormEvent| {
+                if let Some(input) = e.data().try_as_web_event().and_then(|ev| ev.target()).and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
+                    && let Some(file) = input.files().and_then(|f| f.get(0))
+                {
+                    import.import_file(file);
+                    browser.set(false);
+                    input.set_value("");
+                }
             }
         }
     }

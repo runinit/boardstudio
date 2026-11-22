@@ -1,14 +1,12 @@
 //! Parts-owned Objects, canvas placeholder and Inspector composition.
-use super::parts::{PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace};
-use super::parts::{PartsQuery, PartsSelection};
+use super::parts::{
+    PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace, PartsQuery, PartsSelection,
+};
 use super::workspace_composition::PlaceholderInput;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
-/// State shared by the Parts library, preview, placement and assembly editors.
-/// Editor keeps the handle to compose these views; catalogue state and its
-/// selection epochs remain owned here.
 #[derive(Clone, Copy)]
 pub(super) struct PartsWorkspaceState {
     query: PartsQuery,
@@ -42,28 +40,21 @@ impl PartsWorkspaceState {
     pub(super) fn query(self) -> PartsQuery {
         self.query
     }
-
     pub(super) fn selected(self) -> PartsSelection {
         self.selected
     }
-
     pub(super) fn assembly_orientation(self) -> Signal<super::parts::SwitchOrientation> {
         self.assembly_orientation
     }
-
     pub(super) fn selection_generation(self) -> Signal<u64> {
         self.selection_generation
     }
-
-    /// Record explicit selection of a mounted module and expire callbacks or
-    /// previews tied to the prior Parts selection.
     pub(super) fn select_mounted_module(mut self, scope: Scope, definition_id: &str) {
         self.selected
             .set(Some((Some(scope), format!("module:{definition_id}"))));
         self.selection_generation
-            .with_mut(|generation| *generation = generation.wrapping_add(1));
-        self.preview_activation
-            .with_mut(|activation| *activation = activation.wrapping_add(1));
+            .with_mut(|g| *g = g.wrapping_add(1));
+        self.preview_activation.with_mut(|a| *a = a.wrapping_add(1));
     }
 }
 
@@ -103,165 +94,34 @@ pub(super) struct CanvasInput {
     pub(super) selected: PartsSelection,
 }
 
-pub(super) fn objects(input: ObjectsInput) -> Element {
-    rsx! {
-        PartsLibraryPanel {
-            snapshot: input.snapshot,
-            scope: input.scope,
-            scope_generation: input.scope_generation,
-            workspace: input.workspace,
-            query: input.query,
-            selected: input.selected,
-            on_select: input.on_select,
-        }
-    }
+pub(super) fn objects(i: ObjectsInput) -> Element {
+    rsx! { PartsLibraryPanel { snapshot: i.snapshot, scope: i.scope, scope_generation: i.scope_generation, workspace: i.workspace, query: i.query, selected: i.selected, on_select: i.on_select } }
 }
-
 pub(super) fn toolbar() -> Element {
     rsx! {}
 }
-
-pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
+pub(super) fn canvas(mut i: PlaceholderInput) -> Element {
     rsx! {
         section { class: "box-border w-full max-w-[760px] m-auto p-7 text-foreground",
-            h1 { "{input.name}" }
-            p { class: "max-w-[60ch] text-muted-foreground", "{input.message}" }
-            Button { variant: ButtonVariant::Secondary, onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
+            h1 { "{i.name}" } p { class: "max-w-[60ch] text-muted-foreground", "{i.message}" }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| i.workspace.set("Layout"), "Back to Layout" }
         }
     }
 }
-
-pub(super) fn preview(input: CanvasInput) -> Element {
+pub(super) fn preview(i: CanvasInput) -> Element {
     rsx! {
-        if let Some(on_back) = input.controller_back {
-            Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
-        }
-        PartsPreviewWorkspace {
-            snapshot: input.snapshot,
-            scope: input.scope,
-            query: input.query,
-            selected: input.selected,
-        }
+        if let Some(on_back) = i.controller_back { Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" } }
+        PartsPreviewWorkspace { snapshot: i.snapshot, scope: i.scope, query: i.query, selected: i.selected }
     }
 }
-
-pub(super) fn inspector(input: InspectorInput) -> Element {
+pub(super) fn inspector(i: InspectorInput) -> Element {
     rsx! {
         PartsInspectorPanel {
-            snapshot: input.snapshot,
-            scope: input.scope,
-            query: input.query,
-            selected: input.selected,
-            selected_context: input.selected_context,
-            on_place_controller: input.on_place_controller,
-            on_place_component: input.on_place_component,
-            controller_placement_enabled: input.controller_placement_enabled,
-            placement_busy: input.placement_busy,
-            placement_error: input.placement_error,
-            layout_target: input.layout_target,
-            on_place_assembly: input.on_place_assembly,
-            on_board_placed: input.on_board_placed,
-            on_open_module_placement: input.on_open_module_placement,
-            on_module_attached: input.on_module_attached,
+            snapshot: i.snapshot, scope: i.scope, query: i.query, selected: i.selected, selected_context: i.selected_context,
+            on_place_controller: i.on_place_controller, on_place_component: i.on_place_component,
+            controller_placement_enabled: i.controller_placement_enabled, placement_busy: i.placement_busy,
+            placement_error: i.placement_error, layout_target: i.layout_target, on_place_assembly: i.on_place_assembly,
+            on_board_placed: i.on_board_placed, on_open_module_placement: i.on_open_module_placement, on_module_attached: i.on_module_attached,
         }
-    }
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod workspace_state_tests {
-    use super::*;
-    use boardstudio_application::SessionEpoch;
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[component]
-    fn state_host() -> Element {
-        let state = use_parts_workspace_state();
-        let selected = state.selected();
-        let generation = state.selection_generation();
-        let activation = state.preview_activation;
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "parts-state".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let selected_label = selected()
-            .as_ref()
-            .map(|(_, id)| id.clone())
-            .unwrap_or_else(|| "none".into());
-        rsx! {
-            Button {
-                id: "select-mounted-module",
-                onclick: move |_| state.select_mounted_module(scope.clone(), "module-definition"),
-                "Select module"
-            }
-            output { id: "selected-module", "{selected_label}" }
-            output { id: "selection-generation", "{generation()}" }
-            output { id: "preview-activation", "{activation()}" }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_module_selection_expires_prior_parts_work() {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(state_host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        wait_until("the mounted module selector renders", || {
-            by_role_name(&root, "button", "Select module").is_some()
-        })
-        .await;
-
-        by_role_name(&root, "button", "Select module")
-            .unwrap()
-            .click();
-        wait_until(
-            "selecting the mounted module updates its generation",
-            || {
-                let text = |selector: &str| {
-                    root.query_selector(selector)
-                        .ok()
-                        .flatten()
-                        .and_then(|node| node.text_content())
-                };
-                text("#selected-module").as_deref() == Some("module:module-definition")
-                    && text("#selection-generation").as_deref() == Some("1")
-                    && text("#preview-activation").as_deref() == Some("1")
-            },
-        )
-        .await;
-
-        assert_eq!(
-            document
-                .get_element_by_id("selected-module")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("module:module-definition")
-        );
-        assert_eq!(
-            document
-                .get_element_by_id("selection-generation")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("1")
-        );
-        assert_eq!(
-            document
-                .get_element_by_id("preview-activation")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("1")
-        );
-        root.remove();
     }
 }

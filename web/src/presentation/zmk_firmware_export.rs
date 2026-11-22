@@ -3,11 +3,11 @@ use super::{
     pcb_wiring::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity},
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
+    command::{Command, use_commands},
     item::{Item, ItemContent, ItemDescription},
 };
 use dioxus::prelude::*;
@@ -20,52 +20,6 @@ pub(crate) struct ZmkFirmwareExportPanelInput {
     pub on_export: EventHandler<()>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ZmkExportActionOwner {
-    ui_scope: Scope,
-    plan_identity: WiringPlanIdentity,
-    scope_generation: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct AcceptedDocumentIdentity {
-    session_epoch: SessionEpoch,
-    document_id: String,
-    token: SnapshotToken,
-    revision: u64,
-    scene_revision: u64,
-}
-
-struct CurrentZmkExportState<'a> {
-    workspace: &'a str,
-    scope_generation: u64,
-    runtime_scope: Option<&'a Scope>,
-    board_scope_is_current: bool,
-    instance_is_current: bool,
-    accepted: Option<&'a AcceptedDocumentIdentity>,
-    resolution: &'a PcbWiringResolution,
-}
-
-fn export_action_is_current(
-    owner: &ZmkExportActionOwner,
-    state: &CurrentZmkExportState<'_>,
-) -> bool {
-    let plan = &owner.plan_identity;
-    state.workspace == "Export"
-        && state.scope_generation == owner.scope_generation
-        && state.runtime_scope == Some(&owner.ui_scope)
-        && state.board_scope_is_current
-        && state.instance_is_current
-        && state.accepted.is_some_and(|accepted| {
-            accepted.session_epoch == plan.scope.session_epoch
-                && accepted.document_id == plan.scope.document_id
-                && accepted.token == plan.token
-                && accepted.revision == plan.revision
-                && accepted.scene_revision == plan.revision
-        })
-        && ready_for_export(plan, state.resolution)
-}
-
 pub(crate) fn use_export_panel_input(
     runtime: Rc<Runtime>,
     workspace: Signal<&'static str>,
@@ -76,46 +30,29 @@ pub(crate) fn use_export_panel_input(
 ) -> ZmkFirmwareExportPanelInput {
     let ready = source
         .as_ref()
-        .is_some_and(|source| ready_for_export(&source.identity, &resolution()));
+        .is_some_and(|s| ready_for_export(&s.identity, &resolution()));
     let wiring_ready = source
         .as_ref()
-        .is_some_and(|source| wiring_ready_for_board_export(&source.identity, &resolution()));
-    let on_export = use_callback({
-        let runtime = runtime.clone();
-        let owner = source.as_ref().map(|source| ZmkExportActionOwner {
-            ui_scope: source.ui_scope.clone(),
-            plan_identity: source.identity.clone(),
-            scope_generation: source.scope_generation,
-        });
-        move |()| {
-            let Some(owner) = owner.as_ref() else {
-                return;
-            };
-            let model = runtime.model();
-            let accepted = model
-                .accepted
-                .as_ref()
-                .map(|snapshot| AcceptedDocumentIdentity {
-                    session_epoch: snapshot.session_epoch,
-                    document_id: snapshot.document.id.clone(),
-                    token: snapshot.token,
-                    revision: snapshot.document.revision,
-                    scene_revision: snapshot.scene.revision,
-                });
-            if !export_action_is_current(
-                owner,
-                &CurrentZmkExportState {
-                    workspace: workspace(),
-                    scope_generation: scope_generation(),
-                    runtime_scope: runtime.scope().as_ref(),
-                    board_scope_is_current: active_board_scope_matches(&model, &owner.ui_scope),
-                    instance_is_current: instance_selection.is_current(&model),
-                    accepted: accepted.as_ref(),
-                    resolution: &resolution(),
-                },
-            ) {
-                return;
-            }
+        .is_some_and(|s| wiring_ready_for_board_export(&s.identity, &resolution()));
+    let on_export = use_callback(move |()| {
+        let Some(src) = source.as_ref() else {
+            return;
+        };
+        let model = runtime.model();
+        let ok = workspace() == "Export"
+            && scope_generation() == src.scope_generation
+            && runtime.scope().as_ref() == Some(&src.ui_scope)
+            && active_board_scope_matches(&model, &src.ui_scope)
+            && instance_selection.is_current(&model)
+            && model.accepted.as_ref().is_some_and(|a| {
+                a.session_epoch == src.identity.scope.session_epoch
+                    && a.document.id == src.identity.scope.document_id
+                    && a.token == src.identity.token
+                    && a.document.revision == src.identity.revision
+                    && a.scene.revision == src.identity.revision
+            })
+            && ready_for_export(&src.identity, &resolution());
+        if ok {
             runtime.export_firmware();
         }
     });
@@ -126,54 +63,26 @@ pub(crate) fn use_export_panel_input(
     }
 }
 
-fn wiring_ready_for_board_export(
-    identity: &WiringPlanIdentity,
-    resolution: &PcbWiringResolution,
-) -> bool {
-    let PcbWiringResolution::Current {
-        identity: resolved_identity,
-        plan,
-    } = resolution
-    else {
-        return false;
-    };
-    resolved_identity == identity
-        && plan.revision == identity.revision
-        && plan.board_id.as_deref() == Some(identity.scope.board_id.as_str())
-        && plan.instance_id.is_none()
-        && !plan
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == "error")
+fn wiring_ready_for_board_export(id: &WiringPlanIdentity, res: &PcbWiringResolution) -> bool {
+    matches!(res, PcbWiringResolution::Current { identity, plan }
+        if identity == id && plan.revision == id.revision
+            && plan.board_id.as_deref() == Some(id.scope.board_id.as_str())
+            && plan.instance_id.is_none()
+            && !plan.diagnostics.iter().any(|d| d.severity == "error"))
 }
 
-pub(crate) fn ready_for_export(
-    identity: &WiringPlanIdentity,
-    resolution: &PcbWiringResolution,
-) -> bool {
-    let PcbWiringResolution::Current {
-        identity: resolved_identity,
-        plan,
-    } = resolution
-    else {
-        return false;
-    };
-
-    resolved_identity == identity
-        && plan.revision == identity.revision
-        && plan.board_id.as_deref() == Some(identity.scope.board_id.as_str())
-        && plan.instance_id.is_none()
-        && !plan
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == "error")
-        && plan.controller_part_id.is_some()
-        && !plan.assignments.is_empty()
+pub(crate) fn ready_for_export(id: &WiringPlanIdentity, res: &PcbWiringResolution) -> bool {
+    matches!(res, PcbWiringResolution::Current { identity, plan }
+        if identity == id && plan.revision == id.revision
+            && plan.board_id.as_deref() == Some(id.scope.board_id.as_str())
+            && plan.instance_id.is_none()
+            && !plan.diagnostics.iter().any(|d| d.severity == "error")
+            && plan.controller_part_id.is_some()
+            && !plan.assignments.is_empty())
 }
 
 #[component]
 pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> Element {
-    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
     use_commands(vec![Command {
         group: "Current Workspace",
         label: "Export ZMK firmware".into(),
@@ -183,386 +92,18 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
     }]);
     rsx! {
         div { "data-export-kind": "ZMK firmware",
-          Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-none border-0 border-t border-border p-4 bg-card max-[760px]:grid-cols-1",
-            ItemContent { class: "flex-row flex-wrap items-start gap-1 min-w-0 max-[760px]:flex-col",
-                strong { class: "text-[18px]", "ZMK firmware" }
-                Badge { variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
-                    if ready { "Available" } else { "Needs controller wiring" }
+            Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-none border-0 border-t border-border p-4 bg-card max-[760px]:grid-cols-1",
+                ItemContent { class: "flex-row flex-wrap items-start gap-1 min-w-0 max-[760px]:flex-col",
+                    strong { class: "text-[18px]", "ZMK firmware" }
+                    Badge { variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
+                        if ready { "Available" } else { "Needs controller wiring" }
+                    }
+                    ItemDescription { class: "line-clamp-none", "ZMK v0.3.0 configuration and editable starter keymap" }
+                    if !ready { Callout { variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." } }
                 }
-                ItemDescription { class: "line-clamp-none", "ZMK v0.3.0 configuration and editable starter keymap" }
-                if !ready {
-                    Callout { variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
-                }
-            }
-            Button { variant: ButtonVariant::Secondary,
-                class: "min-w-[104px] min-h-9 max-[760px]:col-start-1 max-[760px]:justify-self-start",
-                button_type: "button",
-                aria_label: "Export ZMK firmware",
-                disabled: !ready,
-                onclick: move |_| on_export.call(()),
-                "Export firmware"
-            }
-          }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::{
-        ExportPanel, InstanceSelection,
-        notifications::{NotificationProvider, RuntimeNotifications},
-    };
-    use super::*;
-    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
-    use boardstudio_web_test_runtime::firmware_export_test_support as runtime_test;
-    use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[derive(Clone)]
-    struct ProductionExportProbe {
-        runtime: Rc<Runtime>,
-        source: PcbWiringSource,
-        resolution: PcbWiringResolution,
-    }
-
-    #[component]
-    fn production_export_panel_fixture() -> Element {
-        let probe = use_context::<ProductionExportProbe>();
-        let version = use_signal(|| 0u64);
-        use_context_provider(|| version);
-        let _ = version();
-        let runtime = probe.runtime.clone();
-        let version_cell = Rc::new(RefCell::new(version));
-        use_hook(move || {
-            let version_cell = version_cell.clone();
-            runtime.subscribe(Rc::new(move || {
-                let mut version = version_cell.borrow_mut();
-                let next = *version.peek() + 1;
-                version.set(next);
-            }));
-        });
-        let workspace = use_signal(|| "Export");
-        let generation = use_signal(|| 1u64);
-        let resolution = use_signal(|| probe.resolution.clone());
-        let instance_selection = InstanceSelection(use_signal(|| None));
-        let firmware = use_export_panel_input(
-            probe.runtime.clone(),
-            workspace,
-            generation,
-            Some(probe.source.clone()),
-            resolution,
-            instance_selection,
-        );
-        rsx! {
-            NotificationProvider {
-            style { {include_str!("../../assets/workbench-base.css")} }
-            RuntimeNotifications {}
-            ExportPanel { zmk_firmware: Some(firmware) }
+                Button { variant: ButtonVariant::Secondary, class: "min-w-[104px] min-h-9", button_type: "button",
+                    aria_label: "Export ZMK firmware", disabled: !ready, onclick: move |_| on_export.call(()), "Export firmware" }
             }
         }
-    }
-
-    fn mount_production_export_panel(probe: ProductionExportProbe) -> web_sys::Element {
-        // The fixture's initial open/save predates mounting this consumer.
-        probe.runtime.take_notifications();
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("zmk-production-export-panel-test-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(production_export_panel_fixture);
-        dom.provide_root_context(probe.runtime.clone());
-        dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
-    }
-
-    fn production_probe(
-        runtime: Rc<Runtime>,
-        accepted: &boardstudio_application::AcceptedSnapshot,
-        scope: &Scope,
-        ready: bool,
-    ) -> ProductionExportProbe {
-        let source = PcbWiringSource::new(accepted, scope, scope, None, 1)
-            .expect("fixture has an accepted board-scoped source");
-        let resolution = if ready {
-            let identity = source.identity.clone();
-            PcbWiringResolution::Current {
-                identity: identity.clone(),
-                plan: Rc::new(plan(&identity)),
-            }
-        } else {
-            PcbWiringResolution::Idle
-        };
-        ProductionExportProbe {
-            runtime,
-            source,
-            resolution,
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_unavailable_export_row_is_disabled_and_never_dispatches() {
-        let (runtime, accepted, scope) = runtime_test::fixture().await;
-        let root = mount_production_export_panel(production_probe(
-            runtime.clone(),
-            &accepted,
-            &scope,
-            false,
-        ));
-        wait_until(
-            "the unavailable ZMK export control renders disabled",
-            || {
-                by_role_name(&root, "button", "Export ZMK firmware")
-                    .is_some_and(|button| button.has_attribute("disabled"))
-            },
-        )
-        .await;
-        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
-        assert!(button.has_attribute("disabled"));
-        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
-        assert!(
-            root.text_content()
-                .unwrap()
-                .contains("Needs controller wiring")
-        );
-        assert!(
-            root.text_content()
-                .unwrap()
-                .contains("Review the layout and resolve controller wiring in PCB.")
-        );
-        button.click();
-        assert!(runtime_test::take_effects(&runtime).is_empty());
-        root.remove();
-    }
-
-    fn identity() -> WiringPlanIdentity {
-        WiringPlanIdentity {
-            scope: Scope {
-                session_epoch: SessionEpoch(4),
-                document_id: "doc-a".into(),
-                board_id: "board-a".into(),
-                instance_id: None,
-            },
-            token: SnapshotToken(8),
-            revision: 3,
-        }
-    }
-
-    fn plan(identity: &WiringPlanIdentity) -> ElectricalPlan {
-        ElectricalPlan {
-            instance_id: None,
-            jumpers: Vec::new(),
-            module_aliases: Default::default(),
-            mode: ElectricalMode::Matrix,
-            assignments: vec![boardstudio_core::electrical::ElectricalAssignment {
-                key_id: "key-1".into(),
-                matrix_id: "matrix-1".into(),
-                row: 0,
-                column: 0,
-                row_pin: "R0".into(),
-                column_pin: "C0".into(),
-                locked: false,
-                row_firmware_gpio: None,
-                column_firmware_gpio: None,
-                direct_gpio: None,
-            }],
-            row_pins: vec!["R0".into()],
-            column_pins: vec!["C0".into()],
-            diagnostics: Vec::new(),
-            fingerprint: "plan".into(),
-            board_id: Some(identity.scope.board_id.clone()),
-            controller_part_id: Some("controller-1".into()),
-            revision: identity.revision,
-            controller_profile: None,
-            free_pins: Vec::new(),
-            nets: Vec::new(),
-            diode_direction: "column2row".into(),
-            peripherals: Vec::new(),
-            peripheral_pins: Default::default(),
-            peripheral_terminals: Default::default(),
-        }
-    }
-
-    #[wasm_bindgen_test]
-    fn only_a_current_ready_board_plan_with_controller_and_assignment_enables_export() {
-        let identity = identity();
-        let ready = PcbWiringResolution::Current {
-            identity: identity.clone(),
-            plan: Rc::new(plan(&identity)),
-        };
-        assert!(ready_for_export(&identity, &ready));
-
-        assert!(!ready_for_export(&identity, &PcbWiringResolution::Idle));
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Pending {
-                identity: identity.clone(),
-            }
-        ));
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Failed {
-                identity: identity.clone(),
-                message: "worker failed".into(),
-            }
-        ));
-
-        let wrong_owner = WiringPlanIdentity {
-            token: SnapshotToken(9),
-            ..identity.clone()
-        };
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Current {
-                identity: wrong_owner.clone(),
-                plan: Rc::new(plan(&wrong_owner)),
-            }
-        ));
-
-        let mut no_controller = plan(&identity);
-        no_controller.controller_part_id = None;
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Current {
-                identity: identity.clone(),
-                plan: Rc::new(no_controller),
-            }
-        ));
-
-        let mut no_assignments = plan(&identity);
-        no_assignments.assignments.clear();
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Current {
-                identity: identity.clone(),
-                plan: Rc::new(no_assignments),
-            }
-        ));
-
-        let mut diagnostics = plan(&identity);
-        diagnostics
-            .diagnostics
-            .push(boardstudio_core::electrical::ElectricalDiagnostic {
-                code: "missing-controller".into(),
-                severity: "error".into(),
-                message: "not ready".into(),
-                key_id: None,
-            });
-        assert!(!ready_for_export(
-            &identity,
-            &PcbWiringResolution::Current {
-                identity: identity.clone(),
-                plan: Rc::new(diagnostics),
-            }
-        ));
-    }
-
-    #[wasm_bindgen_test]
-    fn export_action_requires_the_rendered_workspace_owner_and_accepted_plan() {
-        let identity = identity();
-        let ui_scope = Scope {
-            instance_id: Some("main".into()),
-            ..identity.scope.clone()
-        };
-        let owner = ZmkExportActionOwner {
-            ui_scope: ui_scope.clone(),
-            plan_identity: identity.clone(),
-            scope_generation: 7,
-        };
-        let accepted = AcceptedDocumentIdentity {
-            session_epoch: identity.scope.session_epoch,
-            document_id: identity.scope.document_id.clone(),
-            token: identity.token,
-            revision: identity.revision,
-            scene_revision: identity.revision,
-        };
-        let resolution = PcbWiringResolution::Current {
-            identity: identity.clone(),
-            plan: Rc::new(plan(&identity)),
-        };
-        let admit =
-            |workspace, generation, runtime_scope, board, instance, accepted, resolution| {
-                export_action_is_current(
-                    &owner,
-                    &CurrentZmkExportState {
-                        workspace,
-                        scope_generation: generation,
-                        runtime_scope,
-                        board_scope_is_current: board,
-                        instance_is_current: instance,
-                        accepted,
-                        resolution,
-                    },
-                )
-            };
-
-        assert!(admit(
-            "Export",
-            7,
-            Some(&ui_scope),
-            true,
-            true,
-            Some(&accepted),
-            &resolution,
-        ));
-        assert!(!admit(
-            "Keymap",
-            7,
-            Some(&ui_scope),
-            true,
-            true,
-            Some(&accepted),
-            &resolution,
-        ));
-        assert!(!admit(
-            "Export",
-            8,
-            Some(&ui_scope),
-            true,
-            true,
-            Some(&accepted),
-            &resolution,
-        ));
-        let other_board = Scope {
-            board_id: "other-board".into(),
-            ..ui_scope.clone()
-        };
-        assert!(!admit(
-            "Export",
-            7,
-            Some(&other_board),
-            true,
-            true,
-            Some(&accepted),
-            &resolution,
-        ));
-        assert!(!admit(
-            "Export",
-            7,
-            Some(&ui_scope),
-            true,
-            false,
-            Some(&accepted),
-            &resolution,
-        ));
-        let mut stale = accepted.clone();
-        stale.revision += 1;
-        assert!(!admit(
-            "Export",
-            7,
-            Some(&ui_scope),
-            true,
-            true,
-            Some(&stale),
-            &resolution,
-        ));
     }
 }

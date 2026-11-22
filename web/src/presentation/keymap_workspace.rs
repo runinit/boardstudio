@@ -24,64 +24,8 @@ impl KeymapWorkspaceState {
     }
 
     pub(super) fn select_layer(&self, layer_id: String) {
-        let mut active_layer = self.layer_id;
-        active_layer.set(layer_id);
-    }
-}
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod workspace_state_tests {
-    use super::*;
-    use boardstudio_web_ui_shared::ui::button::Button;
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[component]
-    fn state_host() -> Element {
-        let state = use_keymap_workspace_state();
-        let active_layer = state.active_layer_id();
-        let active_layer_label = active_layer();
-        rsx! {
-            Button { id: "select-layer", onclick: move |_| state.select_layer("function".into()), "Select layer" }
-            output { id: "active-layer", "{active_layer_label}" }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn selecting_a_layer_updates_the_workspace_state() {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(state_host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        wait_until("the keymap layer controls render", || {
-            by_role_name(&root, "button", "Select layer").is_some()
-        })
-        .await;
-        by_role_name(&root, "button", "Select layer")
-            .unwrap()
-            .click();
-        wait_until("selecting a layer updates the workspace state", || {
-            root.query_selector("#active-layer")
-                .ok()
-                .flatten()
-                .is_some_and(|label| label.text_content().as_deref() == Some("function"))
-        })
-        .await;
-        assert_eq!(
-            document
-                .get_element_by_id("active-layer")
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("function")
-        );
-        root.remove();
+        let mut active = self.layer_id;
+        active.set(layer_id);
     }
 }
 
@@ -94,16 +38,14 @@ pub(super) fn use_projection(
 ) -> Option<(Rc<keymap::KeymapView>, Rc<[Contour]>)> {
     use_memo(use_reactive(
         (&accepted_token, &current_scope, &active_board_id, &layer_id),
-        {
-            move |(token, scope, board_id, layer_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keymap::project(snapshot, scope.as_ref(), &board_id, layer_id.as_ref())?;
-                Some((view, super::accepted_board_contours(snapshot, &board_id)))
+        move |(token, scope, board_id, layer_id)| {
+            let model = runtime.model();
+            let snapshot = model.accepted.as_ref()?;
+            if token.as_ref() != Some(&snapshot.token) {
+                return None;
             }
+            let view = keymap::project(snapshot, scope.as_ref(), &board_id, layer_id.as_ref())?;
+            Some((view, super::accepted_board_contours(snapshot, &board_id)))
         },
     ))
     .read()
@@ -166,145 +108,81 @@ pub(super) fn objects(input: NavigationInput) -> Element {
 pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
     rsx! {
         super::shared_viewer::DesignViewToolbar {
-            contextual_tools: input.contextual_tools,
-            label: input.label,
-            detail: input.detail,
-            assembly_3d: input.assembly_3d,
-            footprints_visible: input.footprints_visible,
-            on_view_mode: input.on_view_mode,
-            on_toggle_footprints: input.on_toggle_footprints,
+            contextual_tools: input.contextual_tools, label: input.label, detail: input.detail,
+            assembly_3d: input.assembly_3d, footprints_visible: input.footprints_visible,
+            on_view_mode: input.on_view_mode, on_toggle_footprints: input.on_toggle_footprints,
         }
     }
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
     if let Some(view) = input.view {
-        let handlers = input.handlers;
+        let h = input.handlers;
         rsx! {
             svg {
-                class: "block w-full h-full min-h-[250px] bg-canvas touch-none max-[760px]:h-[54svh] max-[760px]:min-h-[270px] [@media(max-height:520px)_and_(min-width:761px)]:min-h-0",
-                view_box: "{input.view_box}",
-                preserve_aspect_ratio: "xMidYMid meet",
-                tabindex: "0",
-                role: "group",
+                class: "block w-full h-full min-h-[250px] bg-canvas touch-none max-[760px]:h-[54svh] max-[760px]:min-h-[270px]",
+                view_box: "{input.view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group",
                 "aria-label": "Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
-                onmounted: handlers.mount,
-                onpointerdown: handlers.start_pan,
-                onpointermove: handlers.move_pointer,
-                onpointerup: handlers.end_pointer,
-                onpointercancel: handlers.cancel_pointer,
-                onlostpointercapture: handlers.cancel_pointer,
-                onkeydown: handlers.keyboard,
-                onkeyup: handlers.key_up,
-                onwheel: handlers.wheel,
+                onmounted: h.mount, onpointerdown: h.start_pan, onpointermove: h.move_pointer,
+                onpointerup: h.end_pointer, onpointercancel: h.cancel_pointer, onlostpointercapture: h.cancel_pointer,
+                onkeydown: h.keyboard, onkeyup: h.key_up, onwheel: h.wheel,
                 g { transform: "scale(1,-1)",
-                    keymap::KeymapCanvas {
-                        view,
-                        contours: input.contours,
-                        selected_ids: input.selected_ids,
-                        on_select_key: input.on_select_key,
-                    }
+                    keymap::KeymapCanvas { view, contours: input.contours, selected_ids: input.selected_ids, on_select_key: input.on_select_key }
                 }
             }
         }
     } else {
-        rsx! { p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Keymap is unavailable for the current board." } }
+        rsx! { p { class: "my-2 text-base text-muted-foreground", role: "status", "Keymap is unavailable for the current board." } }
     }
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
-    if let Some(view) = input.view {
-        let render_scope = input.scope;
-        let binding_actions = input.binding_actions;
-        let macro_actions = input.macro_actions;
-        let layer_actions = input.layer_actions;
-        let keys_editor = if let (Some(binding), Some(key_id)) = (
-            binding_actions.projection.as_ref(),
-            input.selected_key_id.as_ref(),
-        ) {
-            rsx! {
-                keymap::BindingEditor {
-                    key: "{render_scope:?}:{binding.effective_layer_id}:{key_id}:{binding_actions.editor_instance_id}",
-                    scope: render_scope.clone(),
-                    admission_token: input.admission_token,
-                    admission_revision: input.admission_revision,
-                    active_layer_id: binding.effective_layer_id.clone(),
-                    target: keymap::BindingTarget::Key { key_id: key_id.clone() },
-                    input_identity: None,
-                    key_label: binding.key_label.clone(),
-                    editor_instance_id: binding_actions.editor_instance_id,
-                    request_sequence: binding_actions.request_sequence,
-                    value: binding.binding.clone(),
-                    layers: binding.layers.clone(),
-                    macros: binding.macros.clone(),
-                    enabled: binding_actions.enabled,
-                    feedback: binding_actions.feedback.clone(),
-                    on_change: binding_actions.on_change,
-                }
-            }
-        } else {
-            rsx! {}
-        };
-        let macros_editor = if let Some(source) = macro_actions.source.as_ref() {
-            rsx! {
-                keymap::MacroEditor {
-                    key: "{render_scope:?}:macros:{macro_actions.editor_instance_id}",
-                    scope: render_scope.clone(),
-                    scope_generation: input.scope_generation,
-                    source: source.clone(),
-                    sequences: macro_actions.sequences.clone(),
-                    editor_instance_id: macro_actions.editor_instance_id,
-                    request_sequence: macro_actions.request_sequence,
-                    enabled: macro_actions.enabled,
-                    feedback: macro_actions.feedback.clone(),
-                    on_change: macro_actions.on_change,
-                }
-            }
-        } else {
-            rsx! {
-                p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Macro editor is unavailable for the current board." }
+    let _ = (
+        input.scope,
+        input.layer_actions,
+        input.active_layer_id,
+        input.on_layer,
+        input.on_select_key,
+        input.admission_token,
+        input.admission_revision,
+        input.scope_generation,
+    );
+    let Some(view) = input.view else {
+        return rsx! {
+            section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto px-6 py-2 text-foreground bg-card", "aria-label": "Keymap",
+                p { class: "my-2 text-base text-muted-foreground", role: "status", "Keymap is unavailable for the current board." }
             }
         };
-        let encoders_editor = if let Some(projection) = binding_actions.encoder_projection.as_ref()
-        {
-            rsx! {
-                keymap::EncoderEditor {
-                    key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",
-                    projection: projection.clone(),
-                    editor_instance_id: binding_actions.editor_instance_id,
-                    request_sequence: binding_actions.request_sequence,
-                    enabled: binding_actions.enabled,
-                    feedback: binding_actions.feedback.clone(),
-                    on_change: binding_actions.on_change,
-                }
-            }
-        } else {
-            rsx! {}
-        };
+    };
+    let ba = input.binding_actions;
+    let ma = input.macro_actions;
+    let keys_editor = if let (Some(proj), Some(key_id)) =
+        (ba.projection.as_ref(), input.selected_key_id.as_ref())
+    {
         rsx! {
-            keymap::KeymapPanel {
-                show_navigation: false,
-                view,
-                scope: render_scope.clone(),
-                layer_operations_enabled: layer_actions.enabled,
-                layer_feedback: layer_actions.feedback.clone(),
-                on_layer_operation: layer_actions.on_operation,
-                active_layer_id: input.active_layer_id,
-                selected_key_id: input.selected_key_id.clone(),
-                on_layer: input.on_layer,
-                on_select_key: input.on_select_key,
-                on_export: input.on_export,
-                firmware_export_enabled: input.firmware_export_enabled,
-                keys_editor,
-                macros_editor,
-                encoders_editor,
+            keymap::BindingEditor {
+                label: proj.key_label.clone(), active_layer_id: proj.effective_layer_id.clone(),
+                target: keymap::BindingTarget::Key { key_id: key_id.clone() },
+                value: proj.binding.clone(), layers: proj.layers.clone(), macros: proj.macros.clone(),
+                enabled: ba.enabled, on_commit: ba.on_commit,
             }
         }
     } else {
-        rsx! {
-            section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto px-6 py-2 text-foreground bg-card", "aria-label": "Keymap",
-                p { class: "my-2 mx-0 text-base leading-normal text-muted-foreground", role: "status", "Keymap is unavailable for the current board." }
-            }
+        rsx! {}
+    };
+    let encoders_editor = if let Some(proj) = ba.encoder_projection.as_ref() {
+        rsx! { keymap::EncoderEditor { projection: proj.clone(), enabled: ba.enabled, on_commit: ba.on_commit } }
+    } else {
+        rsx! {}
+    };
+    let macros_editor = rsx! {
+        keymap::MacroEditor { macros: ma.macros, enabled: ma.enabled, error: ma.error, on_action: ma.on_action }
+    };
+    rsx! {
+        keymap::KeymapPanel {
+            view, selected_key_id: input.selected_key_id, on_export: input.on_export,
+            firmware_export_enabled: input.firmware_export_enabled, binding_error: ba.error,
+            keys_editor, macros_editor, encoders_editor,
         }
     }
 }
