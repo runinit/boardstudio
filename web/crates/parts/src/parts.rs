@@ -1,6 +1,8 @@
 //! Parts catalogue, selected-definition editing and placement presentation.
+mod add_object_logic;
 mod assembly_editor;
 mod assembly_presets;
+use add_object_logic::{add_object_choices, add_object_groups, add_object_search_results};
 pub use boardstudio_web_catalogue::bundled::{
     generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
     load_component_definition, load_matrix_templates, normalize_matrix_definition,
@@ -417,16 +419,6 @@ pub fn AddObjectComponentChooser(
     }
 }
 
-fn add_object_search_results<'a>(
-    entries: &'a [CatalogEntry],
-    search: &str,
-) -> Vec<&'a CatalogEntry> {
-    add_object_choices(entries)
-        .into_iter()
-        .filter(|entry| entry.matches_library_search(search))
-        .collect()
-}
-
 fn matching_assembly_presets(search: &str) -> Vec<assembly_presets::Preset> {
     let search = search.trim().to_lowercase();
     assembly_presets::PRESETS
@@ -437,55 +429,6 @@ fn matching_assembly_presets(search: &str) -> Vec<assembly_presets::Preset> {
                 || format!("{} key assembly", preset.name)
                     .to_lowercase()
                     .contains(&search)
-        })
-        .collect()
-}
-
-fn add_object_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
-    catalogue_choices(entries)
-}
-
-fn add_object_groups<'a>(
-    entries: &[&'a CatalogEntry],
-) -> Vec<(&'static str, Vec<&'a CatalogEntry>)> {
-    type GroupMatcher = fn(&CatalogEntry) -> bool;
-    let groups: [(&str, GroupMatcher); 4] = [
-        ("Components", |entry| {
-            let name = entry.definition.name.to_lowercase();
-            ["power", "reset", "battery"]
-                .iter()
-                .any(|needle| name.contains(needle))
-        }),
-        ("Controllers", |entry| {
-            matches!(
-                entry.definition.kind,
-                boardstudio_model::model::PartKind::Controller
-            )
-        }),
-        ("Displays", |entry| {
-            let name = entry.definition.name.to_lowercase();
-            ["display", "oled", "nice.view"]
-                .iter()
-                .any(|needle| name.contains(needle))
-        }),
-        ("Encoders", |entry| {
-            matches!(
-                entry.definition.kind,
-                boardstudio_model::model::PartKind::Encoder
-            ) || entry.definition.name.to_lowercase().contains("encoder")
-        }),
-    ];
-    groups
-        .into_iter()
-        .map(|(label, matches)| {
-            (
-                label,
-                entries
-                    .iter()
-                    .copied()
-                    .filter(|entry| matches(entry))
-                    .collect(),
-            )
         })
         .collect()
 }

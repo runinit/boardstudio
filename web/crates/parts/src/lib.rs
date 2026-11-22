@@ -70,6 +70,9 @@ pub mod parts;
 // Native catalogue/detail projection tests exercise host-compatible logic modules.
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod parts {
+    #[path = "add_object_logic.rs"]
+    mod add_object_logic;
+
     #[path = "details_logic.rs"]
     mod details_logic;
 
