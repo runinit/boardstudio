@@ -1516,53 +1516,40 @@ impl Session {
                     );
                     return effects;
                 };
-                let scope_is_current = snapshot.session_epoch == scope.session_epoch
-                    && snapshot.document.id == scope.document_id
-                    && self.model.active_board_id == scope.board_id
-                    && self.model.active_instance_id == scope.instance_id;
                 let Some(board) = snapshot
                     .document
                     .boards
                     .iter()
                     .find(|board| board.id == scope.board_id)
+                    .filter(|_| self.scope_is_current(&scope))
                 else {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 };
-                let Some(matrix) = snapshot
-                    .document
-                    .matrices
+                let matrix = snapshot.document.matrices.iter().find(|matrix| {
+                    matrix.id == matrix_id
+                        && matrix
+                            .board_id
+                            .as_ref()
+                            .is_none_or(|id| id == &scope.board_id)
+                });
+                let scene = snapshot
+                    .scene
+                    .matrix_scenes
                     .iter()
-                    .find(|matrix| matrix.id == matrix_id)
-                else {
+                    .find(|scene| scene.matrix_id == matrix_id);
+                let Some((matrix, scene)) = matrix.zip(scene) else {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 };
-                let scope_is_current = scope_is_current
-                    && matrix
-                        .board_id
-                        .as_ref()
-                        .is_none_or(|board_id| board_id == &scope.board_id);
-                let board_parts = board
-                    .part_ids
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<HashSet<_>>();
-                let document_parts = snapshot
+                let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
+                let document_parts: HashSet<_> = snapshot
                     .document
                     .parts
                     .iter()
                     .map(|part| part.id.as_str())
-                    .collect::<HashSet<_>>();
-                let Some(scene) = snapshot
-                    .scene
-                    .matrix_scenes
-                    .iter()
-                    .find(|scene| scene.matrix_id == matrix_id)
-                else {
-                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
-                    return effects;
-                };
+                    .collect();
+                let owns_part = |id: &str| board_parts.contains(id) && document_parts.contains(id);
                 let mut primary_cells = scene
                     .cells
                     .iter()
@@ -1570,40 +1557,34 @@ impl Session {
                         let id = cell.member_id.as_deref()?;
                         (cell.enabled
                             && matrix.part_ids.iter().any(|member| member == id)
-                            && board_parts.contains(id)
-                            && document_parts.contains(id))
+                            && owns_part(id))
                         .then(|| (cell.row, cell.column, id.to_owned()))
                     })
                     .collect::<Vec<_>>();
                 primary_cells.sort_by_key(|(row, column, _)| (*row, *column));
                 let target_is_live = primary_cells.iter().any(|(_, _, id)| id == &target_part_id);
-                if !scope_is_current || !target_is_live {
+                if !target_is_live {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 }
                 let incoming = part_ids
                     .into_iter()
-                    .filter(|id| {
-                        board_parts.contains(id.as_str()) && document_parts.contains(id.as_str())
-                    })
+                    .filter(|id| owns_part(id))
                     .collect::<Vec<_>>();
                 let mut retained_anchor = self.model.selection_anchor_id.clone();
                 let mut effective_mode = mode;
                 let selected = if mode == SelectionMode::Range {
-                    let anchor = retained_anchor.as_deref().and_then(|anchor| {
+                    let cell_at = |part: &str| {
                         primary_cells
                             .iter()
-                            .find(|(_, _, id)| id == anchor)
-                            .map(|(row, column, _)| (*row, *column, anchor.to_owned()))
-                    });
-                    let target = primary_cells
-                        .iter()
-                        .find(|(_, _, id)| id == &target_part_id)
-                        .map(|(row, column, _)| (*row, *column));
-                    if let (
-                        Some((anchor_row, anchor_column, _)),
-                        Some((target_row, target_column)),
-                    ) = (anchor, target)
+                            .find(|(_, _, id)| id == part)
+                            .map(|(row, column, _)| (*row, *column))
+                    };
+                    if let Some(((anchor_row, anchor_column), (target_row, target_column))) =
+                        retained_anchor
+                            .as_deref()
+                            .and_then(cell_at)
+                            .zip(cell_at(&target_part_id))
                     {
                         primary_cells
                             .iter()

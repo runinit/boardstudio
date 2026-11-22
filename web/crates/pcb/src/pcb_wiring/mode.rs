@@ -1,9 +1,6 @@
 //! Accepted board-level mode edits for PCB wiring.
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::{
-    pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
-    runtime::Runtime,
-};
+use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
@@ -11,6 +8,59 @@ use boardstudio_core_mechanical::electrical::ElectricalMode;
 use boardstudio_model::model::EditOperation;
 use dioxus::prelude::*;
 use std::rc::Rc;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardWiringModeIdentity {
+    /// Selection-independent accepted board-plan identity.
+    pub plan: WiringPlanIdentity,
+    /// Selection and UI-scope identity of the rendered control.
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
+
+impl BoardWiringModeIdentity {
+    pub fn matches_action_context(
+        &self,
+        current_plan: &WiringPlanIdentity,
+        current_scope: Option<&Scope>,
+        current_selected_part_id: Option<&str>,
+        current_generation: u64,
+    ) -> bool {
+        self.plan == *current_plan
+            && current_scope == Some(&self.ui_scope)
+            && self.selected_part_id.as_deref() == current_selected_part_id
+            && self.scope_generation == current_generation
+    }
+
+    pub fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
+        BoardWiringModeFeedbackTarget {
+            ui_scope: self.ui_scope.clone(),
+            selected_part_id: self.selected_part_id.clone(),
+            scope_generation: self.scope_generation,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardWiringModeFeedbackTarget {
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
+
+impl BoardWiringModeFeedbackTarget {
+    pub fn is_visible(
+        &self,
+        current_scope: Option<&Scope>,
+        current_selected_part_id: Option<&str>,
+        current_generation: u64,
+    ) -> bool {
+        current_scope == Some(&self.ui_scope)
+            && self.selected_part_id.as_deref() == current_selected_part_id
+            && self.scope_generation == current_generation
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeEditRequest {

@@ -279,8 +279,8 @@ impl Runtime {
                     outcome.clone(),
                     landing,
                 );
-                let lease = self.export_leases.borrow_mut().remove(&operation_id);
-                let kind = lease.as_ref().map(ExportLease::kind);
+                let lease = self.exports.borrow_mut().remove(&operation_id);
+                let kind = lease.as_ref().map(|state| &state.kind);
                 let delivery_error = self
                     .export_delivery_errors
                     .borrow_mut()
@@ -366,10 +366,10 @@ impl Runtime {
                     self.apply_report(RuntimeReport::status("Export started.").transient());
                 }
                 let kind = self
-                    .export_leases
+                    .exports
                     .borrow()
                     .get(&operation_id)
-                    .map(|lease| lease.kind().clone());
+                    .map(|lease| (&lease.kind).clone());
                 let is_board_outline_export = matches!(kind, Some(ExportKind::BoardOutline { .. }));
                 let result = match kind.as_ref() {
                     Some(ExportKind::BoardOutline { dxf }) => {
@@ -534,7 +534,7 @@ impl Runtime {
                 vec![]
             }
             Effect::CancelExport { operation_id } => {
-                self.export_leases.borrow_mut().remove(&operation_id);
+                self.exports.borrow_mut().remove(&operation_id);
                 self.export_delivery_errors
                     .borrow_mut()
                     .remove(&operation_id);

@@ -9,7 +9,6 @@ use super::{
 use crate::firmware_position_projection::{
     FirmwarePositionAdmission, FirmwarePositionFeedbackTarget, admits_edit,
 };
-use crate::pcb_wiring_mode_operation::{ResolutionAdmission, begin_resolution};
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
@@ -172,7 +171,7 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
         let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
-        } = crate::pcb_wiring_mode_operation::electrical_preview_request(
+        } = boardstudio_web_runtime::electrical_preview_request(
             "firmware-position",
             &accepted.document,
             &scope.board_id,
@@ -727,17 +726,17 @@ fn start_resolution(
         resolution.set(PcbWiringResolution::Idle);
         return;
     };
-    let mut admission = match &*resolution.read() {
-        PcbWiringResolution::Idle => ResolutionAdmission::Idle,
-        PcbWiringResolution::Pending { identity } => ResolutionAdmission::Pending(identity.clone()),
-        PcbWiringResolution::Current { identity, .. } => {
-            ResolutionAdmission::Current(identity.clone())
+    let already_requested = match &*resolution.read() {
+        PcbWiringResolution::Pending { identity: current } => *current == identity,
+        PcbWiringResolution::Current {
+            identity: current, ..
         }
-        PcbWiringResolution::Failed { identity, .. } => {
-            ResolutionAdmission::Failed(identity.clone())
-        }
+        | PcbWiringResolution::Failed {
+            identity: current, ..
+        } => !force && *current == identity,
+        PcbWiringResolution::Idle => false,
     };
-    if !begin_resolution(&mut admission, &identity, force) {
+    if already_requested {
         return;
     }
     let request_generation = next_request(latest_request.as_ref());

@@ -1,7 +1,8 @@
 //! Accepted selected-board assignment pin and lock edits.
+use super::mode::BoardWiringModeIdentity;
 use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource};
-use crate::{pcb_wiring_mode_operation::BoardWiringModeIdentity, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
@@ -140,7 +141,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
-        } = crate::pcb_wiring_mode_operation::electrical_preview_request(
+        } = boardstudio_web_runtime::electrical_preview_request(
             "pin-edit",
             &accepted.document,
             board_id,

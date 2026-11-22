@@ -403,14 +403,14 @@ impl Runtime {
         dxf: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let lease = self
-            .export_leases
+            .exports
             .borrow()
             .get(&operation_id)
             .cloned()
             .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(lease.kind(), ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
-            || lease.scope() != scope
-            || lease.token() != snapshot.token
+        if !matches!(&lease.kind, ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
+            || &lease.scope != scope
+            || lease.token != snapshot.token
         {
             return Err("Outline export no longer matches its captured board.".into());
         }
@@ -448,9 +448,6 @@ impl Runtime {
             return Err("Outline export was cancelled, superseded, or its source changed.".into());
         }
         let reply = artifact_reply(&request)?;
-        if !self.export_lease_is_current(operation_id, &lease) {
-            return Err("Outline export was cancelled, superseded, or its source changed.".into());
-        }
         let file = match reply {
             ArtifactReply::ExportOutline { id, result } if id == request_id => result,
             ArtifactReply::Error { id, error } if id == request_id => {
@@ -464,10 +461,9 @@ impl Runtime {
     pub(super) fn export_lease_is_current(
         &self,
         operation_id: OperationId,
-        lease: &ExportLease,
+        lease: &ExportState,
     ) -> bool {
-        self.export_leases.borrow().get(&operation_id) == Some(lease)
-            && self.export_current(operation_id, lease.token(), lease.scope())
+        self.export_current(operation_id, lease.token, &lease.scope)
     }
 
     pub(super) fn export_current(
@@ -476,22 +472,10 @@ impl Runtime {
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        let session = self.session.borrow();
-        self.export_leases
+        self.session
             .borrow()
-            .get(&operation_id)
-            .is_some_and(|lease| {
-                let session_owns_export = session.export_is_current(operation_id, token, scope)
-                    && session.scope().as_ref() == Some(scope);
-                lease.token() == token
-                    && lease.scope() == scope
-                    && lease
-                        .require_current(
-                            session_owns_export,
-                            session.read_model().accepted.as_ref(),
-                        )
-                        .is_ok()
-            })
+            .export_is_current(operation_id, token, scope)
+            && self.export_delivery_is_current(operation_id, token, scope)
     }
 
     pub(super) fn begin_export_lease(
@@ -501,33 +485,36 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) {
-        self.export_leases.borrow_mut().insert(
+        self.exports.borrow_mut().insert(
             operation_id,
-            ExportLease::new(kind, snapshot.clone(), scope.clone()),
+            ExportState {
+                kind,
+                token: snapshot.token,
+                scope: scope.clone(),
+            },
         );
     }
 
-    pub(super) fn export_source_is_current(&self, lease: &ExportLease) -> bool {
-        let model = self.model();
-        let session = self.session.borrow();
-        lease.source_is_current(session.scope().as_ref(), model.accepted.as_ref())
+    pub(super) fn export_source_is_current(&self, state: &ExportState) -> bool {
+        self.snapshot_current(state.token, &state.scope)
     }
+
     pub(super) fn export_delivery_is_current(
         &self,
         operation_id: OperationId,
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        self.export_leases
+        self.exports
             .borrow()
             .get(&operation_id)
-            .cloned()
-            .is_some_and(|lease| {
-                lease.token() == token
-                    && lease.scope() == scope
-                    && self.export_source_is_current(&lease)
+            .is_some_and(|state| {
+                state.token == token
+                    && &state.scope == scope
+                    && self.export_source_is_current(state)
             })
     }
+
     pub(super) fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.scope().as_ref() == Some(scope)
             && self

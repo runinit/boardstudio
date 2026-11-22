@@ -10,15 +10,14 @@ impl Runtime {
         draft: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let mut capture = self
-            .export_leases
+            .exports
             .borrow()
             .get(&operation_id)
             .cloned()
             .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(capture.kind(), ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
-            || capture.scope() != scope
-            || capture.token() != initial_snapshot.token
-            || capture.snapshot().document.revision != initial_snapshot.document.revision
+        if !matches!(&capture.kind, ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
+            || &capture.scope != scope
+            || capture.token != initial_snapshot.token
         {
             return Err("KiCad export no longer matches its captured board.".into());
         }
@@ -109,7 +108,7 @@ impl Runtime {
             boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff { plan },
         )?;
         self.require_pcb_handoff_current(operation_id, &capture)?;
-        Ok((archive, capture.token()))
+        Ok((archive, capture.token))
     }
 
     /// Share complete physical PCB preparation between export and collision.
@@ -271,28 +270,7 @@ impl Runtime {
         initial_snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let capture = self
-            .export_leases
-            .borrow()
-            .get(&operation_id)
-            .cloned()
-            .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope() != scope
-            || capture.token() != initial_snapshot.token
-            || capture.snapshot().document.revision != initial_snapshot.document.revision
-            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
-            || capture.snapshot().document.id != initial_snapshot.document.id
-        {
-            return Err("Mechanical export no longer matches its captured project.".into());
-        }
-        let runtime = self.clone();
-        let ensure_current = || -> Result<(), String> {
-            if runtime.export_lease_is_current(operation_id, &capture) {
-                Ok(())
-            } else {
-                Err("Mechanical export was cancelled, superseded, or its source changed.".into())
-            }
-        };
+        let ensure_current = || self.require_export_current(operation_id, initial_snapshot, scope);
         ensure_current()?;
         let document = captured_case_document(initial_snapshot, scope)
             .map_err(|error| format!("Could not capture mechanical document: {error:?}"))?;
@@ -328,8 +306,9 @@ impl Runtime {
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
         let source_is_current = {
             let runtime = self.clone();
-            let capture = capture.clone();
-            Rc::new(move || runtime.export_lease_is_current(operation_id, &capture))
+            let token = initial_snapshot.token;
+            let scope = scope.clone();
+            Rc::new(move || runtime.export_current(operation_id, token, &scope))
         };
         let PhysicalStepAssembly {
             prepared,
@@ -348,8 +327,8 @@ impl Runtime {
             .mechanical_assembly
             .as_ref()
             .ok_or_else(|| "Core did not resolve a generated mechanical assembly.".to_owned())?;
-        if assembly.revision != capture.snapshot().document.revision
-            || assembly.case.revision != capture.snapshot().document.revision
+        if assembly.revision != initial_snapshot.document.revision
+            || assembly.case.revision != initial_snapshot.document.revision
             || assembly.generation_blocked
         {
             return Err("Mechanical assembly is blocked or belongs to another revision.".into());
@@ -384,7 +363,7 @@ impl Runtime {
                 ArtifactReply::ExportMechanicalPlate { id, result } if id == request_id => result,
                 _ => return Err("Core returned an unexpected mechanical plate artifact.".into()),
             };
-            if result.revision != capture.snapshot().document.revision {
+            if result.revision != initial_snapshot.document.revision {
                 return Err("Core returned a mechanical plate for another revision.".into());
             }
             for file in result.files {
@@ -548,7 +527,7 @@ impl Runtime {
             critical_fit_drawing(assembly, configuration)?.into_bytes(),
         )?;
         let assembly_json = serde_json::json!({
-            "revision": capture.snapshot().document.revision,
+            "revision": initial_snapshot.document.revision,
             "pcbReference": if pcb_source.is_some() {
                 "Source-backed unpopulated PCB; component solids are not included"
             } else { "Nominal unpopulated PCB only; component solids are not included" },
@@ -578,7 +557,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         instance_id: Option<&str>,
-        capture: &ExportLease,
+        capture: &ExportState,
     ) -> Result<ElectricalPlan, String> {
         if !self.export_lease_is_current(operation_id, capture) {
             return Err("Accepted board changed before wiring resolution.".into());
@@ -596,9 +575,9 @@ impl Runtime {
     fn commit_pcb_handoff(
         self: &Rc<Self>,
         export_operation_id: OperationId,
-        capture: &ExportLease,
+        capture: &ExportState,
         commit: boardstudio_application::ExportCommitRequest,
-    ) -> Result<ExportLease, String> {
+    ) -> Result<ExportState, String> {
         if !self.export_lease_is_current(export_operation_id, capture) {
             return Err("KiCad export no longer owns the accepted wiring source.".into());
         }
@@ -607,8 +586,8 @@ impl Runtime {
             Event::ExportCommit {
                 operation_id,
                 export_operation_id,
-                token: capture.token(),
-                scope: capture.scope().clone(),
+                token: capture.token,
+                scope: capture.scope.clone(),
                 commit,
             },
             Some(operation_id),
@@ -623,15 +602,15 @@ impl Runtime {
             .accepted
             .ok_or("No accepted wiring snapshot.")?;
         let mut updated = capture.clone();
-        updated.advance(accepted)?;
+        updated.token = accepted.token;
         if !self.session.borrow().export_is_current(
             export_operation_id,
-            updated.token(),
-            updated.scope(),
+            updated.token,
+            &updated.scope,
         ) {
             return Err("Export wiring changed the captured project or board.".into());
         }
-        self.export_leases
+        self.exports
             .borrow_mut()
             .insert(export_operation_id, updated.clone());
         Ok(updated)
@@ -640,7 +619,7 @@ impl Runtime {
     pub(super) fn require_pcb_handoff_current(
         &self,
         operation_id: OperationId,
-        capture: &ExportLease,
+        capture: &ExportState,
     ) -> Result<(), String> {
         if self.export_lease_is_current(operation_id, capture) {
             Ok(())
@@ -655,28 +634,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let capture = self
-            .export_leases
-            .borrow()
-            .get(&operation_id)
-            .cloned()
-            .ok_or_else(|| "Footprint export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope() != scope
-            || capture.token() != snapshot.token
-            || capture.snapshot().document.revision != snapshot.document.revision
-            || capture.snapshot().session_epoch != snapshot.session_epoch
-            || capture.snapshot().document.id != snapshot.document.id
-        {
-            return Err("Footprint export no longer matches its captured project.".into());
-        }
-        let runtime = self.clone();
-        let ensure_current = || {
-            if runtime.export_lease_is_current(operation_id, &capture) {
-                Ok(())
-            } else {
-                Err("Footprint export was cancelled, superseded, or its source changed.".into())
-            }
-        };
+        let ensure_current = || self.require_export_current(operation_id, snapshot, scope);
         crate::export_footprints::build_zip(
             crate::export_footprints::ExportSource {
                 operation_id,

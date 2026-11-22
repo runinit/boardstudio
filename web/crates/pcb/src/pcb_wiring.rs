@@ -1019,7 +1019,7 @@ mod tests {
             board_id: "board".into(),
             instance_id: None,
         };
-        let identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
+        let identity = mode::BoardWiringModeIdentity {
             plan: crate::firmware_position_projection::FirmwarePlanIdentity {
                 scope: scope.clone(),
                 token: boardstudio_application::SnapshotToken(1),

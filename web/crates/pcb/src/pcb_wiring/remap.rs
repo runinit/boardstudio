@@ -1,9 +1,9 @@
 //! Deliberate release of a board's protected electrical handoff before remapping.
+use super::mode::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use super::{
     PcbWiringSource,
     mode::{current_snapshot, mode_identity},
 };
-use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Lifecycle, TerminalOutcome};
 use boardstudio_model::model::ProjectDoc;

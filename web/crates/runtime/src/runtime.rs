@@ -1,12 +1,11 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 pub use crate::core_services::CoreServices;
-use crate::export_lease::{ExportKind, ExportLease};
+use crate::electrical_preview_request;
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
 };
 use crate::native_model_mapping::{NativeModelDeliveryState, resolve_native_model_paths};
-use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
     ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -328,6 +327,25 @@ fn generated_analysis_cache_key(
     )
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ExportKind {
+    ProjectCopy { embed_used_models: bool },
+    Step,
+    KeycapsStl,
+    Firmware,
+    Footprints,
+    PcbHandoff { draft: bool },
+    Mechanical { filename: String },
+    BoardOutline { dxf: bool },
+}
+
+#[derive(Clone)]
+struct ExportState {
+    kind: ExportKind,
+    token: SnapshotToken,
+    scope: Scope,
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
@@ -342,7 +360,7 @@ pub struct Runtime {
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
-    export_leases: RefCell<BTreeMap<OperationId, ExportLease>>,
+    exports: RefCell<BTreeMap<OperationId, ExportState>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
@@ -511,7 +529,7 @@ impl Runtime {
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
-            export_leases: RefCell::default(),
+            exports: RefCell::default(),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),

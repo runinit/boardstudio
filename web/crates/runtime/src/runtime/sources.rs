@@ -232,46 +232,34 @@ impl Runtime {
             instance_id: input.scope.instance_id.clone(),
             revision: accepted.document.revision,
         };
-        #[cfg(any(test, feature = "test-support"))]
-        let test_executor = self.keycaps_preview_test_executor.borrow().clone();
-        #[cfg(any(test, feature = "test-support"))]
-        if let Some(executor) = test_executor {
-            let bodies = executor(input.clone()).await?;
+        let current = || {
             self.ensure_keycaps_source_current(&accepted, &input.scope)?;
             if self.keycaps_preview_generation.get() != generation {
                 return Err("Keycap CAD preview was cancelled or superseded.".into());
             }
-            return Ok(KeycapsCadPreview {
-                generation,
-                scope: input.scope,
-                token: input.token,
-                revision: input.revision,
-                specs: input.specs,
-                bodies,
-            });
+            Ok::<(), String>(())
+        };
+        let preview = |bodies| KeycapsCadPreview {
+            generation,
+            scope: input.scope.clone(),
+            token: input.token,
+            revision: input.revision,
+            specs: input.specs.clone(),
+            bodies,
+        };
+        #[cfg(any(test, feature = "test-support"))]
+        let executor = self.keycaps_preview_test_executor.borrow().clone();
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(executor) = executor {
+            let bodies = executor(input.clone()).await?;
+            current()?;
+            return Ok(preview(bodies));
         }
         let worker = Rc::new(
             CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
                 .map_err(|error| error.to_string())?,
         );
         *self.keycaps_preview_worker.borrow_mut() = Some((generation, worker.clone()));
-        let current =
-            || {
-                if self.keycaps_preview_generation.get() != generation
-                    || !self.keycaps_preview_worker.borrow().as_ref().is_some_and(
-                        |(active, owner)| *active == generation && Rc::ptr_eq(owner, &worker),
-                    )
-                {
-                    return Err("Keycap CAD preview was cancelled or superseded.".to_owned());
-                }
-                self.ensure_keycaps_source_current(&accepted, &input.scope)?;
-                if self.model().accepted.as_ref().is_none_or(|snapshot| {
-                    snapshot.token != input.token || snapshot.document.revision != input.revision
-                }) {
-                    return Err("Keycap CAD preview belongs to an older accepted revision.".into());
-                }
-                Ok(())
-            };
         let result = async {
             current()?;
             worker.ready().await.map_err(|error| error.to_string())?;
@@ -283,14 +271,7 @@ impl Runtime {
                 .await
                 .map_err(|error| error.to_string())?;
             current()?;
-            Ok(KeycapsCadPreview {
-                generation,
-                scope: input.scope.clone(),
-                token: input.token,
-                revision: input.revision,
-                specs: input.specs.clone(),
-                bodies: result.bodies,
-            })
+            Ok(preview(result.bodies))
         }
         .await;
         if self

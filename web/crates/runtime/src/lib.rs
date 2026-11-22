@@ -18,7 +18,6 @@ pub mod case_generation_lifecycle;
 pub mod case_model_lifecycle;
 pub mod case_preview;
 pub mod core_services;
-pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
 pub mod gate_driver;
@@ -31,7 +30,6 @@ pub(crate) mod native_model_mapping;
 mod native_model_mapping_tests;
 pub mod operation_outcomes;
 pub mod parts_preview;
-pub mod pcb_wiring_mode_operation;
 pub mod portable_archive;
 #[cfg(test)]
 mod qualification_assessment_tests;
@@ -65,3 +63,31 @@ fn engine_core_services() -> core_services::CoreServices {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlanRequest};
+use boardstudio_model::model::{CoreRequest, ProjectDoc};
+
+pub fn electrical_preview_request(
+    request_id: &str,
+    document: &ProjectDoc,
+    board_id: &str,
+) -> CoreRequest {
+    let configuration = document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|item| item.board_id == board_id)
+    });
+    CoreRequest::ResolveElectrical {
+        id: request_id.to_owned(),
+        request: ElectricalPlanRequest {
+            document: document.clone(),
+            instance_id: None,
+            mode: configuration.map_or(ElectricalMode::Matrix, |item| item.mode),
+            locks: configuration.map_or_else(Default::default, |item| item.locks.clone()),
+            controller_profile: None,
+            board_id: Some(board_id.to_owned()),
+            controller_part_id: configuration.and_then(|item| item.controller_part_id.clone()),
+        },
+    }
+}
