@@ -413,7 +413,7 @@ mod demo_rebuild_tests {
     fn studio60_is_a_core_generated_v7_matrix_document() {
         let document = studio60();
         assert_eq!(document.format_version, CURRENT_VERSION);
-        assert_eq!(document.format_version, 7);
+        assert_eq!(document.format_version, 8);
         assert_eq!(document.matrices.len(), 1, "one matrix");
         let matrix = &document.matrices[0];
         assert_eq!((matrix.rows, matrix.columns), (5, 12));
@@ -509,13 +509,14 @@ mod demo_rebuild_tests {
         let counts: Vec<_> = DEMO_PROJECTS
             .iter()
             .map(|demo| {
+                let doc = demo
+                    .document(boardstudio_web_test_runtime::engine_core_services().open_scratch);
                 (
                     demo.name,
-                    demo.document(
-                        boardstudio_web_test_runtime::engine_core_services().open_scratch,
-                    )
-                    .parts
-                    .len(),
+                    boardstudio_core::project_document(&doc)
+                        .geometry()
+                        .parts
+                        .len(),
                 )
             })
             .collect();
@@ -691,9 +692,18 @@ mod demo_rebuild_tests {
             .expect("anchor key")
             .pose
             .at;
-        let mut session = Session::open(template.clone());
-        let revision = session.revision;
-        let preview = session.engine.handle(CoreRequest::Edit {
+        let mut engine = CoreEngine::new();
+        let CoreReply::Scene {
+            document: opened, ..
+        } = engine.handle(CoreRequest::Open {
+            id: "split-open".into(),
+            document: template.clone(),
+        })
+        else {
+            panic!("open split42 template");
+        };
+        let revision = opened.revision;
+        let preview = engine.handle(CoreRequest::Edit {
             id: "split-preview".into(),
             command: EditCommand {
                 base_revision: revision,
@@ -701,7 +711,7 @@ mod demo_rebuild_tests {
                 phase: EditPhase::Preview,
                 target_ids: vec![],
                 operation: EditOperation::MoveParts {
-                    positions: vec![Position {
+                    positions: vec![boardstudio_model::model::Position {
                         id: "matrix/left-main/r2c2".into(),
                         at: Vec2 {
                             x: start.x + 10.0,
@@ -715,20 +725,33 @@ mod demo_rebuild_tests {
             matches!(preview, CoreReply::Preview { .. }),
             "preview does not commit"
         );
-        assert_eq!(
-            session.snapshot().parts,
-            template.parts,
-            "cancel leaves every pose"
-        );
         assert!(
             matches!(
-                session.engine.handle(CoreRequest::Undo {
+                engine.handle(CoreRequest::Undo {
                     id: "split-undo".into()
                 }),
                 CoreReply::Error { .. }
             ),
             "no Undo entry from a preview"
         );
+        let CoreReply::Scene {
+            document: after, ..
+        } = engine.handle(CoreRequest::Edit {
+            id: "split-rename".into(),
+            command: EditCommand {
+                base_revision: revision,
+                transaction_id: "split-rename".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::RenameProject {
+                    name: "After Preview".into(),
+                },
+            },
+        })
+        else {
+            panic!("commit after preview");
+        };
+        assert_eq!(after.parts, opened.parts, "cancel leaves every pose");
     }
 
     #[test]

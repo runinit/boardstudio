@@ -151,12 +151,11 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
     );
 
     let rename = |session: &mut Session, id, name: &str| {
-        let effects = session.submit(Event::ResolveEdit {
+        session.submit(Event::ResolveEdit {
             operation_id: OperationId(id),
             label: "rename".into(),
             resolver: EditResolver::rename_project("rename", name.into()),
-        });
-        effects
+        })
     };
 
     let first = rename(&mut session, 2, "First");

@@ -422,6 +422,7 @@ mod mounted_tests {
                 job_id,
                 scope: scope.clone(),
                 reason: reason.into(),
+                blocked: false,
             },
         );
         let _ = support::take_held_effects(runtime);
