@@ -56,16 +56,16 @@ Read [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) FIRST �
 
 ## 4. Multi-Provider Routing & Review Protocol
 
-Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Clean-Slate Rewriting**, and **Adversarial Review / Mechanical Deletion** across all three providers (`serviceTier: "default"`, `fastMode: false`):
+Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Fast Fenced Implementation**, and **High-Leverage Architectural Review** across all three providers (`serviceTier: "default"`, `fastMode: false`):
 
 | Provider & Model | Role | Assigned Tracks | Guardrail |
 |---|---|---|---|
-| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, merges, `check_reduction.py`, full `check.py`, worktree cleanup | Owns all merges & vetoes scope creep; **pauses between waves** with a 5-line scoreboard for user approval |
-| **Claude — Opus 5.5** (`effort: "high"` / `"medium"`) | **Primary Architectural Rewriter** | Track 1 (`high`), Track 2 (`medium`), Track 4 (`high`) | Must pass `check_reduction.py` (negative Prod + Test LOC + empty `--must-delete`) before handback |
-| **Claude — Sonnet 5.5** (`effort: "medium"` / `"low"`) | **Declarative UI & Script Rewriter** | Track 3A (`medium`), Track 3B `case` (`medium`), Track 5B `scripts/` (`low`/`medium`) | Must pass `check_reduction.py` per sub-track |
-| **Codex — GPT-6.2 Sol** (`reasoningEffort: "high"` / `"medium"`) | **Read-Only Adversarial Diff Reviewer** | Reviews Track 1 (`high`), Track 2 (`medium`), Track 4 (`medium`) | Read-only review; Orchestrator applies real bug fixes (≤ 30 LOC) and **vetoes** any legacy-compat/bloat suggestions |
-| **Codex — GPT-6.1 Terra** (`reasoningEffort: "medium"` / `"low"`) | **Fenced Mechanical Deletion & Test-Port Worker** | Track 3C+3D (`medium`), Track 5A `core/tests/` & Chrome launches (`medium`), Track 6B `core/` trim (`low`/`medium`) | Strictly fenced by `check_reduction.py` manifest & negative LOC limits |
-| **Antigravity — Gemini 4 Neon** (`thought_level: "medium"`) | **Cross-Crate Web/3D Consolidation Worker** | Track 3E+3F (`medium`), Track 6A unified 3D host (`medium`) | Must pass `check_reduction.py` per sub-track |
+| **Antigravity — Orchestrator (Neon)** (`thought_level: "low"`) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, writes strict anti-drift briefs, merges, runs `check_reduction.py` + full `check.py`, prunes worktrees | Owns all merges & vetoes scope creep; **pauses between waves** with a 5-line scoreboard for user approval |
+| **Codex — GPT-6.2 Sol** (`reasoningEffort: "low"`) | **Primary Fast Architectural Implementer** | Track 1 (Mirroring), Track 4 (Layout Canvas & Gizmos) | Must receive explicit Deletion Manifest + Banned Patterns + `check_reduction.py` gate verbatim; zero compat shims |
+| **Codex — GPT-6.1 Terra** (`reasoningEffort: "low"`) | **Fast Multi-File & Mechanical Deletion Implementer** | Track 2 (Sync Core & Runtime), Track 3A/3C/3D (UI molecules + `parts`/`pcb`), Track 5A (`core/tests/` & Chrome launches), Track 6B (`core/` trim) | Strictly fenced by `check_reduction.py` manifest & negative LOC limits |
+| **Claude — Opus 5.5** (`effort: "medium"`) | **Conserved Read-Only Architectural & Anti-Bloat Reviewer** | Read-only diff review on Track 1, Track 2, Track 4 (high-risk cutovers only) | Conserves Opus quota; verifies correctness AND flags any sneaky wrappers, compat shims, or missed deletions |
+| **Claude — Sonnet 5.5** (`effort: "low"` / `"medium"`) | **Secondary UI & Script Implementer** | Track 3B (`case`), Track 5B (`scripts/`) | Must pass `check_reduction.py` per sub-track |
+| **Antigravity — Gemini 4 Neon** (`thought_level: "low"` / `"medium"`) | **Cross-Crate Web/3D Consolidation Worker** | Track 3E+3F (`keycaps`/`keymap`/`library`/`presentation`), Track 6A (unified 3D host) | Must pass `check_reduction.py` per sub-track |
 
 ---
 
