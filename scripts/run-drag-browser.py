@@ -147,10 +147,18 @@ class Smoke:
             """, selector, name, scroll), name or selector, 60)
 
     def set_slider(self, selector, target):
-        raw = wait_for(lambda: self.evaluate("document.querySelector(arguments[0])?.getAttribute('aria-valuenow')",
-                                             selector), f"slider {selector}", 60)
+        raw = wait_for(lambda: self.evaluate("""(() => {
+            const el = document.querySelector(arguments[0]);
+            if (!el || !el.getClientRects().length || getComputedStyle(el).visibility !== 'visible') return null;
+            return el.getAttribute('aria-valuenow');
+        })()""", selector), f"slider {selector}", 60)
         current = int(raw)
-        self.browser.execute_sync("document.querySelector(arguments[0]).focus();", selector)
+        wait_for(lambda: self.evaluate("""(() => {
+            const el = document.querySelector(arguments[0]);
+            if (!el || getComputedStyle(el).visibility !== 'visible') return false;
+            el.focus();
+            return document.activeElement === el;
+        })()""", selector), f"focus {selector}", 10)
         while current > target:
             key(self.browser, ARROW_LEFT, "keyDown", "keyUp")
             current -= 1
