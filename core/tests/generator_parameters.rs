@@ -6,13 +6,14 @@
 //! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
 //! legacy warning does not block an unrelated edit.
 use crate::support::fixture::{self, document as scene_document};
+use crate::support::{query::arr, session::Session};
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
 use boardstudio_core::mechanical::MechanicalTarget;
 use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::model::{
-    Contour, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, ExportTarget, Finding,
-    Matrix, Part, PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
+    Contour, CoreReply, CoreRequest, EditOperation, EditPhase, ExportTarget, Finding, Matrix, Part,
+    PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
 };
 use boardstudio_core::{CoreEngine, document_format};
 use boardstudio_footprints::bundled;
@@ -67,16 +68,13 @@ fn edit(
     phase: EditPhase,
     operation: EditOperation,
 ) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision,
-            transaction_id: "transaction".into(),
-            phase,
-            target_ids: Vec::new(),
-            operation,
-        },
-    })
+    engine.handle(fixture::edit(
+        "edit",
+        "transaction",
+        base_revision,
+        phase,
+        operation,
+    ))
 }
 
 fn add_part(part: Part) -> EditOperation {
@@ -187,61 +185,47 @@ fn generator_parameter_writes_are_refused_atomically_in_preview_and_commit() {
 }
 
 #[test]
-fn an_unrelated_edit_is_not_refused_for_a_legacy_name_it_does_not_write() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "h1",
-        HOLE_DEFINITION,
-        json!({ "hole_sise": 2.0 }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    let reply = edit(&mut engine, 0, EditPhase::Commit, add_part(other));
-    let findings = scene_findings(reply);
-    let found = generator_findings(&findings);
-    assert_eq!(
-        found.len(),
-        1,
-        "the legacy warning stays, the edit is accepted"
-    );
-    assert_eq!(found[0].target_ids, vec!["h1".to_string()]);
-}
-
-#[test]
-fn an_unrelated_edit_is_not_refused_for_legacy_list_text() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "mcu1",
-        MCU_DEFINITION,
-        json!({ "mcu_3dmodel_xyz_offset": "[1,2,3]" }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Commit, add_part(other)),
-        CoreReply::Scene { .. }
-    ));
-}
-
-#[test]
-fn a_move_preview_is_not_refused_for_a_legacy_name() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "h1",
-        HOLE_DEFINITION,
-        json!({ "hole_sise": 2.0 }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let operation = EditOperation::MoveParts {
-        positions: vec![Position {
-            id: "h1".into(),
-            at: boardstudio_core::model::Vec2 { x: 1.0, y: 2.0 },
-        }],
-    };
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Preview, operation),
-        CoreReply::Preview { .. }
-    ));
+fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
+    for (id, definition, parameters) in [
+        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0})),
+        (
+            "mcu1",
+            MCU_DEFINITION,
+            json!({"mcu_3dmodel_xyz_offset": "[1,2,3]"}),
+        ),
+    ] {
+        let mut session = Session::default();
+        assert!(
+            matches!(
+                session.open(document(vec![part(id, definition, parameters)])),
+                CoreReply::Scene { .. }
+            ),
+            "{id}"
+        );
+        if id == "h1" {
+            let movement = EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: id.into(),
+                    at: Vec2 { x: 1.0, y: 2.0 },
+                }],
+            };
+            assert!(matches!(
+                session.preview(0, movement),
+                CoreReply::Preview { .. }
+            ));
+        }
+        let other = part("h2", HOLE_DEFINITION, json!({"hole_size": 2.0}));
+        let findings = scene_findings(session.commit(0, add_part(other)));
+        if id == "h1" {
+            let found = generator_findings(&findings);
+            assert_eq!(
+                found.len(),
+                1,
+                "the legacy warning stays, the edit is accepted"
+            );
+            assert_eq!(found[0].target_ids, vec!["h1"]);
+        }
+    }
 }
 
 #[test]
@@ -340,9 +324,7 @@ fn a_current_project_that_keeps_unconvertible_number_text_opens_with_a_warning()
         opened["kind"], "scene",
         "current-schema saved text remains a warning, not an edit: {opened}"
     );
-    let found: Vec<&Value> = opened["scene"]["findings"]
-        .as_array()
-        .unwrap()
+    let found: Vec<&Value> = arr(&opened["scene"]["findings"])
         .iter()
         .filter(|finding| {
             finding["id"]

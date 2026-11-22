@@ -2,12 +2,13 @@ mod render;
 mod scene;
 mod text;
 
-use scene::{BuiltScene, build_scene, push_data, push_mesh, push_transformed_lines};
+use scene::{BuiltScene, build_scene, push_data};
 
 use crate::{
     ModelMesh, decode_stl, decode_wrl,
     geometry::{
-        BoardContour, MeshData, SurfaceClipper, board_mesh, polygon_area, stroke_mesh, surface_mesh,
+        BoardContour, MeshData, SurfaceClipper, board_mesh, feature_edges, polygon_area,
+        stroke_mesh, surface_mesh,
     },
     is_stale_scene_revision,
     math::{component_model_transform, pcb_model_transform, physical_pcb_transform},
@@ -16,6 +17,7 @@ use crate::{
 include!("mechanical.rs");
 use js_sys::{Float32Array, Object, Reflect};
 use serde::Deserialize;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use three_d::{
     AmbientLight, AxisAlignedBoundingBox, Camera, ClearState, ColorTexture, CpuMaterial, CpuMesh,
@@ -918,6 +920,89 @@ struct DisplayState {
     view: String,
     mode: String,
     theme: String,
+}
+
+fn mesh_fingerprint(object: &SceneObject) -> u64 {
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    for p in object
+        .positions
+        .iter()
+        .chain(&object.normals)
+        .chain(&object.lines)
+    {
+        for v in [p.x, p.y, p.z] {
+            v.to_bits().hash(&mut hash);
+        }
+    }
+    object.indices.hash(&mut hash);
+    object.roughness.to_bits().hash(&mut hash);
+    object.metallic.to_bits().hash(&mut hash);
+    if let Some(colors) = &object.colors {
+        for c in colors {
+            [c.r, c.g, c.b, c.a].hash(&mut hash);
+        }
+    }
+    [
+        object.color.r,
+        object.color.g,
+        object.color.b,
+        object.color.a,
+    ]
+    .hash(&mut hash);
+    hash.finish()
+}
+fn batch_surfaces(objects: &mut Vec<SceneObject>) {
+    let mut result: Vec<SceneObject> = Vec::new();
+    for item in objects.drain(..) {
+        if item
+            .groups
+            .iter()
+            .any(|g| matches!(g.as_str(), "Copper" | "Mask" | "Silkscreen"))
+            && let Some(target) = result.iter_mut().find(|o| {
+                o.groups == item.groups
+                    && o.color == item.color
+                    && o.colors.is_none()
+                    && item.colors.is_none()
+            })
+        {
+            let offset = target.positions.len() as u32;
+            target.positions.extend(item.positions);
+            target.normals.extend(item.normals);
+            target
+                .indices
+                .extend(item.indices.iter().map(|i| i + offset));
+            continue;
+        }
+        result.push(item);
+    }
+    *objects = result;
+}
+fn edge_mesh(mesh: &MeshData) -> MeshData {
+    let mut result = MeshData::default();
+    for [a, b] in feature_edges(mesh) {
+        let a = Vec3::from(a);
+        let b = Vec3::from(b);
+        let direction = (b - a).normalize();
+        let axis = if direction.z.abs() < 0.9 {
+            Vec3::unit_z()
+        } else {
+            Vec3::unit_y()
+        };
+        let perpendicular = direction.cross(axis).normalize() * 0.055;
+        let other = direction.cross(perpendicular).normalize() * 0.055;
+        for delta in [perpendicular, other] {
+            let start = result.positions.len() as u32;
+            let normal = direction.cross(delta).normalize();
+            for p in [a - delta, b - delta, b + delta, a + delta] {
+                result.positions.push([p.x, p.y, p.z]);
+                result.normals.push([normal.x, normal.y, normal.z]);
+            }
+            result
+                .indices
+                .extend([start, start + 1, start + 2, start, start + 2, start + 3]);
+        }
+    }
+    result
 }
 
 #[derive(Deserialize)]

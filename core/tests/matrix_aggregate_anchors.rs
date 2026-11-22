@@ -4,24 +4,18 @@
 //! upstream Ergogen resolves `aggregate` before `affect`.
 use crate::support::fixture::{
     self, key_part as typed_key, part_at as at, scene_and_document as typed_scene,
+    wire_open as open,
 };
+use crate::support::query::{arr, empty_project};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
-
-fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    fixture::wire_open(engine, id, &document)
-}
 
 fn json_snapshot(engine: &mut CoreEngine) -> Value {
     fixture::wire_snapshot(engine, "snap")["document"].clone()
 }
 
 fn document() -> Value {
-    let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
-        "aggregate-anchors",
-        "Aggregate anchors",
-    ))
-    .unwrap();
+    let mut document = empty_project("aggregate-anchors", "Aggregate anchors");
     document["definitions"] = json!([{
         "id": "def", "name": "Switch", "kind": "switch",
         "courtyard": [], "pads": []
@@ -80,15 +74,11 @@ fn thumb(document: &mut Value, aggregate: Value) {
 }
 
 fn scene_cell(reply: &Value, matrix: &str, row: u64, column: u64) -> (f64, f64, f64) {
-    let scene = reply["scene"]["matrixScenes"]
-        .as_array()
-        .unwrap()
+    let scene = arr(&reply["scene"]["matrixScenes"])
         .iter()
         .find(|scene| scene["matrixId"] == matrix)
         .unwrap_or_else(|| panic!("missing scene {matrix}"));
-    let cell = scene["cells"]
-        .as_array()
-        .unwrap()
+    let cell = arr(&scene["cells"])
         .iter()
         .find(|cell| cell["row"] == row && cell["column"] == column)
         .unwrap_or_else(|| panic!("missing cell ({row},{column}) in {scene}"));

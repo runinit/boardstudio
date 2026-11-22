@@ -1,15 +1,12 @@
 //! Ticket 01: document admission rejects ambiguous identities and revision
 //! exhaustion before any accepted state or history changes.
-use crate::support::fixture::{self, request};
+use crate::support::fixture::{self, request, wire_open as open};
+use crate::support::query::{arr, empty_project};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 fn baseline() -> Value {
-    let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
-        "document-integrity",
-        "Document integrity",
-    ))
-    .unwrap();
+    let mut document = empty_project("document-integrity", "Document integrity");
     document["definitions"] = json!([{
         "id": "def", "name": "Switch", "kind": "switch",
         "courtyard": [], "pads": []
@@ -34,12 +31,18 @@ fn baseline() -> Value {
     document
 }
 
-fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    fixture::wire_open(engine, id, &document)
-}
-
 fn snapshot(engine: &mut CoreEngine) -> Value {
     fixture::wire_snapshot(engine, "snapshot")["document"].clone()
+}
+
+fn set_wiring(engine: &mut CoreEngine, id: &str, revision: u64, mode: &str) -> Value {
+    request(
+        engine,
+        json!({"kind":"edit","id":id,"command":{
+            "baseRevision":revision,"transactionId":id,"phase":"commit","targetIds":["board"],
+            "operation":{"kind":"set-wiring-mode","boardId":"board","mode":mode}
+        }}),
+    )
 }
 
 fn duplicate(document: &mut Value, collection: &str) {
@@ -196,9 +199,7 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
         let reply = open(&mut engine, "carried", &document);
         assert_eq!(reply["kind"], "scene", "{reply}");
         let parent = &reply["scene"]["matrixScenes"][0];
-        let later = parent["cells"]
-            .as_array()
-            .unwrap()
+        let later = arr(&parent["cells"])
             .iter()
             .find(|cell| cell["row"] == 1)
             .unwrap();
@@ -212,9 +213,7 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
         assert_eq!(child["pose"]["rotation"], 90.0);
         if !enabled || deleted {
             assert!(
-                !reply["document"]["parts"]
-                    .as_array()
-                    .unwrap()
+                !arr(&reply["document"]["parts"])
                     .iter()
                     .any(|part| part["id"] == "matrix/matrix/r0c0")
             );
@@ -256,9 +255,7 @@ fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() 
             for other in 0..3 {
                 let id = format!("matrix/matrix/r{row}c{other}");
                 let pose = |reply: &Value| {
-                    reply["document"]["parts"]
-                        .as_array()
-                        .unwrap()
+                    arr(&reply["document"]["parts"])
                         .iter()
                         .find(|part| part["id"] == id)
                         .unwrap()["pose"]
@@ -306,9 +303,7 @@ fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records(
     matrix["pitch"] = json!({"x":40.0,"y":50.0});
     let pitched = set(&mut engine, 1, matrix);
     let key = |reply: &Value, row: u32, column: u32| {
-        reply["scene"]["matrixScenes"][0]["cells"]
-            .as_array()
-            .unwrap()
+        arr(&reply["scene"]["matrixScenes"][0]["cells"])
             .iter()
             .find(|cell| cell["row"] == row && cell["column"] == column)
             .unwrap()["pose"]["at"]
@@ -321,17 +316,11 @@ fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records(
     matrix["columns"] = json!(2);
     let shrunk = set(&mut engine, 2, matrix);
     assert_eq!(
-        shrunk["document"]["matrices"][0]["columnLayout"]
-            .as_array()
-            .unwrap()
-            .len(),
+        arr(&shrunk["document"]["matrices"][0]["columnLayout"]).len(),
         2
     );
     assert_eq!(
-        shrunk["document"]["matrices"][0]["rowLayout"]
-            .as_array()
-            .unwrap()
-            .len(),
+        arr(&shrunk["document"]["matrices"][0]["rowLayout"]).len(),
         2
     );
     let mut matrix = shrunk["document"]["matrices"][0].clone();
@@ -474,7 +463,7 @@ fn malformed_json_text_is_refused_without_changing_accepted_state() {
 }
 
 #[test]
-fn duplicate_identity_in_each_collection_is_rejected_on_open() {
+fn duplicate_identity_is_rejected_on_open_and_replacement() {
     for collection in [
         "parts",
         "definitions",
@@ -483,50 +472,24 @@ fn duplicate_identity_in_each_collection_is_rejected_on_open() {
         "nets",
         "constraints",
     ] {
-        let mut document = baseline();
-        duplicate(&mut document, collection);
+        let mut candidate = baseline();
+        duplicate(&mut candidate, collection);
         let mut engine = CoreEngine::new();
-        let reply = open(&mut engine, "duplicate", &document);
-        assert_error(&reply);
-        assert!(
-            reply["message"].as_str().unwrap().contains("Duplicate"),
-            "{collection}: {}",
-            reply["message"]
-        );
-        assert_eq!(snapshot(&mut engine)["revision"], 0);
-    }
-}
+        let reply = open(&mut engine, "duplicate", &candidate);
+        assert_refused(&reply, "Duplicate");
+        assert_eq!(snapshot(&mut engine)["revision"], 0, "{collection}");
 
-#[test]
-fn duplicate_identity_is_rejected_on_replacement_and_preserves_accepted_state() {
-    for collection in [
-        "parts",
-        "definitions",
-        "boards",
-        "matrices",
-        "nets",
-        "constraints",
-    ] {
-        let mut engine = CoreEngine::new();
         assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
         let accepted = snapshot(&mut engine);
-
-        let mut replacement = baseline();
-        replacement["revision"] = accepted["revision"].clone();
-        duplicate(&mut replacement, collection);
+        candidate["revision"] = accepted["revision"].clone();
         let reply = fixture::wire_commit(
             &mut engine,
             "replace",
             "replace",
             accepted["revision"].as_u64().unwrap(),
-            json!({"kind":"replace-document","document":replacement}),
+            json!({"kind":"replace-document","document":candidate}),
         );
-        assert_error(&reply);
-        assert!(
-            reply["message"].as_str().unwrap().contains("Duplicate"),
-            "{collection}: {}",
-            reply["message"]
-        );
+        assert_refused(&reply, "Duplicate");
         assert_eq!(snapshot(&mut engine), accepted, "{collection} state moved");
     }
 }
@@ -562,13 +525,7 @@ fn max_revision_open_is_rejected_without_replacing_the_accepted_document() {
     let mut exhausted = baseline();
     exhausted["revision"] = json!(u64::MAX);
     let reply = open(&mut engine, "exhausted", &exhausted);
-    assert_error(&reply);
-    assert!(
-        reply["message"]
-            .as_str()
-            .unwrap()
-            .contains("revision is exhausted")
-    );
+    assert_refused(&reply, "revision is exhausted");
     assert_eq!(snapshot(&mut engine), accepted);
 }
 
@@ -579,99 +536,39 @@ fn max_minus_one_advances_to_max_then_refuses_the_next_advance_atomically() {
     document["revision"] = json!(u64::MAX - 1);
     assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
 
-    let at_max = request(
-        &mut engine,
-        json!({
-            "kind":"edit","id":"advance","command":{
-                "baseRevision":u64::MAX - 1,"transactionId":"advance","phase":"commit",
-                "targetIds":["board"],
-                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-            }
-        }),
-    );
+    let at_max = set_wiring(&mut engine, "advance", u64::MAX - 1, "direct");
     assert_eq!(at_max["kind"], "scene");
     assert_eq!(at_max["scene"]["revision"], u64::MAX);
     let accepted = snapshot(&mut engine);
     assert_eq!(accepted["revision"], u64::MAX);
 
-    let refused = request(
-        &mut engine,
-        json!({
-            "kind":"edit","id":"refused","command":{
-                "baseRevision":u64::MAX,"transactionId":"refused","phase":"commit",
-                "targetIds":["board"],
-                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"matrix"}
-            }
-        }),
-    );
-    assert_error(&refused);
-    assert!(
-        refused["message"]
-            .as_str()
-            .unwrap()
-            .contains("revision is exhausted")
-    );
+    let refused = set_wiring(&mut engine, "refused", u64::MAX, "matrix");
+    assert_refused(&refused, "revision is exhausted");
     assert_eq!(snapshot(&mut engine), accepted);
 }
 
 #[test]
 fn max_revision_undo_and_redo_are_refused_with_their_history_intact() {
-    // Undo side: a commit lands at MAX, leaving a nonempty undo stack.
-    let mut engine = CoreEngine::new();
-    let mut document = baseline();
-    document["revision"] = json!(u64::MAX - 1);
-    assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
-    assert_eq!(
-        request(
+    for (start, exhausted_operation) in [(u64::MAX - 1, "undo"), (u64::MAX - 2, "redo")] {
+        let mut engine = CoreEngine::new();
+        let mut document = baseline();
+        document["revision"] = json!(start);
+        assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
+        let committed = set_wiring(&mut engine, "commit", start, "direct");
+        let at_max = if exhausted_operation == "redo" {
+            request(&mut engine, json!({"kind":"undo","id":"undo"}))
+        } else {
+            committed
+        };
+        assert_eq!(at_max["scene"]["revision"], u64::MAX);
+        let accepted = snapshot(&mut engine);
+        let reply = request(
             &mut engine,
-            json!({
-                "kind":"edit","id":"commit","command":{
-                    "baseRevision":u64::MAX - 1,"transactionId":"commit","phase":"commit",
-                    "targetIds":["board"],
-                    "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-                }
-            })
-        )["scene"]["revision"],
-        u64::MAX
-    );
-    let accepted = snapshot(&mut engine);
-    let undo = request(&mut engine, json!({"kind":"undo","id":"undo"}));
-    assert_error(&undo);
-    assert!(
-        undo["message"]
-            .as_str()
-            .unwrap()
-            .contains("revision is exhausted")
-    );
-    assert_eq!(snapshot(&mut engine), accepted);
-
-    // Redo side: undo from MAX-1 lands at MAX, leaving a nonempty redo stack.
-    let mut engine = CoreEngine::new();
-    let mut document = baseline();
-    document["revision"] = json!(u64::MAX - 2);
-    assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
-    request(
-        &mut engine,
-        json!({
-            "kind":"edit","id":"commit","command":{
-                "baseRevision":u64::MAX - 2,"transactionId":"commit","phase":"commit",
-                "targetIds":["board"],
-                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-            }
-        }),
-    );
-    let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
-    assert_eq!(undone["scene"]["revision"], u64::MAX);
-    let accepted = snapshot(&mut engine);
-    let redo = request(&mut engine, json!({"kind":"redo","id":"redo"}));
-    assert_error(&redo);
-    assert!(
-        redo["message"]
-            .as_str()
-            .unwrap()
-            .contains("revision is exhausted")
-    );
-    assert_eq!(snapshot(&mut engine), accepted);
+            json!({"kind":exhausted_operation,"id":exhausted_operation}),
+        );
+        assert_refused(&reply, "revision is exhausted");
+        assert_eq!(snapshot(&mut engine), accepted, "{exhausted_operation}");
+    }
 }
 
 #[test]
@@ -687,16 +584,7 @@ fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
 
-    let committed = request(
-        &mut engine,
-        json!({
-            "kind":"edit","id":"commit","command":{
-                "baseRevision":u64::MAX - 1,"transactionId":"commit","phase":"commit",
-                "targetIds":["board"],
-                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-            }
-        }),
-    );
+    let committed = set_wiring(&mut engine, "commit", u64::MAX - 1, "direct");
     assert_eq!(committed["scene"]["revision"], u64::MAX);
     let accepted = snapshot(&mut engine);
     assert_eq!(
@@ -711,13 +599,7 @@ fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
             "boardId":"board","expectedFingerprint":"reviewed-fingerprint"
         }),
     );
-    assert_error(&refused);
-    assert!(
-        refused["message"]
-            .as_str()
-            .unwrap()
-            .contains("revision is exhausted")
-    );
+    assert_refused(&refused, "revision is exhausted");
     assert_eq!(snapshot(&mut engine), accepted);
 }
 
@@ -726,16 +608,7 @@ fn refused_open_preserves_nonempty_history() {
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
     assert_eq!(
-        request(
-            &mut engine,
-            json!({
-                "kind":"edit","id":"commit","command":{
-                    "baseRevision":0,"transactionId":"commit","phase":"commit",
-                    "targetIds":["board"],
-                    "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-                }
-            })
-        )["scene"]["revision"],
+        set_wiring(&mut engine, "commit", 0, "direct")["scene"]["revision"],
         1
     );
 
@@ -907,9 +780,7 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
     let opened = open(&mut engine, "valid", &document);
     assert_eq!(opened["kind"], "scene");
     let accepted = snapshot(&mut engine);
-    let laid_out = opened["scene"]["matrixScenes"]
-        .as_array()
-        .unwrap()
+    let laid_out = arr(&opened["scene"]["matrixScenes"])
         .iter()
         .find(|scene| scene["matrixId"] == "second")
         .expect("anchored scene")["cells"][0]["pose"]
@@ -927,9 +798,7 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
         detached["matrices"][1]["origin"],
         json!({"x": 19.0, "y": -19.0})
     );
-    let member_c = detached["parts"]
-        .as_array()
-        .unwrap()
+    let member_c = arr(&detached["parts"])
         .iter()
         .find(|part| part["id"] == "matrix/second/r0c0")
         .expect("detached member is kept");

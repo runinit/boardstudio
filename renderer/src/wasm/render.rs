@@ -1,38 +1,6 @@
 use super::*;
 
 impl Renderer {
-    pub(super) fn accept_scene_patch(
-        &mut self,
-        items: BuiltScene,
-        removed: Vec<String>,
-    ) -> Result<bool, JsValue> {
-        let removed: std::collections::HashSet<_> = removed.into_iter().collect();
-        let mut previous = std::mem::take(&mut self.objects);
-        previous.retain(|item| !removed.contains(&item.id));
-        let mut next = Vec::with_capacity(previous.len() + items.objects.len());
-        for item in items.objects {
-            let fingerprint = mesh_fingerprint(&item);
-            if let Some(index) = previous.iter().position(|old| old.id == item.id) {
-                let mut old = previous.swap_remove(index);
-                if old.groups == item.groups && old.fingerprint == fingerprint {
-                    old.explode = item.explode;
-                    next.push(old);
-                } else {
-                    next.push(self.upload(item));
-                }
-            } else {
-                next.push(self.upload(item));
-            }
-        }
-        next.extend(previous);
-        self.objects = next;
-        self.revision = items.revision;
-        // A body patch does not describe complete scene bounds.
-        self.apply_state();
-        self.update_camera();
-        Ok(true)
-    }
-
     pub(super) fn accept_scene(&mut self, items: BuiltScene) -> Result<bool, JsValue> {
         self.focused_ids.clear();
         self.section_x = items.section_x;
