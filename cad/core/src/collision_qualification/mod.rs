@@ -244,16 +244,8 @@ fn world_surface(
 )> {
     use crate::qualification::{SourceQualification, WorldSourceBound};
     let (matrix, norm_squared) = affine(row)?;
-    let norm_upper = sqrt_bounds(&norm_squared)?[1];
-    let norm = Q::from_float(norm_upper).ok_or("row norm overflow")?;
-    let local = local_positions(owner);
-    let mut rounding = Q::zero();
-    for (p, actual) in local.iter().zip(world) {
-        let exact = transform(&point(*p)?, &matrix);
-        rounding = rounding.max(norm2(&sub(&point(*actual)?, &exact)));
-    }
-    let triangles = world.as_chunks::<3>().0.to_vec();
-    let transform_rounding_mm = sqrt_bounds(&rounding)?[1];
+    // prepared_pair checked the local, row and world coordinate ranges. Once
+    // the row passes affine validation, only a bounded source needs rounding.
     let SourceQualification::Bounded {
         direct_bound_mm,
         source_precision_mm,
@@ -268,6 +260,14 @@ fn world_surface(
             None,
         ));
     };
+    let norm_upper = sqrt_bounds(&norm_squared)?[1];
+    let norm = Q::from_float(norm_upper).ok_or("row norm overflow")?;
+    let mut rounding = Q::zero();
+    for (p, actual) in local_positions(owner).iter().zip(world) {
+        let exact = transform(&point(*p)?, &matrix);
+        rounding = rounding.max(norm2(&sub(&point(*actual)?, &exact)));
+    }
+    let transform_rounding_mm = sqrt_bounds(&rounding)?[1];
     let direct = upper(&(Q::from_float(*direct_bound_mm).unwrap() * &norm))?;
     let precision = upper(&(Q::from_float(*source_precision_mm).unwrap() * &norm))?;
     let round = Q::from_float(transform_rounding_mm).unwrap();
@@ -289,7 +289,7 @@ fn world_surface(
         hull[1][axis] = Q::from_float(hi).ok_or("empty final surface")?;
     }
     let source = QualifiedSurface {
-        triangles: triangles.clone(),
+        triangles: world.as_chunks::<3>().0.to_vec(),
         #[cfg(test)]
         tags: Vec::new(),
         bound: SurfaceBound {

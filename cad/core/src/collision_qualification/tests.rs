@@ -67,6 +67,51 @@ fn pair_contains(boxes: &[query::BoxPair], a: FPoint, b: FPoint) -> bool {
 fn triangle(z: f64) -> FTriangle {
     [[0., 0., z], [2., 0., z], [0., 2., z]]
 }
+
+#[test]
+fn unavailable_source_preserves_pair_preflight_and_affine_refusal_order() {
+    use crate::qualification::{self, PreparedVendorView, WorldSourceBound};
+    let owner = qualification::prepare_baked_vendor_preview(
+        PreparedVendorView {
+            positions_mm_f64: &triangle(0.),
+            triangle_face_occurrence_indices: &[0],
+            source_faces: &[],
+            face_occurrences: &[],
+        },
+        0.1,
+        0.1,
+        vec!["baked preview".into()],
+    )
+    .unwrap();
+    let unavailable = "source-proof-unavailable";
+    let mut malformed = IDENTITY;
+    malformed[3] = 1.;
+    let mut singular = IDENTITY;
+    singular[10] = 0.;
+    // The coefficient passes preflight, but the second world vertex exceeds its cap.
+    let mut oversized = singular;
+    oversized[0] = 2f64.powi(128);
+    for (row, expected) in [
+        (IDENTITY, [unavailable, unavailable]),
+        (malformed, [unavailable, "invalid affine row"]),
+        (singular, [unavailable, "singular affine row"]),
+        (oversized, ["exponent cap", "exponent cap"]),
+    ] {
+        let report = qualification::verify_analysis_pair(
+            &owner,
+            &owner,
+            [IDENTITY, row],
+            qualification::Limits::default(),
+        );
+        for (bound, reason) in report.source_bounds.iter().zip(expected) {
+            assert!(
+                matches!(bound, WorldSourceBound::Unknown { reasons } if reasons == &[reason]),
+                "{bound:?}"
+            );
+        }
+    }
+}
+
 fn cube(lo: f64, hi: f64) -> Vec<FTriangle> {
     let p = [
         [lo, lo, lo],
