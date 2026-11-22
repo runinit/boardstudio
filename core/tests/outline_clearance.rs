@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -29,10 +30,7 @@ fn rect(id: &str, x: f64, y: f64, width: f64, height: f64, operation: Operation)
     }
 }
 fn open(doc: ProjectDoc) -> SceneDelta {
-    match CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }) {
+    match CoreEngine::new().handle(fixture::open(doc)) {
         CoreReply::Scene { scene, .. } => scene,
         reply => panic!("{reply:?}"),
     }

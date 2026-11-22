@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn pcb_readiness_checks_pads_outlines_and_thickness() {
@@ -7,13 +8,6 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![],
         pads: vec![Pad {
             id: "pad1".into(),
             number: "1".into(),
@@ -26,31 +20,9 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
             rotation: None,
             net_id: None,
         }],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition("switch", "Switch", PartKind::Switch)
     });
-    doc.parts.push(Part {
-        anchor: None,
-        id: "k1".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+    doc.parts.push(fixture::part("k1", "switch", "SW1"));
     doc.nets.push(Net {
         id: "row".into(),
         name: "ROW".into(),
@@ -104,19 +76,10 @@ fn empty_board_subset_blocks_pcb() {
     doc.outline
         .push(rect("cut", 0.0, 0.0, 2.0, 2.0, Operation::Subtract));
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
         outline_ids: vec!["cut".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
-    let (scene, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, _) = scene(engine.handle(fixture::open(doc)));
     assert!(!scene.contours.is_empty());
     assert!(scene.board_contours[0].contours.is_empty());
     assert!(!scene.readiness.pcb);
@@ -134,14 +97,8 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 30.0, 20.0, Operation::Add));
     doc.boards.push(Board {
-        id: "left".into(),
-        name: "Left PCB".into(),
         outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("left", "Left PCB")
     });
     doc.case_bodies.push(CaseBody {
         features: None,
@@ -161,10 +118,7 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
         gasket: None,
     });
     let mut engine = CoreEngine::new();
-    let (scene, document) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, document) = scene(engine.handle(fixture::open(doc)));
     assert!(!scene.board_readiness[0].case_ready);
     assert!(
         scene
@@ -222,10 +176,7 @@ fn add_part_accepts_legacy_payload_without_optional_placement_fields() {
 #[test]
 fn new_matrix_rejects_out_of_bounds_edits() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(1, 1);
     {
         let values = vec![Vec2::default(); 2];
@@ -276,28 +227,16 @@ fn matrix_targets_board_and_preview_is_scoped() {
         operation: Operation::Add,
     });
     doc.boards.push(Board {
-        id: "right".into(),
-        name: "Right".into(),
         outline_ids: vec!["right-edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("right", "Right")
     });
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    engine.handle(fixture::open(doc));
     let mut target = matrix(1, 2);
     target.board_id = Some("right".into());
     let preview = preview(engine.handle(edit(
         0,
         EditPhase::Preview,
-        EditOperation::SetMatrix {
-            matrix: target.clone(),
-            definitions: None,
-        },
+        fixture::set_matrix(target.clone()),
     )));
     assert_eq!(preview.board_contours[1].contours.len(), 1);
     assert!(preview.board_contours[0].contours.is_empty());
@@ -314,10 +253,7 @@ fn matrix_targets_board_and_preview_is_scoped() {
     let (_, placed) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: target.clone(),
-            definitions: None,
-        },
+        fixture::set_matrix(target.clone()),
     )));
     assert_eq!(placed.boards[1].part_ids.len(), 2);
     assert!(placed.boards[0].part_ids.is_empty());
@@ -327,14 +263,8 @@ fn matrix_targets_board_and_preview_is_scoped() {
     assert_eq!(part_ids.len(), 2);
     let mut edit_matrix = target;
     edit_matrix.board_id = None;
-    let (_, updated) = scene(engine.handle(edit(
-        1,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: edit_matrix,
-            definitions: None,
-        },
-    )));
+    let (_, updated) =
+        scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(edit_matrix))));
     assert_eq!(updated.matrices[0].board_id.as_deref(), Some("right"));
     assert_eq!(updated.boards[1].part_ids.len(), 2);
     let mut invalid = matrix(1, 1);
@@ -355,17 +285,11 @@ fn matrix_targets_board_and_preview_is_scoped() {
 #[test]
 fn matrix_generates_stable_parts_and_one_undo_step() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let preview = preview(engine.handle(edit(
         0,
         EditPhase::Preview,
-        EditOperation::SetMatrix {
-            matrix: matrix(2, 2),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(2, 2)),
     )));
     assert_eq!(preview.transforms.len(), 4);
     assert!(
@@ -379,10 +303,7 @@ fn matrix_generates_stable_parts_and_one_undo_step() {
     let (committed_scene, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(2, 2),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(2, 2)),
     )));
     assert_eq!(committed_scene.revision, 1);
     assert_eq!(
@@ -412,17 +333,11 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
         "id": id, "number": (i + 1).to_string(), "at": {"x": i, "y": 0}, "size": {"x": 1, "y": 1}, "shape": "circle"
     })).unwrap()).collect();
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    engine.handle(fixture::open(doc));
     let (_, mut placed) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 1)),
     )));
     let id = placed.parts[0].id.clone();
     placed.nets.push(Net {
@@ -504,17 +419,11 @@ fn replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes() {
 #[test]
 fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 2),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 2)),
     )));
     let mut other = matrix(1, 2);
     other.id = "other".into();
@@ -522,10 +431,7 @@ fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
     let (_, before) = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: other,
-            definitions: None,
-        },
+        fixture::set_matrix(other),
     )));
     let operation = serde_json::from_value(serde_json::json!({"kind":"set-matrix-cells-enabled", "cells":{"main":[[0,0]],"other":[[0,1]]}, "enabled":false})).expect("Core must support grouped matrix enable changes atomically");
     let (geometry, disabled) =
@@ -581,26 +487,9 @@ fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
 fn undo_retains_only_the_latest_hundred_commits() {
     let mut engine = CoreEngine::new();
     let mut seed = ProjectDoc::empty("bounded-history", "0");
-    seed.parts.push(Part {
-        anchor: None,
-        id: "part-0".into(),
-        definition_id: "catalog:unused".into(),
-        reference: "P0".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    });
-    let (_, mut document) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: seed,
-    }));
+    seed.parts
+        .push(fixture::part("part-0", "catalog:unused", "P0"));
+    let (_, mut document) = scene(engine.handle(fixture::open(seed)));
     for index in 1..=101 {
         (_, document) = scene(engine.handle(edit(
             document.revision,

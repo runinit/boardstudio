@@ -9,8 +9,8 @@
 //! keymap, keycap and outline suites; the matrix, mechanical and module suites live in
 //! `integration_matrix.rs`, `integration_mechanical.rs` and `integration_modules.rs`.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "constraint_depth.rs"]

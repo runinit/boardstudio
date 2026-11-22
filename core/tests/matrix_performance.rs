@@ -1,10 +1,11 @@
+use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 use serde_json::{Value, json};
 use std::time::Instant;
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This standalone benchmark uses only the authored mirrored-half document.
+#[path = "support.rs"]
 mod support;
 
 const SAMPLES: usize = 100;
@@ -27,12 +28,6 @@ fn pad(id: &str) -> Pad {
 
 fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
     PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind: PartKind::Switch,
         courtyard: vec![
             Vec2 { x: -7.0, y: -7.0 },
             Vec2 { x: 7.0, y: -7.0 },
@@ -40,14 +35,7 @@ fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
             Vec2 { x: -7.0, y: 7.0 },
         ],
         pads,
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition(id, id, PartKind::Switch)
     }
 }
 
@@ -157,34 +145,13 @@ fn guided_matrix_preview() {
         operation: Operation::Add,
     });
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
         outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    engine.handle(fixture::open(doc));
     let cells = (0..6)
         .flat_map(|row| {
             (0..5).map(move |column| MatrixCell {
-                shift: None,
-                bend: None,
-                deleted: false,
-                assemblies_local: None,
-                row,
-                column,
-                enabled: true,
-
-                definition_id: None,
-                variant: None,
-                offset: None,
-                rotation: None,
                 assemblies: vec![MatrixAssembly {
                     id: "led".into(),
                     definition_id: "rgb-led".into(),
@@ -192,31 +159,19 @@ fn guided_matrix_preview() {
                     rotation: None,
                     side: None,
                 }],
+                ..fixture::cell(row, column)
             })
         })
         .collect();
     let matrix = Matrix {
-        id: "main".into(),
-        name: None,
-        rows: 6,
-        columns: 5,
         pitch: Vec2 {
             x: PITCH_MM,
             y: PITCH_MM,
         },
-        origin: Vec2::default(),
         definition_id: "mx-switch".into(),
-        part_ids: vec![],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
         cells,
+        ..fixture::matrix("main", 6, 5)
     };
     assert!(matches!(
         engine.handle(CoreRequest::Edit {

@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 fn matrix() -> Matrix {
@@ -33,39 +34,14 @@ fn matrix() -> Matrix {
 
 fn open() -> CoreEngine {
     let mut doc = ProjectDoc::empty("p", "P");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.definitions.push(fixture::part_definition(
+        "switch",
+        "Switch",
+        PartKind::Switch,
+    ));
+    doc.boards.push(fixture::board("board", "Board"));
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(engine.handle(fixture::open(doc)));
     let mut source = matrix();
     source.board_id = Some("board".into());
     let request = serde_json::json!({"kind":"edit","id":"pair","command":{
@@ -85,29 +61,17 @@ fn open() -> CoreEngine {
 }
 
 fn edit(base: u64, phase: EditPhase, change: MatrixSplayChange) -> CoreRequest {
-    CoreRequest::Edit {
-        id: "e".into(),
-        command: EditCommand {
-            base_revision: base,
-            transaction_id: "t".into(),
-            phase,
-            target_ids: vec![],
-            operation: EditOperation::SetMatrixSplay {
-                matrix_id: "m".into(),
-                column: 1,
-                change,
-            },
+    fixture::edit(
+        "e",
+        "t",
+        base,
+        phase,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "m".into(),
+            column: 1,
+            change,
         },
-    }
-}
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
+    )
 }
 
 #[test]

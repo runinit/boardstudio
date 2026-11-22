@@ -1,23 +1,14 @@
 //! Core owns the named matrix placement parameters (`SetMatrixPlacement`) and the
 //! per-column stagger axis it publishes in the scene. These tests pin the axis
 //! maths to the same `location` Core uses to place keys.
+use crate::support::fixture::{
+    self, matrix_document as matrix_doc, part_at as at, scene_and_document as scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
     (engine, scene, doc)
 }
 
@@ -26,16 +17,7 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
@@ -53,25 +35,7 @@ fn definitions() -> Vec<PartDefinition> {
 }
 
 fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
-    Matrix {
-        id: id.into(),
-        name: None,
-        rows,
-        columns,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: None,
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
-    }
+    fixture::matrix(id, rows, columns)
 }
 
 fn fixture(rows: u32, columns: u32) -> (CoreEngine, SceneDelta, ProjectDoc) {
@@ -81,10 +45,7 @@ fn fixture(rows: u32, columns: u32) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let (scene, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: matrix("main", rows, columns),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix("main", rows, columns)),
     );
     (engine, scene, doc)
 }
@@ -95,15 +56,6 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
 
 fn companion(matrix: &str, row: u32, column: u32, name: &str) -> String {
     format!("{}/{name}", member(matrix, row, column))
-}
-
-fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-        .at
 }
 
 fn delta(before: Vec2, after: Vec2) -> Vec2 {
@@ -160,14 +112,7 @@ fn axis_case(label: &str, configure: impl FnOnce(&mut Matrix)) {
     let (mut engine, _, mut doc) = fixture(1, 3);
     let mut matrix = doc.matrices[0].clone();
     configure(&mut matrix);
-    let (mut scene, doc_configured) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (mut scene, doc_configured) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     doc = doc_configured;
     for column in 0..3u32 {
         let axis = piece(&scene, "main").columns[column as usize].stagger_axis;
@@ -237,31 +182,9 @@ fn companion_matrix() -> Matrix {
 fn companion_fixture() -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("companions", "Companions");
     doc.definitions = definitions();
-    doc.parts.push(Part {
-        anchor: None,
-        id: "anchor".into(),
-        definition_id: "switch".into(),
-        reference: "ANCHOR".into(),
-        pose: Pose2 {
-            at: Vec2::default(),
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+    doc.parts.push(fixture::part("anchor", "switch", "ANCHOR"));
     let (mut engine, _, doc) = open(doc);
-    let (_, mut doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: companion_matrix(),
-            definitions: None,
-        },
-    );
+    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(companion_matrix()));
     doc.constraints.push(Constraint::Offset {
         id: "sensor-anchor".into(),
         source_part_id: "anchor".into(),
@@ -283,52 +206,6 @@ fn companion_fixture() -> (CoreEngine, ProjectDoc) {
         },
     );
     (engine, doc)
-}
-
-fn matrix_doc() -> ProjectDoc {
-    let mut doc = ProjectDoc::empty("p", "Project");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![
-            Vec2 { x: -7.0, y: -7.0 },
-            Vec2 { x: 7.0, y: -7.0 },
-            Vec2 { x: 7.0, y: 7.0 },
-            Vec2 { x: -7.0, y: 7.0 },
-        ],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.outline.push(OutlineFeature::PartEnvelope {
-        connections: vec![],
-        id: "edge".into(),
-        part_ids: vec![],
-        settings: Default::default(),
-        margin: 3.0,
-        operation: Operation::Add,
-    });
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    doc
 }
 
 fn poses(doc: &ProjectDoc) -> Vec<(String, Vec2, f64)> {
@@ -366,14 +243,7 @@ fn convert_case(label: &str, column: u32, configure: impl FnOnce(&mut Matrix)) -
     let (mut engine, _, doc) = fixture(2, 3);
     let mut matrix = doc.matrices[0].clone();
     configure(&mut matrix);
-    let (_, before) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     assert_eq!(
         convert_offset_available(&before.matrices[0], column),
         Ok(()),
@@ -426,14 +296,7 @@ fn internal_constraint_translation(column: Option<u32>) {
             ..Default::default()
         },
     ];
-    let (_, mut document) = edit(
-        &mut engine,
-        &document,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, mut document) = edit(&mut engine, &document, fixture::set_matrix(matrix));
     document.constraints.push(Constraint::Offset {
         id: "internal".into(),
         source_part_id: member("main", 0, 1),

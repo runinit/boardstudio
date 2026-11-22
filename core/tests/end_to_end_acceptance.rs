@@ -3,23 +3,12 @@
 //! reopen, carrying an anchored matrix inside a same-board mirrored group.
 //! Every step runs through the real routes (CoreEngine Open/Edit/Undo and the
 //! real archive pack/unpack), never test doubles.
+use crate::support::fixture::{self, key_part, part_pose, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, archive, model::*};
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
     (engine, scene, doc)
 }
 
@@ -28,29 +17,17 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
-    match engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
+    match engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        doc.revision,
+        EditPhase::Preview,
+        operation,
+    )) {
         CoreReply::Preview { scene, .. } => scene,
         other => panic!("expected preview: {other:?}"),
     }
@@ -78,48 +55,15 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 
-fn key_part(id: &str, x: f64, y: f64) -> Part {
-    Part {
-        anchor: None,
-        id: id.into(),
-        definition_id: "switch".into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2 { x, y },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
 fn main_matrix() -> Matrix {
     Matrix {
-        id: "main".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
+        ..fixture::matrix("main", 1, 3)
     }
 }
 
@@ -157,14 +101,8 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         key_part(&member("thumb", 0, 2), 76.0, -19.0),
     ];
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
         part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
     doc.matrices.push(main_matrix());
     doc.matrices.push(thumb);
@@ -208,14 +146,6 @@ fn scene_pose(scene: &SceneDelta, matrix_id: &str, row: u32, column: u32) -> Pos
         .iter()
         .find(|cell| cell.row == row && cell.column == column)
         .unwrap_or_else(|| panic!("missing cell {matrix_id} {row}/{column}"))
-        .pose
-}
-
-fn part_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
         .pose
 }
 

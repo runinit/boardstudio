@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
@@ -34,7 +35,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
                     source_instance_id: None,
                 }],
             },
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
     .unwrap();
@@ -66,7 +67,7 @@ fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
     use std::collections::BTreeMap;
 
     let document = document();
-    let mut wrong = template();
+    let mut wrong = fixture::mounting_hole();
     // A definition from another source is not the mounting-hole catalogue entry.
     wrong.generator = Some(PartGenerator {
         source: "ceoloide/switch_mx".into(),
@@ -349,36 +350,24 @@ fn identity_reservations_survive_a_document_round_trip() {
 #[test]
 fn one_undo_restores_a_paired_disable_completely() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+    use boardstudio_core::model::{CoreRequest, EditOperation};
 
-    fn document_of(reply: CoreReply) -> ProjectDoc {
-        match reply {
-            CoreReply::Scene { document, .. } => *document,
-            other => panic!("expected scene: {other:?}"),
-        }
-    }
+    use crate::support::fixture::document as document_of;
     fn mechanical_command(base_revision: u64, edit: MechanicalEdit) -> CoreRequest {
-        CoreRequest::Edit {
-            id: "mechanical".into(),
-            command: EditCommand {
-                base_revision,
-                transaction_id: "mechanical".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::ApplyMechanicalEdit {
-                    edit: Box::new(edit),
-                },
+        fixture::commit(
+            "mechanical",
+            "mechanical",
+            base_revision,
+            EditOperation::ApplyMechanicalEdit {
+                edit: Box::new(edit),
             },
-        }
+        )
     }
 
     let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
-    let accepted = document_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    }));
+    let accepted = document_of(engine.handle(fixture::open(document)));
 
     let disabled = document_of(engine.handle(mechanical_command(
         accepted.revision,
@@ -445,7 +434,7 @@ fn a_pcb_violation_blocks_only_its_own_board_export() {
                     Some("left"),
                 )],
             },
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
     .unwrap();

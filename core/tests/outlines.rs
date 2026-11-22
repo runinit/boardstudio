@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -50,10 +51,7 @@ fn contains(contours: &[Contour], x: f64, y: f64) -> bool {
 #[test]
 fn deleting_corner_creates_notch_and_retains_neighbors() {
     let mut core = CoreEngine::new();
-    let before = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document(),
-    }));
+    let before = scene(core.handle(fixture::open(document())));
     assert!(contains(&before.contours, 0.0, 0.0));
     let after = scene(core.handle(CoreRequest::Edit {
         id: "delete".into(),
@@ -79,53 +77,27 @@ fn deleting_corner_creates_notch_and_retains_neighbors() {
 fn automatic_part_envelopes_exclude_nonphysical_utilities() {
     let mut doc = document();
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "utility".into(),
-        name: "Board note".into(),
-        kind: PartKind::Utility,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
         courtyard: vec![
             Vec2 { x: -10.0, y: -10.0 },
             Vec2 { x: 10.0, y: -10.0 },
             Vec2 { x: 10.0, y: 10.0 },
             Vec2 { x: -10.0, y: 10.0 },
         ],
-        pads: vec![],
-        models: None,
-        generator: None,
+        ..fixture::part_definition("utility", "Board note", PartKind::Utility)
     });
     doc.parts.push(Part {
-        anchor: None,
-        id: "label".into(),
-        definition_id: "utility".into(),
-        reference: "TXT".into(),
         pose: Pose2 {
             at: Vec2 { x: 100.0, y: 0.0 },
             rotation: 0.0,
         },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
+        ..fixture::part("label", "utility", "TXT")
     });
     doc.boards[0].part_ids.push("label".into());
     if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
         part_ids.push("label".into());
     }
     let mut core = CoreEngine::new();
-    let resolved = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let resolved = scene(core.handle(fixture::open(doc)));
     assert!(contains(&resolved.contours, 19.05, 0.0));
     assert!(!contains(&resolved.contours, 100.0, 0.0));
 }
@@ -177,16 +149,12 @@ fn automatic_envelope_reflects_asymmetric_back_side_footprints() {
 }
 
 fn commit(core: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
-    scene(core.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: format!("edit-{revision}"),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: serde_json::from_value(operation).unwrap(),
-        },
-    }))
+    scene(core.handle(fixture::commit(
+        "edit",
+        format!("edit-{revision}"),
+        revision,
+        serde_json::from_value(operation).unwrap(),
+    )))
 }
 #[test]
 fn deleted_matrix_cell_stays_disabled_when_resized() {
@@ -195,10 +163,7 @@ fn deleted_matrix_cell_stays_disabled_when_resized() {
     doc.parts.clear();
     doc.outline.clear();
     doc.boards.clear();
-    scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(core.handle(fixture::open(doc)));
     commit(
         &mut core,
         0,
@@ -234,10 +199,7 @@ fn finishing_modes_and_holes_are_shared_with_board_contours() {
         doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":19.05,"y":19.05},"size":{"x":6,"y":6},"radius":0,"operation":"subtract"})).unwrap());
         doc.boards[0].outline_ids.push("hole".into());
         let mut core = CoreEngine::new();
-        let result = scene(core.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc,
-        }));
+        let result = scene(core.handle(fixture::open(doc)));
         assert!(
             !result
                 .findings
@@ -263,10 +225,7 @@ fn invalid_polygon_and_empty_selection_block_outline() {
         let mut doc = document();
         doc.outline = vec![serde_json::from_value(feature).unwrap()];
         doc.boards[0].outline_ids = vec!["bad".into()];
-        let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc,
-        }));
+        let result = scene(CoreEngine::new().handle(fixture::open(doc)));
         assert!(!result.readiness.outline);
         assert!(!result.board_readiness[0].outline);
     }
@@ -282,17 +241,11 @@ fn components_can_use_zero_margin_or_be_excluded() {
         ..Default::default()
     });
     let mut core = CoreEngine::new();
-    let result = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    let result = scene(core.handle(fixture::open(doc.clone())));
     assert!(!contains(&result.contours, 10.0, 0.0));
     assert!(contains(&result.contours, 8.0, 0.0));
     doc.parts[0].outline.as_mut().unwrap().excluded = true;
-    let result = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(core.handle(fixture::open(doc)));
     assert!(!result.readiness.outline);
 }
 #[test]
@@ -305,10 +258,7 @@ fn keycap_dimensions_rotation_and_settings_roundtrip() {
     let saved = serde_json::to_string(&doc).unwrap();
     let restored: ProjectDoc = serde_json::from_str(&saved).unwrap();
     assert_eq!(restored, doc);
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: restored,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(restored)));
     assert!(contains(&result.contours, 0.0, 22.0));
     assert!(!contains(&result.contours, 22.0, 0.0));
 }
@@ -317,10 +267,7 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
     let mut doc = document();
     doc.parts.retain(|p| p.id != "k4");
     let mut core = CoreEngine::new();
-    let before = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let before = scene(core.handle(fixture::open(doc)));
     assert!(contains(&before.contours, 19.05, 19.05));
     let after = commit(&mut core, 0, json!({"kind":"remove-parts","ids":["k0"]}));
     assert!(!contains(&after.contours, 0.0, 0.0));
@@ -331,10 +278,7 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
     let mut doc = document();
     doc.parts.truncate(2);
     doc.parts[1].pose.at.x = 80.0;
-    let result = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(core.handle(fixture::open(doc)));
     assert_eq!(result.contours.len(), 1);
     assert!(contains(&result.contours, 40.0, 0.0));
 }
@@ -352,10 +296,7 @@ fn oversized_finishing_reports_requested_and_applied_sizes() {
     let mut feature = serde_json::to_value(&doc.outline[0]).unwrap();
     feature["settings"] = json!({"corners":"fillet","size":1000,"bridgeWidth":10});
     doc.outline[0] = serde_json::from_value(feature).unwrap();
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(
         result
             .findings
@@ -380,19 +321,13 @@ fn separate_boards_are_not_bridged_and_mixed_membership_is_rejected() {
     doc.outline=vec![
         serde_json::from_value(json!({"id":"edge","kind":"part-envelope","partIds":["k0"],"margin":4,"operation":"add"})).unwrap(),
         serde_json::from_value(json!({"id":"right-edge","kind":"part-envelope","partIds":["k1"],"margin":4,"operation":"add"})).unwrap()];
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc.clone())));
     assert_eq!(result.board_contours.len(), 2);
     assert!(!contains(&result.contours, 50.0, 0.0));
     if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
         part_ids.push("k1".into());
     }
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(!result.board_readiness[0].outline);
 }
 #[test]
@@ -403,10 +338,7 @@ fn definition_edits_invalidate_geometry_and_preserve_manual_additions() {
     doc.outline.push(serde_json::from_value(json!({"id":"tab","kind":"rect","center":{"x":15,"y":0},"size":{"x":10,"y":6},"radius":0,"operation":"add"})).unwrap());
     doc.boards[0].outline_ids.push("tab".into());
     let mut core = CoreEngine::new();
-    let before = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    let before = scene(core.handle(fixture::open(doc.clone())));
     assert!(contains(&before.contours, 19.0, 0.0));
     doc.definitions[0].keycap = Some(Vec2 { x: 50.0, y: 18.0 });
     let after = commit(
@@ -440,10 +372,7 @@ fn grid_aligned_matrix_does_not_report_spurious_corner_reductions() {
     if let OutlineFeature::PartEnvelope { settings, .. } = &mut doc.outline[0] {
         settings.corners = CornerStyle::Fillet;
     }
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(
         !result
             .findings
@@ -469,10 +398,7 @@ fn edge_notch_is_preserved_and_interior_deletion_is_filled() {
             ..Default::default()
         });
     }
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     // This void reaches the perimeter, so it is not an incidental enclosed gap.
     assert!(!contains(&result.contours, 19.05, 0.0));
     assert!(!contains(&result.contours, 19.05, 19.05));
@@ -485,10 +411,7 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
     doc.parts.clear();
     doc.boards[0].part_ids.clear();
     let mut core = CoreEngine::new();
-    scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(core.handle(fixture::open(doc)));
     let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
 "cells":[{"row":0,"column":0,"enabled":false}]});
     let rotated = commit(&mut core, 0, json!({"kind":"set-matrix","matrix":matrix}));
@@ -531,10 +454,7 @@ fn touching_islands_get_a_finite_width_bridge() {
     if let OutlineFeature::PartEnvelope { margin, .. } = &mut doc.outline[0] {
         *margin = 0.0;
     }
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(result.board_readiness[0].outline, "{:?}", result.findings);
     assert_eq!(result.contours.len(), 1);
     assert!(contains(&result.contours, 8.0, 10.0));
@@ -550,10 +470,7 @@ fn finishing_cannot_leave_a_cutout_outside_its_exterior() {
     }
     doc.outline.push(serde_json::from_value(json!({"id":"hole","kind":"rect","center":{"x":12,"y":12},"size":{"x":0.5,"y":0.5},"radius":0,"operation":"subtract"})).unwrap());
     doc.boards[0].outline_ids.push("hole".into());
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(!result.board_readiness[0].outline, "{:?}", result.findings);
 }
 
@@ -562,10 +479,7 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
     let mut doc = matrix_document();
     doc.matrices.push(serde_json::from_value(json!({"id":"main","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":doc.boards[0].part_ids})).unwrap());
     let mut core = CoreEngine::new();
-    scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(core.handle(fixture::open(doc)));
     let removed = commit(
         &mut core,
         0,
@@ -616,10 +530,7 @@ fn subgrid_bridge_cannot_export_a_self_touching_sharp_outline() {
     if let OutlineFeature::PartEnvelope { settings, .. } = &mut doc.outline[0] {
         settings.bridge_width = 0.0001;
     }
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(
         !result.board_readiness[0].outline,
         "sub-grid bridges must not yield an exportable self-touching perimeter"
@@ -641,21 +552,13 @@ fn editing_current_matrix_preserves_member_ids_coordinates_and_nets() {
     });
     let original = doc.parts.clone();
     let mut core = CoreEngine::new();
-    scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let reply = core.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "current-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: serde_json::from_value(json!({"kind":"set-matrix", "matrix":matrix}))
-                .unwrap(),
-        },
-    });
+    scene(core.handle(fixture::open(doc)));
+    let reply = core.handle(fixture::commit(
+        "edit",
+        "current-edit",
+        0,
+        serde_json::from_value(json!({"kind":"set-matrix", "matrix":matrix})).unwrap(),
+    ));
     let CoreReply::Scene {
         document: updated, ..
     } = reply
@@ -699,10 +602,7 @@ fn manual_connection_precedes_automatic_bridging() {
         ]}]
     }))
     .unwrap();
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(result.readiness.outline, "{:?}", result.findings);
     assert!(contains(&result.contours, 40.0, 40.0));
     assert!(!contains(&result.contours, 40.0, 0.0));
@@ -721,10 +621,7 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
         .unwrap(),
     );
     doc.boards[0].outline_ids.push("tab".into());
-    let opened = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let opened = scene(core.handle(fixture::open(doc)));
     assert!(contains(&opened.contours, 125.0, 0.0));
     let moved = scene(core.handle(CoreRequest::Edit {
         id: "move".into(),
@@ -778,10 +675,7 @@ fn invalid_connections_and_dangling_attachments_block_outline_readiness() {
         if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {
             *connections = vec![serde_json::from_value(control).unwrap()];
         }
-        let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc,
-        }));
+        let result = scene(CoreEngine::new().handle(fixture::open(doc)));
         assert!(!result.readiness.outline, "{:?}", result.findings);
         assert!(
             result
@@ -803,10 +697,7 @@ fn outline_attachments_cannot_cross_boards() {
     doc.boards.push(other);
     doc.outline.push(serde_json::from_value(json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"k8","points":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":10}]})).unwrap());
     doc.boards[0].outline_ids.push("tab".into());
-    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let result = scene(CoreEngine::new().handle(fixture::open(doc)));
     assert!(
         result
             .findings
@@ -823,22 +714,15 @@ fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
     doc.parts[0].side = Side::Back;
     doc.outline=vec![serde_json::from_value(json!({"kind":"rect","id":"edge","operation":"add","anchorPartId":"k0","center":{"x":15,"y":0},"size":{"x":25,"y":8},"radius":2,"rotation":12})).unwrap()];
     let mut core = CoreEngine::new();
-    let before = scene(core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let removed = core.handle(CoreRequest::Edit {
-        id: "remove".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "delete".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::RemoveParts {
-                ids: vec!["k0".into()],
-            },
+    let before = scene(core.handle(fixture::open(doc)));
+    let removed = core.handle(fixture::commit(
+        "remove",
+        "delete",
+        0,
+        EditOperation::RemoveParts {
+            ids: vec!["k0".into()],
         },
-    });
+    ));
     let CoreReply::Scene {
         document,
         scene: after,
@@ -889,19 +773,13 @@ fn shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position() {
     let mut matrix = doc.matrices[0].clone();
     matrix.rows = 2;
     let mut core = CoreEngine::new();
-    core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    core.handle(fixture::open(doc));
     let command = EditCommand {
         base_revision: 0,
         transaction_id: "shrink".into(),
         phase: EditPhase::Preview,
         target_ids: vec![],
-        operation: EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
+        operation: fixture::set_matrix(matrix),
     };
     let preview = scene(core.handle(CoreRequest::Edit {
         id: "preview".into(),
@@ -936,28 +814,21 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
         *connections=vec![serde_json::from_value(json!({"id":"route","width":4,"points":[{"at":{"x":-5,"y":0},"partId":"k0"},{"at":{"x":0,"y":40}},{"at":{"x":80,"y":40}},{"at":{"x":0,"y":0},"partId":"k1"}]})).unwrap()];
     }
     let mut core = CoreEngine::new();
-    core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    core.handle(fixture::open(doc));
     let moved = commit(
         &mut core,
         0,
         json!({"kind":"move-parts","positions":[{"id":"k0","at":{"x":-20,"y":0}}]}),
     );
     assert!(contains(&moved.contours, -10.0, 22.5));
-    let removed = core.handle(CoreRequest::Edit {
-        id: "delete".into(),
-        command: EditCommand {
-            base_revision: 1,
-            transaction_id: "delete".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::RemoveParts {
-                ids: vec!["k0".into()],
-            },
+    let removed = core.handle(fixture::commit(
+        "delete",
+        "delete",
+        1,
+        EditOperation::RemoveParts {
+            ids: vec!["k0".into()],
         },
-    });
+    ));
     let CoreReply::Scene {
         document,
         scene: after,

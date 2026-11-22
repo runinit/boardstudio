@@ -4,6 +4,7 @@
 //! validation, identity allocation from the captured seed, mutation and the single Undo
 //! step. Expectations here are hand-derived from the fixture's millimetre geometry
 //! (a switch courtyard of 14x14 with margin 1 gives a 16x16 envelope centred on its pose).
+use crate::support::fixture::{self, outline_snapshot as document, scene};
 use boardstudio_core::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget, evaluate,
 };
@@ -71,19 +72,11 @@ fn fixture_without_generated() -> serde_json::Value {
     document
 }
 
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
-
 fn open(b_at: (f64, f64)) -> (CoreEngine, SceneDelta) {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(fixture(b_at)).unwrap(),
-    }));
+    let opened = scene(engine.handle(fixture::open(
+        serde_json::from_value(fixture(b_at)).unwrap(),
+    )));
     (engine, opened)
 }
 
@@ -92,16 +85,12 @@ fn reply(engine: &mut CoreEngine, revision: u64, edit: serde_json::Value) -> Cor
         "kind": "apply-outline-edit", "edit": edit
     }))
     .expect("the typed outline operation parses");
-    engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    })
+    engine.handle(fixture::commit(
+        "outline-edit",
+        "outline-edit",
+        revision,
+        operation,
+    ))
 }
 
 fn edit(engine: &mut CoreEngine, revision: u64, edit: serde_json::Value) -> SceneDelta {
@@ -111,25 +100,7 @@ fn edit(engine: &mut CoreEngine, revision: u64, edit: serde_json::Value) -> Scen
 /// A non-outline operation (for example a component move) submitted at the same seam.
 fn raw_edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("the operation parses");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "raw-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "raw-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
+    scene(engine.handle(fixture::commit("raw-edit", "raw-edit", revision, operation)))
 }
 
 fn board_state(doc: &ProjectDoc) -> Option<&BoardOutline> {

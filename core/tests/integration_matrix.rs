@@ -1,7 +1,7 @@
 //! Core matrix kernel, anchor, placement, and companion integration tests.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "matrix_anchors.rs"]

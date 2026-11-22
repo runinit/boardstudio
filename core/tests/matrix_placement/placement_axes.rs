@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn stagger_axis_matches_location() {
@@ -71,14 +72,7 @@ fn column_stagger_moves_this_and_following_columns() {
             record.stagger = value;
         }
     }
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let before: Vec<_> = (0..3)
         .map(|column| at(&doc, &member("main", 0, column)))
         .collect();
@@ -234,16 +228,7 @@ fn invalid_changes_error() {
             },
         },
     ] {
-        let reply = engine.handle(CoreRequest::Edit {
-            id: "bad".into(),
-            command: EditCommand {
-                base_revision: doc.revision,
-                transaction_id: "bad".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation,
-            },
-        });
+        let reply = engine.handle(fixture::commit("bad", "bad", doc.revision, operation));
         assert!(matches!(reply, CoreReply::Error { .. }), "{reply:?}");
         assert_eq!(snapshot(&mut engine), before);
     }
@@ -258,16 +243,13 @@ fn invalid_changes_error() {
 fn preview_and_undo() {
     let (mut engine, _, doc) = fixture(1, 3);
     let operation = stagger(0, 2.0);
-    let preview = match engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation: operation.clone(),
-        },
-    }) {
+    let preview = match engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        doc.revision,
+        EditPhase::Preview,
+        operation.clone(),
+    )) {
         CoreReply::Preview { scene, .. } => scene,
         other => panic!("expected preview: {other:?}"),
     };
@@ -286,20 +268,11 @@ fn changed_ids_are_precise() {
     let mut doc = ProjectDoc::empty("placement", "Placement");
     doc.definitions = definitions();
     doc.parts.push(Part {
-        anchor: None,
-        id: "spare".into(),
-        definition_id: "switch".into(),
-        reference: "SPARE".into(),
         pose: Pose2 {
             at: Vec2 { x: 100.0, y: 100.0 },
             rotation: 0.0,
         },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
+        ..fixture::part("spare", "switch", "SPARE")
     });
     let (mut engine, _, doc) = open(doc);
     let mut matrix = matrix("main", 1, 3);
@@ -323,14 +296,7 @@ fn changed_ids_are_precise() {
         }],
         assemblies_local: None,
     }];
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let (reply, _) = edit(&mut engine, &doc, stagger(1, 2.0));
     for id in [
         "main".to_string(),

@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::{
     document_format::CURRENT_VERSION,
     model::{MechanicalConfiguration, PartDefinition},
@@ -128,10 +129,7 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
     for version in [CURRENT_VERSION - 1, CURRENT_VERSION + 1] {
         let mut document = ProjectDoc::empty("doc", "Doc");
         document.format_version = version;
-        match engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document,
-        }) {
+        match engine.handle(fixture::open(document)) {
             CoreReply::Error { message, .. } => {
                 assert_eq!(message, "Unsupported formatVersion: expected 8");
             }

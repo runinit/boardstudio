@@ -1,13 +1,10 @@
+use crate::support::fixture::{self, request};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 const HAPTIC_SOURCE: &str = include_str!(
     "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
 );
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn imported_haptic(id: &str) -> Value {
     let source = json!({
@@ -140,10 +137,7 @@ fn kiwano_import_marks_only_the_real_vik_module_connector_and_preserves_contact_
 #[test]
 fn two_repaired_haptics_on_the_same_nets_report_the_source_derived_parallel_pullup_value() {
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":host_document()}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &host_document());
     assert_eq!(opened["kind"], "scene", "{opened}");
     let definition = imported_haptic("haptic");
     let first = embed(&mut engine, 0, "first", definition.clone());
@@ -175,10 +169,7 @@ fn two_repaired_haptics_on_the_same_nets_report_the_source_derived_parallel_pull
 #[test]
 fn embedded_circuit_requires_explicit_host_signal_and_matching_power_rail_joins() {
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":host_document()}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &host_document());
     assert_eq!(opened["kind"], "scene", "{opened}");
     let unjoined = embed_with_joins(
         &mut engine,
@@ -211,10 +202,7 @@ fn embedded_circuit_requires_explicit_host_signal_and_matching_power_rail_joins(
     );
 
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":host_document()}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &host_document());
     assert_eq!(opened["kind"], "scene", "{opened}");
     let crossed_rails = embed_with_joins(
         &mut engine,
@@ -291,10 +279,7 @@ fn modules_on_one_host_connector_cannot_assign_a_shared_contact_to_different_mcu
         mounted("module-b", "P0", "P1")
     ]);
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &document);
     assert_eq!(opened["kind"], "scene", "{opened}");
     let conflict = opened["scene"]["findings"]
         .as_array()
@@ -333,10 +318,7 @@ fn removing_an_embedded_circuit_preserves_existing_host_net_copper() {
         "drill":0.3, "netId":"clock"
     }]);
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &document);
     assert_eq!(opened["kind"], "scene", "{opened}");
     let mut definition = imported_haptic("haptic");
     definition["electrical"] = json!({"protocol":"nonstandard","requiredSignals":[]});
@@ -384,10 +366,7 @@ fn removing_an_embedded_circuit_preserves_existing_host_net_copper() {
 #[test]
 fn circuit_ports_must_resolve_to_real_source_nets_before_embedding() {
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":host_document()}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &host_document());
     assert_eq!(opened["kind"], "scene", "{opened}");
     let mut definition = imported_haptic("haptic");
     definition["circuit"]["ports"]["scl"] = json!("missing-local-net");

@@ -695,75 +695,102 @@ fn follow_in_slanted_basis_uses_actual_anchor() {
 
 #[test]
 fn column_axes_match_step_differences_and_mirrored_frames() {
-    for mirror in [
-        boardstudio_core::model::Mirror::None,
-        boardstudio_core::model::Mirror::X,
-        boardstudio_core::model::Mirror::Y,
-    ] {
-        let mut input = LayoutInput {
-            rows: 2,
-            columns: 3,
-            origin: Vec2 { x: 20.0, y: -3.0 },
-            rotation: 17.0,
-            mirror,
-            column_layout: vec![
-                ColumnLayout {
-                    splay: 23.0,
-                    ..Default::default()
-                },
-                ColumnLayout {
-                    stagger: 4.0,
-                    splay: -31.0,
-                    rotation: 12.0,
-                    splay_origin: Vec2 { x: 2.0, y: -5.0 },
-                    ..Default::default()
-                },
-            ],
-            row_layout: vec![RowLayout {
-                bend: 38.0,
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        let base = evaluate(&input, RawAnchorContext::World).unwrap();
-        assert!(base.columns[1].custom_origin);
-        near(base.columns[1].relative_origin, 2.0, -5.0);
-        input.column_layout[1].spread = Some(input.pitch.x + 1.0);
-        let spread = evaluate(&input, RawAnchorContext::World).unwrap();
-        let axis = base.columns[1].spread_axis.unwrap();
-        for row in 0..2 {
-            let a = base.cells[2 + row].pose.at;
-            let b = spread.cells[2 + row].pose.at;
-            near(axis, b.x - a.x, b.y - a.y);
-        }
-        input.column_layout[1].spread = None;
-        input.column_layout[1].stagger += 1.0;
-        let stagger = evaluate(&input, RawAnchorContext::World).unwrap();
-        let axis = base.columns[1].stagger_axis;
-        near(
-            axis,
-            stagger.cells[3].pose.at.x - base.cells[3].pose.at.x,
-            stagger.cells[3].pose.at.y - base.cells[3].pose.at.y,
-        );
-        // Independent offset differencing verifies both published mirror-aware axes.
-        input.column_layout[1].stagger -= 1.0;
-        for (offset, axis) in [
-            (Vec2 { x: 1.0, y: 0.0 }, base.cells[3].offset_frame.axis_x),
-            (Vec2 { x: 0.0, y: 1.0 }, base.cells[3].offset_frame.axis_y),
-        ] {
-            input.cells = vec![KeyLayout {
-                row: 1,
-                column: 1,
-                offset,
-                ..Default::default()
-            }];
-            let moved = evaluate(&input, RawAnchorContext::World).unwrap();
-            near(
-                axis,
-                moved.cells[3].pose.at.x - base.cells[3].pose.at.x,
-                moved.cells[3].pose.at.y - base.cells[3].pose.at.y,
+    use boardstudio_core::model::Mirror;
+
+    // Keep the worked case and sweep signed angles with a reproducible seed.
+    let mut seed = 0x8ecc_175d_u32;
+    let mut angle = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        f64::from((seed >> 16) % 91) - 45.0
+    };
+    let angles = [(17.0, 23.0, -31.0, 12.0, 38.0)]
+        .into_iter()
+        .chain((0..8).map(|_| (angle(), angle(), angle(), angle(), angle())));
+    for (rotation, first_splay, second_splay, column_rotation, bend) in angles {
+        for mirror in [Mirror::None, Mirror::X, Mirror::Y] {
+            check_column_axes(
+                mirror,
+                rotation,
+                first_splay,
+                second_splay,
+                column_rotation,
+                bend,
             );
         }
+    }
+}
+
+fn check_column_axes(
+    mirror: boardstudio_core::model::Mirror,
+    rotation: f64,
+    first_splay: f64,
+    second_splay: f64,
+    column_rotation: f64,
+    bend: f64,
+) {
+    let mut input = LayoutInput {
+        rows: 2,
+        columns: 3,
+        origin: Vec2 { x: 20.0, y: -3.0 },
+        rotation,
+        mirror,
+        column_layout: vec![
+            ColumnLayout {
+                splay: first_splay,
+                ..Default::default()
+            },
+            ColumnLayout {
+                stagger: 4.0,
+                splay: second_splay,
+                rotation: column_rotation,
+                splay_origin: Vec2 { x: 2.0, y: -5.0 },
+                ..Default::default()
+            },
+        ],
+        row_layout: vec![RowLayout {
+            bend,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let base = evaluate(&input, RawAnchorContext::World).unwrap();
+    assert!(base.columns[1].custom_origin);
+    near(base.columns[1].relative_origin, 2.0, -5.0);
+    input.column_layout[1].spread = Some(input.pitch.x + 1.0);
+    let spread = evaluate(&input, RawAnchorContext::World).unwrap();
+    let axis = base.columns[1].spread_axis.unwrap();
+    for row in 0..2 {
+        let a = base.cells[2 + row].pose.at;
+        let b = spread.cells[2 + row].pose.at;
+        near(axis, b.x - a.x, b.y - a.y);
+    }
+    input.column_layout[1].spread = None;
+    input.column_layout[1].stagger += 1.0;
+    let stagger = evaluate(&input, RawAnchorContext::World).unwrap();
+    let axis = base.columns[1].stagger_axis;
+    near(
+        axis,
+        stagger.cells[3].pose.at.x - base.cells[3].pose.at.x,
+        stagger.cells[3].pose.at.y - base.cells[3].pose.at.y,
+    );
+    // Independent offset differencing verifies both published mirror-aware axes.
+    input.column_layout[1].stagger -= 1.0;
+    for (offset, axis) in [
+        (Vec2 { x: 1.0, y: 0.0 }, base.cells[3].offset_frame.axis_x),
+        (Vec2 { x: 0.0, y: 1.0 }, base.cells[3].offset_frame.axis_y),
+    ] {
+        input.cells = vec![KeyLayout {
+            row: 1,
+            column: 1,
+            offset,
+            ..Default::default()
+        }];
+        let moved = evaluate(&input, RawAnchorContext::World).unwrap();
+        near(
+            axis,
+            moved.cells[3].pose.at.x - base.cells[3].pose.at.x,
+            moved.cells[3].pose.at.y - base.cells[3].pose.at.y,
+        );
     }
 }
 

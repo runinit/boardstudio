@@ -9,6 +9,7 @@
 //! method/mount/frame switches, dimensions, processes, profiles, stabilizers and
 //! the switch family.
 
+use crate::support::fixture;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
@@ -24,78 +25,29 @@ use boardstudio_core::model::{
     MechanicalGasketAnchor, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
     MechanicalProfileSource, MechanicalStabilizerKind, MechanicalStabilizerOverride,
     MechanicalSwitchFamily, MountKind, Operation, OutlineFeature, Part, PartDefinition,
-    PartGenerator, PartKind, PhysicalBoardInstance, PlateMethod, Pose2, ProjectDoc, ScrewDrive,
-    ScrewHeadProfile, ScrewLengthDatum, Side, Vec2, Vec3,
+    PartGenerator, PartKind, PhysicalBoardInstance, PlateMethod, ProjectDoc, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
-use serde_json::json;
 use std::collections::BTreeMap;
 
 fn board(id: &str, part_ids: Vec<String>) -> Board {
     Board {
-        id: id.into(),
-        name: id.into(),
-        outline_ids: vec![],
         part_ids,
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board(id, id)
     }
-}
-
-/// The stored configuration most settings tests start from.
-///
-/// `closureMounts` is a deliberate explicit empty collection, so an unrelated
-/// settings change never triggers closure initialization or its required template.
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board",
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "mounts": [],
-        "closureMounts": [],
-        "profiles": []
-    }))
-    .unwrap()
 }
 
 /// The same configuration with absent closure mounts, for initialization tests.
 fn configuration_without_closures() -> MechanicalConfiguration {
-    let mut configuration = configuration();
+    let mut configuration = fixture::mechanical("board");
     configuration.closure_mounts = None;
     configuration
-}
-
-/// The normalized bundled mounting-hole catalogue entry projection expects.
-fn template() -> PartDefinition {
-    serde_json::from_value(json!({
-        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-    }))
-    .unwrap()
 }
 
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");
     document.boards.push(board("board", vec![]));
-    document.mechanical = Some(configuration());
+    document.mechanical = Some(fixture::mechanical("board"));
     document
 }
 
@@ -136,7 +88,7 @@ fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<St
         &MechanicalEdit {
             target: board_target(),
             change,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
 }
@@ -148,7 +100,7 @@ fn apply_instance(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<
         &MechanicalEdit {
             target: instance_target(),
             change,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
 }
@@ -159,41 +111,15 @@ fn stored(doc: &ProjectDoc) -> &MechanicalConfiguration {
 
 fn part_definition(id: &str, kind: PartKind, generator: Option<PartGenerator>) -> PartDefinition {
     PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: BTreeMap::new(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
         generator,
-        mechanical_profile: None,
+        ..fixture::part_definition(id, id, kind)
     }
 }
 
 fn part(id: &str, definition_id: &str, keycap: Option<Vec2>) -> Part {
     Part {
-        anchor: None,
         keycap,
-        outline: None,
-        id: id.into(),
-        definition_id: definition_id.into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
+        ..fixture::part(id, definition_id, id)
     }
 }
 

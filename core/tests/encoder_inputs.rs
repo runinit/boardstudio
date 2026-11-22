@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -33,23 +34,11 @@ fn encoder_project() -> ProjectDoc {
     doc
 }
 
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("Expected successful public edit, got {other:?}"),
-    }
-}
-
 #[test]
 fn matrix_encoder_press_accepts_layer_bindings_and_undo() {
     let doc = encoder_project();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    scene(engine.handle(fixture::open(doc.clone())));
     let operation = serde_json::from_value(json!({
         "kind":"edit-keymap", "change":{"kind":"binding","layerId":"base","keyId":"matrix/main/r0c0", "binding":{"kind":"mod-tap","hold":"LCTRL","tap":"A"}}
     })).unwrap();
@@ -179,10 +168,7 @@ fn press_scan_modes_are_exclusive_and_invalid_matrix_assignment_is_atomic() {
     doc.boards[0].part_ids = vec!["knob".into()];
     doc.matrices.clear();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    scene(engine.handle(fixture::open(doc.clone())));
     let edit = |engine: &mut CoreEngine, revision, mode: &str| {
         let response=engine.request(&json!({"id":"scan","kind":"edit","command":{
             "baseRevision":revision,"transactionId":"scan","phase":"commit","targetIds":["knob"],
@@ -278,10 +264,7 @@ fn matrix_rejects_rotation_only_profile_without_changing_the_document() {
     let mut matrix = original.matrices[0].clone();
     matrix.definition_id = "rotation-only".into();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: original.clone(),
-    }));
+    scene(engine.handle(fixture::open(original.clone())));
     let reply = engine.handle(CoreRequest::Edit {
         id: "replace".into(),
         command: EditCommand {
@@ -316,10 +299,7 @@ fn switching_scan_mode_removes_only_the_previous_generated_press_routes() {
     ])).unwrap();
     doc.boards[0].net_ids = doc.nets.iter().map(|net| net.id.clone()).collect();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    scene(engine.handle(fixture::open(doc.clone())));
     let (_, edited) = scene(engine.handle(CoreRequest::Edit {
         id: "scan".into(),
         command: EditCommand {
@@ -371,23 +351,16 @@ fn changing_scan_mode_removes_an_obsolete_controller_only_press_net() {
     doc.nets=serde_json::from_value(json!([{"id":"generated/electrical/board/row/0","name":"ROW0","pins":[{"partId":"matrix/main/r0c0","padId":"S1"},{"partId":"mcu","padId":"P1"}]}])).unwrap();
     doc.boards[0].net_ids = vec![doc.nets[0].id.clone()];
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let (_, after) = scene(engine.handle(CoreRequest::Edit {
-        id: "scan".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "scan".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetInputScanMode {
-                part_id: "matrix/main/r0c0".into(),
-                mode: PressScanMode::Unassigned,
-            },
+    scene(engine.handle(fixture::open(doc)));
+    let (_, after) = scene(engine.handle(fixture::commit(
+        "scan",
+        "scan",
+        0,
+        EditOperation::SetInputScanMode {
+            part_id: "matrix/main/r0c0".into(),
+            mode: PressScanMode::Unassigned,
         },
-    }));
+    )));
     assert!(
         after.nets.is_empty(),
         "The removed press must not leave a controller-only generated net behind"
@@ -402,23 +375,16 @@ fn changing_scan_mode_preserves_routed_work_and_rejects_the_edit_atomically() {
     doc.boards[0].net_ids = vec![doc.nets[0].id.clone()];
     doc.boards[0].traces=serde_json::from_value(json!([{"id":"routed","start":{"x":0,"y":0},"end":{"x":10,"y":0},"width":0.25,"layer":"front","netId":"generated/electrical/board/push"}])).unwrap();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "scan".into(),
-        command: EditCommand {
-            base_revision: 0,
-            transaction_id: "scan".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetInputScanMode {
-                part_id: "matrix/main/r0c0".into(),
-                mode: PressScanMode::Unassigned,
-            },
+    scene(engine.handle(fixture::open(doc.clone())));
+    let reply = engine.handle(fixture::commit(
+        "scan",
+        "scan",
+        0,
+        EditOperation::SetInputScanMode {
+            part_id: "matrix/main/r0c0".into(),
+            mode: PressScanMode::Unassigned,
         },
-    });
+    ));
     assert!(
         matches!(reply, CoreReply::Error { .. }),
         "Existing routed copper needs explicit rerouting before a scan-mode change"
@@ -442,10 +408,7 @@ fn repeated_logical_contacts_reject_conflicting_nets_and_locate_both_physical_pa
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (scene, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, _) = scene(engine.handle(fixture::open(doc)));
     let conflict = scene
         .findings
         .iter()
@@ -482,10 +445,7 @@ fn encoder_replacement_retains_keycap_settings_and_reports_unverified_fit() {
     );
     let original = doc.keycaps.clone();
     let mut engine = CoreEngine::new();
-    let (opened, saved) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    }));
+    let (opened, saved) = scene(engine.handle(fixture::open(doc.clone())));
     assert_eq!(saved.keycaps, original);
     let finding = opened
         .findings
@@ -539,10 +499,7 @@ fn replacing_a_key_with_a_profiled_encoder_preserves_its_companion_and_all_layer
         "assemblies":[{"id":"diode","definitionId":"companion","offset":{"x":8,"y":3},"rotation":90,"side":"back"}]
     }])).unwrap();
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: original.clone(),
-    }));
+    scene(engine.handle(fixture::open(original.clone())));
     let (_, before) = scene(engine.handle(CoreRequest::Edit {
         id: "materialize".into(),
         command: EditCommand {
@@ -550,10 +507,7 @@ fn replacing_a_key_with_a_profiled_encoder_preserves_its_companion_and_all_layer
             transaction_id: "materialize".into(),
             phase: EditPhase::Commit,
             target_ids: vec!["main".into()],
-            operation: EditOperation::SetMatrix {
-                matrix: original.matrices[0].clone(),
-                definitions: None,
-            },
+            operation: fixture::set_matrix(original.matrices[0].clone()),
         },
     }));
     let mut matrix = before.matrices[0].clone();
@@ -623,10 +577,7 @@ fn press_only_profiles_obey_matrix_direct_and_unassigned_modes() {
         .unwrap(),
     );
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(engine.handle(fixture::open(doc)));
     let change = |engine: &mut CoreEngine, revision, mode: &str| {
         scene(serde_json::from_str(&engine.request(&json!({
         "id":"mode","kind":"edit","command":{"baseRevision":revision,"transactionId":"mode","phase":"commit",

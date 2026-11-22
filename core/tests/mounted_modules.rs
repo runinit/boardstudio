@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, request};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -19,10 +20,6 @@ fn definition() -> Value {
         "interfaces":[{"id":"input","role":"module","signals":["sclk","miso","cs","gpio2","mosi","gpio1","v5","rgb","scl","sda","gnd","v3v3"]}],
         "electrical":{"protocol":"pass-through","requiredSignals":[],"logicVoltage":3.3},"constituents":[]
     })
-}
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
 }
 
 fn placement(face: &str, facing: &str, gap: f64) -> Value {
@@ -90,15 +87,15 @@ fn haptic_pullup_repair_is_an_explicit_source_preserving_variant() {
 fn invalid_model_scale_cannot_enter_a_project_module_snapshot() {
     for scale in [0.0, -1.0] {
         let mut engine = CoreEngine::new();
-        request(
-            &mut engine,
-            json!({"id":"open","kind":"open","document":document()}),
-        );
+        fixture::wire_open(&mut engine, "open", &document());
         let mut invalid = definition();
         invalid["models"] = json!([{"assetId":"source.step","offset":{"x":0,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0},"scale":{"x":scale,"y":1,"z":1}}]);
-        let reply = request(
+        let reply = fixture::wire_commit(
             &mut engine,
-            json!({"id":"invalid","kind":"edit","command":{"baseRevision":0,"transactionId":"invalid","phase":"commit","targetIds":[],"operation":{"kind":"set-module-definition","definition":invalid}}}),
+            "invalid",
+            "invalid",
+            0,
+            json!({"kind":"set-module-definition","definition":invalid}),
         );
         assert_eq!(
             reply["kind"], "error",
@@ -110,21 +107,24 @@ fn invalid_model_scale_cannot_enter_a_project_module_snapshot() {
 #[test]
 fn removing_unknown_assembly_gate_requires_reviewed_geometry() {
     let mut engine = CoreEngine::new();
-    request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document()}),
-    );
+    fixture::wire_open(&mut engine, "open", &document());
     let mut gated = definition();
     gated["gates"] = json!([{"output":"mechanical","code":"assembled-envelope","message":"Assembly dimensions remain unknown"}]);
-    let before = request(
+    let before = fixture::wire_commit(
         &mut engine,
-        json!({"id":"attach","kind":"edit","command":{"baseRevision":0,"transactionId":"attach","phase":"commit","targetIds":[],"operation":{"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":gated}}}),
+        "attach",
+        "attach",
+        0,
+        json!({"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":gated}),
     );
     assert_eq!(before["kind"], "scene");
     gated["gates"] = json!([]);
-    let reply = request(
+    let reply = fixture::wire_commit(
         &mut engine,
-        json!({"id":"clear","kind":"edit","command":{"baseRevision":1,"transactionId":"clear","phase":"commit","targetIds":[],"operation":{"kind":"set-module-definition","definition":gated}}}),
+        "clear",
+        "clear",
+        1,
+        json!({"kind":"set-module-definition","definition":gated}),
     );
     assert_eq!(
         reply["kind"], "error",
@@ -142,13 +142,13 @@ fn removing_unknown_assembly_gate_requires_reviewed_geometry() {
 #[test]
 fn project_module_profiles_are_editable_and_undoable_without_rewriting_provenance() {
     let mut engine = CoreEngine::new();
-    request(
+    fixture::wire_open(&mut engine, "open", &document());
+    let before = fixture::wire_commit(
         &mut engine,
-        json!({"id":"open","kind":"open","document":document()}),
-    );
-    let before = request(
-        &mut engine,
-        json!({"id":"attach","kind":"edit","command":{"baseRevision":0,"transactionId":"attach","phase":"commit","targetIds":[],"operation":{"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":definition()}}}),
+        "attach",
+        "attach",
+        0,
+        json!({"kind":"set-mounted-module","instance":placement("front","back",3.0),"definition":definition()}),
     );
     let mut changed = before["document"]["moduleDefinitions"][0].clone();
     changed["volumes"] = json!([{"id":"body","purpose":"occupied","source":"Measured actuator drawing, revision A","qualified":true,"geometry":{"points":[{"x":-5,"y":-3},{"x":5,"y":-3},{"x":5,"y":3},{"x":-5,"y":3}],"z":0.8,"height":2.0}}]);
@@ -166,9 +166,12 @@ fn project_module_profiles_are_editable_and_undoable_without_rewriting_provenanc
     );
     let mut invalid = changed.clone();
     invalid["source"]["revision"] = json!("unrelated-new-source");
-    let rejected = request(
+    let rejected = fixture::wire_commit(
         &mut engine,
-        json!({"id":"invalid","kind":"edit","command":{"baseRevision":2,"transactionId":"invalid","phase":"commit","targetIds":[],"operation":{"kind":"set-module-definition","definition":invalid}}}),
+        "invalid",
+        "invalid",
+        2,
+        json!({"kind":"set-module-definition","definition":invalid}),
     );
     assert_eq!(rejected["kind"], "error");
     let undo = request(&mut engine, json!({"id":"undo","kind":"undo"}));
@@ -213,10 +216,7 @@ fn module_preview_uses_the_resolved_frame_and_preserves_board_holes() {
 #[test]
 fn two_embedded_circuits_own_their_definitions_and_internal_nets_and_undo_atomically() {
     let mut engine = CoreEngine::new();
-    request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document()}),
-    );
+    fixture::wire_open(&mut engine, "open", &document());
     let circuit = haptic();
     let first = request(
         &mut engine,
@@ -301,13 +301,13 @@ fn two_embedded_circuits_own_their_definitions_and_internal_nets_and_undo_atomic
 #[test]
 fn copying_the_unrepaired_haptic_retains_its_precise_electrical_blocker() {
     let mut engine = CoreEngine::new();
-    request(
+    fixture::wire_open(&mut engine, "open", &document());
+    let reply = fixture::wire_commit(
         &mut engine,
-        json!({"id":"open","kind":"open","document":document()}),
-    );
-    let reply = request(
-        &mut engine,
-        json!({"id":"copy","kind":"edit","command":{"baseRevision":0,"transactionId":"copy","phase":"commit","targetIds":[],"operation":{"kind":"embed-module-circuit","id":"source","definition":haptic(),"hostBoardId":"host","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front","joins":{}}}}),
+        "copy",
+        "copy",
+        0,
+        json!({"kind":"embed-module-circuit","id":"source","definition":haptic(),"hostBoardId":"host","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front","joins":{}}),
     );
     assert_eq!(reply["kind"], "scene", "{reply}");
     let finding = reply["scene"]["findings"]
@@ -382,10 +382,7 @@ fn modules_on_the_same_physical_i2c_contacts_report_address_conflicts_with_local
     b["connection"]["busId"] = json!("different-label-same-wires");
     doc["modules"] = json!([a, b]);
     let mut engine = CoreEngine::new();
-    let reply = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":doc}),
-    );
+    let reply = fixture::wire_open(&mut engine, "open", &doc);
     assert_eq!(reply["kind"], "scene", "{reply}");
     let finding = reply["scene"]["findings"]
         .as_array()
@@ -422,10 +419,7 @@ fn modules_on_the_same_physical_i2c_contacts_report_address_conflicts_with_local
     scoped["modules"][0]["hostInstanceId"] = json!("left");
     scoped["modules"][1]["hostInstanceId"] = json!("right");
     scoped["hardware"] = json!({"topology":"split","transport":"wireless","boards":[],"instances":[{"id":"left","name":"Left","boardId":"host","half":"left","role":"central","flipped":false,"constructionLinked":false},{"id":"right","name":"Right","boardId":"host","half":"right","role":"peripheral","flipped":false,"constructionLinked":false}]});
-    let isolated = request(
-        &mut engine,
-        json!({"id":"scoped","kind":"open","document":scoped}),
-    );
+    let isolated = fixture::wire_open(&mut engine, "scoped", &scoped);
     assert!(
         !isolated["scene"]["findings"]
             .as_array()
@@ -472,10 +466,7 @@ fn private_module_contacts_use_actual_wires_across_mounted_and_embedded_devices(
     second["connection"]["assignments"]["cs"] = json!("P0");
     doc["modules"] = json!([first, second]);
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":doc}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &doc);
     let conflict = opened["scene"]["findings"]
         .as_array()
         .unwrap()
@@ -496,16 +487,16 @@ fn private_module_contacts_use_actual_wires_across_mounted_and_embedded_devices(
         );
     }
     doc["modules"].as_array_mut().unwrap().pop();
-    request(
-        &mut engine,
-        json!({"id":"reopen","kind":"open","document":doc}),
-    );
+    fixture::wire_open(&mut engine, "reopen", &doc);
     let mut embedded = haptic();
     embedded["electrical"] = json!({"protocol":"spi","requiredSignals":["cs"],"logicVoltage":3.3});
     embedded["circuit"]["ports"]["cs"] = embedded["circuit"]["ports"]["scl"].clone();
-    let copied = request(
+    let copied = fixture::wire_commit(
         &mut engine,
-        json!({"id":"copy","kind":"edit","command":{"baseRevision":0,"transactionId":"copy","phase":"commit","targetIds":[],"operation":{"kind":"embed-module-circuit","id":"driver","definition":embedded,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":0},"side":"front","joins":{"cs":"shared-wire"}}}}),
+        "copy",
+        "copy",
+        0,
+        json!({"kind":"embed-module-circuit","id":"driver","definition":embedded,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":0},"side":"front","joins":{"cs":"shared-wire"}}),
     );
     assert_eq!(copied["kind"], "scene", "{copied}");
     let conflict = copied["scene"]["findings"]
@@ -544,15 +535,15 @@ fn mounted_and_embedded_fixed_addresses_share_the_actual_wire_ledger() {
     module["connection"] = json!({"hostConnectorPartId":"connector","modulePortId":"input","busId":"local","assignments":{"scl":"P1","sda":"P0"},"cableType":"type-a-12-0.5"});
     doc["modules"] = json!([module]);
     let mut engine = CoreEngine::new();
-    request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":doc}),
-    );
+    fixture::wire_open(&mut engine, "open", &doc);
     let mut driver = haptic();
     driver["electrical"]["i2cAddress"] = json!(90);
-    let reply = request(
+    let reply = fixture::wire_commit(
         &mut engine,
-        json!({"id":"copy","kind":"edit","command":{"baseRevision":0,"transactionId":"copy","phase":"commit","targetIds":[],"operation":{"kind":"embed-module-circuit","id":"driver","definition":driver,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":0},"side":"front","joins":{"scl":"clock-net","sda":"data-net"}}}}),
+        "copy",
+        "copy",
+        0,
+        json!({"kind":"embed-module-circuit","id":"driver","definition":driver,"hostBoardId":"host","pose":{"at":{"x":-20,"y":0},"rotation":0},"side":"front","joins":{"scl":"clock-net","sda":"data-net"}}),
     );
     assert_eq!(reply["kind"], "scene", "{reply}");
     let finding = reply["scene"]["findings"]
@@ -862,10 +853,7 @@ fn module_collision_checks_include_z_and_focus_the_intersection() {
     doc["modules"][1]["hostFace"] = json!("front");
     doc["modules"][1]["facingFace"] = json!("back");
     doc["modules"][1]["at"]["x"] = json!(35.0);
-    let clash = request(
-        &mut engine,
-        json!({"id":"clash","kind":"open","document":doc}),
-    );
+    let clash = fixture::wire_open(&mut engine, "clash", &doc);
     let finding = clash["scene"]["findings"]
         .as_array()
         .unwrap()

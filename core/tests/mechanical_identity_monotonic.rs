@@ -1,51 +1,22 @@
 //! Ticket 02: mechanical identities are monotonic within one Core document session,
 //! including removal, Undo, owner lifecycle and exhausted namespaces.
+use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
 };
 use boardstudio_core::model::*;
-use serde_json::json;
 
 fn configuration(board_id: &str) -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": board_id,
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "openings": [],
-        "mounts": [],
-        "closureMounts": [],
-        "criticalFits": null,
-        "hardware": null,
-        "profiles": []
-    }))
-    .unwrap()
+    MechanicalConfiguration {
+        openings: Some(vec![]),
+        ..fixture::mechanical(board_id)
+    }
 }
 
 fn board() -> Board {
-    Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    }
+    fixture::board("board", "Board")
 }
 
 fn unibody() -> ProjectDoc {
@@ -84,19 +55,6 @@ fn paired_owners() -> ProjectDoc {
     document
 }
 
-fn template() -> PartDefinition {
-    serde_json::from_value(json!({
-        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-        "kind":"custom", "pads":[{"id":"pad-0", "number": "", "at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-    }))
-    .unwrap()
-}
-
 fn board_target() -> MechanicalTarget {
     MechanicalTarget::Board {
         board_id: "board".into(),
@@ -124,10 +82,7 @@ fn saved(engine: &mut CoreEngine) -> ProjectDoc {
 }
 
 fn open(engine: &mut CoreEngine, document: ProjectDoc) {
-    match engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    }) {
+    match engine.handle(fixture::open(document)) {
         CoreReply::Scene { .. } => {}
         other => panic!("open failed: {other:?}"),
     }
@@ -139,22 +94,18 @@ fn commit(
     change: MechanicalChange,
 ) -> CoreReply {
     let base_revision = rev(engine);
-    engine.handle(CoreRequest::Edit {
-        id: format!("{change:?}"),
-        command: EditCommand {
-            base_revision,
-            transaction_id: format!("{change:?}"),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ApplyMechanicalEdit {
-                edit: Box::new(MechanicalEdit {
-                    target: target.clone(),
-                    change,
-                    mounting_hole: Some(Box::new(template())),
-                }),
-            },
+    engine.handle(fixture::commit(
+        format!("{change:?}"),
+        format!("{change:?}"),
+        base_revision,
+        EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: target.clone(),
+                change,
+                mounting_hole: Some(Box::new(fixture::mounting_hole())),
+            }),
         },
-    })
+    ))
 }
 
 fn changed(reply: &CoreReply) -> Vec<String> {
@@ -318,6 +269,27 @@ fn remove_identity(kind: &str, id: String) -> MechanicalChange {
     }
 }
 
+type IdentityList = fn(&ProjectDoc) -> Vec<String>;
+
+fn replace_identity(
+    engine: &mut CoreEngine,
+    label: &str,
+    add: MechanicalChange,
+    ids: IdentityList,
+) -> String {
+    commit(engine, &board_target(), add.clone());
+    let first = ids(&saved(engine)).pop().unwrap();
+    commit(
+        engine,
+        &board_target(),
+        remove_identity(label, first.clone()),
+    );
+    commit(engine, &board_target(), add);
+    let second = ids(&saved(engine)).pop().unwrap();
+    assert_ne!(second, first, "{label} reused a removed identity");
+    first
+}
+
 #[test]
 fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
     // Opening.
@@ -389,22 +361,12 @@ fn remove_and_add_assigns_a_fresh_identity_for_all_five_kinds() {
     ] {
         let mut engine = CoreEngine::new();
         open(&mut engine, unibody());
-        commit(&mut engine, &board_target(), add.clone());
-        let first = ids(&saved(&mut engine)).pop().unwrap();
-        commit(
-            &mut engine,
-            &board_target(),
-            remove_identity(label, first.clone()),
-        );
-        commit(&mut engine, &board_target(), add);
-        let second = ids(&saved(&mut engine)).pop().unwrap();
-        assert_ne!(second, first, "{label} reused a removed identity");
+        replace_identity(&mut engine, label, add, ids);
     }
 }
 
 #[test]
 fn add_undo_add_assigns_a_fresh_identity_for_all_five_kinds() {
-    type IdentityList = fn(&ProjectDoc) -> Vec<String>;
     let cases: [(&str, MechanicalChange, IdentityList); 5] = [
         (
             "opening",
@@ -612,14 +574,10 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
             "critical fit suffix",
             add_critical_fit(),
             (|configuration: &mut MechanicalConfiguration| {
-                configuration.critical_fits = Some(vec![MechanicalCriticalFit {
-                    id: format!("case-critical-fit-{}", u64::MAX - 1),
-                    part_id: "p".into(),
-                    label: "fit".into(),
-                    from: Vec2 { x: 0.0, y: 0.0 },
-                    to: Vec2 { x: 1.0, y: 0.0 },
-                    tolerance: "±0.2 mm".into(),
-                }]);
+                configuration.critical_fits = Some(vec![sparse_fit(&format!(
+                    "case-critical-fit-{}",
+                    u64::MAX - 1
+                ))]);
             }) as fn(&mut MechanicalConfiguration),
             "case-critical-fit-",
             fit_ids as fn(&ProjectDoc) -> Vec<String>,
@@ -628,17 +586,10 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
             "hardware suffix",
             add_hardware(),
             (|configuration: &mut MechanicalConfiguration| {
-                configuration.hardware = Some(vec![MechanicalHardwareSpecification {
-                    id: format!("case-mechanical-hardware-{}", u64::MAX - 1),
-                    part_id: "p".into(),
-                    feature_id: "f".into(),
-                    designation: "screw".into(),
-                    thread: "M2".into(),
-                    length: 6.0,
-                    quantity: 1,
-                    notes: None,
-                    tolerance: None,
-                }]);
+                configuration.hardware = Some(vec![sparse_hardware(&format!(
+                    "case-mechanical-hardware-{}",
+                    u64::MAX - 1
+                ))]);
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-hardware-",
             hardware_ids as fn(&ProjectDoc) -> Vec<String>,
@@ -647,14 +598,10 @@ fn sparse_imported_ids_seed_allocation_and_max_identities_exhaust_cleanly() {
             "mount suffix",
             add_mount(),
             (|configuration: &mut MechanicalConfiguration| {
-                configuration.mounts = vec![Mount {
-                    id: format!("case-mechanical-mount-{}", u64::MAX - 1),
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    kind: MountKind::Hole,
-                    hole_diameter: 2.5,
-                    boss_diameter: None,
-                    height: None,
-                }];
+                configuration.mounts = vec![sparse_mount(&format!(
+                    "case-mechanical-mount-{}",
+                    u64::MAX - 1
+                ))];
             }) as fn(&mut MechanicalConfiguration),
             "case-mechanical-mount-",
             mount_ids as fn(&ProjectDoc) -> Vec<String>,
@@ -771,22 +718,7 @@ fn failed_open_keeps_reservations_and_successful_open_starts_a_new_session() {
 
     // A failed explicit Open must not reset the document session.
     let mut duplicate = unibody();
-    let part = Part {
-        anchor: None,
-        keycap: None,
-        outline: None,
-        id: "dup".into(),
-        definition_id: "missing".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    };
+    let part = fixture::part("dup", "missing", "SW1");
     duplicate.parts.push(part.clone());
     duplicate.parts.push(part);
     let reply = engine.handle(CoreRequest::Open {
@@ -897,51 +829,9 @@ fn stale_setters_cannot_change_a_replacement_for_all_five_kinds() {
     assert_ne!(opening_second, opening_first);
     assert_ne!(vertex_second, vertex_first);
 
-    let fit_first = {
-        commit(&mut engine, &board_target(), add_critical_fit());
-        fit_ids(&saved(&mut engine)).pop().unwrap()
-    };
-    commit(
-        &mut engine,
-        &board_target(),
-        MechanicalChange::RemoveCriticalFit {
-            fit_id: fit_first.clone(),
-        },
-    );
-    commit(&mut engine, &board_target(), add_critical_fit());
-    let fit_second = fit_ids(&saved(&mut engine)).pop().unwrap();
-    assert_ne!(fit_second, fit_first);
-
-    let hardware_first = {
-        commit(&mut engine, &board_target(), add_hardware());
-        hardware_ids(&saved(&mut engine)).pop().unwrap()
-    };
-    commit(
-        &mut engine,
-        &board_target(),
-        MechanicalChange::RemoveHardware {
-            hardware_id: hardware_first.clone(),
-        },
-    );
-    commit(&mut engine, &board_target(), add_hardware());
-    let hardware_second = hardware_ids(&saved(&mut engine)).pop().unwrap();
-    assert_ne!(hardware_second, hardware_first);
-
-    let mount_first = {
-        commit(&mut engine, &board_target(), add_mount());
-        mount_ids(&saved(&mut engine)).pop().unwrap()
-    };
-    commit(
-        &mut engine,
-        &board_target(),
-        MechanicalChange::RemoveMount {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: mount_first.clone(),
-        },
-    );
-    commit(&mut engine, &board_target(), add_mount());
-    let mount_second = mount_ids(&saved(&mut engine)).pop().unwrap();
-    assert_ne!(mount_second, mount_first);
+    let fit_first = replace_identity(&mut engine, "critical fit", add_critical_fit(), fit_ids);
+    let hardware_first = replace_identity(&mut engine, "hardware", add_hardware(), hardware_ids);
+    let mount_first = replace_identity(&mut engine, "mount", add_mount(), mount_ids);
 
     // Setters authored against the removed identities must not reach the replacements.
     for (label, change) in [

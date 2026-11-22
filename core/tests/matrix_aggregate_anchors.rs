@@ -2,19 +2,18 @@
 //! public Core routes. Aggregate anchors resolve N single-key parts to one
 //! pose before the matrix Origin/Rotation and Follow apply, exactly as
 //! upstream Ergogen resolves `aggregate` before `affect`.
+use crate::support::fixture::{
+    self, key_part as typed_key, part_at as at, scene_and_document as typed_scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
 
-fn request(engine: &mut CoreEngine, input: Value) -> Value {
-    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
-}
-
 fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    request(engine, json!({"kind":"open","id":id,"document":document}))
+    fixture::wire_open(engine, id, &document)
 }
 
 fn json_snapshot(engine: &mut CoreEngine) -> Value {
-    request(engine, json!({"kind":"snapshot","id":"snap"}))["document"].clone()
+    fixture::wire_snapshot(engine, "snap")["document"].clone()
 }
 
 fn document() -> Value {
@@ -179,21 +178,9 @@ fn aggregate_intersect_anchor_opens_with_the_heading_crossing_pose() {
     assert_cell(&reply, "thumb", 0, 0, 0.0, -9.0, 0.0);
 }
 
-fn typed_scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
-
 fn typed_open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, doc) = typed_scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, doc) = typed_scene(engine.handle(fixture::open(doc)));
     (engine, scene, doc)
 }
 
@@ -202,29 +189,11 @@ fn typed_edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    typed_scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    typed_scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn typed_error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
-    match engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
+    match engine.handle(fixture::commit("edit", "edit", doc.revision, operation)) {
         CoreReply::Error { message, .. } => message,
         other => panic!("expected error: {other:?}"),
     }
@@ -246,48 +215,16 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 
-fn typed_key(id: &str, x: f64, y: f64) -> Part {
-    Part {
-        anchor: None,
-        id: id.into(),
-        definition_id: "switch".into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2 { x, y },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
 fn typed_main(cells: Vec<MatrixCell>) -> Matrix {
     Matrix {
-        id: "main".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
         cells,
+        ..fixture::matrix("main", 1, 3)
     }
 }
 
@@ -303,18 +240,12 @@ fn typed_doc(main: Matrix, extra: Vec<Matrix>, order: Vec<&str>) -> ProjectDoc {
         typed_key(&member("main", 0, 2), 38.0, 0.0),
     ];
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
     doc.matrices.push(main);
     doc.matrices.extend(extra);
@@ -352,15 +283,6 @@ fn average_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
     }
 }
 
-fn at(doc: &ProjectDoc, id: &str) -> Vec2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-        .at
-}
-
 #[test]
 fn aggregate_average_follows_part_moves_through_the_mean() {
     let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
@@ -393,23 +315,10 @@ fn aggregate_average_follows_part_moves_through_the_mean() {
 #[test]
 fn aggregate_evaluation_ignores_document_list_order() {
     let thumb = Matrix {
-        id: "thumb".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
         origin: Vec2 { x: 0.0, y: -19.0 },
-        definition_id: "switch".into(),
-        part_ids: vec![],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
         anchor: Some(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)])),
-        cells: vec![],
+        ..fixture::matrix("thumb", 1, 3)
     };
     let (_, ordered_scene, _) = typed_open(typed_doc(
         typed_main(vec![]),
@@ -459,23 +368,9 @@ fn aggregate_evaluation_ignores_document_list_order() {
 fn aggregate_two_cycle_refuses_naming_the_matrix() {
     let mut doc = typed_doc(typed_main(vec![]), vec![], vec!["main", "thumb"]);
     doc.matrices.push(Matrix {
-        id: "thumb".into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
         anchor: Some(average_anchor(vec![part("main", 0, 0)])),
-        cells: vec![],
+        ..fixture::matrix("thumb", 1, 1)
     });
     // Close the cycle through an aggregate part: main follows thumb.
     doc.matrices
@@ -594,23 +489,11 @@ fn aggregate_follow_filters_the_completed_candidate() {
         rotation: false,
     };
     let thumb = Matrix {
-        id: "thumb".into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
         origin: Vec2 { x: 5.0, y: 0.0 },
-        definition_id: "switch".into(),
-        part_ids: vec![],
         board_id: Some("board".into()),
-        mirror: None,
         rotation: Some(10.0),
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
         anchor: Some(anchor),
-        cells: vec![],
+        ..fixture::matrix("thumb", 1, 1)
     };
     let mut doc = typed_doc(main, vec![thumb], vec!["main", "thumb"]);
     // The second part pose must match its cell geometry exactly, like
@@ -981,14 +864,7 @@ fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
         .expect("main matrix")
         .clone();
     shrunk.columns = 2;
-    let (_, detached) = typed_edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: shrunk,
-            definitions: None,
-        },
-    );
+    let (_, detached) = typed_edit(&mut engine, &doc, fixture::set_matrix(shrunk));
     // Part (0,2) leaves the grid, so the dependant detaches with its frame:
     // the (19,0) mean with the (0,-19) relative origin below it.
     assert_eq!(anchor_of(&detached, "thumb"), None);

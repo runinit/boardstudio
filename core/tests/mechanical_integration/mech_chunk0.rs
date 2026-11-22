@@ -127,7 +127,8 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
             "linked geometry must not be stored on the half"
         );
     }
-    let projected = project_owned_closure_clearance(document.clone(), &template()).unwrap();
+    let projected =
+        project_owned_closure_clearance(document.clone(), &fixture::mounting_hole()).unwrap();
     let generated: Vec<&str> = projected
         .parts
         .iter()
@@ -146,7 +147,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     use boardstudio_core::mechanical::edit::apply;
 
     let mut document = document();
-    let mut configuration = configuration();
+    let mut configuration = fixture::mechanical("board");
     configuration.closure_mounts = Some(vec![mount("closure-1", 4.0, 0.0)]);
     document.mechanical = Some(configuration);
 

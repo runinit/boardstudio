@@ -2,8 +2,8 @@
 //! part offsets, boundary parity, generators and the matrix aggregate suites.
 //! See `integration.rs` for the split.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "boundary_parity.rs"]
