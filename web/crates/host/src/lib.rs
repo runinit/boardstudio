@@ -28,11 +28,8 @@ mod boundary_parity;
 #[path = "../../../../core/tests/support/mod.rs"]
 pub(crate) mod support;
 
-pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
-
 #[cfg(feature = "page")]
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-mod core_protocol;
+pub mod in_process_core;
 #[cfg(feature = "page")]
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod persistence_contract;

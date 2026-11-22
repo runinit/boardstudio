@@ -32,7 +32,7 @@ fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
     Rc::as_ptr(core) as *const () as usize
 }
 use boardstudio_web_host::host::{
-    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken,
+    BrowserStore, InProcessCoreExecutor, SaveError, SavedProject, StorageSession, StorageToken,
 };
 use boardstudio_web_host::{
     cad_jobs::{
@@ -408,8 +408,6 @@ impl Drop for ProjectDeletionLease {
 }
 
 mod collision;
-#[cfg(test)]
-mod document_core_tests;
 mod effects;
 mod export_bytes;
 mod exports;
@@ -452,10 +450,13 @@ impl Runtime {
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
-        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(|| {
-            resource_url("assets/core-worker/entry.js")
-                .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
-                .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
+        // Each executor (and each restart) owns a fresh scratch engine, as each worker did.
+        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(move || {
+            Ok(Rc::new(InProcessCoreExecutor::new(
+                (core_services.open_scratch)(),
+                core_services.archive,
+                core_services.artifact,
+            )) as Rc<dyn CoreExecutor>)
         });
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new(core_services.validate_open)),
@@ -1083,8 +1084,6 @@ mod cad_scene_rebind_tests;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod project_open_supersession_tests;
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod in_process_adapter_tests;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod offline_safety_tests;

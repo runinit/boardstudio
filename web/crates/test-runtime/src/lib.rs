@@ -9,6 +9,8 @@ pub fn engine_core_services() -> CoreServices {
             let mut engine = CoreEngine::new();
             Box::new(move |request| engine.handle(request))
         },
+        archive: boardstudio_core::archive::request,
+        artifact: boardstudio_core::artifact_request,
     }
 }
 

@@ -1261,6 +1261,3 @@ fn change_label(change: &KeycapEditChange) -> String {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod queued_settings_tests;

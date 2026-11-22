@@ -19,8 +19,6 @@ WEB = ROOT / "web"
 REQUIRED = (
     ROOT / "web/assets/cad/boardstudio_cad_wasm_bg.wasm",
     ROOT / "web/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
-    ROOT / "web/assets/core-worker/entry.js",
-    ROOT / "web/assets/core-worker/m1_core_worker_bg.wasm",
     ROOT / "web/assets/cad-worker/entry.js",
     ROOT / "web/assets/cad-worker/m1_cad_worker_bg.wasm",
     ROOT / "web/assets/imported-modules.json",

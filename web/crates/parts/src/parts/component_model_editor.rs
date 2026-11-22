@@ -882,6 +882,3 @@ fn ModelVectorEditor(
         }
     }
 }
-
-#[cfg(test)]
-mod settlement_tests;

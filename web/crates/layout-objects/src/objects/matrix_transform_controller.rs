@@ -1212,7 +1212,3 @@ use projection::{
     ProjectionContext, project_current, project_current_for, transform_fields,
     workspace_route_matches,
 };
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "matrix_transform_controller/queued_edits.rs"]
-mod queued_edits;

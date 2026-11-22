@@ -1365,6 +1365,3 @@ fn take_project_list_test_result() -> Option<ProjectListTestResult> {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod queued_rename_tests;

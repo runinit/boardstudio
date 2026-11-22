@@ -86,7 +86,7 @@ fn mounted_editor_owner() -> Element {
                 let result = probe.gate.clone().request().await;
                 let _ = lifetime.run_if_mounted(|| {
                     // This mirrors the first UI continuation's local Signal reads
-                    // and success/error publication after CoreWorker::request.
+                    // and success/error publication after the deferred request.
                     probe.signal_accesses.set(probe.signal_accesses.get() + 1);
                     editor_signal.with_mut(|value| *value += 1);
                     if result.is_ok() || result.is_err() {

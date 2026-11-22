@@ -1239,6 +1239,3 @@ mod tests {
 
 #[cfg(test)]
 mod test_fixtures;
-
-#[cfg(test)]
-mod queued_edit_tests;

@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "Browser host services for the BoardStudio page: storage, Core and CAD worker clients, renderer host and CAD job capture."
+description = "Browser host services for the BoardStudio page: storage, in-process Core executor, CAD worker client, renderer host and CAD job capture."
 
 [features]
-# The page's host services (storage, Core client, renderer host, CAD job capture).
+# The page's host services (storage, Core executor, renderer host, CAD job capture).
 page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio-core-kernel", "dep:boardstudio-core-mechanical", "dep:boardstudio-model", "dep:serde_json"]
 test-harness = ["boardstudio-web-worker-host?/test-harness"]
 # Test-only storage hooks the page's own tests drive (raw record fixtures).
