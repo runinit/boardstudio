@@ -23,7 +23,7 @@ impl Runtime {
             },
             Some(operation_id),
         );
-        commit_result(result, || self.with_model(|model| model.accepted.clone()))
+        commit_result(result, || self.accepted_snapshot())
     }
 
     pub(super) fn submit_event(
@@ -101,7 +101,7 @@ impl Runtime {
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn install_case_pcb_preview_test(&self) {
-        let accepted = self.model().accepted.expect("accepted preview fixture");
+        let accepted = self.accepted_snapshot().expect("accepted preview fixture");
         let scope = self.scope().expect("selected physical fixture scope");
         let generation = self.native_case_preview.borrow().generation + 1;
         let capture = crate::case_preview::capture_native_preview(

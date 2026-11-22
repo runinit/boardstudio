@@ -502,10 +502,12 @@ impl Runtime {
             let listener =
                 Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
                     if runtime_ref.upgrade().is_some_and(|runtime| {
-                        matches!(
-                            runtime.with_model(|model| model.durability.clone()),
-                            Durability::Saving { .. } | Durability::Failed { .. }
-                        )
+                        runtime.with_model(|model| {
+                            matches!(
+                                model.durability,
+                                Durability::Saving { .. } | Durability::Failed { .. }
+                            )
+                        })
                     }) {
                         event.prevent_default();
                         let _ = Reflect::set(event.as_ref(), &"returnValue".into(), &JsValue::TRUE);
@@ -546,8 +548,13 @@ impl Runtime {
         self.with_model(Clone::clone)
     }
 
+    /// Read the current model during a synchronous borrow of the session.
     pub fn with_model<R>(&self, f: impl FnOnce(&ReadModel) -> R) -> R {
         f(self.session.borrow().read_model())
+    }
+
+    fn accepted_snapshot(&self) -> Option<AcceptedSnapshot> {
+        self.with_model(|model| model.accepted.clone())
     }
 
     /// Load a reviewed bundled switch fit into the Parts editor's local draft.

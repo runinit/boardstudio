@@ -4,7 +4,7 @@ use super::*;
 impl Runtime {
     pub fn cad_scene(&self) -> Option<Rc<CadScene>> {
         let current_scope = self.scope()?;
-        let accepted = self.with_model(|model| model.accepted.clone())?;
+        let accepted = self.accepted_snapshot()?;
         crate::case_generation_lifecycle::current_cad_scene(
             &mut self.cad_scene.borrow_mut(),
             &current_scope,
@@ -43,7 +43,7 @@ impl Runtime {
         revision: u64,
         draft_document: ProjectDoc,
     ) -> Option<crate::case_gesture_preview::CaseGesturePreviewOwner> {
-        let accepted = self.with_model(|model| model.accepted.clone())?;
+        let accepted = self.accepted_snapshot()?;
         if !self.snapshot_current(token, &scope)
             || accepted.document.revision != revision
             || draft_document.id != accepted.document.id
@@ -248,7 +248,7 @@ impl Runtime {
 
     pub fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {
         let scope = self.scope()?;
-        let accepted = self.with_model(|model| model.accepted.clone())?;
+        let accepted = self.accepted_snapshot()?;
         (scope.session_epoch == accepted.session_epoch
             && scope.document_id == accepted.document.id
             && accepted.scene.revision == accepted.document.revision)
@@ -488,8 +488,7 @@ impl Runtime {
         expected_revision: u64,
     ) -> Result<(), String> {
         let accepted = self
-            .model()
-            .accepted
+            .accepted_snapshot()
             .ok_or_else(|| "No accepted project is available for Case preview".to_owned())?;
         if !self.snapshot_current(expected_token, &expected_scope)
             || accepted.document.revision != expected_revision

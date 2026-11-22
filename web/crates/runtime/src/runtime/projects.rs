@@ -134,8 +134,7 @@ impl Runtime {
                     ));
                 }
                 return self
-                    .model()
-                    .accepted
+                    .accepted_snapshot()
                     .filter(|accepted| {
                         self.open_sequence.get() == expected_sequence
                             && accepted.document.id == expected_id

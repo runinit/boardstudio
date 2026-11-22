@@ -5,7 +5,7 @@ impl Runtime {
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.
     pub(super) fn mechanical_mount_initialization_pending(&self) -> bool {
-        let Some((accepted, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((accepted, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             return false;
         };
         let scene = self.cad_scene();
@@ -56,7 +56,7 @@ impl Runtime {
     }
 
     pub fn export_step(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before exporting authored case geometry.",
             ));
@@ -76,7 +76,7 @@ impl Runtime {
     }
 
     pub fn export_keycaps_stl(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before exporting keycaps.",
             ));
@@ -161,7 +161,7 @@ impl Runtime {
     }
 
     pub fn export_firmware(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.report("Select a board before exporting ZMK source.");
             return;
         };
@@ -169,7 +169,7 @@ impl Runtime {
     }
 
     pub fn export_footprints(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Open a project before exporting its footprint library.",
             ));
@@ -185,7 +185,7 @@ impl Runtime {
     }
 
     pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
             return;
         };
@@ -210,7 +210,7 @@ impl Runtime {
     }
 
     pub fn export_project_copy(self: &Rc<Self>) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             return;
         };
         self.start_export(
@@ -226,7 +226,7 @@ impl Runtime {
         self: &Rc<Self>,
         format: boardstudio_model::model::OutlineExportFormat,
     ) {
-        let Some((snapshot, scope)) = self.model().accepted.zip(self.scope()) else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before outline export.",
             ));
@@ -293,9 +293,9 @@ impl Runtime {
             .generate_current(job_id, &scope, &snapshot, &cancelled)
             .await;
         self.cad_jobs.borrow_mut().remove(&job_id);
-        let current_job = matches!(self.model().generation,
+        let current_job = self.with_model(|model| matches!(model.generation,
             boardstudio_application::GenerationStatus::Preparing { job_id: active }
-            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id));
         if result.is_err()
             && current_job
             && let Some((_, worker)) = self.cad_worker.borrow_mut().take()
@@ -333,9 +333,9 @@ impl Runtime {
         cancelled: &Cell<bool>,
     ) -> Result<(), CadJobError> {
         let guard = || {
-            let current_job = matches!(self.model().generation,
-                boardstudio_application::GenerationStatus::Preparing { job_id: active }
-                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            let current_job = self.with_model(|model| matches!(model.generation,
+            boardstudio_application::GenerationStatus::Preparing { job_id: active }
+                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id));
             if cancelled.get() || !current_job || !self.snapshot_current(snapshot.token, scope) {
                 Err(CadJobError::Cancelled)
             } else {

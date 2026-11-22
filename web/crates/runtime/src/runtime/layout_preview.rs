@@ -76,11 +76,11 @@ impl Runtime {
         }
     }
 
-    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken, u64)>) {
+    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken)>) {
         let retired = self
             .layout_preview
             .borrow_mut()
-            .retire_unless_request_matches(expected.map(|(scope, token, _)| (scope, token)));
+            .retire_unless_request_matches(expected);
         if retired {
             self.layout_model_rows.borrow_mut().take();
             self.changed();
@@ -234,7 +234,7 @@ impl Runtime {
         expected_revision: u64,
     ) -> Result<(), String> {
         let accepted = self
-            .with_model(|model| model.accepted.clone())
+            .accepted_snapshot()
             .ok_or_else(|| "No accepted project is available for Layout preview".to_owned())?;
         if !self.snapshot_current(expected_token, &expected_scope)
             || accepted.document.revision != expected_revision

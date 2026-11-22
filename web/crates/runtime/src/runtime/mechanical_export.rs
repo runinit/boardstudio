@@ -44,8 +44,7 @@ impl Runtime {
                 },
             )?;
             snapshot = self
-                .model()
-                .accepted
+                .accepted_snapshot()
                 .ok_or_else(|| "Accepted board snapshot disappeared after wiring.".to_owned())?;
             plan = self.resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &capture)?;
             let errors = plan
@@ -486,8 +485,7 @@ impl Runtime {
             ));
         }
         let accepted = self
-            .model()
-            .accepted
+            .accepted_snapshot()
             .ok_or("No accepted wiring snapshot.")?;
         let mut updated = capture.clone();
         updated.token = accepted.token;
