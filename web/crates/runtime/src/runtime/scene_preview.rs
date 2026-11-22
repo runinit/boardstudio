@@ -4,7 +4,7 @@ use super::*;
 impl Runtime {
     pub fn cad_scene(&self) -> Option<Rc<CadScene>> {
         let current_scope = self.scope()?;
-        let accepted = self.model().accepted?;
+        let accepted = self.with_model(|model| model.accepted.clone())?;
         crate::case_generation_lifecycle::current_cad_scene(
             &mut self.cad_scene.borrow_mut(),
             &current_scope,
@@ -43,12 +43,9 @@ impl Runtime {
         revision: u64,
         draft_document: ProjectDoc,
     ) -> Option<crate::case_gesture_preview::CaseGesturePreviewOwner> {
-        let accepted = self.model().accepted?;
-        if self.scope().as_ref() != Some(&scope)
-            || accepted.token != token
+        let accepted = self.with_model(|model| model.accepted.clone())?;
+        if !self.snapshot_current(token, &scope)
             || accepted.document.revision != revision
-            || accepted.document.id != scope.document_id
-            || accepted.session_epoch != scope.session_epoch
             || draft_document.id != accepted.document.id
             || draft_document.revision != revision
             || accepted.scene.revision != revision
@@ -222,17 +219,13 @@ impl Runtime {
     }
 
     pub fn native_case_preview(&self) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
-        let current_scope = self.scope()?;
-        let accepted = self.model().accepted?;
         self.native_case_preview
             .borrow()
             .published
             .as_ref()
             .filter(|preview| {
                 preview.lease.matches(&preview.owner)
-                    && preview.owner.scope == current_scope
-                    && preview.owner.snapshot_token == accepted.token
-                    && preview.owner.accepted_revision == accepted.document.revision
+                    && self.snapshot_current(preview.owner.snapshot_token, &preview.owner.scope)
             })
             .cloned()
     }
@@ -255,7 +248,7 @@ impl Runtime {
 
     pub fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {
         let scope = self.scope()?;
-        let accepted = self.model().accepted?;
+        let accepted = self.with_model(|model| model.accepted.clone())?;
         (scope.session_epoch == accepted.session_epoch
             && scope.document_id == accepted.document.id
             && accepted.scene.revision == accepted.document.revision)
@@ -284,17 +277,9 @@ impl Runtime {
         if !self.native_preview_snapshot_is_current(&preview) {
             return Ok(());
         }
-        let owner = crate::model_delivery::ModelOwnerIdentity::new(
-            preview.owner.scope.clone(),
+        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
             preview.owner.snapshot_token,
-            preview.owner.viewer_instance,
-            preview.owner.projection_generation,
-            &preview.lease,
-        );
-        let batch = crate::model_delivery::ModelBatchIdentity::new(
-            owner.clone(),
-            preview.owner.accepted_revision,
-            preview.owner.batch_generation,
+            preview.lease.clone(),
         );
         let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
         let unique_model_paths = preview
@@ -337,15 +322,19 @@ impl Runtime {
                     .is_some_and(|runtime| runtime.native_preview_snapshot_is_current(&preview))
             }) as Rc<dyn Fn() -> bool>
         };
-        let ports = self.native_model_delivery_ports(&preview, source_is_current.clone());
+        let ports = self.model_delivery_ports(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.accepted_document.revision,
+            source_is_current.clone(),
+        );
         let results = self
             .case_model_delivery
             .deliver_models(
-                preview.preview.revision,
                 &preview.preview.models,
                 &selections,
                 &ports,
-                &batch,
+                &owner,
                 source_is_current,
             )
             .await;
@@ -377,41 +366,12 @@ impl Runtime {
         })
     }
 
-    pub(super) fn native_model_delivery_ports(
-        self: &Rc<Self>,
-        preview: &crate::case_preview::NativePreviewSnapshot,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> crate::model_delivery::ModelDeliveryPorts {
-        let scope = preview.owner.scope.clone();
-        let token = preview.owner.snapshot_token;
-        let viewer_instance = preview.owner.viewer_instance;
-        let projection_generation = preview.owner.projection_generation;
-        let lease = preview.lease.clone();
-        let owner_is_current = Rc::new(move |owner: &crate::model_delivery::ModelOwnerIdentity| {
-            owner.is_current_owner(
-                &scope,
-                token,
-                viewer_instance,
-                projection_generation,
-                &lease,
-            )
-        });
-        self.model_delivery_ports(
-            preview.owner.scope.clone(),
-            token,
-            preview.owner.accepted_revision,
-            is_current,
-            owner_is_current,
-        )
-    }
-
     pub(super) fn model_delivery_ports(
         self: &Rc<Self>,
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
         is_current: Rc<dyn Fn() -> bool>,
-        owner_is_current: Rc<dyn Fn(&crate::model_delivery::ModelOwnerIdentity) -> bool>,
     ) -> crate::model_delivery::ModelDeliveryPorts {
         use crate::model_delivery::{
             MeshArrays, ModelAssetSource, ModelDeliveryPorts, ModelFuture, ResolvedModelAsset,
@@ -454,7 +414,7 @@ impl Runtime {
                             Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?)
                         }
                     };
-                    if !is_current() || runtime.scope().as_ref() != Some(&scope) {
+                    if !is_current() || !runtime.snapshot_current(token, &scope) {
                         return Err("Model asset request became stale after loading".into());
                     }
                     let Some(bytes) = bytes else {
@@ -483,7 +443,6 @@ impl Runtime {
             )
         });
         let weak = Rc::downgrade(self);
-        let owner_is_current = owner_is_current.clone();
         let read_step = Rc::new(
             move |bytes: VerifiedModelBytes,
                   owner: crate::model_delivery::ModelOwnerIdentity|
@@ -491,9 +450,8 @@ impl Runtime {
                 let weak = weak.clone();
                 let scope = scope.clone();
                 let is_current = is_current.clone();
-                let owner_is_current = owner_is_current.clone();
                 Box::pin(async move {
-                    if !owner_is_current(&owner) || !is_current() {
+                    if !owner.is_current(token) || !is_current() {
                         return Err("STEP model request became stale before reading".into());
                     }
                     let runtime = weak
@@ -533,9 +491,8 @@ impl Runtime {
             .model()
             .accepted
             .ok_or_else(|| "No accepted project is available for Case preview".to_owned())?;
-        if accepted.token != expected_token
+        if !self.snapshot_current(expected_token, &expected_scope)
             || accepted.document.revision != expected_revision
-            || self.scope().as_ref() != Some(&expected_scope)
         {
             return Err("The accepted Case preview source changed before preparation".into());
         }
@@ -565,7 +522,6 @@ impl Runtime {
             &accepted,
             &expected_scope,
             generation,
-            generation,
             request_token.clone(),
         ) {
             Ok(capture) => capture,
@@ -573,7 +529,6 @@ impl Runtime {
                 let owner = crate::case_preview::CasePreviewOwnerIdentity::capture(
                     &accepted,
                     &expected_scope,
-                    generation,
                     generation,
                     request_token,
                 );
@@ -665,46 +620,23 @@ impl Runtime {
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        let owner = crate::model_delivery::ModelOwnerIdentity::new_parts(
-            capture.owner.scope.clone(),
+        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
             capture.owner.snapshot_token,
-            capture.owner.source_generation,
-            &capture.lease,
-        );
-        let batch = crate::model_delivery::ModelBatchIdentity::new(
-            owner.clone(),
-            capture.owner.accepted_revision,
-            capture.owner.source_generation,
-        );
-        let owner_scope = capture.owner.scope.clone();
-        let owner_token = capture.owner.snapshot_token;
-        let source_generation = capture.owner.source_generation;
-        let lease = capture.lease.clone();
-        let owner_is_current = Rc::new(
-            move |candidate: &crate::model_delivery::ModelOwnerIdentity| {
-                candidate.is_current_parts_owner(
-                    &owner_scope,
-                    owner_token,
-                    source_generation,
-                    &lease,
-                )
-            },
+            capture.lease.clone(),
         );
         let ports = self.model_delivery_ports(
             capture.owner.scope.clone(),
             capture.owner.snapshot_token,
-            capture.owner.accepted_revision,
+            capture.sample_document.revision,
             is_current.clone(),
-            owner_is_current,
         );
         let model_rows = self
             .case_model_delivery
             .deliver_models(
-                preview.revision,
                 &preview.models,
                 &selections,
                 &ports,
-                &batch,
+                &owner,
                 is_current.clone(),
             )
             .await;
@@ -721,40 +653,16 @@ impl Runtime {
         &self,
         capture: &crate::parts_preview::PartsPreviewCapture,
     ) -> bool {
-        let Some(scope) = self.scope() else {
-            return false;
-        };
-        let Some(accepted) = self.model().accepted else {
-            return false;
-        };
         capture.lease.matches(&capture.owner)
-            && capture.owner.scope == scope
-            && capture.owner.snapshot_token == accepted.token
-            && capture.owner.accepted_revision == accepted.document.revision
-            && capture.owner.scope.session_epoch == accepted.session_epoch
-            && capture.owner.scope.document_id == accepted.document.id
-            && capture.owner.accepted_document_identity
-                == std::sync::Arc::as_ptr(&accepted.document) as usize
+            && self.snapshot_current(capture.owner.snapshot_token, &capture.owner.scope)
     }
 
     pub fn parts_preview_snapshot_is_current(
         &self,
         preview: &crate::parts_preview::PartsPreviewSnapshot,
     ) -> bool {
-        let Some(scope) = self.scope() else {
-            return false;
-        };
-        let Some(accepted) = self.model().accepted else {
-            return false;
-        };
         preview.lease.matches(&preview.owner)
-            && preview.owner.scope == scope
-            && preview.owner.snapshot_token == accepted.token
-            && preview.owner.accepted_revision == accepted.document.revision
-            && preview.owner.scope.session_epoch == accepted.session_epoch
-            && preview.owner.scope.document_id == accepted.document.id
-            && preview.owner.accepted_document_identity
-                == std::sync::Arc::as_ptr(&accepted.document) as usize
+            && self.snapshot_current(preview.owner.snapshot_token, &preview.owner.scope)
     }
 
     pub(super) fn set_native_preview_pending(
@@ -771,23 +679,7 @@ impl Runtime {
         &self,
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
     ) -> bool {
-        let model = self.model();
-        self.scope().as_ref() == Some(&owner.scope)
-            && self
-                .native_case_preview
-                .borrow()
-                .published
-                .as_ref()
-                .is_none_or(|preview| preview.lease.matches(owner))
-            && model.accepted.as_ref().is_some_and(|accepted| {
-                accepted.token == owner.snapshot_token
-                    && accepted.document.revision == owner.accepted_revision
-                    && accepted.document.id == owner.scope.document_id
-                    && accepted.session_epoch == owner.scope.session_epoch
-                    && accepted.scene.revision == owner.accepted_revision
-                    && std::sync::Arc::as_ptr(&accepted.scene) as usize
-                        == owner.accepted_scene_identity
-            })
+        self.snapshot_current(owner.snapshot_token, &owner.scope)
             && self.native_case_preview.borrow().generation == owner.projection_generation
     }
 

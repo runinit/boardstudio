@@ -37,7 +37,9 @@ impl BrowserStore {
         let invalidate = Closure::<dyn FnMut(Event)>::new(move |_| {
             closing.close();
             if let Some(cache) = cache_ref.upgrade() {
-                cache.borrow_mut().take_if(|database| database.handle == closing);
+                cache
+                    .borrow_mut()
+                    .take_if(|database| database.handle == closing);
             }
         });
         handle.set_onversionchange(Some(invalidate.as_ref().unchecked_ref()));
@@ -63,7 +65,9 @@ impl BrowserStore {
                     .dyn_ref::<DomException>()
                     .is_some_and(|error| error.name() == "InvalidStateError") =>
             {
-                self.database.borrow_mut().take_if(|cached| cached.handle == database);
+                self.database
+                    .borrow_mut()
+                    .take_if(|cached| cached.handle == database);
                 open(&self.database().await?).map_err(js_error)
             }
             result => result.map_err(js_error),
@@ -95,12 +99,17 @@ pub(super) async fn open_database(name: &str) -> Result<IdbDatabase, PersistErro
             }
             Ok(())
         })();
-        if result.is_err() && let Some(transaction) = upgrade.transaction() {
+        if result.is_err()
+            && let Some(transaction) = upgrade.transaction()
+        {
             let _ = transaction.abort();
         }
     });
     request.set_onupgradeneeded(Some(on_upgrade.as_ref().unchecked_ref()));
-    let database = request_result(request.unchecked_into()).await?.dyn_into().map_err(js_error);
+    let database = request_result(request.unchecked_into())
+        .await?
+        .dyn_into()
+        .map_err(js_error);
     drop(on_upgrade);
     database
 }

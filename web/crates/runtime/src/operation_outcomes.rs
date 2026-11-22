@@ -33,8 +33,9 @@ pub(crate) fn commit_result(
         Some(TerminalOutcome::Completed) => {
             accepted().ok_or_else(|| "No accepted keyboard after the edit.".into())
         }
-        Some(TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason)) =>
-            Err(reason),
+        Some(TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason)) => {
+            Err(reason)
+        }
         Some(outcome) => Err(format!("The change could not be applied: {outcome:?}")),
         None => Err("The change did not complete synchronously.".into()),
     }

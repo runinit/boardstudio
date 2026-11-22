@@ -1,14 +1,15 @@
 use super::*;
+use boardstudio_model::model::SceneDelta;
 
 pub(super) struct PendingSave {
-    pub(super) save_attempt_id: SaveAttemptId,
+    save_attempt_id: SaveAttemptId,
     revision: u64,
     operation: Option<OperationId>,
 }
 
 pub(super) struct PendingOpen {
     operation_id: OperationId,
-    pub(super) save_attempt_id: SaveAttemptId,
+    save_attempt_id: SaveAttemptId,
     document: Arc<ProjectDoc>,
     scene: Arc<SceneDelta>,
     core: boardstudio_core::CoreEngine,
@@ -41,7 +42,8 @@ impl Session {
         self.display_preview_transaction_id = None;
         self.active_job = None;
         self.settle(operation_id, TerminalOutcome::Completed, effects);
-    }    pub(super) fn open(
+    }
+    pub(super) fn open(
         &mut self,
         operation_id: OperationId,
         document: ProjectDoc,
@@ -234,5 +236,4 @@ impl Session {
             self.reject(operation_id, "there is no failed save to retry", effects);
         }
     }
-
 }

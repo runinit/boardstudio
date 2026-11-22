@@ -160,8 +160,7 @@ impl Runtime {
         token: SnapshotToken,
         revision: u64,
     ) -> Result<AcceptedSnapshot, String> {
-        self.model()
-            .accepted
+        self.with_model(|model| model.accepted.clone())
             .filter(|accepted| {
                 accepted.token == token
                     && accepted.document.revision == revision

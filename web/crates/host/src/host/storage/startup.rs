@@ -91,7 +91,9 @@ async fn acquire(
 }
 
 async fn collect_unused_assets(store: &BrowserStore) -> Result<(), PersistError> {
-    let transaction = store.transaction(&[PROJECT_STORE, ASSET_STORE], IdbTransactionMode::Readwrite).await?;
+    let transaction = store
+        .transaction(&[PROJECT_STORE, ASSET_STORE], IdbTransactionMode::Readwrite)
+        .await?;
     let failure = Rc::new(RefCell::new(None));
     let completion = transaction_completion(&transaction, failure.clone());
     let projects = transaction.object_store(PROJECT_STORE).map_err(js_error)?;

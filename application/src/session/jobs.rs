@@ -7,7 +7,11 @@ impl Session {
         result: Result<(SnapshotToken, Scope), String>,
         effects: &mut Vec<Effect>,
     ) {
-        let Some(index) = self.exports.iter().position(|(op, _, _)| *op == operation_id) else {
+        let Some(index) = self
+            .exports
+            .iter()
+            .position(|(op, _, _)| *op == operation_id)
+        else {
             return;
         };
         let outcome = match result {
@@ -21,7 +25,11 @@ impl Session {
         self.settle(operation_id, outcome, effects);
     }
 
-    pub(super) fn retain_export(&mut self, retained: Option<OperationId>, effects: &mut Vec<Effect>) {
+    pub(super) fn retain_export(
+        &mut self,
+        retained: Option<OperationId>,
+        effects: &mut Vec<Effect>,
+    ) {
         for export in std::mem::take(&mut self.exports) {
             if Some(export.0) == retained {
                 self.exports.push(export);
@@ -53,7 +61,11 @@ impl Session {
                         revision: snapshot.document.revision,
                     }
         }) else {
-            self.reject(operation_id, "generation requires an accepted saved snapshot", effects);
+            self.reject(
+                operation_id,
+                "generation requires an accepted saved snapshot",
+                effects,
+            );
             return;
         };
         if !self.scope_is_current(&scope) {
@@ -83,7 +95,11 @@ impl Session {
             .clone()
             .filter(|_| self.model.lifecycle == Lifecycle::Ready)
         else {
-            self.reject(operation_id, "export requires a ready accepted snapshot", effects);
+            self.reject(
+                operation_id,
+                "export requires a ready accepted snapshot",
+                effects,
+            );
             return;
         };
         if snapshot.scene.revision != snapshot.document.revision || !self.scope_is_current(&scope) {
@@ -126,5 +142,4 @@ impl Session {
             self.settle(operation, outcome, effects);
         }
     }
-
 }

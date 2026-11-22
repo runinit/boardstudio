@@ -108,7 +108,6 @@ impl Runtime {
             &accepted,
             &scope,
             generation,
-            generation,
             format!("case-keycaps-test-{generation}"),
         )
         .expect("valid accepted Case preview input");
@@ -138,20 +137,25 @@ impl Runtime {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
         let persist = matches!(&event, Completion::Persist { .. });
-        let prior = persist.then(|| self.with_model(|model| (model.lifecycle.clone(), model.durability.clone())));
+        let prior = persist
+            .then(|| self.with_model(|model| (model.lifecycle.clone(), model.durability.clone())));
         let effects = self.session.borrow_mut().complete(event);
         if let Some((lifecycle, durability)) = prior {
             let (same_lifecycle, next_durability) =
                 self.with_model(|model| (model.lifecycle == lifecycle, model.durability.clone()));
             let snapshot_changed = self.accepted_identity() != previous_snapshot;
             let report = match &next_durability {
-                Durability::Saved { .. } if snapshot_changed || next_durability != durability =>
-                    Some(RuntimeReport::status("Saved locally.").transient()),
-                Durability::Failed { reason, .. } if next_durability != durability =>
-                    Some(RuntimeReport::status(reason)),
+                Durability::Saved { .. } if snapshot_changed || next_durability != durability => {
+                    Some(RuntimeReport::status("Saved locally.").transient())
+                }
+                Durability::Failed { reason, .. } if next_durability != durability => {
+                    Some(RuntimeReport::status(reason))
+                }
                 _ => effects.iter().find_map(|effect| match effect {
-                    Effect::Settled { outcome: TerminalOutcome::PersistenceFailed(reason), .. } =>
-                        Some(RuntimeReport::status(reason)),
+                    Effect::Settled {
+                        outcome: TerminalOutcome::PersistenceFailed(reason),
+                        ..
+                    } => Some(RuntimeReport::status(reason)),
                     _ => None,
                 }),
             };

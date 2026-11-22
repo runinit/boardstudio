@@ -60,9 +60,9 @@ impl Runtime {
             operation_outcomes: Default::default(),
             next_operation: Cell::new(1),
             saves: RefCell::new(BTreeMap::new()),
-                    gates: GateDriver::default(),
-                            save_entered: Cell::new(false),
-                            parked_save: RefCell::new(None),
+            gates: GateDriver::default(),
+            save_entered: Cell::new(false),
+            parked_save: RefCell::new(None),
             events: EventLog::new(),
         })
     }
@@ -108,11 +108,14 @@ impl Runtime {
         resolver: boardstudio_application::EditResolver,
     ) -> Result<boardstudio_application::AcceptedSnapshot, String> {
         let operation_id = self.operation();
-        let outcome = self.submit_observed(Event::ResolveEdit {
-            operation_id,
-            label: label.into(),
-            resolver,
-        }, Some(operation_id));
+        let outcome = self.submit_observed(
+            Event::ResolveEdit {
+                operation_id,
+                label: label.into(),
+                resolver,
+            },
+            Some(operation_id),
+        );
         crate::operation_outcomes::commit_result(outcome.map(|(outcome, _)| outcome), || {
             self.with_model(|model| model.accepted.clone())
         })
@@ -128,7 +131,7 @@ impl Runtime {
         observe: Option<OperationId>,
     ) -> Option<(TerminalOutcome, Option<Landing>)> {
         self.events.push(event.clone());
-            let previous_scope = self.scope();
+        let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
         if self.scope() != previous_scope {
             self.operation_outcomes.retire_edit_scope();

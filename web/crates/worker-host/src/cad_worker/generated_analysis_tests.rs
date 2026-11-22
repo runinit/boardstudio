@@ -214,17 +214,17 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
     };
     let mut request = WireRequest {
         header: CadEnvelope {
-        request_id: "analysis-1".into(),
-        job_id: "analysis-1".into(),
-        identity: CadSnapshotIdentity {
-            token: 3,
-            session_epoch: 1,
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-            revision: 7,
-        },
-        operation: CadOperation::AnalyzeGeneratedBody,
+            request_id: "analysis-1".into(),
+            job_id: "analysis-1".into(),
+            identity: CadSnapshotIdentity {
+                token: 3,
+                session_epoch: 1,
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+                revision: 7,
+            },
+            operation: CadOperation::AnalyzeGeneratedBody,
         },
         prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
             revision: 7,
@@ -259,7 +259,10 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
     let failed = run_request(&queue, &module, request.clone(), vec![]).await;
     assert!(matches!(failed, Err((_, reason, false)) if reason.contains("identity")));
     request.generated_analysis_request = Some(metadata);
-    queue.borrow_mut().cancelled.insert(request.header.job_id.clone());
+    queue
+        .borrow_mut()
+        .cancelled
+        .insert(request.header.job_id.clone());
     assert!(matches!(
         run_request(&queue, &module, request.clone(), vec![]).await,
         Err((_, _, true))

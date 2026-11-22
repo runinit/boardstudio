@@ -115,7 +115,9 @@ impl DocumentPersistence for TestPersistence {
     fn observe_token(&self, id: String, token: StorageToken) {
         match &*self.target.borrow() {
             PersistTarget::Store(store) => store.observe_token(id, token),
-            PersistTarget::Memory(_) => { self.observed.borrow_mut().insert(id, token); }
+            PersistTarget::Memory(_) => {
+                self.observed.borrow_mut().insert(id, token);
+            }
         }
     }
 

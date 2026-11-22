@@ -18,9 +18,7 @@ pub struct LayoutSourceIdentity {
     /// The instance participates in freshness only; it never projects geometry.
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
-    pub accepted_revision: u64,
-    pub accepted_document_identity: usize,
-    pub accepted_scene_identity: usize,
+
     pub source_generation: u64,
 }
 
@@ -163,7 +161,7 @@ impl LayoutPreviewState {
 
     pub fn retire_unless_request_matches(
         &mut self,
-        expected: Option<(&Scope, SnapshotToken, u64)>,
+        expected: Option<(&Scope, SnapshotToken)>,
     ) -> bool {
         let current = self
             .published
@@ -174,10 +172,8 @@ impl LayoutPreviewState {
         let Some(current) = current else {
             return false;
         };
-        if expected.is_some_and(|(scope, token, revision)| {
-            current.scope == *scope
-                && current.snapshot_token == token
-                && current.accepted_revision == revision
+        if expected.is_some_and(|(scope, token)| {
+            current.scope == *scope && current.snapshot_token == token
         }) {
             return false;
         }
@@ -222,9 +218,7 @@ impl LayoutSourceIdentity {
         Self {
             scope: scope.clone(),
             snapshot_token: snapshot.token,
-            accepted_revision: snapshot.document.revision,
-            accepted_document_identity: Arc::as_ptr(&snapshot.document) as usize,
-            accepted_scene_identity: Arc::as_ptr(&snapshot.scene) as usize,
+
             source_generation,
         }
     }
@@ -238,15 +232,9 @@ impl LayoutSourceIdentity {
         self.scope == *scope
             && self.source_generation == source_generation
             && snapshot.token == self.snapshot_token
-            && snapshot.session_epoch == self.scope.session_epoch
             && snapshot.session_epoch == scope.session_epoch
-            && snapshot.document.id == self.scope.document_id
             && snapshot.document.id == scope.document_id
-            && snapshot.document.revision == self.accepted_revision
-            && Arc::as_ptr(&snapshot.document) as usize == self.accepted_document_identity
-            && snapshot.scene.revision == self.accepted_revision
-            && Arc::as_ptr(&snapshot.scene) as usize == self.accepted_scene_identity
-            && self.accepted_revision == snapshot.document.revision
+            && snapshot.scene.revision == snapshot.document.revision
     }
 }
 
@@ -388,7 +376,7 @@ impl LayoutSourceCapture {
                 Ok(ArtifactRequest::PreviewBoard {
                     id,
                     source,
-                    revision: self.owner.accepted_revision,
+                    revision: self.document.revision,
                 })
             }
             (LayoutPreviewRequest::Imported { .. }, _) => {
@@ -403,9 +391,7 @@ impl LayoutSourceCapture {
     /// Accept only a preview for this accepted revision. Core reply/request IDs are
     /// checked by Runtime before this method is called.
     pub fn accept_preview(&self, preview: PcbPreview) -> Result<LayoutPreviewSnapshot, String> {
-        if preview.revision != self.owner.accepted_revision
-            || self.document.revision != self.owner.accepted_revision
-        {
+        if preview.revision != self.document.revision {
             return Err("Core returned a Layout board preview for another revision".into());
         }
         Ok(LayoutPreviewSnapshot {
@@ -458,10 +444,8 @@ impl LayoutPreviewSnapshot {
             .owner
             .matches_current(snapshot, scope, source_generation)
             || self.document.id != scope.document_id
-            || self.document.revision != self.owner.accepted_revision
-            || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
             || !Arc::ptr_eq(&self.document, &snapshot.document)
-            || self.preview.revision != self.owner.accepted_revision
+            || self.preview.revision != self.document.revision
             || !self.lease.matches(&self.owner)
             || !self
                 .module_scenes
@@ -492,10 +476,8 @@ impl LayoutPreviewSnapshot {
             .owner
             .matches_current(snapshot, scope, source_generation)
             || self.document.id != scope.document_id
-            || self.document.revision != self.owner.accepted_revision
-            || Arc::as_ptr(&self.document) as usize != self.owner.accepted_document_identity
             || !Arc::ptr_eq(&self.document, &snapshot.document)
-            || self.preview.revision != self.owner.accepted_revision
+            || self.preview.revision != self.document.revision
             || !self.lease.matches(&self.owner)
         {
             return None;

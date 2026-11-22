@@ -1,11 +1,11 @@
 use super::*;
 use boardstudio_model::model::{Pose2, Side, Vec2, Vec3};
 
-struct InactiveTestLease;
+struct TestLease;
 
-impl ModelSourceLease for InactiveTestLease {
+impl ModelSourceLease for TestLease {
     fn is_active(&self) -> bool {
-        false
+        true
     }
 }
 
@@ -44,28 +44,6 @@ fn valid_arrays() -> MeshArrays {
         colors: None,
         step_bounds: None,
         vendor_step: None,
-    }
-}
-
-fn batch(generation: u64) -> ModelBatchIdentity {
-    // The cache tests need only stable semantic identity; scene liveness is
-    // covered by the page owner integration which owns CadScene creation.
-    let source_owner: Rc<dyn ModelSourceLease> = Rc::new(InactiveTestLease);
-    ModelBatchIdentity {
-        owner: ModelOwnerIdentity {
-            scope: Scope {
-                session_epoch: boardstudio_application::SessionEpoch(1),
-                document_id: "doc".into(),
-                board_id: "board".into(),
-                instance_id: None,
-            },
-            snapshot_token: SnapshotToken(1),
-            viewer_instance: 1,
-            projection_generation: 1,
-            source_owner: Rc::downgrade(&source_owner),
-        },
-        accepted_revision: 1,
-        batch_generation: generation,
     }
 }
 
@@ -167,7 +145,9 @@ fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
     ];
     let adapter = ModelDeliveryAdapter::default();
 
-    let rows = block_on(adapter.deliver_models(1, &models, &assets, &ports, &batch(1), live()))
+    let lease: Rc<dyn ModelSourceLease> = Rc::new(TestLease);
+    let owner = ModelOwnerIdentity::capture(SnapshotToken(1), lease.clone());
+    let rows = block_on(adapter.deliver_models(&models, &assets, &ports, &owner, live()))
         .expect("current model batch completes");
 
     assert_eq!(model_decode_count.get(), 1);
@@ -181,7 +161,7 @@ fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
     assert!(rows.pending.is_empty());
     assert!(rows.failures.is_empty());
 
-    let cached = block_on(adapter.deliver_models(1, &models, &assets, &ports, &batch(2), live()))
+    let cached = block_on(adapter.deliver_models(&models, &assets, &ports, &owner, live()))
         .expect("new batch reuses verified mesh");
     assert_eq!(model_decode_count.get(), 1);
     assert!(Rc::ptr_eq(

@@ -9,13 +9,14 @@ mod persistence;
 mod selection;
 mod types;
 
-pub use types::*;
+use boardstudio_model::model::{
+    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Matrix, Position, ProjectDoc,
+    Vec2,
+};
 use gesture::Gesture;
 use persistence::{PendingOpen, PendingSave};
-use crate::interactions::SnapGuide;
-use boardstudio_model::model::*;
-use std::rc::Rc;
 use std::sync::Arc;
+pub use types::*;
 
 pub struct Session {
     model: ReadModel,
@@ -216,10 +217,8 @@ impl Session {
         export_owner: Option<OperationId>,
         effects: &mut Vec<Effect>,
     ) {
-        if matches!(
-            self.model.lifecycle,
-            Lifecycle::Closing | Lifecycle::Closed
-        ) || self.model.accepted.is_none()
+        if matches!(self.model.lifecycle, Lifecycle::Closing | Lifecycle::Closed)
+            || self.model.accepted.is_none()
         {
             self.reject(operation_id, "no editable project is open", effects);
             return;
@@ -434,7 +433,15 @@ impl Session {
                 target_part_id,
                 part_ids,
                 mode,
-            } => self.select_matrix_cell(operation_id, scope, matrix_id, target_part_id, part_ids, mode, &mut effects),
+            } => self.select_matrix_cell(
+                operation_id,
+                scope,
+                matrix_id,
+                target_part_id,
+                part_ids,
+                mode,
+                &mut effects,
+            ),
             Event::Navigate {
                 operation_id,
                 board_id,
@@ -499,7 +506,20 @@ impl Session {
                 gap,
                 pixels_per_world,
                 alt,
-            } => self.begin_gesture(operation_id, pointer_id, target_ids, transaction_id, start, pitch, snap_fraction, geometry_snap, gap, pixels_per_world, alt, &mut effects),
+            } => self.begin_gesture(
+                operation_id,
+                pointer_id,
+                target_ids,
+                transaction_id,
+                start,
+                pitch,
+                snap_fraction,
+                geometry_snap,
+                gap,
+                pixels_per_world,
+                alt,
+                &mut effects,
+            ),
             Event::GestureSample {
                 pointer_id,
                 positions,
@@ -685,5 +705,4 @@ impl Session {
             .as_ref()
             .map_or(SessionEpoch(0), |s| s.session_epoch)
     }
-
 }

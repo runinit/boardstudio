@@ -233,8 +233,8 @@ impl CadWorker {
             input_bytes: request.input_bytes,
             packaged_step,
         };
-        let frame = serde_json::to_string(&wire)
-            .map_err(|error| CadWorkerError(error.to_string()))?;
+        let frame =
+            serde_json::to_string(&wire).map_err(|error| CadWorkerError(error.to_string()))?;
         let reply = self
             .request_frame_with_payloads(
                 &wire.header.request_id,
@@ -998,7 +998,9 @@ fn receive_worker_message(
             );
         }
     };
-    if let Some(message) = keycap_operation_error(&request.header.operation, request.keycaps.is_some()) {
+    if let Some(message) =
+        keycap_operation_error(&request.header.operation, request.keycaps.is_some())
+    {
         return post_reply(
             scope,
             WireReply {
@@ -1202,7 +1204,9 @@ fn post_owned_result(
     result: JsValue,
 ) -> Result<(), JsValue> {
     if let Err(error) = post_result(scope, wire.clone(), result) {
-        queue.borrow_mut().remove_task_evidence(&wire.header.request_id);
+        queue
+            .borrow_mut()
+            .remove_task_evidence(&wire.header.request_id);
         return post_reply(
             scope,
             WireReply {
@@ -1223,8 +1227,8 @@ fn post_reply(
     result: Option<JsValue>,
     transfers: Array,
 ) -> Result<(), JsValue> {
-    let metadata = serde_json::to_string(&wire)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let metadata =
+        serde_json::to_string(&wire).map_err(|error| JsValue::from_str(&error.to_string()))?;
     let message = Object::new();
     Reflect::set(&message, &"kind".into(), &"reply".into())?;
     Reflect::set(&message, &"frame".into(), &JsValue::from_str(&metadata))?;

@@ -63,7 +63,10 @@ impl Runtime {
         if for_deletion {
             self.project_deletion_open.set(Some(operation_id));
         }
-        self.submit(Event::Open { operation_id, document });
+        self.submit(Event::Open {
+            operation_id,
+            document,
+        });
         outcome
     }
 
@@ -312,7 +315,9 @@ impl Runtime {
     }
 
     pub(super) fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {
-        self.persistence.borrow().observe_token(saved.document.id.clone(), saved.token);
+        self.persistence
+            .borrow()
+            .observe_token(saved.document.id.clone(), saved.token);
         saved.document
     }
 

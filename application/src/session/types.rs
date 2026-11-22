@@ -1,5 +1,8 @@
-use super::*;
-use std::fmt;
+use crate::interactions::SnapGuide;
+use boardstudio_model::model::{
+    Asset, EditCommand, EditOperation, EditPhase, Position, ProjectDoc, SceneDelta, Vec2,
+};
+use std::{fmt, rc::Rc, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OperationId(pub u64);
@@ -465,5 +468,3 @@ pub enum Effect {
         snapshot: AcceptedSnapshot,
     },
 }
-
-#[derive(Debug)]

@@ -35,23 +35,17 @@ impl Session {
             };
             match mode {
                 SelectionMode::Range => {
-                    let anchor =
-                        self.model.selection_anchor_id.as_ref().or(incoming.first());
+                    let anchor = self.model.selection_anchor_id.as_ref().or(incoming.first());
                     if let (Some(anchor), Some(last)) = (anchor, incoming.last())
                         && let (Some(a), Some(b)) = (
                             valid_order.iter().position(|id| id == anchor),
                             valid_order.iter().position(|id| id == last),
                         )
                     {
-                        self.model.selected_part_ids =
-                            valid_order[a.min(b)..=a.max(b)].to_vec();
+                        self.model.selected_part_ids = valid_order[a.min(b)..=a.max(b)].to_vec();
                     }
                 }
-                _ => update_selection(
-                    &mut self.model.selected_part_ids,
-                    incoming.clone(),
-                    mode,
-                ),
+                _ => update_selection(&mut self.model.selected_part_ids, incoming.clone(), mode),
             }
             self.model.selection_mode = mode;
             if let Some(anchor) = incoming.first() {
@@ -207,7 +201,8 @@ impl Session {
         }) {
             self.model.active_instance_id = None;
         }
-    }}
+    }
+}
 
 fn update_selection(selection: &mut Vec<String>, incoming: Vec<String>, mode: SelectionMode) {
     if matches!(mode, SelectionMode::Replace | SelectionMode::Range) {

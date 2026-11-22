@@ -295,3 +295,123 @@ fn multi_component_drag_keeps_its_relative_placement() {
     assert_eq!(positions[0].at.x, 20.0);
     assert_eq!(positions[1].at.x - positions[0].at.x, 30.0);
 }
+
+#[test]
+fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
+    use boardstudio_application::{
+        Completion, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
+    };
+
+    let mut document = fixture();
+    document.revision = 1;
+    let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    let [
+        Effect::Persist {
+            save_attempt_id, ..
+        },
+    ] = effects.as_slice()
+    else {
+        panic!("{effects:?}")
+    };
+    session.complete(Completion::Persist {
+        save_attempt_id: *save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    let scope = session.scope().unwrap();
+    let token = session.read_model().accepted.as_ref().unwrap().token;
+    let export = OperationId(2);
+    let drag = OperationId(3);
+    session.submit(Event::StartExport {
+        operation_id: export,
+        scope: scope.clone(),
+    });
+    assert_eq!(
+        session.submit(Event::GestureBegin {
+            operation_id: drag,
+            pointer_id: 1,
+            target_ids: vec!["moving".into()],
+            transaction_id: "drag".into(),
+            start: vec![Position {
+                id: "moving".into(),
+                at: Vec2::default()
+            }],
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            snap_fraction: 0.0,
+            geometry_snap: false,
+            gap: None,
+            pixels_per_world: None,
+            alt: false,
+        }),
+        [Effect::CapturePointer { pointer_id: 1 }]
+    );
+    assert_eq!(
+        session.submit(Event::ReviewElectricalRemap {
+            operation_id: OperationId(4),
+            base_revision: 0,
+            board_id: scope.board_id.clone(),
+            expected_fingerprint: String::new(),
+        }),
+        [Effect::Settled {
+            operation_id: OperationId(4),
+            outcome: TerminalOutcome::Rejected("captured edit revision is stale".into()),
+            landing: None,
+        }]
+    );
+    assert!(session.read_model().gesture.is_some());
+
+    let effects = session.submit(Event::GestureEnd {
+        pointer_id: 1,
+        final_positions: vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 5.0, y: 0.0 },
+        }],
+        pixels_per_world: None,
+        alt: false,
+    });
+    assert!(effects.contains(&Effect::ReleasePointer { pointer_id: 1 }));
+    assert!(effects.contains(&Effect::CancelExport {
+        operation_id: export
+    }));
+    assert!(session.read_model().gesture.is_none());
+    let settlements: Vec<_> = effects
+        .iter()
+        .filter_map(|effect| match effect {
+            Effect::Settled {
+                operation_id,
+                outcome,
+                landing,
+            } => Some((
+                *operation_id,
+                outcome.clone(),
+                landing.map(|landing| landing.revision),
+            )),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        settlements,
+        [
+            (export, TerminalOutcome::Cancelled, None),
+            (drag, TerminalOutcome::Completed, Some(2)),
+        ]
+    );
+    assert!(
+        session
+            .submit(Event::GestureCancel { pointer_id: 1 })
+            .is_empty()
+    );
+    for result in [Ok((token, scope)), Err("late failure".into())] {
+        assert!(
+            session
+                .complete(Completion::Export {
+                    operation_id: export,
+                    result
+                })
+                .is_empty()
+        );
+    }
+}

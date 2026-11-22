@@ -196,7 +196,12 @@ pub(super) async fn run_request(
                         request.header.identity.session_epoch,
                         request.header.identity.document_id,
                         request.header.identity.board_id,
-                        request.header.identity.instance_id.as_deref().unwrap_or("board")
+                        request
+                            .header
+                            .identity
+                            .instance_id
+                            .as_deref()
+                            .unwrap_or("board")
                     );
                     let progress = Closure::<dyn FnMut(JsValue, JsValue)>::new(|_, _| {});
                     let output = invoke(
@@ -394,8 +399,9 @@ pub(super) async fn run_request(
                 )
                 .map_err(|error| (request.clone(), error, false))?;
             let generation = queue.borrow().generation.clone();
-            let expected = qualification::expected_binding(query, &request.header.identity, &generation)
-                .map_err(|error| (request.clone(), error, false))?;
+            let expected =
+                qualification::expected_binding(query, &request.header.identity, &generation)
+                    .map_err(|error| (request.clone(), error, false))?;
             let result = if let (Some(left), Some(right)) = (left, right) {
                 let buffers = Object::new();
                 for (key, value) in [

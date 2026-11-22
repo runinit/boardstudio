@@ -77,7 +77,7 @@ pub struct KeycapsCadPreview {
 }
 
 use gloo_timers::future::TimeoutFuture;
-use js_sys::{Array, Function, Reflect, Uint8Array};
+use js_sys::{Array, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -298,7 +298,6 @@ pub struct Runtime {
             crate::model_delivery::ModelDeliveryRows,
         )>,
     >,
-    layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     generated_analysis_cache:
         RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
@@ -443,7 +442,6 @@ impl Runtime {
             native_model_delivery: RefCell::new(Default::default()),
             layout_preview: RefCell::new(Default::default()),
             layout_model_rows: RefCell::new(None),
-            layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             generated_analysis_cache: RefCell::new(BTreeMap::new()),
             generated_analysis_prepared: RefCell::new(BTreeMap::new()),
@@ -505,7 +503,7 @@ impl Runtime {
                 Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
                     if runtime_ref.upgrade().is_some_and(|runtime| {
                         matches!(
-                            runtime.model().durability,
+                            runtime.with_model(|model| model.durability.clone()),
                             Durability::Saving { .. } | Durability::Failed { .. }
                         )
                     }) {
@@ -550,10 +548,6 @@ impl Runtime {
 
     pub fn with_model<R>(&self, f: impl FnOnce(&ReadModel) -> R) -> R {
         f(self.session.borrow().read_model())
-    }
-
-    fn snapshot_is_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
-        self.session.borrow().snapshot_is_current(token, scope)
     }
 
     /// Load a reviewed bundled switch fit into the Parts editor's local draft.
@@ -781,7 +775,7 @@ impl Runtime {
         owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
     ) -> bool {
         self.case_gesture_preview.borrow().is_current(owner)
-            && self.snapshot_is_current(owner.snapshot_token, &owner.scope)
+            && self.snapshot_current(owner.snapshot_token, &owner.scope)
     }
 
     pub fn cancel_native_case_preview(&self) {
