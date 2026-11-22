@@ -319,9 +319,9 @@ pub(super) fn use_inspector_projections(
         .flatten();
     let board_inspector_projection = board_inspector.projection.clone().filter(|_| {
         component_inspector.is_none()
-            && matrix_inspector.projection.is_none()
+            && !matrix_inspector.is_active()
             && key_size.projection.is_none()
-            && matrix_transform_inspector.projection.is_none()
+            && !matrix_transform_inspector.is_active()
             && outline_inspector.is_none()
     });
     let show_position_inspector = board_inspector_projection.is_none()

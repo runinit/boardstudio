@@ -193,7 +193,7 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
 pub(super) struct GuideOverlaysInput<'a> {
     pub guide: &'a Option<setup_guide::SetupGuidePreferences>,
     pub matrix_setup: objects::MatrixSetupMount,
-    pub mechanical_settings: mechanical_settings_mount::MechanicalSettingsMount,
+    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
     pub snapshot: &'a AcceptedSnapshot,
     pub current_scope: Option<Scope>,
     pub parts_selection: parts::PartsSelection,

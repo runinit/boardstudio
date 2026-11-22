@@ -347,7 +347,7 @@ pub(super) struct OnShowMechanicalFindingArgs<'a> {
 
 pub(super) fn on_show_mechanical_finding_handler(
     input: OnShowMechanicalFindingArgs<'_>,
-) -> EventHandler<mechanical_settings_mount::MechanicalFindingNavigation> {
+) -> EventHandler<String> {
     let OnShowMechanicalFindingArgs {
         runtime,
         current_scope,
@@ -366,110 +366,101 @@ pub(super) fn on_show_mechanical_finding_handler(
         .accepted
         .as_ref()
         .map(|snapshot| snapshot.document.revision);
-    EventHandler::new(
-        move |request: mechanical_settings_mount::MechanicalFindingNavigation| {
-            let Some(scope) = captured_scope.as_ref() else {
-                return;
-            };
-            if request.scope != *scope
-                || Some(request.token) != captured_token
-                || Some(request.revision) != captured_revision
-            {
-                return;
-            }
-            let model = runtime.model();
-            if generation() != captured_generation
-                || runtime.scope().as_ref() != Some(scope)
-                || !instance_selection.is_current(&model)
-                || model.accepted.as_ref().is_none_or(|current| {
-                    Some(current.token) != captured_token
-                        || current.document.revision != request.revision
+    EventHandler::new(move |finding_id: String| {
+        let Some(scope) = captured_scope.as_ref() else {
+            return;
+        };
+        let model = runtime.model();
+        if generation() != captured_generation
+            || runtime.scope().as_ref() != Some(scope)
+            || !instance_selection.is_current(&model)
+            || model.accepted.as_ref().is_none_or(|current| {
+                Some(current.token) != captured_token
+                    || Some(current.document.revision) != captured_revision
+            })
+        {
+            return;
+        }
+        let Some(snapshot) = model.accepted.as_ref() else {
+            return;
+        };
+        let (token, revision) = (snapshot.token, snapshot.document.revision);
+        let resolved_assembly = runtime
+            .resolve_mechanical_settings(
+                snapshot.clone(),
+                scope.clone(),
+                snapshot.document.as_ref().clone(),
+            )
+            .ok()
+            .map(|(assembly, _)| assembly);
+        let scene = runtime
+            .cad_scene()
+            .filter(|scene| &scene.scope == scope && Some(scene.token) == captured_token);
+        let assembly = resolved_assembly
+            .as_ref()
+            .or_else(|| scene.as_ref().and_then(|scene| scene.mechanical.as_ref()));
+        let Some(assembly) = assembly else {
+            return;
+        };
+        let captured_document = &snapshot.document;
+        let Some(finding) = assembly
+            .diagnostics
+            .iter()
+            .find(|finding| finding.id == finding_id)
+        else {
+            return;
+        };
+        if let Some(layer) = assembly.stack.iter().find(|layer| {
+            finding.target_ids.contains(&layer.id)
+                || assembly.case.bodies.iter().any(|entry| {
+                    entry.body.id == layer.id
+                        && entry.body.mounts.as_ref().is_some_and(|mounts| {
+                            mounts
+                                .iter()
+                                .any(|mount| finding.target_ids.contains(&mount.id))
+                        })
                 })
-            {
-                return;
-            }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let scene = runtime
-                .cad_scene()
-                .filter(|scene| &scene.scope == scope && Some(scene.token) == captured_token);
-            let assembly = request
-                .resolution
-                .as_ref()
-                .map(|resolution| &resolution.assembly)
-                .or_else(|| scene.as_ref().and_then(|scene| scene.mechanical.as_ref()));
-            let Some(assembly) = assembly else {
-                return;
-            };
-            let captured_document = &snapshot.document;
-            let Some(finding) = assembly
-                .diagnostics
+        }) {
+            case_selection.focus_layer(scope.clone(), token, revision, layer.id.clone());
+            workspace.set("Case");
+        } else if let Some(body) = captured_document
+            .case_bodies
+            .iter()
+            .find(|body| body.board_id == scope.board_id && finding.target_ids.contains(&body.id))
+        {
+            case_selection.focus_layer(scope.clone(), token, revision, body.id.clone());
+            case_selection.body.set(Some(case_viewer::BodySelection {
+                scope: scope.clone(),
+                body_id: body.id.clone(),
+            }));
+            workspace.set("Case");
+        } else {
+            let Some(board) = captured_document
+                .boards
                 .iter()
-                .find(|finding| finding.id == request.finding_id)
+                .find(|board| board.id == scope.board_id)
             else {
                 return;
             };
-            if let Some(layer) = assembly.stack.iter().find(|layer| {
-                finding.target_ids.contains(&layer.id)
-                    || assembly.case.bodies.iter().any(|entry| {
-                        entry.body.id == layer.id
-                            && entry.body.mounts.as_ref().is_some_and(|mounts| {
-                                mounts
-                                    .iter()
-                                    .any(|mount| finding.target_ids.contains(&mount.id))
-                            })
-                    })
-            }) {
-                case_selection.focus_layer(
-                    scope.clone(),
-                    request.token,
-                    request.revision,
-                    layer.id.clone(),
-                );
-                workspace.set("Case");
-            } else if let Some(body) = captured_document.case_bodies.iter().find(|body| {
-                body.board_id == scope.board_id && finding.target_ids.contains(&body.id)
-            }) {
-                case_selection.focus_layer(
-                    scope.clone(),
-                    request.token,
-                    request.revision,
-                    body.id.clone(),
-                );
-                case_selection.body.set(Some(case_viewer::BodySelection {
-                    scope: scope.clone(),
-                    body_id: body.id.clone(),
-                }));
-                workspace.set("Case");
-            } else {
-                let Some(board) = captured_document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == scope.board_id)
-                else {
-                    return;
-                };
-                let part_ids = finding
-                    .target_ids
-                    .iter()
-                    .filter(|id| board.part_ids.contains(id))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                if !part_ids.is_empty() {
-                    runtime.submit(Event::SelectParts {
-                        operation_id: runtime.operation(),
-                        part_ids,
-                        range_part_ids: Vec::new(),
-                        mode: SelectionMode::Replace,
-                    });
-                    workspace.set("Layout");
-                }
+            let part_ids = finding
+                .target_ids
+                .iter()
+                .filter(|id| board.part_ids.contains(id))
+                .cloned()
+                .collect::<Vec<_>>();
+            if !part_ids.is_empty() {
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids,
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
+                workspace.set("Layout");
             }
-            inspect_open.set(true);
-            runtime.report(finding.message.clone());
-        },
-    )
+        }
+        inspect_open.set(true);
+        runtime.report(finding.message.clone());
+    })
 }
 
 pub(super) struct Views {

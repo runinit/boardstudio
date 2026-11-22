@@ -36,13 +36,9 @@ mod layout_bounds;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
-mod layout_component_inspector_tests;
-#[cfg(test)]
 mod layout_field_preview_tests;
 #[cfg(test)]
 mod layout_layers_tests;
-#[cfg(test)]
-mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
@@ -86,7 +82,6 @@ mod layout_key_selection_actions;
 mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
-pub(crate) use boardstudio_web_case::mechanical_settings_mount;
 pub(crate) use boardstudio_web_layout::objects;
 pub(crate) use boardstudio_web_layout::outline_lifecycle;
 pub(crate) use boardstudio_web_layout::outline_snapping;
@@ -150,8 +145,9 @@ pub(crate) use layout_bounds::{
     accepted_board_contours, keycaps_bounds, keymap_bounds, keymap_toolbar_height, pcb_bounds,
 };
 use library::Library;
-pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
-pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
+pub(crate) use mechanical_settings::{
+    MechanicalSettings, MechanicalSettingsProps, MechanicalSettingsState,
+};
 pub(crate) use notifications::RuntimeReportBanner;
 pub(crate) use owner_checks::{
     canvas_owner_is_current, case_setup_context_is_current, current_case_layer_ids,

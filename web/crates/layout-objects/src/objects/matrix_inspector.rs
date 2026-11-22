@@ -1,801 +1,530 @@
-//! Private form for the real selected-matrix name, size, and pitch fields.
-use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_model::model::DiodeDirection;
-use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
+//! The selected matrix's name, size, pitch, switch, diode and spacing fields, each committed
+//! synchronously as one `SetMatrix` / `SetLayout` edit.
+use super::layout_rail::LayoutTransformRuntime;
+use super::matrix_preset::{
+    MatrixPreset, SwitchOrientation, apply_preset, duplicate_variant, matrix_preset, switch_choices,
+};
+use super::{ScopedTreeContext, TreeContext};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
+use boardstudio_model::model::{
+    DiodeDirection, EditOperation, Matrix, MatrixCell, PartDefinition, Vec2,
+};
+use boardstudio_web_layout_core::rail_drag::nudge_session_is_ready;
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, TextCommitField,
+};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::collapsible::{
-    Collapsible, CollapsibleContent, CollapsibleTrigger,
-};
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
-    select::{Select, SelectOption},
-};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
-
-use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 
-pub use super::matrix_inspector_logic::{
-    MatrixEditField, MatrixEditValue, MatrixNameTarget, MatrixPreset, SwitchOrientation,
-};
+#[derive(Clone, PartialEq)]
+pub struct MatrixInspectorMount {
+    pub runtime: LayoutTransformRuntime,
+    pub selected: Option<ScopedTreeContext>,
+    /// The selection signal, cleared once the selected matrix is deleted.
+    pub selection: Signal<Option<ScopedTreeContext>>,
+}
 
-impl MatrixPreset {
-    fn label(self) -> &'static str {
-        match self {
-            Self::MxSolder => "MX Solder",
-            Self::MxHotswap => "MX Hotswap",
-            Self::ChocSolder => "Choc V1 Solder",
-            Self::ChocHotswap => "Choc V1 Hotswap",
-            Self::MxRgb => "MX RGB",
-            Self::ChocRgb => "Choc V1 RGB",
-            Self::MxHotswapRgb => "MX Hotswap RGB",
-            Self::ChocHotswapRgb => "Choc V1 Hotswap RGB",
+pub fn use_matrix_inspector(
+    runtime: std::rc::Rc<crate::runtime::Runtime>,
+    selected: Signal<Option<ScopedTreeContext>>,
+) -> MatrixInspectorMount {
+    MatrixInspectorMount {
+        runtime: LayoutTransformRuntime(runtime),
+        selected: selected.read().clone(),
+        selection: selected,
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Field {
+    Rows,
+    Columns,
+    PitchX,
+    PitchY,
+    EdgeGapX,
+    EdgeGapY,
+}
+
+impl MatrixInspectorMount {
+    fn matrix_id(&self) -> Option<String> {
+        let selected = self.selected.as_ref()?;
+        let TreeContext::Matrix { matrix_id } = &selected.context else {
+            return None;
+        };
+        (self.runtime.0.scope().as_ref() == Some(&selected.scope)).then(|| matrix_id.clone())
+    }
+
+    pub(super) fn selected_matrix_id(&self) -> Option<String> {
+        self.matrix_id()
+    }
+
+    /// Add one row (`rows`) or column to the named matrix, as the Objects panel's add actions do.
+    pub(super) fn grow(&self, matrix_id: &str, rows: bool) -> Result<(), String> {
+        let id = matrix_id.to_owned();
+        self.commit_on(id, "layout-matrix-inspector", move |_, matrix| {
+            let next = if rows {
+                resize(matrix, matrix.rows.saturating_add(1), matrix.columns)?
+            } else {
+                resize(matrix, matrix.rows, matrix.columns.saturating_add(1))?
+            };
+            Ok(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
+        })
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.matrix_id().is_some_and(|id| {
+            self.runtime.0.model().accepted.is_some_and(|snapshot| {
+                snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .any(|matrix| matrix.id == id)
+            })
+        })
+    }
+
+    /// Commit one edit built from the matrix accepted when it runs.
+    fn commit(
+        &self,
+        label: &str,
+        build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static,
+    ) -> Result<(), String> {
+        let id = self
+            .matrix_id()
+            .ok_or("The selection is no longer a matrix.")?;
+        self.commit_on(id, label, build)
+    }
+
+    fn commit_on(
+        &self,
+        id: String,
+        label: &str,
+        build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static,
+    ) -> Result<(), String> {
+        let runtime = &self.runtime.0;
+        if !nudge_session_is_ready(&runtime.model()) {
+            return Err("The matrix is not ready to edit. Wait for the current operation to finish, then retry.".into());
+        }
+        let resolver = EditResolver::new(
+            "layout-matrix-inspector",
+            move |accepted: &AcceptedSnapshot| {
+                let Some(matrix) = accepted
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == id)
+                else {
+                    return Resolution::Retire("The selected matrix no longer exists.".into());
+                };
+                match build(accepted, matrix) {
+                    Ok(operation) => Resolution::submit(vec![matrix.id.clone()], operation),
+                    Err(message) => Resolution::Retire(message),
+                }
+            },
+        );
+        runtime.commit(label, resolver).map(|_| ())
+    }
+
+    fn edit(&self, field: Field, value: f64) -> Result<(), String> {
+        self.commit("layout-matrix-inspector", move |_, matrix| {
+            let mut next = matrix.clone();
+            let gap = |matrix: &Matrix| matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
+            match field {
+                Field::Rows | Field::Columns => {
+                    let count = value as u32;
+                    if value.fract() != 0.0 || count == 0 {
+                        return Err("Matrix dimensions must be positive whole numbers.".into());
+                    }
+                    next = if field == Field::Rows {
+                        resize(matrix, count, matrix.columns)?
+                    } else {
+                        resize(matrix, matrix.rows, count)?
+                    };
+                }
+                Field::PitchX | Field::PitchY if value > 0.0 => {
+                    if field == Field::PitchX {
+                        next.pitch.x = value
+                    } else {
+                        next.pitch.y = value
+                    }
+                }
+                Field::EdgeGapX | Field::EdgeGapY if value >= 0.0 => {
+                    let mut edge = gap(matrix);
+                    if field == Field::EdgeGapX {
+                        edge.x = value
+                    } else {
+                        edge.y = value
+                    }
+                    next.edge_gap = Some(edge);
+                }
+                _ => return Err("The matrix field value is invalid.".into()),
+            }
+            Ok(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
+        })
+    }
+}
+
+/// Resize keeping preset cells: new cells copy the preset template's assemblies.
+fn resize(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, String> {
+    if rows.checked_mul(columns).is_none_or(|cells| cells > 4096) {
+        return Err("Matrix dimensions cannot exceed 4096 cells.".into());
+    }
+    let template = matrix.cells.iter().find(|cell| {
+        cell.definition_id.as_deref() == Some(matrix.definition_id.as_str())
+            && cell
+                .variant
+                .as_deref()
+                .is_some_and(|variant| variant.starts_with("preset/"))
+    });
+    let mut next = matrix.clone();
+    next.rows = rows;
+    next.columns = columns;
+    let Some(template) = template else {
+        return Ok(next);
+    };
+    next.cells
+        .retain(|cell| cell.row < rows && cell.column < columns);
+    let rotation = Some(
+        if template
+            .variant
+            .as_deref()
+            .is_some_and(|variant| variant.ends_with("/north"))
+        {
+            180.0
+        } else {
+            0.0
+        },
+    );
+    let assemblies: Vec<_> = template
+        .assemblies
+        .iter()
+        .filter(|a| a.id == "diode" || a.id == "led")
+        .cloned()
+        .collect();
+    for row in 0..rows {
+        for column in (0..columns).filter(|&column| row >= matrix.rows || column >= matrix.columns)
+        {
+            next.cells.push(MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
+                row,
+                column,
+                enabled: true,
+                definition_id: template.definition_id.clone(),
+                variant: template.variant.clone(),
+                offset: None,
+                rotation,
+                assemblies: assemblies.clone(),
+                assemblies_local: template.assemblies_local,
+            });
         }
     }
-}
-
-impl MatrixEditField {
-    /// Every editable field, in the controller's draft-signal order.
-    pub(crate) const ALL: [Self; 9] = [
-        Self::Name,
-        Self::Rows,
-        Self::Columns,
-        Self::PitchX,
-        Self::PitchY,
-        Self::SwitchDefinition,
-        Self::DiodeDirection,
-        Self::EdgeGapX,
-        Self::EdgeGapY,
-    ];
-
-    fn key(self) -> &'static str {
-        match self {
-            Self::Name => "name",
-            Self::Rows => "rows",
-            Self::Columns => "columns",
-            Self::PitchX => "pitch-x",
-            Self::PitchY => "pitch-y",
-            Self::SwitchDefinition => "switch-definition",
-            Self::ApplyPreset => "apply-preset",
-            Self::DiodeDirection => "diode-direction",
-            Self::EdgeGapX => "edge-gap-x",
-            Self::EdgeGapY => "edge-gap-y",
-        }
-    }
-}
-
-/// Draft owner excludes accepted token/revision so unrelated accepted edits do not erase text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixInspectorOwner {
-    pub editor_instance_id: u64,
-    pub context_generation: u64,
-    pub scope_generation: u64,
-    pub scope: Scope,
-    pub matrix_id: String,
-    pub name_target: MatrixNameTarget,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MatrixInspectorProjection {
-    pub owner: MatrixInspectorOwner,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-    pub matrix_label: String,
-    pub name_label: &'static str,
-    pub name_value: String,
-    pub name_baseline: MatrixEditValue,
-    pub rows: u32,
-    pub columns: u32,
-    pub pitch_x: f64,
-    pub pitch_y: f64,
-    pub definition_id: String,
-    pub switch_choices: Vec<(String, String)>,
-    pub diode_direction: DiodeDirection,
-    pub edge_gap_x: f64,
-    pub edge_gap_y: f64,
-    pub preset: Option<MatrixPreset>,
-    pub orientation: Option<SwitchOrientation>,
-    pub baseline_variant: Option<String>,
-    pub layout_relation: Option<MatrixLayoutRelation>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixLayoutRelation {
-    pub partner_name: Option<String>,
-    pub unlink_layout_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MatrixEditRequest {
-    pub owner: MatrixInspectorOwner,
-    pub request_id: u64,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-    pub field: MatrixEditField,
-    pub baseline: MatrixEditValue,
-    pub value: MatrixEditValue,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MatrixPresetRequest {
-    pub owner: MatrixInspectorOwner,
-    pub request_id: u64,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-    pub baseline_variant: Option<String>,
-    pub preset: MatrixPreset,
-    pub orientation: SwitchOrientation,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MatrixDeleteRequest {
-    pub owner: MatrixInspectorOwner,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixUnlinkRequest {
-    pub owner: MatrixInspectorOwner,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-    pub layout_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MatrixDuplicateRequest {
-    pub owner: MatrixInspectorOwner,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
-    pub preset: MatrixPreset,
-    pub orientation: SwitchOrientation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MatrixEditFeedback {
-    pub owner: MatrixInspectorOwner,
-    pub request_id: u64,
-    pub field: MatrixEditField,
-    pub message: String,
-}
-
-#[derive(Clone, Copy)]
-pub struct MatrixFieldView {
-    pub draft: Signal<String>,
-    pub failure: Signal<Option<String>>,
-}
-
-impl PartialEq for MatrixFieldView {
-    fn eq(&self, other: &Self) -> bool {
-        self.draft == other.draft && self.failure == other.failure
-    }
-}
-
-#[derive(Props, Clone, PartialEq)]
-pub struct MatrixInspectorProps {
-    pub projection: MatrixInspectorProjection,
-    pub request_sequence: Signal<u64>,
-    pub editable: bool,
-    pub busy: bool,
-    pub inspector_mounted: Signal<bool>,
-    pub fields: Vec<(MatrixEditField, MatrixFieldView)>,
-    pub pending_fields: Vec<MatrixEditField>,
-    pub feedback: Vec<MatrixEditFeedback>,
-    pub on_edit: EventHandler<MatrixEditRequest>,
-    pub on_apply_preset: EventHandler<MatrixPresetRequest>,
-    pub on_delete: EventHandler<MatrixDeleteRequest>,
-    pub on_unlink: EventHandler<MatrixUnlinkRequest>,
-    pub on_duplicate: EventHandler<MatrixDuplicateRequest>,
+    Ok(next)
 }
 
 #[component]
-pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
-    let mut assembly_open = use_signal(|| false);
-    let mut spacing_open = use_signal(|| false);
-    let mut actions_open = use_signal(|| false);
-
-    let mut inspector_mounted = props.inspector_mounted;
-    use_hook({
-        let mut inspector_mounted = inspector_mounted;
-        move || {
-            if !*inspector_mounted.peek() {
-                inspector_mounted.set(true);
+pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
+    let _ = use_context::<Signal<u64>>()();
+    let mut error = use_signal(|| None::<String>);
+    let mut busy = use_signal(|| false);
+    let mut templates = use_signal(Vec::<PartDefinition>::new);
+    let (preset, orientation) = mount
+        .runtime
+        .0
+        .model()
+        .accepted
+        .as_ref()
+        .zip(mount.matrix_id())
+        .and_then(|(snapshot, id)| {
+            snapshot
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+        })
+        .map_or((None, None), matrix_preset);
+    let mut preset_draft = use_signal(|| preset.unwrap_or(MatrixPreset::MxSolder));
+    let mut orientation_draft = use_signal(|| orientation.unwrap_or(SwitchOrientation::South));
+    use_hook(move || {
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Ok(definitions) = crate::presentation::parts::load_matrix_templates(false).await
+            {
+                let _ = templates.try_write().map(|mut slot| *slot = definitions);
             }
-        }
+        });
     });
-    use_drop(move || {
-        if *inspector_mounted.peek() {
-            inspector_mounted.set(false);
-        }
-    });
-    let projection = &props.projection;
-    let definition_label = projection
-        .switch_choices
+    let (Some(matrix_id), Some(snapshot)) = (mount.matrix_id(), mount.runtime.0.model().accepted)
+    else {
+        return rsx! {};
+    };
+    let Some(matrix) = snapshot
+        .document
+        .matrices
         .iter()
-        .find(|(id, _)| id == &projection.definition_id)
-        .map(|(_, label)| label.clone())
-        .unwrap_or_else(|| projection.definition_id.clone());
-    let mut preset_draft = use_signal(|| projection.preset.unwrap_or(MatrixPreset::MxSolder));
-    let mut orientation_draft =
-        use_signal(|| projection.orientation.unwrap_or(SwitchOrientation::South));
-    let accepted_owner = projection.owner.clone();
-    let accepted_preset = projection.preset;
-    let accepted_orientation = projection.orientation;
-    let selected_preset = preset_draft().as_str().to_owned();
-    let selected_orientation = orientation_draft().as_str().to_owned();
-    let mut preset_draft_for_effect = preset_draft;
-    let mut orientation_draft_for_effect = orientation_draft;
-    use_effect(use_reactive(
-        (&accepted_owner, &accepted_preset, &accepted_orientation),
-        move |(_, preset, orientation)| {
-            preset_draft_for_effect.set(preset.unwrap_or(MatrixPreset::MxSolder));
-            orientation_draft_for_effect.set(orientation.unwrap_or(SwitchOrientation::South));
-        },
-    ));
-    let mut apply_sequence = props.request_sequence;
-    let apply_owner = projection.owner.clone();
-    let apply_token = projection.snapshot_token;
-    let apply_revision = projection.revision;
-    let apply_baseline_variant = projection.baseline_variant.clone();
-    let on_apply = props.on_apply_preset;
-    let preset_request_id = use_signal(|| None::<u64>);
-    let mut submitted_preset_id = preset_request_id;
-    let editable = props.editable;
-    let busy = props.busy;
-    let mut apply_preset = move || {
-        if !editable || busy {
-            return;
-        }
-        let Some(request_id) = apply_sequence().checked_add(1) else {
-            return;
+        .find(|matrix| matrix.id == matrix_id)
+        .cloned()
+    else {
+        return rsx! {};
+    };
+    let scope = mount.runtime.0.scope();
+    let layout = snapshot
+        .document
+        .layouts
+        .iter()
+        .find(|layout| {
+            scope
+                .as_ref()
+                .is_some_and(|scope| layout.board_id == scope.board_id)
+                && layout.matrix_ids.contains(&matrix_id)
+        })
+        .cloned();
+    let linked = layout.as_ref().and_then(|active| {
+        let partner = |id: &str| {
+            snapshot
+                .document
+                .layouts
+                .iter()
+                .find(|candidate| candidate.id == id)
         };
-        apply_sequence.set(request_id);
-        submitted_preset_id.set(Some(request_id));
-        on_apply.call(MatrixPresetRequest {
-            owner: apply_owner.clone(),
-            request_id,
-            snapshot_token: apply_token,
-            revision: apply_revision,
-            baseline_variant: apply_baseline_variant.clone(),
-            preset: preset_draft(),
-            orientation: orientation_draft(),
-        });
-    };
-    let delete_request = MatrixDeleteRequest {
-        owner: projection.owner.clone(),
-        snapshot_token: projection.snapshot_token,
-        revision: projection.revision,
-    };
-    let mut unlink_armed = use_signal(|| false);
-    let unlink_layout_id = projection
-        .layout_relation
-        .as_ref()
-        .and_then(|relation| relation.unlink_layout_id.clone());
-    use_effect(use_reactive((&unlink_layout_id,), move |_| {
-        unlink_armed.set(false);
-    }));
-    let duplicate_base = MatrixDuplicateRequest {
-        owner: projection.owner.clone(),
-        snapshot_token: projection.snapshot_token,
-        revision: projection.revision,
-        preset: preset_draft(),
-        orientation: orientation_draft(),
-    };
-    let unlink_request = projection
-        .layout_relation
-        .as_ref()
-        .and_then(|relation| relation.unlink_layout_id.as_ref())
-        .map(|layout_id| MatrixUnlinkRequest {
-            owner: projection.owner.clone(),
-            snapshot_token: projection.snapshot_token,
-            revision: projection.revision,
-            layout_id: layout_id.clone(),
-        });
-    let preset_feedback = props.feedback.iter().find(|feedback| {
-        feedback.owner == projection.owner
-            && feedback.field == MatrixEditField::ApplyPreset
-            && preset_request_id() == Some(feedback.request_id)
+        match &active.mirror_link {
+            Some(link) => {
+                partner(&link.source_id).map(|partner| (active.id.clone(), partner.name.clone()))
+            }
+            None => snapshot
+                .document
+                .layouts
+                .iter()
+                .find(|other| {
+                    other
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == active.id)
+                })
+                .map(|other| (other.id.clone(), other.name.clone())),
+        }
     });
-    let field_view = |field| {
-        props
-            .fields
-            .iter()
-            .find(|(candidate, _)| *candidate == field)
-            .map(|(_, view)| *view)
-            .expect("Matrix Inspector fields are wired by the controller")
+    let choices = switch_choices(&snapshot.document, &templates(), &matrix.definition_id);
+    let catalogue = templates();
+    let gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
+    let (name_label, name) = match &layout {
+        Some(layout) => ("Layout name", layout.name.clone()),
+        None => (
+            "Matrix name",
+            matrix
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("Matrix {}", matrix.id)),
+        ),
     };
-    let field_pending = |field| props.pending_fields.contains(&field);
-    let name_key = owner_key(&projection.owner, MatrixEditField::Name);
-    let rows_key = owner_key(&projection.owner, MatrixEditField::Rows);
-    let columns_key = owner_key(&projection.owner, MatrixEditField::Columns);
-    let pitch_x_key = owner_key(&projection.owner, MatrixEditField::PitchX);
-    let pitch_y_key = owner_key(&projection.owner, MatrixEditField::PitchY);
-    let switch_key = owner_key(&projection.owner, MatrixEditField::SwitchDefinition);
-    let diode_key = owner_key(&projection.owner, MatrixEditField::DiodeDirection);
-    let edge_gap_x_key = owner_key(&projection.owner, MatrixEditField::EdgeGapX);
-    let edge_gap_y_key = owner_key(&projection.owner, MatrixEditField::EdgeGapY);
-    // Each field needs its own template root: nested component keys do not
-    // create an identity boundary in Dioxus static templates.
+    let number =
+        |field: Field, label: &'static str, unit: &'static str, value: f64, integer: bool| {
+            let mount = mount.clone();
+            rsx! {
+                NumericField {
+                    key: "{field:?}", label, unit, value, precision: if integer { 0 } else { 3 },
+                    on_commit: move |next: f64| error.set(mount.edit(field, next).err()),
+                }
+            }
+        };
+    let rename = mount.clone();
+    let pick_switch = mount.clone();
+    let diode = mount.clone();
+    let unlink = mount.clone();
+    let delete = mount.clone();
+    let layout_id = layout.as_ref().map(|layout| layout.id.clone());
+    let board_id = scope.map(|scope| scope.board_id).unwrap_or_default();
+    let unlink_board = board_id.clone();
     rsx! {
         section { class: "grid gap-3 min-w-0 px-4 pt-3 pb-4 text-foreground", aria_label: "Matrix inspector",
-        onkeydown: move |event: KeyboardEvent| {
-            if event.key().to_string() == " " {
-                event.stop_propagation();
-                if let Some(raw) = event.data().try_as_web_event() {
-                    raw.stop_propagation();
+            onkeydown: move |event: KeyboardEvent| { if event.key().to_string() == " " { event.stop_propagation(); } },
+            header { class: "flex items-baseline justify-between gap-2 border-b border-border pb-2.5", h2 { "Matrix" } span { "{matrix.id}" } }
+            TextCommitField { label: name_label, value: name, on_commit: move |next: String| {
+                let (layout_id, next) = (layout_id.clone(), next.trim().to_owned());
+                error.set(rename.commit("layout-matrix-inspector", move |accepted, matrix| {
+                    if next.is_empty() {
+                        return Err("Enter a non-empty matrix or layout name.".into());
+                    }
+                    if let Some(id) = &layout_id {
+                        let mut layout = accepted.document.layouts.iter().find(|layout| layout.id == *id).cloned().ok_or("The selected layout no longer exists.")?;
+                        layout.name = next.clone();
+                        return Ok(EditOperation::SetLayout { layout });
+                    }
+                    let mut renamed = matrix.clone();
+                    renamed.name = Some(next.clone());
+                    Ok(EditOperation::SetMatrix { matrix: renamed, definitions: None })
+                }).err());
+            } }
+            {number(Field::Rows, "Rows", "", f64::from(matrix.rows), true)}
+            {number(Field::Columns, "Columns", "", f64::from(matrix.columns), true)}
+            {number(Field::PitchX, "Pitch X", "mm", matrix.pitch.x, false)}
+            {number(Field::PitchY, "Pitch Y", "mm", matrix.pitch.y, false)}
+            if let Some((_, partner)) = &linked {
+                div { class: "grid gap-2 border-b border-border pb-3",
+                    strong { "Linked to {partner}" }
+                    p { "Key assemblies, diodes and components mirror across both halves. Replace a component on one half to keep it local." }
+                    Button { variant: ButtonVariant::Secondary, onclick: move |_| {
+                        let (board_id, link_id) = (unlink_board.clone(), linked.as_ref().map(|(id, _)| id.clone()).unwrap_or_default());
+                        error.set(unlink.runtime.0.commit("layout-matrix-unlink", EditResolver::new("layout-matrix-unlink", move |accepted: &AcceptedSnapshot| {
+                            let Some(mut layout) = accepted.document.layouts.iter().find(|l| l.id == link_id && l.board_id == board_id).cloned() else {
+                                return Resolution::Retire("The selected layout no longer exists.".into());
+                            };
+                            layout.mirror_link = None;
+                            Resolution::submit(vec![link_id.clone()], EditOperation::SetLayout { layout })
+                        })).err());
+                    }, "Unlink halves" }
                 }
             }
-        },
-            header { class: "flex items-baseline justify-between gap-2 border-b border-border pb-2.5 [&_h2]:m-0 [&_h2]:text-[16px]! [&_h2]:font-[650] [&_span]:text-xs [&_span]:text-muted-foreground",
-                h2 { "Matrix" }
-                span { "{projection.matrix_label}" }
+            InspectorSection { title: "Key assembly", default_open: false,
+                SelectField::<String> { label: "Switch footprint", value: matrix.definition_id.clone(), options: choices,
+                    on_commit: move |id: String| error.set(pick_switch.commit("layout-matrix-inspector", {
+                        let catalogue = catalogue.clone();
+                        move |accepted, matrix| {
+                            let mut next = matrix.clone();
+                            next.definition_id = id.clone();
+                            let missing = super::matrix_preset::missing_definitions(&accepted.document, &catalogue, &[id.as_str()]);
+                            if missing.is_empty() && !accepted.document.definitions.iter().any(|definition| definition.id == id) {
+                                return Err("The selected switch footprint is not available in the loaded catalogue.".into());
+                            }
+                            Ok(EditOperation::SetMatrix { matrix: next, definitions: (!missing.is_empty()).then_some(missing) })
+                        }
+                    }).err()) }
+                SelectField::<String> { label: "Assembly preset", value: preset_draft().as_str().to_owned(), disabled: busy(),
+                    options: MatrixPreset::ALL.iter().map(|preset| (preset.as_str().to_owned(), preset.label().to_owned())).collect(),
+                    on_commit: move |value: String| if let Some(next) = MatrixPreset::parse(&value) { preset_draft.set(next) } }
+                SelectField::<String> { label: "Switch orientation", value: orientation_draft().as_str().to_owned(), disabled: busy(),
+                    options: vec![("south".to_owned(), "South-facing LED".to_owned()), ("north".to_owned(), "North-facing LED".to_owned())],
+                    on_commit: move |value: String| orientation_draft.set(if value == "north" { SwitchOrientation::North } else { SwitchOrientation::South }) }
+                Button { variant: ButtonVariant::Secondary, disabled: busy(), onclick: {
+                    let (runtime, matrix_id, board_id) = (mount.runtime.0.clone(), matrix_id.clone(), board_id.clone());
+                    move |_| {
+                        let (runtime, matrix_id, board_id) = (runtime.clone(), matrix_id.clone(), board_id.clone());
+                        busy.set(true);
+                        wasm_bindgen_futures::spawn_local(async move {
+                            let result = apply_preset(&runtime, &matrix_id, &board_id, preset_draft.peek().clone(), orientation_draft.peek().clone()).await;
+                            let _ = busy.try_write().map(|mut slot| *slot = false);
+                            let _ = error.try_write().map(|mut slot| *slot = result.err());
+                        });
+                    }
+                }, "Update assembly preset" }
+                Button { variant: ButtonVariant::Secondary, disabled: busy(), onclick: {
+                    let (runtime, matrix_id, scope) = (mount.runtime.0.clone(), matrix_id.clone(), mount.runtime.0.scope());
+                    move |_| {
+                        let (runtime, matrix_id, Some(scope)) = (runtime.clone(), matrix_id.clone(), scope.clone()) else { return };
+                        busy.set(true);
+                        wasm_bindgen_futures::spawn_local(async move {
+                            let result = duplicate_variant(runtime.clone(), &scope, &matrix_id, preset_draft.peek().clone(), orientation_draft.peek().clone()).await;
+                            let _ = busy.try_write().map(|mut slot| *slot = false);
+                            if let Err(message) = result { runtime.report(message); }
+                        });
+                    }
+                }, "Duplicate design as variant" }
+                SelectField::<DiodeDirection> { label: "Diode direction", value: matrix.diode_direction.unwrap_or(DiodeDirection::Row2col),
+                    options: vec![(DiodeDirection::Row2col, "Rows to columns".to_owned()), (DiodeDirection::Col2row, "Columns to rows".to_owned())],
+                    on_commit: move |direction| error.set(diode.commit("layout-matrix-inspector", move |_, matrix| {
+                        let mut next = matrix.clone();
+                        next.diode_direction = Some(direction);
+                        Ok(EditOperation::SetMatrix { matrix: next, definitions: None })
+                    }).err()) }
             }
-            div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
-                {
-                    rsx! {
-                        MatrixFieldEditor {
-                            key: "{name_key}",
-                            owner: projection.owner.clone(),
-                            snapshot_token: projection.snapshot_token,
-                            revision: projection.revision,
-                            field: MatrixEditField::Name,
-                            label: projection.name_label,
-                            value: projection.name_value.clone(),
-                            baseline: projection.name_baseline.clone(),
-                            kind: MatrixFieldKind::Name,
-                            request_sequence: props.request_sequence,
-                            editable: props.editable,
-                            feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Name),
-                            pending: field_pending(MatrixEditField::Name),
-                            on_edit: props.on_edit,
-                        }
-                    }
-                }
-                {
-                    rsx! {
-                        MatrixFieldEditor {
-                            key: "{rows_key}",
-                            owner: projection.owner.clone(),
-                            snapshot_token: projection.snapshot_token,
-                            revision: projection.revision,
-                            field: MatrixEditField::Rows,
-                            label: "Rows",
-                            value: projection.rows.to_string(),
-                            baseline: MatrixEditValue::Rows(projection.rows),
-                            kind: MatrixFieldKind::PositiveInteger,
-                            request_sequence: props.request_sequence,
-                            editable: props.editable,
-                            feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Rows),
-                            pending: field_pending(MatrixEditField::Rows),
-                            on_edit: props.on_edit,
-                        }
-                    }
-                }
-                {
-                    rsx! {
-                        MatrixFieldEditor {
-                            key: "{columns_key}",
-                            owner: projection.owner.clone(),
-                            snapshot_token: projection.snapshot_token,
-                            revision: projection.revision,
-                            field: MatrixEditField::Columns,
-                            label: "Columns",
-                            value: projection.columns.to_string(),
-                            baseline: MatrixEditValue::Columns(projection.columns),
-                            kind: MatrixFieldKind::PositiveInteger,
-                            request_sequence: props.request_sequence,
-                            editable: props.editable,
-                            feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::Columns),
-                            pending: field_pending(MatrixEditField::Columns),
-                            on_edit: props.on_edit,
-                        }
-                    }
-                }
-                {
-                    rsx! {
-                        MatrixFieldEditor {
-                            key: "{pitch_x_key}",
-                            owner: projection.owner.clone(),
-                            snapshot_token: projection.snapshot_token,
-                            revision: projection.revision,
-                            field: MatrixEditField::PitchX,
-                            label: "Pitch X",
-                            value: projection.pitch_x.to_string(),
-                            baseline: MatrixEditValue::PitchX(projection.pitch_x),
-                            kind: MatrixFieldKind::PositiveNumber,
-                            request_sequence: props.request_sequence,
-                            editable: props.editable,
-                            feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::PitchX),
-                            pending: field_pending(MatrixEditField::PitchX),
-                            on_edit: props.on_edit,
-                        }
-                    }
-                }
-                {
-                    rsx! {
-                        MatrixFieldEditor {
-                            key: "{pitch_y_key}",
-                            owner: projection.owner.clone(),
-                            snapshot_token: projection.snapshot_token,
-                            revision: projection.revision,
-                            field: MatrixEditField::PitchY,
-                            label: "Pitch Y",
-                            value: projection.pitch_y.to_string(),
-                            baseline: MatrixEditValue::PitchY(projection.pitch_y),
-                            kind: MatrixFieldKind::PositiveNumber,
-                            request_sequence: props.request_sequence,
-                            editable: props.editable,
-                            feedback: props.feedback.clone(),
-                            view: field_view(MatrixEditField::PitchY),
-                            pending: field_pending(MatrixEditField::PitchY),
-                            on_edit: props.on_edit,
-                        }
-                    }
-                }
+            InspectorSection { title: "Keycap spacing", default_open: false,
+                {number(Field::EdgeGapX, "Edge gap X", "mm", gap.x, false)}
+                {number(Field::EdgeGapY, "Edge gap Y", "mm", gap.y, false)}
             }
-            if let Some(relation) = projection.layout_relation.as_ref() {
-                div { class: "mb-2 grid gap-2 border-b border-border pb-3 [&_p]:m-0 [&_p]:text-xs [&_p]:text-muted-foreground [&_button]:justify-self-start",
-                    strong {
-                        if let Some(partner_name) = relation.partner_name.as_ref() {
-                            "Linked to {partner_name}"
-                        } else {
-                            "Independent layout"
-                        }
-                    }
-                    if relation.partner_name.is_some() {
-                        p {
-                            "Key assemblies, diodes and components mirror across both halves. Replace a component on one half to keep it local."
-                        }
-                    } else {
-                        p { "Geometry and components can be edited independently." }
-                    }
-                    if let Some(request) = unlink_request.clone() {
-                        if unlink_armed() {
-                            div { class: "grid gap-2",
-                                p { class: "text-sm text-muted-foreground",
-                                    "Unlinking ends the mirrored correspondence. Both halves stay independent and keep their poses in one Undo entry."
-                                }
-                                Button {
-                                    variant: ButtonVariant::Secondary,
-                                    disabled: !props.editable || props.busy,
-                                    onclick: move |_| props.on_unlink.call(request.clone()),
-                                    "Confirm unlink"
-                                }
-                                Button {
-                                    variant: ButtonVariant::Secondary,
-                                    onclick: move |_| unlink_armed.set(false),
-                                    "Cancel"
-                                }
-                            }
-                        } else {
-                            Button {
-                                variant: ButtonVariant::Secondary,
-                                disabled: !props.editable || props.busy,
-                                onclick: move |_| unlink_armed.set(true),
-                                "Unlink halves"
-                            }
-                        }
-                    }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| {
+                let result = delete.commit("layout-matrix-delete", |_, matrix| Ok(EditOperation::RemoveMatrix { id: matrix.id.clone() }));
+                if result.is_ok() {
+                    let mut selection = delete.selection;
+                    selection.set(None);
+                    delete.runtime.0.submit(boardstudio_application::Event::SelectParts {
+                        operation_id: delete.runtime.0.operation(),
+                        part_ids: Vec::new(),
+                        range_part_ids: Vec::new(),
+                        mode: boardstudio_application::SelectionMode::Replace,
+                    });
                 }
-            }
-            Collapsible {
-                class: "grid min-w-0 gap-2.5",
-                keep_mounted: true,
-                open: Some(assembly_open()),
-                on_open_change: move |next| assembly_open.set(next),
-                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
-                    span { "Key assembly" }
-                    small { "{definition_label}" }
-                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                CollapsibleContent {
-                    class: "data-[open=true]:overflow-visible",
-                    hidden: !assembly_open(),
-                    inert: (!assembly_open()).then_some(""),
-                    div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
-                        {
-                            let control_label = "Assembly preset".to_owned();
-                            let control_aria_label = "Apply matrix preset".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-                            for preset in MatrixPreset::ALL {
-                                control_choices
-                                    .push((
-                                        preset.as_str().to_string(),
-                                        preset.label().to_string(),
-                                        false,
-                                    ));
-                            }
-                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        if let Some(preset) = MatrixPreset::parse(&choice) {
-            preset_draft.set(preset);
-        }
-    });
-    rsx! {
-                                InspectorChoiceRow {
-                                    id: control_id,
-                                    label: control_label,
-                                    aria_label: control_aria_label,
-                                    field_class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground".to_owned(),
-                                    choices: control_choices,
-                                    selected: selected_preset,
-                                    disabled: !props.editable || props.busy,
-                                    on_value_change,
-                                }
-                            }
-                        }
-                        {
-                            let control_label = "Switch orientation".to_owned();
-                            let control_aria_label = "Switch orientation".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            let control_choices = [
-                                ("south".to_owned(), "South-facing LED".to_owned(), false),
-                                ("north".to_owned(), "North-facing LED".to_owned(), false),
-                            ];
-                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        orientation_draft.set(if choice == "north" {
-            SwitchOrientation::North
-        } else {
-            SwitchOrientation::South
-        });
-    });
-    rsx! {
-                                InspectorChoiceRow {
-                                    id: control_id,
-                                    label: control_label,
-                                    aria_label: control_aria_label,
-                                    field_class: "grid min-w-0 content-start gap-[5px] text-xs text-muted-foreground".to_owned(),
-                                    choices: control_choices.into(),
-                                    selected: selected_orientation,
-                                    disabled: !props.editable || props.busy,
-                                    on_value_change,
-                                }
-                            }
-                        }
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            disabled: !props.editable || props.busy,
-                            onclick: move |_| apply_preset(),
-
-                            "Update assembly preset"
-
-                        }
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            disabled: props.busy,
-                            onclick: move |_| props.on_duplicate.call(duplicate_base.clone()),
-
-                            "Duplicate design as variant"
-
-                        }
-                        {
-                            rsx! {
-                                {
-                                    rsx! {
-                                        MatrixFieldEditor {
-                                            key: "{switch_key}",
-                                            owner: projection.owner.clone(),
-                                            snapshot_token: projection.snapshot_token,
-                                            revision: projection.revision,
-                                            field: MatrixEditField::SwitchDefinition,
-                                            label: "Switch footprint",
-                                            value: projection.definition_id.clone(),
-                                            baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()),
-                                            kind: MatrixFieldKind::Choice,
-                                            choices: projection.switch_choices.clone(),
-                                            request_sequence: props.request_sequence,
-                                            editable: props.editable,
-                                            feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::SwitchDefinition),
-                                            pending: field_pending(MatrixEditField::SwitchDefinition),
-                                            on_edit: props.on_edit,
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        {
-                            rsx! {
-                                {
-                                    rsx! {
-                                        MatrixFieldEditor {
-                                            key: "{diode_key}",
-                                            owner: projection.owner.clone(),
-                                            snapshot_token: projection.snapshot_token,
-                                            revision: projection.revision,
-                                            field: MatrixEditField::DiodeDirection,
-                                            label: "Diode direction",
-                                            value: diode_direction_value(projection.diode_direction),
-                                            baseline: MatrixEditValue::DiodeDirection(projection.diode_direction),
-                                            kind: MatrixFieldKind::Choice,
-                                            choices: vec![
-                                                ("row2col".to_owned(), "Rows to columns".to_owned()),
-                                                ("col2row".to_owned(), "Columns to rows".to_owned()),
-                                            ],
-                                            request_sequence: props.request_sequence,
-                                            editable: props.editable,
-                                            feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::DiodeDirection),
-                                            pending: field_pending(MatrixEditField::DiodeDirection),
-                                            on_edit: props.on_edit,
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(feedback) = preset_feedback {
-                            Alert { variant: AlertVariant::Destructive,AlertDescription {  "{feedback.message}"  } }
-                        }
-                    }
-                }
-            }
-            Collapsible {
-                class: "grid min-w-0 gap-2.5",
-                keep_mounted: true,
-                open: Some(spacing_open()),
-                on_open_change: move |next| spacing_open.set(next),
-                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
-                    span { "Keycap spacing" }
-                    small { "Preview only" }
-                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                CollapsibleContent {
-                    hidden: !spacing_open(),
-                    inert: (!spacing_open()).then_some(""),
-                    div { class: "grid min-w-0 grid-cols-1 gap-x-2.5 gap-y-3",
-                        {
-                            rsx! {
-                                {
-                                    rsx! {
-                                        MatrixFieldEditor {
-                                            key: "{edge_gap_x_key}",
-                                            owner: projection.owner.clone(),
-                                            snapshot_token: projection.snapshot_token,
-                                            revision: projection.revision,
-                                            field: MatrixEditField::EdgeGapX,
-                                            label: "Edge gap X",
-                                            value: projection.edge_gap_x.to_string(),
-                                            baseline: MatrixEditValue::EdgeGapX(projection.edge_gap_x),
-                                            kind: MatrixFieldKind::NonnegativeNumber,
-                                            choices: Vec::new(),
-                                            request_sequence: props.request_sequence,
-                                            editable: props.editable,
-                                            feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::EdgeGapX),
-                                            pending: field_pending(MatrixEditField::EdgeGapX),
-                                            on_edit: props.on_edit,
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        {
-                            rsx! {
-                                {
-                                    rsx! {
-                                        MatrixFieldEditor {
-                                            key: "{edge_gap_y_key}",
-                                            owner: projection.owner.clone(),
-                                            snapshot_token: projection.snapshot_token,
-                                            revision: projection.revision,
-                                            field: MatrixEditField::EdgeGapY,
-                                            label: "Edge gap Y",
-                                            value: projection.edge_gap_y.to_string(),
-                                            baseline: MatrixEditValue::EdgeGapY(projection.edge_gap_y),
-                                            kind: MatrixFieldKind::NonnegativeNumber,
-                                            choices: Vec::new(),
-                                            request_sequence: props.request_sequence,
-                                            editable: props.editable,
-                                            feedback: props.feedback.clone(),
-                                            view: field_view(MatrixEditField::EdgeGapY),
-                                            pending: field_pending(MatrixEditField::EdgeGapY),
-                                            on_edit: props.on_edit,
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    p { class: "m-0 text-muted-foreground text-sm",
-                        "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm"
-                    }
-                }
-            }
-            Collapsible {
-                class: "grid min-w-0 gap-2.5",
-                keep_mounted: true,
-                open: Some(actions_open()),
-                on_open_change: move |next| actions_open.set(next),
-                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Matrix actions"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                CollapsibleContent {
-                    hidden: !actions_open(),
-                    inert: (!actions_open()).then_some(""),
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        class: "m-0 text-muted-foreground text-sm",
-                        disabled: !props.editable || props.busy,
-                        onclick: move |_| props.on_delete.call(delete_request.clone()),
-
-                        "Delete matrix"
-
-                    }
-                }
-            }
-            if props.busy {
-                div { role: "status",  Callout { class: "m-0 text-muted-foreground text-sm", variant: CalloutVariant::Info,  "Saving matrix change…"  } }
-            }
+                error.set(result.err());
+            }, "Delete matrix" }
+            if let Some(message) = error() { p { role: "alert", class: "text-destructive", "{message}" } }
         }
     }
 }
 
-mod field_editor;
-mod fields;
+#[cfg(test)]
+mod tests {
+    use super::resize;
+    use boardstudio_model::model::Matrix;
 
-use field_editor::{MatrixFieldEditor, MatrixFieldKind};
-use fields::InspectorChoiceRow;
-
-fn owner_key(owner: &MatrixInspectorOwner, field: MatrixEditField) -> String {
-    fn encode(value: &str) -> String {
-        use std::fmt::Write as _;
-        let mut result = String::with_capacity(value.len() * 2);
-        for byte in value.as_bytes() {
-            let _ = write!(result, "{byte:02x}");
-        }
-        result
+    fn preset_matrix(rows: u32, columns: u32) -> Matrix {
+        serde_json::from_value(serde_json::json!({
+            "id": "m1",
+            "rows": rows,
+            "columns": columns,
+            "pitch": { "x": 19.05, "y": 19.05 },
+            "origin": { "x": 0.0, "y": 0.0 },
+            "definitionId": "switch_mx",
+            "partIds": [],
+            "boardId": "b1",
+            "cells": [
+                {
+                    "row": 0,
+                    "column": 0,
+                    "enabled": true,
+                    "definitionId": "switch_mx",
+                    "variant": "preset/mx-hotswap/north",
+                    "assemblies": [
+                        { "id": "diode", "definitionId": "d1", "offset": { "x": 0.0, "y": 0.0 } },
+                        { "id": "custom_mount", "definitionId": "c1", "offset": { "x": 1.0, "y": 0.0 } }
+                    ],
+                    "assembliesLocal": true
+                },
+                {
+                    "row": 1,
+                    "column": 2,
+                    "enabled": false,
+                    "definitionId": "switch_mx",
+                    "variant": "preset/mx-hotswap/north",
+                    "assemblies": []
+                }
+            ]
+        }))
+        .unwrap()
     }
-    let instance = owner
-        .scope
-        .instance_id
-        .as_deref()
-        .map(encode)
-        .unwrap_or_default();
-    let target = match &owner.name_target {
-        MatrixNameTarget::Matrix => "matrix".to_owned(),
-        MatrixNameTarget::Layout { id } => format!("layout-{}", encode(id)),
-    };
-    format!(
-        "{}-{}-{}-{}-{}-{}-{}-{}-{}",
-        owner.editor_instance_id,
-        owner.context_generation,
-        owner.scope_generation,
-        owner.scope.session_epoch.0,
-        encode(&owner.scope.document_id),
-        encode(&owner.scope.board_id),
-        instance,
-        encode(&owner.matrix_id),
-        format_args!("{target}-{}", field.key()),
-    )
-}
 
-fn diode_direction_value(direction: DiodeDirection) -> String {
-    match direction {
-        DiodeDirection::Row2col => "row2col".to_owned(),
-        DiodeDirection::Col2row => "col2row".to_owned(),
+    #[test]
+    fn resize_preserves_sparse_preset_cells_and_enforces_4096_cell_limit() {
+        let matrix = preset_matrix(2, 3);
+        let err = resize(&matrix, 65, 65).unwrap_err();
+        assert!(err.contains("4096"), "{err}");
+
+        let expanded = resize(&matrix, 3, 4).unwrap();
+        assert_eq!(expanded.rows, 3);
+        assert_eq!(expanded.columns, 4);
+        // Existing sparse disabled slot stays disabled and unused middle slots aren't invented.
+        assert!(
+            expanded
+                .cells
+                .iter()
+                .any(|c| c.row == 1 && c.column == 2 && !c.enabled)
+        );
+        assert!(!expanded.cells.iter().any(|c| c.row == 1 && c.column == 1));
+        // Newly added frontier slot copies diode/led template assemblies + 180 deg north rotation.
+        let added = expanded
+            .cells
+            .iter()
+            .find(|c| c.row == 2 && c.column == 3)
+            .expect("frontier cell");
+        assert_eq!(added.rotation, Some(180.0));
+        assert_eq!(added.assemblies.len(), 1);
+        assert_eq!(added.assemblies[0].id, "diode");
+
+        let shrunk = resize(&expanded, 2, 2).unwrap();
+        assert!(shrunk.cells.iter().all(|c| c.row < 2 && c.column < 2));
     }
 }

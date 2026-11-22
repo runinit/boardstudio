@@ -8,11 +8,9 @@ use boardstudio_core::model::{
 pub(crate) use boardstudio_web_layout::component_offset::LayoutConstraintValues;
 use boardstudio_web_layout::component_offset::{
     default_axes_for_source, offset_axes_from_value, offset_axes_value, offset_drafts,
-    offset_values, position_commit_value, position_input_disabled,
+    offset_values,
 };
-use boardstudio_web_ui_shared::inspector_fields::{
-    CheckboxField, DraftNumericField as NumericField, DraftSelectField as SelectField,
-};
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
@@ -33,7 +31,6 @@ use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-use wasm_bindgen::JsCast;
 
 type InspectorOwnerIdentity = (
     boardstudio_application::Scope,
@@ -75,37 +72,13 @@ impl LayoutComponentInspectorLifetime {
 #[cfg(test)]
 pub use boardstudio_web_layout::inspector_types::MirroredHalfProjection;
 pub use boardstudio_web_layout::inspector_types::{
-    LayoutComponentInspectorOwner, LayoutComponentInspectorProjection, PartAnchorProjection,
+    LayoutComponentInspectorOwner, LayoutComponentInspectorProjection,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentPositionAxis {
     X,
     Y,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PositionCommitTrigger {
-    Enter,
-    Blur,
-}
-
-#[derive(Clone)]
-struct PositionEnterCommit {
-    owner: LayoutComponentInspectorOwner,
-    axis: ComponentPositionAxis,
-    value: f64,
-}
-
-fn same_position_commit_owner(
-    left: &LayoutComponentInspectorOwner,
-    right: &LayoutComponentInspectorOwner,
-) -> bool {
-    left.scope == right.scope
-        && left.context_generation == right.context_generation
-        && left.scope_generation == right.scope_generation
-        && left.part_id == right.part_id
-        && left.selected_part_ids == right.selected_part_ids
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -207,21 +180,6 @@ enum ConstraintKind {
 /// this board drives it (the relationship would overwrite any typed value).
 fn position_unavailable(projection: &LayoutComponentInspectorProjection) -> bool {
     projection.locked || projection.active_constraint.is_some()
-}
-
-/// Ticket 13: an anchor number draft, two decimals like the position drafts.
-fn anchor_draft(
-    anchor: Option<&PartAnchorProjection>,
-    value: impl Fn(&PartAnchorProjection) -> f64,
-) -> String {
-    anchor
-        .map(|anchor| format!("{:.2}", value(anchor)))
-        .unwrap_or_default()
-}
-
-/// Ticket 13: parse an anchor number draft; `None` is unparseable or infinite.
-fn anchor_commit_value(draft: &str) -> Option<f64> {
-    draft.parse::<f64>().ok().filter(|value| value.is_finite())
 }
 
 mod sections;
@@ -331,21 +289,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         )
     });
     let mut error = props.error;
-    // Ticket 13: column-vocabulary drafts. They reset from the accepted
-    // anchor whenever a committed edit bumps the revision; typing never
-    // commits until Enter or blur.
-    let mut anchor_spread =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread));
-    let mut anchor_stagger =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger));
-    let mut anchor_splay =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay));
-    let mut anchor_offset_x =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x));
-    let mut anchor_offset_y =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y));
-    let mut anchor_rotation =
-        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation));
     let pick_matrix = use_signal(|| {
         projection
             .anchor
@@ -395,30 +338,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             .map(|anchor| anchor.follow.rotation)
             .unwrap_or(true)
     });
-    {
-        let projection = projection.clone();
-        let revision = owner.revision;
-        use_effect(use_reactive((&revision,), move |_| {
-            anchor_spread.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.spread
-            }));
-            anchor_stagger.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.stagger
-            }));
-            anchor_splay.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.splay
-            }));
-            anchor_offset_x.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.offset.x
-            }));
-            anchor_offset_y.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.offset.y
-            }));
-            anchor_rotation.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
-                anchor.rotation
-            }));
-        }));
-    }
     let mirrored_half_action = |state| {
         let mirrored_half = projection.mirrored_half.clone();
         let owner = latest_capture;
@@ -603,64 +522,21 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     };
-    let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
-    let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
-        let latest_capture = latest_capture;
-        let position = projection.position;
-        let locked = position_unavailable(&projection);
-        let action = props.on_action;
-        let error = error;
-        let last_enter_commit = last_enter_commit.clone();
-        Rc::new(move |axis, trigger| {
-            if position_input_disabled(locked) {
-                last_enter_commit.borrow_mut().take();
-                return;
-            }
-            let mut error = error;
-            let (draft, current) = match axis {
-                ComponentPositionAxis::X => (x(), position.x),
-                ComponentPositionAxis::Y => (y(), position.y),
-            };
-            let Some(value) = position_commit_value(&draft, locked) else {
-                last_enter_commit.borrow_mut().take();
-                error.set(Some("Enter a finite position coordinate.".to_owned()));
-                return;
-            };
-            error.set(None);
-            let owner = latest_capture();
-            if trigger == PositionCommitTrigger::Blur {
-                let duplicate_enter = last_enter_commit.borrow_mut().take().is_some_and(|stamp| {
-                    stamp.axis == axis
-                        && stamp.value == value
-                        && same_position_commit_owner(&stamp.owner, &owner)
-                });
-                if duplicate_enter {
-                    return;
-                }
-            } else {
-                // Enter remains an explicit retry after a rejected action. The
-                // following blur alone is suppressed when it carries this same
-                // axis/value for the same selected Inspector owner.
-                *last_enter_commit.borrow_mut() = Some(PositionEnterCommit {
-                    owner: owner.clone(),
-                    axis,
-                    value,
-                });
-            }
-            // Position drafts are displayed to two decimal places. Blurring an
-            // untouched field (or one restored by Escape) must not submit that
-            // rounded display as a replacement for the accepted raw geometry.
-            let untouched_blur =
-                trigger == PositionCommitTrigger::Blur && draft == format!("{current:.2}");
-            if value != current && !untouched_blur {
-                action.call(LayoutComponentInspectorAction::SetPosition {
-                    owner,
-                    axis,
-                    value,
-                    submitted_draft: draft,
-                });
-            }
-        })
+    let commit_position = move |axis, value: f64| {
+        let draft = value.to_string();
+        match axis {
+            ComponentPositionAxis::X => x.set(draft.clone()),
+            ComponentPositionAxis::Y => y.set(draft.clone()),
+        }
+        error.set(None);
+        props
+            .on_action
+            .call(LayoutComponentInspectorAction::SetPosition {
+                owner: latest_capture(),
+                axis,
+                value,
+                submitted_draft: draft,
+            });
     };
     let set_outline: Rc<dyn Fn(PartOutline)> = {
         let latest_capture = latest_capture;
@@ -717,11 +593,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             })
         })
     };
-    // Ticket 13: Enter-then-blur submits once. The stamp carries the last
-    // Enter commit per field; a blur carrying the same field and value only
-    // clears it.
-    let last_anchor_commit = use_hook(|| Rc::new(RefCell::new(None::<(String, f64)>)));
-    // Ticket 13: the accepted Follow subset, copied for 'static event handlers.
     let anchor_follow = projection.anchor.as_ref().map(|anchor| anchor.follow);
     let anchor_follow_text = projection.anchor.as_ref().map(|anchor| {
         let mut parts = Vec::new();
@@ -744,83 +615,23 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     // Ticket 13: cloned before the render so Pick closures borrow the list,
     // not the projection the anchor sections also read.
     let anchor_choices = projection.anchor_choices.clone();
-    // Ticket 13: one number field in the column vocabulary. `change` wraps
-    // the parsed value (an Offset field keeps the other axis from the
-    // accepted anchor). Enter-then-blur submits once via the stamp.
-    let anchor_number_field = {
-        let commit_anchor_value = commit_anchor_value.clone();
-        let last_anchor_commit = last_anchor_commit.clone();
+    let anchor_number_field =
         move |label: &'static str,
               aria: &'static str,
               field: &'static str,
-              draft: Signal<String>,
-              current_text: String,
-              current: Option<f64>,
+              current: f64,
               change: Rc<dyn Fn(f64) -> PartAnchorValueChange>| {
             let commit = commit_anchor_value.clone();
-            let last_anchor_commit = last_anchor_commit.clone();
-            let input_id = format!("part-anchor-{field}");
+            let value = format!("{current:.2}").parse::<f64>().unwrap_or(current);
             rsx! {
                 NumericField {
-                    id: input_id, label, value: "{draft}", aria_label: aria,
-                    class: "", control_class: "", aria_invalid: None,
-                    disabled: position_input_disabled(anchor_locked),
-                    oninput: { let mut draft = draft; move |event: FormEvent| draft.set(event.value()) },
-                    onblur: {
-                        let mut error = error;
-                        let last_anchor_commit = last_anchor_commit.clone();
-                        let commit = commit.clone();
-                        let change = change.clone();
-                        move |_| {
-                            let Some(value) = anchor_commit_value(&draft()) else {
-                                error.set(Some(format!("Enter a finite {label}.")));
-                                return;
-                            };
-                            if Some(value) == current {
-                                return;
-                            }
-                            error.set(None);
-                            if last_anchor_commit
-                                .borrow_mut()
-                                .take()
-                                .is_some_and(|stamp| stamp == (field.to_owned(), value))
-                            {
-                                return;
-                            }
-                            commit(change(value));
-                        }
-                    },
-                    onkeydown: {
-                        let mut draft = draft;
-                        let mut error = error;
-                        let current_text = current_text.clone();
-                        let last_anchor_commit = last_anchor_commit.clone();
-                        let commit = commit.clone();
-                        let change = change.clone();
-                        move |event: KeyboardEvent| {
-                            match event.data().key().to_string().as_str() {
-                                "Enter" => {
-                                    event.prevent_default();
-                                    let Some(value) = anchor_commit_value(&draft()) else {
-                                        error.set(Some(format!("Enter a finite {label}.")));
-                                        return;
-                                    };
-                                    if Some(value) == current {
-                                        return;
-                                    }
-                                    error.set(None);
-                                    *last_anchor_commit.borrow_mut() = Some((field.to_owned(), value));
-                                    commit(change(value));
-                                }
-                                "Escape" => { draft.set(current_text.clone()); error.set(None); }
-                                _ => {}
-                            }
-                        }
-                    },
+                    id: format!("part-anchor-{field}"), label, aria_label: aria,
+                    value, precision: 2,
+                    disabled_reason: anchor_locked.then(|| "Position is unavailable".to_owned()),
+                    on_commit: move |value| commit(change(value)),
                 }
             }
-        }
-    };
+        };
     let has_active_constraint = projection.active_constraint.is_some();
     // A choice on a saved offset converts it at once; a new one only sets the default.
     let choose_offset_axes = {
@@ -1010,8 +821,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         latest_capture,
         tab,
         constraint_open,
-        x,
-        y,
         margin,
         x_failure,
         y_failure,
@@ -1033,12 +842,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         axes_choice,
         axis_choice,
         error,
-        anchor_spread,
-        anchor_stagger,
-        anchor_splay,
-        anchor_offset_x,
-        anchor_offset_y,
-        anchor_rotation,
         pick_matrix,
         pick_matrix_choice,
         pick_row,
@@ -1049,7 +852,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         mirrored_half_action,
         board_parts,
         reset_properties_drafts,
-        last_enter_commit,
         commit_position,
         set_outline,
         commit_anchor_follow,

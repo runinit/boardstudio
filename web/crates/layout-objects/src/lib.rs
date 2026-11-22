@@ -20,6 +20,7 @@ pub(crate) use boardstudio_web_layout_core::outline as outline_lifecycle;
 pub(crate) use boardstudio_web_layout_core::{
     anchor_pick, matrix_relations, matrix_transform_operation, mirror_existing_half,
     mirrored_pair_geometry, mirrored_pair_lifecycle, outline_settings, outline_snapping, part_rail,
+    rail_gesture,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
@@ -70,9 +71,6 @@ mod objects {
     mod keycap_size_logic;
 
     #[cfg(test)]
-    mod matrix_inspector_logic;
-
-    #[cfg(test)]
     mod tree_projection_logic;
 
     #[cfg(test)]
@@ -82,23 +80,14 @@ mod objects {
     mod matrix_setup_logic;
 
     #[cfg(test)]
-    mod matrix_transform_logic;
-
-    #[cfg(test)]
     #[path = "layout_align_geometry.rs"]
     mod layout_align_geometry_tests;
 
     #[cfg(test)]
     mod layout_selection_kind;
 
-    // The transform tools' plain logic (activation, rail registry, placement deltas and
-    // feedback text) runs its unit tests natively; the overlays stay WASM-only.
     #[cfg(test)]
-    mod layout_transform_toolbar {
-        mod placement;
-        mod rail;
-        mod tool;
-    }
+    mod layout_rail_tool;
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

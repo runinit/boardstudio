@@ -17,10 +17,6 @@ fn state_host() -> Element {
     let mut pending_anchor_pick = state.pending_anchor_pick();
     let mut active_tool = state.transform_tool();
     let owner = objects::MatrixTransformInspectorOwner {
-        editor_instance_id: 1,
-        workspace: "Layout",
-        context_generation: 1,
-        scope_generation: 1,
         scope: Scope {
             session_epoch: SessionEpoch(1),
             document_id: "layout-state".into(),

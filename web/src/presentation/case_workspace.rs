@@ -1,6 +1,6 @@
 //! Case-owned tree and Inspector content.
 use super::{
-    InstanceSelection, MechanicalSettings, MechanicalSettingsMount, MechanicalSettingsProps,
+    InstanceSelection, MechanicalSettings, MechanicalSettingsProps, MechanicalSettingsState,
     case_controller::CaseBodyInspector,
     case_display::{is_inspector_visible, is_visible, preference_ids},
     case_viewer::{BodySelection, CaseSelection},
@@ -146,7 +146,7 @@ pub(super) struct CanvasInput {
 
 pub(super) struct InspectorInput {
     pub(super) physical_setup: super::pcb_physical_setup::PhysicalSetupMount,
-    pub(super) mechanical_settings: MechanicalSettingsMount,
+    pub(super) mechanical_settings: MechanicalSettingsState,
     pub(super) instance_scope_pending: bool,
     pub(super) scope: Option<Scope>,
     pub(super) scene: Option<Rc<CadScene>>,
@@ -684,12 +684,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .mechanical_settings
         .props
         .as_ref()
-        .and_then(|p| {
-            p.values
-                .as_ref()
-                .map(|v| v.board_id == p.identity.active_board_id)
-        })
-        .unwrap_or(false);
+        .is_some_and(|p| p.configuration.is_some() && p.mismatch.is_none());
     let pcb_sel = input.selected_context.as_ref().is_some_and(|s| {
         matches!(
             &s.context,

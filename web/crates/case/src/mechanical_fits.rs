@@ -134,13 +134,13 @@ pub(crate) fn HardwareAndFitsSection(
                             on_commit: { let (id, choices) = (item.id.clone(), choices.clone()); move |index: usize| if let Some(choice) = choices.get(index) {
                                 send.send(MechanicalSettingsPatch::SetHardwareMount { hardware_id: id.clone(), part_id: choice.part_id.clone(), feature_id: choice.feature_id.clone() })
                             } } }
-                        for (label, field, value) in [
-                            ("Designation", MechanicalHardwareTextField::Designation, item.designation.clone()),
-                            ("Thread", MechanicalHardwareTextField::Thread, item.thread.clone()),
-                            ("Tolerance", MechanicalHardwareTextField::Tolerance, item.tolerance.clone().unwrap_or_default()),
-                            ("Notes", MechanicalHardwareTextField::Notes, item.notes.clone().unwrap_or_default()),
+                        for (label, field, value, allow_empty) in [
+                            ("Designation", MechanicalHardwareTextField::Designation, item.designation.clone(), false),
+                            ("Thread", MechanicalHardwareTextField::Thread, item.thread.clone(), false),
+                            ("Tolerance", MechanicalHardwareTextField::Tolerance, item.tolerance.clone().unwrap_or_default(), true),
+                            ("Notes", MechanicalHardwareTextField::Notes, item.notes.clone().unwrap_or_default(), true),
                         ] {
-                            TextCommitField { key: "{label}", label, value, on_commit: { let id = item.id.clone(); move |value| send.send(MechanicalSettingsPatch::SetHardwareText { hardware_id: id.clone(), field, value }) } }
+                            TextCommitField { key: "{label}", label, value, allow_empty, on_commit: { let id = item.id.clone(); move |value| send.send(MechanicalSettingsPatch::SetHardwareText { hardware_id: id.clone(), field, value }) } }
                         }
                         for (label, field, value) in [("Length", MechanicalDimension::HardwareLength, item.length), ("Quantity", MechanicalDimension::HardwareQuantity, f64::from(item.quantity))] {
                             {dimension(label, field, value, { let id = item.id.clone(); move |value| send.send(MechanicalSettingsPatch::SetHardwareDimension { hardware_id: id.clone(), field, value }) })}
@@ -159,8 +159,11 @@ pub(crate) fn HardwareAndFitsSection(
                         SelectField::<String> { label: "Generated part", aria_label: "Part for critical fit {fit.id}", value: fit.part_id.clone(),
                             options: parts.iter().map(|part| (part.id.clone(), part.name.clone())).collect::<Vec<_>>(),
                             on_commit: { let id = fit.id.clone(); move |part_id| send.send(MechanicalSettingsPatch::SetCriticalFitPart { fit_id: id.clone(), part_id }) } }
-                        for (label, field, value) in [("Dimension name", MechanicalCriticalFitTextField::Label, fit.label.clone()), ("Tolerance", MechanicalCriticalFitTextField::Tolerance, fit.tolerance.clone())] {
-                            TextCommitField { key: "{label}", label, value, on_commit: { let id = fit.id.clone(); move |value| send.send(MechanicalSettingsPatch::SetCriticalFitText { fit_id: id.clone(), field, value }) } }
+                        for (label, field, value, allow_empty) in [
+                            ("Dimension name", MechanicalCriticalFitTextField::Label, fit.label.clone(), false),
+                            ("Tolerance", MechanicalCriticalFitTextField::Tolerance, fit.tolerance.clone(), true),
+                        ] {
+                            TextCommitField { key: "{label}", label, value, allow_empty, on_commit: { let id = fit.id.clone(); move |value| send.send(MechanicalSettingsPatch::SetCriticalFitText { fit_id: id.clone(), field, value }) } }
                         }
                         for (label, field, value) in [
                             ("From X", MechanicalDimension::CriticalFitFromX, fit.from.x), ("From Y", MechanicalDimension::CriticalFitFromY, fit.from.y),

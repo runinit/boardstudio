@@ -88,7 +88,7 @@ pub(super) struct SetupB {
     pub keymap_contours: Option<Rc<[Contour]>>,
     pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
     pub keycaps_contours: Option<Rc<[Contour]>>,
-    pub mechanical_settings: mechanical_settings_mount::MechanicalSettingsMount,
+    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
 }
 
 pub(super) fn use_editor_setup_shell() -> (
@@ -370,9 +370,8 @@ pub(super) fn use_setup_workspaces(
             instance_selection,
         },
     );
-    let mechanical_settings = mechanical_settings_mount::use_mechanical_settings_mount(
+    let mechanical_settings = mechanical_settings::use_mechanical_settings(
         runtime.clone(),
-        adapter.generation,
         workspace,
         instance_selection,
         case_selection,

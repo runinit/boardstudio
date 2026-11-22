@@ -194,13 +194,7 @@ pub(super) fn use_layout_view_state(
     let layout_transform_tool = layout_state.transform_tool();
     let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
-    let matrix_inspector = objects::use_matrix_inspector(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-    );
+    let matrix_inspector = objects::use_matrix_inspector(runtime.clone(), adapter.selected_context);
     let board_inspector = board_inspector::use_board_inspector(
         runtime.clone(),
         adapter.selected_context,
@@ -217,12 +211,8 @@ pub(super) fn use_layout_view_state(
     let matrix_splay_affect = layout_state.splay_affect();
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
-        version,
         adapter.selected_context,
-        workspace,
-        adapter.generation,
         matrix_splay_affect,
-        "Layout",
     );
     let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
     let pending_anchor_pick = layout_state.pending_anchor_pick();

@@ -25,10 +25,7 @@ fn pick_owner_valid(
     is_kind: impl Fn(&objects::TreeContext) -> bool,
 ) -> bool {
     layout_owner_is_current(runtime, workspace, adapter, owner)
-        && inspector
-            .projection
-            .as_ref()
-            .is_some_and(|p| p.owner == *picked)
+        && inspector.projection().is_some_and(|p| p.owner == *picked)
         && adapter.selected_context.read().as_ref().is_some_and(|s| {
             s.scope == picked.scope
                 && s.context == picked.context

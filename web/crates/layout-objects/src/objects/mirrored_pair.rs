@@ -7,7 +7,7 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
-use boardstudio_web_ui_shared::inspector_fields::DraftNumericField as NumericField;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -129,7 +129,14 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let mut right_name = use_signal(|| values.right_name);
     let rows = use_signal(|| values.rows);
     let columns = use_signal(|| values.columns);
-    let mut gap = use_signal(|| values.gap_mm);
+    let mut gap = use_signal(|| {
+        values
+            .gap_mm
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .unwrap_or_default()
+    });
     let (choc_default, hotswap_default, rgb_default) = preset_choices(values.preset);
     let family = use_signal(|| Some(HashSet::from([usize::from(choc_default)])));
     let mounting = use_signal(|| Some(HashSet::from([usize::from(hotswap_default)])));
@@ -158,42 +165,27 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let right_name_value = right_name();
     let rows_value = rows();
     let columns_value = columns();
-    let gap_value = gap();
     let choc = family().is_some_and(|choice| choice.contains(&1));
     let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
     let rgb = lighting().is_some_and(|choice| choice.contains(&1));
     let selected_preset = matrix_setup_preset(choc, hotswap, rgb);
     let dimensions = parse_matrix_dimensions(&rows_value, &columns_value);
-    let gap_mm = gap_value
-        .trim()
-        .parse::<f64>()
-        .ok()
-        .filter(|value| value.is_finite() && *value >= 0.0);
     let valid_names = !left_name_value.trim().is_empty()
         && !right_name_value.trim().is_empty()
         && left_name_value.trim() != right_name_value.trim();
-    let can_preview =
-        props.projection.editable && dimensions.is_some() && gap_mm.is_some() && valid_names;
+    let can_preview = props.projection.editable && dimensions.is_some() && valid_names;
     let owner = props.projection.owner.clone();
     let on_preview = props.on_preview;
     let left_submit = left_name_value.clone();
     let right_submit = right_name_value.clone();
     let preset_submit = selected_preset;
-    let gap_submit = gap_value.clone();
     let owner_submit = owner.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
         let Some((rows, columns)) = dimensions else {
             return;
         };
-        let Some(gap_mm) = gap_submit
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|value| value.is_finite() && *value >= 0.0)
-        else {
-            return;
-        };
+        let gap_mm = gap();
         let left_name = left_submit.trim().to_owned();
         let right_name = right_submit.trim().to_owned();
         if left_name.is_empty() || right_name.is_empty() || left_name == right_name {
@@ -262,9 +254,9 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 MatrixPreview { rows: rows_value.clone(), columns: columns_value.clone() }
                 NumericField {
                     id: gap_id, label: "Gap between key edges (mm)", aria_label: "Gap between key edges (mm)",
-                    class: "", control_class: "max-[760px]:h-control-touch", aria_invalid: None,
-                    min: "0", required: true, value: "{gap_value}", disabled: !props.projection.editable,
-                    oninput: move |event: FormEvent| gap.set(event.value()),
+                    min: Some(0.0), value: gap(),
+                    disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                    on_commit: move |value| gap.set(value),
                 }
                 p { class: "mt-2.5 mb-5 border-t border-border pt-3.5 text-[13px] leading-normal text-muted-foreground",
                     "Edit either half to update both. Unlink in the inspector for independent geometry."

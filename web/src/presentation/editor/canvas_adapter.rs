@@ -97,33 +97,14 @@ pub(super) fn move_pointer_handler(
             if let Some(active) = placement.projection.clone()
                 && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
             {
-                let model = runtime.model();
-                let at = model.accepted.as_ref().map_or(point, |_snapshot| {
-                    part_placement::snap_placement_at(
-                        &active.snap_document,
-                        &active.owner.board_id,
-                        &active.pending,
-                        point,
-                        {
-                            let settings = snap_settings.read();
-                            part_placement::PlacementSnapOptions {
-                                snap_fraction: settings.snap_fraction,
-                                geometry_snap: settings.geometry_snap,
-                                gap: part_placement::placement_gap(&settings),
-                                free: pointer.alt_key(),
-                                // Ticket 22: component placement snaps in the selected
-                                // matrix pitch (19.05 mm only when none is selected).
-                                pitch: matrix_snap_parameters(
-                                    &model,
-                                    &active.owner.scope,
-                                    &adapter,
-                                    None,
-                                )
-                                .0,
-                            }
-                        },
-                    )
-                });
+                let at = snap_placement(
+                    &runtime,
+                    &adapter,
+                    &active,
+                    &snap_settings.read(),
+                    point,
+                    pointer.alt_key(),
+                );
                 placement.on_move.call(at);
             } else {
                 pointer.prevent_default();
@@ -131,47 +112,19 @@ pub(super) fn move_pointer_handler(
             }
             return;
         }
-        let Some(mut current) = drag
-            .borrow()
-            .clone()
-            .filter(|d| d.pointer == i64::from(pointer.pointer_id()))
-        else {
+        let Some(mut current) = live_drag(
+            &drag,
+            &svg,
+            &runtime,
+            &adapter,
+            &owner,
+            workspace,
+            &render_scope,
+            render_generation,
+            pointer.pointer_id(),
+        ) else {
             return;
         };
-        if current.scope != render_scope || current.generation != render_generation {
-            return;
-        }
-        if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            selection::cancel_drag_if_owned(&runtime, &current);
-            drag.borrow_mut().take();
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            return;
-        }
-        if runtime.scope().as_ref() != Some(&current.scope)
-            || (adapter.generation)() != current.generation
-        {
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            let mut stored = drag.borrow_mut();
-            if stored.as_ref().is_some_and(|stored| {
-                stored.pointer == current.pointer
-                    && stored.scope == current.scope
-                    && stored.generation == current.generation
-            }) {
-                stored.take();
-            }
-            return;
-        }
-        if current.active && !current.pan && !selection::owns_session_gesture(&runtime, &current) {
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            drag.borrow_mut().take();
-            return;
-        }
         if navigation.consume_pan_pointer_move(current.pointer, &current.scope, current.generation)
         {
             return;
@@ -188,23 +141,11 @@ pub(super) fn move_pointer_handler(
             ) {
                 return;
             }
-            if runtime.model().gesture.is_some() {
-                drag.borrow_mut().take();
-                if let Some(element) = svg.borrow().as_ref() {
-                    let _ = element.release_pointer_capture(pointer.pointer_id());
-                }
-                return;
-            }
-            if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner)
-                || owner.scope.as_ref() != Some(&current.scope)
-            {
-                drag.borrow_mut().take();
-                if let Some(element) = svg.borrow().as_ref() {
-                    let _ = element.release_pointer_capture(pointer.pointer_id());
-                }
-                return;
-            }
             let current_model = runtime.model();
+            if current_model.gesture.is_some() {
+                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&current.scope));
+                return;
+            }
             let retained_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
             let (matrix_pitch, matrix_gap) = matrix_snap_parameters(
                 &current_model,
@@ -241,10 +182,7 @@ pub(super) fn move_pointer_handler(
                 runtime.scope().as_ref() != Some(&current.scope)
                     || (adapter.generation)() != current.generation
             }) {
-                drag.borrow_mut().take();
-                if let Some(element) = svg.borrow().as_ref() {
-                    let _ = element.release_pointer_capture(pointer.pointer_id());
-                }
+                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&current.scope));
                 return;
             }
             current.active = true;
@@ -258,6 +196,62 @@ pub(super) fn move_pointer_handler(
             alt: pointer.alt_key(),
         });
     }
+}
+
+fn snap_placement(
+    runtime: &Runtime,
+    adapter: &SelectionAdapter,
+    active: &part_placement::ActivePartPlacement,
+    settings: &objects::LayoutSnapSettings,
+    point: Vec2,
+    free: bool,
+) -> Vec2 {
+    let model = runtime.model();
+    if model.accepted.is_none() {
+        return point;
+    }
+    part_placement::snap_placement_at(
+        &active.snap_document,
+        &active.owner.board_id,
+        &active.pending,
+        point,
+        part_placement::PlacementSnapOptions {
+            snap_fraction: settings.snap_fraction,
+            geometry_snap: settings.geometry_snap,
+            gap: part_placement::placement_gap(settings),
+            free,
+            pitch: matrix_snap_parameters(&model, &active.owner.scope, adapter, None).0,
+        },
+    )
+}
+
+/// Resolve the captured pointer against the render that owns it before touching the edit session.
+#[allow(clippy::too_many_arguments)]
+fn live_drag(
+    drag: &Rc<RefCell<Option<Drag>>>,
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    runtime: &Rc<Runtime>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    workspace: Signal<&'static str>,
+    render_scope: &Scope,
+    generation: u64,
+    pointer: i32,
+) -> Option<Drag> {
+    let current = drag.borrow().clone().filter(|current| {
+        current.pointer == i64::from(pointer)
+            && &current.scope == render_scope
+            && current.generation == generation
+    })?;
+    if !canvas_owner_is_current(runtime, workspace, adapter, owner)
+        || runtime.scope().as_ref() != Some(&current.scope)
+        || (adapter.generation)() != current.generation
+        || (current.active && !current.pan && !selection::owns_session_gesture(runtime, &current))
+    {
+        selection::cancel_scoped_drag(runtime, drag, svg, Some(render_scope));
+        return None;
+    }
+    Some(current)
 }
 
 pub(super) struct EndPointerInput {
@@ -338,88 +332,37 @@ pub(super) fn end_pointer_handler(
         if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
             pointer.prevent_default();
             pointer.stop_propagation();
-            if placement.projection.is_none()
-                || !part_placement::pointer_release_commits(pointer.button())
+            if part_placement::pointer_release_commits(pointer.button())
+                && let Some(active) = placement.projection.as_ref()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
             {
-                return;
-            }
-            if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                let model = runtime.model();
-                let at = model.accepted.as_ref().map_or(point, |_snapshot| {
-                    placement.projection.as_ref().map_or(point, |active| {
-                        part_placement::snap_placement_at(
-                            &active.snap_document,
-                            &active.owner.board_id,
-                            &active.pending,
-                            point,
-                            {
-                                let settings = snap_settings.read();
-                                part_placement::PlacementSnapOptions {
-                                    snap_fraction: settings.snap_fraction,
-                                    geometry_snap: settings.geometry_snap,
-                                    gap: part_placement::placement_gap(&settings),
-                                    free: pointer.alt_key(),
-                                    // Ticket 22: component placement snaps in the selected
-                                    // matrix pitch (19.05 mm only when none is selected).
-                                    pitch: matrix_snap_parameters(
-                                        &model,
-                                        &active.owner.scope,
-                                        &adapter,
-                                        None,
-                                    )
-                                    .0,
-                                }
-                            },
-                        )
-                    })
-                });
+                let at = snap_placement(
+                    &runtime,
+                    &adapter,
+                    active,
+                    &snap_settings.read(),
+                    point,
+                    pointer.alt_key(),
+                );
                 placement.on_commit.call(at);
             }
             return;
         }
-        let Some(current) = drag
-            .borrow()
-            .clone()
-            .filter(|d| d.pointer == i64::from(pointer.pointer_id()))
-        else {
+        let Some(current) = live_drag(
+            &drag,
+            &svg,
+            &runtime,
+            &adapter,
+            &owner,
+            workspace,
+            &render_scope,
+            render_generation,
+            pointer.pointer_id(),
+        ) else {
             return;
         };
-        if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            selection::cancel_drag_if_owned(&runtime, &current);
-            drag.borrow_mut().take();
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            return;
-        }
         let mut interaction_version = interaction_version;
         interaction_version += 1;
-        if current.scope != render_scope || current.generation != render_generation {
-            return;
-        }
-        if runtime.scope().as_ref() != Some(&current.scope)
-            || (adapter.generation)() != current.generation
-        {
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            let mut stored = drag.borrow_mut();
-            if stored.as_ref().is_some_and(|stored| {
-                stored.pointer == current.pointer
-                    && stored.scope == current.scope
-                    && stored.generation == current.generation
-            }) {
-                stored.take();
-            }
-            return;
-        }
-        if current.active && !current.pan && !selection::owns_session_gesture(&runtime, &current) {
-            if let Some(element) = svg.borrow().as_ref() {
-                let _ = element.release_pointer_capture(pointer.pointer_id());
-            }
-            drag.borrow_mut().take();
-            return;
-        }
         if current.pan {
             navigation.finish_pan(
                 &runtime,

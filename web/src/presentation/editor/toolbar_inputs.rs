@@ -126,7 +126,7 @@ pub(super) fn layout_toolbar_input(
                 | objects::TreeContext::Component { .. }
         )
     }) && (show_position_inspector
-        || matrix_transform_inspector.projection.is_some());
+        || matrix_transform_inspector.is_active());
     let on_show_properties = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -184,19 +184,15 @@ pub(super) fn layout_toolbar_input(
             }
         }
     });
-    let matrix_rotate_followed =
-        matrix_transform_inspector
-            .projection
-            .as_ref()
-            .and_then(|projection| {
-                match &projection.fields {
-                boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
-                    rotation_followed,
-                    ..
-                } => Some(*rotation_followed),
-                _ => None,
-            }
-            });
+    let matrix_rotate_followed = matrix_transform_inspector
+        .projection()
+        .and_then(|projection| match projection.fields {
+            boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                rotation_followed,
+                ..
+            } => Some(rotation_followed),
+            _ => None,
+        });
     let transform = objects::LayoutTransformMenuMount {
         properties_available,
         column_available: toolbar_selection_availability.0,
@@ -226,7 +222,7 @@ pub(super) fn layout_toolbar_input(
         on_selection_kind,
         on_snap_intent: layout_snap_intent,
         show_relationships: true,
-        has_selection_context: matrix_transform_inspector.projection.is_some()
+        has_selection_context: matrix_transform_inspector.is_active()
             || component_inspector.is_some(),
         on_show_relationships: EventHandler::new(move |()| {
             inspect_open.set(true);

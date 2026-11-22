@@ -21,7 +21,7 @@ pub(super) struct CanvasInputArgs<'a> {
     pub keycaps_contours: Option<Rc<[Contour]>>,
     pub keymap_select: EventHandler<String>,
     pub keycaps_select: EventHandler<String>,
-    pub mechanical_settings: mechanical_settings_mount::MechanicalSettingsMount,
+    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
     pub instance_scope_pending: bool,
     pub part_placement: part_placement::PartPlacementMount,
     pub current_scope: Option<Scope>,
@@ -277,7 +277,7 @@ pub(super) fn keymap_inspector_input(
 
 pub(super) struct CaseInspectorArgs<'a> {
     pub physical_setup_mount: pcb_physical_setup::PhysicalSetupMount,
-    pub mechanical_settings: mechanical_settings_mount::MechanicalSettingsMount,
+    pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
     pub instance_scope_pending: bool,
     pub current_scope: Option<Scope>,
     pub case_scene: Option<Rc<crate::runtime::CadScene>>,
@@ -670,13 +670,13 @@ pub(super) fn layout_inspector_input(
                 let mut pending = pending_splay_origin_pick;
                 let mut anchor_pending = pending_anchor_pick;
                 EventHandler::new(move |()| {
-                    let Some(projection) = mount.projection.as_ref() else {
+                    let Some(projection) = mount.projection() else {
                         return;
                     };
                     if matches!(
                         &projection.owner.context,
                         objects::TreeContext::Column { .. }
-                    ) && mount.editable
+                    ) && mount.editable()
                     {
                         anchor_pending.set(None);
                         pending.set(Some(projection.owner.clone()));
@@ -688,13 +688,13 @@ pub(super) fn layout_inspector_input(
                 let mut pending = pending_anchor_pick;
                 let mut splay_pending = pending_splay_origin_pick;
                 EventHandler::new(move |()| {
-                    let Some(projection) = mount.projection.as_ref() else {
+                    let Some(projection) = mount.projection() else {
                         return;
                     };
                     if matches!(
                         &projection.owner.context,
                         objects::TreeContext::Matrix { .. }
-                    ) && mount.editable
+                    ) && mount.editable()
                     {
                         splay_pending.set(None);
                         mount.clear_aggregate_pick();

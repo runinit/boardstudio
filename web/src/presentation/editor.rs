@@ -1,6 +1,7 @@
 use super::*;
 mod action_handlers;
 mod camera;
+mod canvas_adapter;
 mod canvas_inspector_inputs;
 mod canvas_pointer;
 mod canvas_state;
@@ -8,7 +9,6 @@ mod commands;
 mod findings_navigation;
 mod inspector_bundle;
 mod keyboard;
-mod pointer;
 mod pointer_bundles;
 mod selection_handlers;
 mod setup_bundles;

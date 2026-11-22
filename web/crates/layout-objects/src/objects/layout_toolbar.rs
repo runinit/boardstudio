@@ -160,7 +160,7 @@ pub fn LayoutCommandPill(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
     snap_settings: LayoutSnapSettings,
-    transform: super::layout_transform_toolbar::LayoutTransformMenuMount,
+    transform: super::layout_rail_menu::LayoutTransformMenuMount,
     align: super::layout_align::LayoutAlignMount,
     show_relationships: bool,
     on_selection_kind: EventHandler<LayoutSelectionKind>,
@@ -169,7 +169,7 @@ pub fn LayoutCommandPill(
     on_show_relationships: EventHandler<()>,
     #[props(default)] snap_in_dock: bool,
 ) -> Element {
-    let pointer_tools_visible = transform.pointer_tools_visible;
+    let pointer_tools_visible = true;
     let geometry_snap_enabled = snap_settings.geometry_snap;
     let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
     let mut commands = Vec::new();
@@ -219,32 +219,21 @@ pub fn LayoutCommandPill(
         let properties = transform.on_show_properties;
         commands.push(Command { group: "Current Workspace", label: "Position & rotation".into(),
             reason: (!transform.properties_available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None, on_select: properties });
-        for (tool, label, available) in [
+        for (kind, label, available) in [
             (
-                super::layout_transform_toolbar::LayoutTransformTool::Stagger,
-                "Stagger column",
+                LayoutSelectionKind::Column,
+                "Stagger or offset column",
                 transform.column_available,
             ),
             (
-                super::layout_transform_toolbar::LayoutTransformTool::Offset,
-                "Offset",
-                transform.column_available || transform.row_available,
-            ),
-            (
-                super::layout_transform_toolbar::LayoutTransformTool::Splay,
-                "Splay",
-                transform.column_available,
-            ),
-            (
-                super::layout_transform_toolbar::LayoutTransformTool::Origin,
-                "Origin",
-                transform.column_available,
+                LayoutSelectionKind::Row,
+                "Offset row",
+                transform.row_available,
             ),
         ] {
-            let callback = transform.on_transform_tool;
             commands.push(Command { group: "Current Workspace", label: label.into(),
-                reason: (!(transform.pointer_tools_available && available)).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
-                on_select: EventHandler::new(move |()| callback.call(tool)) });
+                reason: (!available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
+                on_select: EventHandler::new(move |()| on_selection_kind.call(kind)) });
         }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(commands);
@@ -325,7 +314,7 @@ pub fn LayoutCommandPill(
                 if pointer_tools_visible {
                 div { class: "layout-action-slot",
                 if has_selection_context {
-                    super::layout_transform_toolbar::LayoutContextActionToolbar {
+                    super::layout_rail_menu::LayoutContextActionToolbar {
                         mount: transform.clone(), open_menu, selection_kind,
                     }
                 }
@@ -335,7 +324,7 @@ pub fn LayoutCommandPill(
                     super::layout_align::LayoutAlignToolbar {
                         mount: align, open_menu, show_relationships, has_selection_context, on_show_relationships,
                     }
-                    super::layout_transform_toolbar::LayoutTransformToolbar {
+                    super::layout_rail_menu::LayoutTransformToolbar {
                         open_menu, mount: transform.clone(),
                         selection_kind: pointer_tools_visible.then_some(selection_kind),
                     }
@@ -369,11 +358,11 @@ fn LayoutSelectionToolbar(
     mut open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
     on_selection_kind: EventHandler<LayoutSelectionKind>,
-    #[props(default)] transform: Option<super::layout_transform_toolbar::LayoutTransformMenuMount>,
+    #[props(default)] transform: Option<super::layout_rail_menu::LayoutTransformMenuMount>,
 ) -> Element {
-    let has_actions = transform
-        .as_ref()
-        .is_some_and(|mount| mount.properties_available || mount.pointer_tools_available);
+    let has_actions = transform.as_ref().is_some_and(|mount| {
+        mount.properties_available || mount.column_available || mount.row_available
+    });
     use_effect(use_reactive((&selection_kind,), move |(kind,)| {
         if open_menu() == Some(LayoutCommandMenu::Select) {
             focus_layout_popup(&format!("m1-layout-scope-panel-{}", kind.label()));
@@ -427,7 +416,7 @@ fn LayoutSelectionToolbar(
                             }
                             if has_actions {
                                 if let Some(mount) = transform.clone() {
-                                    super::layout_transform_toolbar::LayoutContextActionToolbar { mount, open_menu, selection_kind: kind }
+                                    super::layout_rail_menu::LayoutContextActionToolbar { mount, open_menu, selection_kind: kind }
                                 }
                             } else {
                                 Callout { "Select a {kind.label().to_lowercase()} on the canvas to edit it." }

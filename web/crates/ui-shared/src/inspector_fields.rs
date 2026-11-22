@@ -1,4 +1,4 @@
-//! Reusable declarative inspector field molecules and temporary draft-input adapters.
+//! Reusable declarative inspector field molecules and primitive input wrappers.
 use crate::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -151,6 +151,7 @@ pub fn NumericField(
 pub fn TextCommitField(
     label: String,
     value: String,
+    #[props(default = false)] allow_empty: bool,
     #[props(into, optional)] placeholder: Option<String>,
     #[props(into, optional)] disabled_reason: Option<String>,
     #[props(into, optional)] id: Option<String>,
@@ -174,7 +175,7 @@ pub fn TextCommitField(
         None,
         EventHandler::new(move |raw: String| {
             let next = raw.trim().to_owned();
-            if !next.is_empty() && next != current {
+            if (allow_empty || !next.is_empty()) && next != current {
                 on_commit.call(next);
             }
         }),
@@ -290,18 +291,13 @@ pub fn InspectorSection(
 }
 
 #[derive(Default)]
-struct DraftSpec {
-    unit: Option<String>,
+struct TextFieldSpec {
     description: Option<String>,
     error: Option<String>,
     disabled: bool,
     readonly: bool,
-    required: bool,
     aria_label: Option<String>,
     placeholder: Option<String>,
-    min: Option<String>,
-    max: Option<String>,
-    step: Option<String>,
     maxlength: Option<String>,
     class: Option<String>,
     control_class: Option<String>,
@@ -310,12 +306,12 @@ struct DraftSpec {
     plain_label: bool,
 }
 
-fn draft_input_row(
+fn text_input_row(
     id: String,
     label: String,
     r#type: InputType,
     value: String,
-    s: DraftSpec,
+    s: TextFieldSpec,
     oninput: EventHandler<FormEvent>,
     onblur: EventHandler<FocusEvent>,
     onkeydown: EventHandler<KeyboardEvent>,
@@ -335,71 +331,17 @@ fn draft_input_row(
             InputGroup { class: s.control_class.clone(),
                 InputGroupInput {
                     id, r#type, class: s.control_class.as_deref().unwrap_or(TOUCH_CLS), value: "{value}",
-                    disabled: s.disabled, readonly: s.readonly, required: s.required, placeholder: s.placeholder,
-                    min: s.min, max: s.max, step: s.step, aria_label: s.aria_label,
+                    disabled: s.disabled, readonly: s.readonly, placeholder: s.placeholder,
+                    aria_label: s.aria_label,
                     aria_invalid: has_error.then_some(true).or(s.aria_invalid),
                     aria_describedby: has_error.then(|| message_id.clone()),
                     oninput: move |e| oninput.call(e), attributes: extra,
                 }
-                if let Some(u) = s.unit { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "{u}" } } }
             }
             if let Some(desc) = s.description { FieldDescription { "{desc}" } }
             if let Some(err) = s.error { div { id: message_id, FieldError { "{err}" } } }
         }
     }
-}
-
-#[component]
-pub fn DraftNumericField(
-    id: String,
-    label: String,
-    value: String,
-    oninput: EventHandler<FormEvent>,
-    #[props(default)] unit: Option<String>,
-    #[props(default)] description: Option<String>,
-    #[props(default)] error: Option<String>,
-    #[props(default)] disabled: bool,
-    #[props(into, optional)] aria_label: Option<String>,
-    #[props(into, optional)] placeholder: Option<String>,
-    #[props(into, optional)] min: Option<String>,
-    #[props(into, optional)] max: Option<String>,
-    #[props(into, default = Some("any".to_owned()))] step: Option<String>,
-    #[props(default)] readonly: bool,
-    #[props(default)] required: bool,
-    #[props(into, optional)] class: Option<String>,
-    #[props(into, optional)] control_class: Option<String>,
-    #[props(default = Some(false))] aria_invalid: Option<bool>,
-    #[props(into, optional)] message_id: Option<String>,
-    #[props(default)] onblur: EventHandler<FocusEvent>,
-    #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
-) -> Element {
-    draft_input_row(
-        id,
-        label,
-        InputType::Number,
-        value,
-        DraftSpec {
-            unit,
-            description,
-            error,
-            disabled,
-            readonly,
-            required,
-            aria_label,
-            placeholder,
-            min,
-            max,
-            step,
-            class,
-            control_class,
-            aria_invalid,
-            message_id,
-            ..Default::default()
-        },
-        oninput,
-        onblur,
-        onkeydown,
-    )
 }
 
 #[component]
@@ -424,12 +366,12 @@ pub fn TextField(
     #[props(default)] onblur: EventHandler<FocusEvent>,
     #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
 ) -> Element {
-    draft_input_row(
+    text_input_row(
         id,
         label,
         r#type,
         value,
-        DraftSpec {
+        TextFieldSpec {
             description,
             error,
             disabled,
@@ -442,28 +384,11 @@ pub fn TextField(
             aria_invalid,
             message_id,
             plain_label,
-            ..Default::default()
         },
         oninput,
         onblur,
         onkeydown,
     )
-}
-
-#[component]
-pub fn DraftSelectField(
-    label: String,
-    value: String,
-    options: Vec<(String, String)>,
-    on_select: EventHandler<String>,
-    #[props(into, optional)] id: Option<String>,
-    #[props(into, optional)] aria_label: Option<String>,
-    #[props(default)] disabled: bool,
-    #[props(into, optional)] class: Option<String>,
-    #[props(default = true)] touch_targets: bool,
-) -> Element {
-    let _ = (class, touch_targets);
-    rsx! { SelectField::<String> { label, value, options, id, aria_label, disabled, on_commit: on_select } }
 }
 
 #[component]
@@ -518,47 +443,6 @@ pub fn CheckboxField(
             }
         }
     }
-}
-
-#[component]
-pub fn AxisGrid(children: Element) -> Element {
-    rsx! { div { class: "grid grid-cols-3 gap-1.5 min-w-0", {children} } }
-}
-
-#[component]
-pub fn AxisField(
-    axis: &'static str,
-    value: String,
-    #[props(default)] aria_label: Option<String>,
-    #[props(default)] disabled: bool,
-    #[props(default)] min: Option<String>,
-    #[props(default)] error: Option<String>,
-    #[props(default)] oninput: EventHandler<FormEvent>,
-    #[props(default)] onblur: EventHandler<FocusEvent>,
-    #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
-) -> Element {
-    let id = format!(
-        "inspector-axis-{}-{}",
-        axis.to_lowercase(),
-        dioxus::core::current_scope_id().0
-    );
-    draft_input_row(
-        id,
-        axis.to_owned(),
-        InputType::Number,
-        value,
-        DraftSpec {
-            error,
-            disabled,
-            min,
-            step: Some("0.1".to_owned()),
-            aria_label,
-            ..Default::default()
-        },
-        oninput,
-        onblur,
-        onkeydown,
-    )
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
