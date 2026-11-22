@@ -244,51 +244,120 @@ pub fn mirror_drag_refusal(part_id: &str) -> String {
     format!("Part {part_id} is controlled by a mirror constraint and cannot be dragged")
 }
 
-/// Moves a constraint's stored numbers so its target lands `delta` away from where it was
+/// Moves the driven part to the requested board position by retuning the stored relation
 /// and, when `turn` is given, turns that many degrees further. `None` leaves the stored
 /// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. A drag
 /// passes `None`; `dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind`
 /// in `core/tests/part_offset_constraint.rs` pins it. An `offset` stores board-axis numbers,
 /// so the drag is added as it is. A `part-offset` stores source-axis numbers, so the drag is
-/// first turned back into the source's frame, measured from the source's pose in `parts`.
+/// first turned back into the source's frame. Linked endpoints use their resolved views.
 pub fn retune_offset(
-    parts: &[Part],
-    constraint: &mut Constraint,
-    delta: Vec2,
+    doc: &mut ProjectDoc,
+    target_id: &str,
+    requested: Vec2,
     turn: Option<f64>,
-) -> Result<Retune, String> {
-    if constraint.is_mirror() {
-        return Ok(Retune::Mirror);
+) -> Result<Option<Retune>, String> {
+    if doc.constraints.is_empty() {
+        return Ok(None);
     }
-    let source = source_pose(parts, constraint)?;
+    let Some(constraint) = driving_constraint(doc, target_id)? else {
+        return Ok(None);
+    };
+    if constraint.is_mirror() {
+        return Ok(Some(Retune::Mirror));
+    }
+    let index = doc
+        .constraints
+        .iter()
+        .position(|record| record.id() == constraint.id())
+        .expect("driving constraint belongs to the document");
+    let at = |id: &str| {
+        doc.parts
+            .iter()
+            .find(|part| part.id == id)
+            .map(|part| crate::matrix::layout::evaluated_part_pose(doc, part))
+            .ok_or_else(|| format!("Part {id} is missing"))
+    };
+    if let Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = constraint
+        && (matches!(source, ConstraintEndpoint::LinkedMirror { .. })
+            || matches!(target, ConstraintEndpoint::LinkedMirror { .. }))
+    {
+        let source = endpoints::resolve_endpoint(doc, id, Side::Source, source)?;
+        let target = endpoints::resolve_endpoint(doc, id, Side::Target, target)?;
+        let source_frame = source
+            .frame
+            .with_key(source.owner.as_deref().map(at).transpose()?);
+        let target_frame = target
+            .frame
+            .with_key(target.owner.as_deref().map(at).transpose()?);
+        let authority = at(&target.authoritative_id)?;
+        let same_view = target_id == target.visible_id;
+        let visible = target_frame.project(authority)?;
+        let requested = if same_view {
+            Pose2 {
+                at: requested,
+                rotation: visible.rotation + turn.unwrap_or(0.0),
+            }
+        } else {
+            target_frame.project(Pose2 {
+                at: requested,
+                rotation: authority.rotation + turn.unwrap_or(0.0),
+            })?
+        };
+        let retuned = boardstudio_model::constraints::retune::retune_target(
+            relation,
+            at(&source.authoritative_id)?,
+            source_frame,
+            target_frame,
+            authority,
+            requested.at,
+            turn.map(|_| requested.rotation),
+        )?;
+        let Constraint::Framed { relation, .. } = &mut doc.constraints[index] else {
+            unreachable!();
+        };
+        *relation = retuned.relation;
+        return Ok(Some(Retune::Applied));
+    }
+    let current = at(target_id)?.at;
+    let delta = Vec2 {
+        x: requested.x - current.x,
+        y: requested.y - current.y,
+    };
+    let source = source_pose(&doc.parts, constraint)?;
+    let constraint = &mut doc.constraints[index];
     let (offset, rotation, step) = match constraint {
         Constraint::Offset {
             offset, rotation, ..
+        }
+        | Constraint::Framed {
+            relation: ConstraintRelation::Offset { offset, rotation },
+            ..
         } => (offset, rotation, delta),
         Constraint::PartOffset {
             offset, rotation, ..
+        }
+        | Constraint::Framed {
+            relation: ConstraintRelation::PartOffset { offset, rotation },
+            ..
         } => (
             offset,
             rotation,
             rotate(delta, -source.rotation, Vec2::default()),
         ),
-        Constraint::Mirror { .. } => return Ok(Retune::Mirror),
-        Constraint::Framed { relation, .. } => match relation {
-            ConstraintRelation::Offset { offset, rotation } => (offset, rotation, delta),
-            ConstraintRelation::PartOffset { offset, rotation } => (
-                offset,
-                rotation,
-                rotate(delta, -source.rotation, Vec2::default()),
-            ),
-            ConstraintRelation::MirrorLine { .. } => return Ok(Retune::Mirror),
-        },
+        _ => unreachable!("mirror relations were handled before retuning"),
     };
     offset.x += step.x;
     offset.y += step.y;
     if let Some(turn) = turn {
         *rotation += turn;
     }
-    Ok(Retune::Applied)
+    Ok(Some(Retune::Applied))
 }
 
 /// Re-expresses an offset constraint's numbers in `to`'s axes, measured from the source's

@@ -1093,7 +1093,7 @@ fn oversized_matrices_are_refused_atomically_on_open_edit_and_draft_projection()
     }
 }
 
-/// Characterization: cells beyond rows x columns are refused by `valid_matrix`.
+/// Characterization: cells beyond rows x columns are refused during layout validation.
 #[test]
 fn cells_beyond_the_matrix_dimensions_are_refused_by_set_matrix() {
     let mut engine = CoreEngine::new();

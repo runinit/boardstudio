@@ -35,15 +35,12 @@ fn nice_nano_v2_scan_capabilities_have_unique_gpio_targets() {
 }
 
 #[test]
-fn reduced_jumpers_still_require_valid_controller_options() {
-    let p = profile("ceoloide/mcu_supermini_nrf52840").unwrap();
-    assert!(validate_params(&p, true, false, true, true, false).is_ok());
-    assert!(validate_params(&p, true, false, true, true, true).is_err());
-    assert!(validate_params(&p, true, false, true, false, false).is_ok());
-}
+fn controller_profiles_declare_supported_assembly_options() {
+    let supermini = profile("ceoloide/mcu_supermini_nrf52840").unwrap();
+    assert!(supermini.supports_reversible);
+    assert!(supermini.supports_extra_pins);
+    assert!(supermini.rejects_invert_jumpers_position);
 
-#[test]
-fn infused_nice_view_requires_routes_to_local_jumper_pads() {
-    let p = profile("infused-kim/nice_view").unwrap();
-    assert!(validate_params(&p, true, false, false, false, false).is_ok());
+    let nice_view = profile("infused-kim/nice_view").unwrap();
+    assert!(nice_view.supports_reversible);
 }

@@ -50,11 +50,6 @@ pub(super) struct SceneDiagnostics {
     pub matrices: Vec<Option<MatrixScene>>,
 }
 
-#[cfg(feature = "test-support")]
-pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
-    scene_diagnostics(doc).findings
-}
-
 pub(super) fn scene_diagnostics(doc: &ProjectDoc) -> SceneDiagnostics {
     let (mut findings, hardware_markers) = crate::hardware::nominal_fit(doc);
     let mut keycaps = vec![];

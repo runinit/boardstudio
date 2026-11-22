@@ -220,41 +220,6 @@ pub(crate) fn apply(
     )
 }
 
-/// Staged-edit dispatch for the engine integration tests.
-#[doc(hidden)]
-#[allow(clippy::too_many_arguments)]
-pub fn apply_with_ledger_for_test(
-    doc: &mut ProjectDoc,
-    board_contours: &[BoardContours],
-    op: &EditOperation,
-    identities: &mechanical::edit::MechanicalIdentityLedger,
-) -> Result<Vec<String>, String> {
-    apply_with_ledger(doc, board_contours, op, identities)
-}
-
-#[doc(hidden)]
-pub fn apply_unscripted_for_test(
-    doc: &mut ProjectDoc,
-    op: &EditOperation,
-) -> Result<Vec<String>, String> {
-    apply_unscripted(doc, op)
-}
-
-/// Applies one operation under a fresh identity ledger for sibling crates' tests.
-#[doc(hidden)]
-pub fn apply_for_test(
-    doc: &mut ProjectDoc,
-    board_contours: &[BoardContours],
-    op: &EditOperation,
-) -> Result<Vec<String>, String> {
-    apply_with_ledger(
-        doc,
-        board_contours,
-        op,
-        &mechanical::edit::MechanicalIdentityLedger::default(),
-    )
-}
-
 // Recursive and staged edits dispatch known operations and cannot replace the document.
 fn apply_unscripted(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     apply_with_ledger(
@@ -470,23 +435,15 @@ pub(crate) fn apply_with_ledger(
                     changed.extend(matrix::part_anchors::move_anchored(doc, &position.id, at)?);
                     continue;
                 }
-                let current = layout::evaluated_part_pose(doc, &doc.parts[index]);
-                let delta = Vec2 {
-                    x: at.x - current.at.x,
-                    y: at.y - current.at.y,
-                };
-                if let Some(constraint) = doc
-                    .constraints
-                    .iter_mut()
-                    .find(|constraint| constraint.target() == position.id)
-                {
-                    if constraints::retune_offset(&doc.parts, constraint, delta, None)?
-                        == constraints::Retune::Mirror
-                    {
+                match constraints::retune_offset(doc, &position.id, at, None)? {
+                    Some(constraints::Retune::Mirror) => {
                         return Err(constraints::mirror_drag_refusal(&position.id));
                     }
-                    changed.push(position.id.clone());
-                    continue;
+                    Some(constraints::Retune::Applied) => {
+                        changed.push(position.id.clone());
+                        continue;
+                    }
+                    None => {}
                 }
                 // Ticket 12: the drop commits board-space; storage converts.
                 let stored = layout::stored_part_pose(

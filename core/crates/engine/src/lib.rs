@@ -17,10 +17,6 @@ use std::sync::Arc;
 mod outline_validation;
 mod validate;
 
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub use validate::validate as validate_document_for_test;
-
 use boardstudio_core_kernel::{
     case, constraints, geometry, hardware, inputs, matrix, outline_controls, outline_versions,
 };
@@ -48,7 +44,6 @@ mod edit_tests;
 mod preview;
 mod scene_reuse;
 
-pub use self::apply::{apply_for_test, apply_unscripted_for_test, apply_with_ledger_for_test};
 pub struct CoreEngine {
     document: ProjectDoc,
     resolved: Arc<mirrored_half::ResolvedDoc>,
@@ -60,6 +55,7 @@ pub struct CoreEngine {
     /// Accepted projection when safe to reuse. Reply metadata is set per request.
     reusable_scene: Option<SceneDelta>,
     stagger_preview: Option<scene_reuse::StaggerPreview>,
+    move_preview: Option<dispatch::MovePreview>,
     #[cfg(test)]
     stagger_outline_projections: std::cell::Cell<usize>,
     #[cfg(test)]
@@ -141,6 +137,7 @@ impl CoreEngine {
             outline_cache: OutlineCache::default(),
             reusable_scene: None,
             stagger_preview: None,
+            move_preview: None,
             #[cfg(test)]
             stagger_outline_projections: std::cell::Cell::default(),
             #[cfg(test)]

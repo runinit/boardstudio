@@ -17,6 +17,20 @@ use super::{
 };
 use crate::model::*;
 
+fn remove_changed<T>(
+    items: Option<&mut Vec<T>>,
+    matches: impl FnMut(&T) -> bool,
+    id: &str,
+    unavailable: &str,
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    let items = items.ok_or(unavailable)?;
+    let index = items.iter().position(matches).ok_or(unavailable)?;
+    items.remove(index);
+    changed.push(id.to_owned());
+    Ok(())
+}
+
 /// Reference defaults for a board that has no stored configuration.
 ///
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
@@ -339,16 +353,13 @@ pub(super) fn apply_change(
             changed.push(fit_id);
         }
         MechanicalChange::RemoveCriticalFit { fit_id } => {
-            let fits = configuration
-                .critical_fits
-                .as_mut()
-                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
-            let index = fits
-                .iter()
-                .position(|fit| fit.id == *fit_id)
-                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
-            fits.remove(index);
-            changed.push(fit_id.clone());
+            remove_changed(
+                configuration.critical_fits.as_mut(),
+                |item| item.id == *fit_id,
+                fit_id,
+                "The selected critical fit is no longer available.",
+                changed,
+            )?;
         }
         MechanicalChange::SetCriticalFitText {
             fit_id,
@@ -432,16 +443,13 @@ pub(super) fn apply_change(
             changed.push(hardware_id);
         }
         MechanicalChange::RemoveHardware { hardware_id } => {
-            let entries = configuration
-                .hardware
-                .as_mut()
-                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
-            let index = entries
-                .iter()
-                .position(|entry| entry.id == *hardware_id)
-                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
-            entries.remove(index);
-            changed.push(hardware_id.clone());
+            remove_changed(
+                configuration.hardware.as_mut(),
+                |item| item.id == *hardware_id,
+                hardware_id,
+                "The selected hardware entry is no longer available.",
+                changed,
+            )?;
         }
         MechanicalChange::SetHardwareMount {
             hardware_id,
@@ -517,16 +525,13 @@ pub(super) fn apply_change(
             changed.push(id);
         }
         MechanicalChange::RemoveOpening { opening_id } => {
-            let openings = configuration
-                .openings
-                .as_mut()
-                .ok_or("The selected access opening is no longer available.")?;
-            let position = openings
-                .iter()
-                .position(|opening| opening.id == *opening_id)
-                .ok_or("The selected access opening is no longer available.")?;
-            openings.remove(position);
-            changed.push(opening_id.clone());
+            remove_changed(
+                configuration.openings.as_mut(),
+                |item| item.id == *opening_id,
+                opening_id,
+                "The selected access opening is no longer available.",
+                changed,
+            )?;
         }
         MechanicalChange::AddOpeningVertex { opening_id } => {
             let openings = configuration
@@ -813,12 +818,13 @@ pub(super) fn apply_change(
             {
                 return Err("Suspension mounts are unavailable for a gasket mount.".into());
             }
-            let mounts = mount_collection_mut(configuration, *collection);
-            let Some(index) = mounts.iter().position(|mount| mount.id == *mount_id) else {
-                return Err("The selected mount is no longer available.".into());
-            };
-            mounts.remove(index);
-            changed.push(mount_id.clone());
+            remove_changed(
+                Some(mount_collection_mut(configuration, *collection)),
+                |mount| mount.id == *mount_id,
+                mount_id,
+                "The selected mount is no longer available.",
+                changed,
+            )?;
         }
         MechanicalChange::SetBottomStyle(style) => {
             configuration.bottom_style = Some(style.clone());

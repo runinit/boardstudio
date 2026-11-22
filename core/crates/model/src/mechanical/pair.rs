@@ -47,23 +47,12 @@ pub fn forward_angle(mapping: Pose2, angle: f64) -> f64 {
     mapping.rotation - angle
 }
 
-/// The second member's orientation expressed back in the reflected frame.
-///
-/// Reflection makes the orientation map an involution modulo 180 degrees, so
-/// recovering the source orientation uses the same rule as [`forward_angle`].
-pub fn inverse_angle(mapping: Pose2, angle: f64) -> f64 {
-    mapping.rotation - angle
-}
-
 /// One rule for every mirrored independent-part heading.
 ///
 /// Controllers (the MCU) keep the plain reflected heading `forward_angle`, so both halves
 /// share the same world rotation. Every other independent part takes ADR-0010's full rule
 /// `forward_angle + 180`. The result is normalized to `[0, 360)`.
-///
-/// The inverse direction uses the same function: `inverse_angle` is the same arithmetic as
-/// `forward_angle` (each heading rule is its own inverse over the full circle), so callers
-/// projecting back from the mirror pass the same mapping through this helper.
+/// Both heading rules are their own inverse over the full circle.
 pub fn mirrored_part_heading(is_controller: bool, mapping: Pose2, rotation: f64) -> f64 {
     let reflected = forward_angle(mapping, rotation);
     if is_controller {

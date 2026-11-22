@@ -168,7 +168,7 @@ fn angle_maps_carry_the_design_convention_and_round_trip_through_the_pair_map() 
     // Known values: a 100 degree feature becomes 30 - 100 = -70, and the
     // reflected orientation recovers its source by the same rule, 30 - (-70) = 100.
     assert!((forward_angle(mapping, 100.0) - (-70.0)).abs() < 1e-12);
-    assert!((inverse_angle(mapping, -70.0) - 100.0).abs() < 1e-12);
+    assert!((forward_angle(mapping, -70.0) - 100.0).abs() < 1e-12);
     // Orientation ignores the mapping translation, so the reflection/rotation
     // composition is its own inverse and the forward pass round-trips.
     for angle in [0.0, 45.0, -12.5, 200.0, 137.5] {
@@ -178,7 +178,7 @@ fn angle_maps_carry_the_design_convention_and_round_trip_through_the_pair_map() 
         );
     }
     // Recovering a source orientation from its reflection uses the same rule.
-    assert!((inverse_angle(mapping, forward_angle(mapping, 42.0)) - 42.0).abs() < 1e-12);
+    assert!((forward_angle(mapping, forward_angle(mapping, 42.0)) - 42.0).abs() < 1e-12);
 }
 
 #[test]
