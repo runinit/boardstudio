@@ -25,8 +25,6 @@ pub struct CasePreviewOwnerIdentity {
     pub viewer_instance: u64,
     pub projection_generation: u64,
     pub batch_generation: u64,
-    pub core_executor_epoch: u64,
-    pub core_worker_identity: usize,
     pub request_token: String,
 }
 
@@ -36,8 +34,6 @@ impl CasePreviewOwnerIdentity {
         scope: &Scope,
         projection_generation: u64,
         batch_generation: u64,
-        core_executor_epoch: u64,
-        core_worker_identity: usize,
         request_token: String,
     ) -> Self {
         Self {
@@ -48,8 +44,6 @@ impl CasePreviewOwnerIdentity {
             viewer_instance: projection_generation,
             projection_generation,
             batch_generation,
-            core_executor_epoch,
-            core_worker_identity,
             request_token,
         }
     }
@@ -345,8 +339,6 @@ mod native_preview_pick_tests {
             viewer_instance: 4,
             projection_generation: 5,
             batch_generation: 6,
-            core_executor_epoch: 7,
-            core_worker_identity: 8,
             request_token: "request-9".into(),
         };
         let lease = CasePreviewOwnerLease::new(owner.clone());
@@ -462,8 +454,6 @@ pub fn capture_native_preview(
     scope: &Scope,
     projection_generation: u64,
     batch_generation: u64,
-    core_executor_epoch: u64,
-    core_worker_identity: usize,
     request_token: String,
 ) -> Result<NativePreviewCapture, String> {
     if request_token.is_empty() {
@@ -496,8 +486,6 @@ pub fn capture_native_preview(
         scope,
         projection_generation,
         batch_generation,
-        core_executor_epoch,
-        core_worker_identity,
         request_token.clone(),
     );
     let mut references = document
@@ -589,15 +577,6 @@ pub fn accept_native_preview(
         preview,
         board_reference,
     })
-}
-
-pub fn same_core_executor(
-    captured_epoch: u64,
-    current_epoch: u64,
-    captured_worker_identity: usize,
-    current_worker_identity: usize,
-) -> bool {
-    captured_epoch == current_epoch && captured_worker_identity == current_worker_identity
 }
 
 fn model_extension(filename: &str) -> Option<&'static str> {

@@ -304,8 +304,6 @@ fn imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene
         &viewer.scope,
         1,
         1,
-        1,
-        1,
         "case-routed-projection".into(),
     )
     .unwrap();
@@ -551,8 +549,6 @@ fn physical_preview_rows_are_qualified_by_source_scope_and_token() {
         viewer_instance: 13,
         projection_generation: 14,
         batch_generation: 15,
-        core_executor_epoch: 16,
-        core_worker_identity: 17,
         request_token: "case-preview-1".to_owned(),
     };
 

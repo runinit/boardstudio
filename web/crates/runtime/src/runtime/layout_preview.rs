@@ -151,29 +151,13 @@ impl Runtime {
             preview.owner.accepted_revision,
             preview.owner.source_generation
         );
-        let core_executor_epoch = self.session.borrow().core_executor_epoch();
-        let core_executor_epoch_text = core_executor_epoch.0.to_string();
-        let core = self.core.borrow().clone();
         let module_request = CoreRequest::ResolveModules {
             id: module_request_id.clone(),
             document: preview.document.as_ref().clone(),
             board_id: preview.owner.scope.board_id.clone(),
             preview_top_z: Some(preview.preview.thickness),
         };
-        let module_reply = core
-            .request(
-                &module_request_id,
-                &core_executor_epoch_text,
-                &module_request,
-            )
-            .await
-            .map_err(|error| format!("Mounted-module model resolution failed: {error}"))?;
-        if !source_is_current()
-            || self.session.borrow().core_executor_epoch() != core_executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Ok(());
-        }
+        let module_reply = (self.core_services.open_scratch)()(module_request);
         let module_placements = match module_reply {
             CoreReply::ModulesResolved { id, result }
                 if id == module_request_id
@@ -375,16 +359,14 @@ impl Runtime {
             })
         });
         let result = match &capture.request {
-            crate::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
-                self.run_preview_pipeline(
+            crate::layout_viewer_source::LayoutPreviewRequest::Authored(request) => self
+                .run_preview_pipeline(
                     request.as_ref().clone(),
                     operation,
                     capture.owner.scope.clone(),
                     capture.owner.source_generation,
                     is_current.clone(),
-                )
-                .await
-            }
+                ),
             crate::layout_viewer_source::LayoutPreviewRequest::Imported { asset, .. } => {
                 self.run_imported_layout_preview(&capture, asset, operation, is_current.clone())
                     .await
@@ -465,32 +447,10 @@ impl Runtime {
         let source = String::from_utf8(bytes)
             .map_err(|error| format!("Imported board asset is not valid UTF-8: {error}"))?;
         let request = make_request(source)?;
-        let core = self.core.borrow().clone();
-        let core_epoch = self.session.borrow().core_executor_epoch().0;
         if !is_current() {
-            return Err("Imported board preview source became stale before Core dispatch".into());
+            return Err("Imported board preview source changed.".into());
         }
-        let epoch = core_epoch.to_string();
-        let reply = core
-            .artifact(&request_id, &epoch, &request)
-            .await
-            .map_err(|error| format!("Imported board preview failed: {error}"))?;
-        if !is_current()
-            || self.session.borrow().core_executor_epoch().0 != core_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-        {
-            return Err("Imported board preview source changed during Core preview".into());
-        }
-        match reply {
-            ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => Err(format!(
-                "Core rejected the imported board preview: {error:?}"
-            )),
-            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned an imported board preview for another request".into())
-            }
-            _ => Err("Core returned an unexpected imported-board preview reply".into()),
-        }
+        self.board_preview(&request, &request_id)
     }
 
     /// Parse a routed KiCad board for the accepted reference editor before its
@@ -504,40 +464,24 @@ impl Runtime {
         if request_id.is_empty() {
             return Err("Routed-board preview request identity must not be empty".into());
         }
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
-        let request = ArtifactRequest::PreviewBoard {
-            id: request_id.clone(),
-            source,
-            revision,
-        };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not preview routed KiCad board: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("Routed-board preview became stale when the Core worker changed".into());
-        }
-        match reply {
+        self.board_preview(
+            &ArtifactRequest::PreviewBoard {
+                id: request_id.clone(),
+                source,
+                revision,
+            },
+            &request_id,
+        )
+    }
+
+    pub(super) fn board_preview(
+        &self,
+        request: &ArtifactRequest,
+        request_id: &str,
+    ) -> Result<PcbPreview, String> {
+        match self.artifact_reply(request)? {
             ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let details = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                if details.is_empty() {
-                    Err(error.message)
-                } else {
-                    Err(format!("{} {}", error.message, details.join(" ")))
-                }
-            }
-            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned a routed-board preview for another request".into())
-            }
-            _ => Err("Core returned an unexpected routed-board preview reply".into()),
+            _ => Err("Core returned an unexpected board preview reply.".into()),
         }
     }
 

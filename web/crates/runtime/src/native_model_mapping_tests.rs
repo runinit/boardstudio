@@ -46,8 +46,6 @@ fn owner(token: u64) -> crate::case_preview::CasePreviewOwnerIdentity {
         viewer_instance: 1,
         projection_generation: token,
         batch_generation: token,
-        core_executor_epoch: 1,
-        core_worker_identity: 1,
         request_token: format!("preview-{token}"),
     }
 }

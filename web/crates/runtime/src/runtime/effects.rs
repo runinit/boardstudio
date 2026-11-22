@@ -120,14 +120,11 @@ impl Runtime {
         let accepted = self.model().accepted.expect("accepted preview fixture");
         let scope = self.scope().expect("selected physical fixture scope");
         let generation = self.native_case_preview.borrow().generation + 1;
-        let core = self.core.borrow().clone();
         let capture = crate::case_preview::capture_native_preview(
             &accepted,
             &scope,
             generation,
             generation,
-            self.session.borrow().core_executor_epoch().0,
-            core_executor_identity(&core),
             format!("case-keycaps-test-{generation}"),
         )
         .expect("valid accepted Case preview input");
