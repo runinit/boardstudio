@@ -434,7 +434,9 @@ mod tests {
             let mut observed = 0.0_f64;
             for (positions, &tag) in mesh
                 .positions_mm_f64
-                .chunks_exact(9)
+                .as_chunks::<9>()
+                .0
+                .iter()
                 .zip(&mesh.triangle_face_occurrence_indices)
             {
                 if mesh.source_faces[tag].support_kind != "REVOLUTION_SURFACE" {

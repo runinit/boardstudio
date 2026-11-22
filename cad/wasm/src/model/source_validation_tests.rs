@@ -341,7 +341,9 @@ fn pinned_vik_binary_stls_preserve_source_bounds() {
     }
 }
 
-const THQ_MODELS: [(&str, &str, &[&str], [f64; 3], [f64; 3]); 3] = [
+type SwitchFixture<'a> = (&'a str, &'a str, &'a [&'a str], [f64; 3], [f64; 3]);
+
+const THQ_MODELS: [SwitchFixture<'static>; 3] = [
     (
         "thqwgd001:rotation-reversible",
         "THQWGD001-rotation.stp",

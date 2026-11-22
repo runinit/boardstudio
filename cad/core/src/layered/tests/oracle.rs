@@ -190,7 +190,7 @@ impl PolygonMesh {
     }
 
     pub fn triangle_points(&self) -> impl Iterator<Item = [Point3; 3]> + '_ {
-        self.positions.chunks_exact(3).map(|t| [t[0], t[1], t[2]])
+        self.positions.as_chunks::<3>().0.iter().copied()
     }
 
     pub fn volume(&self) -> f64 {
@@ -201,11 +201,10 @@ impl PolygonMesh {
 }
 
 /// The whole shell meshed by the production tessellator at `deflection`.
-pub(in crate::layered) fn shell_to_polygon_strict<'a>(
-    shell: impl std::borrow::Borrow<Shell<'a>>,
+pub(in crate::layered) fn shell_to_polygon_strict(
+    shell: &Shell<'_>,
     deflection: f64,
 ) -> Result<PolygonMesh, String> {
-    let shell = shell.borrow();
     let faces = tessellation::tessellate(
         shell.topology,
         shell.faces,

@@ -1356,11 +1356,13 @@ fn round_plane_trim_leaves_the_bundled_plated_hole_open() {
     let mut area = 0.0;
     for (triangle, _) in model
         .preview_positions_f64()
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .zip(model.triangle_faces())
         .filter(|(_, face)| **face == tag)
     {
-        let [a, b, c] = [triangle[0], triangle[1], triangle[2]];
+        let [a, b, c] = *triangle;
         let side =
             |p: [f64; 3], q: [f64; 3]| (q[0] - p[0]) * (1.3 - p[1]) - (q[1] - p[1]) * (7.0 - p[0]);
         let sides = [side(a, b), side(b, c), side(c, a)];

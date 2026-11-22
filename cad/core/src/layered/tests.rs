@@ -75,7 +75,9 @@ pub(super) fn direct_analysis(model: &ExactModel, target: Option<f64>) -> Vec<Ve
 
     let mut triangles = analysis
         .positions_mm_f64
-        .chunks_exact(9)
+        .as_chunks::<9>()
+        .0
+        .iter()
         .zip(&analysis.triangle_face_occurrence_indices);
     let mut occurrences = analysis.source_faces.iter().enumerate();
     let mut solids = Vec::new();
