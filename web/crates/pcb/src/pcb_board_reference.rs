@@ -1,18 +1,18 @@
 //! Scoped controls and file-backed editing for routed-board references.
-use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
+use crate::pcb_controls::PcbFile;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, ToggleField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::JsFuture;
 use web_sys::{File, HtmlInputElement};
 
 use boardstudio_web_host::host::AssetBytes;
@@ -132,21 +132,6 @@ impl BoardReferenceContext {
     }
 }
 
-async fn wait_for_reference(
-    ctx: &BoardReferenceContext,
-    outcome: EditOutcome,
-) -> Result<(), String> {
-    loop {
-        let live = (ctx.generation)() == ctx.request_generation && ctx.lineage_is_current();
-        match outcome.settlement(live) {
-            Settlement::Landed { .. } => return Ok(()),
-            Settlement::Failed { message } => return Err(message),
-            Settlement::Retired => return Err(String::new()),
-            Settlement::Pending => TimeoutFuture::new(25).await,
-        }
-    }
-}
-
 async fn discover_stored_paths(
     ctx: &BoardReferenceContext,
     reference: &BoardReference,
@@ -212,13 +197,11 @@ async fn import_routed_board(
     ctx: &BoardReferenceContext,
     reference: Option<&BoardReference>,
     file: File,
-) -> Result<(String, String, Vec<String>), String> {
+) -> Result<(String, Vec<String>), String> {
     if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let (bytes, source) = read_kicad_file(&file).await?;
-    #[cfg(all(test, target_arch = "wasm32"))]
-    test_support::pause_import_after_file_read().await;
     if !ctx.is_live() {
         return Err("The project or board changed while the routed-board file was read.".into());
     }
@@ -275,58 +258,36 @@ async fn import_routed_board(
         return Err("Could not allocate a unique routed-board asset identity.".into());
     }
     proposed.assets.push(asset);
-    let reference_id = if let Some(reference) = reference {
+    if let Some(reference) = reference {
         let existing = proposed
             .board_references
             .iter_mut()
             .find(|current| current.id == reference.id && current.board_id == scope.board_id)
-            .ok_or_else(|| {
-                "The routed-board reference changed. Reopen the panel and retry.".to_owned()
-            })?;
-        existing.asset_id = asset_id;
+            .ok_or("The routed-board reference changed. Reopen the panel and retry.")?;
+        existing.asset_id = asset_id.clone();
         existing.enabled = true;
-        existing.id.clone()
     } else {
-        let id = crate::runtime::new_project_id()?;
-        if proposed
-            .board_references
-            .iter()
-            .any(|current| current.id == id)
-        {
-            return Err("Could not allocate a unique routed-board reference identity.".into());
-        }
         proposed.board_references.push(BoardReference {
-            id: id.clone(),
+            id: crate::runtime::new_project_id()?,
             board_id: scope.board_id.clone(),
-            asset_id,
+            asset_id: asset_id.clone(),
             enabled: true,
             pose: boardstudio_model::model::Pose2 {
                 at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
             elevation: 0.0,
-            model_assets: reference
-                .map(|reference| reference.model_assets.clone())
-                .unwrap_or_default(),
+            model_assets: Default::default(),
         });
-        id
-    };
-    let asset_id = proposed
-        .board_references
-        .iter()
-        .find(|current| current.id == reference_id && current.board_id == scope.board_id)
-        .map(|current| current.asset_id.clone())
-        .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
-    let outcome = super::submit_board_reference_document(
+    }
+    super::submit_board_reference_document(
         &ctx.runtime,
-        ctx.is_current(),
+        ctx.is_live(),
         &ctx.owner,
         proposed,
         "board-reference-import",
-    )?
-    .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference(ctx, outcome).await?;
-    Ok((reference_id, asset_id, paths))
+    )?;
+    Ok((asset_id, paths))
 }
 
 enum ModelAttachment {
@@ -441,15 +402,13 @@ async fn attach_model_files(
         current.model_assets.insert(path, asset.id.clone());
         proposed.assets.push(asset);
     }
-    let outcome = super::submit_board_reference_document(
+    super::submit_board_reference_document(
         &ctx.runtime,
-        ctx.is_current(),
+        ctx.is_live(),
         &ctx.owner,
         proposed,
         "board-reference-model-attach",
-    )?
-    .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference(ctx, outcome).await
+    )
 }
 
 fn begin_request(
@@ -481,12 +440,12 @@ fn begin_board_import(
     };
     ctx.request_generation = epoch;
     let current_epoch = ctx.generation;
-    spawn_local(async move {
+    spawn(async move {
         let result = import_routed_board(&ctx, reference.as_ref(), file).await;
         if current_epoch() == epoch {
             busy.set(false);
             match result {
-                Ok((_, asset_id, discovered)) => {
+                Ok((asset_id, discovered)) => {
                     paths.set(discovered);
                     paths_asset_id.set(Some(asset_id));
                 }
@@ -518,7 +477,7 @@ fn begin_model_attachment(
     };
     ctx.request_generation = epoch;
     let current_epoch = ctx.generation;
-    spawn_local(async move {
+    spawn(async move {
         let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
         if current_epoch() == epoch {
             busy.set(false);
@@ -616,7 +575,7 @@ pub fn Editor(
                 let mut error = error;
                 let mut model_paths = model_paths;
                 let mut paths_asset_id = paths_asset_id;
-                spawn_local(async move {
+                spawn(async move {
                     let result = discover_stored_paths(&ctx, &reference).await;
                     if (ctx.generation)() == epoch {
                         busy_signal.set(false);
@@ -753,7 +712,7 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        PcbSection { class: "grid gap-2 py-2.5 border-b border-border [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-xs [&>p]:leading-normal", label: "Routed PCB reference",
+        InspectorSection { title: "Routed PCB reference", default_open: false,
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
             PcbFile {
                     label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
@@ -770,24 +729,20 @@ pub fn Editor(
                     }
             }
             if let Some(reference) = reference.as_ref() {
-                PcbCheck { label: "Use routed PCB in assembly", checked: reference.enabled, disabled,
-                    on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
+                ToggleField { label: "Use routed PCB in assembly", checked: reference.enabled,
+                    disabled_reason: disabled.then(|| "Routed PCB reference is read-only".to_owned()),
+                    on_commit: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
                 div {
                     for (label, value, make, step) in [
-                        ("X (mm)", reference.pose.at.x.to_string(), Action::SetPositionX as fn(f64) -> Action, Some("0.1")),
-                        ("Y (mm)", reference.pose.at.y.to_string(), Action::SetPositionY as fn(f64) -> Action, Some("0.1")),
-                        ("Z (mm)", reference.elevation.to_string(), Action::SetElevation as fn(f64) -> Action, Some("0.1")),
-                        ("Rotation (°)", reference.pose.rotation.to_string(), Action::SetRotation as fn(f64) -> Action, None),
+                        ("X (mm)", reference.pose.at.x, Action::SetPositionX as fn(f64) -> Action, 0.1),
+                        ("Y (mm)", reference.pose.at.y, Action::SetPositionY as fn(f64) -> Action, 0.1),
+                        ("Z (mm)", reference.elevation, Action::SetElevation as fn(f64) -> Action, 0.1),
+                        ("Rotation (°)", reference.pose.rotation, Action::SetRotation as fn(f64) -> Action, 1.0),
                     ] {
-                        PcbInput { key: "{label}", label: label.to_string(), aria_label: label.to_string(),
-                                r#type: InputType::Number, step: step.map(str::to_string), value,
-                                disabled,
-                                oninput: move |event: FormEvent| {
-                                    if let Ok(value) = event.value().parse::<f64>()
-                                        && value.is_finite()
-                                    { on_action.call(make(value)); }
-                                }
+                        NumericField { key: "{label}", label: label.to_owned(), value, step: Some(step),
+                            disabled_reason: disabled.then(|| "Routed PCB reference is read-only".to_owned()),
+                            on_commit: move |value| on_action.call(make(value)),
                         }
                     }
                 }
@@ -820,18 +775,18 @@ pub fn Editor(
                         let path_for_file = path.clone();
                         rsx! {
                             div { key: "{path}", class: "grid gap-2",
-                                PcbChoice {
-                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(), searchable: true,
+                                SelectField::<String> {
+                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(),
                                     disabled,
-                                    on_change: move |selected: String| {
+                                    on_commit: move |selected: String| {
                                         on_action.call(Action::SetModelAsset {
                                             path: path_for_select.clone(),
                                             asset_id: if selected.is_empty() { None } else { Some(selected) },
                                         });
                                     },
-                                    options: std::iter::once((String::new(), "Resolve bundled model".into(), false))
-                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into(), false)))
-                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone(), false))).collect(),
+                                    options: std::iter::once((String::new(), "Resolve bundled model".into()))
+                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into())))
+                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone()))).collect(),
                                 }
                                 PcbFile { label: format!("Attach model for {path}"), accept: Some(".step,.stp,.stl,.wrl".into()),
                                     disabled: disabled || busy,
@@ -871,12 +826,3 @@ pub fn Editor(
         }
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_board_reference/test_support.rs"]
-mod test_support;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "pcb_board_reference/mounted_async_tests.rs"]
-mod mounted_async_tests;

@@ -1,8 +1,7 @@
 use super::super::part_input_projection::{binding_schema, project, validate_parameter_value};
+use crate::pcb_wiring::mode::pcb_source;
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_model::model::{EditOperation, PressScanMode};
 use dioxus::prelude::*;
 use serde_json::Value;
@@ -106,12 +105,9 @@ pub fn use_part_input_edits(
             );
         }
     });
-    let editable = current_pcb_source(
-        &runtime,
-        workspace(),
-        scope_generation(),
-        instance_is_current(),
-    );
+    let editable = workspace() == "PCB"
+        && instance_is_current()
+        && pcb_source(&runtime, scope_generation()).is_some();
     let live_target = |ui_scope: &Scope, generation: u64, part_id: &str| {
         workspace() == "PCB"
             && generation == scope_generation()
@@ -142,30 +138,11 @@ fn current_snapshot(
     if workspace != "PCB" || !instance_is_current || generation != identity.scope_generation {
         return None;
     }
-    let model = runtime.model();
-    if !matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) || model.display_preview.is_some()
-        || model.gesture.is_some()
-        || !matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        || model.active_board_id != identity.board_id
-        || model.active_instance_id != identity.ui_scope.instance_id
-        || model.selected_part_ids.len() != 1
-        || model.selected_part_ids.first() != Some(&identity.part_id)
-        || runtime.scope().as_ref() != Some(&identity.ui_scope)
-    {
-        return None;
-    }
-    let snapshot = model.accepted?;
-    if snapshot.session_epoch != identity.ui_scope.session_epoch
-        || snapshot.document.id != identity.ui_scope.document_id
-        || snapshot.token != identity.token
-        || snapshot.document.revision != identity.revision
-        || snapshot.scene.revision != snapshot.document.revision
+    let (snapshot, source) = pcb_source(runtime, generation)?;
+    if runtime.model().selected_part_ids.as_slice() != [identity.part_id.as_str()]
+        || source.ui_scope != identity.ui_scope
+        || source.identity.token != identity.token
+        || source.identity.revision != identity.revision
     {
         return None;
     }
@@ -199,34 +176,6 @@ fn current_snapshot(
         return None;
     }
     Some(snapshot)
-}
-
-fn current_pcb_source(
-    runtime: &Runtime,
-    workspace: &'static str,
-    _generation: u64,
-    instance_is_current: bool,
-) -> bool {
-    if workspace != "PCB" || !instance_is_current {
-        return false;
-    }
-    let model = runtime.model();
-    matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && model.display_preview.is_none()
-        && model.gesture.is_none()
-        && matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        && model
-            .accepted
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.scene.revision == snapshot.document.revision)
-        && runtime.scope().is_some_and(|scope| {
-            scope.board_id == model.active_board_id && scope.instance_id == model.active_instance_id
-        })
 }
 
 fn input_resolver(request: PartInputEditRequest) -> EditResolver {

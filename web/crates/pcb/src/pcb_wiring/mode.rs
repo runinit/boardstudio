@@ -20,19 +20,6 @@ pub struct BoardWiringModeIdentity {
 }
 
 impl BoardWiringModeIdentity {
-    pub fn matches_action_context(
-        &self,
-        current_plan: &WiringPlanIdentity,
-        current_scope: Option<&Scope>,
-        current_selected_part_id: Option<&str>,
-        current_generation: u64,
-    ) -> bool {
-        self.plan == *current_plan
-            && current_scope == Some(&self.ui_scope)
-            && self.selected_part_id.as_deref() == current_selected_part_id
-            && self.scope_generation == current_generation
-    }
-
     pub fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
         BoardWiringModeFeedbackTarget {
             ui_scope: self.ui_scope.clone(),
@@ -49,26 +36,13 @@ pub struct BoardWiringModeFeedbackTarget {
     pub scope_generation: u64,
 }
 
-impl BoardWiringModeFeedbackTarget {
-    pub fn is_visible(
-        &self,
-        current_scope: Option<&Scope>,
-        current_selected_part_id: Option<&str>,
-        current_generation: u64,
-    ) -> bool {
-        current_scope == Some(&self.ui_scope)
-            && self.selected_part_id.as_deref() == current_selected_part_id
-            && self.scope_generation == current_generation
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeEditRequest {
     pub identity: BoardWiringModeIdentity,
     pub mode: ElectricalMode,
 }
 
-/// The accepted or pending mode written as the mode control's `value` text.
+/// The label used in the wiring panel header.
 pub(crate) fn mode_text(mode: ElectricalMode) -> String {
     match mode {
         ElectricalMode::Matrix => "matrix".to_owned(),
@@ -105,8 +79,8 @@ pub(crate) struct BoardWiringFailure {
 pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    pub(crate) draft: Signal<String>,
-    pub(crate) failure: Signal<Option<String>>,
+    pub(crate) mode: ElectricalMode,
+    pub(crate) failure: Option<String>,
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
@@ -120,35 +94,13 @@ pub fn use_board_wiring_mode_edits(
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
     let _ = version();
-    let mut draft = use_signal(String::new);
-    let mut failure = use_signal(|| None::<String>);
-    let mut bound = use_signal(|| None::<BoardWiringModeFeedbackTarget>);
-    let identity = source.as_ref().map(mode_identity);
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let accepted_snapshot = runtime.model().accepted;
-    let accepted = identity.as_ref().map_or_else(
-        || mode_text(ElectricalMode::Matrix),
-        |identity| {
-            accepted_snapshot.as_ref().map_or_else(
-                || mode_text(ElectricalMode::Matrix),
-                |snapshot| mode_text(board_mode(&snapshot.document, &identity.ui_scope.board_id)),
-            )
-        },
-    );
-    if bound.peek().as_ref() != target.as_ref() {
-        bound.set(target.clone());
-        failure.set(None);
-        draft.set(accepted.clone());
-    }
-    if draft.peek().as_str() != accepted {
-        draft.set(accepted);
-    }
+    let failure = use_signal(|| None::<BoardWiringFailure>);
+    let mode = source.as_ref().map_or(ElectricalMode::Matrix, |source| {
+        board_mode(&source.document, &source.ui_scope.board_id)
+    });
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut draft = draft;
         let mut failure = failure;
         move |request: BoardWiringModeEditRequest| {
             let Some(_snapshot) = current_edit_snapshot(
@@ -170,21 +122,28 @@ pub fn use_board_wiring_mode_edits(
             if identity != &request.identity.plan {
                 return;
             };
-            let board_id = request.identity.ui_scope.board_id.clone();
+            let target = request.identity.feedback_target();
             let result = runtime.commit("pcb-wiring-mode", mode_resolver(request));
-            if let Some(snapshot) = runtime.model().accepted {
-                draft.set(mode_text(board_mode(&snapshot.document, &board_id)));
-            }
-            failure.set(result.err());
+            failure.set(
+                result
+                    .err()
+                    .map(|message| BoardWiringFailure { target, message }),
+            );
         }
     });
     let identity = source.as_ref().map(mode_identity);
     let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
         && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let target = identity
+        .as_ref()
+        .map(BoardWiringModeIdentity::feedback_target);
+    let failure = failure()
+        .filter(|failure| Some(&failure.target) == target.as_ref())
+        .map(|failure| failure.message);
     BoardWiringModeActions {
         identity,
         editable,
-        draft,
+        mode,
         failure,
         on_change,
     }
@@ -247,57 +206,58 @@ pub fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     }
 }
 
+pub(super) fn pcb_source(
+    runtime: &Runtime,
+    generation: u64,
+) -> Option<(AcceptedSnapshot, PcbWiringSource)> {
+    let model = runtime.model();
+    let snapshot = model.accepted?;
+    let scope = runtime.scope()?;
+    if model.lifecycle != Lifecycle::Ready
+        || model.gesture.is_some()
+        || model.display_preview.is_some()
+        || model.active_board_id != scope.board_id
+        || model.active_instance_id != scope.instance_id
+        || !matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
+    {
+        return None;
+    }
+    let board_scope = Scope {
+        instance_id: None,
+        ..scope.clone()
+    };
+    let source = PcbWiringSource::new(
+        &snapshot,
+        &board_scope,
+        &scope,
+        model.selected_part_ids.first().map(String::as_str),
+        generation,
+    )?;
+    Some((snapshot, source))
+}
+
 pub fn current_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
     workspace: &str,
     scope_generation: u64,
     instance_is_current: bool,
-) -> Option<boardstudio_application::AcceptedSnapshot> {
-    current_snapshot_probe(
+) -> Option<AcceptedSnapshot> {
+    let snapshot = current_edit_snapshot(
         runtime,
         identity,
         workspace,
         scope_generation,
         instance_is_current,
-    )
-    .ok()
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CurrentSnapshotBlocker {
-    Workspace,
-    InstanceSelection,
-    MissingAcceptedSnapshot,
-    Lifecycle,
-    Preview,
-    Gesture,
-    Durability,
-    ActiveBoard,
-    ActiveInstance,
-    SessionEpoch,
-    DocumentId,
-    ActionContext,
-    BoardMissing,
-}
-
-/// Private diagnostic seam used by the mounted owner regression probe. Production admission
-/// uses this same predicate and discards the reason; no runtime state or debug API is exposed.
-pub fn current_snapshot_probe(
-    runtime: &Runtime,
-    identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
-    snapshot_probe(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-        false,
-    )
+    )?;
+    (runtime.model().durability
+        == Durability::Saved {
+            revision: snapshot.document.revision,
+        })
+    .then_some(snapshot)
 }
 
 pub(super) fn current_edit_snapshot(
@@ -306,89 +266,10 @@ pub(super) fn current_edit_snapshot(
     workspace: &str,
     scope_generation: u64,
     instance_is_current: bool,
-) -> Option<boardstudio_application::AcceptedSnapshot> {
-    snapshot_probe(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-        true,
-    )
-    .ok()
-}
-
-fn snapshot_probe(
-    runtime: &Runtime,
-    identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-    allow_saving: bool,
-) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
-    if workspace != "PCB" {
-        return Err(CurrentSnapshotBlocker::Workspace);
+) -> Option<AcceptedSnapshot> {
+    if workspace != "PCB" || !instance_is_current {
+        return None;
     }
-    if !instance_is_current {
-        return Err(CurrentSnapshotBlocker::InstanceSelection);
-    }
-    let model = runtime.model();
-    let snapshot = model
-        .accepted
-        .ok_or(CurrentSnapshotBlocker::MissingAcceptedSnapshot)?;
-    let current_scope = runtime.scope();
-    let current_plan = WiringPlanIdentity {
-        scope: Scope {
-            instance_id: None,
-            ..identity.ui_scope.clone()
-        },
-        token: snapshot.token,
-        revision: snapshot.document.revision,
-    };
-    if model.lifecycle != Lifecycle::Ready {
-        return Err(CurrentSnapshotBlocker::Lifecycle);
-    }
-    if model.display_preview.is_some() {
-        return Err(CurrentSnapshotBlocker::Preview);
-    }
-    if model.gesture.is_some() {
-        return Err(CurrentSnapshotBlocker::Gesture);
-    }
-    if !(model.durability
-        == (Durability::Saved {
-            revision: snapshot.document.revision,
-        })
-        || allow_saving && matches!(model.durability, Durability::Saving { .. }))
-    {
-        return Err(CurrentSnapshotBlocker::Durability);
-    }
-    if model.active_board_id != identity.ui_scope.board_id {
-        return Err(CurrentSnapshotBlocker::ActiveBoard);
-    }
-    if model.active_instance_id != identity.ui_scope.instance_id {
-        return Err(CurrentSnapshotBlocker::ActiveInstance);
-    }
-    if snapshot.session_epoch != identity.ui_scope.session_epoch {
-        return Err(CurrentSnapshotBlocker::SessionEpoch);
-    }
-    if snapshot.document.id != identity.ui_scope.document_id {
-        return Err(CurrentSnapshotBlocker::DocumentId);
-    }
-    if !identity.matches_action_context(
-        &current_plan,
-        current_scope.as_ref(),
-        model.selected_part_ids.first().map(String::as_str),
-        scope_generation,
-    ) {
-        return Err(CurrentSnapshotBlocker::ActionContext);
-    }
-    if !snapshot
-        .document
-        .boards
-        .iter()
-        .any(|board| board.id == identity.plan.scope.board_id)
-    {
-        return Err(CurrentSnapshotBlocker::BoardMissing);
-    }
-    Ok(snapshot)
+    let (snapshot, source) = pcb_source(runtime, scope_generation)?;
+    (*identity == mode_identity(&source)).then_some(snapshot)
 }

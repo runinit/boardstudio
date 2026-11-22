@@ -1,15 +1,14 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
-use super::editor_fields::{EditorNumberField, EditorSelect, EditorTextField, EditorTextarea};
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Asset, PartDefinition};
-use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
+use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, TextareaField, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
-    checkbox::CheckboxState,
     field::FieldError,
     spinner::Spinner,
 };
@@ -285,22 +284,6 @@ pub async fn prepare_generator_candidate(
     Ok(normalized)
 }
 
-#[cfg(test)]
-type GeneratorCandidateFuture =
-    std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>;
-#[cfg(test)]
-type GeneratorCandidateCallback = dyn Fn(
-    PartDefinition,
-    BTreeMap<String, Value>,
-    BTreeMap<String, Value>,
-) -> GeneratorCandidateFuture;
-
-/// Per-mounted-editor boundary for deterministic completion ordering in browser tests.
-/// The production path still calls `prepare_generator_candidate` directly.
-#[cfg(test)]
-#[derive(Clone)]
-struct GeneratorCandidateTestProvider(Rc<GeneratorCandidateCallback>);
-
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
 #[component]
@@ -331,17 +314,14 @@ pub fn GeneratorSettingsEditor(
 
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
-    let model_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let mut model_uploading = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
         let sequence = sequence.clone();
-        let model_sequence = model_sequence.clone();
         move || {
             alive.set(false);
             sequence.set(sequence.get().wrapping_add(1));
-            model_sequence.set(model_sequence.get().wrapping_add(1));
         }
     });
     let owner = make_owner(
@@ -390,8 +370,6 @@ pub fn GeneratorSettingsEditor(
     let callback_runtime = runtime.clone();
     let callback_schema = schema.clone();
     let preview_alive = alive.clone();
-    #[cfg(test)]
-    let candidate_provider = try_consume_context::<GeneratorCandidateTestProvider>();
     let preview_sequence = sequence.clone();
     let request_preview = use_callback(move |next: BTreeMap<String, Value>| {
         changed.set(next.clone());
@@ -415,16 +393,7 @@ pub fn GeneratorSettingsEditor(
         let alive = preview_alive.clone();
         let ticket = task.get().wrapping_add(1);
         task.set(ticket);
-        #[cfg(test)]
-        let candidate_provider = candidate_provider.clone();
         spawn_local(async move {
-            #[cfg(test)]
-            let result = if let Some(provider) = candidate_provider {
-                (provider.0)(base, schema, next).await
-            } else {
-                prepare_generator_candidate(base, schema, next).await
-            };
-            #[cfg(not(test))]
             let result = prepare_generator_candidate(base, schema, next).await;
             if !alive.get()
                 || task.get() != ticket
@@ -498,29 +467,53 @@ pub fn GeneratorSettingsEditor(
         }
         feedback.set(None);
         model_uploading.set(true);
-        let ticket = model_sequence.get().wrapping_add(1);
-        model_sequence.set(ticket);
-        let model_sequence = model_sequence.clone();
-        let alive = alive.clone();
-        let runtime = runtime.clone();
-        let owner = owner.clone();
         let error_prefix = parameter_label(&parameter).to_ascii_lowercase();
-        let mut feedback = feedback;
-        let mut model_uploading = model_uploading;
-
         let sequence = import_sequence.clone();
         let mut edits = edits;
         let mut store = store;
         let mut changed_parameters = changed_parameters;
-        spawn_local(async move {
-            let imported = read_model_file(file).await;
-            if !alive.get() || model_sequence.get() != ticket {
-                return;
+        spawn(async move {
+            let current = || {
+                owner_is_current(
+                    &owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                )
+            };
+            let result = async {
+                let imported = read_model_file(file).await?;
+                if !current() {
+                    return Err(
+                        "The selected generator changed while reading the model.".to_owned()
+                    );
+                }
+                imported.store(&runtime.store).await?;
+                if !current() {
+                    return Err(
+                        "The selected generator changed before attaching the model.".to_owned()
+                    );
+                }
+                let snapshot = runtime
+                    .model()
+                    .accepted
+                    .ok_or("The accepted project is unavailable.")?;
+                let definition = snapshot
+                    .document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == owner.definition_id)
+                    .cloned()
+                    .unwrap_or_else(|| owner.base_definition.clone());
+                Ok((imported, definition))
             }
-            let imported = match imported {
+            .await;
+            model_uploading.set(false);
+            let (imported, latest_definition) = match result {
                 Ok(imported) => imported,
                 Err(message) => {
-                    model_uploading.set(false);
                     if owner_context_is_current(
                         &owner,
                         &runtime,
@@ -537,103 +530,6 @@ pub fn GeneratorSettingsEditor(
                     return;
                 }
             };
-            if !owner_is_current(
-                &owner,
-                &runtime,
-                selected,
-                scope_generation(),
-                selection_generation(),
-                workspace(),
-            ) {
-                model_uploading.set(false);
-                if owner_context_is_current(
-                    &owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                ) {
-                    feedback.set(Some(ScopedFeedback {
-                        owner,
-                        message: format!("{error_prefix}: The selected generator changed while the model was being read. Re-select it before importing another model."),
-                    }));
-                }
-                return;
-            }
-            if let Err(message) = imported.store(&runtime.store).await {
-                model_uploading.set(false);
-                if owner_context_is_current(
-                    &owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                ) {
-                    feedback.set(Some(ScopedFeedback {
-                        owner,
-                        message: format!("{error_prefix}: {message}"),
-                    }));
-                }
-                return;
-            }
-            if !alive.get() || model_sequence.get() != ticket {
-                return;
-            }
-            if !owner_is_current(
-                &owner,
-                &runtime,
-                selected,
-                scope_generation(),
-                selection_generation(),
-                workspace(),
-            ) {
-                model_uploading.set(false);
-                if owner_context_is_current(
-                    &owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                ) {
-                    feedback.set(Some(ScopedFeedback {
-                        owner,
-                        message: format!("{error_prefix}: The selected generator changed before the model could be attached."),
-                    }));
-                }
-                return;
-            }
-            let Some(current) = runtime.model().accepted.clone() else {
-                model_uploading.set(false);
-                feedback.set(Some(ScopedFeedback {
-                    owner,
-                    message: format!("{error_prefix}: The accepted project is unavailable."),
-                }));
-                return;
-            };
-            let latest_definition = current
-                .document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == owner.definition_id)
-                .cloned()
-                .unwrap_or_else(|| owner.base_definition.clone());
-            if latest_definition
-                .generator
-                .as_ref()
-                .is_none_or(|generator| {
-                    generator.source != owner.source || generator.version != owner.generator_version
-                })
-            {
-                model_uploading.set(false);
-                feedback.set(Some(ScopedFeedback {
-                    owner,
-                    message: format!("{error_prefix}: The selected generator settings changed while the model was being saved."),
-                }));
-                return;
-            }
             // The bytes are already stored by hash; the resolver chooses the asset
             // identity against the accepted assets and adds only the Asset metadata.
             let asset = Asset {
@@ -644,7 +540,6 @@ pub fn GeneratorSettingsEditor(
                 license: None,
                 source: Some("local file".into()),
             };
-            model_uploading.set(false);
             let asset_seed = runtime.operation().0;
             let result = runtime.commit(
                 "parts-generator-settings",
@@ -722,30 +617,15 @@ pub fn GeneratorSettingsEditor(
         "3D model placement",
         "Advanced footprint options",
     ];
-    let mut open_groups = use_signal(|| {
-        BTreeSet::from([
-            "Footprint options".to_owned(),
-            "Keycap dimensions".to_owned(),
-        ])
-    });
     rsx! {
         section { class: "grid gap-2", "aria-label": "Generator settings",
             for group in groups {
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
-                  let group_name = group.to_owned();
-                  let is_open = open_groups().contains(group);
                   rsx! {
                     if !group_entries.is_empty() {
                     InspectorSection {
-                        title: "{group}",
-                        open: is_open,
-                        on_open_change: move |next: bool| {
-                            if next {
-                                open_groups.write().insert(group_name.clone());
-                            } else {
-                                open_groups.write().remove(&group_name);
-                            }
-                        },
+                        key: "{group}", title: "{group}",
+                        default_open: matches!(group, "Footprint options" | "Keycap dimensions"),
                         fieldset {
                             class: "grid gap-2",
                             "aria-label": "{group}",
@@ -826,7 +706,7 @@ fn GeneratorParameterField(
         });
         return rsx! {
             div { class: "grid gap-2",
-                EditorTextField { label: "{label}", aria_label: "{key}", value: "{current}", readonly: true }
+                p { "{label}: {current}" }
                 Button {
                     variant: ButtonVariant::Secondary,
                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -879,31 +759,31 @@ fn GeneratorParameterField(
     if key == "side" && matches!(value.as_str(), Some("F" | "B")) {
         let selected = value.as_str().unwrap_or("F").to_owned();
         return rsx! {
-            EditorSelect {
+            SelectField::<String> {
                 label: label.clone(),
                 aria_label: "side",
                 value: selected,
                 options: vec![("F".to_owned(), "Front".to_owned()), ("B".to_owned(), "Back".to_owned())],
-                on_select: move |value: String| on_change.call(Value::String(value)),
+                on_commit: move |value: String| on_change.call(Value::String(value)),
             }
         };
     }
     match entry.kind.as_str() {
         "boolean" => rsx! {
-            CheckboxField {
+            ToggleField {
                 id: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0),
                 label: "{label}",
-                aria_label: Some(key.clone()),
-                checked: if value.as_bool().unwrap_or(false) { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                on_checked_change: move |state: CheckboxState| on_change.call(Value::Bool(bool::from(state))),
+                aria_label: key.clone(),
+                checked: value.as_bool().unwrap_or(false),
+                on_commit: move |checked| on_change.call(Value::Bool(checked)),
             }
         },
         "array" | "object" | "anchor" => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                EditorTextarea {
+                TextareaField {
                     label: "{label}",
-                    aria_label: "{key}",
+                    aria_label: Some(key.clone()),
                     rows: 3,
                     spellcheck: false,
                     value: "{current}",
@@ -914,28 +794,26 @@ fn GeneratorParameterField(
         "number" => {
             let current = input_value(&value, "number");
             rsx! {
-                EditorNumberField {
+                NumericField {
                     label: "{label}",
                     aria_label: "{label}",
-                    step: "any",
-                    value: "{current}",
-                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
+                    value: current.parse::<f64>().unwrap_or_default(),
+                    mixed: current.is_empty(), placeholder: "Enter a number",
+                    on_commit: move |value: f64| on_change.call(Value::from(value)),
                 }
             }
         }
         _ => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                EditorTextField {
-                    label: "{label}",
-                    aria_label: "{key}",
-                    value: "{current}",
-                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
+                TextCommitField {
+                    label: "{label}", aria_label: "{key}", value: "{current}",
+                    on_commit: move |value: String| on_change.call(Value::String(value)),
+                }
+                if !current.is_empty() {
+                    Button { onclick: move |_| on_change.call(Value::String(String::new())), "Clear {label}" }
                 }
             }
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

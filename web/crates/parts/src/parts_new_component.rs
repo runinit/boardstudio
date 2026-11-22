@@ -10,26 +10,14 @@ mod ui {
     use super::{created_definition, new_component_resolver};
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
-    use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
     };
     use dioxus::prelude::*;
     use js_sys::{Date, Function, Reflect};
-    use std::{cell::Cell, rc::Rc};
+    use std::rc::Rc;
     use wasm_bindgen::{JsCast, JsValue};
-
-    /// Creation identity captured at admission so only the exact landed definition
-    /// is selected, even if other queued edits create definitions too.
-    #[derive(Clone)]
-    struct CreationIntent {
-        base: String,
-        known: Vec<String>,
-        scope: Scope,
-        view_generation: u64,
-        scope_generation: u64,
-    }
 
     /// The Parts parent mounts this action outside its catalogue loading/error branches so
     /// module-source availability never controls whether a project definition can be created.
@@ -39,106 +27,30 @@ mod ui {
         view_generation: Signal<u64>,
         scope_generation: Signal<u64>,
         workspace: Signal<&'static str>,
-        query: Signal<String>,
-        selected: Signal<Option<(Option<Scope>, String)>>,
+        mut query: Signal<String>,
+        mut selected: Signal<Option<(Option<Scope>, String)>>,
         on_select: EventHandler<()>,
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
-        let version = use_context::<Signal<u64>>();
-        let mut waiting = use_signal(|| None::<(EditOutcome, CreationIntent)>);
         let mut error = use_signal(|| None::<(Scope, u64, u64, String)>);
-        let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
-        use_drop({
-            let owner_is_mounted = owner_is_mounted.clone();
-            move || owner_is_mounted.set(false)
-        });
-
-        // The owner generation is advanced by the Parts composition for query, selection,
-        // workspace and scope intent. Runtime's version only wakes this effect on settlement.
-        use_effect(use_reactive((&version(),), {
-            let runtime = runtime.clone();
-            let owner_is_mounted = owner_is_mounted.clone();
-            let mut selected = selected;
-            let mut query = query;
-            let view_generation = view_generation;
-            let scope_generation = scope_generation;
-            let workspace = workspace;
-            move |_| {
-                let observed = waiting.read().clone();
-                let Some((ticket, intent)) = observed else {
-                    return;
-                };
-                let owner_is_live = owner_is_mounted.get()
-                    && workspace() == "Parts"
-                    && view_generation() == intent.view_generation
-                    && scope_generation() == intent.scope_generation
-                    && runtime.scope().as_ref() == Some(&intent.scope)
-                    && runtime.model().accepted.as_ref().is_some_and(|current| {
-                        current.session_epoch == intent.scope.session_epoch
-                            && current.document.id == intent.scope.document_id
-                    });
-                let settlement = ticket.settlement(owner_is_live);
-                if settlement == Settlement::Pending {
-                    return;
-                }
-                waiting.set(None);
-                match settlement {
-                    Settlement::Landed { .. } => {
-                        let created = runtime.model().accepted.as_ref().and_then(|current| {
-                            created_definition(
-                                &intent.base,
-                                &intent.known,
-                                &current.document.definitions,
-                            )
-                            .map(|definition| definition.id.clone())
-                        });
-                        if let Some(definition_id) = created {
-                            selected.set(Some((Some(intent.scope), definition_id)));
-                            query.set(String::new());
-                            on_select.call(());
-                        }
-                    }
-                    Settlement::Failed { message } => error.set(Some((
-                        intent.scope,
-                        intent.view_generation,
-                        intent.scope_generation,
-                        message,
-                    ))),
-                    Settlement::Retired | Settlement::Pending => {}
-                }
-            }
-        }));
-
         let create = {
             let runtime = runtime.clone();
-            let owner_is_mounted = owner_is_mounted.clone();
-            let view_generation = view_generation;
-            let scope_generation = scope_generation;
-            let workspace = workspace;
             move |_| {
-                if !owner_is_mounted.get()
-                    || workspace() != "Parts"
-                    || waiting
-                        .peek()
-                        .as_ref()
-                        .is_some_and(|(ticket, _)| ticket.is_pending())
-                {
+                if workspace() != "Parts" || runtime.scope() != scope {
                     return;
                 }
-                let model = runtime.model();
-                let Some(snapshot) = model.accepted.as_ref() else {
+                let Some(current_scope) = scope.clone() else {
                     return;
                 };
-                let Some(current_scope) = runtime.scope() else {
+                let Some(snapshot) = runtime.model().accepted else {
                     return;
                 };
-                if scope.as_ref() != Some(&current_scope)
-                    || snapshot.document.id != current_scope.document_id
+                if snapshot.document.id != current_scope.document_id
                     || snapshot.session_epoch != current_scope.session_epoch
                 {
                     return;
                 }
-                let base = format!("ui-{}", browser_identity().unwrap_or_else(date_identity));
+                let base = format!("ui-{}", new_definition_identity());
                 let known = snapshot
                     .document
                     .definitions
@@ -146,21 +58,23 @@ mod ui {
                     .map(|definition| definition.id.clone())
                     .collect::<Vec<_>>();
                 error.set(None);
-                let ticket = runtime.resolve_edit(
-                    "parts-new-component",
-                    Some("component".into()),
-                    new_component_resolver(base.clone()),
-                );
-                waiting.set(Some((
-                    ticket,
-                    CreationIntent {
-                        base,
-                        known,
-                        scope: current_scope,
-                        view_generation: view_generation(),
-                        scope_generation: scope_generation(),
-                    },
-                )));
+                match runtime.commit("parts-new-component", new_component_resolver(base.clone())) {
+                    Ok(current) => {
+                        if let Some(definition) =
+                            created_definition(&base, &known, &current.document.definitions)
+                        {
+                            selected.set(Some((Some(current_scope), definition.id.clone())));
+                            query.set(String::new());
+                            on_select.call(());
+                        }
+                    }
+                    Err(message) => error.set(Some((
+                        current_scope,
+                        view_generation(),
+                        scope_generation(),
+                        message,
+                    ))),
+                }
             }
         };
 
@@ -168,7 +82,6 @@ mod ui {
             Button {
                 variant: ButtonVariant::Secondary,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()),
                 onclick: create,
                 "New custom component"
             }
@@ -176,6 +89,10 @@ mod ui {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
         }
+    }
+
+    pub(crate) fn new_definition_identity() -> String {
+        browser_identity().unwrap_or_else(date_identity)
     }
 
     fn browser_identity() -> Option<String> {
@@ -209,6 +126,8 @@ mod ui {
 
 #[cfg(target_arch = "wasm32")]
 pub use ui::NewCustomComponentAction;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use ui::new_definition_identity;
 
 /// Resolve editable project-owned selection from the accepted document even when the
 /// module catalogue is still loading or has failed.

@@ -64,8 +64,12 @@ pub mod connector_admission;
 pub mod firmware_position_choices;
 mod pcb_layer_inventory;
 mod pcb_layer_projection;
+#[cfg(target_arch = "wasm32")]
 pub mod pcb_physical_setup;
-pub mod pcb_wiring_remap_operation;
+
+#[cfg(all(not(target_arch = "wasm32"), test))]
+#[path = "pcb_physical_setup/reassignment_owner.rs"]
+mod physical_setup_owner_tests;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_owner;
@@ -133,14 +137,6 @@ pub(crate) mod pcb_wiring {
 
     #[path = "remap.rs"]
     mod remap;
-
-    #[cfg(test)]
-    #[path = "test_fixtures.rs"]
-    mod test_fixtures;
-
-    #[cfg(test)]
-    #[path = "mode_owner_tests.rs"]
-    mod mode_owner_tests;
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

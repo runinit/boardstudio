@@ -1,11 +1,8 @@
-//! PCB wiring preview plus contextual selected-part connection projection.
-//!
-//! Root owns the accepted-source controller and Runtime request. This leaf receives only a
-//! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
-use crate::pcb_controls::{PcbChoice, PcbInput, PcbSection};
-use boardstudio_application::Scope;
+//! PCB wiring controls and accepted board-plan edits.
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
-use boardstudio_model::model::{Net, PartDefinition, PartKind, ProjectDoc};
+use boardstudio_model::model::{EditOperation, Net, PartDefinition, PartKind, ProjectDoc};
+use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField, TextField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -18,28 +15,26 @@ pub use boardstudio_web_ui_model::wiring::{PcbWiringResolution, PcbWiringSource}
 
 mod apply;
 mod connections;
-mod controller;
 mod mode;
 mod part_connections;
 mod part_input_projection;
 mod part_input_settings;
-mod part_net_admission;
 mod part_net_identity;
 pub use part_net_identity::PartNetEditIdentity;
 mod pins;
 mod remap;
-use crate::firmware_position_projection;
+use crate::firmware_position_projection::{self, FirmwarePositionAdmission, admits_edit};
 pub use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
+use crate::runtime::Runtime;
 pub use apply::{BoardWiringApplyActions, use_board_wiring_apply};
-pub use controller::{
-    WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
-    use_pcb_wiring_controller, wiring_resolution_notice,
-};
+use mode::pcb_source;
 pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
+use part_connections::PartNetIntent;
 pub use part_input_settings::PartInputActions;
+use part_net_identity::request_matches_current_part;
 pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 
@@ -559,13 +554,13 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 source: source.clone(),
                 actions: props.part_input_actions.clone(),
                 board_details_and_connections: rsx! {
-            PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", label: "Board details",
+            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: false, title: "Board details",
                 ul {
                     li { span { "Board thickness" } strong { "{thickness:.2} mm" } }
                     li { span { "Placed parts" } strong { "{placed_parts}" } }
                     li { span { "Net assignments" } strong { "{assigned_pins}" } }
                 }
-            }
+            } }
             div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs",
                 h3 { "Connections" }
                 if connections.is_empty() {
@@ -580,10 +575,10 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                             let pad_ids = row.pad_ids.clone();
                             let value = row.selected_net_id.clone().unwrap_or_default();
                             rsx! {
-                                PcbChoice { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground", key: "{row.label}",
-                                        label: row.label.clone(), aria_label: format!("Net for {}", row.label), value, searchable: true,
+                                SelectField::<String> { key: "{row.label}",
+                                        label: row.label.clone(), aria_label: format!("Net for {}", row.label), value,
                                         disabled: !actions.editable || identity.is_none(),
-                                        on_change: move |value: String| {
+                                        on_commit: move |value: String| {
                                             let Some(identity) = identity.clone() else { return; };
                                             on_edit.call(PartNetEditRequest {
                                                 identity,
@@ -593,7 +588,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                                                 },
                                             });
                                         },
-                                        options: std::iter::once((String::new(), "Unmapped".into(), false)).chain(nets.iter().map(|net| (net.id.clone(), net.name.clone(), false))).collect(),
+                                        options: std::iter::once((String::new(), "Unmapped".into())).chain(nets.iter().map(|net| (net.id.clone(), net.name.clone()))).collect(),
                                 }
                             }
                         }
@@ -603,21 +598,21 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 },
             }
             form { class: "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2.5 gap-y-[3px] py-2 border-b border-border text-xs [&_strong]:[overflow-wrap:anywhere] [&_small]:col-span-full [&_small]:text-muted-foreground !items-center !gap-2 mt-2.5", onsubmit: add_net,
-                PcbInput { label: "New net name", aria_label: "New net name", r#type: InputType::Text,
+                TextField { id: "pcb-new-net".to_owned(), label: "New net name", r#type: InputType::Text,
                     placeholder: Some("New net name".into()), value: new_net_name(),
                     disabled: !actions.editable || identity.is_none(),
                     oninput: move |event: FormEvent| new_net_name.set(event.value()),
                 }
                 Button { button_type: "submit", variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
-            PcbSection { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", label: format!("Electrical nets ({})", nets.len()),
+            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: false, title: format!("Electrical nets ({})", nets.len()),
                 ul {
                     for net in nets {
                         li { key: "{net.id}", span { "{net.name}" } small { "{net.pin_count} pins" } }
                     }
                     if nets.is_empty() { li { "No nets are assigned to this board." } }
                 }
-            }
+            } }
             if let Some(feedback) = actions.feedback {
                 Alert { variant: AlertVariant::Destructive, "{feedback.failure}" }
             }
@@ -724,14 +719,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_resolve = props.on_resolve;
     let on_choose_controller = props.on_choose_controller;
     let mode_actions = props.mode_actions.clone();
-    let selected_mode = (mode_actions.draft)();
-    let mode_failure = (mode_actions.failure)();
+    let selected_mode = mode::mode_text(mode_actions.mode);
+    let mode_failure = mode_actions.failure.clone();
     let change_mode = mode_actions.on_change;
     let mode_identity = mode_actions.identity.clone();
     let apply_actions = props.apply_actions.clone();
     let apply_identity = apply_actions.identity.clone();
     let apply_failure = apply_actions.failure.clone();
-    let release_disabled = apply_actions.release_disabled;
     let on_apply = apply_actions.on_apply;
     let pin_actions = props.pin_actions.clone();
     let pin_failure = pin_actions.failure.clone();
@@ -761,29 +755,21 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
                 span { class: "border border-border rounded-[3px] px-1.5 py-[3px] text-muted-foreground font-mono text-[11px] uppercase", "{selected_mode}" }
             }
-            PcbSection { class: "border-t border-border py-4 [&_ul]:list-none [&_ul]:m-0 [&_ul]:p-0 [&_li]:flex [&_li]:items-baseline [&_li]:justify-between [&_li]:gap-2 [&_li]:py-1.5 [&_li]:border-b [&_li]:border-border [&_li_span]:text-muted-foreground [&_li_span]:text-xs", default_open: true, label: "Nets",
+            div { class: "border-t border-border py-4 [&_ul]:list-none [&_ul]:m-0 [&_ul]:p-0 [&_li]:flex [&_li]:items-baseline [&_li]:justify-between [&_li]:gap-2 [&_li]:py-1.5 [&_li]:border-b [&_li]:border-border [&_li_span]:text-muted-foreground [&_li_span]:text-xs", InspectorSection { default_open: true, title: "Nets",
                 ul {
                     for net in props.source.document.nets.iter().filter(|net| props.source.document.boards.iter().find(|board| board.id == props.source.identity.scope.board_id).is_some_and(|board| board.net_ids.contains(&net.id) || net.pins.iter().any(|pin| board.part_ids.contains(&pin.part_id)))) {
                         li { key: "{net.id}", strong { "{net.name}" } span { "{net.pins.len()} pins" } }
                     }
                 }
-            }
-            PcbChoice {
-                label: "Wiring mode",
-                class: "grid gap-[5px] text-xs text-muted-foreground",
-                aria_label: "Wiring mode",
-                value: "{selected_mode}",
-                disabled: !mode_actions.editable,
-                on_change: move |value: String| {
-                        let Some(identity) = mode_identity.clone() else { return; };
-                        let mode = match value.as_str() {
-                            "matrix" => ElectricalMode::Matrix,
-                            "direct" => ElectricalMode::Direct,
-                            _ => return,
-                        };
+            } }
+            SelectField::<ElectricalMode> {
+                label: "Wiring mode", value: mode_actions.mode, disabled: !mode_actions.editable,
+                on_commit: move |mode| {
+                    if let Some(identity) = mode_identity.clone() {
                         change_mode.call(BoardWiringModeEditRequest { identity, mode });
-                    },
-                options: vec![("matrix".into(), "Matrix".into(), false), ("direct".into(), "Direct GPIO".into(), false)],
+                    }
+                },
+                options: vec![(ElectricalMode::Matrix, "Matrix".into()), (ElectricalMode::Direct, "Direct GPIO".into())],
             }
             if display.controller_choices.is_empty() {
                 p { "Place a controller from Parts to assign this board’s wiring." }
@@ -802,7 +788,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     strong { "Protected handoff" }
                     if let Some(revision) = protected_remap_actions.handoff_revision {
                         p { "Pins protected by PCB handoff at revision {revision}" }
-                        PcbSection { label: "Review PCB remap",
+                        InspectorSection { default_open: false, title: "Review PCB remap",
                             p { "Changing a protected assignment creates a new hardware revision. The old PCB and firmware must be regenerated before export." }
                             Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 disabled: !protected_remap_actions.editable,
@@ -815,9 +801,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                         }
                     }
                     if let Some(feedback) = &protected_remap_actions.feedback {
-                        if matches!(feedback.state, ProtectedRemapFeedback::Pending) {
-                            p { role: "status", Spinner {} "Starting a new PCB revision…" }
-                        } else if matches!(feedback.state, ProtectedRemapFeedback::Saved) {
+                        if matches!(feedback.state, ProtectedRemapFeedback::Applied) {
                             p { role: "status", "New PCB revision started. Regenerate PCB and firmware before export." }
                         } else if let ProtectedRemapFeedback::Failed(message) = &feedback.state {
                             Alert { variant: AlertVariant::Destructive, "{message}" }
@@ -868,7 +852,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     strong { "Review existing connections" }
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                        disabled: !mode_actions.editable || review_connections_identity.is_none() || release_disabled,
+                        disabled: !mode_actions.editable || review_connections_identity.is_none(),
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
                             on_release_reviewed_connections.call(identity);
@@ -879,27 +863,27 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
-                PcbSection { default_open: true, class: "m-0 p-0 border-t-0", label: format!("Assignments ({})", pin_rows.len()),
+                div { class: "m-0 p-0 border-t-0", InspectorSection { default_open: true, title: format!("Assignments ({})", pin_rows.len()),
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.rows.is_empty() {
-                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Row pins ({})", assignment_groups.rows.len()),
+                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Row pins ({})", assignment_groups.rows.len()),
                             for row in assignment_groups.rows.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
-                        }
+                        } }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.columns.is_empty() {
-                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Column pins ({})", assignment_groups.columns.len()),
+                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Column pins ({})", assignment_groups.columns.len()),
                             for row in assignment_groups.columns.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
-                        }
+                        } }
                     }
                     if plan.mode == ElectricalMode::Matrix && !assignment_groups.other.is_empty() {
-                        PcbSection { class: "m-0 p-0 border-t border-border", label: format!("Peripheral pins ({})", assignment_groups.other.len()),
+                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Peripheral pins ({})", assignment_groups.other.len()),
                             for row in assignment_groups.other.iter() {
                                 {pin_assignment_row(row, &pin_actions, plan)}
                             }
-                        }
+                        } }
                     }
                     if plan.mode != ElectricalMode::Matrix {
                         for row in assignment_groups.other.iter() {
@@ -909,7 +893,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     if pin_rows.is_empty() {
                         p { class: "text-muted-foreground", "Resolve the board to see controller, matrix, and peripheral assignments." }
                     }
-                }
+                } }
             }
         }
     }
@@ -932,12 +916,12 @@ fn pin_assignment_row(
                     small { "{detail}" }
                 }
             }
-            PcbChoice { class: "min-w-0", label_class: "sr-only",
+            SelectField::<String> {
                     label: format!("Pin for {}", row.label), aria_label: format!("Pin for {}", row.label),
-                    value: row.value.clone().unwrap_or_default(), searchable: true,
+                    value: row.value.clone().unwrap_or_default(),
                     disabled: !actions.editable || row.locked,
-                    options: std::iter::once((String::new(), "Unresolved".into(), false)).chain(pin_choices.into_iter().map(|pin| (pin.clone(), pin, false))).collect(),
-                    on_change: {
+                    options: std::iter::once((String::new(), "Unresolved".into())).chain(pin_choices.into_iter().map(|pin| (pin.clone(), pin))).collect(),
+                    on_commit: {
                         let assignment_id = assignment_id.clone();
                         let identity = identity.clone();
                         move |value: String| {
@@ -999,222 +983,505 @@ fn pin_lock_action(locked: bool) -> &'static str {
     if locked { "Unlock" } else { "Lock" }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_web_ui_shared::test_mount::MountedFixture;
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::*;
-
-    #[cfg(target_arch = "wasm32")]
-    #[derive(Clone)]
-    struct PinCapture(Rc<std::cell::RefCell<Option<PcbWiringPinEditRequest>>>);
-
-    #[cfg(target_arch = "wasm32")]
-    fn mounted_pin_row() -> Element {
-        let capture = use_context::<PinCapture>();
-        let scope = boardstudio_application::Scope {
-            session_epoch: boardstudio_application::SessionEpoch(1),
-            document_id: "project".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let identity = mode::BoardWiringModeIdentity {
-            plan: crate::firmware_position_projection::FirmwarePlanIdentity {
-                scope: scope.clone(),
-                token: boardstudio_application::SnapshotToken(1),
-                revision: 0,
-            },
-            ui_scope: scope,
-            selected_part_id: None,
-            scope_generation: 0,
-        };
-        let actions = PcbWiringPinActions {
-            identity: Some(identity),
-            editable: true,
-            failure: None,
-            on_change: EventHandler::new(move |request| *capture.0.borrow_mut() = Some(request)),
-        };
-        let row = pins::PcbWiringPinAssignment {
-            id: "row/0".into(),
-            label: "Row 1".into(),
-            detail: None,
-            value: Some("P5".into()),
-            locked: false,
-        };
-        let mut plan = boardstudio_core_mechanical::electrical::resolve(
-            boardstudio_core_mechanical::electrical::ElectricalPlanRequest {
-                document: ProjectDoc::empty("project", "Fixture"),
-                instance_id: None,
-                mode: ElectricalMode::Matrix,
-                locks: Default::default(),
-                controller_profile: None,
-                board_id: Some("board".into()),
-                controller_part_id: None,
-            },
-        );
-        plan.free_pins = vec!["P6".into()];
-        pin_assignment_row(&row, &actions, &plan)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    #[wasm_bindgen_test]
-    async fn pin_assignment_filters_and_retains_accepted_choice() {
-        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-        use wasm_bindgen::JsCast;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let capture = Rc::new(std::cell::RefCell::new(None));
-        let dom = VirtualDom::new(mounted_pin_row);
-        dom.provide_root_context(PinCapture(capture.clone()));
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("pin picker mounts", || {
-            by_role_name(&root, "combobox", "Pin for Row 1").is_some()
-        })
-        .await;
-        let picker = by_role_name(&root, "combobox", "Pin for Row 1").unwrap();
-        let label = root.query_selector("label").unwrap().unwrap();
-        assert!(
-            label
-                .get_attribute("class")
-                .unwrap_or_default()
-                .split_whitespace()
-                .any(|class| class == "sr-only"),
-            "the accessible pin label uses the new visually-hidden utility"
-        );
-        let input: web_sys::HtmlInputElement = picker
-            .clone()
-            .dyn_into()
-            .expect("long pin list is searchable");
-        assert_eq!(input.value(), "P5");
-        picker.focus().unwrap();
-        let key = |value: &str| {
-            let event = web_sys::KeyboardEventInit::new();
-            event.set_key(value);
-            event.set_bubbles(true);
-            event.set_cancelable(true);
-            picker
-                .dispatch_event(
-                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
-                        .unwrap(),
-                )
-                .unwrap();
-        };
-        key("ArrowDown");
-        input.set_value("P6");
-        let event = web_sys::EventInit::new();
-        event.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
-            .unwrap();
-        wait_until("pin list filters", || {
-            by_role_name(&root, "option", "P6").is_some()
-                && by_role_name(&root, "option", "P5").is_none()
-        })
-        .await;
-        key("ArrowDown");
-        wait_until("matching pin is active", || {
-            by_role_name(&root, "option", "P6").is_some_and(|option| {
-                picker.get_attribute("aria-activedescendant").as_deref()
-                    == Some(option.id().as_str())
-            })
-        })
-        .await;
-        key("Enter");
-        wait_until("pin request emitted", || {
-            capture.borrow().as_ref().is_some_and(|request| {
-                request.assignment_id == "row/0" && request.pin.as_deref() == Some("P6")
-            })
-        })
-        .await;
-        assert!(by_role_name(&root, "group", "Pin lock for Row 1").is_some());
-        let lock = by_role_name(&root, "button", "Lock Row 1").unwrap();
-        assert_eq!(lock.get_attribute("aria-pressed").as_deref(), Some("false"));
-        lock.focus().unwrap();
-        lock.click();
-        wait_until("lock preserves the accepted pin", || {
-            capture.borrow().as_ref().is_some_and(|request| {
-                request.assignment_id == "row/0" && request.pin.as_deref() == Some("P5")
-            })
-        })
-        .await;
-        root.remove();
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[cfg(target_arch = "wasm32")]
-    fn pin_option_fixture() -> Element {
-        let retained = pins::PcbWiringPinAssignment {
-            id: "row/0".into(),
-            label: "Row 1".into(),
-            detail: None,
-            value: Some("P5".into()),
-            locked: false,
-        };
-        let unresolved = pins::PcbWiringPinAssignment {
-            id: "left/SW25/encoder-a".into(),
-            label: "left/SW25/encoder-a".into(),
-            detail: None,
-            value: None,
-            locked: false,
-        };
-        let actions = PcbWiringPinActions {
-            identity: None,
-            editable: false,
-            failure: None,
-            on_change: EventHandler::new(|_| {}),
-        };
-        let mut plan = boardstudio_core_mechanical::electrical::resolve(
-            boardstudio_core_mechanical::electrical::ElectricalPlanRequest {
-                document: ProjectDoc::empty("project", "Fixture"),
-                instance_id: None,
-                mode: ElectricalMode::Matrix,
-                locks: Default::default(),
-                controller_profile: None,
-                board_id: Some("board".into()),
-                controller_part_id: None,
-            },
-        );
-        plan.free_pins = vec!["P1".into(), "P6".into()];
-        rsx! { {pin_assignment_row(&retained, &actions, &plan)} {pin_assignment_row(&unresolved, &actions, &plan)} }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn mount_pin_option_fixture() -> (web_sys::Element, MountedFixture) {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("pcb-wiring-pin-option-test-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        let mounted = MountedFixture::new(root.clone(), VirtualDom::new(pin_option_fixture));
-        (root, mounted)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    #[wasm_bindgen_test]
-    async fn wiring_pin_options_select_saved_values_and_only_unresolved_for_empty_rows() {
-        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-        use wasm_bindgen::JsCast;
-        let (root, _mounted) = mount_pin_option_fixture();
-        wait_until("pin rows mount", || {
-            by_role_name(&root, "combobox", "Pin for Row 1").is_some()
-                && by_role_name(&root, "combobox", "Pin for left/SW25/encoder-a").is_some()
-        })
-        .await;
-        let value = |name| {
-            by_role_name(&root, "combobox", name)
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap()
-                .value()
-        };
-        assert_eq!(value("Pin for Row 1"), "P5");
-        assert_eq!(value("Pin for left/SW25/encoder-a"), "Unresolved");
-        root.remove();
+/// The stable presentation target of one firmware key's edits, without plan tokens.
+fn firmware_key_target(
+    identity: &crate::firmware_position_projection::FirmwarePositionIdentity,
+    key_id: &str,
+) -> FirmwarePositionFeedbackTarget {
+    FirmwarePositionFeedbackTarget {
+        ui_scope: identity.ui_scope.clone(),
+        scope_generation: identity.scope_generation,
+        key_id: key_id.to_owned(),
     }
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod test_fixtures;
+pub struct FirmwarePositionActions {
+    pub feedback: Option<FirmwarePositionFeedback>,
+    pub editable: bool,
+    pub on_edit: EventHandler<FirmwarePositionEditRequest>,
+}
+
+/// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
+pub fn use_firmware_position_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+    resolution: Signal<PcbWiringResolution>,
+) -> FirmwarePositionActions {
+    let _ = version();
+    let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let mut feedback = feedback;
+        let instance_is_current = instance_is_current.clone();
+        move |request: FirmwarePositionEditRequest| {
+            let Some((snapshot, source)) = pcb_source(&runtime, scope_generation()) else {
+                return;
+            };
+            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
+                return;
+            };
+            let current = firmware_position_projection::project(
+                &snapshot.document,
+                &source.identity,
+                &source.ui_scope,
+                source.scope_generation,
+                PlanLifecycle::Current(identity, plan),
+            );
+            if !admits_edit(
+                &request.identity,
+                &request.key_id,
+                FirmwarePositionAdmission {
+                    workspace: workspace(),
+                    current_generation: scope_generation(),
+                    instance_is_current: instance_is_current(),
+                    runtime_scope: Some(&source.ui_scope),
+                    accepted: &snapshot,
+                    current_plan: Some(identity),
+                    current_projection: &current,
+                },
+            ) {
+                return;
+            }
+            let target = firmware_key_target(&request.identity, &request.key_id);
+            let result = runtime.commit("firmware-position", firmware_position_resolver(request));
+            feedback.set(result.err().map(|message| FirmwarePositionFeedback {
+                target,
+                state: FirmwarePositionFeedbackState::Failed(message),
+            }));
+        }
+    });
+
+    let editable = workspace() == "PCB"
+        && instance_is_current()
+        && pcb_source(&runtime, scope_generation()).is_some_and(|(snapshot, source)| {
+            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
+                return false;
+            };
+            let projection = firmware_position_projection::project(
+                &snapshot.document,
+                &source.identity,
+                &source.ui_scope,
+                source.scope_generation,
+                PlanLifecycle::Current(identity, plan),
+            );
+            projection.identity.is_some() && !projection.keys.is_empty()
+        });
+    FirmwarePositionActions {
+        feedback: feedback(),
+        editable,
+        on_edit,
+    }
+}
+
+fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
+    EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
+        let scope = &request.identity.ui_scope;
+        let boardstudio_model::model::CoreRequest::ResolveElectrical {
+            request: electrical_request,
+            ..
+        } = boardstudio_web_runtime::electrical_preview_request(
+            "firmware-position",
+            &accepted.document,
+            &scope.board_id,
+        )
+        else {
+            unreachable!()
+        };
+        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
+        let identity = WiringPlanIdentity {
+            token: accepted.token,
+            revision: accepted.document.revision,
+            ..request.identity.plan.clone()
+        };
+        let projection = firmware_position_projection::project(
+            &accepted.document,
+            &identity,
+            scope,
+            request.identity.scope_generation,
+            PlanLifecycle::Current(&identity, &plan),
+        );
+        if !projection.keys.iter().any(|key| key.id == request.key_id) {
+            return Resolution::Retire(
+                "The firmware key was deleted or is no longer eligible on this board.".into(),
+            );
+        }
+        if projection
+            .bindings
+            .get(&request.key_id)
+            .map(String::as_str)
+            .unwrap_or("&none")
+            == request.binding
+        {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![scope.board_id.clone(), request.key_id.clone()],
+            EditOperation::SetKeyBinding {
+                board_id: scope.board_id.clone(),
+                key_id: request.key_id.clone(),
+                binding: request.binding.clone(),
+            },
+        )
+    })
+}
+
+pub fn use_pcb_part_net_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+) -> PartNetActions {
+    let _ = version();
+    let feedback = use_signal(|| None::<PartNetFeedback>);
+    let preparing_create = use_signal(|| false);
+    let generation = scope_generation();
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let instance_is_current = instance_is_current.clone();
+        move |request: PartNetEditRequest| {
+            if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
+                return;
+            }
+            let Some(current) =
+                current_part_net_identity(&runtime, generation, instance_is_current())
+            else {
+                return;
+            };
+            if !request_matches_current_part(&request.identity, &current) {
+                return;
+            }
+            let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
+            if create && *preparing_create.peek() {
+                return;
+            }
+            let accepted = runtime.model().accepted.unwrap();
+            let part = accepted
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == request.identity.part_id)
+                .unwrap();
+            let definition = accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .unwrap();
+            let definition_id = definition.id.clone();
+            let source = definition
+                .generator
+                .as_ref()
+                .map(|generator| generator.source.clone());
+            let mut feedback = feedback;
+            let target = PartNetTarget::of(&request.identity);
+            let seed = runtime.operation().0;
+            if source.is_none() {
+                let resolver = part_net_resolver(request, definition_id, None, false, seed);
+                feedback.set(
+                    runtime
+                        .commit("pcb-part-net", resolver)
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
+                return;
+            }
+
+            let mut preparing_create = preparing_create;
+            if create {
+                preparing_create.set(true);
+            }
+            let runtime = runtime.clone();
+            let instance_is_current = instance_is_current.clone();
+            spawn(async move {
+                let classified =
+                    crate::presentation::parts::is_generator_source(source.clone().unwrap()).await;
+                if create {
+                    preparing_create.set(false);
+                }
+                if workspace() != "PCB"
+                    || scope_generation() != generation
+                    || current_part_net_identity(&runtime, generation, instance_is_current())
+                        .is_none_or(|current| {
+                            !request_matches_current_part(&request.identity, &current)
+                        })
+                {
+                    return;
+                }
+                let result = classified.and_then(|is_generator_source| {
+                    let resolver = part_net_resolver(
+                        request,
+                        definition_id,
+                        source,
+                        is_generator_source,
+                        seed,
+                    );
+                    runtime.commit("pcb-part-net", resolver)
+                });
+                feedback.set(
+                    result
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
+            });
+        }
+    });
+    let identity = current_part_net_identity(&runtime, generation, instance_is_current());
+    let editable = identity.is_some() && workspace() == "PCB";
+    let create_pending = preparing_create();
+    let visible_feedback = feedback().filter(|feedback| {
+        identity
+            .as_ref()
+            .is_some_and(|identity| feedback.target.matches(identity))
+    });
+    PartNetActions {
+        identity,
+        editable,
+        feedback: visible_feedback,
+        create_pending,
+        on_edit,
+    }
+}
+
+fn part_net_resolver(
+    request: PartNetEditRequest,
+    definition_id: String,
+    source: Option<String>,
+    is_generator_source: bool,
+    seed: u64,
+) -> EditResolver {
+    EditResolver::new("pcb-part-net", move |accepted: &AcceptedSnapshot| {
+        let part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == request.identity.part_id);
+        let definition = part.and_then(|part| {
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+        });
+        if definition.is_none_or(|definition| {
+            definition.id != definition_id
+                || definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| &generator.source)
+                    != source.as_ref()
+        }) {
+            return Resolution::Retire("The part was deleted or its definition changed.".into());
+        }
+        let intent = match &request.action {
+            PartNetEditAction::AssignPads { pad_ids, net_id } => PartNetIntent::AssignPads {
+                pad_ids: pad_ids.clone(),
+                net_id: net_id.clone(),
+            },
+            PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
+                net_id: fresh_net_id(&accepted.document, seed),
+                name: name.clone(),
+            },
+        };
+        let proposal = match part_connections::propose(
+            &accepted.document,
+            &request.identity.board_id,
+            &request.identity.part_id,
+            is_generator_source,
+            intent,
+        ) {
+            Ok(proposal) => proposal,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![
+                request.identity.board_id.clone(),
+                request.identity.part_id.clone(),
+            ],
+            EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        )
+    })
+}
+
+fn current_part_net_identity(
+    runtime: &Runtime,
+    generation: u64,
+    instance_is_current: bool,
+) -> Option<PartNetEditIdentity> {
+    if !instance_is_current {
+        return None;
+    }
+    let (accepted, source) = pcb_source(runtime, generation)?;
+    let scope = source.ui_scope;
+    let model = runtime.model();
+    let [part_id] = model.selected_part_ids.as_slice() else {
+        return None;
+    };
+    if !accepted
+        .document
+        .boards
+        .iter()
+        .any(|board| board.id == scope.board_id && board.part_ids.contains(part_id))
+    {
+        return None;
+    }
+    let part = accepted
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == *part_id)?;
+    let definition = accepted
+        .document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)?;
+    if matches!(
+        &definition.kind,
+        boardstudio_model::model::PartKind::Switch | boardstudio_model::model::PartKind::Controller
+    ) {
+        return None;
+    }
+    Some(PartNetEditIdentity {
+        board_id: scope.board_id.clone(),
+        ui_scope: scope,
+        part_id: part_id.clone(),
+        token: accepted.token,
+        revision: accepted.document.revision,
+        generation,
+    })
+}
+
+fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {
+    let mut suffix = 0u64;
+    loop {
+        let id = format!("pcb-net-{operation}-{suffix}");
+        if !document.nets.iter().any(|net| net.id == id) {
+            return id;
+        }
+        suffix = suffix.checked_add(1).expect("net identity space exhausted");
+    }
+}
+
+#[derive(Clone)]
+pub struct PcbWiringMount {
+    pub resolution: PcbWiringResolution,
+    pub resolution_signal: Signal<PcbWiringResolution>,
+    pub on_resolve: EventHandler<()>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WiringResolutionNotice {
+    Pending,
+    Failed(String),
+    Waiting,
+}
+
+impl WiringResolutionNotice {
+    pub fn role(&self) -> &'static str {
+        match self {
+            Self::Pending | Self::Waiting => "status",
+            Self::Failed(_) => "alert",
+        }
+    }
+}
+
+pub fn wiring_resolution_notice(
+    resolution: &PcbWiringResolution,
+    identity: &WiringPlanIdentity,
+) -> WiringResolutionNotice {
+    match resolution {
+        PcbWiringResolution::Pending { identity: owner } if owner == identity => {
+            WiringResolutionNotice::Pending
+        }
+        PcbWiringResolution::Failed {
+            identity: owner,
+            message,
+        } if owner == identity => WiringResolutionNotice::Failed(message.clone()),
+        PcbWiringResolution::Current {
+            identity: owner, ..
+        } if owner == identity => WiringResolutionNotice::Waiting,
+        _ => WiringResolutionNotice::Waiting,
+    }
+}
+
+/// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
+/// or which workspace is currently visible. Call this hook unconditionally in the page parent.
+pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> PcbWiringMount {
+    let _ = version();
+    let input = current_input(&runtime);
+    let identity = input.as_ref().map(|(identity, _, _)| identity.clone());
+    let mut resolution = use_signal(|| PcbWiringResolution::Idle);
+    let resolve = use_callback(move |()| {
+        resolution.set(resolve_current_plan(&runtime));
+    });
+    use_effect(use_reactive((&identity,), move |_| resolve.call(())));
+    let visible = resolution();
+    let visible = match &visible {
+        PcbWiringResolution::Current {
+            identity: resolved, ..
+        }
+        | PcbWiringResolution::Failed {
+            identity: resolved, ..
+        } if Some(resolved) == identity.as_ref() => visible,
+        _ => PcbWiringResolution::Idle,
+    };
+    PcbWiringMount {
+        resolution: visible,
+        resolution_signal: resolution,
+        on_resolve: resolve,
+    }
+}
+
+fn resolve_current_plan(runtime: &Runtime) -> PcbWiringResolution {
+    let Some((identity, accepted, scope)) = current_input(runtime) else {
+        return PcbWiringResolution::Idle;
+    };
+    match runtime.resolve_electrical_preview(accepted, scope) {
+        Ok(plan) => PcbWiringResolution::Current {
+            identity,
+            plan: Rc::new(plan),
+        },
+        Err(message) => PcbWiringResolution::Failed { identity, message },
+    }
+}
+
+fn current_input(runtime: &Runtime) -> Option<(WiringPlanIdentity, AcceptedSnapshot, Scope)> {
+    let model = runtime.model();
+    if matches!(
+        model.lifecycle,
+        Lifecycle::Empty | Lifecycle::Opening | Lifecycle::Closing | Lifecycle::Closed
+    ) {
+        return None;
+    }
+    let accepted = model.accepted?;
+    let mut scope = runtime.scope()?;
+    // The electrical preview is a board plan with React's instanceId=null. Normalize away a
+    // physical-instance selection so Case/Layout instance changes don't churn the board query.
+    scope.instance_id = None;
+    if scope.session_epoch != accepted.session_epoch
+        || scope.document_id != accepted.document.id
+        || model.active_board_id != scope.board_id
+        || accepted.scene.revision != accepted.document.revision
+        || !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+    {
+        return None;
+    }
+    let identity = WiringPlanIdentity {
+        scope: scope.clone(),
+        token: accepted.token,
+        revision: accepted.document.revision,
+    };
+    Some((identity, accepted, scope))
+}

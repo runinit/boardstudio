@@ -7,7 +7,6 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_model::model::EditOperation;
-use boardstudio_web_runtime::operation_outcomes::EditOutcome;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -100,7 +99,7 @@ pub(crate) fn submit_board_reference_document(
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_model::model::ProjectDoc,
     transaction_label: &str,
-) -> Result<Option<EditOutcome>, String> {
+) -> Result<(), String> {
     if !live {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
@@ -135,7 +134,7 @@ pub(crate) fn submit_board_reference_document(
         })
         .collect::<Vec<_>>();
     if changes.is_empty() && assets.is_empty() {
-        return Ok(None);
+        return Err("The upload produced no project change.".to_owned());
     }
     // Bytes were stored before this intent. Failed or retired edits leave them unreferenced;
     // asset-store cleanup is deliberately outside this migration.
@@ -207,11 +206,7 @@ pub(crate) fn submit_board_reference_document(
             )
         },
     );
-    Ok(Some(runtime.resolve_edit(
-        transaction_label,
-        Some("board reference".into()),
-        resolver,
-    )))
+    runtime.commit(transaction_label, resolver).map(|_| ())
 }
 
 /// The routed-board removal proposal: drop the reference from its board, retiring when
