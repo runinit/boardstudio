@@ -1,21 +1,7 @@
 //! Session event submission and effect execution.
 use super::*;
+use crate::operation_outcomes::observed_outcome;
 use boardstudio_application::{EditResolver, Landing, SnapshotToken};
-
-fn observed_outcome(
-    effects: &[Effect],
-    observe: Option<OperationId>,
-) -> Option<(TerminalOutcome, Option<Landing>)> {
-    let observe = observe?;
-    effects.iter().find_map(|effect| match effect {
-        Effect::Settled {
-            operation_id,
-            outcome,
-            landing,
-        } if observe == *operation_id => Some((outcome.clone(), *landing)),
-        _ => None,
-    })
-}
 
 impl Runtime {
     pub fn submit(self: &Rc<Self>, event: Event) {

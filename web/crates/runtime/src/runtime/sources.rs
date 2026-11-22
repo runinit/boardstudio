@@ -58,17 +58,7 @@ impl Runtime {
             .find(|board| board.board_id == scope.board_id)
             .map_or_else(Vec::new, |board| board.contours);
 
-        let request = CoreRequest::ResolveMechanical {
-            id: format!("mechanical-settings-{}", self.operation().0),
-            document: effective_document,
-            contours,
-        };
-        let reply = (self.core_services.open_scratch)()(request);
-        let assembly = match reply {
-            CoreReply::MechanicalResolved { assembly, .. } => assembly,
-            CoreReply::Error { message, .. } => return Err(message),
-            _ => return Err("Core returned an unexpected mechanical-resolution reply.".into()),
-        };
+        let assembly = boardstudio_core::mechanical::resolve(&effective_document, &contours);
         if assembly.revision != accepted.document.revision
             || assembly.case.revision != accepted.document.revision
         {
@@ -99,12 +89,7 @@ impl Runtime {
         {
             return Err("The accepted PCB wiring source changed.".into());
         }
-        self.resolve_export_wiring(
-            &accepted,
-            &scope.board_id,
-            None,
-            format!("pcb-electrical-{}", self.operation().0),
-        )
+        self.resolve_export_wiring(&accepted, &scope.board_id, None)
     }
 
     /// Resolve keycap fit against one accepted canonical board and the matching prepared Case

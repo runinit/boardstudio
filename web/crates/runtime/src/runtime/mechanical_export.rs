@@ -562,12 +562,7 @@ impl Runtime {
         if !self.export_lease_is_current(operation_id, capture) {
             return Err("Accepted board changed before wiring resolution.".into());
         }
-        let request_id = format!(
-            "pcb-handoff-{}-wiring-{}",
-            operation_id.0,
-            instance_id.unwrap_or("board")
-        );
-        let plan = self.resolve_export_wiring(snapshot, &scope.board_id, instance_id, request_id);
+        let plan = self.resolve_export_wiring(snapshot, &scope.board_id, instance_id);
         self.require_pcb_handoff_current(operation_id, capture)?;
         plan
     }

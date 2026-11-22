@@ -8,6 +8,22 @@ use std::{
     rc::{Rc, Weak},
 };
 
+#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+pub(crate) fn observed_outcome(
+    effects: &[boardstudio_application::Effect],
+    observe: Option<OperationId>,
+) -> Option<(TerminalOutcome, Option<Landing>)> {
+    let observe = observe?;
+    effects.iter().find_map(|effect| match effect {
+        boardstudio_application::Effect::Settled {
+            operation_id,
+            outcome,
+            landing,
+        } if observe == *operation_id => Some((outcome.clone(), *landing)),
+        _ => None,
+    })
+}
+
 pub type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
 /// Presentation of a resolved edit's Session outcome.
 #[derive(Clone, Debug, PartialEq)]

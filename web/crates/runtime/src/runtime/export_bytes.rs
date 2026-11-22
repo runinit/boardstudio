@@ -193,20 +193,11 @@ impl Runtime {
         let primary_instance_id = central.map_or(scope.instance_id.as_deref(), |instance| {
             Some(instance.id.as_str())
         });
-        let primary = self.resolve_export_wiring(
-            snapshot,
-            primary_board_id,
-            primary_instance_id,
-            format!("firmware-electrical-{}-central", operation_id.0),
-        )?;
+        let primary =
+            self.resolve_export_wiring(snapshot, primary_board_id, primary_instance_id)?;
         let secondary = peripheral
             .map(|instance| {
-                self.resolve_export_wiring(
-                    snapshot,
-                    &instance.board_id,
-                    Some(&instance.id),
-                    format!("firmware-electrical-{}-peripheral", operation_id.0),
-                )
+                self.resolve_export_wiring(snapshot, &instance.board_id, Some(&instance.id))
             })
             .transpose()?;
         let (request, _) = crate::firmware_request_adapter::firmware_request(
@@ -214,17 +205,7 @@ impl Runtime {
             &primary,
             secondary.as_ref(),
         )?;
-        let request = CoreRequest::GenerateFirmware {
-            id: format!("firmware-generate-{}", operation_id.0),
-            request,
-        };
-        let generated = boardstudio_core::CoreEngine::new().handle(request);
-        let package = match generated {
-            CoreReply::FirmwareGenerated { package, .. } => package,
-            CoreReply::Error { message, .. } => return Err(message),
-            _ => return Err("Core returned an unexpected firmware-generation reply.".into()),
-        };
-        let mut files = package.files;
+        let mut files = boardstudio_core::firmware::generate(&request)?.files;
         let mut plan_value = serde_json::Map::new();
         plan_value.insert(
             "central".into(),
@@ -253,7 +234,6 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         board_id: &str,
         instance_id: Option<&str>,
-        request_id: String,
     ) -> Result<ElectricalPlan, String> {
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
             hardware
@@ -275,29 +255,17 @@ impl Runtime {
             .or_else(|| {
                 configuration.and_then(|configuration| configuration.controller_part_id.clone())
             });
-        let request = CoreRequest::ResolveElectrical {
-            id: request_id,
-            request: ElectricalPlanRequest {
-                document: (*snapshot.document).clone(),
-                instance_id: instance_id.map(str::to_owned),
-                mode: configuration
-                    .map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
-                locks: configuration.map_or_else(Default::default, |configuration| {
-                    configuration.locks.clone()
-                }),
-                controller_profile: None,
-                board_id: Some(board_id.to_owned()),
-                controller_part_id,
-            },
-        };
-        let reply = boardstudio_core::CoreEngine::new().handle(request);
-        let plan = match reply {
-            CoreReply::ElectricalResolved { plan, .. } => plan,
-            CoreReply::Error { message, .. } => return Err(message),
-            _ => {
-                return Err("Core returned an unexpected wiring reply.".into());
-            }
-        };
+        let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+            document: (*snapshot.document).clone(),
+            instance_id: instance_id.map(str::to_owned),
+            mode: configuration.map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
+            locks: configuration.map_or_else(Default::default, |configuration| {
+                configuration.locks.clone()
+            }),
+            controller_profile: None,
+            board_id: Some(board_id.to_owned()),
+            controller_part_id,
+        });
         if plan.revision != snapshot.document.revision
             || plan.board_id.as_deref() != Some(board_id)
             || plan.instance_id.as_deref() != instance_id

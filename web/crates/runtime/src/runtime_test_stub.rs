@@ -3,7 +3,8 @@ use crate::core_services::CoreServices;
 #[cfg(any(test, feature = "test-support"))]
 use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
-    Completion, Effect, Event, OperationId, ReadModel, SaveResult, Scope, Session,
+    Completion, Effect, Event, Landing, OperationId, ReadModel, SaveResult, Scope, Session,
+    TerminalOutcome,
 };
 use boardstudio_model::model::ProjectDoc;
 use std::{
@@ -140,35 +141,46 @@ impl Runtime {
     }
 
     pub fn submit(&self, event: Event) {
+        self.submit_observed(event, None);
+    }
+
+    pub(crate) fn submit_observed(
+        &self,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         self.events.push(event.clone());
         #[cfg(any(test, feature = "test-support"))]
         match self.gates.take_core() {
             Some(OneShotBehavior::Hold) => {
                 self.core_entered.set(true);
                 *self.parked_core.borrow_mut() = Some(event);
-                return;
+                return None;
             }
             Some(OneShotBehavior::Fail(reason)) => {
-                if let Some(operation) = boardstudio_application::event_operation(&event) {
-                    self.operation_outcomes.settle(
-                        operation,
-                        boardstudio_application::TerminalOutcome::ExecutorFailed(reason),
-                    );
-                }
-                return;
+                let operation = boardstudio_application::event_operation(&event)?;
+                let outcome = TerminalOutcome::ExecutorFailed(reason);
+                self.operation_outcomes.settle(operation, outcome.clone());
+                return (observe == Some(operation)).then_some((outcome, None));
             }
             None => {}
         }
-        self.apply(event);
+        self.apply(event, observe)
     }
 
-    fn apply(&self, event: Event) {
+    fn apply(
+        &self,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
         if self.scope() != previous_scope {
             self.operation_outcomes.retire_edit_scope();
         }
+        let result = crate::operation_outcomes::observed_outcome(&effects, observe);
         self.drive(effects.into());
+        result
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -213,7 +225,7 @@ impl Runtime {
             .take()
             .expect("no parked test event");
         self.core_entered.set(false);
-        self.apply(event);
+        self.apply(event, None);
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -260,10 +272,9 @@ impl Runtime {
                 Effect::Settled {
                     operation_id,
                     outcome,
-                    landing,
+                    ..
                 } => {
-                    self.operation_outcomes
-                        .settle_with_landing(operation_id, outcome, landing);
+                    self.operation_outcomes.settle(operation_id, outcome);
                 }
                 _ => {}
             }
