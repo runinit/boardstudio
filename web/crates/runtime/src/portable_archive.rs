@@ -2,8 +2,8 @@ use boardstudio_core_kernel::hash::sha256_hex;
 #[cfg(any(test, target_arch = "wasm32"))]
 use boardstudio_model::model::ArchiveReply;
 #[cfg(target_arch = "wasm32")]
-use boardstudio_model::model::ArchiveEntry;
-use boardstudio_model::model::{ArchiveRequest, Asset, ProjectDoc};
+use boardstudio_model::model::{ArchiveEntry, ArchiveRequest};
+use boardstudio_model::model::{Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[cfg(target_arch = "wasm32")]
