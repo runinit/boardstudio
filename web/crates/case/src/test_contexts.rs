@@ -39,6 +39,13 @@ pub fn use_case_viewer_test_contexts() {
 pub fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) -> bool {
     let WorkspaceState(workspace) = use_context::<WorkspaceState>();
     let instance_selection = use_context::<InstanceSelection>();
-    mechanical_settings::use_mechanical_settings(runtime, workspace, instance_selection)
-        .generation_ready
+    let case_selection = use_context::<case_viewer::CaseSelection>();
+    mechanical_settings::use_mechanical_settings(
+        runtime,
+        workspace,
+        instance_selection,
+        case_selection,
+        EventHandler::new(|_| {}),
+    )
+    .generation_ready
 }

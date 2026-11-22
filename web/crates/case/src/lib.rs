@@ -54,6 +54,7 @@ pub mod case_generation_admission;
 pub mod case_gesture_math;
 pub mod closure_clearance;
 pub mod mechanical_pair;
+pub mod mechanical_projection;
 pub mod mechanical_rules;
 
 #[cfg(target_arch = "wasm32")]
@@ -71,6 +72,12 @@ pub mod case_preview_lifecycle;
 pub mod case_selection;
 #[cfg(target_arch = "wasm32")]
 pub mod case_viewer;
+#[cfg(target_arch = "wasm32")]
+mod mechanical_fits;
+#[cfg(target_arch = "wasm32")]
+mod mechanical_layers;
+#[cfg(target_arch = "wasm32")]
+mod mechanical_profiles;
 #[cfg(target_arch = "wasm32")]
 pub mod mechanical_settings;
 #[cfg(target_arch = "wasm32")]
