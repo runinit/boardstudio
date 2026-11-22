@@ -309,18 +309,20 @@ fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
         operation_id: OperationId(1),
         document,
     });
-    let [
-        Effect::Persist {
-            save_attempt_id, ..
-        },
-    ] = effects.as_slice()
-    else {
-        panic!("{effects:?}")
-    };
-    session.complete(Completion::Persist {
-        save_attempt_id: *save_attempt_id,
+    let save_attempt_id = effects
+        .into_iter()
+        .find_map(|effect| match effect {
+            Effect::Persist {
+                save_attempt_id, ..
+            } => Some(save_attempt_id),
+            _ => None,
+        })
+        .expect("opening schedules persistence");
+    let persist = |save_attempt_id| Completion::Persist {
+        save_attempt_id,
         result: SaveResult::Committed,
-    });
+    };
+    session.complete(persist(save_attempt_id));
     let scope = session.scope().unwrap();
     let token = session.read_model().accepted.as_ref().unwrap().token;
     let export = OperationId(2);
@@ -329,16 +331,19 @@ fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
         operation_id: export,
         scope: scope.clone(),
     });
+    let positions = |x| {
+        vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x, y: 0.0 },
+        }]
+    };
     assert_eq!(
         session.submit(Event::GestureBegin {
             operation_id: drag,
             pointer_id: 1,
             target_ids: vec!["moving".into()],
             transaction_id: "drag".into(),
-            start: vec![Position {
-                id: "moving".into(),
-                at: Vec2::default()
-            }],
+            start: positions(0.0),
             pitch: Vec2 { x: 19.0, y: 19.0 },
             snap_fraction: 0.0,
             geometry_snap: false,
@@ -365,10 +370,7 @@ fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
 
     let effects = session.submit(Event::GestureEnd {
         pointer_id: 1,
-        final_positions: vec![Position {
-            id: "moving".into(),
-            at: Vec2 { x: 5.0, y: 0.0 },
-        }],
+        final_positions: positions(5.0),
         pixels_per_world: None,
         alt: false,
     });
@@ -379,26 +381,24 @@ fn stale_edit_preserves_drag_and_terminal_owners_settle_once() {
     assert!(session.read_model().gesture.is_none());
     let settlements: Vec<_> = effects
         .iter()
-        .filter_map(|effect| match effect {
-            Effect::Settled {
-                operation_id,
-                outcome,
-                landing,
-            } => Some((
-                *operation_id,
-                outcome.clone(),
-                landing.map(|landing| landing.revision),
-            )),
-            _ => None,
-        })
+        .filter(|effect| matches!(effect, Effect::Settled { .. }))
         .collect();
-    assert_eq!(
-        settlements,
-        [
-            (export, TerminalOutcome::Cancelled, None),
-            (drag, TerminalOutcome::Completed, Some(2)),
-        ]
-    );
+    let [
+        Effect::Settled {
+            operation_id: cancelled,
+            outcome: TerminalOutcome::Cancelled,
+            landing: None,
+        },
+        Effect::Settled {
+            operation_id: landed,
+            outcome: TerminalOutcome::Completed,
+            landing: Some(landing),
+        },
+    ] = settlements.as_slice()
+    else {
+        panic!("{settlements:?}")
+    };
+    assert_eq!((*cancelled, *landed, landing.revision), (export, drag, 2));
     assert!(
         session
             .submit(Event::GestureCancel { pointer_id: 1 })

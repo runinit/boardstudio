@@ -29,7 +29,7 @@ use boardstudio_web_host::host::{
 };
 use boardstudio_web_host::{
     cad_jobs::{
-        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
+        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity, MAX_SAFE_INTEGER,
         captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
         validate_reply,
     },

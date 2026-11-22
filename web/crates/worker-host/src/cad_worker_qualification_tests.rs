@@ -519,7 +519,10 @@ async fn post_failure_and_pinned_eviction_release_only_their_own_handles() {
     assert_eq!(count(&module, "frees"), 2.);
     let restored = prepare(&queue, &module, "restored").await;
     let query = query(&restored);
-    queue.borrow_mut().cancelled.insert(query.header.job_id.clone());
+    queue
+        .borrow_mut()
+        .cancelled
+        .insert(query.header.job_id.clone());
     assert!(run_request(&queue, &module, query, vec![]).await.is_err());
     assert_eq!(
         queue.borrow().evidence.len(),

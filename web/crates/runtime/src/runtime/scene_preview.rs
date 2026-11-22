@@ -511,7 +511,7 @@ impl Runtime {
             .ok_or_else(|| "Case preview generation identity exhausted".to_owned())?;
         self.native_case_preview.borrow_mut().generation = generation;
         let operation = self.operation().0;
-        if operation == 0 || operation > 9_007_199_254_740_991 {
+        if operation == 0 || operation > MAX_SAFE_INTEGER {
             return Err("Case preview request identity is outside the safe integer range".into());
         }
         let request_token = format!(
@@ -580,7 +580,7 @@ impl Runtime {
             return Err("Parts preview source changed before preparation".into());
         }
         let operation = self.operation().0;
-        if operation == 0 || operation > 9_007_199_254_740_991 {
+        if operation == 0 || operation > MAX_SAFE_INTEGER {
             capture.lease.invalidate();
             return Err(
                 "Parts preview operation identity is outside the safe integer range".into(),
@@ -736,7 +736,7 @@ impl Runtime {
         source_generation: u64,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PcbPreview, String> {
-        if source_generation == 0 || source_generation > 9_007_199_254_740_991 {
+        if source_generation == 0 || source_generation > MAX_SAFE_INTEGER {
             return Err("Preview source generation is outside the safe integer range".into());
         }
         if request.expected_revision != request.document.revision

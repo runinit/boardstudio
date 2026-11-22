@@ -76,15 +76,10 @@ impl Runtime {
         accepted: AcceptedSnapshot,
         scope: Scope,
     ) -> Result<ElectricalPlan, String> {
-        let board_scope = self.scope().map(|mut scope| {
-            scope.instance_id = None;
-            scope
-        });
-        if board_scope.as_ref() != Some(&scope)
-            || self
-                .model()
-                .accepted
-                .is_none_or(|current| current.token != accepted.token)
+        let mut active_scope = scope.clone();
+        active_scope.instance_id = self.with_model(|model| model.active_instance_id.clone());
+        if scope.instance_id.is_some()
+            || !self.snapshot_current(accepted.token, &active_scope)
             || accepted.scene.revision != accepted.document.revision
         {
             return Err("The accepted PCB wiring source changed.".into());

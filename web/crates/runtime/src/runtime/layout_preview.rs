@@ -247,7 +247,7 @@ impl Runtime {
 
         let source_generation = self.layout_preview.borrow_mut().next_generation()?;
         let operation = self.operation().0;
-        if operation == 0 || operation > 9_007_199_254_740_991 {
+        if operation == 0 || operation > MAX_SAFE_INTEGER {
             let error = "Layout preview operation identity is outside the safe integer range";
             self.layout_preview.borrow_mut().fail_before_begin(
                 crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(

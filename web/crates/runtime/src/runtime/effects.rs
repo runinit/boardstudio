@@ -477,3 +477,7 @@ impl Runtime {
         Vec::new()
     }
 }
+
+#[cfg(test)]
+#[path = "persist_notification_tests.rs"]
+mod persist_notification_tests;
