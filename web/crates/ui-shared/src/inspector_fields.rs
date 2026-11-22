@@ -351,7 +351,11 @@ fn text_input_row(
             if s.plain_label { Label { html_for: id.clone(), "{label}" } } else { FieldLabel { html_for: id.clone(), "{label}" } }
             InputGroup { class: s.control_class.clone(),
                 InputGroupInput {
-                    id, r#type: s.r#type, class: s.control_class.as_deref().unwrap_or(TOUCH_CLS), value: "{value}",
+                    id,
+                    step: (s.r#type == InputType::Number).then(|| "any".to_owned()),
+                    r#type: s.r#type,
+                    class: s.control_class.as_deref().unwrap_or(TOUCH_CLS),
+                    value: "{value}",
                     disabled: s.disabled, readonly: s.readonly, placeholder: s.placeholder,
                     aria_label: s.aria_label,
                     aria_invalid: has_error.then_some(true).or(s.aria_invalid),

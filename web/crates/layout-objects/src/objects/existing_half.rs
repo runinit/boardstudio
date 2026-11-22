@@ -6,7 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -14,6 +14,7 @@ use boardstudio_web_ui_shared::ui::card::Card;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldLabel},
+    input::InputType,
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
@@ -553,16 +554,25 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let mut default_choice = use_signal(|| "all".to_owned());
     let source_choice = use_memo(move || Some(default_choice()));
     let choice = default_choice();
-    let mut axis = use_signal(|| owner.default_axis_x);
+    let mut axis = use_signal(|| owner.default_axis_x.to_string());
+    let axis_value = axis();
+    let parsed_axis = axis_value
+        .trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite());
+    let axis_invalid = parsed_axis.is_none() && !axis_value.trim().is_empty();
     let has_sources = !owner.options.is_empty();
-    let can_create = props.projection.editable && has_sources;
+    let can_create = props.projection.editable && has_sources && parsed_axis.is_some();
     let on_create = props.on_create;
     let owner_submit = owner.clone();
     let choice_submit = choice.clone();
     let options = owner.options.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
-        let axis_x = axis();
+        let Some(axis_x) = parsed_axis else {
+            return;
+        };
         let matrix_ids = if choice_submit == "all" {
             options
                 .iter()
@@ -683,11 +693,16 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 dioxus::core::current_scope_id().0,
                             );
                             rsx! {
-                                NumericField {
-                                    id: control_input_id, label: "Mirror axis X (mm)", aria_label: "Mirror axis X",
-                                    value: axis(), precision: 2,
-                                    disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
-                                    on_commit: move |value| axis.set(value),
+                                TextField {
+                                    id: control_input_id,
+                                    label: "Mirror axis X (mm)".to_owned(),
+                                    aria_label: "Mirror axis X",
+                                    r#type: InputType::Number,
+                                    value: axis_value,
+                                    disabled: !props.projection.editable,
+                                    description: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                                    error: axis_invalid.then(|| "Enter a finite mirror axis in millimetres.".to_owned()),
+                                    oninput: move |event: FormEvent| axis.set(event.value()),
                                 }
                             }
                         }

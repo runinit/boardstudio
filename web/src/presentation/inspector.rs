@@ -1,8 +1,10 @@
 use crate::runtime::Runtime;
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
     field::FieldError,
+    input::InputType,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -19,6 +21,14 @@ pub(super) use layout_component_inspector::{
     LayoutComponentInspectorOwnerKey, LayoutComponentInspectorProjection, LayoutConstraintValues,
 };
 
+fn parse_axis(raw: &str, label: &str) -> Result<f64, String> {
+    raw.trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| format!("Enter a valid number for {label}."))
+}
+
 #[component]
 pub(super) fn Inspector() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -32,32 +42,84 @@ pub(super) fn Inspector() -> Element {
             .find(|p| model.selected_part_ids.first() == Some(&p.id))
             .cloned()
     });
-    let commit_axis = {
+    let current_key = selected
+        .as_ref()
+        .map(|p| (p.id.clone(), p.pose.at.x.to_bits(), p.pose.at.y.to_bits()));
+    let mut synced_key = use_signal(|| current_key.clone());
+    let mut x_text = use_signal(|| {
+        selected
+            .as_ref()
+            .map_or_else(String::new, |p| p.pose.at.x.to_string())
+    });
+    let mut y_text = use_signal(|| {
+        selected
+            .as_ref()
+            .map_or_else(String::new, |p| p.pose.at.y.to_string())
+    });
+    if *synced_key.peek() != current_key {
+        synced_key.set(current_key);
+        x_text.set(
+            selected
+                .as_ref()
+                .map_or_else(String::new, |p| p.pose.at.x.to_string()),
+        );
+        y_text.set(
+            selected
+                .as_ref()
+                .map_or_else(String::new, |p| p.pose.at.y.to_string()),
+        );
+        failure.set(None);
+    }
+    let apply_position = {
         let rt = runtime.clone();
-        move |x: Option<f64>, y: Option<f64>| {
+        move || {
+            let x = match parse_axis(&x_text(), "X (mm)") {
+                Ok(v) => v,
+                Err(msg) => {
+                    failure.set(Some(msg));
+                    return;
+                }
+            };
+            let y = match parse_axis(&y_text(), "Y (mm)") {
+                Ok(v) => v,
+                Err(msg) => {
+                    failure.set(Some(msg));
+                    return;
+                }
+            };
             let m = rt.model();
             let res = rt.commit(
                 "layout-old-position",
                 super::layout_component_edits::commit_position_resolver(
                     m.selected_part_ids,
                     m.active_board_id,
-                    x,
-                    y,
+                    Some(x),
+                    Some(y),
                     format!("position-{}", rt.operation().0),
                 ),
             );
             failure.set(res.err());
         }
     };
-    let (mut cx, mut cy) = (commit_axis.clone(), commit_axis);
+    let mut submit_click = apply_position.clone();
+    let mut submit_key = apply_position;
+    let on_axis_key = move |event: KeyboardEvent| {
+        if event.key() == Key::Enter {
+            event.prevent_default();
+            submit_key();
+        }
+    };
     rsx! {
         aside { class: "flex flex-col min-w-0 min-h-0 overflow-auto bg-transparent max-[760px]:overflow-visible", "aria-label": "Inspect",
             header { class: "hidden", h2 { "Inspect" } }
             h2 { class: "hidden", "Position" }
             if let Some(part) = selected {
                 p { class: "mx-4 text-muted-foreground", "{part.reference}" }
-                NumericField { id: "m1-position-x", label: "X (mm)".to_owned(), unit: "mm", value: part.pose.at.x, on_commit: move |v| cx(Some(v), None) }
-                NumericField { id: "m1-position-y", label: "Y (mm)".to_owned(), unit: "mm", value: part.pose.at.y, on_commit: move |v| cy(None, Some(v)) }
+                div { class: "flex flex-col gap-2 px-4", onkeydown: on_axis_key,
+                    TextField { id: "m1-position-x".to_owned(), label: "X (mm)".to_owned(), r#type: InputType::Number, value: x_text(), oninput: move |e: FormEvent| x_text.set(e.value()) }
+                    TextField { id: "m1-position-y".to_owned(), label: "Y (mm)".to_owned(), r#type: InputType::Number, value: y_text(), oninput: move |e: FormEvent| y_text.set(e.value()) }
+                    Button { variant: ButtonVariant::Secondary, button_type: "button", class: "mt-1", onclick: move |_| submit_click(), "Apply position" }
+                }
                 if let Some(msg) = failure() { FieldError { "{msg}" } }
             } else {
                 Callout { variant: CalloutVariant::Info, "Select a component to edit its position." }

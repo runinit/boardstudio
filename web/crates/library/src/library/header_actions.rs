@@ -8,7 +8,8 @@ use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 
 /// Shell wiring only. Library remains the sole owner of tool presentation.
 pub fn use_project_tools() {
-    use_context_provider(|| ProjectToolRequest(use_signal(|| None)));
+    let tool = use_signal(|| None);
+    use_context_provider(|| ProjectToolRequest(tool));
 }
 
 #[component]

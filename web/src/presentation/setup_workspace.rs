@@ -126,15 +126,17 @@ impl SetupWorkspaceState {
         true
     }
     pub(super) fn dismiss_guide(&self, project_id: &str) {
-        if let Some(mut p) = self
+        let Some(mut p) = self
             .guide_preferences
-            .read()
-            .clone()
+            .peek()
+            .as_ref()
             .filter(|p| p.project_id == project_id)
-        {
-            p.open = false;
-            self.set_guide_preferences(Some(p));
-        }
+            .cloned()
+        else {
+            return;
+        };
+        p.open = false;
+        self.set_guide_preferences(Some(p));
     }
     pub(super) fn set_instance_preference(&self, p: Option<instance_selection::Preference>) {
         let mut s = self.instance_preference;

@@ -14,13 +14,11 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
     let pending_new_keyboard = use_signal(|| None::<PendingNewKeyboard>);
     let new_keyboard_error = use_signal(String::new);
     let active = use_hook(|| Rc::new(Cell::new(true)));
-    let adapter = use_hook(|| {
-        SelectionAdapter::new(
-            use_signal(|| None),
-            use_signal(|| None),
-            use_signal(|| 0u64),
-        )
-    });
+    let selected_context = use_signal(|| None);
+    let anchor_scope = use_signal(|| None);
+    let scope_generation = use_signal(|| 0u64);
+    let adapter =
+        use_hook(move || SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
     let retention = use_hook(|| {
         Rc::new(RefCell::new(
             crate::matrix_transform_lifecycle::SelectionRetention::default(),
@@ -214,9 +212,11 @@ pub(crate) fn use_keyboard_creation(
     mut project_created: Signal<Option<SetupGuideRequest>>,
     mut new_error: Signal<String>,
 ) {
-    use_context_provider(|| CaseGenerationState {
-        live_preview: use_signal(|| true),
-        automatic: use_signal(AutomaticCaseGeneration::new),
+    let live_preview = use_signal(|| true);
+    let automatic = use_signal(AutomaticCaseGeneration::new);
+    use_context_provider(move || CaseGenerationState {
+        live_preview,
+        automatic,
     });
     use_effect(use_reactive!(|observed_version| {
         let _ = observed_version;
@@ -276,10 +276,13 @@ pub(crate) fn use_keyboard_creation(
 }
 
 pub(crate) fn use_workbench_appearance() -> Signal<bool> {
-    use_context_provider(|| LayerVisibility {
-        hidden: use_signal(BTreeSet::new),
-        modules_hidden: use_signal(pcb_module_footprints::default_hidden_layers),
-        footprints: use_signal(|| false),
+    let hidden = use_signal(BTreeSet::new);
+    let modules_hidden = use_signal(pcb_module_footprints::default_hidden_layers);
+    let footprints = use_signal(|| false);
+    use_context_provider(move || LayerVisibility {
+        hidden,
+        modules_hidden,
+        footprints,
     });
     let pref_warn = use_signal(|| false);
     use_context_provider(|| PreferenceStorageWarning(pref_warn));
