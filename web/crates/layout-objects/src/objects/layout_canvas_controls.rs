@@ -10,14 +10,25 @@ pub fn LayoutCanvasControls(mount: MatrixTransformInspectorMount) -> Element {
         return rsx! {};
     };
     let rows: Vec<(Field, &str, f64)> = match &fields {
-        MatrixTransformFields::Column { stagger, offset, .. } => vec![
+        MatrixTransformFields::Column {
+            stagger, offset, ..
+        } => vec![
             (Field::ColumnOffsetX, "Offset X", offset.x),
             (Field::ColumnOffsetY, "Offset Y", offset.y),
             (Field::ColumnStagger, "Stagger", *stagger),
         ],
-        MatrixTransformFields::Row { offset, .. } => vec![(Field::RowOffsetX, "Offset X", offset.x), (Field::RowOffsetY, "Offset Y", offset.y)],
-        MatrixTransformFields::Matrix { origin, .. } => vec![(Field::OriginX, "Origin X", origin.x), (Field::OriginY, "Origin Y", origin.y)],
-        MatrixTransformFields::Key { offset, .. } => vec![(Field::KeyOffsetX, "Offset X", offset.x), (Field::KeyOffsetY, "Offset Y", offset.y)],
+        MatrixTransformFields::Row { offset, .. } => vec![
+            (Field::RowOffsetX, "Offset X", offset.x),
+            (Field::RowOffsetY, "Offset Y", offset.y),
+        ],
+        MatrixTransformFields::Matrix { origin, .. } => vec![
+            (Field::OriginX, "Origin X", origin.x),
+            (Field::OriginY, "Origin Y", origin.y),
+        ],
+        MatrixTransformFields::Key { offset, .. } => vec![
+            (Field::KeyOffsetX, "Offset X", offset.x),
+            (Field::KeyOffsetY, "Offset Y", offset.y),
+        ],
     };
     rsx! {
         div { class: "grid gap-1.5 text-xs text-foreground", role: "group", aria_label: "Selection geometry",

@@ -39,22 +39,24 @@ mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_align_logic;
-mod layout_canvas_controls;
-mod layout_selection_kind;
-mod layout_toolbar;
-mod layout_toolbar_logic;
-mod matrix_inspector;
-mod matrix_preset;
-mod matrix_transform;
 mod layout_anchor_pick;
+mod layout_canvas_controls;
 mod layout_rail;
 mod layout_rail_chrome;
 mod layout_rail_menu;
+mod layout_rail_tool;
+mod layout_selection_kind;
+mod layout_toolbar;
+mod layout_toolbar_logic;
+mod matrix_edit_test_support;
+mod matrix_inspector;
 mod matrix_placement_controller;
+mod matrix_preset;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
+mod matrix_transform;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree_projection_logic;
@@ -68,29 +70,35 @@ pub use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };
 pub use layout_align_controller::use_canvas_align;
+pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 pub use layout_canvas_controls::LayoutCanvasControls;
+pub use layout_rail::{
+    LayoutRailOverlay, LayoutTransformRuntime, LayoutTransformTool, RailTarget, ToolActivation,
+    activate_transform_tool,
+};
+pub use layout_rail_menu::{
+    LayoutContextActionToolbar, LayoutTransformMenuMount, LayoutTransformToolbar,
+};
 pub use layout_toolbar::{
     GestureSnapInputs, LayoutCanvasGridStyle, LayoutCommandMenu, LayoutCommandPill,
     LayoutSelectionKind, LayoutSnapDock, LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor,
     context_for_selection_kind, gesture_snap_inputs, layout_canvas_grid_style,
     snap_label as layout_snap_label,
 };
-pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
-pub use layout_rail::{
-    LayoutRailOverlay, LayoutTransformRuntime, LayoutTransformTool, RailTarget, ToolActivation, activate_transform_tool,
-};
-pub use layout_rail_menu::{LayoutContextActionToolbar, LayoutTransformMenuMount, LayoutTransformToolbar};
 pub use matrix_inspector::{MatrixInspector, MatrixInspectorMount, use_matrix_inspector};
-pub use matrix_preset::{MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset};
 pub use matrix_placement_controller::use_matrix_placement;
+pub use matrix_preset::{
+    MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset,
+};
 pub use matrix_setup::{
     MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementSource,
     MatrixSetup, MatrixSetupMount,
 };
 pub use matrix_setup_controller::use_matrix_setup;
 pub use matrix_transform::{
-    DepartureControl, MatrixTransformInspector, MatrixTransformInspectorMount, MatrixTransformInspectorOwner,
-    MatrixTransformProjection, SelectionDeleteControl, use_workspace_matrix_transform,
+    DepartureControl, MatrixTransformInspector, MatrixTransformInspectorMount,
+    MatrixTransformInspectorOwner, MatrixTransformProjection, SelectionDeleteControl,
+    use_workspace_matrix_transform,
 };
 pub use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
@@ -730,13 +738,21 @@ fn AddObjectEntry(
         .map(|mount| (mount.can_open, mount.on_open));
     let existing_half_open = (existing_half.can_open, existing_half.on_open);
     // The selected matrix's label and id, plus the scope to select first when the matrix is only named.
-    let matrix_actions = matrix_inspector.as_ref().and_then(|mount| {
-        let id = mount.selected_matrix_id().filter(|_| mount.is_active())?;
-        Some((format!("Matrix {id}"), id, None, mount.clone()))
-    }).or_else(|| {
-        let (scope, matrix_id, label) = selected_matrix_action?;
-        Some((label, matrix_id.clone(), Some((scope, matrix_id)), matrix_inspector.clone()?))
-    });
+    let matrix_actions = matrix_inspector
+        .as_ref()
+        .and_then(|mount| {
+            let id = mount.selected_matrix_id().filter(|_| mount.is_active())?;
+            Some((format!("Matrix {id}"), id, None, mount.clone()))
+        })
+        .or_else(|| {
+            let (scope, matrix_id, label) = selected_matrix_action?;
+            Some((
+                label,
+                matrix_id.clone(),
+                Some((scope, matrix_id)),
+                matrix_inspector.clone()?,
+            ))
+        });
     rsx! {
             if show_trigger || open_menu {
                 div { class: if show_trigger { "relative shrink-0 border-b border-border px-2.5 py-2 [&>button]:min-h-[38px] [&>button]:w-full" } else { "relative shrink-0" },

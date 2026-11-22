@@ -1,10 +1,14 @@
 //! The selected matrix's name, size, pitch, switch, diode and spacing fields, each committed
 //! synchronously as one `SetMatrix` / `SetLayout` edit.
 use super::layout_rail::LayoutTransformRuntime;
-use super::matrix_preset::{MatrixPreset, SwitchOrientation, apply_preset, duplicate_variant, matrix_preset, switch_choices};
+use super::matrix_preset::{
+    MatrixPreset, SwitchOrientation, apply_preset, duplicate_variant, matrix_preset, switch_choices,
+};
 use super::{ScopedTreeContext, TreeContext};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_model::model::{DiodeDirection, EditOperation, Matrix, MatrixCell, PartDefinition, Vec2};
+use boardstudio_model::model::{
+    DiodeDirection, EditOperation, Matrix, MatrixCell, PartDefinition, Vec2,
+};
 use boardstudio_web_layout_core::rail_drag::nudge_session_is_ready;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, TextCommitField,
@@ -16,13 +20,19 @@ use dioxus::prelude::*;
 pub struct MatrixInspectorMount {
     pub runtime: LayoutTransformRuntime,
     pub selected: Option<ScopedTreeContext>,
+    /// The selection signal, cleared once the selected matrix is deleted.
+    pub selection: Signal<Option<ScopedTreeContext>>,
 }
 
 pub fn use_matrix_inspector(
     runtime: std::rc::Rc<crate::runtime::Runtime>,
     selected: Signal<Option<ScopedTreeContext>>,
 ) -> MatrixInspectorMount {
-    MatrixInspectorMount { runtime: LayoutTransformRuntime(runtime), selected: selected.read().clone() }
+    MatrixInspectorMount {
+        runtime: LayoutTransformRuntime(runtime),
+        selected: selected.read().clone(),
+        selection: selected,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,41 +62,69 @@ impl MatrixInspectorMount {
     pub(super) fn grow(&self, matrix_id: &str, rows: bool) -> Result<(), String> {
         let id = matrix_id.to_owned();
         self.commit_on(id, "layout-matrix-inspector", move |_, matrix| {
-            let next = if rows { resize(matrix, matrix.rows.saturating_add(1), matrix.columns)? } else { resize(matrix, matrix.rows, matrix.columns.saturating_add(1))? };
-            Ok(EditOperation::SetMatrix { matrix: next, definitions: None })
+            let next = if rows {
+                resize(matrix, matrix.rows.saturating_add(1), matrix.columns)?
+            } else {
+                resize(matrix, matrix.rows, matrix.columns.saturating_add(1))?
+            };
+            Ok(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
         })
     }
 
     pub fn is_active(&self) -> bool {
         self.matrix_id().is_some_and(|id| {
-            self.runtime
-                .0
-                .model()
-                .accepted
-                .is_some_and(|snapshot| snapshot.document.matrices.iter().any(|matrix| matrix.id == id))
+            self.runtime.0.model().accepted.is_some_and(|snapshot| {
+                snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .any(|matrix| matrix.id == id)
+            })
         })
     }
 
     /// Commit one edit built from the matrix accepted when it runs.
-    fn commit(&self, label: &str, build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static) -> Result<(), String> {
-        let id = self.matrix_id().ok_or("The selection is no longer a matrix.")?;
+    fn commit(
+        &self,
+        label: &str,
+        build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static,
+    ) -> Result<(), String> {
+        let id = self
+            .matrix_id()
+            .ok_or("The selection is no longer a matrix.")?;
         self.commit_on(id, label, build)
     }
 
-    fn commit_on(&self, id: String, label: &str, build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static) -> Result<(), String> {
+    fn commit_on(
+        &self,
+        id: String,
+        label: &str,
+        build: impl Fn(&AcceptedSnapshot, &Matrix) -> Result<EditOperation, String> + 'static,
+    ) -> Result<(), String> {
         let runtime = &self.runtime.0;
         if !nudge_session_is_ready(&runtime.model()) {
             return Err("The matrix is not ready to edit. Wait for the current operation to finish, then retry.".into());
         }
-        let resolver = EditResolver::new("layout-matrix-inspector", move |accepted: &AcceptedSnapshot| {
-            let Some(matrix) = accepted.document.matrices.iter().find(|matrix| matrix.id == id) else {
-                return Resolution::Retire("The selected matrix no longer exists.".into());
-            };
-            match build(accepted, matrix) {
-                Ok(operation) => Resolution::submit(vec![matrix.id.clone()], operation),
-                Err(message) => Resolution::Retire(message),
-            }
-        });
+        let resolver = EditResolver::new(
+            "layout-matrix-inspector",
+            move |accepted: &AcceptedSnapshot| {
+                let Some(matrix) = accepted
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == id)
+                else {
+                    return Resolution::Retire("The selected matrix no longer exists.".into());
+                };
+                match build(accepted, matrix) {
+                    Ok(operation) => Resolution::submit(vec![matrix.id.clone()], operation),
+                    Err(message) => Resolution::Retire(message),
+                }
+            },
+        );
         runtime.commit(label, resolver).map(|_| ())
     }
 
@@ -100,19 +138,34 @@ impl MatrixInspectorMount {
                     if value.fract() != 0.0 || count == 0 {
                         return Err("Matrix dimensions must be positive whole numbers.".into());
                     }
-                    next = if field == Field::Rows { resize(matrix, count, matrix.columns)? } else { resize(matrix, matrix.rows, count)? };
+                    next = if field == Field::Rows {
+                        resize(matrix, count, matrix.columns)?
+                    } else {
+                        resize(matrix, matrix.rows, count)?
+                    };
                 }
                 Field::PitchX | Field::PitchY if value > 0.0 => {
-                    if field == Field::PitchX { next.pitch.x = value } else { next.pitch.y = value }
+                    if field == Field::PitchX {
+                        next.pitch.x = value
+                    } else {
+                        next.pitch.y = value
+                    }
                 }
                 Field::EdgeGapX | Field::EdgeGapY if value >= 0.0 => {
                     let mut edge = gap(matrix);
-                    if field == Field::EdgeGapX { edge.x = value } else { edge.y = value }
+                    if field == Field::EdgeGapX {
+                        edge.x = value
+                    } else {
+                        edge.y = value
+                    }
                     next.edge_gap = Some(edge);
                 }
                 _ => return Err("The matrix field value is invalid.".into()),
             }
-            Ok(EditOperation::SetMatrix { matrix: next, definitions: None })
+            Ok(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
         })
     }
 }
@@ -124,7 +177,10 @@ fn resize(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, String> {
     }
     let template = matrix.cells.iter().find(|cell| {
         cell.definition_id.as_deref() == Some(matrix.definition_id.as_str())
-            && cell.variant.as_deref().is_some_and(|variant| variant.starts_with("preset/"))
+            && cell
+                .variant
+                .as_deref()
+                .is_some_and(|variant| variant.starts_with("preset/"))
     });
     let mut next = matrix.clone();
     next.rows = rows;
@@ -132,11 +188,28 @@ fn resize(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, String> {
     let Some(template) = template else {
         return Ok(next);
     };
-    next.cells.retain(|cell| cell.row < rows && cell.column < columns);
-    let rotation = Some(if template.variant.as_deref().is_some_and(|variant| variant.ends_with("/north")) { 180.0 } else { 0.0 });
-    let assemblies: Vec<_> = template.assemblies.iter().filter(|a| a.id == "diode" || a.id == "led").cloned().collect();
+    next.cells
+        .retain(|cell| cell.row < rows && cell.column < columns);
+    let rotation = Some(
+        if template
+            .variant
+            .as_deref()
+            .is_some_and(|variant| variant.ends_with("/north"))
+        {
+            180.0
+        } else {
+            0.0
+        },
+    );
+    let assemblies: Vec<_> = template
+        .assemblies
+        .iter()
+        .filter(|a| a.id == "diode" || a.id == "led")
+        .cloned()
+        .collect();
     for row in 0..rows {
-        for column in (0..columns).filter(|&column| row >= matrix.rows || column >= matrix.columns) {
+        for column in (0..columns).filter(|&column| row >= matrix.rows || column >= matrix.columns)
+        {
             next.cells.push(MatrixCell {
                 shift: None,
                 bend: None,
@@ -162,20 +235,42 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
     let mut error = use_signal(|| None::<String>);
     let mut busy = use_signal(|| false);
     let mut templates = use_signal(Vec::<PartDefinition>::new);
-    let (preset, orientation) = mount.runtime.0.model().accepted.as_ref().zip(mount.matrix_id()).and_then(|(snapshot, id)| snapshot.document.matrices.iter().find(|matrix| matrix.id == id)).map_or((None, None), matrix_preset);
+    let (preset, orientation) = mount
+        .runtime
+        .0
+        .model()
+        .accepted
+        .as_ref()
+        .zip(mount.matrix_id())
+        .and_then(|(snapshot, id)| {
+            snapshot
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+        })
+        .map_or((None, None), matrix_preset);
     let mut preset_draft = use_signal(|| preset.unwrap_or(MatrixPreset::MxSolder));
     let mut orientation_draft = use_signal(|| orientation.unwrap_or(SwitchOrientation::South));
     use_hook(move || {
         wasm_bindgen_futures::spawn_local(async move {
-            if let Ok(definitions) = crate::presentation::parts::load_matrix_templates(false).await {
+            if let Ok(definitions) = crate::presentation::parts::load_matrix_templates(false).await
+            {
                 let _ = templates.try_write().map(|mut slot| *slot = definitions);
             }
         });
     });
-    let (Some(matrix_id), Some(snapshot)) = (mount.matrix_id(), mount.runtime.0.model().accepted) else {
+    let (Some(matrix_id), Some(snapshot)) = (mount.matrix_id(), mount.runtime.0.model().accepted)
+    else {
         return rsx! {};
     };
-    let Some(matrix) = snapshot.document.matrices.iter().find(|matrix| matrix.id == matrix_id).cloned() else {
+    let Some(matrix) = snapshot
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+        .cloned()
+    else {
         return rsx! {};
     };
     let scope = mount.runtime.0.scope();
@@ -183,17 +278,35 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
         .document
         .layouts
         .iter()
-        .find(|layout| scope.as_ref().is_some_and(|scope| layout.board_id == scope.board_id) && layout.matrix_ids.contains(&matrix_id))
+        .find(|layout| {
+            scope
+                .as_ref()
+                .is_some_and(|scope| layout.board_id == scope.board_id)
+                && layout.matrix_ids.contains(&matrix_id)
+        })
         .cloned();
     let linked = layout.as_ref().and_then(|active| {
-        let partner = |id: &str| snapshot.document.layouts.iter().find(|candidate| candidate.id == id);
+        let partner = |id: &str| {
+            snapshot
+                .document
+                .layouts
+                .iter()
+                .find(|candidate| candidate.id == id)
+        };
         match &active.mirror_link {
-            Some(link) => partner(&link.source_id).map(|partner| (active.id.clone(), partner.name.clone())),
+            Some(link) => {
+                partner(&link.source_id).map(|partner| (active.id.clone(), partner.name.clone()))
+            }
             None => snapshot
                 .document
                 .layouts
                 .iter()
-                .find(|other| other.mirror_link.as_ref().is_some_and(|link| link.source_id == active.id))
+                .find(|other| {
+                    other
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == active.id)
+                })
                 .map(|other| (other.id.clone(), other.name.clone())),
         }
     });
@@ -202,17 +315,24 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
     let gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
     let (name_label, name) = match &layout {
         Some(layout) => ("Layout name", layout.name.clone()),
-        None => ("Matrix name", matrix.name.clone().unwrap_or_else(|| format!("Matrix {}", matrix.id))),
+        None => (
+            "Matrix name",
+            matrix
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("Matrix {}", matrix.id)),
+        ),
     };
-    let number = |field: Field, label: &'static str, unit: &'static str, value: f64, integer: bool| {
-        let mount = mount.clone();
-        rsx! {
-            NumericField {
-                key: "{field:?}", label, unit, value, precision: if integer { 0 } else { 3 },
-                on_commit: move |next: f64| error.set(mount.edit(field, next).err()),
+    let number =
+        |field: Field, label: &'static str, unit: &'static str, value: f64, integer: bool| {
+            let mount = mount.clone();
+            rsx! {
+                NumericField {
+                    key: "{field:?}", label, unit, value, precision: if integer { 0 } else { 3 },
+                    on_commit: move |next: f64| error.set(mount.edit(field, next).err()),
+                }
             }
-        }
-    };
+        };
     let rename = mount.clone();
     let pick_switch = mount.clone();
     let diode = mount.clone();
@@ -318,7 +438,18 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
                 {number(Field::EdgeGapY, "Edge gap Y", "mm", gap.y, false)}
             }
             Button { variant: ButtonVariant::Secondary, onclick: move |_| {
-                error.set(delete.commit("layout-matrix-delete", |_, matrix| Ok(EditOperation::RemoveMatrix { id: matrix.id.clone() })).err());
+                let result = delete.commit("layout-matrix-delete", |_, matrix| Ok(EditOperation::RemoveMatrix { id: matrix.id.clone() }));
+                if result.is_ok() {
+                    let mut selection = delete.selection;
+                    selection.set(None);
+                    delete.runtime.0.submit(boardstudio_application::Event::SelectParts {
+                        operation_id: delete.runtime.0.operation(),
+                        part_ids: Vec::new(),
+                        range_part_ids: Vec::new(),
+                        mode: boardstudio_application::SelectionMode::Replace,
+                    });
+                }
+                error.set(result.err());
             }, "Delete matrix" }
             if let Some(message) = error() { p { role: "alert", class: "text-destructive", "{message}" } }
         }

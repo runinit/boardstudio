@@ -220,8 +220,16 @@ pub fn LayoutCommandPill(
         commands.push(Command { group: "Current Workspace", label: "Position & rotation".into(),
             reason: (!transform.properties_available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None, on_select: properties });
         for (kind, label, available) in [
-            (LayoutSelectionKind::Column, "Stagger or offset column", transform.column_available),
-            (LayoutSelectionKind::Row, "Offset row", transform.row_available),
+            (
+                LayoutSelectionKind::Column,
+                "Stagger or offset column",
+                transform.column_available,
+            ),
+            (
+                LayoutSelectionKind::Row,
+                "Offset row",
+                transform.row_available,
+            ),
         ] {
             commands.push(Command { group: "Current Workspace", label: label.into(),
                 reason: (!available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
@@ -352,9 +360,9 @@ fn LayoutSelectionToolbar(
     on_selection_kind: EventHandler<LayoutSelectionKind>,
     #[props(default)] transform: Option<super::layout_rail_menu::LayoutTransformMenuMount>,
 ) -> Element {
-    let has_actions = transform
-        .as_ref()
-        .is_some_and(|mount| mount.properties_available || mount.column_available || mount.row_available);
+    let has_actions = transform.as_ref().is_some_and(|mount| {
+        mount.properties_available || mount.column_available || mount.row_available
+    });
     use_effect(use_reactive((&selection_kind,), move |(kind,)| {
         if open_menu() == Some(LayoutCommandMenu::Select) {
             focus_layout_popup(&format!("m1-layout-scope-panel-{}", kind.label()));

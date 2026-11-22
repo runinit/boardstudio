@@ -29,7 +29,6 @@ pub struct LayoutTransformMenuMount {
     pub on_transform_tool: EventHandler<LayoutTransformTool>,
 }
 
-
 /// One contextual pointer tool: the shared source data both the menu-item and the toolbar
 /// presentations render, so their labels, names and order cannot drift.
 struct ContextToolSpec {

@@ -2,23 +2,24 @@
 //! `EditOperation` against the accepted matrix and commits it synchronously.
 use super::layout_rail::LayoutTransformRuntime;
 use super::{ScopedTreeContext, TreeContext};
+use crate::matrix_relations::DepartureAction;
 use crate::matrix_transform_operation::{
     MatrixTransformField as Field, MatrixTransformFields, MatrixTransformValue as Value,
-    build_operation, column_angle, key_half_exception, key_half_exception_at_resolver,
-    key_half_exception_omitted,
+    attachment_component_choices, build_operation, column_angle, key_half_exception,
+    key_half_exception_at_resolver, key_half_exception_omitted,
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_model::model::{
-    AggregateMethod, AnchorPart, EditOperation, Matrix, MatrixAnchor, MatrixSplayAffect, Mirror, ProjectDoc, Vec2,
-    convert_offset_available,
+    AggregateMethod, AnchorPart, EditOperation, Matrix, MatrixAnchor, MatrixSplayAffect, Mirror,
+    PartDefinition, ProjectDoc, Vec2, convert_offset_available,
 };
 use boardstudio_web_layout_core::rail_drag::nudge_session_is_ready;
+use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, ToggleField, format_numeric,
 };
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
-use crate::matrix_relations::DepartureAction;
 
 /// The selection a transform edit or armed canvas pick belongs to.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +52,9 @@ pub struct MatrixTransformInspectorMount {
     pub splay_affect: Signal<MatrixSplayAffect>,
     /// The pending canvas multi-Pick draft, owner-tagged so a selection change orphans it.
     pub aggregate_pick_draft: Signal<Option<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>>,
+    /// The bundled catalogue's definitions, loaded once per document reversibility, so a key can
+    /// pick an assembly or attach a component the document does not hold yet.
+    pub catalogue: Signal<Vec<PartDefinition>>,
 }
 
 pub fn use_workspace_matrix_transform(
@@ -58,11 +62,29 @@ pub fn use_workspace_matrix_transform(
     selected: Signal<Option<ScopedTreeContext>>,
     splay_affect: Signal<MatrixSplayAffect>,
 ) -> MatrixTransformInspectorMount {
+    let catalogue = use_signal(Vec::<PartDefinition>::new);
+    let reversible = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| crate::presentation::parts::reversible_layout(&snapshot.document));
+    use_effect(use_reactive((&reversible,), move |(reversible,)| {
+        let Some(reversible) = reversible else { return };
+        let mut catalogue = catalogue;
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Ok(definitions) =
+                crate::presentation::parts::load_all_catalogue_definitions(reversible).await
+            {
+                let _ = catalogue.try_write().map(|mut slot| *slot = definitions);
+            }
+        });
+    }));
     MatrixTransformInspectorMount {
         runtime: LayoutTransformRuntime(runtime),
         selected: selected.read().clone(),
         splay_affect,
         aggregate_pick_draft: use_signal(|| None),
+        catalogue,
     }
 }
 
@@ -70,7 +92,11 @@ impl MatrixTransformInspectorMount {
     /// The selected matrix id and its field projection, while the selection is live.
     pub(super) fn parts(&self) -> Option<(String, TreeContext, MatrixTransformFields)> {
         let selected = self.selected.as_ref()?;
-        let scope = self.runtime.0.scope().filter(|scope| scope == &selected.scope)?;
+        let scope = self
+            .runtime
+            .0
+            .scope()
+            .filter(|scope| scope == &selected.scope)?;
         let snapshot = self.runtime.0.model().accepted?;
         let matrix_id = match &selected.context {
             TreeContext::Matrix { matrix_id }
@@ -79,15 +105,32 @@ impl MatrixTransformInspectorMount {
             | TreeContext::Key { matrix_id, .. } => matrix_id,
             _ => return None,
         };
-        let matrix = snapshot.document.matrices.iter().find(|matrix| matrix.id == *matrix_id)?;
-        let fields = transform_fields(&snapshot, &scope.board_id, &selected.context, matrix)?;
+        let matrix = snapshot
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == *matrix_id)?;
+        let fields = transform_fields(
+            &snapshot,
+            &scope.board_id,
+            &selected.context,
+            matrix,
+            &self.catalogue.read(),
+        )?;
         Some((matrix_id.clone(), selected.context.clone(), fields))
     }
 
     pub fn projection(&self) -> Option<MatrixTransformProjection> {
         let (matrix_id, context, fields) = self.parts()?;
         let scope = self.selected.as_ref()?.scope.clone();
-        Some(MatrixTransformProjection { owner: MatrixTransformInspectorOwner { scope, matrix_id, context }, fields })
+        Some(MatrixTransformProjection {
+            owner: MatrixTransformInspectorOwner {
+                scope,
+                matrix_id,
+                context,
+            },
+            fields,
+        })
     }
 
     pub fn is_active(&self) -> bool {
@@ -102,20 +145,47 @@ impl MatrixTransformInspectorMount {
     /// A canvas pick of the anchor key retargets the anchor, keeping the Follow subset. Core
     /// validates the target (same Layout, no cycle, not constraint-driven).
     pub fn pick_matrix_anchor(&self, matrix_id: String, row: u32, column: u32) -> bool {
-        let Some(MatrixTransformFields::Matrix { .. }) = self.parts().map(|(_, _, fields)| fields) else { return false };
-        self.edit_reported(Field::MatrixAnchorPick, Value::AnchorKey { matrix_id, row, column })
+        let Some(MatrixTransformFields::Matrix { .. }) = self.parts().map(|(_, _, fields)| fields)
+        else {
+            return false;
+        };
+        self.edit_reported(
+            Field::MatrixAnchorPick,
+            Value::AnchorKey {
+                matrix_id,
+                row,
+                column,
+            },
+        )
     }
 
     /// A canvas multi-Pick of one aggregate part appends to the pending draft without writing.
     pub fn pick_aggregate_part(&self, matrix_id: String, row: u32, column: u32) -> bool {
-        let Some(projection) = self.projection() else { return false };
-        let MatrixTransformFields::Matrix { anchor: Some(anchor), .. } = &projection.fields else { return false };
+        let Some(projection) = self.projection() else {
+            return false;
+        };
+        let MatrixTransformFields::Matrix {
+            anchor: Some(anchor),
+            ..
+        } = &projection.fields
+        else {
+            return false;
+        };
         if anchor.aggregate.is_none() {
             return false;
         }
-        let part = AnchorPart { matrix_id, row, column };
+        let part = AnchorPart {
+            matrix_id,
+            row,
+            column,
+        };
         let mut draft = self.aggregate_pick_draft;
-        let mut parts = draft.read().clone().filter(|(owner, _)| *owner == projection.owner).map(|(_, parts)| parts).unwrap_or_default();
+        let mut parts = draft
+            .read()
+            .clone()
+            .filter(|(owner, _)| *owner == projection.owner)
+            .map(|(_, parts)| parts)
+            .unwrap_or_default();
         if !parts.contains(&part) {
             parts.push(part);
         }
@@ -130,9 +200,20 @@ impl MatrixTransformInspectorMount {
 
     /// A canvas pick of the splay origin; with Ctrl held it swings the keys instead of holding them.
     pub fn pick_splay_origin(&self, point: Vec2, swing: bool) -> bool {
-        let Some(MatrixTransformFields::Column { .. }) = self.parts().map(|(_, _, fields)| fields) else { return false };
-        point.x.is_finite() && point.y.is_finite()
-            && self.edit_reported(if swing { Field::SplayOriginSwingPoint } else { Field::SplayOriginPoint }, Value::Point(point))
+        let Some(MatrixTransformFields::Column { .. }) = self.parts().map(|(_, _, fields)| fields)
+        else {
+            return false;
+        };
+        point.x.is_finite()
+            && point.y.is_finite()
+            && self.edit_reported(
+                if swing {
+                    Field::SplayOriginSwingPoint
+                } else {
+                    Field::SplayOriginPoint
+                },
+                Value::Point(point),
+            )
     }
 
     fn edit_reported(&self, field: Field, value: Value) -> bool {
@@ -148,10 +229,25 @@ impl MatrixTransformInspectorMount {
     fn departure_plan(&self, action: DepartureAction) -> Option<(Field, Value, Option<String>)> {
         let zero = Vec2 { x: 0.0, y: 0.0 };
         Some(match (self.parts()?.2, action) {
-            (MatrixTransformFields::Row { .. }, DepartureAction::Reset) => (Field::RowOffsetReset, Value::Offset(zero), None),
-            (MatrixTransformFields::Column { .. }, DepartureAction::Reset) => (Field::ColumnOffsetReset, Value::Offset(zero), None),
-            (MatrixTransformFields::Column { convert, .. }, DepartureAction::Convert) => (Field::ColumnOffsetConvert, Value::Number(0.0), convert.err()),
-            (MatrixTransformFields::Key { .. }, DepartureAction::Reset) => (Field::KeyTransformReset, Value::CellTransform { offset: zero, rotation: 0.0 }, None),
+            (MatrixTransformFields::Row { .. }, DepartureAction::Reset) => {
+                (Field::RowOffsetReset, Value::Offset(zero), None)
+            }
+            (MatrixTransformFields::Column { .. }, DepartureAction::Reset) => {
+                (Field::ColumnOffsetReset, Value::Offset(zero), None)
+            }
+            (MatrixTransformFields::Column { convert, .. }, DepartureAction::Convert) => (
+                Field::ColumnOffsetConvert,
+                Value::Number(0.0),
+                convert.err(),
+            ),
+            (MatrixTransformFields::Key { .. }, DepartureAction::Reset) => (
+                Field::KeyTransformReset,
+                Value::CellTransform {
+                    offset: zero,
+                    rotation: 0.0,
+                },
+                None,
+            ),
             _ => return None,
         })
     }
@@ -164,7 +260,11 @@ impl MatrixTransformInspectorMount {
             Field::KeyTransformReset => "Reset local transform",
             _ => "Reset offsets",
         };
-        Some(DepartureControl { label, disabled: !self.editable() || blocked.is_some(), reason: blocked })
+        Some(DepartureControl {
+            label,
+            disabled: !self.editable() || blocked.is_some(),
+            reason: blocked,
+        })
     }
 
     /// Run `action` through the Inspector's edit path; the error is why it did not land.
@@ -181,12 +281,17 @@ impl MatrixTransformInspectorMount {
             return Err("The matrix transform is not ready to edit. Wait for the current operation to finish, then retry.".into());
         }
         let (matrix_id, context, _) = self.parts().ok_or("The selection is no longer editable.")?;
-        let board_id = runtime.scope().map(|scope| scope.board_id).unwrap_or_default();
+        let board_id = runtime
+            .scope()
+            .map(|scope| scope.board_id)
+            .unwrap_or_default();
         let snapshot = model.accepted.as_ref().ok_or("No accepted keyboard.")?;
         let cells = selected_cells(snapshot, &matrix_id, &model.selected_part_ids, &context);
         let affect = (self.splay_affect)();
         let resolver = match (field, &value, &context) {
-            (Field::DeleteSelection, _, TreeContext::Key { .. }) => remove_cells_resolver(matrix_id, cells),
+            (Field::DeleteSelection, _, TreeContext::Key { .. }) => {
+                remove_cells_resolver(matrix_id, cells)
+            }
             (Field::KeyEnabled, Value::Bool(enabled), TreeContext::Key { .. }) => {
                 enable_cells_resolver(matrix_id, board_id, cells, *enabled)
             }
@@ -196,9 +301,19 @@ impl MatrixTransformInspectorMount {
             (Field::KeyAddAnchoredMatrix, _, TreeContext::Key { row, column, .. }) => {
                 add_anchored_resolver(matrix_id, *row, *column)
             }
-            _ => edit_resolver(matrix_id, board_id, context, field, value, affect),
+            _ => edit_resolver(
+                matrix_id,
+                board_id,
+                context,
+                field,
+                value,
+                affect,
+                self.catalogue.read().clone(),
+            ),
         };
-        runtime.commit("layout-matrix-transform", resolver).map(|_| ())
+        runtime
+            .commit("layout-matrix-transform", resolver)
+            .map(|_| ())
     }
 }
 
@@ -219,94 +334,164 @@ fn edit_resolver(
     field: Field,
     value: Value,
     affect: MatrixSplayAffect,
+    catalogue: Vec<PartDefinition>,
 ) -> EditResolver {
-    EditResolver::new("layout-matrix-transform", move |accepted: &AcceptedSnapshot| {
-        let matrix = match matrix_of(accepted, &matrix_id) {
-            Ok(matrix) => matrix,
-            Err(retire) => return retire,
-        };
-        let Some(fields) = transform_fields(accepted, &board_id, &context, matrix) else {
-            return Resolution::Retire("The selected row, column or key no longer exists.".into());
-        };
-        match build_operation(matrix, &fields, field, value.clone(), affect.clone()) {
-            Ok(operation) => Resolution::submit(vec![matrix.id.clone()], operation),
-            Err(message) => Resolution::Retire(message),
-        }
-    })
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let matrix = match matrix_of(accepted, &matrix_id) {
+                Ok(matrix) => matrix,
+                Err(retire) => return retire,
+            };
+            let Some(fields) = transform_fields(accepted, &board_id, &context, matrix, &[]) else {
+                return Resolution::Retire(
+                    "The selected row, column or key no longer exists.".into(),
+                );
+            };
+            let operation =
+                match build_operation(matrix, &fields, field, value.clone(), affect.clone()) {
+                    Ok(operation) => operation,
+                    Err(message) => return Resolution::Retire(message),
+                };
+            // An assembly or attachment the document lacks arrives with its catalogue definition.
+            let wanted: Vec<&str> = match &value {
+                Value::Text(id) if field == Field::KeyAssembly => vec![id.as_str()],
+                Value::Attached(list) if field == Field::KeyAttached => {
+                    list.iter().map(|(_, id)| id.as_str()).collect()
+                }
+                _ => Vec::new(),
+            };
+            let missing =
+                super::matrix_preset::missing_definitions(&accepted.document, &catalogue, &wanted);
+            if wanted.iter().any(|id| {
+                !accepted.document.definitions.iter().any(|d| d.id == *id)
+                    && !missing.iter().any(|d| d.id == *id)
+            }) {
+                return Resolution::Retire("The component catalogue is not ready yet. Try this change again when it finishes loading.".into());
+            }
+            let operation = match operation {
+                EditOperation::SetMatrix { matrix, .. } if !missing.is_empty() => {
+                    EditOperation::SetMatrix {
+                        matrix,
+                        definitions: Some(missing),
+                    }
+                }
+                other => other,
+            };
+            Resolution::submit(vec![matrix.id.clone()], operation)
+        },
+    )
 }
 
 fn set_matrix(matrix: Matrix) -> EditOperation {
-    EditOperation::SetMatrix { matrix, definitions: None }
+    EditOperation::SetMatrix {
+        matrix,
+        definitions: None,
+    }
 }
 
-fn enable_cells_resolver(matrix_id: String, board_id: String, cells: Vec<(u32, u32)>, enabled: bool) -> EditResolver {
-    EditResolver::new("layout-matrix-transform", move |accepted: &AcceptedSnapshot| {
-        let matrix = match matrix_of(accepted, &matrix_id) {
-            Ok(matrix) => matrix,
-            Err(retire) => return retire,
-        };
-        let mut next = matrix.clone();
-        for &(row, column) in &cells {
-            let context = TreeContext::Key { matrix_id: matrix_id.clone(), row, column };
-            let Some(fields) = transform_fields(accepted, &board_id, &context, &next) else {
-                return Resolution::Retire("A selected key no longer exists.".into());
+fn enable_cells_resolver(
+    matrix_id: String,
+    board_id: String,
+    cells: Vec<(u32, u32)>,
+    enabled: bool,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let matrix = match matrix_of(accepted, &matrix_id) {
+                Ok(matrix) => matrix,
+                Err(retire) => return retire,
             };
-            match build_operation(&next, &fields, Field::KeyEnabled, Value::Bool(enabled), MatrixSplayAffect::Column) {
-                Ok(EditOperation::SetMatrix { matrix, .. }) => next = matrix,
-                _ => return Resolution::Retire("The key enabled edit could not be built.".into()),
+            let mut next = matrix.clone();
+            for &(row, column) in &cells {
+                let context = TreeContext::Key {
+                    matrix_id: matrix_id.clone(),
+                    row,
+                    column,
+                };
+                let Some(fields) = transform_fields(accepted, &board_id, &context, &next, &[])
+                else {
+                    return Resolution::Retire("A selected key no longer exists.".into());
+                };
+                match build_operation(
+                    &next,
+                    &fields,
+                    Field::KeyEnabled,
+                    Value::Bool(enabled),
+                    MatrixSplayAffect::Column,
+                ) {
+                    Ok(EditOperation::SetMatrix { matrix, .. }) => next = matrix,
+                    _ => {
+                        return Resolution::Retire(
+                            "The key enabled edit could not be built.".into(),
+                        );
+                    }
+                }
             }
-        }
-        if &next == matrix {
-            return Resolution::Unchanged;
-        }
-        Resolution::submit(vec![matrix.id.clone()], set_matrix(next))
-    })
+            if &next == matrix {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(vec![matrix.id.clone()], set_matrix(next))
+        },
+    )
 }
 
 fn remove_cells_resolver(matrix_id: String, cells: Vec<(u32, u32)>) -> EditResolver {
     EditResolver::new("layout-matrix-transform", move |_: &AcceptedSnapshot| {
         Resolution::submit(
             vec![matrix_id.clone()],
-            EditOperation::RemoveMatrixCells { matrix_id: matrix_id.clone(), cells: cells.clone() },
+            EditOperation::RemoveMatrixCells {
+                matrix_id: matrix_id.clone(),
+                cells: cells.clone(),
+            },
         )
     })
 }
 
 /// Core validates the anchor target and assigns the Origin, the Layout and the mirror.
 fn add_anchored_resolver(matrix_id: String, row: u32, column: u32) -> EditResolver {
-    EditResolver::new("layout-matrix-transform", move |accepted: &AcceptedSnapshot| {
-        let document = &accepted.document;
-        let Ok(matrix) = matrix_of(accepted, &matrix_id) else {
-            return Resolution::Retire("The selected matrix no longer exists.".into());
-        };
-        if row >= matrix.rows || column >= matrix.columns {
-            return Resolution::Retire("The selected key no longer exists.".into());
-        }
-        let id = crate::matrix_setup_operation::next_matrix_id(
-            &document.matrices,
-            &document.definitions,
-            &document.parts,
-            "anchored",
-            crate::presentation::parts::reversible_layout(document),
-        );
-        Resolution::submit(
-            vec![matrix_id.clone(), id.clone()],
-            EditOperation::AddAnchoredMatrix {
-                id,
-                anchor: boardstudio_model::model::MatrixAnchor {
-                    matrix_id: matrix_id.clone(),
-                    row,
-                    column,
-                    follow: boardstudio_model::model::Follow::default(),
-                    aggregate: None,
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Ok(matrix) = matrix_of(accepted, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if row >= matrix.rows || column >= matrix.columns {
+                return Resolution::Retire("The selected key no longer exists.".into());
+            }
+            let id = crate::matrix_setup_operation::next_matrix_id(
+                &document.matrices,
+                &document.definitions,
+                &document.parts,
+                "anchored",
+                crate::presentation::parts::reversible_layout(document),
+            );
+            Resolution::submit(
+                vec![matrix_id.clone(), id.clone()],
+                EditOperation::AddAnchoredMatrix {
+                    id,
+                    anchor: boardstudio_model::model::MatrixAnchor {
+                        matrix_id: matrix_id.clone(),
+                        row,
+                        column,
+                        follow: boardstudio_model::model::Follow::default(),
+                        aggregate: None,
+                    },
                 },
-            },
-        )
-    })
+            )
+        },
+    )
 }
 
 /// The (row, column) cells of the key selection, including a lone selected key.
-fn selected_cells(snapshot: &AcceptedSnapshot, matrix_id: &str, selected_ids: &[String], context: &TreeContext) -> Vec<(u32, u32)> {
+fn selected_cells(
+    snapshot: &AcceptedSnapshot,
+    matrix_id: &str,
+    selected_ids: &[String],
+    context: &TreeContext,
+) -> Vec<(u32, u32)> {
     let mut cells: Vec<_> = snapshot
         .scene
         .matrix_scenes
@@ -316,7 +501,8 @@ fn selected_cells(snapshot: &AcceptedSnapshot, matrix_id: &str, selected_ids: &[
         .flat_map(|scene| &scene.cells)
         .filter(|cell| {
             selected_ids.iter().any(|id| {
-                cell.member_id.as_ref() == Some(id) || *id == format!("matrix/{matrix_id}/r{}c{}", cell.row, cell.column)
+                cell.member_id.as_ref() == Some(id)
+                    || *id == format!("matrix/{matrix_id}/r{}c{}", cell.row, cell.column)
             })
         })
         .map(|cell| (cell.row, cell.column))
@@ -333,28 +519,47 @@ fn linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool
     document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == matrix_id))
+        .find(|layout| {
+            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == matrix_id)
+        })
         .is_some_and(|layout| {
             layout.mirror_link.is_some()
-                || document
-                    .layouts
-                    .iter()
-                    .any(|other| other.mirror_link.as_ref().is_some_and(|link| link.source_id == layout.id))
+                || document.layouts.iter().any(|other| {
+                    other
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == layout.id)
+                })
         })
 }
 
 /// The field projection of the selected matrix, row, column or key.
-pub(super) fn transform_fields(snapshot: &AcceptedSnapshot, board_id: &str, context: &TreeContext, matrix: &Matrix) -> Option<MatrixTransformFields> {
+pub(super) fn transform_fields(
+    snapshot: &AcceptedSnapshot,
+    board_id: &str,
+    context: &TreeContext,
+    matrix: &Matrix,
+    catalogue: &[PartDefinition],
+) -> Option<MatrixTransformFields> {
     let zero = Vec2 { x: 0.0, y: 0.0 };
     let column_record = |column: u32| matrix.column_layout.get(column as usize);
-    let scene = || snapshot.scene.matrix_scenes.iter().find(|scene| scene.matrix_id == matrix.id);
+    let scene = || {
+        snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+    };
     Some(match context {
         TreeContext::Matrix { .. } => MatrixTransformFields::Matrix {
             origin: matrix.origin,
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
             mirror_y_locked: linked_layout(&snapshot.document, board_id, &matrix.id),
-            rotation_followed: matrix.anchor.as_ref().is_none_or(|anchor| anchor.follow.rotation),
+            rotation_followed: matrix
+                .anchor
+                .as_ref()
+                .is_none_or(|anchor| anchor.follow.rotation),
             anchor: matrix.anchor.clone(),
         },
         TreeContext::Row { row, .. } => {
@@ -369,7 +574,10 @@ pub(super) fn transform_fields(snapshot: &AcceptedSnapshot, board_id: &str, cont
             }
         }
         TreeContext::Column { column, .. } => {
-            let basis = scene()?.columns.iter().find(|basis| basis.column == *column)?;
+            let basis = scene()?
+                .columns
+                .iter()
+                .find(|basis| basis.column == *column)?;
             MatrixTransformFields::Column {
                 column: *column,
                 offset: column_record(*column).map_or(zero, |record| record.offset),
@@ -390,20 +598,18 @@ pub(super) fn transform_fields(snapshot: &AcceptedSnapshot, board_id: &str, cont
                 .find(|cell| cell.row == *row && cell.column == *column)
                 .and_then(|cell| cell.member_id.clone())
                 .or_else(|| {
-                    key_half_exception_omitted(&snapshot.document, &matrix.id, *row, *column).map(|exception| exception.mirror_id)
+                    key_half_exception_omitted(&snapshot.document, &matrix.id, *row, *column)
+                        .map(|exception| exception.mirror_id)
                 });
-            let cell = matrix.cells.iter().find(|cell| cell.row == *row && cell.column == *column);
-            let mut choices: Vec<(String, String)> = snapshot
-                .document
-                .definitions
+            let cell = matrix
+                .cells
                 .iter()
-                .filter(|definition| definition.kind == boardstudio_model::model::PartKind::Switch)
-                .map(|definition| (definition.id.clone(), definition.name.clone()))
-                .collect();
-            let definition_id = cell.and_then(|cell| cell.definition_id.clone()).unwrap_or_else(|| matrix.definition_id.clone());
-            if !choices.iter().any(|(id, _)| *id == definition_id) {
-                choices.push((definition_id.clone(), definition_id.clone()));
-            }
+                .find(|cell| cell.row == *row && cell.column == *column);
+            let definition_id = cell
+                .and_then(|cell| cell.definition_id.clone())
+                .unwrap_or_else(|| matrix.definition_id.clone());
+            let choices =
+                super::matrix_preset::switch_choices(&snapshot.document, catalogue, &definition_id);
             MatrixTransformFields::Key {
                 row: *row,
                 column: *column,
@@ -411,31 +617,102 @@ pub(super) fn transform_fields(snapshot: &AcceptedSnapshot, board_id: &str, cont
                 definition_id,
                 choices,
                 assemblies: cell
-                    .map(|cell| cell.assemblies.iter().map(|a| (a.id.clone(), a.definition_id.clone())).collect())
+                    .map(|cell| {
+                        cell.assemblies
+                            .iter()
+                            .map(|a| (a.id.clone(), a.definition_id.clone()))
+                            .collect()
+                    })
                     .unwrap_or_default(),
-                component_choices: snapshot.document.definitions.clone(),
+                component_choices: snapshot.document.definitions.iter().chain(catalogue).fold(
+                    Vec::new(),
+                    |mut all: Vec<PartDefinition>, definition| {
+                        if !all.iter().any(|existing| existing.id == definition.id) {
+                            all.push(definition.clone());
+                        }
+                        all
+                    },
+                ),
                 mirror_target: snapshot.document.layouts.iter().any(|layout| {
-                    layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.mirror_link.is_some()
+                    layout.matrix_ids.iter().any(|id| id == &matrix.id)
+                        && layout.mirror_link.is_some()
                 }),
                 assemblies_local: cell.and_then(|cell| cell.assemblies_local).unwrap_or(false),
                 offset: cell.and_then(|cell| cell.offset).unwrap_or(zero),
                 rotation: cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
                 shift: cell.and_then(|cell| cell.shift).unwrap_or(zero),
                 bend: cell.and_then(|cell| cell.bend).unwrap_or(0.0),
-                half_exception: member_id.as_deref().and_then(|member| key_half_exception(&snapshot.document, member)),
+                half_exception: member_id
+                    .as_deref()
+                    .and_then(|member| key_half_exception(&snapshot.document, member)),
             }
         }
         _ => return None,
     })
 }
 
-/// One numeric transform field, editable when the session is idle.
-pub(super) fn number(mount: &MatrixTransformInspectorMount, field: Field, label: &'static str, unit: &'static str, value: f64, error: Signal<Option<String>>) -> Element {
-    let mount = mount.clone();
-    let mut error = error;
+/// One numeric transform field; hovering or focusing it lights the keys its edit would move.
+pub(super) fn number(
+    mount: &MatrixTransformInspectorMount,
+    field: Field,
+    label: &'static str,
+    unit: &'static str,
+    value: f64,
+    error: Signal<Option<String>>,
+) -> Element {
+    rsx! { TransformNumber { key: "{field:?}", mount: mount.clone(), field, label, unit, value, error } }
+}
+
+#[component]
+fn TransformNumber(
+    mount: MatrixTransformInspectorMount,
+    field: Field,
+    label: &'static str,
+    unit: &'static str,
+    value: f64,
+    error: Signal<Option<String>>,
+) -> Element {
+    let preview = try_use_context::<FieldPreview>();
+    let source = try_use_context::<Option<FieldPreviewSource>>().flatten();
+    let shown = use_signal(Vec::<String>::new);
+    let show = {
+        let mount = mount.clone();
+        move || {
+            let mut shown = shown;
+            let (Some(preview), Some(source), Some((_, context, _))) =
+                (preview, &source, mount.parts())
+            else {
+                return;
+            };
+            if let Some(facts) = crate::matrix_relations::field_preview(
+                &source.document,
+                &source.scene.matrix_scenes,
+                &context,
+                field,
+                (mount.splay_affect)(),
+            ) {
+                shown.set(facts.parts.clone());
+                preview.show(FieldPreviewState {
+                    parts: facts.parts,
+                    hint: facts.hint,
+                });
+            }
+        }
+    };
+    let release = move || {
+        if let Some(preview) = preview {
+            preview.release(&shown.peek());
+        }
+    };
+    use_drop(release);
     let displayed = format_numeric(value, 4).parse::<f64>().unwrap_or(value);
+    let mut error = error;
     rsx! {
-        div { key: "{field:?}", "data-transform-number": "true",
+        div { "data-transform-number": "true",
+            onpointerenter: { let show = show.clone(); move |_| show() },
+            onpointerleave: move |_| release(),
+            onfocusin: move |_| show(),
+            onfocusout: move |_| release(),
             NumericField {
                 label, unit, value: displayed, precision: 4,
                 on_commit: move |next| error.set(mount.edit(field, Value::Number(next)).err()),
@@ -444,7 +721,13 @@ pub(super) fn number(mount: &MatrixTransformInspectorMount, field: Field, label:
     }
 }
 
-fn action(mount: &MatrixTransformInspectorMount, field: Field, label: &str, value: Value, mut error: Signal<Option<String>>) -> Element {
+fn action(
+    mount: &MatrixTransformInspectorMount,
+    field: Field,
+    label: &str,
+    value: Value,
+    mut error: Signal<Option<String>>,
+) -> Element {
     let mount = mount.clone();
     rsx! {
         Button {
@@ -455,7 +738,13 @@ fn action(mount: &MatrixTransformInspectorMount, field: Field, label: &str, valu
     }
 }
 
-fn toggle(mount: &MatrixTransformInspectorMount, field: Field, label: &str, checked: bool, mut error: Signal<Option<String>>) -> Element {
+fn toggle(
+    mount: &MatrixTransformInspectorMount,
+    field: Field,
+    label: &str,
+    checked: bool,
+    mut error: Signal<Option<String>>,
+) -> Element {
     let mount = mount.clone();
     rsx! {
         ToggleField { key: "{field:?}", label: label.to_owned(), checked,
@@ -502,7 +791,14 @@ pub fn MatrixTransformInspector(
     let deg = |field, label, value| num(field, label, "°", value);
     let act = |field, label: &str, value| action(&mount, field, label, value, error);
     let content = match &fields {
-        MatrixTransformFields::Matrix { origin, rotation, mirror, mirror_y_locked, anchor, .. } => {
+        MatrixTransformFields::Matrix {
+            origin,
+            rotation,
+            mirror,
+            mirror_y_locked,
+            anchor,
+            ..
+        } => {
             let mirror = *mirror;
             let mut options = vec![(None, "None".to_owned()), (Some(Mirror::X), "X".to_owned())];
             if !mirror_y_locked || mirror == Some(Mirror::Y) {
@@ -523,7 +819,14 @@ pub fn MatrixTransformInspector(
                 {anchor_controls(&mount, anchor.as_ref(), error, AnchorPick { pending: anchor_pick_pending, on_pick: on_pick_anchor, on_cancel: on_cancel_anchor_pick, on_navigate: on_navigate_anchor_part })}
             }
         }
-        MatrixTransformFields::Row { offset, shift, bend, padding, pitch, .. } => rsx! {
+        MatrixTransformFields::Row {
+            offset,
+            shift,
+            bend,
+            padding,
+            pitch,
+            ..
+        } => rsx! {
             InspectorSection { title: "Row transform",
                 {mm(Field::RowShiftX, "Shift X", shift.x)}
                 {mm(Field::RowShiftY, "Shift Y", shift.y)}
@@ -534,7 +837,18 @@ pub fn MatrixTransformInspector(
                 {act(Field::RowOffsetReset, "Reset offsets", Value::Offset(Vec2::default()))}
             }
         },
-        MatrixTransformFields::Column { offset, stagger, spread, pitch, splay_angle, rotation, splay_origin, custom_origin, convert, .. } => {
+        MatrixTransformFields::Column {
+            offset,
+            stagger,
+            spread,
+            pitch,
+            splay_angle,
+            rotation,
+            splay_origin,
+            custom_origin,
+            convert,
+            ..
+        } => {
             let mut affect = mount.splay_affect;
             let edit = mount.clone();
             let custom = *custom_origin;
@@ -567,7 +881,21 @@ pub fn MatrixTransformInspector(
                 }
             }
         }
-        MatrixTransformFields::Key { enabled, definition_id, choices, offset, rotation, shift, bend, half_exception, mirror_target, assemblies_local, .. } => {
+        MatrixTransformFields::Key {
+            enabled,
+            definition_id,
+            choices,
+            offset,
+            rotation,
+            shift,
+            bend,
+            half_exception,
+            mirror_target,
+            assemblies_local,
+            assemblies,
+            component_choices,
+            ..
+        } => {
             let edit = mount.clone();
             let mut error = error;
             rsx! {
@@ -591,6 +919,28 @@ pub fn MatrixTransformInspector(
                     }
                     if *mirror_target && *assemblies_local {
                         {act(Field::KeyAssembliesLocal, "Use mirrored components", Value::Bool(false))}
+                    }
+                    for (index, (id, definition)) in assemblies.iter().enumerate() {
+                        {
+                            let (replace, remove) = (mount.clone(), mount.clone());
+                            let (baseline, mut remaining) = (assemblies.clone(), assemblies.clone());
+                            remaining.remove(index);
+                            let mut error = error;
+                            rsx! {
+                                div { key: "{id}",
+                                    SelectField::<String> {
+                                        label: format!("Replace {id}"), value: definition.clone(),
+                                        options: attachment_component_choices(component_choices, definition),
+                                        on_commit: move |next| {
+                                            let mut replacements = baseline.clone();
+                                            replacements[index].1 = next;
+                                            error.set(replace.edit(Field::KeyAttached, Value::Attached(replacements)).err());
+                                        },
+                                    }
+                                    Button { variant: ButtonVariant::Secondary, onclick: move |_| error.set(remove.edit(Field::KeyAttached, Value::Attached(remaining.clone())).err()), "Remove {id}" }
+                                }
+                            }
+                        }
                     }
                 }
                 {act(Field::KeyAddAnchoredMatrix, "Add anchored matrix", Value::Text(String::new()))}
@@ -616,18 +966,33 @@ struct AnchorPick {
     on_navigate: EventHandler<TreeContext>,
 }
 
-fn anchor_controls(mount: &MatrixTransformInspectorMount, anchor: Option<&MatrixAnchor>, error: Signal<Option<String>>, pick: AnchorPick) -> Element {
-    let Some(projection) = mount.projection() else { return rsx! {} };
+fn anchor_controls(
+    mount: &MatrixTransformInspectorMount,
+    anchor: Option<&MatrixAnchor>,
+    error: Signal<Option<String>>,
+    pick: AnchorPick,
+) -> Element {
+    let Some(projection) = mount.projection() else {
+        return rsx! {};
+    };
     let aggregate = anchor.and_then(|anchor| anchor.aggregate.as_ref());
-    let mut picked = (mount.aggregate_pick_draft)().filter(|(owner, _)| *owner == projection.owner).map(|(_, parts)| parts).unwrap_or_default();
+    let mut picked = (mount.aggregate_pick_draft)()
+        .filter(|(owner, _)| *owner == projection.owner)
+        .map(|(_, parts)| parts)
+        .unwrap_or_default();
     if let Some(aggregate) = aggregate {
         picked.retain(|part| !aggregate.parts.contains(part));
     }
     // A refused detach names the linked partner; the next press confirms it.
     let partner = error().and_then(|message| {
-        let (_, rest) = message.split_once(&format!("Detaching {} would move its linked partner ", projection.owner.matrix_id))?;
+        let (_, rest) = message.split_once(&format!(
+            "Detaching {} would move its linked partner ",
+            projection.owner.matrix_id
+        ))?;
         let (partner, tail) = rest.split_once(';')?;
-        (tail.trim_start() == format!("make {partner} Local to keep its pose and confirm the detach")).then(|| partner.to_owned())
+        (tail.trim_start()
+            == format!("make {partner} Local to keep its pose and confirm the detach"))
+        .then(|| partner.to_owned())
     });
     rsx! {
         InspectorSection { title: "Anchor",

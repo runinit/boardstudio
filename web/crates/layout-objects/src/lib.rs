@@ -19,7 +19,8 @@ pub(crate) use boardstudio_web_layout_core::outline as outline_lifecycle;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_layout_core::{
     anchor_pick, matrix_relations, matrix_transform_operation, mirror_existing_half,
-    mirrored_pair_geometry, mirrored_pair_lifecycle, outline_settings, outline_snapping, part_rail, rail_gesture,
+    mirrored_pair_geometry, mirrored_pair_lifecycle, outline_settings, outline_snapping, part_rail,
+    rail_gesture,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
@@ -84,6 +85,9 @@ mod objects {
 
     #[cfg(test)]
     mod layout_selection_kind;
+
+    #[cfg(test)]
+    mod layout_rail_tool;
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
