@@ -62,8 +62,9 @@ pub struct AcceptedSnapshot {
     pub scene: Arc<SceneDelta>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Lifecycle {
+    #[default]
     Empty,
     Opening,
     Ready,
@@ -73,22 +74,46 @@ pub enum Lifecycle {
     Closing,
     Closed,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Durability {
+    #[default]
     NoDocument,
-    Saved { revision: u64 },
-    Saving { revision: u64 },
-    Failed { revision: u64, reason: String },
+    Saved {
+        revision: u64,
+    },
+    Saving {
+        revision: u64,
+    },
+    Failed {
+        revision: u64,
+        reason: String,
+    },
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum GenerationStatus {
+    #[default]
     Idle,
-    Preparing { job_id: JobId },
-    Running { job_id: JobId },
-    Ready { job_id: JobId, exact: bool },
-    Blocked { job_id: JobId, reason: String },
-    Failed { job_id: JobId, reason: String },
-    Cancelled { job_id: JobId },
+    Preparing {
+        job_id: JobId,
+    },
+    Running {
+        job_id: JobId,
+    },
+    Ready {
+        job_id: JobId,
+        exact: bool,
+    },
+    Blocked {
+        job_id: JobId,
+        reason: String,
+    },
+    Failed {
+        job_id: JobId,
+        reason: String,
+    },
+    Cancelled {
+        job_id: JobId,
+    },
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct GestureView {
@@ -105,7 +130,7 @@ pub struct CameraState {
     pub zoom: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ReadModel {
     pub lifecycle: Lifecycle,
     pub durability: Durability,
@@ -122,26 +147,11 @@ pub struct ReadModel {
     pub generation: GenerationStatus,
     pub last_error: Option<String>,
 }
-impl Default for ReadModel {
+impl Default for CameraState {
     fn default() -> Self {
         Self {
-            lifecycle: Lifecycle::Empty,
-            durability: Durability::NoDocument,
-            accepted: None,
-            display_preview: None,
-            selected_part_ids: vec![],
-            selection_anchor_id: None,
-            selection_mode: SelectionMode::Replace,
-            camera: CameraState {
-                center: Vec2::default(),
-                zoom: 1.0,
-            },
-            active_board_id: String::new(),
-            active_instance_id: None,
-            gesture: None,
-            snap_guide: None,
-            generation: GenerationStatus::Idle,
-            last_error: None,
+            center: Vec2::default(),
+            zoom: 1.0,
         }
     }
 }
@@ -158,8 +168,9 @@ pub enum TerminalOutcome {
     Closed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SelectionMode {
+    #[default]
     Replace,
     Add,
     Toggle,
@@ -467,7 +478,6 @@ pub enum Effect {
     Persist {
         save_attempt_id: SaveAttemptId,
         document: Arc<ProjectDoc>,
-        assets: Vec<AssetRef>,
     },
     Settled {
         operation_id: OperationId,
@@ -1841,48 +1851,47 @@ impl Session {
                 scope,
                 exact,
             } => {
-                if self.job_is_current(job_id, &scope) {
-                    self.model.generation = GenerationStatus::Ready { job_id, exact };
-                    if let Some((_, operation, _)) = self.active_job.take() {
-                        self.settle(operation, TerminalOutcome::Completed, &mut effects);
-                    }
-                }
+                self.finish_generation(
+                    job_id,
+                    &scope,
+                    GenerationStatus::Ready { job_id, exact },
+                    TerminalOutcome::Completed,
+                    &mut effects,
+                );
             }
             Completion::GenerationFailed {
                 job_id,
                 scope,
                 reason,
             } => {
-                if self.job_is_current(job_id, &scope) {
-                    self.model.generation = GenerationStatus::Failed {
-                        job_id,
-                        reason: reason.clone(),
-                    };
-                    self.model.last_error = Some(reason.clone());
-                    if let Some((_, operation, _)) = self.active_job.take() {
-                        self.settle(
-                            operation,
-                            TerminalOutcome::ExecutorFailed(reason),
-                            &mut effects,
-                        );
-                    }
-                }
+                let status = GenerationStatus::Failed {
+                    job_id,
+                    reason: reason.clone(),
+                };
+                self.finish_generation(
+                    job_id,
+                    &scope,
+                    status,
+                    TerminalOutcome::ExecutorFailed(reason),
+                    &mut effects,
+                );
             }
             Completion::GenerationBlocked {
                 job_id,
                 scope,
                 reason,
             } => {
-                if self.job_is_current(job_id, &scope) {
-                    self.model.generation = GenerationStatus::Blocked {
-                        job_id,
-                        reason: reason.clone(),
-                    };
-                    self.model.last_error = Some(reason.clone());
-                    if let Some((_, operation, _)) = self.active_job.take() {
-                        self.settle(operation, TerminalOutcome::Rejected(reason), &mut effects);
-                    }
-                }
+                let status = GenerationStatus::Blocked {
+                    job_id,
+                    reason: reason.clone(),
+                };
+                self.finish_generation(
+                    job_id,
+                    &scope,
+                    status,
+                    TerminalOutcome::Rejected(reason),
+                    &mut effects,
+                );
             }
             Completion::ExportFinished {
                 operation_id,
@@ -1932,6 +1941,27 @@ impl Session {
 }
 
 impl Session {
+    fn finish_generation(
+        &mut self,
+        job_id: JobId,
+        scope: &Scope,
+        status: GenerationStatus,
+        outcome: TerminalOutcome,
+        effects: &mut Vec<Effect>,
+    ) {
+        if self.job_is_current(job_id, scope)
+            && let Some((_, operation, _)) = self.active_job.take()
+        {
+            if let TerminalOutcome::ExecutorFailed(reason) | TerminalOutcome::Rejected(reason) =
+                &outcome
+            {
+                self.model.last_error = Some(reason.clone());
+            }
+            self.model.generation = status;
+            self.settle(operation, outcome, effects);
+        }
+    }
+
     fn start_save(&mut self, operation: Option<OperationId>, effects: &mut Vec<Effect>) {
         if self.pending_save.is_some() {
             return;
@@ -1947,14 +1977,12 @@ impl Session {
             revision: document.revision,
             operation,
         });
-        let assets = document.assets.iter().map(AssetRef::from).collect();
         self.model.durability = Durability::Saving {
             revision: document.revision,
         };
         effects.push(Effect::Persist {
             save_attempt_id,
             document,
-            assets,
         });
     }
 

@@ -14,8 +14,8 @@ use std::{
 use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
-    Event, IdbDatabase, IdbObjectStoreParameters, IdbOpenDbRequest, IdbRequest, IdbTransaction,
-    IdbTransactionMode, Window,
+    Event, IdbDatabase, IdbObjectStoreParameters, IdbRequest, IdbTransaction, IdbTransactionMode,
+    Window,
 };
 
 // IndexedDB event handlers must outlive a cancelled caller.
@@ -450,11 +450,7 @@ async fn persist_project(
     for asset in &new_assets {
         verify_asset(asset)?;
     }
-    let refs: BTreeSet<String> = required_assets.into_iter().collect();
-    let incoming: BTreeSet<String> = new_assets
-        .iter()
-        .map(|asset| asset.sha256.clone())
-        .collect();
+    let mut refs: BTreeSet<_> = required_assets.into_iter().collect();
     let database = open_database(database_name).await?;
     let names = Array::new();
     names.push(&JsValue::from_str(PROJECT_STORE));
@@ -478,13 +474,7 @@ async fn persist_project(
         let stale = conflict.clone();
         let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
             let result = (|| {
-                let stored = check.result().map_err(js_error)?;
-                let token = if stored.is_undefined() {
-                    None
-                } else {
-                    let json = serde_wasm_bindgen::from_value(stored).map_err(js_decode_error)?;
-                    Some(StorageToken::from_value(json)?)
-                };
+                let token = stored_token(&check)?;
                 if token != expected {
                     stale.set(true);
                     return Err(PersistError(CONFLICT.into()));
@@ -500,6 +490,7 @@ async fn persist_project(
         request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
 
         for asset in &new_assets {
+            refs.remove(&asset.sha256);
             let value = Uint8Array::from(asset.bytes.as_slice());
             assets
                 .put_with_key(&value, &JsValue::from_str(&asset.sha256))
@@ -507,11 +498,10 @@ async fn persist_project(
         }
 
         let mut checks = vec![on_success];
-        for hash in refs.difference(&incoming) {
-            let request = assets.get(&JsValue::from_str(hash)).map_err(js_error)?;
+        for hash in refs {
+            let request = assets.get(&JsValue::from_str(&hash)).map_err(js_error)?;
             let failed = missing_asset.clone();
             let transaction = transaction.clone();
-            let hash = hash.clone();
             let check_request = request.clone();
             let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
                 let absent = check_request
@@ -556,20 +546,33 @@ async fn persist_project(
     Ok(())
 }
 
-async fn save_asset_inner(database_name: &str, asset: AssetBytes) -> Result<(), PersistError> {
+async fn write_record(
+    database_name: &str,
+    store_name: &str,
+    write: impl FnOnce(web_sys::IdbObjectStore) -> Result<IdbRequest, JsValue>,
+) -> Result<(), PersistError> {
     let database = open_database(database_name).await?;
     let transaction = database
-        .transaction_with_str_and_mode(ASSET_STORE, IdbTransactionMode::Readwrite)
+        .transaction_with_str_and_mode(store_name, IdbTransactionMode::Readwrite)
         .map_err(js_error)?;
-    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
-    let store = transaction.object_store(ASSET_STORE).map_err(js_error)?;
-    let bytes = Uint8Array::from(asset.bytes.as_slice());
-    store
-        .put_with_key(&bytes, &JsValue::from_str(&asset.sha256))
-        .map_err(js_error)?;
-    let result = completion.await;
+    let completion = transaction_completion(&transaction, Rc::default());
+    let store = transaction.object_store(store_name).map_err(js_error)?;
+    let request = write(store).map_err(js_error)?;
+    let result = request_result(request).await;
+    let committed = completion.await;
     database.close();
-    result
+    result?;
+    committed
+}
+
+async fn save_asset_inner(database_name: &str, asset: AssetBytes) -> Result<(), PersistError> {
+    write_record(database_name, ASSET_STORE, |store| {
+        store.put_with_key(
+            &Uint8Array::from(asset.bytes.as_slice()),
+            &asset.sha256.into(),
+        )
+    })
+    .await
 }
 
 async fn delete_project_inner(
@@ -586,6 +589,14 @@ async fn delete_project_inner(
         let _ = storage.remove_item(active_key);
     }
     Ok(())
+}
+
+fn stored_token(request: &IdbRequest) -> Result<Option<StorageToken>, PersistError> {
+    let value = request.result().map_err(js_error)?;
+    if value.is_undefined() {
+        return Ok(None);
+    }
+    StorageToken::from_stored(value).map(Some)
 }
 
 async fn delete_record(
@@ -606,14 +617,7 @@ async fn delete_record(
     let tx = transaction.clone();
     let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
         let result = (|| {
-            let value = check.result().map_err(js_error)?;
-            let token = if value.is_undefined() {
-                None
-            } else {
-                Some(StorageToken::from_value(
-                    serde_wasm_bindgen::from_value(value).map_err(js_decode_error)?,
-                )?)
-            };
+            let token = stored_token(&check)?;
             if token != expected {
                 return Err(PersistError(CONFLICT.into()));
             }
@@ -633,35 +637,13 @@ async fn delete_record(
     Ok(())
 }
 
-/// Remove one project-store record without reading or comparing it. Deleting
-/// a missing key succeeds as a no-op.
 async fn delete_key_inner(database_name: &str, key: &JsValue) -> Result<(), PersistError> {
-    let database = open_database(database_name).await?;
-    let transaction = database
-        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
-        .map_err(js_error)?;
-    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
-    let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
-    store.delete(key).map_err(js_error)?;
-    let result = completion.await;
-    database.close();
-    result
+    write_record(database_name, PROJECT_STORE, |store| store.delete(key)).await
 }
 
 #[cfg(any(test, feature = "test-support"))]
 async fn put_raw_record_inner(database_name: &str, value: JsValue) -> Result<(), PersistError> {
-    let database = open_database(database_name).await?;
-    let transaction = database
-        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
-        .map_err(js_error)?;
-    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
-    let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
-    let request = store.put(&value).map_err(js_error)?;
-    let result = request_result(request).await;
-    let committed = completion.await;
-    database.close();
-    result?;
-    committed
+    write_record(database_name, PROJECT_STORE, |store| store.put(&value)).await
 }
 
 fn decode_document(value: JsValue) -> Result<ProjectDoc, PersistError> {
@@ -743,45 +725,12 @@ async fn open_database(name: &str) -> Result<IdbDatabase, PersistError> {
         }
     });
     request.set_onupgradeneeded(Some(on_upgrade.as_ref().unchecked_ref()));
-    let database = open_request_result(request).await?;
+    let database = request_result(request.unchecked_into())
+        .await?
+        .dyn_into()
+        .map_err(js_error)?;
     let _ = on_upgrade;
     Ok(database)
-}
-
-async fn open_request_result(request: IdbOpenDbRequest) -> Result<IdbDatabase, PersistError> {
-    let (sender, receiver) = oneshot::channel();
-    let sender = Rc::new(RefCell::new(Some(sender)));
-    let success_sender = sender.clone();
-    let success_request = request.clone();
-    let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
-        let result = success_request
-            .result()
-            .and_then(|value| value.dyn_into::<IdbDatabase>())
-            .map_err(js_error);
-        if let Some(sender) = success_sender.borrow_mut().take() {
-            let _ = sender.send(result);
-        }
-    });
-    let error_sender = sender;
-    let error_request = request.clone();
-    let on_error = Closure::<dyn FnMut(Event)>::new(move |_| {
-        let error = error_request
-            .error()
-            .ok()
-            .flatten()
-            .map(|error| PersistError(error.message()))
-            .unwrap_or_else(|| PersistError("IndexedDB open failed".into()));
-        if let Some(sender) = error_sender.borrow_mut().take() {
-            let _ = sender.send(Err(error));
-        }
-    });
-    request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
-    request.set_onerror(Some(on_error.as_ref().unchecked_ref()));
-    let result = receiver
-        .await
-        .map_err(|_| PersistError("IndexedDB open callback was abandoned".into()))?;
-    let _ = (&on_success, &on_error);
-    result
 }
 
 fn request_result(

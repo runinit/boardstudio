@@ -41,11 +41,6 @@ impl Probe {
             .observe_operation(boardstudio_application::OperationId(seed.0 + 2))
     }
 
-    fn copy(&self) {
-        let projection = self.projection();
-        projection.on_action.call(projection.copy_action());
-    }
-
     fn delete(&self) {
         let projection = self.projection();
         projection
@@ -165,14 +160,6 @@ async fn accept(probe: &Probe) {
 
 async fn replace_document(probe: &Probe, document: ProjectDoc) {
     probe.runtime.submit(Event::Open {
-        operation_id: probe.runtime.operation(),
-        document,
-    });
-    accept(probe).await;
-}
-
-async fn recover_document(probe: &Probe, document: ProjectDoc) {
-    probe.runtime.submit(Event::RecoverWithDocument {
         operation_id: probe.runtime.operation(),
         document,
     });

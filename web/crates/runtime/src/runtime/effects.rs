@@ -79,23 +79,7 @@ impl Runtime {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().submit(event);
-        let scope_changed = self.scope() != previous_scope;
-        if scope_changed {
-            self.operation_outcomes.retire_edit_scope();
-        }
-        self.invalidate_stale_native_case_preview();
-        if scope_changed || self.accepted_identity() != previous_snapshot {
-            self.cancel_collision_checks();
-            self.cancel_active_case_gesture_preview();
-            self.cancel_keycaps_cad_preview();
-        }
-        if scope_changed {
-            self.cad_scene.borrow_mut().take();
-            if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
-                worker.close();
-            }
-        }
-        self.changed();
+        self.refresh_after_session(previous_scope, previous_snapshot);
         #[cfg(any(test, feature = "test-support"))]
         if self.in_process_adapters.borrow().is_some() {
             let result = observed_outcome(&effects, observe);
@@ -167,6 +151,15 @@ impl Runtime {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().complete(event);
+        self.refresh_after_session(previous_scope, previous_snapshot);
+        effects
+    }
+
+    fn refresh_after_session(
+        &self,
+        previous_scope: Option<Scope>,
+        previous_snapshot: Option<(SnapshotToken, u64)>,
+    ) {
         let scope_changed = self.scope() != previous_scope;
         if scope_changed {
             self.operation_outcomes.retire_edit_scope();
@@ -177,8 +170,13 @@ impl Runtime {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
+        if scope_changed {
+            self.cad_scene.borrow_mut().take();
+            if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+                worker.close();
+            }
+        }
         self.changed();
-        effects
     }
 
     fn accepted_identity(&self) -> Option<(SnapshotToken, u64)> {
@@ -214,14 +212,7 @@ impl Runtime {
                 effects.extend(this.run(effect).await);
             }
             if this.model().lifecycle == Lifecycle::Closed {
-                this.cancel_frames();
-                this.cancel_keycaps_cad_preview();
-                if let Some((_, worker)) = this.cad_worker.borrow_mut().take() {
-                    worker.close();
-                }
-                for (_, worker) in std::mem::take(&mut *this.export_workers.borrow_mut()) {
-                    worker.close();
-                }
+                this.close_browser_workers();
             }
             #[cfg(any(test, feature = "test-support"))]
             if let Some(finished) = finished {
@@ -289,86 +280,22 @@ impl Runtime {
                     landing,
                 );
                 let lease = self.export_leases.borrow_mut().remove(&operation_id);
-                let kind = lease.as_ref().map(|lease| lease.kind().clone());
-                let is_board_outline_export =
-                    matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
-                let firmware_capture = (kind == Some(ExportKind::Firmware))
-                    .then_some(lease.as_ref())
-                    .flatten();
-                let is_firmware_export = firmware_capture.is_some();
+                let kind = lease.as_ref().map(ExportLease::kind);
                 let delivery_error = self
                     .export_delivery_errors
                     .borrow_mut()
                     .remove(&operation_id);
-                let firmware_owner_is_current = firmware_capture.is_some_and(|lease| {
-                    self.export_source_is_current(lease)
-                        && self.latest_firmware_export.get() == Some(operation_id)
-                });
-                if is_firmware_export {
-                    if let Some(report) =
-                        export_terminal_report(firmware_owner_is_current, outcome, delivery_error)
-                    {
+                let current = lease
+                    .as_ref()
+                    .is_none_or(|lease| self.export_source_is_current(lease))
+                    && (!matches!(kind, Some(ExportKind::Firmware))
+                        || self.latest_firmware_export.get() == Some(operation_id));
+                if current {
+                    if outcome == TerminalOutcome::Superseded && observed {
+                        self.changed();
+                    }
+                    if let Some(report) = terminal_report(outcome, kind, delivery_error) {
                         self.apply_report(report);
-                    }
-                } else if is_board_outline_export {
-                    let lease_is_current = lease
-                        .as_ref()
-                        .is_some_and(|lease| self.export_source_is_current(lease));
-                    if lease_is_current {
-                        match outcome {
-                            TerminalOutcome::Completed => {}
-                            TerminalOutcome::Rejected(reason)
-                            | TerminalOutcome::ExecutorFailed(reason) => {
-                                self.apply_report(RuntimeReport::alert(reason).transient());
-                            }
-                            TerminalOutcome::PersistenceFailed(reason)
-                            | TerminalOutcome::BlockedByRecovery(reason) => {
-                                self.apply_report(RuntimeReport::alert(reason));
-                            }
-                            TerminalOutcome::Cancelled => self.report("Cancelled."),
-                            TerminalOutcome::Closed => self.report("Editor closed."),
-                            TerminalOutcome::Superseded => {
-                                if observed {
-                                    self.changed();
-                                }
-                            }
-                        }
-                    }
-                } else if let Some(lease) = lease {
-                    let downloaded =
-                        outcome == TerminalOutcome::Completed && delivery_error.is_none();
-                    if let Some(mut report) = export_terminal_report(
-                        self.export_source_is_current(&lease),
-                        outcome,
-                        delivery_error,
-                    ) {
-                        if downloaded {
-                            report.message =
-                                if matches!(kind, Some(ExportKind::ProjectCopy { .. })) {
-                                    "Project copy downloaded."
-                                } else {
-                                    "Export finished."
-                                }
-                                .into();
-                        }
-                        self.apply_report(report);
-                    }
-                } else {
-                    match outcome {
-                        TerminalOutcome::Completed => {}
-                        TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::PersistenceFailed(reason)
-                        | TerminalOutcome::BlockedByRecovery(reason)
-                        | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
-                        TerminalOutcome::Cancelled => {
-                            self.apply_report(RuntimeReport::status("Cancelled.").transient());
-                        }
-                        TerminalOutcome::Closed => self.report("Editor closed."),
-                        TerminalOutcome::Superseded => {
-                            if observed {
-                                self.changed();
-                            }
-                        }
                     }
                 }
                 vec![]

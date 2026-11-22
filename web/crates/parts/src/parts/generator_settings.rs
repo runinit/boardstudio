@@ -4,8 +4,6 @@ use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
-#[cfg(test)]
-use boardstudio_model::model::EditOperation;
 use boardstudio_model::model::{Asset, PartDefinition};
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
 use boardstudio_web_ui_shared::ui::{

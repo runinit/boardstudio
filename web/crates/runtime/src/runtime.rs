@@ -169,29 +169,50 @@ impl RuntimeReport {
     }
 }
 
-fn export_terminal_report(
-    capture_is_current: bool,
+fn terminal_report(
     outcome: TerminalOutcome,
+    export: Option<&ExportKind>,
     delivery_error: Option<String>,
 ) -> Option<RuntimeReport> {
-    if !capture_is_current {
-        return None;
-    }
-    match outcome {
-        TerminalOutcome::Completed => Some(match delivery_error {
-            Some(error) => RuntimeReport::alert(error).transient(),
-            None => RuntimeReport::status("Saved locally.").transient(),
-        }),
+    let (message, alert, transient) = match outcome {
+        TerminalOutcome::Completed => match export? {
+            ExportKind::BoardOutline { .. } => return None,
+            kind => {
+                if let Some(error) = delivery_error {
+                    return Some(RuntimeReport::alert(error).transient());
+                }
+                let status = match kind {
+                    ExportKind::Firmware => "Saved locally.",
+                    ExportKind::ProjectCopy { .. } => "Project copy downloaded.",
+                    _ => "Export finished.",
+                };
+                (status.into(), false, true)
+            }
+        },
         TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason) => {
-            Some(RuntimeReport::alert(reason).transient())
+            (reason, export.is_some(), export.is_some())
         }
         TerminalOutcome::PersistenceFailed(reason) | TerminalOutcome::BlockedByRecovery(reason) => {
-            Some(RuntimeReport::alert(reason))
+            (reason, export.is_some(), false)
         }
-        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.").transient()),
-        TerminalOutcome::Closed => Some(RuntimeReport::status("Editor closed.")),
-        TerminalOutcome::Superseded => None,
-    }
+        TerminalOutcome::Cancelled => (
+            "Cancelled.".into(),
+            false,
+            !matches!(export, Some(ExportKind::BoardOutline { .. })),
+        ),
+        TerminalOutcome::Closed => ("Editor closed.".into(), false, false),
+        TerminalOutcome::Superseded => return None,
+    };
+    let report = if alert {
+        RuntimeReport::alert(message)
+    } else {
+        RuntimeReport::status(message)
+    };
+    Some(if transient {
+        report.transient()
+    } else {
+        report
+    })
 }
 
 fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
@@ -887,6 +908,21 @@ mod case_preview_source_tests;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod document_core_tests;
 
+impl Runtime {
+    fn close_browser_workers(&self) {
+        self.cancel_frames();
+        if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
+            worker.close();
+        }
+        if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+            worker.close();
+        }
+        for (_, worker) in std::mem::take(&mut *self.export_workers.borrow_mut()) {
+            worker.close();
+        }
+    }
+}
+
 impl Drop for Runtime {
     fn drop(&mut self) {
         if let Some(listener) = self.before_unload.get_mut().take()
@@ -897,16 +933,7 @@ impl Drop for Runtime {
                 listener.as_ref().unchecked_ref(),
             );
         }
-        self.cancel_frames();
-        if let Some((_, worker)) = self.keycaps_preview_worker.get_mut().take() {
-            worker.close();
-        }
-        if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
-            worker.close();
-        }
-        for (_, worker) in std::mem::take(&mut *self.export_workers.borrow_mut()) {
-            worker.close();
-        }
+        self.close_browser_workers();
     }
 }
 

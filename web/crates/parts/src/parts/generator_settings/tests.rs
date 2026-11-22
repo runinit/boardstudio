@@ -1,11 +1,10 @@
 use super::*;
-use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-use boardstudio_model::model::{Board, ProjectDoc, SceneDelta};
+use boardstudio_application::Scope;
+use boardstudio_model::model::{Board, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use futures_channel::oneshot;
-use std::sync::Arc;
 use std::{cell::RefCell, collections::VecDeque};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -305,35 +304,6 @@ fn definition() -> PartDefinition {
         }
     }))
     .expect("generator definition")
-}
-
-fn snapshot(definitions: Vec<PartDefinition>, revision: u64) -> AcceptedSnapshot {
-    let mut document = ProjectDoc::empty("generator-merge", "Sofle v2");
-    document.revision = revision;
-    document.definitions = definitions;
-    let scene: SceneDelta = serde_json::from_value(serde_json::json!({
-        "revision": revision,
-        "transactionId": "generator-merge-fixture",
-        "changedIds": [], "transforms": [], "matrixScenes": [],
-        "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
-        "readiness": {"layout": true, "outline": true, "pcb": true, "case": false}
-    }))
-    .expect("scene");
-    AcceptedSnapshot {
-        token: SnapshotToken(revision + 10),
-        session_epoch: SessionEpoch(3),
-        document: Arc::new(document),
-        scene: Arc::new(scene),
-    }
-}
-
-fn scope() -> Scope {
-    Scope {
-        session_epoch: SessionEpoch(3),
-        document_id: "generator-merge".into(),
-        board_id: "left-pcb".into(),
-        instance_id: None,
-    }
 }
 
 #[wasm_bindgen_test]

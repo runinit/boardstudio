@@ -293,26 +293,20 @@ impl Runtime {
                     adapters.store_read_completed().await;
                 }
             }
-            match loaded {
-                Ok(Some(saved)) if this.open_sequence.get() == sequence => {
-                    match this.confirm_project_replacement(&saved.document) {
-                        Err(error) => {
-                            this.report(format!("Could not open the saved keyboard: {error}"))
-                        }
-                        Ok(()) => {
-                            let document = this.remember_saved(saved);
-                            this.open_document(document, false);
-                        }
-                    }
+            if this.open_sequence.get() == sequence {
+                let result = loaded
+                    .map_err(|error| error.to_string())
+                    .and_then(|saved| {
+                        saved.ok_or_else(|| "The saved keyboard is unavailable.".into())
+                    })
+                    .and_then(|saved| {
+                        this.confirm_project_replacement(&saved.document)?;
+                        this.open_document(this.remember_saved(saved), false);
+                        Ok(())
+                    });
+                if let Err(error) = result {
+                    this.report(format!("Could not open the saved keyboard: {error}"));
                 }
-                Ok(Some(_)) => {}
-                Ok(None) if this.open_sequence.get() == sequence => this.report(
-                    "The saved keyboard is unavailable. Choose an available copy from the library.",
-                ),
-                Err(error) if this.open_sequence.get() == sequence => {
-                    this.report(format!("Could not open the saved keyboard: {error}"))
-                }
-                Ok(None) | Err(_) => {}
             }
             #[cfg(any(test, feature = "test-support"))]
             if let Some(done) = open_observer {

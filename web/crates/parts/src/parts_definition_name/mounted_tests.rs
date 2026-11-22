@@ -133,13 +133,6 @@ fn courtyard_width_input(root: &web_sys::Element) -> HtmlInputElement {
         .unwrap()
 }
 
-fn courtyard_height_input(root: &web_sys::Element) -> HtmlInputElement {
-    by_role_name(root, "spinbutton", "Courtyard height")
-        .expect("courtyard height field")
-        .dyn_into()
-        .unwrap()
-}
-
 fn pad_y_input(root: &web_sys::Element) -> HtmlInputElement {
     by_role_name(root, "spinbutton", "Pad 1 Y")
         .expect("pad Y field")
@@ -490,15 +483,6 @@ fn type_value(input: &HtmlInputElement, value: &str) {
     let event = DomEvent::new("input").unwrap();
     event.init_event_with_bubbles_and_cancelable("input", true, true);
     input.dispatch_event(&event).unwrap();
-}
-
-fn enter_keydown(input: &HtmlInputElement) {
-    let init = web_sys::KeyboardEventInit::new();
-    init.set_key("Enter");
-    init.set_bubbles(true);
-    let keydown = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-        .expect("keydown event");
-    input.dispatch_event(&keydown).unwrap();
 }
 
 thread_local! {
