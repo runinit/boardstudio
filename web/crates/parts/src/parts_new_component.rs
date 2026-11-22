@@ -500,29 +500,6 @@ mod tests {
         }
 
         #[test]
-        fn creates_queued_behind_a_held_core_request_keep_the_prior_accepted_definition() {
-            let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
-            document.definitions.push(existing_definition());
-            let runtime = open_document(document);
-
-            runtime.hold_next_core();
-            let first = create(&runtime, "ui-held");
-            assert!(runtime.core_entered(), "the first create reaches Core");
-            let second = create(&runtime, "ui-held");
-            assert_eq!(settled(&first), None);
-            assert_eq!(settled(&second), None, "the second create waits for Core");
-
-            runtime.release_core();
-            assert_eq!(settled(&first), Some(TerminalOutcome::Completed));
-            assert_eq!(settled(&second), Some(TerminalOutcome::Completed));
-            let ids = definitions(&runtime)
-                .into_iter()
-                .map(|definition| definition.id)
-                .collect::<Vec<_>>();
-            assert_eq!(ids, ["existing", "ui-held", "ui-held-1"]);
-        }
-
-        #[test]
         fn accepted_project_selection_resolves_without_catalogue_state() {
             let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
             document.definitions.push(

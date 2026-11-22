@@ -142,7 +142,7 @@ mod tests {
     fn add_rename_and_remove_land_against_the_accepted_keymap() {
         let (runtime, scope) = open();
         let added = commit(&runtime, &scope, KeymapLayerOperation::Add, 7);
-        assert!(matches!(added, Ok(_)), "{added:?}");
+        assert!(added.is_ok(), "{added:?}");
         let names = layer_names(&runtime);
         assert_eq!(names.len(), 2, "{names:?}");
 
@@ -164,7 +164,7 @@ mod tests {
             },
             8,
         );
-        assert!(matches!(renamed, Ok(_)), "{renamed:?}");
+        assert!(renamed.is_ok(), "{renamed:?}");
         assert_eq!(layer_names(&runtime)[1], "Symbols");
 
         let removed = commit(
@@ -173,7 +173,7 @@ mod tests {
             KeymapLayerOperation::Remove { layer_id: added_id },
             9,
         );
-        assert!(matches!(removed, Ok(_)), "{removed:?}");
+        assert!(removed.is_ok(), "{removed:?}");
         assert_eq!(layer_names(&runtime).len(), 1);
     }
 

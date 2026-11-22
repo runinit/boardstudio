@@ -264,6 +264,25 @@ fn feature_geometry_with_reuse(
                     }
                     Some(link.axis_x)
                 })
+                .chain(doc.mirrored_pairs.iter().filter_map(|pair| {
+                    let boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                        layout_id,
+                    ) = &pair.destination
+                    else {
+                        return None;
+                    };
+                    if pair.mapping.rotation != 0.0 {
+                        return None;
+                    }
+                    let layout = doc.layouts.iter().find(|layout| &layout.id == layout_id)?;
+                    let board = doc.boards.iter().find(|board| board.id == layout.board_id);
+                    if board
+                        .is_some_and(|board| !part_ids.iter().any(|id| board.part_ids.contains(id)))
+                    {
+                        return None;
+                    }
+                    Some(pair.mapping.at.x / 2.0)
+                }))
                 .collect();
             axes.sort_by(f64::total_cmp);
             axes.dedup();

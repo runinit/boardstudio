@@ -287,7 +287,7 @@ mod tests {
             ),
             11,
         );
-        assert!(matches!(added, Ok(_)), "{added:?}");
+        assert!(added.is_ok(), "{added:?}");
         runtime
             .model()
             .accepted
@@ -320,7 +320,7 @@ mod tests {
             ),
             12,
         );
-        assert!(matches!(renamed, Ok(_)), "{renamed:?}");
+        assert!(renamed.is_ok(), "{renamed:?}");
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted.document.keymap.as_ref().unwrap().macros[0].name,
@@ -356,7 +356,7 @@ mod tests {
             ),
             14,
         );
-        assert!(matches!(removed, Ok(_)), "{removed:?}");
+        assert!(removed.is_ok(), "{removed:?}");
         assert!(
             runtime
                 .model()
@@ -417,7 +417,7 @@ mod tests {
             ),
             16,
         );
-        assert!(matches!(edited, Ok(_)), "{edited:?}");
+        assert!(edited.is_ok(), "{edited:?}");
         assert_eq!(
             runtime
                 .model()

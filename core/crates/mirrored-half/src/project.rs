@@ -119,6 +119,21 @@ pub fn project_document(canonical: &ProjectDoc) -> ResolvedDoc {
             board
                 .part_ids
                 .extend(projected.iter().map(|part| part.id.clone()));
+            if matches!(mirror.destination, MirrorDestination::SameBoardLayout(_)) {
+                for feature in &mut geometry.outline {
+                    if board.outline_ids.iter().any(|id| id == feature.id())
+                        && let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature
+                    {
+                        let additions: Vec<_> = part_ids
+                            .iter()
+                            .filter_map(|source_id| ids.get(source_id.as_str()))
+                            .filter(|target_id| !part_ids.contains(target_id))
+                            .cloned()
+                            .collect();
+                        part_ids.extend(additions);
+                    }
+                }
+            }
             if let Some(keycaps) = &mut geometry.keycaps {
                 for (source_id, target_id) in &ids {
                     if let Some(settings) = keycaps.keys.get(*source_id).cloned() {
