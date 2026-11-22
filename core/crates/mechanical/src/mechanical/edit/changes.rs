@@ -114,10 +114,7 @@ pub(super) fn apply_change(
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => {
-            return Err(
-                "Configure, Disable, closure initialization, the pair lifecycle and legacy conversion are handled by the operation."
-                    .into(),
-            );
+            return Err("This change is handled by the mechanical edit lifecycle.".into());
         }
         MechanicalChange::AssignSwitchProfile {
             definition_id,
@@ -481,19 +478,11 @@ pub(super) fn apply_change(
             let entry = hardware_mut(configuration, hardware_id)?;
             match field {
                 MechanicalDimension::HardwareLength => {
-                    if !value.is_finite() || *value < 0.1 {
-                        return Err("Hardware length must be at least 0.1 mm.".into());
-                    }
+                    validate_dimension(*field, *value)?;
                     entry.length = *value;
                 }
                 MechanicalDimension::HardwareQuantity => {
-                    if !value.is_finite()
-                        || *value < 1.0
-                        || value.fract() != 0.0
-                        || *value > f64::from(u32::MAX)
-                    {
-                        return Err("Hardware quantity must be a positive whole number.".into());
-                    }
+                    validate_dimension(*field, *value)?;
                     entry.quantity = *value as u32;
                 }
                 _ => return Err("The selected hardware dimension is unavailable.".into()),
@@ -1303,45 +1292,41 @@ pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
             | MechanicalChange::RemoveOpeningVertex { .. }
             | MechanicalChange::SetOpeningDimension { .. }
             | MechanicalChange::SetStabilizerKind(_)
-    ) || matches!(
-        change,
-        MechanicalChange::SetMountPosition { .. }
+            | MechanicalChange::SetMountPosition { .. }
             | MechanicalChange::SetGasketSupportPlacement { .. }
             | MechanicalChange::ResetGasketPlacement
-    ) || matches!(
-        change,
-        MechanicalChange::SetDimension {
-            field: MechanicalDimension::BatteryWidth
-                | MechanicalDimension::OpeningBottomZ
-                | MechanicalDimension::OpeningHeight
-                | MechanicalDimension::OpeningPointX
-                | MechanicalDimension::OpeningPointY
-                | MechanicalDimension::BatteryDepth
-                | MechanicalDimension::BatteryHeight
-                | MechanicalDimension::BatteryCableWidth
-                | MechanicalDimension::BatteryPositionX
-                | MechanicalDimension::BatteryPositionY
-                | MechanicalDimension::BatteryCableExitX
-                | MechanicalDimension::BatteryCableExitY
-                | MechanicalDimension::ClosureThreadDiameter
-                | MechanicalDimension::ClosurePitch
-                | MechanicalDimension::ClosureHeadDiameter
-                | MechanicalDimension::ClosureHeadHeight
-                | MechanicalDimension::ClosureHoleDiameter
-                | MechanicalDimension::ClosureInsertDiameter
-                | MechanicalDimension::ClosureInsertLength
-                | MechanicalDimension::ClosureSeatDiameter
-                | MechanicalDimension::ClosureSeatDepth
-                | MechanicalDimension::ClosureEngagement
-                | MechanicalDimension::ClosureThreadStart
-                | MechanicalDimension::ClosureTipAllowance
-                | MechanicalDimension::ClosureBottomingClearance
-                | MechanicalDimension::ClosureRoof
-                | MechanicalDimension::ClosureSurround
-                | MechanicalDimension::ClosureSeatLeadDepth
-                | MechanicalDimension::ClosureSeatLeadDiameter
-                | MechanicalDimension::ClosureBearingThickness,
-            ..
-        }
+            | MechanicalChange::SetDimension {
+                field: MechanicalDimension::BatteryWidth
+                    | MechanicalDimension::OpeningBottomZ
+                    | MechanicalDimension::OpeningHeight
+                    | MechanicalDimension::OpeningPointX
+                    | MechanicalDimension::OpeningPointY
+                    | MechanicalDimension::BatteryDepth
+                    | MechanicalDimension::BatteryHeight
+                    | MechanicalDimension::BatteryCableWidth
+                    | MechanicalDimension::BatteryPositionX
+                    | MechanicalDimension::BatteryPositionY
+                    | MechanicalDimension::BatteryCableExitX
+                    | MechanicalDimension::BatteryCableExitY
+                    | MechanicalDimension::ClosureThreadDiameter
+                    | MechanicalDimension::ClosurePitch
+                    | MechanicalDimension::ClosureHeadDiameter
+                    | MechanicalDimension::ClosureHeadHeight
+                    | MechanicalDimension::ClosureHoleDiameter
+                    | MechanicalDimension::ClosureInsertDiameter
+                    | MechanicalDimension::ClosureInsertLength
+                    | MechanicalDimension::ClosureSeatDiameter
+                    | MechanicalDimension::ClosureSeatDepth
+                    | MechanicalDimension::ClosureEngagement
+                    | MechanicalDimension::ClosureThreadStart
+                    | MechanicalDimension::ClosureTipAllowance
+                    | MechanicalDimension::ClosureBottomingClearance
+                    | MechanicalDimension::ClosureRoof
+                    | MechanicalDimension::ClosureSurround
+                    | MechanicalDimension::ClosureSeatLeadDepth
+                    | MechanicalDimension::ClosureSeatLeadDiameter
+                    | MechanicalDimension::ClosureBearingThickness,
+                ..
+            }
     )
 }

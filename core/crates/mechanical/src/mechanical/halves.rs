@@ -12,38 +12,15 @@ use crate::model::{
 /// A mirror net that is absent by rule, with nothing stored: every pin of its source net that is
 /// not on the controller belongs to an Omitted (absent) mirror part. A net with no such pin is not
 /// private to anything.
-pub fn private_net_is_absent(
+fn private_net_is_absent(
     document: &ProjectDoc,
     halves: &MirroredHalves,
     source_net_id: &str,
 ) -> bool {
-    private_net_is_absent_with(
-        document,
-        document,
-        halves,
-        source_net_id,
-        &std::collections::BTreeSet::new(),
-    )
-}
-
-/// The same rule, reading the source net from `source_document` and the mirror parts from
-/// `mirror_document`, with `also_absent` mirror parts counted as absent. Omit uses this to find
-/// the nets it is about to leave private, before it removes the parts.
-pub fn private_net_is_absent_with(
-    source_document: &ProjectDoc,
-    mirror_document: &ProjectDoc,
-    halves: &MirroredHalves,
-    source_net_id: &str,
-    also_absent: &std::collections::BTreeSet<String>,
-) -> bool {
-    let Some(source_net) = source_document
-        .nets
-        .iter()
-        .find(|net| net.id == source_net_id)
-    else {
+    let Some(source_net) = document.nets.iter().find(|net| net.id == source_net_id) else {
         return false;
     };
-    let controller = source_document
+    let controller = document
         .hardware
         .as_ref()
         .and_then(|hardware| {
@@ -63,111 +40,20 @@ pub fn private_net_is_absent_with(
         }) else {
             return false;
         };
-        let present = !also_absent.contains(&mirror.mirror_id)
-            && (mirror_document
-                .parts
+        if document
+            .parts
+            .iter()
+            .any(|part| part.id == mirror.mirror_id)
+            || document
+                .boards
                 .iter()
-                .any(|part| part.id == mirror.mirror_id)
-                || mirror_document
-                    .boards
-                    .iter()
-                    .any(|board| board.part_ids.contains(&mirror.mirror_id)));
-        if present {
+                .any(|board| board.part_ids.contains(&mirror.mirror_id))
+        {
             return false;
         }
         owned = true;
     }
     owned
-}
-
-/// Dissolves the specifically requested mirrored pair through the existing mechanical edit
-/// lifecycle, discovering its normalized clearance template only when Unlink is requested.
-/// The source member and pair are resolved before dispatch so a malformed or ambiguous record
-/// cannot redirect the operation to another pair.
-pub fn unlink_pair(document: &mut ProjectDoc, pair_id: &str) -> Result<Vec<String>, String> {
-    validate_document(document)?;
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "Physical instances are unavailable".to_owned())?;
-    let mut matches = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = matches
-        .next()
-        .ok_or_else(|| format!("Mechanical pair {pair_id:?} is unavailable."))?;
-    if matches.next().is_some() {
-        return Err(format!("Mechanical pair {pair_id:?} is ambiguous."));
-    }
-    let halves = pair
-        .halves
-        .as_ref()
-        .ok_or_else(|| format!("Mechanical pair {pair_id:?} has no mirrored halves record."))?;
-    let source_instance_id = pair
-        .construction_source
-        .as_deref()
-        .filter(|source| pair.members.iter().any(|member| member == source))
-        .ok_or_else(|| format!("Mechanical pair {pair_id:?} has no valid construction source."))?;
-    let source_instances: Vec<_> = hardware
-        .instances
-        .iter()
-        .filter(|instance| instance.id == source_instance_id)
-        .collect();
-    if source_instances.len() != 1 || source_instances[0].board_id != halves.source_board_id {
-        return Err(format!(
-            "Mechanical pair {pair_id:?} has no unique construction-source instance on its source board."
-        ));
-    }
-    if hardware
-        .pairs
-        .iter()
-        .filter(|candidate| {
-            candidate
-                .members
-                .iter()
-                .any(|member| member == source_instance_id)
-        })
-        .count()
-        != 1
-    {
-        return Err(format!(
-            "Construction-source instance {source_instance_id:?} does not identify exactly one mechanical pair."
-        ));
-    }
-
-    let mounting_hole = crate::generators::catalogue()?
-        .into_iter()
-        .find(|definition| {
-            definition
-                .generator
-                .as_ref()
-                .is_some_and(|generator| generator.source == "ceoloide/mounting_hole_npth")
-        })
-        .ok_or_else(|| "The normalized mounting-hole generator is unavailable.".to_owned())?;
-    let mut draft = document.clone();
-    let changed = crate::mechanical::edit::apply(
-        &mut draft,
-        &[],
-        &crate::mechanical::MechanicalEdit {
-            target: crate::mechanical::MechanicalTarget::Instance {
-                instance_id: source_instance_id.to_owned(),
-            },
-            change: crate::mechanical::MechanicalChange::UnlinkMirrorPair {
-                instance_id: source_instance_id.to_owned(),
-            },
-            mounting_hole: Some(Box::new(mounting_hole)),
-        },
-    )?;
-    if draft
-        .hardware
-        .as_ref()
-        .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
-    {
-        return Err(format!(
-            "Mechanical pair {pair_id:?} remained after its Unlink lifecycle."
-        ));
-    }
-    validate_document(&draft)?;
-    *document = draft;
-    Ok(changed)
 }
 
 /// Shared validation for the creation request and each item's effective placement settings.

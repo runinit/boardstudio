@@ -2,22 +2,16 @@ use super::*;
 use crate::hash::sha256_hex;
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
-    validate_plan(&request.plan)?;
-    planning::require_plan_qualification(&request.plan)?;
     finish(request, false)
 }
 
 pub fn finish_preview(request: FinishExportRequest) -> Result<PcbPreview, ArtifactError> {
-    if !matches!(request.plan.target, ExportTarget::Board { .. }) {
+    let ExportTarget::Board { board_id } = &request.plan.target else {
         return Err(validation("Preview requires a board"));
-    }
-    let revision = request.plan.revision;
-    let board_id = match &request.plan.target {
-        ExportTarget::Board { board_id } => board_id.clone(),
-        _ => return Err(validation("Preview requires a board")),
     };
+    let revision = request.plan.revision;
     let support_diagnostics =
-        missing_module_support_diagnostics(&request.plan.captured_document, &board_id);
+        missing_module_support_diagnostics(&request.plan.captured_document, board_id);
     let artifact = finish(request, true)?;
     let board = artifact
         .files
@@ -68,6 +62,9 @@ fn finish(
 ) -> Result<ExportArtifact, ArtifactError> {
     let plan = request.plan;
     validate_plan(&plan)?;
+    if !allow_incomplete_module_supports {
+        planning::require_plan_qualification(&plan)?;
+    }
     if request.results.len() != plan.jobs.len() {
         return Err(err(
             ArtifactErrorCode::MismatchedResults,
@@ -508,11 +505,14 @@ fn finish_standalone(
                 &plan.model_paths,
             )?
         } else {
+            let geometry =
+                compile::authored_geometry(definition, Side::Front).map_err(validation)?;
             format!(
                 "{}\n",
                 disambiguate_standalone_footprint(
                     native_footprint(
                         definition,
+                        &geometry,
                         &format!("definition:{}", definition.id),
                         None,
                         &BTreeMap::new(),
@@ -638,9 +638,8 @@ fn finish_board(
             )?);
             continue;
         }
-        let compiled =
-            compile::compile_authored(definition, part.side.clone()).map_err(validation)?;
-        let geometry = &compiled.geometry;
+        let geometry =
+            compile::authored_geometry(definition, part.side.clone()).map_err(validation)?;
         let mut pad_net_map = BTreeMap::new();
         for pad in &geometry.pads {
             let pin_net = pin_map.get(&format!("{}\0{}", part_id, pad.id));
@@ -686,6 +685,7 @@ fn finish_board(
         }
         footprints.push(native_footprint(
             definition,
+            &geometry,
             &scope,
             Some(part),
             &pad_net_map,

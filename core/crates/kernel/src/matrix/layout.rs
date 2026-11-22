@@ -314,22 +314,6 @@ pub fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), St
     Ok(())
 }
 
-/// The relationship is stored once, but geometry can be edited from either half.
-pub fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
-    doc.layouts
-        .iter()
-        .filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
-        .any(|owner| {
-            owner.mirror_link.is_some()
-                || doc.layouts.iter().any(|layout| {
-                    layout
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == owner.id)
-                })
-        })
-}
-
 pub fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
     doc.layouts
         .iter()

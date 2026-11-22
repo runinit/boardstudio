@@ -26,10 +26,10 @@ use i_overlay::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-fn cross(a: [f64; 2], b: [f64; 2]) -> f64 {
+pub(super) fn cross(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[1] - a[1] * b[0]
 }
-fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
+pub(super) fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
     [a[0] - b[0], a[1] - b[1]]
 }
 fn length(a: [f64; 2]) -> f64 {

@@ -123,6 +123,10 @@ pub(super) fn validate_profile_openings(
     Ok(())
 }
 
+fn coordinate_is_valid(value: f64) -> bool {
+    value.is_finite() && value >= -boardstudio_contracts::MAX_COORDINATE_MM
+}
+
 pub(super) fn validate_opening_geometry(
     points: &[Vec2],
     z: f64,
@@ -131,19 +135,16 @@ pub(super) fn validate_opening_geometry(
     index: usize,
 ) -> Result<(), String> {
     if points.len() < 3
-        || points.iter().any(|point| {
-            !point.x.is_finite()
-                || !point.y.is_finite()
-                || point.x < -boardstudio_contracts::MAX_COORDINATE_MM
-                || point.y < -boardstudio_contracts::MAX_COORDINATE_MM
-        })
+        || points
+            .iter()
+            .any(|point| !coordinate_is_valid(point.x) || !coordinate_is_valid(point.y))
     {
         return Err(format!(
             "{label} {} needs at least three vertices with finite coordinates no smaller than −1,000,000 mm.",
             index + 1
         ));
     }
-    if !z.is_finite() || z < -boardstudio_contracts::MAX_COORDINATE_MM {
+    if !coordinate_is_valid(z) {
         return Err(format!(
             "{label} {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
             index + 1
@@ -289,37 +290,34 @@ pub(super) fn set_dimension(
 }
 
 pub(super) fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), String> {
-    let valid = value.is_finite()
-        && match field {
-            MechanicalDimension::OpeningAllowance => (-1.0..=1.0).contains(&value),
-            MechanicalDimension::BatteryWidth
-            | MechanicalDimension::BatteryDepth
-            | MechanicalDimension::BatteryHeight
-            | MechanicalDimension::BatteryCableWidth
-            | MechanicalDimension::HardwareLength => value >= 0.1,
-            MechanicalDimension::HardwareQuantity => {
-                value >= 1.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX)
-            }
-            MechanicalDimension::OpeningHeight => value >= 0.1,
-            MechanicalDimension::GasketSupportLength => value >= 5.0,
-            MechanicalDimension::GasketSupportWidth => value >= 0.5,
-            MechanicalDimension::OpeningBottomZ
-            | MechanicalDimension::OpeningPointX
-            | MechanicalDimension::OpeningPointY
-            | MechanicalDimension::BatteryPositionX
-            | MechanicalDimension::BatteryPositionY
-            | MechanicalDimension::BatteryCableExitX
-            | MechanicalDimension::BatteryCableExitY
-            | MechanicalDimension::MountPositionX
-            | MechanicalDimension::MountPositionY
-            | MechanicalDimension::CriticalFitFromX
-            | MechanicalDimension::CriticalFitFromY
-            | MechanicalDimension::CriticalFitToX
-            | MechanicalDimension::CriticalFitToY => {
-                value >= -boardstudio_contracts::MAX_COORDINATE_MM
-            }
-            _ => value >= 0.0,
-        };
+    let valid = match field {
+        MechanicalDimension::OpeningAllowance => (-1.0..=1.0).contains(&value),
+        MechanicalDimension::BatteryWidth
+        | MechanicalDimension::BatteryDepth
+        | MechanicalDimension::BatteryHeight
+        | MechanicalDimension::BatteryCableWidth
+        | MechanicalDimension::HardwareLength => value >= 0.1,
+        MechanicalDimension::HardwareQuantity => {
+            value >= 1.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX)
+        }
+        MechanicalDimension::OpeningHeight => value >= 0.1,
+        MechanicalDimension::GasketSupportLength => value >= 5.0,
+        MechanicalDimension::GasketSupportWidth => value >= 0.5,
+        MechanicalDimension::OpeningBottomZ
+        | MechanicalDimension::OpeningPointX
+        | MechanicalDimension::OpeningPointY
+        | MechanicalDimension::BatteryPositionX
+        | MechanicalDimension::BatteryPositionY
+        | MechanicalDimension::BatteryCableExitX
+        | MechanicalDimension::BatteryCableExitY
+        | MechanicalDimension::MountPositionX
+        | MechanicalDimension::MountPositionY
+        | MechanicalDimension::CriticalFitFromX
+        | MechanicalDimension::CriticalFitFromY
+        | MechanicalDimension::CriticalFitToX
+        | MechanicalDimension::CriticalFitToY => coordinate_is_valid(value),
+        _ => value >= 0.0,
+    } && value.is_finite();
     if valid {
         Ok(())
     } else if field == MechanicalDimension::GasketSupportLength {
