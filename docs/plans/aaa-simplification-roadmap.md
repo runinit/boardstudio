@@ -13,6 +13,32 @@ The wave tables below record the original estimates. Use this checkpoint to choo
 - **Packaged smoke.** Level 3A uses the shared Python WebDriver client and one project for trusted drag, Undo, Escape and Case collision findings. The committed smoke uses a 2×2 matrix. The planned 4×6 scenario passed the drag checks and timed out after 120 seconds in the collision check. A worker trace recorded 1,941 collision replies and 1.69 GB of outgoing position and tag buffers before timeout. Measure the cost of sending both meshes for each pair before changing the worker protocol. Keep the collision observation, findings scroll and viewport assertions.
 - **Mirrored halves.** Hosted edits, matrix membership and sparse exception transitions share more production logic. The before/after reconciler is still live. Before integrating the companion fix from 92030e7cd, derive key ownership from the paired matrix and slot. An independent Part can have a key-like ID prefix. Pin that decoy, the omitted-target refusal, and the exact Rejoin pose, no-op snapshot and exception count in the replacement tests. The next deletion should consolidate the exception lookup used by forward projection and inverse editing for keys and companions. Verify Local/Omitted/Linked from both authoring halves, exact Local payload, changed IDs, reopen and Undo/Redo before removing a duplicate implementation. Preserve separate input checks for Open and document replacement.
 
+### Next implementation batch
+
+Use the pushed `dev` checkpoint as the base for four isolated worktrees. The planning review used `2d3a8cb74`. Recheck callers and test names against the implementation base. All four lanes can start together. The integration owner runs the packaged browser experiments under the shared build lock.
+
+**1. Correct mirror companion ownership** · Core mirror crate and public mirror tests · high effort
+
+- Reproduce the independent Local Part whose ID looks like a matrix parent. A linked key must still edit its source. Use `1dff7e59d..92030e7cd` to identify the intended change. Resolve ownership from actual matrix membership, the slot and its assembly. Use the source when omission removes the mirror member. Share this lookup between inverse target selection, linked position edits and matrix lifecycle parent lookup. Apply explicit Part, owning key and matrix exceptions in that order. Exercise a key-like independent ID both as a false parent and as a false companion.
+- Pin the omitted-target refusal, unchanged live snapshot across a no-op, raw exception count and Rejoined and Redone pose of `right/RST` at (218, 35). Cover both authoring halves, changed IDs, save and reopen. Retire a narrative only when the replacement exercises its concrete assertions. Independently review the resulting diff before integration.
+
+**2. Consolidate document Core construction** · Runtime and page construction · medium effort
+
+- Have `Runtime::new` use the existing injected engine factory. Give the page one long-lived document engine and each scratch probe its own fresh engine. Remove `new_with_document_core` once its callers migrate. The broad worker retirement at `5f698fd52` would move archive and artifact computation onto the page.
+- Exercise the public constructor with the auxiliary worker unavailable. Preserve front-of-queue commits, effect ordering, delayed publication, stale-tab conflict, save-only retry and explicit recovery. Keep ZIP and artifact production on the Core worker, CAD and collision on the CAD worker, and IndexedDB asynchronous. The injected failure/restart executor remains a test control.
+
+**3. Attribute the 4×6 collision cost** · Runtime collision and CAD worker dispatch · high effort
+
+- Use one packaged build, one saved 4×6 project and the real Level 3A WebDriver action. Correlate each pair and reply. Record mesh copy/packing time, bytes sent, worker decode, queue delay, CAD execution, and remaining round-trip time. Record the number of completed pairs at the existing 120-second limit. If timing leaves the payload cost ambiguous, replay a bounded sample on the same build with and without the four mesh buffers, outside the findings path.
+- Compare identities, qualification and observations on the shared prefix. If copying dominates, trial one mesh upload per operand per run. If CAD dominates, profile the measured operation. Remove temporary probes before integration. Full 4×6 acceptance requires completed findings, an observed PCB pair, and the existing scroll and viewport assertions. The 2×2 smoke remains the default.
+
+**4. Move two named controls to native** · Parts and PCB workspace crates · medium effort
+
+- Extract the production Parts add-menu choice, search and grouping functions, and the PCB reassignment owner decision, into host-compatible modules. Keep both PCB admission and completion callers. Move the existing assertions in `add_menu_uses_the_four_reference_groups_for_available_definitions` and `only_the_accepted_reassignment_scope_transition_admits_followup_navigation`.
+- Discover each test with `--list`, run the fully qualified name with `--exact`, and verify one execution. Keep mounted chooser and stale-owner interactions in Chrome. Both crates still require their browser launch.
+
+**Integration.** Each lane reports its base and candidate commits, exact tests executed and net source delta including replacement code. Check the candidate diff against current `dev` for already-landed work. Run focused crate checks in the lanes, then repository and tooling checks on the batch and the full gate on the integrated revision. Record the build, fixture and completion status with each measurement.
+
 ---
 
 ## 1. Architectural Pillars
