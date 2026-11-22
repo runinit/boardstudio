@@ -60,8 +60,6 @@ pub(crate) use boardstudio_web_case::test_contexts::{
 pub(crate) use boardstudio_web_ui_model::selection::{
     active_board_scope_matches, current_layout_owner, layout_owner_is_current,
 };
-#[cfg(test)]
-pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
 pub(crate) use boardstudio_web_ui_model::state::{
     AppearanceState, PreferenceStorageWarning, ThemeState,
 };
@@ -134,8 +132,6 @@ pub(crate) use component_inspector::{
     layout_component_inspector_projection, mirrored_half_projection,
 };
 use editor::Editor;
-#[cfg(test)]
-pub(crate) use export_workspace::ExportPanel;
 pub(crate) use finding_navigation::{
     LayoutFindingNavigationContext, current_keycaps_navigation_owner, findings_owner_is_current,
     fit_selected_bridge, layout_finding_context, layout_findings_for_display,
@@ -177,8 +173,6 @@ pub(crate) use view_helpers::{
 use zmk_firmware_export::use_export_panel_input;
 
 use crate::runtime::{CoreServices, Runtime};
-#[cfg(test)]
-use boardstudio_application::SnapshotToken;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,

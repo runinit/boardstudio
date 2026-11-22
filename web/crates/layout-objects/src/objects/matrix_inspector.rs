@@ -347,7 +347,7 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
                         let (runtime, matrix_id, board_id) = (runtime.clone(), matrix_id.clone(), board_id.clone());
                         busy.set(true);
                         wasm_bindgen_futures::spawn_local(async move {
-                            let result = apply_preset(&runtime, &matrix_id, &board_id, preset_draft.peek().clone(), orientation_draft.peek().clone()).await;
+                            let result = apply_preset(&runtime, &matrix_id, &board_id, *preset_draft.peek(), *orientation_draft.peek()).await;
                             let _ = busy.try_write().map(|mut slot| *slot = false);
                             let _ = error.try_write().map(|mut slot| *slot = result.err());
                         });
@@ -359,7 +359,7 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
                         let (runtime, matrix_id, Some(scope)) = (runtime.clone(), matrix_id.clone(), scope.clone()) else { return };
                         busy.set(true);
                         wasm_bindgen_futures::spawn_local(async move {
-                            let result = duplicate_variant(runtime.clone(), &scope, &matrix_id, preset_draft.peek().clone(), orientation_draft.peek().clone()).await;
+                            let result = duplicate_variant(runtime.clone(), &scope, &matrix_id, *preset_draft.peek(), *orientation_draft.peek()).await;
                             let _ = busy.try_write().map(|mut slot| *slot = false);
                             if let Err(message) = result { runtime.report(message); }
                         });

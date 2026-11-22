@@ -1311,11 +1311,12 @@ pub fn LayoutRailOverlay(
     let Some(accepted) = accepted else {
         return rsx! {};
     };
-    let (tokens, points, matrix_ctx): (
+    type RailSceneBuild = (
         Vec<(Token, Option<Maker>)>,
         Vec<Vec2>,
         Option<(Rc<Matrix>, Rc<MatrixScene>, TreeContext)>,
-    ) = match &target {
+    );
+    let (tokens, points, matrix_ctx): RailSceneBuild = match &target {
         RailTarget::Matrix {
             matrix,
             projection,

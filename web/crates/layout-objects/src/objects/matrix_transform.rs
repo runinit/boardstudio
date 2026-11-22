@@ -317,13 +317,12 @@ impl MatrixTransformInspectorMount {
     }
 }
 
-fn matrix_of<'a>(accepted: &'a AcceptedSnapshot, id: &str) -> Result<&'a Matrix, Resolution> {
+fn matrix_of<'a>(accepted: &'a AcceptedSnapshot, id: &str) -> Option<&'a Matrix> {
     accepted
         .document
         .matrices
         .iter()
         .find(|matrix| matrix.id == id)
-        .ok_or_else(|| Resolution::Retire("The selected matrix no longer exists.".into()))
 }
 
 /// Resolve one field edit against the accepted document when the edit runs.
@@ -339,9 +338,8 @@ fn edit_resolver(
     EditResolver::new(
         "layout-matrix-transform",
         move |accepted: &AcceptedSnapshot| {
-            let matrix = match matrix_of(accepted, &matrix_id) {
-                Ok(matrix) => matrix,
-                Err(retire) => return retire,
+            let Some(matrix) = matrix_of(accepted, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
             };
             let Some(fields) = transform_fields(accepted, &board_id, &context, matrix, &[]) else {
                 return Resolution::Retire(
@@ -399,9 +397,8 @@ fn enable_cells_resolver(
     EditResolver::new(
         "layout-matrix-transform",
         move |accepted: &AcceptedSnapshot| {
-            let matrix = match matrix_of(accepted, &matrix_id) {
-                Ok(matrix) => matrix,
-                Err(retire) => return retire,
+            let Some(matrix) = matrix_of(accepted, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
             };
             let mut next = matrix.clone();
             for &(row, column) in &cells {
@@ -455,7 +452,7 @@ fn add_anchored_resolver(matrix_id: String, row: u32, column: u32) -> EditResolv
         "layout-matrix-transform",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            let Ok(matrix) = matrix_of(accepted, &matrix_id) else {
+            let Some(matrix) = matrix_of(accepted, &matrix_id) else {
                 return Resolution::Retire("The selected matrix no longer exists.".into());
             };
             if row >= matrix.rows || column >= matrix.columns {

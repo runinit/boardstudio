@@ -205,12 +205,10 @@ pub fn use_binding_operations(
                 .get(layer_idx)
                 .and_then(|l| l.bindings.get(key_id))
                 .cloned()
-                .unwrap_or_else(|| {
-                    if layer_idx > 0 {
-                        KeyBinding::Transparent
-                    } else {
-                        KeyBinding::None
-                    }
+                .unwrap_or(if layer_idx > 0 {
+                    KeyBinding::Transparent
+                } else {
+                    KeyBinding::None
                 })
         };
         let key_proj = model.selected_part_ids.first().and_then(|id| {

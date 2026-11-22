@@ -13,8 +13,6 @@ pub(super) use companion_placement::{
     CompanionPlacementAction, CompanionPlacementInspector, CompanionPlacementOwner,
     CompanionPlacementProjection,
 };
-#[cfg(test)]
-pub(super) use layout_component_inspector::MirroredHalfProjection;
 pub(super) use layout_component_inspector::{
     ComponentPositionAxis, LayoutComponentInspector, LayoutComponentInspectorAction,
     LayoutComponentInspectorLifetime, LayoutComponentInspectorOwner,

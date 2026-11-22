@@ -52,9 +52,7 @@ pub fn format_numeric(value: f64, precision: usize) -> String {
     }
 }
 
-fn commit_field_row(
-    id: String,
-    label: String,
+struct CommitFieldSpec {
     r#type: InputType,
     accepted: String,
     placeholder: Option<String>,
@@ -65,21 +63,31 @@ fn commit_field_row(
     min: Option<String>,
     max: Option<String>,
     step: Option<String>,
+}
+
+fn commit_field_row(
+    id: String,
+    label: String,
+    s: CommitFieldSpec,
     on_commit_text: EventHandler<String>,
 ) -> Element {
     let mut focused = use_signal(|| false);
-    let mut draft = use_signal(|| accepted.clone());
-    let shown = if focused() { draft() } else { accepted.clone() };
-    let disabled = disabled_reason.is_some();
-    let help = disabled_reason.or(description);
-    let (on_f, on_e) = (accepted.clone(), accepted);
+    let mut draft = use_signal(|| s.accepted.clone());
+    let shown = if focused() {
+        draft()
+    } else {
+        s.accepted.clone()
+    };
+    let disabled = s.disabled_reason.is_some();
+    let help = s.disabled_reason.or(s.description);
+    let (on_f, on_e) = (s.accepted.clone(), s.accepted);
     rsx! {
         Field { disabled, class: "gap-1 min-w-0",
             FieldLabel { html_for: id.clone(), "{label}" }
             InputGroup {
                 InputGroupInput {
-                    id, r#type, class: TOUCH_CLS, value: "{shown}", disabled, placeholder,
-                    min, max, step, aria_label: aria_label.unwrap_or(label),
+                    id, r#type: s.r#type, class: TOUCH_CLS, value: "{shown}", disabled, placeholder: s.placeholder,
+                    min: s.min, max: s.max, step: s.step, aria_label: s.aria_label.unwrap_or(label),
                     oninput: move |e: FormEvent| { focused.set(true); draft.set(e.value()); },
                     attributes: vec![
                         dioxus::events::onfocus(move |_| { draft.set(on_f.clone()); focused.set(true); }),
@@ -91,7 +99,7 @@ fn commit_field_row(
                         }),
                     ],
                 }
-                if let Some(u) = unit { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "{u}" } } }
+                if let Some(u) = s.unit { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "{u}" } } }
             }
             if let Some(help) = help { FieldDescription { "{help}" } }
         }
@@ -125,17 +133,20 @@ pub fn NumericField(
     commit_field_row(
         id,
         label,
-        InputType::Number,
-        accepted,
-        placeholder.or_else(|| mixed.then(|| "Mixed".to_owned())),
-        aria_label,
-        disabled_reason,
-        description,
-        unit,
-        min.map(|v| format_numeric(v, precision)),
-        max.map(|v| format_numeric(v, precision)),
-        step.map(|v| format_numeric(v, precision))
-            .or_else(|| Some("any".to_owned())),
+        CommitFieldSpec {
+            r#type: InputType::Number,
+            accepted,
+            placeholder: placeholder.or_else(|| mixed.then(|| "Mixed".to_owned())),
+            aria_label,
+            disabled_reason,
+            description,
+            unit,
+            min: min.map(|v| format_numeric(v, precision)),
+            max: max.map(|v| format_numeric(v, precision)),
+            step: step
+                .map(|v| format_numeric(v, precision))
+                .or_else(|| Some("any".to_owned())),
+        },
         EventHandler::new(move |raw: String| {
             if let Some(next) = parse_clamped_f64(&raw, min, max)
                 && (mixed || (next - value).abs() > f64::EPSILON)
@@ -163,16 +174,18 @@ pub fn TextCommitField(
     commit_field_row(
         id,
         label,
-        InputType::Text,
-        value,
-        placeholder,
-        aria_label,
-        disabled_reason,
-        None,
-        None,
-        None,
-        None,
-        None,
+        CommitFieldSpec {
+            r#type: InputType::Text,
+            accepted: value,
+            placeholder,
+            aria_label,
+            disabled_reason,
+            description: None,
+            unit: None,
+            min: None,
+            max: None,
+            step: None,
+        },
         EventHandler::new(move |raw: String| {
             let next = raw.trim().to_owned();
             if (allow_empty || !next.is_empty()) && next != current {
@@ -271,7 +284,11 @@ pub fn InspectorSection(
     children: Element,
 ) -> Element {
     let mut local_open = use_signal(|| default_open);
-    let is_open = open.unwrap_or_else(|| local_open());
+    let is_open = if let Some(open) = open {
+        open
+    } else {
+        local_open()
+    };
     rsx! {
         Collapsible {
             keep_mounted: true, open: Some(is_open),
@@ -292,6 +309,7 @@ pub fn InspectorSection(
 
 #[derive(Default)]
 struct TextFieldSpec {
+    r#type: InputType,
     description: Option<String>,
     error: Option<String>,
     disabled: bool,
@@ -306,21 +324,24 @@ struct TextFieldSpec {
     plain_label: bool,
 }
 
-fn text_input_row(
-    id: String,
-    label: String,
-    r#type: InputType,
-    value: String,
-    s: TextFieldSpec,
+struct TextFieldEvents {
     oninput: EventHandler<FormEvent>,
     onblur: EventHandler<FocusEvent>,
     onkeydown: EventHandler<KeyboardEvent>,
+}
+
+fn text_input_row(
+    id: String,
+    label: String,
+    value: String,
+    s: TextFieldSpec,
+    ev: TextFieldEvents,
 ) -> Element {
     let message_id = s.message_id.unwrap_or_else(|| format!("{id}-message"));
     let has_error = s.error.is_some();
     let mut extra = vec![
-        dioxus::events::onblur(move |e| onblur.call(e)),
-        dioxus::events::onkeydown(move |e| onkeydown.call(e)),
+        dioxus::events::onblur(move |e| ev.onblur.call(e)),
+        dioxus::events::onkeydown(move |e| ev.onkeydown.call(e)),
     ];
     if let Some(ml) = s.maxlength {
         extra.push(Attribute::new("maxlength", ml.as_str(), None, false));
@@ -330,12 +351,12 @@ fn text_input_row(
             if s.plain_label { Label { html_for: id.clone(), "{label}" } } else { FieldLabel { html_for: id.clone(), "{label}" } }
             InputGroup { class: s.control_class.clone(),
                 InputGroupInput {
-                    id, r#type, class: s.control_class.as_deref().unwrap_or(TOUCH_CLS), value: "{value}",
+                    id, r#type: s.r#type, class: s.control_class.as_deref().unwrap_or(TOUCH_CLS), value: "{value}",
                     disabled: s.disabled, readonly: s.readonly, placeholder: s.placeholder,
                     aria_label: s.aria_label,
                     aria_invalid: has_error.then_some(true).or(s.aria_invalid),
                     aria_describedby: has_error.then(|| message_id.clone()),
-                    oninput: move |e| oninput.call(e), attributes: extra,
+                    oninput: move |e| ev.oninput.call(e), attributes: extra,
                 }
             }
             if let Some(desc) = s.description { FieldDescription { "{desc}" } }
@@ -369,9 +390,9 @@ pub fn TextField(
     text_input_row(
         id,
         label,
-        r#type,
         value,
         TextFieldSpec {
+            r#type,
             description,
             error,
             disabled,
@@ -385,9 +406,11 @@ pub fn TextField(
             message_id,
             plain_label,
         },
-        oninput,
-        onblur,
-        onkeydown,
+        TextFieldEvents {
+            oninput,
+            onblur,
+            onkeydown,
+        },
     )
 }
 

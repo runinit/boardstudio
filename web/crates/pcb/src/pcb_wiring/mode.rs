@@ -149,19 +149,6 @@ pub fn use_board_wiring_mode_edits(
     }
 }
 
-#[cfg(test)]
-mod board_mode_tests {
-    use super::*;
-
-    #[test]
-    fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
-        let document = boardstudio_model::model::ProjectDoc::empty("project", "Mode text");
-        assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
-        assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
-        assert_eq!(mode_text(ElectricalMode::Direct), "direct");
-    }
-}
-
 fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
     EditResolver::new("pcb-wiring-mode", move |accepted: &AcceptedSnapshot| {
         let board_id = &request.identity.plan.scope.board_id;
@@ -272,4 +259,17 @@ pub(super) fn current_edit_snapshot(
     }
     let (snapshot, source) = pcb_source(runtime, scope_generation)?;
     (*identity == mode_identity(&source)).then_some(snapshot)
+}
+
+#[cfg(test)]
+mod board_mode_tests {
+    use super::*;
+
+    #[test]
+    fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
+        let document = boardstudio_model::model::ProjectDoc::empty("project", "Mode text");
+        assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
+        assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
+        assert_eq!(mode_text(ElectricalMode::Direct), "direct");
+    }
 }

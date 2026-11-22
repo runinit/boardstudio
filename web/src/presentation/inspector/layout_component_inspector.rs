@@ -69,8 +69,6 @@ impl LayoutComponentInspectorLifetime {
     }
 }
 
-#[cfg(test)]
-pub use boardstudio_web_layout::inspector_types::MirroredHalfProjection;
 pub use boardstudio_web_layout::inspector_types::{
     LayoutComponentInspectorOwner, LayoutComponentInspectorProjection,
 };

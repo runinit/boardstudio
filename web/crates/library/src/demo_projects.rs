@@ -221,7 +221,7 @@ fn split42(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
         shift: Vec2 { x: -2.5, y: 0.0 },
         ..Default::default()
     };
-    lm.row_layout = vec![RowLayout::default(), shift.clone(), shift];
+    lm.row_layout = vec![RowLayout::default(), shift, shift];
     b.commit(EditOperation::SetMatrix {
         matrix: lm,
         definitions: None,
@@ -270,7 +270,7 @@ fn split42(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
         stagger: 3.0,
         ..Default::default()
     };
-    lt.column_layout = vec![ColumnLayout::default(), stag.clone(), stag];
+    lt.column_layout = vec![ColumnLayout::default(), stag, stag];
     b.commit(EditOperation::SetMatrix {
         matrix: lt,
         definitions: None,

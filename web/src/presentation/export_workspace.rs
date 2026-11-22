@@ -389,15 +389,3 @@ fn export_rows(
     }
     rows
 }
-
-#[cfg(test)]
-#[component]
-pub(crate) fn ExportPanel(
-    #[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>,
-) -> Element {
-    let workspace = use_context::<super::WorkspaceState>().0;
-    let return_workspace = use_context::<super::ExportReturnWorkspace>().0;
-    let compact = use_context::<super::CompactPanelState>();
-    let settings = use_signal(PanelSettings::default);
-    rsx! { ExportWorkspace { zmk_firmware, workspace, return_workspace, inspect_open: compact.inspector_open, inspector_settings: settings } }
-}
