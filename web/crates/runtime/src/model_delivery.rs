@@ -7,7 +7,8 @@
 use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
-use boardstudio_application::{Scope, SnapshotToken};
+#[cfg(any(test, target_arch = "wasm32"))]
+use boardstudio_application::SnapshotToken;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference, ModuleModelPlacement, PcbModel, ProjectDoc};
 use std::{
@@ -22,7 +23,7 @@ use std::{
 const MESH_CACHE_CAPACITY: usize = 80;
 const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
 
-trait ModelSourceLease {
+pub(crate) trait ModelSourceLease {
     fn is_active(&self) -> bool;
 }
 
@@ -51,188 +52,29 @@ pub type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'stat
 /// sequence while remaining attached to this exact Case projection.
 #[derive(Clone)]
 pub struct ModelOwnerIdentity {
-    scope: Scope,
-    snapshot_token: SnapshotToken,
-    viewer_instance: u64,
-    projection_generation: u64,
-    source_owner: Weak<dyn ModelSourceLease>,
+    #[cfg(any(test, target_arch = "wasm32"))]
+    token: SnapshotToken,
+    source: Weak<dyn ModelSourceLease>,
 }
 
 impl ModelOwnerIdentity {
-    fn capture(
-        scope: Scope,
-        snapshot_token: SnapshotToken,
-        viewer_instance: u64,
-        projection_generation: u64,
-        source_owner: Rc<dyn ModelSourceLease>,
-    ) -> Self {
+    #[cfg(any(test, target_arch = "wasm32"))]
+    pub(crate) fn capture(token: SnapshotToken, source: Rc<dyn ModelSourceLease>) -> Self {
         Self {
-            scope,
-            snapshot_token,
-            viewer_instance,
-            projection_generation,
-            source_owner: Rc::downgrade(&source_owner),
+            token,
+            source: Rc::downgrade(&source),
         }
     }
 
-    pub fn new(
-        scope: Scope,
-        snapshot_token: SnapshotToken,
-        viewer_instance: u64,
-        projection_generation: u64,
-        source_owner: &Rc<CasePreviewOwnerLease>,
-    ) -> Self {
-        Self::capture(
-            scope,
-            snapshot_token,
-            viewer_instance,
-            projection_generation,
-            source_owner.clone(),
-        )
+    #[cfg(any(test, target_arch = "wasm32"))]
+    pub(crate) fn is_current(&self, token: SnapshotToken) -> bool {
+        self.token == token && self.is_active()
     }
 
-    pub fn new_layout(
-        scope: Scope,
-        snapshot_token: SnapshotToken,
-        source_generation: u64,
-        source_owner: &Rc<LayoutSourceLease>,
-    ) -> Self {
-        Self::capture(
-            scope,
-            snapshot_token,
-            0,
-            source_generation,
-            source_owner.clone(),
-        )
-    }
-
-    pub fn new_parts(
-        scope: Scope,
-        snapshot_token: SnapshotToken,
-        source_generation: u64,
-        source_owner: &Rc<PartsPreviewOwnerLease>,
-    ) -> Self {
-        Self::capture(
-            scope,
-            snapshot_token,
-            0,
-            source_generation,
-            source_owner.clone(),
-        )
-    }
-
-    fn same_owner(&self, other: &Self) -> bool {
-        self.scope == other.scope
-            && self.snapshot_token == other.snapshot_token
-            && self.viewer_instance == other.viewer_instance
-            && self.projection_generation == other.projection_generation
-            && Weak::ptr_eq(&self.source_owner, &other.source_owner)
-    }
-
-    /// Checks the captured physical preview against the current Case owner.
-    /// This identity exists before mechanical CAD; the accepted revision remains
-    /// a separate batch property.
-    pub fn is_current_owner(
-        &self,
-        current_scope: &Scope,
-        current_token: SnapshotToken,
-        current_viewer_instance: u64,
-        current_projection_generation: u64,
-        current_owner: &Rc<CasePreviewOwnerLease>,
-    ) -> bool {
-        current_owner.identity_matches(
-            current_scope,
-            current_token,
-            current_viewer_instance,
-            current_projection_generation,
-        ) && self.matches(
-            current_scope,
-            current_token,
-            current_viewer_instance,
-            current_projection_generation,
-            current_owner.clone(),
-        )
-    }
-
-    pub fn is_current_layout_owner(
-        &self,
-        current_scope: &Scope,
-        current_token: SnapshotToken,
-        source_generation: u64,
-        current_owner: &Rc<LayoutSourceLease>,
-    ) -> bool {
-        self.matches(
-            current_scope,
-            current_token,
-            0,
-            source_generation,
-            current_owner.clone(),
-        )
-    }
-
-    pub fn is_current_parts_owner(
-        &self,
-        current_scope: &Scope,
-        current_token: SnapshotToken,
-        source_generation: u64,
-        current_owner: &Rc<PartsPreviewOwnerLease>,
-    ) -> bool {
-        self.matches(
-            current_scope,
-            current_token,
-            0,
-            source_generation,
-            current_owner.clone(),
-        )
-    }
-
-    fn matches(
-        &self,
-        scope: &Scope,
-        token: SnapshotToken,
-        viewer: u64,
-        generation: u64,
-        owner: Rc<dyn ModelSourceLease>,
-    ) -> bool {
-        self.scope == *scope
-            && self.snapshot_token == token
-            && self.viewer_instance == viewer
-            && self.projection_generation == generation
-            && owner.is_active()
-            && Weak::ptr_eq(&self.source_owner, &Rc::downgrade(&owner))
-    }
-}
-
-/// One request for the model rows of a particular preview under an owner.
-#[derive(Clone)]
-pub struct ModelBatchIdentity {
-    owner: ModelOwnerIdentity,
-    accepted_revision: u64,
-    batch_generation: u64,
-}
-
-impl ModelBatchIdentity {
-    pub fn new(owner: ModelOwnerIdentity, accepted_revision: u64, batch_generation: u64) -> Self {
-        Self {
-            owner,
-            accepted_revision,
-            batch_generation,
-        }
-    }
-
-    pub fn is_current(
-        &self,
-        current_owner: &ModelOwnerIdentity,
-        current_revision: u64,
-        current_batch_generation: u64,
-    ) -> bool {
-        self.owner.same_owner(current_owner)
-            && self.accepted_revision == current_revision
-            && self.batch_generation == current_batch_generation
-    }
-
-    pub fn owner(&self) -> &ModelOwnerIdentity {
-        &self.owner
+    fn is_active(&self) -> bool {
+        self.source
+            .upgrade()
+            .is_some_and(|source| source.is_active())
     }
 }
 
@@ -636,21 +478,19 @@ impl ModelDeliveryAdapter {
 
     pub async fn deliver_models(
         &self,
-        preview_revision: u64,
         models: &[PcbModel],
         selections: &BTreeMap<String, AssetSelection>,
         ports: &ModelDeliveryPorts,
-        batch: &ModelBatchIdentity,
+        owner: &ModelOwnerIdentity,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Option<ModelDeliveryRows> {
         self.deliver(
-            preview_revision,
             models
                 .iter()
                 .map(|model| (model.id.as_str(), model.reference.as_str(), None)),
             selections,
             ports,
-            batch,
+            owner,
             is_current,
         )
         .await
@@ -658,15 +498,13 @@ impl ModelDeliveryAdapter {
 
     pub async fn deliver_module_placements(
         &self,
-        preview_revision: u64,
         placements: &[ModuleModelPlacement],
         selections: &BTreeMap<String, AssetSelection>,
         ports: &ModelDeliveryPorts,
-        batch: &ModelBatchIdentity,
+        owner: &ModelOwnerIdentity,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Option<ModelDeliveryRows> {
         self.deliver(
-            preview_revision,
             placements.iter().map(|placement| {
                 (
                     placement.id.as_str(),
@@ -676,7 +514,7 @@ impl ModelDeliveryAdapter {
             }),
             selections,
             ports,
-            batch,
+            owner,
             is_current,
         )
         .await
@@ -684,16 +522,16 @@ impl ModelDeliveryAdapter {
 
     async fn deliver<'a>(
         &self,
-        preview_revision: u64,
         models: impl Iterator<Item = (&'a str, &'a str, Option<[f64; 16]>)>,
         selections: &BTreeMap<String, AssetSelection>,
         ports: &ModelDeliveryPorts,
-        batch: &ModelBatchIdentity,
+        owner: &ModelOwnerIdentity,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Option<ModelDeliveryRows> {
-        if !batch.is_current(batch.owner(), preview_revision, batch.batch_generation)
-            || !is_current()
-        {
+        let owner_current = owner.clone();
+        let is_current: Rc<dyn Fn() -> bool> =
+            Rc::new(move || owner_current.is_active() && is_current());
+        if !is_current() {
             return None;
         }
 
@@ -723,8 +561,7 @@ impl ModelDeliveryAdapter {
                         return Ok(mesh);
                     }
                     let mesh = Rc::new(
-                        load_and_decode(ports, asset, format, batch.owner().clone(), current)
-                            .await?,
+                        load_and_decode(ports, asset, format, owner.clone(), current).await?,
                     );
                     self.cache(sha.to_owned(), mesh.clone());
                     Ok(mesh)

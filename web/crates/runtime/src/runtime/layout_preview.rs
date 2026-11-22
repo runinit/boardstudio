@@ -22,13 +22,11 @@ impl Runtime {
     }
 
     pub fn layout_preview_error(&self) -> Option<String> {
-        let scope = self.scope()?;
-        let accepted = self.model().accepted?;
         self.layout_preview
             .borrow()
             .error
             .as_ref()
-            .filter(|(owner, _)| owner.matches_current(&accepted, &scope, owner.source_generation))
+            .filter(|(owner, _)| self.snapshot_current(owner.snapshot_token, &owner.scope))
             .map(|(_, error)| error.clone())
     }
 
@@ -78,7 +76,7 @@ impl Runtime {
         }
     }
 
-    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken, u64)>) {
+    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken)>) {
         let retired = self
             .layout_preview
             .borrow_mut()
@@ -93,13 +91,7 @@ impl Runtime {
         &self,
         owner: &crate::layout_viewer_source::LayoutSourceIdentity,
     ) -> bool {
-        let Some(scope) = self.scope() else {
-            return false;
-        };
-        let Some(accepted) = self.model().accepted else {
-            return false;
-        };
-        owner.matches_current(&accepted, &scope, owner.source_generation)
+        self.snapshot_current(owner.snapshot_token, &owner.scope)
             && self.layout_preview.borrow().owns(owner)
     }
 
@@ -118,22 +110,9 @@ impl Runtime {
         {
             return Ok(());
         }
-        let batch_generation = self
-            .layout_model_batch_generation
-            .get()
-            .checked_add(1)
-            .ok_or_else(|| "Layout model batch identity exhausted".to_owned())?;
-        self.layout_model_batch_generation.set(batch_generation);
-        let owner = crate::model_delivery::ModelOwnerIdentity::new_layout(
-            preview.owner.scope.clone(),
+        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
             preview.owner.snapshot_token,
-            preview.owner.source_generation,
-            &preview.lease,
-        );
-        let batch = crate::model_delivery::ModelBatchIdentity::new(
-            owner,
-            preview.owner.accepted_revision,
-            batch_generation,
+            preview.lease.clone(),
         );
         let source_is_current = {
             let weak = Rc::downgrade(self);
@@ -148,7 +127,7 @@ impl Runtime {
         let module_request_id = format!(
             "layout-module-models-{}-{}-{}",
             preview.owner.snapshot_token.0,
-            preview.owner.accepted_revision,
+            preview.document.revision,
             preview.owner.source_generation
         );
         let module_request = CoreRequest::ResolveModules {
@@ -160,8 +139,7 @@ impl Runtime {
         let module_reply = (self.core_services.open_scratch)()(module_request);
         let module_placements = match module_reply {
             CoreReply::ModulesResolved { id, result }
-                if id == module_request_id
-                    && result.revision == preview.owner.accepted_revision =>
+                if id == module_request_id && result.revision == preview.document.revision =>
             {
                 result.model_placements
             }
@@ -190,15 +168,19 @@ impl Runtime {
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        let ports = self.layout_model_delivery_ports(&preview, source_is_current.clone());
+        let ports = self.model_delivery_ports(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.document.revision,
+            source_is_current.clone(),
+        );
         let board_results = self
             .case_model_delivery
             .deliver_models(
-                preview.preview.revision,
                 &preview.preview.models,
                 &selections,
                 &ports,
-                &batch,
+                &owner,
                 source_is_current.clone(),
             )
             .await;
@@ -218,11 +200,10 @@ impl Runtime {
             let module_results = self
                 .case_model_delivery
                 .deliver_module_placements(
-                    preview.owner.accepted_revision,
                     &module_placements,
                     &selections,
                     &ports,
-                    &batch,
+                    &owner,
                     source_is_current.clone(),
                 )
                 .await;
@@ -253,12 +234,10 @@ impl Runtime {
         expected_revision: u64,
     ) -> Result<(), String> {
         let accepted = self
-            .model()
-            .accepted
+            .accepted_snapshot()
             .ok_or_else(|| "No accepted project is available for Layout preview".to_owned())?;
-        if accepted.token != expected_token
+        if !self.snapshot_current(expected_token, &expected_scope)
             || accepted.document.revision != expected_revision
-            || self.scope().as_ref() != Some(&expected_scope)
         {
             return Err("The accepted Layout preview source changed before preparation".into());
         }
@@ -268,7 +247,7 @@ impl Runtime {
 
         let source_generation = self.layout_preview.borrow_mut().next_generation()?;
         let operation = self.operation().0;
-        if operation == 0 || operation > 9_007_199_254_740_991 {
+        if operation == 0 || operation > MAX_SAFE_INTEGER {
             let error = "Layout preview operation identity is outside the safe integer range";
             self.layout_preview.borrow_mut().fail_before_begin(
                 crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
@@ -473,26 +452,5 @@ impl Runtime {
             .borrow_mut()
             .insert(asset.sha256.clone(), bytes.clone());
         Ok(bytes)
-    }
-
-    pub(super) fn layout_model_delivery_ports(
-        self: &Rc<Self>,
-        preview: &crate::layout_viewer_source::LayoutPreviewSnapshot,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> crate::model_delivery::ModelDeliveryPorts {
-        let scope = preview.owner.scope.clone();
-        let token = preview.owner.snapshot_token;
-        let source_generation = preview.owner.source_generation;
-        let lease = preview.lease.clone();
-        let owner_is_current = Rc::new(move |owner: &crate::model_delivery::ModelOwnerIdentity| {
-            owner.is_current_layout_owner(&scope, token, source_generation, &lease)
-        });
-        self.model_delivery_ports(
-            preview.owner.scope.clone(),
-            token,
-            preview.owner.accepted_revision,
-            is_current,
-            owner_is_current,
-        )
     }
 }

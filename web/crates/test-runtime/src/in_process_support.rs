@@ -26,6 +26,7 @@ enum PersistTarget {
 #[derive(Clone)]
 struct MemorySave {
     document: ProjectDoc,
+    token: StorageToken,
     assets: BTreeMap<String, Vec<u8>>,
 }
 
@@ -34,6 +35,7 @@ struct MemorySave {
 /// that fails or holds the next save.
 pub struct TestPersistence {
     target: RefCell<PersistTarget>,
+    observed: RefCell<BTreeMap<String, StorageToken>>,
     target_observer: RefCell<Option<oneshot::Sender<()>>>,
     behavior: GateDriver,
     gate: RefCell<Option<AsyncGate>>,
@@ -43,6 +45,7 @@ impl TestPersistence {
     fn through_store(store: BrowserStore) -> Self {
         Self {
             target: RefCell::new(PersistTarget::Store(store)),
+            observed: RefCell::default(),
             target_observer: RefCell::new(None),
             behavior: GateDriver::default(),
             gate: RefCell::new(None),
@@ -50,6 +53,7 @@ impl TestPersistence {
     }
 
     pub fn use_memory_saves(&self) {
+        self.observed.borrow_mut().clear();
         *self.target.borrow_mut() = PersistTarget::Memory(Rc::new(RefCell::new(BTreeMap::new())));
     }
 
@@ -101,6 +105,22 @@ impl TestPersistence {
 }
 
 impl DocumentPersistence for TestPersistence {
+    fn observed_token(&self, id: &str) -> Option<StorageToken> {
+        match &*self.target.borrow() {
+            PersistTarget::Store(store) => store.observed_token(id),
+            PersistTarget::Memory(_) => self.observed.borrow().get(id).cloned(),
+        }
+    }
+
+    fn observe_token(&self, id: String, token: StorageToken) {
+        match &*self.target.borrow() {
+            PersistTarget::Store(store) => store.observe_token(id, token),
+            PersistTarget::Memory(_) => {
+                self.observed.borrow_mut().insert(id, token);
+            }
+        }
+    }
+
     fn save_document<'a>(
         &'a self,
         document: &'a ProjectDoc,
@@ -134,8 +154,7 @@ impl DocumentPersistence for TestPersistence {
                     let actual = saves
                         .borrow()
                         .get(&document.id)
-                        .map(|save| StorageToken::for_document(&save.document))
-                        .transpose()?;
+                        .map(|save| save.token.clone());
                     if actual.as_ref() != expected {
                         return Err(SaveError::Conflict);
                     }
@@ -144,9 +163,11 @@ impl DocumentPersistence for TestPersistence {
                         document.id.clone(),
                         MemorySave {
                             document: document.clone(),
+                            token: token.clone(),
                             assets: assets.clone(),
                         },
                     );
+                    self.observe_token(document.id.clone(), token.clone());
                     Ok(token)
                 }
             }

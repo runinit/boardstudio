@@ -23,12 +23,13 @@ use boardstudio_model::model::{
     PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 
+use boardstudio_web_host::browser::browser_uuid;
 use boardstudio_web_host::host::{
     BrowserStore, SaveError, SavedProject, StorageSession, StorageToken,
 };
 use boardstudio_web_host::{
     cad_jobs::{
-        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
+        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity, MAX_SAFE_INTEGER,
         captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
         validate_reply,
     },
@@ -76,7 +77,7 @@ pub struct KeycapsCadPreview {
 }
 
 use gloo_timers::future::TimeoutFuture;
-use js_sys::{Array, Function, Reflect, Uint8Array};
+use js_sys::{Array, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -106,9 +107,7 @@ fn terminal_report(outcome: TerminalOutcome, export: Option<&ExportKind>) -> Opt
         TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason) => {
             (reason, export.is_some(), export.is_some())
         }
-        TerminalOutcome::PersistenceFailed(reason) | TerminalOutcome::BlockedByRecovery(reason) => {
-            (reason, export.is_some(), false)
-        }
+        TerminalOutcome::PersistenceFailed(_) => return None,
         TerminalOutcome::Cancelled => (
             "Cancelled.".into(),
             false,
@@ -162,6 +161,9 @@ fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
 /// Production saves through IndexedDB; tests install the in-process memory adapter from
 /// `in_process_support`.
 pub trait DocumentPersistence {
+    fn observed_token(&self, id: &str) -> Option<StorageToken>;
+    fn observe_token(&self, id: String, token: StorageToken);
+
     fn save_document<'a>(
         &'a self,
         document: &'a ProjectDoc,
@@ -171,6 +173,14 @@ pub trait DocumentPersistence {
 }
 
 impl DocumentPersistence for BrowserStore {
+    fn observed_token(&self, id: &str) -> Option<StorageToken> {
+        BrowserStore::observed_token(self, id)
+    }
+
+    fn observe_token(&self, id: String, token: StorageToken) {
+        BrowserStore::observe_token(self, id, token);
+    }
+
     fn save_document<'a>(
         &'a self,
         document: &'a ProjectDoc,
@@ -187,20 +197,6 @@ impl PartialEq for CadScene {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
     }
-}
-
-fn browser_uuid() -> Result<String, String> {
-    let crypto = Reflect::get(&js_sys::global(), &JsValue::from_str("crypto"))
-        .map_err(|error| format!("Could not access browser project identity service: {error:?}"))?;
-    let random_uuid = Reflect::get(&crypto, &JsValue::from_str("randomUUID"))
-        .map_err(|error| format!("Could not access browser project identity service: {error:?}"))?
-        .dyn_into::<Function>()
-        .map_err(|_| "The browser cannot generate a safe project identity.".to_string())?;
-    random_uuid
-        .call0(&crypto)
-        .map_err(|error| format!("Could not generate a project identity: {error:?}"))?
-        .as_string()
-        .ok_or_else(|| "Could not generate a project identity.".to_string())
 }
 
 /// Allocate the same browser UUID used by the Session-owned project lifecycle.
@@ -267,7 +263,6 @@ pub struct Runtime {
     storage_session: RefCell<Option<StorageSession>>,
     storage_initializing: Cell<bool>,
     storage_error: RefCell<Option<String>>,
-    saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
     before_unload: RefCell<Option<BeforeUnloadClosure>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
@@ -275,6 +270,7 @@ pub struct Runtime {
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
+    notify_durability: RefCell<Option<Notifier>>,
     status: RefCell<RuntimeReport>,
     notifications: RefCell<Vec<RuntimeNotification>>,
     open_sequence: Cell<u64>,
@@ -302,7 +298,6 @@ pub struct Runtime {
             crate::model_delivery::ModelDeliveryRows,
         )>,
     >,
-    layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     generated_analysis_cache:
         RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
@@ -417,14 +412,14 @@ impl Runtime {
             storage_session: RefCell::default(),
             storage_initializing: Cell::new(restore_active_project),
             storage_error: RefCell::new(None),
-            saved_tokens: RefCell::default(),
             before_unload: RefCell::default(),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             exports: RefCell::default(),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
-            notify: RefCell::new(None),
+            notify: RefCell::default(),
+            notify_durability: RefCell::default(),
             status: RefCell::new(RuntimeReport::status(
                 "Open a saved keyboard or an editable demo copy.",
             )),
@@ -447,7 +442,6 @@ impl Runtime {
             native_model_delivery: RefCell::new(Default::default()),
             layout_preview: RefCell::new(Default::default()),
             layout_model_rows: RefCell::new(None),
-            layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             generated_analysis_cache: RefCell::new(BTreeMap::new()),
             generated_analysis_prepared: RefCell::new(BTreeMap::new()),
@@ -508,10 +502,12 @@ impl Runtime {
             let listener =
                 Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
                     if runtime_ref.upgrade().is_some_and(|runtime| {
-                        matches!(
-                            runtime.model().durability,
-                            Durability::Saving { .. } | Durability::Failed { .. }
-                        )
+                        runtime.with_model(|model| {
+                            matches!(
+                                model.durability,
+                                Durability::Saving { .. } | Durability::Failed { .. }
+                            )
+                        })
                     }) {
                         event.prevent_default();
                         let _ = Reflect::set(event.as_ref(), &"returnValue".into(), &JsValue::TRUE);
@@ -549,13 +545,22 @@ impl Runtime {
         self.core_services
     }
     pub fn model(&self) -> ReadModel {
-        self.session.borrow().read_model().clone()
+        self.with_model(Clone::clone)
+    }
+
+    /// Read the current model during a synchronous borrow of the session.
+    pub fn with_model<R>(&self, f: impl FnOnce(&ReadModel) -> R) -> R {
+        f(self.session.borrow().read_model())
+    }
+
+    fn accepted_snapshot(&self) -> Option<AcceptedSnapshot> {
+        self.with_model(|model| model.accepted.clone())
     }
 
     /// Load a reviewed bundled switch fit into the Parts editor's local draft.
     /// This never submits an accepted edit; the existing Parts profile Save path
     /// remains the sole owner of document history.
-    pub async fn standard_switch_profile(
+    pub fn standard_switch_profile(
         &self,
         operation_id: OperationId,
         definition_id: String,
@@ -583,7 +588,7 @@ impl Runtime {
 
     /// Import a source-owned KiCad footprint through the existing artifact worker.
     /// The Parts owner admits the returned definition into Session after rechecking scope.
-    pub async fn import_footprint(
+    pub fn import_footprint(
         &self,
         request_id: String,
         definition_id: String,
@@ -602,7 +607,7 @@ impl Runtime {
 
     /// Read KiCad mechanical geometry for a Parts editor draft. The caller owns the
     /// selected-definition and scope admission before applying any returned geometry.
-    pub async fn extract_mechanical_profile(
+    pub fn extract_mechanical_profile(
         &self,
         request_id: String,
         source: String,
@@ -623,12 +628,11 @@ impl Runtime {
 
     /// Ask the document Core to project candidate matrices with its authoritative
     /// layout geometry. This is a private preview path; candidates are never installed in Session.
-    pub async fn project_matrices(
+    pub fn project_matrices(
         &self,
         base_revision: u64,
         matrices: Vec<boardstudio_model::model::Matrix>,
     ) -> Result<Vec<boardstudio_model::model::MatrixScene>, String> {
-        let request_id = format!("matrix-projection-{}", self.operation().0);
         let expected_ids: Vec<_> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
         if self.session.borrow().read_model().lifecycle == Lifecycle::Closed {
             return Err("Matrix preview failed: editor is closed".into());
@@ -636,13 +640,13 @@ impl Runtime {
         let reply =
             self.session
                 .borrow_mut()
-                .project_matrices(request_id.clone(), base_revision, matrices);
+                .project_matrices(String::new(), base_revision, matrices);
         match reply {
             CoreReply::MatrixProjections {
-                id,
                 revision,
                 matrix_scenes,
-            } if id == request_id && revision == base_revision => {
+                ..
+            } if revision == base_revision => {
                 let actual_ids: Vec<_> = matrix_scenes
                     .iter()
                     .map(|scene| scene.matrix_id.clone())
@@ -652,10 +656,7 @@ impl Runtime {
                 }
                 Ok(matrix_scenes)
             }
-            CoreReply::Error { id, message, .. } if id == request_id => Err(message),
-            CoreReply::MatrixProjections { .. } | CoreReply::Error { .. } => {
-                Err("Core returned a stale matrix preview reply.".into())
-            }
+            CoreReply::Error { message, .. } => Err(message),
             _ => Err("Core returned an unexpected matrix preview reply.".into()),
         }
     }
@@ -698,6 +699,15 @@ impl Runtime {
     pub fn subscribe(&self, notify: Notifier) {
         *self.notify.borrow_mut() = Some(notify);
     }
+    /// Observe save-only changes independently of workbench snapshots.
+    pub fn subscribe_durability(&self, notify: Notifier) {
+        *self.notify_durability.borrow_mut() = Some(notify);
+    }
+
+    pub fn unsubscribe_durability(&self) {
+        self.notify_durability.borrow_mut().take();
+    }
+
     pub fn unsubscribe(&self) {
         self.notify.borrow_mut().take();
     }
@@ -708,7 +718,12 @@ impl Runtime {
         self.apply_report(RuntimeReport::status(status));
     }
     fn apply_report(&self, report: RuntimeReport) {
-        publish(&self.status, &self.notifications, report, || self.changed());
+        self.record_report(report);
+        self.changed();
+    }
+
+    fn record_report(&self, report: RuntimeReport) {
+        publish(&self.status, &self.notifications, report, || {});
     }
     fn changed(&self) {
         if let Some(notify) = self.notify.borrow().as_ref().cloned() {
@@ -767,13 +782,7 @@ impl Runtime {
         owner: &crate::case_gesture_preview::CaseGesturePreviewOwner,
     ) -> bool {
         self.case_gesture_preview.borrow().is_current(owner)
-            && self.scope().as_ref() == Some(&owner.scope)
-            && self.model().accepted.as_ref().is_some_and(|accepted| {
-                accepted.token == owner.snapshot_token
-                    && accepted.document.revision == owner.revision
-                    && accepted.document.id == owner.scope.document_id
-                    && accepted.session_epoch == owner.scope.session_epoch
-            })
+            && self.snapshot_current(owner.snapshot_token, &owner.scope)
     }
 
     pub fn cancel_native_case_preview(&self) {

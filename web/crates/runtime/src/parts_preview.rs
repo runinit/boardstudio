@@ -10,14 +10,13 @@ use boardstudio_model::model::{
     Asset, Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest,
     ProjectDoc, Side, Vec2,
 };
-use std::{cell::Cell, collections::BTreeMap, rc::Rc, sync::Arc};
+use std::{cell::Cell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartsPreviewOwnerIdentity {
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
-    pub accepted_revision: u64,
-    pub accepted_document_identity: usize,
+
     pub definition_id: String,
     pub recipe_identity: String,
     pub source_generation: u64,
@@ -169,8 +168,7 @@ impl PartsPreviewCapture {
         let owner = PartsPreviewOwnerIdentity {
             scope: scope.clone(),
             snapshot_token: snapshot.token,
-            accepted_revision: snapshot.document.revision,
-            accepted_document_identity: Arc::as_ptr(&snapshot.document) as usize,
+
             definition_id: definition.id.clone(),
             recipe_identity,
             source_generation,
@@ -282,7 +280,7 @@ impl PartsPreviewCapture {
         preview: boardstudio_model::model::PcbPreview,
         model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
     ) -> Result<PartsPreviewSnapshot, String> {
-        if preview.revision != self.owner.accepted_revision
+        if preview.revision != self.sample_document.revision
             || self.request.expected_revision != self.sample_document.revision
             || self.request.document.id != self.sample_document.id
             || self.request.target
@@ -392,8 +390,7 @@ mod tests {
                 instance_id: None,
             },
             snapshot_token: SnapshotToken(1),
-            accepted_revision: 1,
-            accepted_document_identity: 1,
+
             definition_id: "definition".into(),
             recipe_identity: "recipe".into(),
             source_generation: generation,

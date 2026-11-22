@@ -1,5 +1,6 @@
 //! Native-testable formatting for mechanical export package files.
 
+#[cfg(target_arch = "wasm32")]
 use boardstudio_model::model::{MechanicalAssembly, ProjectDoc};
 use std::collections::BTreeSet;
 
@@ -89,6 +90,7 @@ pub(crate) fn mechanical_xml_escape(value: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+#[cfg(target_arch = "wasm32")]
 fn serialized_enum_label<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_value(value)
         .ok()
@@ -96,6 +98,7 @@ fn serialized_enum_label<T: serde::Serialize>(value: &T) -> String {
         .unwrap_or_default()
 }
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn mechanical_fabrication_notes(
     document: &ProjectDoc,
     assembly: &MechanicalAssembly,
@@ -291,6 +294,7 @@ pub(crate) fn mechanical_fabrication_notes(
     )
 }
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn critical_fit_drawing(
     assembly: &MechanicalAssembly,
     configuration: &boardstudio_model::model::MechanicalConfiguration,

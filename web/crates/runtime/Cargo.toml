@@ -29,9 +29,6 @@ js-sys = "=0.3.106"
 futures-channel = "=0.3.34"
 web-sys = { workspace = true }
 
-[dev-dependencies]
-boardstudio_core = { path = "../../../core", features = ["test-support"] }
-
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 futures-channel = "=0.3.34"
 

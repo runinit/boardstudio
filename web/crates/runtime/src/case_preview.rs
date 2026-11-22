@@ -20,11 +20,9 @@ use std::{
 pub struct CasePreviewOwnerIdentity {
     pub scope: Scope,
     pub snapshot_token: SnapshotToken,
-    pub accepted_revision: u64,
-    pub accepted_scene_identity: usize,
-    pub viewer_instance: u64,
+
     pub projection_generation: u64,
-    pub batch_generation: u64,
+
     pub request_token: String,
 }
 
@@ -33,17 +31,15 @@ impl CasePreviewOwnerIdentity {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         projection_generation: u64,
-        batch_generation: u64,
+
         request_token: String,
     ) -> Self {
         Self {
             scope: scope.clone(),
             snapshot_token: snapshot.token,
-            accepted_revision: snapshot.document.revision,
-            accepted_scene_identity: std::sync::Arc::as_ptr(&snapshot.scene) as usize,
-            viewer_instance: projection_generation,
+
             projection_generation,
-            batch_generation,
+
             request_token,
         }
     }
@@ -83,20 +79,6 @@ impl CasePreviewOwnerLease {
         self.is_active() && self.identity == *identity
     }
 
-    pub fn identity_matches(
-        &self,
-        scope: &Scope,
-        token: SnapshotToken,
-        viewer_instance: u64,
-        projection_generation: u64,
-    ) -> bool {
-        self.is_active()
-            && self.identity.scope == *scope
-            && self.identity.snapshot_token == token
-            && self.identity.viewer_instance == viewer_instance
-            && self.identity.projection_generation == projection_generation
-    }
-
     pub fn invalidate(&self) {
         self.active.set(false);
     }
@@ -129,7 +111,7 @@ impl NativePreviewCapture {
         Ok(ArtifactRequest::PreviewBoard {
             id,
             source,
-            revision: self.owner.accepted_revision,
+            revision: self.document.revision,
         })
     }
 }
@@ -195,7 +177,6 @@ pub fn native_preview_pick_part_id(
     if !preview.lease.matches(owner)
         || owner.scope != *scope
         || owner.snapshot_token != snapshot_token
-        || owner.accepted_revision != revision
         || preview.accepted_document.id != scope.document_id
         || preview.accepted_document.revision != revision
     {
@@ -334,11 +315,9 @@ mod native_preview_pick_tests {
         let owner = CasePreviewOwnerIdentity {
             scope: scope.clone(),
             snapshot_token: SnapshotToken(43),
-            accepted_revision: 12,
-            accepted_scene_identity: 1,
-            viewer_instance: 4,
+
             projection_generation: 5,
-            batch_generation: 6,
+
             request_token: "request-9".into(),
         };
         let lease = CasePreviewOwnerLease::new(owner.clone());
@@ -402,6 +381,7 @@ impl NativePreviewState {
                 .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
     }
 
+    #[cfg(any(test, target_arch = "wasm32"))]
     pub(crate) fn current_error(
         &self,
         is_current: impl FnOnce(&CasePreviewOwnerIdentity) -> bool,
@@ -461,7 +441,7 @@ pub fn capture_native_preview(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
     projection_generation: u64,
-    batch_generation: u64,
+
     request_token: String,
 ) -> Result<NativePreviewCapture, String> {
     if request_token.is_empty() {
@@ -493,7 +473,6 @@ pub fn capture_native_preview(
         snapshot,
         scope,
         projection_generation,
-        batch_generation,
         request_token.clone(),
     );
     let mut references = document
@@ -552,15 +531,12 @@ pub fn accept_native_preview(
     capture: NativePreviewCapture,
     preview: PcbPreview,
 ) -> Result<NativePreviewSnapshot, String> {
-    if preview.revision != capture.owner.accepted_revision {
+    if preview.revision != capture.document.revision {
         return Err("Core returned a Case board preview for another revision".into());
-    }
-    if capture.document.revision != capture.owner.accepted_revision {
-        return Err("Case preview request identity does not match its accepted source".into());
     }
     let board_reference = match &capture.request {
         CasePreviewRequest::Authored(request) => {
-            if request.expected_revision != capture.owner.accepted_revision
+            if request.expected_revision != capture.document.revision
                 || request.snapshot_token != capture.owner.request_token
             {
                 return Err(
@@ -665,14 +641,14 @@ mod capture_error_tests {
         });
         let snapshot = runtime.model().accepted.unwrap();
         let scope = runtime.scope().unwrap();
-        let error = capture_native_preview(&snapshot, &scope, 1, 1, "capture".into())
+        let error = capture_native_preview(&snapshot, &scope, 1, "capture".into())
             .err()
             .unwrap();
         assert!(
             error.contains("Imported board asset is unavailable"),
             "{error}"
         );
-        let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, 1, "capture".into());
+        let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, "capture".into());
         let state = NativePreviewState {
             error: Some((owner, error.clone())),
             ..Default::default()

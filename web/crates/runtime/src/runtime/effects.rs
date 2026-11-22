@@ -1,6 +1,6 @@
 //! Session event submission and effect execution.
 use super::*;
-use crate::operation_outcomes::observed_outcome;
+use crate::operation_outcomes::{commit_result, observed_outcome};
 use boardstudio_application::{EditResolver, Landing, SnapshotToken};
 
 impl Runtime {
@@ -23,19 +23,7 @@ impl Runtime {
             },
             Some(operation_id),
         );
-        match result {
-            Some(TerminalOutcome::Completed) => self
-                .model()
-                .accepted
-                .ok_or_else(|| "No accepted keyboard after the edit.".into()),
-            Some(
-                TerminalOutcome::Rejected(reason)
-                | TerminalOutcome::ExecutorFailed(reason)
-                | TerminalOutcome::BlockedByRecovery(reason),
-            ) => Err(reason),
-            Some(outcome) => Err(format!("The change could not be applied: {outcome:?}")),
-            None => Err("The change did not complete synchronously.".into()),
-        }
+        commit_result(result, || self.accepted_snapshot())
     }
 
     pub(super) fn submit_event(
@@ -54,8 +42,7 @@ impl Runtime {
     ) -> Option<(TerminalOutcome, Option<Landing>)> {
         if self.project_deletion_pending.get() {
             let open_operation = match &event {
-                Event::Open { operation_id, .. }
-                | Event::RecoverWithDocument { operation_id, .. } => Some(*operation_id),
+                Event::Open { operation_id, .. } => Some(*operation_id),
                 _ => None,
             };
             if let Some(operation_id) = open_operation {
@@ -114,13 +101,12 @@ impl Runtime {
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn install_case_pcb_preview_test(&self) {
-        let accepted = self.model().accepted.expect("accepted preview fixture");
+        let accepted = self.accepted_snapshot().expect("accepted preview fixture");
         let scope = self.scope().expect("selected physical fixture scope");
         let generation = self.native_case_preview.borrow().generation + 1;
         let capture = crate::case_preview::capture_native_preview(
             &accepted,
             &scope,
-            generation,
             generation,
             format!("case-keycaps-test-{generation}"),
         )
@@ -150,7 +136,46 @@ impl Runtime {
     pub(super) fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
+        let persist = matches!(&event, Completion::Persist { .. });
+        let prior = persist
+            .then(|| self.with_model(|model| (model.lifecycle.clone(), model.durability.clone())));
         let effects = self.session.borrow_mut().complete(event);
+        if let Some((lifecycle, durability)) = prior {
+            let (same_lifecycle, next_durability) =
+                self.with_model(|model| (model.lifecycle == lifecycle, model.durability.clone()));
+            let snapshot_changed = self.accepted_identity() != previous_snapshot;
+            let report = match &next_durability {
+                Durability::Saved { .. } if snapshot_changed || next_durability != durability => {
+                    Some(RuntimeReport::status("Saved locally.").transient())
+                }
+                Durability::Failed { reason, .. } if next_durability != durability => {
+                    Some(RuntimeReport::status(reason))
+                }
+                _ => effects.iter().find_map(|effect| match effect {
+                    Effect::Settled {
+                        outcome: TerminalOutcome::PersistenceFailed(reason),
+                        ..
+                    } => Some(RuntimeReport::status(reason)),
+                    _ => None,
+                }),
+            };
+            let has_report = report.is_some();
+            if let Some(report) = report {
+                self.record_report(report);
+            }
+            if same_lifecycle && !snapshot_changed && self.scope() == previous_scope {
+                if next_durability != durability {
+                    let notify = self.notify_durability.borrow().clone();
+                    if let Some(notify) = notify {
+                        notify();
+                    }
+                    return effects;
+                }
+                if !has_report {
+                    return effects;
+                }
+            }
+        }
         self.refresh_after_session(previous_scope, previous_snapshot);
         effects
     }
@@ -180,12 +205,7 @@ impl Runtime {
     }
 
     fn accepted_identity(&self) -> Option<SnapshotToken> {
-        self.session
-            .borrow()
-            .read_model()
-            .accepted
-            .as_ref()
-            .map(|snapshot| snapshot.token)
+        self.with_model(|model| model.accepted.as_ref().map(|snapshot| snapshot.token))
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -206,7 +226,7 @@ impl Runtime {
             while let Some(effect) = effects.pop_front() {
                 effects.extend(this.run(effect).await);
             }
-            if this.model().lifecycle == Lifecycle::Closed {
+            if this.with_model(|model| model.lifecycle == Lifecycle::Closed) {
                 this.close_browser_workers();
             }
             #[cfg(any(test, feature = "test-support"))]
@@ -231,15 +251,12 @@ impl Runtime {
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
                 let persistence = self.persistence.borrow().clone();
-                let expected = self.saved_tokens.borrow().get(&document.id).cloned();
+                let expected = persistence.observed_token(&document.id);
                 let result = match persistence
                     .save_document(&document, &assets, expected.as_ref())
                     .await
                 {
-                    Ok(token) => {
-                        self.saved_tokens
-                            .borrow_mut()
-                            .insert(document.id.clone(), token);
+                    Ok(_) => {
                         let mut staged = self.assets.borrow_mut();
                         for hash in assets.keys() {
                             staged.remove(hash);
@@ -248,27 +265,10 @@ impl Runtime {
                     }
                     Err(error) => SaveResult::Aborted(error.to_string()),
                 };
-                let pre_snapshot = self.accepted_identity();
-                let pre_durability = self.model().durability;
-                let persisted = result == SaveResult::Committed;
-                let effects = self.complete(Completion::Persist {
+                return self.complete(Completion::Persist {
                     save_attempt_id,
                     result,
                 });
-                if self.model().durability != pre_durability
-                    || self.accepted_identity() != pre_snapshot
-                {
-                    match self.model().durability {
-                        Durability::Saved { .. } if persisted => {
-                            self.apply_report(RuntimeReport::status("Saved locally.").transient());
-                        }
-                        Durability::Failed { reason, .. } => {
-                            self.report(reason);
-                        }
-                        _ => {}
-                    }
-                }
-                return effects;
             }
             Effect::Settled {
                 operation_id,
@@ -477,3 +477,7 @@ impl Runtime {
         Vec::new()
     }
 }
+
+#[cfg(test)]
+#[path = "persist_notification_tests.rs"]
+mod persist_notification_tests;

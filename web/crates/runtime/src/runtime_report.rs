@@ -34,11 +34,13 @@ impl RuntimeReport {
         self
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn transient_error(mut self) -> Self {
         self.notification_error = Some(true);
         self
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub(crate) fn clear_alert(&mut self) {
         if self.is_alert {
             self.message.clear();

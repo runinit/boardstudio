@@ -6,7 +6,6 @@
 //! Modules that only run in the browser are `wasm32`-only; the rest also compile
 //! natively so their unit tests run under `cargo test`. The real Session/Core native
 //! Runtime exists only in test and test-support builds.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 pub mod archive_export {
     pub fn archive_filename(project_name: &str) -> String {
@@ -21,15 +20,19 @@ pub mod core_services;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
 pub mod gate_driver;
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) mod keycap_package;
 pub mod layout_viewer_source;
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) mod mechanical_package;
 pub mod model_delivery;
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) mod native_model_mapping;
 #[cfg(test)]
 mod native_model_mapping_tests;
 pub mod operation_outcomes;
 pub mod parts_preview;
+#[cfg(any(test, target_arch = "wasm32"))]
 mod physical_pcb;
 pub mod portable_archive;
 #[cfg(test)]
@@ -53,6 +56,7 @@ pub mod runtime;
 #[path = "runtime_test_stub.rs"]
 pub mod runtime;
 
+#[cfg(any(test, target_arch = "wasm32"))]
 mod runtime_report;
 
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlanRequest};

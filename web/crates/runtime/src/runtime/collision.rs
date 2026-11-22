@@ -123,7 +123,7 @@ impl Runtime {
         for attempt in 0..2 {
             if batch != self.collision_batch.get()
                 || !is_current()
-                || !self.collision_snapshot_is_current(&scope, token, revision)
+                || !self.snapshot_current(token, &scope)
             {
                 return Err("collision request became stale before dispatch".into());
             }
@@ -205,7 +205,7 @@ impl Runtime {
         let batch = self.collision_batch.get();
         use crate::model_delivery::assess_subject_collision_observation;
         use boardstudio_web_host::cad_jobs::CadCollisionMeshPair;
-        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+        if !is_current() || !self.snapshot_current(token, &scope) {
             return Err("collision request became stale before worker setup".into());
         }
         let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
@@ -223,7 +223,7 @@ impl Runtime {
         let worker = self.model_worker(&scope).await?;
         if self.collision_batch.get() != batch
             || !is_current()
-            || !self.collision_snapshot_is_current(&scope, token, revision)
+            || !self.snapshot_current(token, &scope)
         {
             return Err("collision request became stale before dispatch".into());
         }
@@ -255,7 +255,7 @@ impl Runtime {
         if !active
             || self.collision_batch.get() != batch
             || !is_current()
-            || !self.collision_snapshot_is_current(&scope, token, revision)
+            || !self.snapshot_current(token, &scope)
         {
             return Err("collision request became stale after parsing".into());
         }
@@ -328,21 +328,6 @@ impl Runtime {
         }
     }
 
-    pub(super) fn collision_snapshot_is_current(
-        &self,
-        scope: &Scope,
-        token: SnapshotToken,
-        revision: u64,
-    ) -> bool {
-        self.scope().as_ref() == Some(scope)
-            && self.model().accepted.is_some_and(|accepted| {
-                accepted.token == token
-                    && accepted.document.revision == revision
-                    && accepted.session_epoch == scope.session_epoch
-                    && accepted.document.id == scope.document_id
-            })
-    }
-
     pub(super) fn collision_current(
         &self,
         is_current: Rc<dyn Fn() -> bool>,
@@ -406,7 +391,7 @@ impl Runtime {
     ) -> Result<crate::model_delivery::CadCollisionSubject, String> {
         use crate::model_delivery::CadCollisionSubject;
         let current = self.collision_current(is_current);
-        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+        if !current() || !self.snapshot_current(token, scope) {
             return Err("evidence preparation became stale".into());
         }
         let mut refreshed = subject.clone();
@@ -482,7 +467,7 @@ impl Runtime {
             }
             _ => return Err("source evidence cannot be prepared".into()),
         }
-        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+        if !current() || !self.snapshot_current(token, scope) {
             return Err("evidence preparation became stale after settlement".into());
         }
         Ok(refreshed)
@@ -508,13 +493,7 @@ impl Runtime {
                 subject.label()
             ));
         };
-        if !is_current()
-            || !self.collision_snapshot_is_current(
-                &scene.scope,
-                scene.token,
-                scene.snapshot.document.revision,
-            )
-        {
+        if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
             return Err("vendor refinement became stale".into());
         }
         let is_current = self.collision_current(is_current);
@@ -665,7 +644,7 @@ impl Runtime {
         let revision = scene.snapshot.document.revision;
         if !is_current()
             || !scene.exact
-            || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            || !self.snapshot_current(scene.token, &scene.scope)
             || !self
                 .cad_scene()
                 .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
@@ -696,8 +675,7 @@ impl Runtime {
             return Ok(cached.clone());
         }
         let worker = self.model_worker(&scene.scope).await?;
-        if !is_current() || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
-        {
+        if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
             return Err("generated analysis became stale before dispatch".into());
         }
         let receiver = {
@@ -721,9 +699,7 @@ impl Runtime {
             let result = receiver
                 .await
                 .map_err(|_| "generated analysis task was abandoned")?;
-            if !is_current()
-                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
-            {
+            if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
                 return Err("joined generated analysis became stale".into());
             }
             return result;
@@ -767,7 +743,7 @@ impl Runtime {
             let reply = reply.map_err(|error| error.to_string())?;
             if !active
                 || !is_current()
-                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+                || !self.snapshot_current(scene.token, &scene.scope)
                 || !self
                     .cad_scene()
                     .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))

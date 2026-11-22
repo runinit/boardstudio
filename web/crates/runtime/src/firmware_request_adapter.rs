@@ -11,23 +11,18 @@ use boardstudio_model::firmware::{
     FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
 };
 use boardstudio_model::model::{HardwareTransport, ProjectDoc};
+use std::{borrow::Cow, collections::BTreeMap};
 
 pub fn firmware_request(
     document: &ProjectDoc,
     plan: &ElectricalPlan,
     peripheral_plan: Option<&ElectricalPlan>,
 ) -> Result<(FirmwareRequest, Vec<String>), String> {
-    validate_plan(plan)?;
     let transport = document
         .hardware
         .as_ref()
         .map(|hardware| hardware.transport)
         .unwrap_or_default();
-    if transport != HardwareTransport::None && peripheral_plan.is_none() {
-        return Err(
-            "A split firmware handoff requires a distinct peripheral electrical plan".into(),
-        );
-    }
     let document = boardstudio_application::resolved_document(document);
     build_request(&document, plan, peripheral_plan, transport)
 }
@@ -39,6 +34,11 @@ fn build_request(
     transport: HardwareTransport,
 ) -> Result<(FirmwareRequest, Vec<String>), String> {
     validate_plan(plan)?;
+    if transport != HardwareTransport::None && peripheral_plan.is_none() {
+        return Err(
+            "A split firmware handoff requires a distinct peripheral electrical plan".into(),
+        );
+    }
     let controller_profile = plan
         .controller_profile
         .clone()
@@ -248,7 +248,7 @@ fn build_request(
                     item.gpio_terminals
                         .iter()
                         .find(|(name, _)| name == terminal)
-                        .and_then(|(_, function)| find_peripheral_pin(plan, function))
+                        .and_then(|(_, function)| peripheral_value(&plan.peripheral_pins, function))
                         .cloned()
                         .unwrap_or_default()
                 };
@@ -438,13 +438,13 @@ fn validate_plan(plan: &ElectricalPlan) -> Result<(), String> {
     }
 }
 
-fn legacy_plan(plan: &ElectricalPlan, profiled: bool) -> ElectricalPlan {
-    if !profiled {
-        return plan.clone();
+fn legacy_plan(plan: &ElectricalPlan, profiled: bool) -> Cow<'_, ElectricalPlan> {
+    if !profiled || !plan.peripherals.iter().any(|item| item.kind == "encoder") {
+        return Cow::Borrowed(plan);
     }
     let mut legacy = plan.clone();
     legacy.peripherals.retain(|item| item.kind != "encoder");
-    legacy
+    Cow::Owned(legacy)
 }
 
 fn keys_for_bindings(
@@ -502,8 +502,10 @@ fn module_encoders(
                     .map(|connection| connection.host_connector_part_id.as_str())
                     .unwrap_or("")
             );
-            let a_gpio = find_peripheral_pin(plan, &format!("{prefix}{}", profile.a))?;
-            let b_gpio = find_peripheral_pin(plan, &format!("{prefix}{}", profile.b))?;
+            let a_gpio =
+                peripheral_value(&plan.peripheral_pins, &format!("{prefix}{}", profile.a))?;
+            let b_gpio =
+                peripheral_value(&plan.peripheral_pins, &format!("{prefix}{}", profile.b))?;
             Some(FirmwareEncoder {
                 id: module.id.clone(),
                 profile,
@@ -526,23 +528,21 @@ fn split_transport(transport: HardwareTransport) -> Option<SplitTransport> {
         HardwareTransport::None => None,
     }
 }
-fn find_peripheral_pin<'a>(plan: &'a ElectricalPlan, name: &str) -> Option<&'a String> {
-    plan.peripheral_pins.get(name).or_else(|| {
-        plan.peripheral_pins
+fn peripheral_value<'a>(values: &'a BTreeMap<String, String>, name: &str) -> Option<&'a String> {
+    values.get(name).or_else(|| {
+        let suffix = format!("/{name}");
+        values
             .iter()
-            .find(|(key, _)| key.ends_with(&format!("/{name}")))
-            .map(|(_, gpio)| gpio)
+            .find(|(key, _)| key.ends_with(&suffix))
+            .map(|(_, value)| value)
     })
 }
+
 fn uart_pin(plan: &ElectricalPlan, function: &str) -> Option<ScanPin> {
-    let gpio = find_peripheral_pin(plan, function)?;
-    let terminal = plan.peripheral_terminals.get(function).or_else(|| {
-        plan.peripheral_terminals
-            .iter()
-            .find(|(key, _)| key.ends_with(&format!("/{function}")))
-            .map(|(_, terminal)| terminal)
-    })?;
-    Some(pin(terminal, gpio))
+    Some(pin(
+        peripheral_value(&plan.peripheral_terminals, function)?,
+        peripheral_value(&plan.peripheral_pins, function)?,
+    ))
 }
 fn peripheral_warnings(plan: &ElectricalPlan) -> Vec<String> {
     plan.peripherals
@@ -551,7 +551,7 @@ fn peripheral_warnings(plan: &ElectricalPlan) -> Vec<String> {
             let unresolved = item
                 .gpio_terminals
                 .iter()
-                .any(|(_, function)| find_peripheral_pin(plan, function).is_none());
+                .any(|(_, function)| peripheral_value(&plan.peripheral_pins, function).is_none());
             let unsupported = ![
                 "split",
                 "power-switch",
@@ -690,22 +690,12 @@ fn peripheral_firmware(
     Ok(result)
 }
 fn peripheral_pin(plan: &ElectricalPlan, name: &str) -> Result<String, String> {
-    pin_for(plan, name)
-        .cloned()
-        .ok_or_else(|| format!("No resolved GPIO for peripheral function {name}"))
-}
-
-fn pin_for<'a>(plan: &'a ElectricalPlan, name: &str) -> Option<&'a String> {
-    let bare = name.split_once('/').map(|(_, rest)| rest).unwrap_or(name);
+    let bare = name.split_once('/').map_or(name, |(_, rest)| rest);
     plan.peripheral_pins
         .get(name)
-        .or_else(|| plan.peripheral_pins.get(bare))
-        .or_else(|| {
-            plan.peripheral_pins
-                .iter()
-                .find(|(key, _)| key.ends_with(&format!("/{bare}")))
-                .map(|(_, gpio)| gpio)
-        })
+        .or_else(|| peripheral_value(&plan.peripheral_pins, bare))
+        .cloned()
+        .ok_or_else(|| format!("No resolved GPIO for peripheral function {name}"))
 }
 
 fn role_pin(

@@ -532,16 +532,7 @@ fn resource_url(path: &str) -> Result<String, String> {
     Ok(format!("{origin}{base}/{path}"))
 }
 
-pub fn js_error(error: JsValue) -> String {
-    error
-        .as_string()
-        .or_else(|| {
-            Reflect::get(&error, &JsValue::from_str("message"))
-                .ok()
-                .and_then(|value| value.as_string())
-        })
-        .unwrap_or_else(|| format!("{error:?}"))
-}
+pub use crate::browser::js_error;
 
 #[cfg(test)]
 mod tests {

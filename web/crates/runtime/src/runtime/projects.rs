@@ -63,16 +63,9 @@ impl Runtime {
         if for_deletion {
             self.project_deletion_open.set(Some(operation_id));
         }
-        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
-            Event::RecoverWithDocument {
-                operation_id,
-                document,
-            }
-        } else {
-            Event::Open {
-                operation_id,
-                document,
-            }
+        self.submit(Event::Open {
+            operation_id,
+            document,
         });
         outcome
     }
@@ -88,11 +81,7 @@ impl Runtime {
             .accepted
             .as_ref()
             .is_some_and(|accepted| accepted.document.id == project_id);
-        let expected = if deleting_active {
-            self.saved_tokens.borrow().get(&project_id).cloned()
-        } else {
-            self.store.observed_token(&project_id)
-        };
+        let expected = self.persistence.borrow().observed_token(&project_id);
         if deleting_active {
             if !matches!(model.durability, Durability::Saved { .. }) {
                 return Err("Save the active keyboard before deleting it.".into());
@@ -126,7 +115,6 @@ impl Runtime {
             .delete_project_expected(project_id.clone(), expected.as_ref())
             .await
             .map_err(|error| format!("Could not delete the saved keyboard: {error}"))?;
-        self.saved_tokens.borrow_mut().remove(&project_id);
         Ok(())
     }
 
@@ -146,8 +134,7 @@ impl Runtime {
                     ));
                 }
                 return self
-                    .model()
-                    .accepted
+                    .accepted_snapshot()
                     .filter(|accepted| {
                         self.open_sequence.get() == expected_sequence
                             && accepted.document.id == expected_id
@@ -327,9 +314,9 @@ impl Runtime {
     }
 
     pub(super) fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {
-        self.saved_tokens
-            .borrow_mut()
-            .insert(saved.document.id.clone(), saved.token);
+        self.persistence
+            .borrow()
+            .observe_token(saved.document.id.clone(), saved.token);
         saved.document
     }
 

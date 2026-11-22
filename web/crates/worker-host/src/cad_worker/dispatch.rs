@@ -7,7 +7,7 @@ pub(super) async fn run_request(
     request: WireRequest,
     bytes: Vec<u8>,
 ) -> Result<(WireReply, JsValue), (WireRequest, String, bool)> {
-    let canceled = || queue.borrow().cancelled.contains(&request.job_id);
+    let canceled = || queue.borrow().cancelled.contains(&request.header.job_id);
     if canceled() {
         return Err((request, "CAD job cancelled".into(), true));
     }
@@ -29,7 +29,7 @@ pub(super) async fn run_request(
     };
     let mut staged = None;
     let mut pinned = Vec::new();
-    let result = match request.operation {
+    let result = match request.header.operation {
         CadOperation::AnalyzeGeneratedBody => {
             let metadata = request.generated_analysis_request.as_ref().ok_or_else(|| {
                 (
@@ -40,7 +40,7 @@ pub(super) async fn run_request(
             })?;
             let body = crate::cad_jobs::validate_generated_analysis_request(
                 request.prepared.as_ref(),
-                request.identity.revision,
+                request.header.identity.revision,
                 metadata,
             )
             .map_err(|error| (request.clone(), error, false))?;
@@ -64,7 +64,7 @@ pub(super) async fn run_request(
                     &analysis,
                     Source::GeneratedBody {
                         body_id: metadata.body_id.clone(),
-                        revision: request.identity.revision,
+                        revision: request.header.identity.revision,
                         geometry_identity: metadata.geometry_identity.clone(),
                     },
                 )
@@ -74,7 +74,7 @@ pub(super) async fn run_request(
                 || Reflect::get(&analysis, &"revision".into())
                     .ok()
                     .and_then(|v| v.as_f64())
-                    != Some(request.identity.revision as f64)
+                    != Some(request.header.identity.revision as f64)
             {
                 return Err((
                     request.clone(),
@@ -92,7 +92,7 @@ pub(super) async fn run_request(
                 .map_err(|error| (request.clone(), error, false))?;
             crate::cad_jobs::validate_generated_analysis(
                 metadata,
-                request.identity.revision,
+                request.header.identity.revision,
                 &decoded,
             )
             .map_err(|error| (request.clone(), error, false))?;
@@ -100,7 +100,7 @@ pub(super) async fn run_request(
             Reflect::set(
                 &wrapper,
                 &"revision".into(),
-                &(request.identity.revision as f64).into(),
+                &(request.header.identity.revision as f64).into(),
             )
             .map_err(|error| (request.clone(), js_message(error), false))?;
             Reflect::set(&wrapper, &"generatedAnalysis".into(), &analysis)
@@ -112,7 +112,7 @@ pub(super) async fn run_request(
                 // Match React's buildKeycaps adapter: yield between groups so the
                 // dedicated worker can receive cancellation before starting more CAD.
                 let bodies = Array::new();
-                let printable = request.operation == CadOperation::PrintKeycaps;
+                let printable = request.header.operation == CadOperation::PrintKeycaps;
                 let batch_size = if printable {
                     1
                 } else {
@@ -135,7 +135,7 @@ pub(super) async fn run_request(
                     let revision = Reflect::get(&batch, &"revision".into())
                         .map_err(|error| (request.clone(), js_message(error), false))?
                         .as_f64();
-                    if revision != Some(request.identity.revision as f64) {
+                    if revision != Some(request.header.identity.revision as f64) {
                         return Err((
                             request,
                             "Keycap preview provider returned another revision".into(),
@@ -156,7 +156,7 @@ pub(super) async fn run_request(
                 Reflect::set(
                     &result,
                     &"revision".into(),
-                    &JsValue::from_f64(request.identity.revision as f64),
+                    &JsValue::from_f64(request.header.identity.revision as f64),
                 )
                 .map_err(|error| (request.clone(), js_message(error), false))?;
                 Reflect::set(&result, &"bodies".into(), &bodies)
@@ -193,10 +193,15 @@ pub(super) async fn run_request(
                     let digest = sha256_hex(&cache_input);
                     let key = format!(
                         "m1/{}/{}/{}/{}/{digest}",
-                        request.identity.session_epoch,
-                        request.identity.document_id,
-                        request.identity.board_id,
-                        request.identity.instance_id.as_deref().unwrap_or("board")
+                        request.header.identity.session_epoch,
+                        request.header.identity.document_id,
+                        request.header.identity.board_id,
+                        request
+                            .header
+                            .identity
+                            .instance_id
+                            .as_deref()
+                            .unwrap_or("board")
                     );
                     let progress = Closure::<dyn FnMut(JsValue, JsValue)>::new(|_, _| {});
                     let output = invoke(
@@ -379,7 +384,7 @@ pub(super) async fn run_request(
                 .borrow_mut()
                 .lookup(
                     &query.left,
-                    &request.identity,
+                    &request.header.identity,
                     &meshes.left_positions_mm_f64,
                     &meshes.left_triangle_face_occurrence_indices,
                 )
@@ -388,14 +393,15 @@ pub(super) async fn run_request(
                 .borrow_mut()
                 .lookup(
                     &query.right,
-                    &request.identity,
+                    &request.header.identity,
                     &meshes.right_positions_mm_f64,
                     &meshes.right_triangle_face_occurrence_indices,
                 )
                 .map_err(|error| (request.clone(), error, false))?;
             let generation = queue.borrow().generation.clone();
-            let expected = qualification::expected_binding(query, &request.identity, &generation)
-                .map_err(|error| (request.clone(), error, false))?;
+            let expected =
+                qualification::expected_binding(query, &request.header.identity, &generation)
+                    .map_err(|error| (request.clone(), error, false))?;
             let result = if let (Some(left), Some(right)) = (left, right) {
                 let buffers = Object::new();
                 for (key, value) in [
@@ -421,7 +427,7 @@ pub(super) async fn run_request(
                     Reflect::set(&buffers, &key.into(), &value)
                         .map_err(|e| (request.clone(), js_message(e), false))?;
                 }
-                let context = js_sys::JSON::parse(&serde_json::json!({"snapshot": qualification::Snapshot::from(&request.identity), "workerGeneration": generation}).to_string())
+                let context = js_sys::JSON::parse(&serde_json::json!({"snapshot": qualification::Snapshot::from(&request.header.identity), "workerGeneration": generation}).to_string())
                     .map_err(|e| (request.clone(), js_message(e), false))?;
                 let result = invoke(
                     "query_qualified_collision_mesh_pair",
@@ -512,7 +518,7 @@ pub(super) async fn run_request(
         .borrow()
         .latest_snapshot
         .as_ref()
-        .is_some_and(|latest| latest != &request.identity)
+        .is_some_and(|latest| latest != &request.header.identity)
     {
         return Err((
             request,
@@ -527,13 +533,13 @@ pub(super) async fn run_request(
             .map_err(|e| (request.clone(), e, false))?;
     }
     drop(pinned);
-    let result = match request.operation {
+    let result = match request.header.operation {
         CadOperation::ReadStep => {
             let wrapper = Object::new();
             Reflect::set(
                 &wrapper,
                 &"revision".into(),
-                &JsValue::from_f64(request.identity.revision as f64),
+                &JsValue::from_f64(request.header.identity.revision as f64),
             )
             .map_err(|error| (request.clone(), js_message(error), false))?;
             for field in ["mesh", "bounds", "vendorStep"] {
@@ -549,7 +555,7 @@ pub(super) async fn run_request(
             Reflect::set(
                 &wrapper,
                 &"revision".into(),
-                &JsValue::from_f64(request.identity.revision as f64),
+                &JsValue::from_f64(request.header.identity.revision as f64),
             )
             .map_err(|error| (request.clone(), js_message(error), false))?;
             for (target, source) in [
@@ -566,10 +572,7 @@ pub(super) async fn run_request(
         _ => result,
     };
     let wire = WireReply {
-        request_id: request.request_id.clone(),
-        job_id: request.job_id.clone(),
-        identity: request.identity.clone(),
-        operation: request.operation,
+        header: request.header,
         outcome: CadReplyOutcome::Completed,
         error: None,
     };

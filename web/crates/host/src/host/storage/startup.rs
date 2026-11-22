@@ -27,7 +27,7 @@ impl BrowserStore {
         let name = format!("boardstudio-storage:{}", self.database_name);
         let mut cleanup_error = None;
         if let Some(exclusive) = acquire(&manager, &name, "exclusive", true).await? {
-            cleanup_error = collect_unused_assets(&self.database_name).await.err();
+            cleanup_error = collect_unused_assets(self).await.err();
             drop(exclusive);
         }
         let shared = acquire(&manager, &name, "shared", false).await?;
@@ -90,14 +90,10 @@ async fn acquire(
     }))
 }
 
-async fn collect_unused_assets(database_name: &str) -> Result<(), PersistError> {
-    let database = open_database(database_name).await?;
-    let names = Array::new();
-    names.push(&PROJECT_STORE.into());
-    names.push(&ASSET_STORE.into());
-    let transaction = database
-        .transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)
-        .map_err(js_error)?;
+async fn collect_unused_assets(store: &BrowserStore) -> Result<(), PersistError> {
+    let transaction = store
+        .transaction(&[PROJECT_STORE, ASSET_STORE], IdbTransactionMode::Readwrite)
+        .await?;
     let failure = Rc::new(RefCell::new(None));
     let completion = transaction_completion(&transaction, failure.clone());
     let projects = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
@@ -148,7 +144,6 @@ async fn collect_unused_assets(database_name: &str) -> Result<(), PersistError> 
     projects_request.set_onsuccess(Some(project_callback.as_ref().unchecked_ref()));
     keys_request.set_onsuccess(Some(key_callback.as_ref().unchecked_ref()));
     let result = completion.await;
-    database.close();
     drop((project_callback, key_callback));
     result
 }

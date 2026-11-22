@@ -75,12 +75,16 @@ async fn normal_completion_is_saved_and_detaches_handlers() {
     assert!(transaction.onabort().is_none());
     database.close();
     assert_eq!(
-        load_value(&database_name, ASSET_STORE, "key".into())
-            .await
-            .unwrap()
-            .unwrap()
-            .as_string()
-            .as_deref(),
+        load_value(
+            &BrowserStore::new(&database_name).unwrap(),
+            ASSET_STORE,
+            "key".into()
+        )
+        .await
+        .unwrap()
+        .unwrap()
+        .as_string()
+        .as_deref(),
         Some("saved")
     );
     window()
@@ -117,10 +121,14 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
     assert!(transaction.onabort().is_none());
     database.close();
     assert!(
-        load_value(&database_name, ASSET_STORE, "key".into())
-            .await
-            .unwrap()
-            .is_none()
+        load_value(
+            &BrowserStore::new(&database_name).unwrap(),
+            ASSET_STORE,
+            "key".into()
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     window()
         .unwrap()
@@ -132,45 +140,83 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
 }
 
 #[wasm_bindgen_test]
-async fn stale_tab_save_preserves_the_other_tabs_document() {
-    let name = format!("boardstudio-conflict-{}", js_sys::Date::now());
+async fn v1_records_use_legacy_tokens_and_cached_connections_allow_database_deletion() {
+    let name = format!("boardstudio-v1-{}", js_sys::Date::now());
+    let factory = window().unwrap().indexed_db().unwrap().unwrap();
+    let request = factory.open_with_u32(&name, 1).unwrap();
+    let upgrade = request.clone();
+    let create = Closure::<dyn FnMut(Event)>::new(move |_| {
+        let db: web_sys::IdbDatabase = upgrade.result().unwrap().unchecked_into();
+        let params = web_sys::IdbObjectStoreParameters::new();
+        params.set_key_path_opt_str(Some("id"));
+        db.create_object_store_with_optional_parameters(PROJECT_STORE, &params)
+            .unwrap();
+        db.create_object_store(ASSET_STORE).unwrap();
+    });
+    request.set_onupgradeneeded(Some(create.as_ref().unchecked_ref()));
+    let legacy: web_sys::IdbDatabase = request_result(request.unchecked_into())
+        .await
+        .unwrap()
+        .unchecked_into();
+    let mut document = ProjectDoc::empty("conflict", "Original");
+    let tx = legacy
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .unwrap();
+    let committed = transaction_completion(&tx, Rc::default());
+    tx.object_store(PROJECT_STORE)
+        .unwrap()
+        .put(&serialize_document(&document).unwrap())
+        .unwrap();
+    committed.await.unwrap();
+    legacy.close();
+
     let first = BrowserStore::new(&name).unwrap();
     let second = BrowserStore::new(&name).unwrap();
-    let mut document = boardstudio_model::model::ProjectDoc::empty("conflict", "Original");
-    document.id = "conflict".into();
-    first
-        .save_document(&document, &Default::default())
-        .await
-        .unwrap();
-    let mut stale = second
+    let stale = second
         .load_document(document.id.clone())
         .await
         .unwrap()
         .unwrap();
-    document.name = "First tab".into();
-    document.revision = 1;
-    first
-        .save_document(&document, &Default::default())
-        .await
-        .unwrap();
-    stale.name = "Second tab".into();
-    stale.revision = 1;
-    assert!(
-        second
-            .save_document(&stale, &Default::default())
-            .await
-            .is_err(),
-        "a stale tab must not replace equal-revision content"
+    let legacy_token = StorageToken::for_document(&document).unwrap();
+    assert_eq!(
+        second.observed_token(&document.id),
+        Some(legacy_token.clone())
     );
     assert_eq!(
         first
-            .load_document(document.id.clone())
-            .await
-            .unwrap()
-            .unwrap()
-            .name,
-        "First tab"
+            .save_document_expected(&stale, &BTreeMap::new(), None)
+            .await,
+        Err(SaveError::Conflict)
     );
+
+    document.name = "First tab".into();
+    document.revision = 1;
+    let nonce = first
+        .save_document_expected(&document, &BTreeMap::new(), Some(&legacy_token))
+        .await
+        .unwrap();
+    assert!(nonce.0.starts_with("nonce:"));
+    assert_eq!(second.list_documents().await.unwrap(), [document.clone()]);
+    assert_eq!(
+        second
+            .save_document_expected(
+                &stale,
+                &BTreeMap::new(),
+                second.observed_token(&document.id).as_ref()
+            )
+            .await,
+        Err(SaveError::Conflict)
+    );
+    assert_eq!(
+        first.load_document(document.id.clone()).await.unwrap(),
+        Some(document.clone())
+    );
+    assert!(first.database.borrow().is_some() && second.database.borrow().is_some());
+    request_result(factory.delete_database(&name).unwrap().unchecked_into())
+        .await
+        .unwrap();
+    assert!(first.database.borrow().is_none() && second.database.borrow().is_none());
+    assert_eq!(first.load_document(document.id).await.unwrap(), None);
 }
 
 #[wasm_bindgen_test]
