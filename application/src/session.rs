@@ -992,24 +992,6 @@ fn wire_id(operation: OperationId) -> String {
     format!("m1-{}", operation.0)
 }
 
-fn reply_id(reply: &CoreReply) -> String {
-    match reply {
-        CoreReply::KeycapsResolved { id, .. }
-        | CoreReply::ModulesResolved { id, .. }
-        | CoreReply::FirmwareGenerated { id, .. }
-        | CoreReply::ElectricalResolved { id, .. }
-        | CoreReply::ElectricalApplied { id, .. }
-        | CoreReply::ElectricalHandoffProtected { id, .. }
-        | CoreReply::MechanicalProfile { id, .. }
-        | CoreReply::MechanicalResolved { id, .. }
-        | CoreReply::Preview { id, .. }
-        | CoreReply::Scene { id, .. }
-        | CoreReply::MatrixProjections { id, .. }
-        | CoreReply::Error { id, .. }
-        | CoreReply::CasePrepared { id, .. } => id.clone(),
-    }
-}
-
 impl Session {
     fn open(&mut self, operation_id: OperationId, document: ProjectDoc, effects: &mut Vec<Effect>) {
         if matches!(
@@ -1157,16 +1139,6 @@ impl Session {
             _ => None,
         };
         let reply = self.core.handle(request);
-        if reply_id(&reply) != wire_id(operation_id) {
-            self.model.lifecycle = Lifecycle::RecoveryRequired;
-            self.model.last_error = Some("core reply ID did not match request".into());
-            self.settle(
-                operation_id,
-                TerminalOutcome::ExecutorFailed("core reply ID did not match request".into()),
-                effects,
-            );
-            return;
-        }
         match reply {
             CoreReply::Preview { scene, .. } if preview_transaction_id.is_some() => {
                 self.model.lifecycle = Lifecycle::Ready;

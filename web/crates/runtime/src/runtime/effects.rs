@@ -358,125 +358,99 @@ impl Runtime {
                 scope,
                 snapshot,
             } => {
-                if self.export_current(operation_id, snapshot.token, &scope) {
-                    self.apply_report(RuntimeReport::status("Export started.").transient());
-                }
                 let kind = self
                     .exports
                     .borrow()
                     .get(&operation_id)
-                    .map(|lease| (&lease.kind).clone());
-                let is_board_outline_export = matches!(kind, Some(ExportKind::BoardOutline { .. }));
-                let result = match kind.as_ref() {
-                    Some(ExportKind::BoardOutline { dxf }) => {
-                        self.board_outline_bytes(operation_id, &snapshot, &scope, *dxf)
-                    }
-                    Some(ExportKind::PcbHandoff { draft }) => {
-                        self.pcb_handoff_bytes(operation_id, &snapshot, &scope, *draft)
-                            .await
-                    }
-                    Some(kind) => {
-                        let bytes = match kind {
-                            ExportKind::Step => {
-                                self.step_bytes(operation_id, &snapshot, &scope).await
-                            }
-                            ExportKind::KeycapsStl => {
-                                self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
-                                    .await
-                            }
-                            ExportKind::Firmware => {
-                                self.firmware_bytes(operation_id, &snapshot, &scope)
-                            }
-                            ExportKind::Footprints => {
-                                self.footprint_export_bytes(operation_id, &snapshot, &scope)
-                                    .await
-                            }
-                            ExportKind::Mechanical { .. } => {
-                                self.mechanical_package_bytes(operation_id, &snapshot, &scope)
-                                    .await
-                            }
-                            ExportKind::ProjectCopy { embed_used_models } => {
-                                self.pack_archive(
-                                    operation_id,
-                                    &snapshot,
-                                    &scope,
-                                    *embed_used_models,
-                                )
-                                .await
-                            }
-                            _ => unreachable!(),
-                        };
-                        bytes.map(|bytes| (bytes, snapshot.token))
-                    }
-                    None => Err("Export is no longer active.".into()),
-                };
-                let result = result.and_then(|(bytes, token)| {
-                    self.export_current(operation_id, token, &scope)
-                        .then_some((bytes, token))
-                        .ok_or_else(|| "Export scope changed before delivery.".to_owned())
-                });
-                match result {
-                    Ok((bytes, delivery_token)) => {
-                        let name = &snapshot.document.name;
-                        let (filename, media_type) =
-                            match kind.expect("successful export has a kind") {
-                                ExportKind::Footprints => {
-                                    (format!("{name}-footprints.zip"), Some("application/zip"))
-                                }
-                                ExportKind::Firmware => {
-                                    (format!("{name}-zmk.zip"), Some("application/zip"))
-                                }
-                                ExportKind::KeycapsStl => {
-                                    (format!("{name}-keycaps.zip"), Some("application/zip"))
-                                }
-                                ExportKind::Step => (
-                                    authored_case_filename(&snapshot.document, &scope),
-                                    Some("model/step"),
-                                ),
-                                ExportKind::PcbHandoff { draft } => {
-                                    let suffix = if draft {
-                                        "draft-pcb-handoff"
-                                    } else {
-                                        "pcb-handoff"
-                                    };
-                                    (format!("{name}-{suffix}.zip"), Some("application/zip"))
-                                }
-                                ExportKind::Mechanical { filename } => {
-                                    (filename, Some("application/zip"))
-                                }
-                                ExportKind::BoardOutline { dxf: true } => {
-                                    (format!("{name}.dxf"), Some("application/dxf"))
-                                }
-                                ExportKind::BoardOutline { dxf: false } => {
-                                    (format!("{name}.svg"), Some("image/svg+xml"))
-                                }
-                                ExportKind::ProjectCopy { .. } => {
-                                    (crate::archive_export::archive_filename(name), None)
-                                }
+                    .map(|state| state.kind.clone());
+                let result = async {
+                    let kind = kind.ok_or("Export is no longer active.")?;
+                    self.require_export_current(operation_id, &snapshot, &scope)?;
+                    self.apply_report(RuntimeReport::status("Export started.").transient());
+                    let name = &snapshot.document.name;
+                    let mut token = snapshot.token;
+                    let (bytes, filename, media_type) = match kind {
+                        ExportKind::BoardOutline { dxf } => {
+                            let (bytes, _) =
+                                self.board_outline_bytes(operation_id, &snapshot, &scope, dxf)?;
+                            let (ext, media) = if dxf {
+                                ("dxf", "application/dxf")
+                            } else {
+                                ("svg", "image/svg+xml")
                             };
-                        if let Err(reason) = self.deliver_export(&bytes, &filename, media_type) {
-                            return self.complete(Completion::ExportFailed {
-                                operation_id,
-                                reason,
-                            });
+                            (bytes, format!("{name}.{ext}"), Some(media))
                         }
-                        let effects = self.complete(Completion::ExportFinished {
-                            operation_id,
-                            token: delivery_token,
-                            scope,
-                        });
-                        if is_board_outline_export {
-                            self.apply_report(
-                                RuntimeReport::status(format!("Saved {filename}.")).transient(),
-                            );
+                        ExportKind::PcbHandoff { draft } => {
+                            let (bytes, accepted) = self
+                                .pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
+                                .await?;
+                            token = accepted;
+                            let prefix = if draft { "draft-" } else { "" };
+                            (
+                                bytes,
+                                format!("{name}-{prefix}pcb-handoff.zip"),
+                                Some("application/zip"),
+                            )
                         }
-                        effects
+                        ExportKind::ProjectCopy { embed_used_models } => (
+                            self.pack_archive(operation_id, &snapshot, &scope, embed_used_models)
+                                .await?,
+                            crate::archive_export::archive_filename(name),
+                            None,
+                        ),
+                        ExportKind::Step => (
+                            self.step_bytes(operation_id, &snapshot, &scope).await?,
+                            authored_case_filename(&snapshot.document, &scope),
+                            Some("model/step"),
+                        ),
+                        ExportKind::KeycapsStl => (
+                            self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
+                                .await?,
+                            format!("{name}-keycaps.zip"),
+                            Some("application/zip"),
+                        ),
+                        ExportKind::Footprints => (
+                            self.footprint_export_bytes(operation_id, &snapshot, &scope)
+                                .await?,
+                            format!("{name}-footprints.zip"),
+                            Some("application/zip"),
+                        ),
+                        ExportKind::Firmware => (
+                            self.firmware_bytes(operation_id, &snapshot, &scope)?,
+                            format!("{name}-zmk.zip"),
+                            Some("application/zip"),
+                        ),
+                        ExportKind::Mechanical { ref filename } => (
+                            self.mechanical_package_bytes(operation_id, &snapshot, &scope)
+                                .await?,
+                            filename.clone(),
+                            Some("application/zip"),
+                        ),
+                    };
+                    if !self.export_current(operation_id, token, &scope) {
+                        return Err("Export scope changed before delivery.".into());
                     }
-                    Err(reason) => self.complete(Completion::ExportFailed {
+                    self.deliver_export(&bytes, &filename, media_type)?;
+                    if matches!(kind, ExportKind::BoardOutline { .. }) {
+                        self.apply_report(
+                            RuntimeReport::status(format!("Saved {filename}.")).transient(),
+                        );
+                    }
+                    Ok(token)
+                }
+                .await;
+                let completion = match result {
+                    Ok(token) => Completion::ExportFinished {
+                        operation_id,
+                        token,
+                        scope,
+                    },
+                    Err(reason) => Completion::ExportFailed {
                         operation_id,
                         reason,
-                    }),
-                }
+                    },
+                };
+                self.complete(completion)
             }
             Effect::RunGeneration {
                 job_id,

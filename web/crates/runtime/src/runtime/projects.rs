@@ -125,7 +125,7 @@ impl Runtime {
             }
             let replacement_id = replacement.id.clone();
             let outcome = self.open_document(replacement, true);
-            self.wait_for_project_open(outcome, &replacement_id, Some(sequence))
+            self.wait_for_project_open(outcome, &replacement_id, sequence)
                 .await?;
         }
         self.store
@@ -140,34 +140,25 @@ impl Runtime {
         self: &Rc<Self>,
         outcome: crate::operation_outcomes::OutcomeSlot,
         expected_id: &str,
-        expected_sequence: Option<u64>,
+        expected_sequence: u64,
     ) -> Result<AcceptedSnapshot, String> {
         for _ in 0..1_200 {
             #[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
             test_hooks::run_pending(self).await;
-            if let Some(outcome) = outcome.borrow_mut().take() {
-                if outcome != TerminalOutcome::Completed {
+            if let Some(result) = outcome.borrow_mut().take() {
+                if result != TerminalOutcome::Completed {
                     return Err(format!(
-                        "The replacement keyboard could not be saved; the original keyboard was kept. {outcome:?}"
+                        "Could not save the replacement keyboard: {result:?}"
                     ));
                 }
-                if expected_sequence.is_some_and(|sequence| self.open_sequence.get() != sequence) {
-                    return Err(
-                        "A newer project open superseded the replacement; the saved keyboard was kept."
-                            .into(),
-                    );
-                }
-                let accepted = self
+                return self
                     .model()
                     .accepted
-                    .ok_or_else(|| "The replacement keyboard was not accepted.".to_owned())?;
-                if accepted.document.id != expected_id {
-                    return Err(
-                        "The replacement keyboard did not become active; the saved keyboard was kept."
-                            .into(),
-                    );
-                }
-                return Ok(accepted);
+                    .filter(|accepted| {
+                        self.open_sequence.get() == expected_sequence
+                            && accepted.document.id == expected_id
+                    })
+                    .ok_or_else(|| "A newer project open superseded the replacement.".into());
             }
             TimeoutFuture::new(25).await;
         }
@@ -214,14 +205,7 @@ impl Runtime {
                 return;
             }
         };
-        #[cfg(any(test, feature = "test-support"))]
-        let open_observer = self
-            .in_process_adapters
-            .borrow()
-            .as_ref()
-            .and_then(|adapters| adapters.take_open_observer());
-        let this = self.clone();
-        spawn_local(async move {
+        self.spawn_project_open(move |this| async move {
             let result = match JsFuture::from(file.array_buffer()).await {
                 Ok(buffer) => this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence),
                 Err(error) => Err(format!("Import read failed: {error:?}")),
@@ -231,12 +215,9 @@ impl Runtime {
             {
                 this.apply_report(RuntimeReport::status(error).transient_error());
             }
-            #[cfg(any(test, feature = "test-support"))]
-            if let Some(done) = open_observer {
-                let _ = done.send(());
-            }
         });
     }
+
     pub(super) fn import_archive_at(
         self: &Rc<Self>,
         bytes: Vec<u8>,
@@ -277,14 +258,7 @@ impl Runtime {
                 return;
             }
         };
-        #[cfg(any(test, feature = "test-support"))]
-        let open_observer = self
-            .in_process_adapters
-            .borrow()
-            .as_ref()
-            .and_then(|adapters| adapters.take_open_observer());
-        let this = self.clone();
-        spawn_local(async move {
+        self.spawn_project_open(move |this| async move {
             let loaded = this.store.load_document_with_token(id).await;
             #[cfg(any(test, feature = "test-support"))]
             {
@@ -308,8 +282,24 @@ impl Runtime {
                     this.report(format!("Could not open the saved keyboard: {error}"));
                 }
             }
+        });
+    }
+
+    fn spawn_project_open<F: Future<Output = ()> + 'static>(
+        self: &Rc<Self>,
+        open: impl FnOnce(Rc<Self>) -> F,
+    ) {
+        #[cfg(any(test, feature = "test-support"))]
+        let observer = self
+            .in_process_adapters
+            .borrow()
+            .as_ref()
+            .and_then(|adapters| adapters.take_open_observer());
+        let work = open(self.clone());
+        spawn_local(async move {
+            work.await;
             #[cfg(any(test, feature = "test-support"))]
-            if let Some(done) = open_observer {
+            if let Some(done) = observer {
                 let _ = done.send(());
             }
         });
@@ -326,15 +316,8 @@ impl Runtime {
         expected_scope: &Scope,
     ) -> Result<AcceptedSnapshot, String> {
         let still_expected = |runtime: &Runtime| {
-            let model = runtime.model();
-            model.lifecycle == expected_lifecycle
-                && runtime.scope().as_ref() == Some(expected_scope)
-                && model.accepted.is_some_and(|accepted| {
-                    accepted.session_epoch == expected.session_epoch
-                        && accepted.document.id == expected.document.id
-                        && accepted.token == expected.token
-                        && accepted.document.revision == expected.document.revision
-                })
+            runtime.session.borrow().read_model().lifecycle == expected_lifecycle
+                && runtime.snapshot_current(expected.token, expected_scope)
         };
         if !still_expected(self) {
             return Err("A newer project open superseded recovery of the original project.".into());
@@ -351,8 +334,7 @@ impl Runtime {
         }
         let document = self.remember_saved(document);
         let outcome = self.open_document(document, false);
-        self.wait_for_project_open(outcome, &id, Some(sequence))
-            .await
+        self.wait_for_project_open(outcome, &id, sequence).await
     }
 
     pub(super) fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {
@@ -418,23 +400,8 @@ impl Runtime {
         scope: &Scope,
         embed_used_models: bool,
     ) -> Result<Vec<u8>, String> {
-        let guard = || {
-            if self.export_current(export_id, snapshot.token, scope) {
-                Ok(())
-            } else {
-                Err("Archive export was cancelled or superseded.".to_owned())
-            }
-        };
-        self.pack_document(snapshot.document.as_ref(), embed_used_models, guard)
-            .await
-    }
-
-    pub(super) async fn pack_document(
-        &self,
-        document: &ProjectDoc,
-        embed_used_models: bool,
-        guard: impl Fn() -> Result<(), String>,
-    ) -> Result<Vec<u8>, String> {
+        let guard = || self.require_export_current(export_id, snapshot, scope);
+        let document = snapshot.document.as_ref();
         guard()?;
         let mut bundled_bytes = Vec::new();
         if embed_used_models {

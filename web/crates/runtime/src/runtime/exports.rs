@@ -35,6 +35,19 @@ impl Runtime {
         )
     }
 
+    fn start_export(self: &Rc<Self>, kind: ExportKind, snapshot: &AcceptedSnapshot, scope: Scope) {
+        self.clear_alert();
+        let operation_id = self.operation();
+        if kind == ExportKind::Firmware {
+            self.latest_firmware_export.set(Some(operation_id));
+        }
+        self.begin_export_lease(operation_id, kind, snapshot, &scope);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
     pub fn export_step(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert(
@@ -72,13 +85,7 @@ impl Runtime {
             ));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::Step, snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::Step, snapshot, scope);
     }
 
     pub fn export_keycaps_stl(self: &Rc<Self>) {
@@ -95,13 +102,7 @@ impl Runtime {
             self.apply_report(RuntimeReport::alert(error));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::KeycapsStl, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::KeycapsStl, &snapshot, scope);
     }
 
     pub fn export_mechanical(self: &Rc<Self>) {
@@ -207,10 +208,7 @@ impl Runtime {
             }
             None => String::new(),
         };
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
+        self.start_export(
             ExportKind::Mechanical {
                 filename: format!(
                     "{}{}-mechanical.zip",
@@ -218,12 +216,8 @@ impl Runtime {
                 ),
             },
             &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
             scope,
-        });
+        );
     }
 
     pub fn export_firmware(self: &Rc<Self>) {
@@ -236,14 +230,7 @@ impl Runtime {
             self.report("Firmware export requires a ready accepted snapshot.");
             return;
         };
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.latest_firmware_export.set(Some(operation_id));
-        self.begin_export_lease(operation_id, ExportKind::Firmware, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::Firmware, &snapshot, scope);
     }
 
     pub fn export_footprints(self: &Rc<Self>) {
@@ -266,13 +253,7 @@ impl Runtime {
             ));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::Footprints, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::Footprints, &snapshot, scope);
     }
 
     pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
@@ -304,18 +285,7 @@ impl Runtime {
             ));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
-            ExportKind::PcbHandoff { draft },
-            &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::PcbHandoff { draft }, &snapshot, scope);
     }
 
     pub fn export_project_copy(self: &Rc<Self>) {
@@ -402,18 +372,7 @@ impl Runtime {
         scope: &Scope,
         dxf: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
-        let lease = self
-            .exports
-            .borrow()
-            .get(&operation_id)
-            .cloned()
-            .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(&lease.kind, ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
-            || &lease.scope != scope
-            || lease.token != snapshot.token
-        {
-            return Err("Outline export no longer matches its captured board.".into());
-        }
+        self.require_export_current(operation_id, snapshot, scope)?;
         let board = snapshot
             .document
             .boards
@@ -444,15 +403,9 @@ impl Runtime {
                 format,
             },
         };
-        if !self.export_lease_is_current(operation_id, &lease) {
-            return Err("Outline export was cancelled, superseded, or its source changed.".into());
-        }
         let reply = artifact_reply(&request)?;
         let file = match reply {
             ArtifactReply::ExportOutline { id, result } if id == request_id => result,
-            ArtifactReply::Error { id, error } if id == request_id => {
-                return Err(format!("Outline export failed: {}", error.message));
-            }
             _ => return Err("Core returned an outline for another export request.".into()),
         };
         Ok((file.content.into_bytes(), snapshot.token))
@@ -475,7 +428,12 @@ impl Runtime {
         self.session
             .borrow()
             .export_is_current(operation_id, token, scope)
-            && self.export_delivery_is_current(operation_id, token, scope)
+            && self.snapshot_current(token, scope)
+            && self
+                .exports
+                .borrow()
+                .get(&operation_id)
+                .is_some_and(|state| state.token == token && &state.scope == scope)
     }
 
     pub(super) fn begin_export_lease(
@@ -497,22 +455,6 @@ impl Runtime {
 
     pub(super) fn export_source_is_current(&self, state: &ExportState) -> bool {
         self.snapshot_current(state.token, &state.scope)
-    }
-
-    pub(super) fn export_delivery_is_current(
-        &self,
-        operation_id: OperationId,
-        token: SnapshotToken,
-        scope: &Scope,
-    ) -> bool {
-        self.exports
-            .borrow()
-            .get(&operation_id)
-            .is_some_and(|state| {
-                state.token == token
-                    && &state.scope == scope
-                    && self.export_source_is_current(state)
-            })
     }
 
     pub(super) fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
@@ -604,30 +546,10 @@ impl Runtime {
             false,
         )?;
         guard()?;
-        let previous = self.cad_worker.borrow_mut().take();
-        let worker = match previous {
-            Some((worker_scope, worker)) if worker_scope == *scope && !worker.is_closed() => worker,
-            Some((_, worker)) => {
-                worker.close();
-                Rc::new(
-                    CadWorker::new(
-                        &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
-                    )
-                    .map_err(|e| CadJobError::Failed(e.to_string()))?,
-                )
-            }
-            None => Rc::new(
-                CadWorker::new(
-                    &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
-                )
-                .map_err(|e| CadJobError::Failed(e.to_string()))?,
-            ),
-        };
-        *self.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
-        worker
-            .ready()
+        let worker = self
+            .model_worker(scope)
             .await
-            .map_err(|e| CadJobError::Failed(e.to_string()))?;
+            .map_err(CadJobError::Failed)?;
         guard()?;
         let contours = captured_case_scene(snapshot, scope)?
             .board_contours
