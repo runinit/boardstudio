@@ -429,7 +429,7 @@ fn PartsSampleViewer(
                     Alert { variant: AlertVariant::Destructive, "{failure.reference}: {failure.reason}" }
                 }
             }
-            super::super::shared_viewer::CaseSharedViewer {
+            super::super::shared_viewer::Viewport3D {
                 toolbar_leading: Some(view_controls),
                 scene: None,
                 preview: None,

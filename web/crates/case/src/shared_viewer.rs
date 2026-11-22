@@ -12,9 +12,6 @@ mod scene;
 use canvas::*;
 use scene::*;
 
-// Layout and Parts use this name for the same component.
-pub use Viewport3D as CaseSharedViewer;
-
 use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };

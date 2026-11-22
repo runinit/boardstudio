@@ -7,7 +7,7 @@
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::SelectionAdapter`,
-// `super::objects::TreeContext`, `super::shared_viewer::CaseSharedViewer`,
+// `super::objects::TreeContext`, `super::shared_viewer::Viewport3D`,
 // `crate::footprint_forms`, `crate::runtime`.
 #[allow(unused_imports)]
 pub(crate) use crate as presentation;

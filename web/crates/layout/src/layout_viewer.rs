@@ -4,8 +4,7 @@ use super::{
     objects::{self, TreeSelectRequest},
     selection::{self, SelectionAdapter},
     shared_viewer::{
-        CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerFocusRequest,
-        ViewerSignalKind,
+        ScopedDisplayChange, ScopedViewerSignal, ViewerFocusRequest, ViewerSignalKind, Viewport3D,
     },
 };
 use crate::runtime::Runtime;
@@ -442,7 +441,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 }
             }
             div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
-            CaseSharedViewer {
+            Viewport3D {
                 scene: None,
                 preview: None,
                 layout_preview: Some(preview),
