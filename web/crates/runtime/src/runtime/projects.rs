@@ -107,13 +107,7 @@ impl Runtime {
                 .filter(|document| document.id != project_id)
                 .min_by(|left, right| left.name.cmp(&right.name))
             {
-                Some(next) => self.remember_saved(
-                    self.store
-                        .load_document_with_token(next.id)
-                        .await
-                        .map_err(|error| error.to_string())?
-                        .ok_or("The replacement keyboard is no longer available.")?,
-                ),
+                Some(next) => self.remember_saved(self.load_saved(next.id).await?),
                 None => new_keyboard()?,
             };
             let current = self.model();
@@ -206,27 +200,21 @@ impl Runtime {
             }
         };
         self.spawn_project_open(move |this| async move {
-            let result = match JsFuture::from(file.array_buffer()).await {
-                Ok(buffer) => this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence),
-                Err(error) => Err(format!("Import read failed: {error:?}")),
-            };
-            if let Err(error) = result
-                && this.open_sequence.get() == sequence
-            {
+            let buffer = JsFuture::from(file.array_buffer()).await;
+            if this.open_sequence.get() != sequence {
+                return;
+            }
+            let result = buffer
+                .map_err(|error| format!("Import read failed: {error:?}"))
+                .and_then(|buffer| this.import_archive(Uint8Array::new(&buffer).to_vec()));
+            if let Err(error) = result {
                 this.apply_report(RuntimeReport::status(error).transient_error());
             }
         });
     }
 
-    pub(super) fn import_archive_at(
-        self: &Rc<Self>,
-        bytes: Vec<u8>,
-        sequence: u64,
-    ) -> Result<(), String> {
-        if self.open_sequence.get() != sequence {
-            return Err("Open superseded by another import.".into());
-        }
-        let (metadata, buffers) =
+    fn import_archive(self: &Rc<Self>, bytes: Vec<u8>) -> Result<(), String> {
+        let (metadata, mut buffers) =
             boardstudio_core::archive::request("{\"kind\":\"unpack-project\"}", &[bytes]);
         let reply = serde_json::from_str(&metadata).map_err(|error| error.to_string())?;
         let ArchiveReply::Unpacked {
@@ -241,8 +229,8 @@ impl Runtime {
             .into_iter()
             .map(|asset| {
                 buffers
-                    .get(asset.buffer_index as usize)
-                    .map(|bytes| (asset.sha256, bytes.clone()))
+                    .get_mut(asset.buffer_index as usize)
+                    .map(|bytes| (asset.sha256, std::mem::take(bytes)))
                     .ok_or("Archive omitted an asset buffer")
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
@@ -260,7 +248,7 @@ impl Runtime {
             }
         };
         self.spawn_project_open(move |this| async move {
-            let loaded = this.store.load_document_with_token(id).await;
+            let loaded = this.load_saved(id).await;
             #[cfg(any(test, feature = "test-support"))]
             {
                 let adapters = this.in_process_adapters.borrow().clone();
@@ -268,20 +256,17 @@ impl Runtime {
                     adapters.store_read_completed().await;
                 }
             }
-            if this.open_sequence.get() == sequence {
-                let result = loaded
-                    .map_err(|error| error.to_string())
-                    .and_then(|saved| {
-                        saved.ok_or_else(|| "The saved keyboard is unavailable.".into())
-                    })
-                    .and_then(|saved| {
-                        this.confirm_project_replacement(&saved.document)?;
-                        this.open_document(this.remember_saved(saved), false);
-                        Ok(())
-                    });
-                if let Err(error) = result {
-                    this.report(format!("Could not open the saved keyboard: {error}"));
-                }
+            if this.open_sequence.get() != sequence {
+                return;
+            }
+            let result = (|| {
+                let saved = loaded?;
+                this.confirm_project_replacement(&saved.document)?;
+                this.open_document(this.remember_saved(saved), false);
+                Ok::<(), String>(())
+            })();
+            if let Err(error) = result {
+                this.report(format!("Could not open the saved keyboard: {error}"));
             }
         });
     }
@@ -324,18 +309,21 @@ impl Runtime {
             return Err("A newer project open superseded recovery of the original project.".into());
         }
         let sequence = self.begin_open()?;
-        let document = self
-            .store
-            .load_document_with_token(id.clone())
-            .await
-            .map_err(|error| format!("Could not load the saved original project: {error}"))?
-            .ok_or_else(|| "The saved original project is no longer available.".to_owned())?;
+        let document = self.load_saved(id.clone()).await?;
         if self.open_sequence.get() != sequence || !still_expected(self) {
             return Err("A newer project open superseded recovery of the original project.".into());
         }
         let document = self.remember_saved(document);
         let outcome = self.open_document(document, false);
         self.wait_for_project_open(outcome, &id, sequence).await
+    }
+
+    async fn load_saved(&self, id: String) -> Result<SavedProject, String> {
+        self.store
+            .load_document_with_token(id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "The saved keyboard is unavailable.".into())
     }
 
     pub(super) fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {

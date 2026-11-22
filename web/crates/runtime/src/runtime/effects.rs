@@ -238,8 +238,9 @@ impl Runtime {
                         self.saved_tokens
                             .borrow_mut()
                             .insert(document.id.clone(), token);
-                        for asset in &document.assets {
-                            self.assets.borrow_mut().remove(&asset.sha256);
+                        let mut staged = self.assets.borrow_mut();
+                        for hash in assets.keys() {
+                            staged.remove(hash);
                         }
                         SaveResult::Committed
                     }
@@ -349,31 +350,39 @@ impl Runtime {
                     self.apply_report(RuntimeReport::status("Export started.").transient());
                     let name = &snapshot.document.name;
                     let mut token = snapshot.token;
-                    let (bytes, filename, media_type) = match kind {
+                    let zip = |bytes, suffix: &str| {
+                        (
+                            bytes,
+                            format!("{name}-{suffix}.zip"),
+                            Some("application/zip"),
+                        )
+                    };
+                    let (bytes, filename, media_type) = match &kind {
                         ExportKind::BoardOutline { dxf } => {
-                            let bytes =
-                                self.board_outline_bytes(operation_id, &snapshot, &scope, dxf)?;
-                            let (ext, media) = if dxf {
-                                ("dxf", "application/dxf")
-                            } else {
-                                ("svg", "image/svg+xml")
+                            use boardstudio_model::model::{
+                                OutlineExportFormat, OutlineExportRequest,
                             };
-                            (bytes, format!("{name}.{ext}"), Some(media))
-                        }
-                        ExportKind::PcbHandoff { draft } => {
-                            let (bytes, accepted) = self
-                                .pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
-                                .await?;
-                            token = accepted;
-                            let prefix = if draft { "draft-" } else { "" };
-                            (
-                                bytes,
-                                format!("{name}-{prefix}pcb-handoff.zip"),
-                                Some("application/zip"),
+                            let (format, extension, media) = if *dxf {
+                                (OutlineExportFormat::Dxf, "dxf", "application/dxf")
+                            } else {
+                                (OutlineExportFormat::Svg, "svg", "image/svg+xml")
+                            };
+                            let (board, contours) =
+                                super::exports::outline_geometry(&snapshot, &scope)?;
+                            let filename = format!("{name}.{extension}");
+                            let file = boardstudio_core::artifact::outline::export_outline(
+                                OutlineExportRequest {
+                                    filename: filename.clone(),
+                                    board: board.clone(),
+                                    contours: contours.to_vec(),
+                                    format,
+                                },
                             )
+                            .map_err(|error| error.message)?;
+                            (file.content.into_bytes(), filename, Some(media))
                         }
                         ExportKind::ProjectCopy { embed_used_models } => (
-                            self.pack_archive(operation_id, &snapshot, &scope, embed_used_models)
+                            self.pack_archive(operation_id, &snapshot, &scope, *embed_used_models)
                                 .await?,
                             crate::archive_export::archive_filename(name),
                             None,
@@ -383,29 +392,39 @@ impl Runtime {
                             authored_case_filename(&snapshot.document, &scope),
                             Some("model/step"),
                         ),
-                        ExportKind::KeycapsStl => (
-                            self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
-                                .await?,
-                            format!("{name}-keycaps.zip"),
-                            Some("application/zip"),
-                        ),
-                        ExportKind::Footprints => (
-                            self.footprint_export_bytes(operation_id, &snapshot, &scope)
-                                .await?,
-                            format!("{name}-footprints.zip"),
-                            Some("application/zip"),
-                        ),
-                        ExportKind::Firmware => (
-                            self.firmware_bytes(operation_id, &snapshot, &scope)?,
-                            format!("{name}-zmk.zip"),
-                            Some("application/zip"),
-                        ),
-                        ExportKind::Mechanical { ref filename } => (
+                        ExportKind::Mechanical { filename } => (
                             self.mechanical_package_bytes(operation_id, &snapshot, &scope)
                                 .await?,
                             filename.clone(),
                             Some("application/zip"),
                         ),
+                        ExportKind::PcbHandoff { draft } => {
+                            let (bytes, accepted) = self
+                                .pcb_handoff_bytes(operation_id, &snapshot, &scope, *draft)
+                                .await?;
+                            token = accepted;
+                            zip(
+                                bytes,
+                                if *draft {
+                                    "draft-pcb-handoff"
+                                } else {
+                                    "pcb-handoff"
+                                },
+                            )
+                        }
+                        ExportKind::KeycapsStl => zip(
+                            self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
+                                .await?,
+                            "keycaps",
+                        ),
+                        ExportKind::Footprints => zip(
+                            self.footprint_export_bytes(operation_id, &snapshot, &scope)
+                                .await?,
+                            "footprints",
+                        ),
+                        ExportKind::Firmware => {
+                            zip(self.firmware_bytes(operation_id, &snapshot, &scope)?, "zmk")
+                        }
                     };
                     if !self.export_current(operation_id, token, &scope) {
                         return Err("Export scope changed before delivery.".into());
@@ -419,18 +438,10 @@ impl Runtime {
                     Ok(token)
                 }
                 .await;
-                let completion = match result {
-                    Ok(token) => Completion::ExportFinished {
-                        operation_id,
-                        token,
-                        scope,
-                    },
-                    Err(reason) => Completion::ExportFailed {
-                        operation_id,
-                        reason,
-                    },
-                };
-                return self.complete(completion);
+                return self.complete(Completion::Export {
+                    operation_id,
+                    result: result.map(|token| (token, scope)),
+                });
             }
             Effect::RunGeneration {
                 job_id,

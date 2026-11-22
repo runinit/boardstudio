@@ -15,20 +15,28 @@ impl Runtime {
         if proposed.id != accepted.document.id
             || proposed.revision != accepted.document.revision
             || proposed.physical_instance_id != accepted.document.physical_instance_id
-            || !mechanical_document_targets_scope(&proposed, &scope)
         {
             return Err(
                 "The proposed mechanical settings do not match the accepted board scope.".into(),
             );
         }
 
+        if let Some(id) = &scope.instance_id
+            && proposed
+                .hardware
+                .iter()
+                .flat_map(|hardware| &hardware.instances)
+                .filter(|instance| instance.id == *id)
+                .count()
+                > 1
+        {
+            return Err("The proposed mechanical instance is ambiguous.".into());
+        }
         // This temporary carrier lets the established projection apply physical-instance
         // defaults (including wireless battery defaults) without granting it Session authority.
         let proposal_projection_input = AcceptedSnapshot {
-            token: accepted.token,
-            session_epoch: accepted.session_epoch,
             document: std::sync::Arc::new(proposed),
-            scene: accepted.scene.clone(),
+            ..accepted.clone()
         };
         let effective_document = boardstudio_web_host::cad_jobs::captured_case_document(
             &proposal_projection_input,
@@ -59,14 +67,6 @@ impl Runtime {
             .map_or_else(Vec::new, |board| board.contours);
 
         let assembly = boardstudio_core::mechanical::resolve(&effective_document, &contours);
-        if assembly.revision != accepted.document.revision
-            || assembly.case.revision != accepted.document.revision
-        {
-            return Err("Core resolved mechanical settings for another document revision.".into());
-        }
-
-        // Findings and empty closure results are valid resolver output. CAD readiness is an
-        // independent export/generation gate and does not belong in this read-only resolver.
         Ok((assembly, configuration))
     }
 
@@ -121,14 +121,15 @@ impl Runtime {
         physical_case: bool,
     ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         let accepted = self.keycaps_snapshot(&scope, token, revision)?;
-        let case_preview = self.cad_scene().filter(|scene| {
-            scene.exact
-                && scene.scope == scope
-                && scene.token == accepted.token
-                && scene.snapshot.document.revision == accepted.document.revision
-                && scene.prepared.revision == accepted.document.revision
-        });
-        let cases = case_preview.as_ref().map(|scene| scene.prepared.clone());
+        let cases = self
+            .cad_scene()
+            .filter(|scene| {
+                scene.exact
+                    && scene.scope == scope
+                    && scene.token == token
+                    && scene.prepared.revision == revision
+            })
+            .map(|scene| scene.prepared.clone());
         let document = if physical_case {
             captured_case_document(&accepted, &scope)
                 .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?
@@ -174,13 +175,10 @@ impl Runtime {
         accepted: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<(), String> {
-        if self.snapshot_current(accepted.token, scope)
-            && accepted.scene.revision == accepted.document.revision
-        {
-            Ok(())
-        } else {
-            Err("The accepted preview source changed.".into())
-        }
+        (self.snapshot_current(accepted.token, scope)
+            && accepted.scene.revision == accepted.document.revision)
+            .then_some(())
+            .ok_or_else(|| "The accepted preview source changed.".into())
     }
 
     /// Build the mesh preview from the already accepted Core keycap resolution. This worker is
@@ -201,11 +199,10 @@ impl Runtime {
         let accepted = self.keycaps_snapshot(&input.scope, input.token, input.revision)?;
         let identity = super::export_bytes::snapshot_identity(&accepted, &input.scope);
         let current = || {
-            self.ensure_keycaps_source_current(&accepted, &input.scope)?;
             if self.keycaps_preview_generation.get() != generation {
                 return Err("Keycap CAD preview was cancelled or superseded.".into());
             }
-            Ok::<(), String>(())
+            self.ensure_keycaps_source_current(&accepted, &input.scope)
         };
         let preview = |bodies| KeycapsCadPreview {
             generation,
@@ -242,14 +239,9 @@ impl Runtime {
             Ok(preview(result.bodies))
         }
         .await;
-        if self
-            .keycaps_preview_worker
-            .borrow()
-            .as_ref()
-            .is_some_and(|(active, _)| *active == generation)
-        {
-            self.keycaps_preview_worker.borrow_mut().take();
-        }
+        self.keycaps_preview_worker
+            .borrow_mut()
+            .take_if(|(active, _)| *active == generation);
         worker.close();
         result
     }
@@ -265,28 +257,5 @@ impl Runtime {
         if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
             worker.close();
         }
-    }
-}
-
-fn mechanical_document_targets_scope(document: &ProjectDoc, scope: &Scope) -> bool {
-    if !document
-        .boards
-        .iter()
-        .any(|board| board.id == scope.board_id)
-    {
-        return false;
-    }
-    match scope.instance_id.as_deref() {
-        None => true,
-        Some(instance_id) => document.hardware.as_ref().is_some_and(|hardware| {
-            hardware
-                .instances
-                .iter()
-                .filter(|instance| {
-                    instance.id == instance_id && instance.board_id == scope.board_id
-                })
-                .count()
-                == 1
-        }),
     }
 }

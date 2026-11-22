@@ -436,20 +436,11 @@ pub enum Completion {
         job_id: JobId,
         scope: Scope,
         reason: String,
+        blocked: bool,
     },
-    GenerationBlocked {
-        job_id: JobId,
-        scope: Scope,
-        reason: String,
-    },
-    ExportFinished {
+    Export {
         operation_id: OperationId,
-        token: SnapshotToken,
-        scope: Scope,
-    },
-    ExportFailed {
-        operation_id: OperationId,
-        reason: String,
+        result: Result<(SnapshotToken, Scope), String>,
     },
 }
 
@@ -477,7 +468,6 @@ pub enum Effect {
         generation: u64,
     },
     RunGeneration {
-        operation_id: OperationId,
         job_id: JobId,
         scope: Scope,
         snapshot: AcceptedSnapshot,
@@ -495,12 +485,6 @@ pub enum Effect {
     },
 }
 
-#[derive(Clone, Debug)]
-struct ExportCommitOwner {
-    operation_id: OperationId,
-    token: SnapshotToken,
-    scope: Scope,
-}
 #[derive(Debug)]
 struct PendingSave {
     save_attempt_id: SaveAttemptId,
@@ -611,7 +595,7 @@ impl Session {
             .any(|(operation, captured_scope, captured_token)| {
                 *operation == operation_id && captured_scope == scope && *captured_token == token
             })
-            && self.snapshot_matches(token, scope)
+            && self.snapshot_is_current(token, scope)
     }
 
     fn gesture_sample(
@@ -623,37 +607,32 @@ impl Session {
         end: bool,
         effects: &mut Vec<Effect>,
     ) {
-        let board_id = self.model.active_board_id.clone();
-        let Some(g) = &mut self.gesture else {
+        let Some((g, snapshot)) = self
+            .gesture
+            .as_mut()
+            .zip(self.model.accepted.as_ref())
+            .filter(|(gesture, _)| gesture.pointer_id == pointer_id)
+        else {
             return;
         };
-        if g.pointer_id != pointer_id {
-            return;
-        }
         g.pixels_per_world = pixels_per_world.or(g.pixels_per_world);
         g.alt = alt;
-        let (positions, guide) =
-            self.model
-                .accepted
-                .as_ref()
-                .map_or((positions.clone(), None), |snapshot| {
-                    normalize_drag(
-                        &snapshot.document,
-                        &g.start,
-                        positions,
-                        DragSnapOptions {
-                            board_id: &board_id,
-                            pitch: g.pitch,
-                            fraction: g.snap_fraction,
-                            geometry_snap: g.geometry_snap,
-                            gap: g.gap,
-                            targets: &g.targets,
-                            alt: g.alt,
-                            pixels_per_world: g.pixels_per_world,
-                            state: &mut g.snap_state,
-                        },
-                    )
-                });
+        let (positions, guide) = normalize_drag(
+            &snapshot.document,
+            &g.start,
+            positions,
+            DragSnapOptions {
+                board_id: &self.model.active_board_id,
+                pitch: g.pitch,
+                fraction: g.snap_fraction,
+                geometry_snap: g.geometry_snap,
+                gap: g.gap,
+                targets: &g.targets,
+                alt,
+                pixels_per_world: g.pixels_per_world,
+                state: &mut g.snap_state,
+            },
+        );
         self.model.snap_guide = guide;
         g.changed = positions != g.start;
         g.latest = positions;
@@ -742,10 +721,6 @@ impl Session {
             self.model.snap_guide = None;
         }
     }
-    fn cancel_exports(&mut self, effects: &mut Vec<Effect>) {
-        self.retain_export(None, effects);
-    }
-
     fn retain_export(&mut self, retained: Option<OperationId>, effects: &mut Vec<Effect>) {
         for export in std::mem::take(&mut self.exports) {
             if Some(export.0) == retained {
@@ -787,7 +762,7 @@ impl Session {
             );
             return;
         };
-        if !self.snapshot_matches(snapshot.token, &scope) {
+        if !self.scope_is_current(&scope) {
             self.reject(operation_id, "generation scope is stale", effects);
             return;
         }
@@ -797,7 +772,6 @@ impl Session {
         self.active_job = Some((job_id, operation_id, scope.clone()));
         self.model.generation = GenerationStatus::Preparing { job_id };
         effects.push(Effect::RunGeneration {
-            operation_id,
             job_id,
             scope,
             snapshot,
@@ -809,7 +783,12 @@ impl Session {
         scope: Scope,
         effects: &mut Vec<Effect>,
     ) {
-        if self.model.lifecycle != Lifecycle::Ready || self.model.accepted.is_none() {
+        let Some(snapshot) = self
+            .model
+            .accepted
+            .clone()
+            .filter(|_| self.model.lifecycle == Lifecycle::Ready)
+        else {
             self.settle(
                 operation_id,
                 TerminalOutcome::BlockedByRecovery(
@@ -818,9 +797,8 @@ impl Session {
                 effects,
             );
             return;
-        }
-        let snapshot = self.model.accepted.clone().unwrap();
-        if self.model.scene_is_pending() || !self.snapshot_matches(snapshot.token, &scope) {
+        };
+        if snapshot.scene.revision != snapshot.document.revision || !self.scope_is_current(&scope) {
             self.reject(
                 operation_id,
                 "export snapshot or scope is not current",
@@ -843,22 +821,17 @@ impl Session {
         }) && self.model.active_board_id == scope.board_id
             && self.model.active_instance_id == scope.instance_id
     }
-    fn snapshot_matches(&self, token: SnapshotToken, scope: &Scope) -> bool {
+    pub fn snapshot_is_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.model
             .accepted
             .as_ref()
             .is_some_and(|s| s.token == token)
             && self.scope_is_current(scope)
     }
-    fn job_is_current(&self, job_id: JobId, scope: &Scope) -> bool {
-        self.active_job.as_ref().is_some_and(|(id, _, captured)| {
-            *id == job_id && captured == scope && self.scope_is_current(scope)
-        })
-    }
     fn close(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
         self.invalidate_gesture(effects);
         self.cancel_job(effects);
-        self.cancel_exports(effects);
+        self.retain_export(None, effects);
         if self.model.lifecycle == Lifecycle::RecoveryRequired
             || matches!(self.model.durability, Durability::Failed { .. })
         {
@@ -885,13 +858,6 @@ impl Session {
     }
 }
 
-impl ReadModel {
-    fn scene_is_pending(&self) -> bool {
-        self.accepted
-            .as_ref()
-            .is_none_or(|s| s.scene.revision != s.document.revision)
-    }
-}
 fn update_selection(selection: &mut Vec<String>, incoming: Vec<String>, mode: SelectionMode) {
     if matches!(mode, SelectionMode::Replace | SelectionMode::Range) {
         *selection = incoming;
@@ -997,7 +963,7 @@ impl Session {
         }
         self.invalidate_gesture(effects);
         self.cancel_job(effects);
-        self.cancel_exports(effects);
+        self.retain_export(None, effects);
         self.apply_document_request(
             operation_id,
             CoreRequest::Open {
@@ -1078,7 +1044,7 @@ impl Session {
         operation_id: OperationId,
         request: CoreRequest,
         gesture: bool,
-        export_owner: Option<ExportCommitOwner>,
+        export_owner: Option<OperationId>,
         effects: &mut Vec<Effect>,
     ) {
         let opening = matches!(request, CoreRequest::Open { .. });
@@ -1114,7 +1080,7 @@ impl Session {
             _ => None,
         };
         let reply = self.core.handle(request);
-        match reply {
+        let failure = match reply {
             CoreReply::Preview { scene, .. } if preview_transaction_id.is_some() => {
                 self.model.lifecycle = Lifecycle::Ready;
                 self.model.display_preview = Some(Arc::new(scene));
@@ -1122,34 +1088,15 @@ impl Session {
                 if !gesture {
                     self.settle(operation_id, TerminalOutcome::Completed, effects);
                 }
+                return;
             }
             CoreReply::Scene {
                 scene, document, ..
-            } if preview_transaction_id.is_none() => {
+            } if preview_transaction_id.is_none() && scene.revision == document.revision => {
                 let document = Arc::new(*document);
-                if scene.revision != document.revision {
-                    self.model.lifecycle = Lifecycle::RecoveryRequired;
-                    self.model.last_error = Some("core scene and document revisions differ".into());
-                    self.settle(
-                        operation_id,
-                        TerminalOutcome::ExecutorFailed(
-                            "core scene and document revisions differ".into(),
-                        ),
-                        effects,
-                    );
-                    return;
-                }
-                let is_open = opening;
-                let epoch = if is_open {
-                    SessionEpoch(self.epoch().0 + 1)
-                } else {
-                    self.epoch()
-                };
+                let epoch = SessionEpoch(self.epoch().0 + u64::from(opening));
                 self.cancel_job(effects);
-                self.retain_export(
-                    export_owner.as_ref().map(|owner| owner.operation_id),
-                    effects,
-                );
+                self.retain_export(export_owner, effects);
                 let token = SnapshotToken(self.next_token);
                 self.next_token += 1;
                 let revision = document.revision;
@@ -1160,33 +1107,27 @@ impl Session {
                     document,
                     scene: Arc::new(scene),
                 });
-                if let Some(owner) = &export_owner
-                    && let Some(export) =
-                        self.exports
-                            .iter_mut()
-                            .find(|(operation, scope, old_token)| {
-                                *operation == owner.operation_id
-                                    && *scope == owner.scope
-                                    && *old_token == owner.token
-                            })
+                if export_owner.is_some()
+                    && let Some(retained) = self.exports.first_mut()
                 {
-                    export.2 = token;
+                    retained.2 = token;
                 }
                 self.model.display_preview = None;
                 self.display_preview_transaction_id = None;
                 self.model.durability = Durability::Saving { revision };
                 self.model.last_error = None;
-                if is_open {
+                if opening {
                     self.model.selected_part_ids.clear();
                     self.model.active_instance_id = None;
                 }
                 self.reconcile_selection_and_board();
                 self.model.lifecycle = Lifecycle::Ready;
-                if !is_open {
+                if !opening {
                     self.settle_landed(operation_id, landing, effects);
                 }
                 self.invalidate_gesture(effects);
-                self.start_save(is_open.then_some(operation_id), effects);
+                self.start_save(opening.then_some(operation_id), effects);
+                return;
             }
             CoreReply::Error { message, .. } => {
                 self.model.last_error = Some(message.clone());
@@ -1199,18 +1140,20 @@ impl Session {
                 if gesture {
                     self.invalidate_gesture(effects);
                 }
+                return;
             }
-            _ => {
-                let reason = "core returned an unexpected reply variant".to_string();
-                self.model.last_error = Some(reason.clone());
-                self.model.lifecycle = Lifecycle::RecoveryRequired;
-                self.settle(
-                    operation_id,
-                    TerminalOutcome::ExecutorFailed(reason),
-                    effects,
-                );
+            CoreReply::Scene { .. } if preview_transaction_id.is_none() => {
+                "core scene and document revisions differ"
             }
-        }
+            _ => "core returned an unexpected reply variant",
+        };
+        self.model.last_error = Some(failure.into());
+        self.model.lifecycle = Lifecycle::RecoveryRequired;
+        self.settle(
+            operation_id,
+            TerminalOutcome::ExecutorFailed(failure.into()),
+            effects,
+        );
     }
 }
 
@@ -1223,15 +1166,18 @@ impl Session {
             }
             return effects;
         }
+        let recovering = matches!(event, Event::RecoverWithDocument { .. });
         match event {
             Event::Open {
                 operation_id,
                 document,
-            } => self.open(operation_id, document, false, &mut effects),
-            Event::RecoverWithDocument {
+            }
+            | Event::RecoverWithDocument {
                 operation_id,
                 document,
-            } => self.open(operation_id, document, true, &mut effects),
+            } => {
+                self.open(operation_id, document, recovering, &mut effects);
+            }
             Event::PreviewEdit {
                 operation_id,
                 transaction_id,
@@ -1382,16 +1328,11 @@ impl Session {
                     self.reject(operation_id, "no accepted document is open", &mut effects);
                     return effects;
                 };
-                let Some(board) = snapshot
+                let board = snapshot
                     .document
                     .boards
                     .iter()
-                    .find(|board| board.id == scope.board_id)
-                    .filter(|_| self.scope_is_current(&scope))
-                else {
-                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
-                    return effects;
-                };
+                    .find(|board| board.id == scope.board_id);
                 let matrix = snapshot.document.matrices.iter().find(|matrix| {
                     matrix.id == matrix_id
                         && matrix
@@ -1404,7 +1345,11 @@ impl Session {
                     .matrix_scenes
                     .iter()
                     .find(|scene| scene.matrix_id == matrix_id);
-                let Some((matrix, scene)) = matrix.zip(scene) else {
+                let Some(((board, matrix), scene)) = board
+                    .zip(matrix)
+                    .zip(scene)
+                    .filter(|_| self.scope_is_current(&scope))
+                else {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 };
@@ -1499,7 +1444,7 @@ impl Session {
                         self.model.active_instance_id = instance_id;
                         self.invalidate_gesture(&mut effects);
                         self.cancel_job(&mut effects);
-                        self.cancel_exports(&mut effects);
+                        self.retain_export(None, &mut effects);
                         self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
                     } else {
                         self.reject(
@@ -1628,12 +1573,7 @@ impl Session {
                 scope,
                 commit,
             } => {
-                let owner = ExportCommitOwner {
-                    operation_id: export_operation_id,
-                    token,
-                    scope,
-                };
-                if !self.export_is_current(owner.operation_id, owner.token, &owner.scope) {
+                if !self.export_is_current(export_operation_id, token, &scope) {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                 } else {
                     let id = wire_id(operation_id);
@@ -1650,12 +1590,18 @@ impl Session {
                             CoreRequest::ProtectElectricalHandoff {
                                 id,
                                 base_revision: plan.revision,
-                                board_id: owner.scope.board_id.clone(),
+                                board_id: scope.board_id,
                                 plan,
                             }
                         }
                     };
-                    self.apply_request(operation_id, request, false, Some(owner), &mut effects);
+                    self.apply_request(
+                        operation_id,
+                        request,
+                        false,
+                        Some(export_operation_id),
+                        &mut effects,
+                    );
                 }
             }
             Event::Close { operation_id } => self.close(operation_id, &mut effects),
@@ -1685,65 +1631,42 @@ impl Session {
             }
             Completion::GenerationFailed {
                 job_id,
-                ref scope,
-                ref reason,
-            }
-            | Completion::GenerationBlocked {
-                job_id,
-                ref scope,
-                ref reason,
-            } => {
-                let (status, outcome) =
-                    if matches!(completion, Completion::GenerationBlocked { .. }) {
-                        (
-                            GenerationStatus::Blocked {
-                                job_id,
-                                reason: reason.clone(),
-                            },
-                            TerminalOutcome::Rejected(reason.clone()),
-                        )
-                    } else {
-                        (
-                            GenerationStatus::Failed {
-                                job_id,
-                                reason: reason.clone(),
-                            },
-                            TerminalOutcome::ExecutorFailed(reason.clone()),
-                        )
-                    };
-                self.finish_generation(job_id, scope, status, outcome, &mut effects);
-            }
-            Completion::ExportFinished {
-                operation_id,
-                token,
                 scope,
-            } => {
-                let valid = self
-                    .exports
-                    .iter()
-                    .any(|(op, expected_scope, expected_token)| {
-                        *op == operation_id && *expected_scope == scope && *expected_token == token
-                    })
-                    && self.snapshot_matches(token, &scope);
-                self.exports.retain(|(op, _, _)| *op != operation_id);
-                let outcome = if valid {
-                    TerminalOutcome::Completed
-                } else {
-                    TerminalOutcome::Cancelled
-                };
-                self.settle(operation_id, outcome, &mut effects);
-            }
-            Completion::ExportFailed {
-                operation_id,
                 reason,
+                blocked,
             } => {
-                self.exports
-                    .retain(|(registered_operation, _, _)| *registered_operation != operation_id);
-                self.settle(
-                    operation_id,
-                    TerminalOutcome::ExecutorFailed(reason),
-                    &mut effects,
-                );
+                let (status, outcome) = if blocked {
+                    (
+                        GenerationStatus::Blocked {
+                            job_id,
+                            reason: reason.clone(),
+                        },
+                        TerminalOutcome::Rejected(reason),
+                    )
+                } else {
+                    (
+                        GenerationStatus::Failed {
+                            job_id,
+                            reason: reason.clone(),
+                        },
+                        TerminalOutcome::ExecutorFailed(reason),
+                    )
+                };
+                self.finish_generation(job_id, &scope, status, outcome, &mut effects);
+            }
+            Completion::Export {
+                operation_id,
+                result,
+            } => {
+                let outcome = match result {
+                    Ok((token, scope)) if self.export_is_current(operation_id, token, &scope) => {
+                        TerminalOutcome::Completed
+                    }
+                    Ok(_) => TerminalOutcome::Cancelled,
+                    Err(reason) => TerminalOutcome::ExecutorFailed(reason),
+                };
+                self.exports.retain(|(op, _, _)| *op != operation_id);
+                self.settle(operation_id, outcome, &mut effects);
             }
         }
         if self.pending_save.is_none()
@@ -1764,9 +1687,13 @@ impl Session {
         outcome: TerminalOutcome,
         effects: &mut Vec<Effect>,
     ) {
-        if self.job_is_current(job_id, scope)
-            && let Some((_, operation, _)) = self.active_job.take()
+        if let Some((active, operation, captured)) = self.active_job.as_ref()
+            && *active == job_id
+            && captured == scope
+            && self.scope_is_current(scope)
         {
+            let operation = *operation;
+            self.active_job = None;
             if let TerminalOutcome::ExecutorFailed(reason) | TerminalOutcome::Rejected(reason) =
                 &outcome
             {
@@ -1807,50 +1734,47 @@ impl Session {
         result: SaveResult,
         effects: &mut Vec<Effect>,
     ) {
-        let Some(pending) = self.pending_save.take() else {
+        let Some(pending) = self
+            .pending_save
+            .take_if(|pending| pending.save_attempt_id == save_attempt_id)
+        else {
             return;
         };
-        if pending.save_attempt_id != save_attempt_id {
-            self.pending_save = Some(pending);
-            return;
-        }
-        let accepted = self
+        let revision = self
             .model
             .accepted
             .as_ref()
-            .expect("saving an open project");
-        let revision = accepted.document.revision;
-        match result {
+            .expect("saving an open project")
+            .document
+            .revision;
+        let outcome = match result {
             SaveResult::Committed if pending.revision != revision => {
                 self.start_save(pending.operation, effects);
+                return;
             }
             SaveResult::Committed => {
                 self.model.durability = Durability::Saved { revision };
-                if let Some(operation_id) = pending.operation {
-                    self.settle(operation_id, TerminalOutcome::Completed, effects);
-                }
+                TerminalOutcome::Completed
             }
             SaveResult::Aborted(reason) => {
                 self.model.durability = Durability::Failed {
                     revision,
                     reason: reason.clone(),
                 };
-                if let Some(operation_id) = pending.operation {
-                    self.settle(
-                        operation_id,
-                        TerminalOutcome::PersistenceFailed(reason),
-                        effects,
-                    );
-                }
-                if let Some(operation) = self.close_operation.take() {
-                    self.model.lifecycle = Lifecycle::Ready;
-                    self.settle(
-                        operation,
-                        TerminalOutcome::BlockedByRecovery("save failed before close".into()),
-                        effects,
-                    );
-                }
+                TerminalOutcome::PersistenceFailed(reason)
             }
+        };
+        let failed = matches!(outcome, TerminalOutcome::PersistenceFailed(_));
+        if let Some(operation) = pending.operation {
+            self.settle(operation, outcome, effects);
+        }
+        if failed && let Some(operation) = self.close_operation.take() {
+            self.model.lifecycle = Lifecycle::Ready;
+            self.settle(
+                operation,
+                TerminalOutcome::BlockedByRecovery("save failed before close".into()),
+                effects,
+            );
         }
     }
 

@@ -5,11 +5,7 @@ impl Runtime {
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.
     pub(super) fn mechanical_mount_initialization_pending(&self) -> bool {
-        let model = self.model();
-        let Some(accepted) = model.accepted.as_ref() else {
-            return false;
-        };
-        let Some(scope) = self.scope() else {
+        let Some((accepted, scope)) = self.model().accepted.zip(self.scope()) else {
             return false;
         };
         let scene = self.cad_scene();
@@ -24,15 +20,13 @@ impl Runtime {
         }) {
             return false;
         }
-        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(
-            |document| {
-                document.mechanical.as_ref().is_some_and(|configuration| {
-                    configuration.board_id == scope.board_id
-                        && configuration.closure_mounts.is_none()
-                        && configuration.mount != boardstudio_model::model::MechanicalMount::Gasket
-                })
-            },
-        )
+        captured_case_document(&accepted, &scope).is_ok_and(|document| {
+            document.mechanical.as_ref().is_some_and(|configuration| {
+                configuration.board_id == scope.board_id
+                    && configuration.closure_mounts.is_none()
+                    && configuration.mount != boardstudio_model::model::MechanicalMount::Gasket
+            })
+        })
     }
 
     fn start_export(self: &Rc<Self>, kind: ExportKind, snapshot: &AcceptedSnapshot, scope: Scope) {
@@ -67,23 +61,11 @@ impl Runtime {
             ));
             return;
         };
-        if snapshot.scene.revision != snapshot.document.revision
-            || !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-            || !snapshot
-                .document
-                .case_bodies
-                .iter()
-                .any(|body| body.board_id == scope.board_id)
-            || !boardstudio_model::case_readiness::authored_case_geometry_ready(
-                &snapshot.document,
-                &snapshot.scene,
-                &scope.board_id,
-            )
-        {
+        if !boardstudio_model::case_readiness::authored_case_geometry_ready(
+            &snapshot.document,
+            &snapshot.scene,
+            &scope.board_id,
+        ) {
             self.apply_report(RuntimeReport::alert(
                 "Resolve authored case findings for the selected board before export.",
             ));
@@ -123,42 +105,6 @@ impl Runtime {
         if snapshot.scene.revision != snapshot.document.revision {
             self.apply_report(RuntimeReport::alert(
                 "The selected board is still resolving; export the current revision again.",
-            ));
-            return;
-        }
-        let document = match captured_case_document(snapshot, &scope) {
-            Ok(document) => document,
-            Err(error) => {
-                self.apply_report(RuntimeReport::alert(format!(
-                    "Could not capture the selected mechanical configuration: {error:?}"
-                )));
-                return;
-            }
-        };
-        let Some(configuration) = document.mechanical.as_ref() else {
-            self.apply_report(RuntimeReport::alert(
-                "Enable a mechanical assembly for the selected board before export.",
-            ));
-            return;
-        };
-        if configuration.board_id != scope.board_id {
-            self.apply_report(RuntimeReport::alert(
-                "The selected mechanical configuration belongs to another board.",
-            ));
-            return;
-        }
-        let outline_ready = snapshot
-            .scene
-            .board_readiness
-            .iter()
-            .find(|item| item.board_id == scope.board_id)
-            .map_or(
-                snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.outline,
-                |item| item.outline,
-            );
-        if !outline_ready {
-            self.apply_report(RuntimeReport::alert(
-                "Resolve active outline findings before exporting plate or case artifacts.",
             ));
             return;
         }
@@ -298,33 +244,6 @@ impl Runtime {
         );
     }
 
-    pub(super) fn board_outline_bytes(
-        &self,
-        operation_id: OperationId,
-        snapshot: &AcceptedSnapshot,
-        scope: &Scope,
-        dxf: bool,
-    ) -> Result<Vec<u8>, String> {
-        self.require_export_current(operation_id, snapshot, scope)?;
-        let (board, contours) = outline_geometry(snapshot, scope)?;
-        let format = if dxf {
-            boardstudio_model::model::OutlineExportFormat::Dxf
-        } else {
-            boardstudio_model::model::OutlineExportFormat::Svg
-        };
-        let format_name = if dxf { "dxf" } else { "svg" };
-        boardstudio_core::artifact::outline::export_outline(
-            boardstudio_model::model::OutlineExportRequest {
-                filename: format!("{}.{}", snapshot.document.name, format_name),
-                board: board.clone(),
-                contours: contours.to_vec(),
-                format,
-            },
-        )
-        .map(|file| file.content.into_bytes())
-        .map_err(|error| error.message)
-    }
-
     pub(super) fn export_lease_is_current(
         &self,
         operation_id: OperationId,
@@ -354,12 +273,7 @@ impl Runtime {
     }
 
     pub(super) fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
-        self.scope().as_ref() == Some(scope)
-            && self
-                .model()
-                .accepted
-                .as_ref()
-                .is_some_and(|s| s.token == token)
+        self.session.borrow().snapshot_is_current(token, scope)
     }
     pub(super) fn deliver_export(
         &self,
@@ -401,19 +315,21 @@ impl Runtime {
                 scope,
                 exact: true,
             }),
-            Err(CadJobError::Blocked(reason)) => self.complete(Completion::GenerationBlocked {
+            Err(CadJobError::Blocked(reason)) => self.complete(Completion::GenerationFailed {
                 job_id,
                 scope,
                 reason,
+                blocked: true,
             }),
             Err(CadJobError::Failed(reason) | CadJobError::Stale(reason)) => {
                 self.complete(Completion::GenerationFailed {
                     job_id,
                     scope,
                     reason,
+                    blocked: false,
                 })
             }
-            Err(CadJobError::Cancelled) => vec![],
+            Err(CadJobError::Cancelled) => Vec::new(),
         }
     }
     pub(super) async fn generate_current(
@@ -434,9 +350,10 @@ impl Runtime {
             }
         };
         guard()?;
+        let job = format!("case-{}", job_id.0);
         let prepared = prepare_captured_case(
             (self.core_services.open_scratch)(),
-            &format!("case-{}", job_id.0),
+            &job,
             snapshot,
             scope,
             false,
@@ -465,10 +382,12 @@ impl Runtime {
             .find(|board| board.board_id == scope.board_id)
             .ok_or_else(|| CadJobError::Blocked("Case contours unavailable".into()))?
             .contours;
+        let physical_fingerprint =
+            crate::case_generation_lifecycle::physical_case_fingerprint(snapshot, scope);
         for operation in [CadOperation::Preview, CadOperation::Exact] {
             let request = CadRequest {
-                request_id: format!("case-{}-{operation:?}", job_id.0),
-                job_id: format!("case-{}", job_id.0),
+                request_id: format!("{job}-{operation:?}"),
+                job_id: job.clone(),
                 identity: prepared.identity.clone(),
                 operation,
                 prepared: Some(prepared.prepared.clone()),
@@ -493,9 +412,7 @@ impl Runtime {
                 snapshot: snapshot.clone(),
                 result,
                 prepared: prepared.prepared.clone(),
-                physical_fingerprint: crate::case_generation_lifecycle::physical_case_fingerprint(
-                    snapshot, scope,
-                ),
+                physical_fingerprint: physical_fingerprint.clone(),
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
                 contours: contours.clone(),
@@ -518,7 +435,7 @@ impl Runtime {
     }
 }
 
-fn outline_geometry<'a>(
+pub(super) fn outline_geometry<'a>(
     snapshot: &'a AcceptedSnapshot,
     scope: &Scope,
 ) -> Result<(&'a Board, &'a [boardstudio_model::model::Contour]), String> {
