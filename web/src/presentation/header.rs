@@ -19,6 +19,7 @@ pub(super) fn Header(
     show_workspaces: bool,
     has_project: bool,
     save_state: &'static str,
+    on_retry_save: EventHandler<()>,
     mut settings_open: Signal<bool>,
     palette_open: ReadSignal<bool>,
     on_search: EventHandler<()>,
@@ -112,6 +113,9 @@ pub(super) fn Header(
                             "failed" => "Changes could not be saved locally. Check available browser storage before editing further.",
                             _ => "Local save status is unavailable.",
                         }
+                    }
+                    if save_state == "failed" {
+                        Button { variant: ButtonVariant::Secondary, onclick: move |_| on_retry_save.call(()), "Retry save" }
                     }
                 }
             }

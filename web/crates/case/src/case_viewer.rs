@@ -244,13 +244,11 @@ fn use_case_keycaps(
                         })
                 };
                 let result = async {
-                    let fit = runtime
-                        .resolve_case_keycaps_preview(
-                            source.scope.clone(),
-                            source.token,
-                            source.revision,
-                        )
-                        .await?;
+                    let fit = runtime.resolve_case_keycaps_preview(
+                        source.scope.clone(),
+                        source.token,
+                        source.revision,
+                    )?;
                     if !current() {
                         return Err("Case keycap source changed during resolution.".to_owned());
                     }

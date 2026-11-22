@@ -1019,19 +1019,6 @@ pub fn Library(
                 if status() == ListStatus::Loading {
                     p { role: "status", class: "flex items-center gap-2", Spinner {} "Loading saved keyboards…" }
                 }
-                if recovery_required && runtime.has_pending_edits() {
-                    Alert { variant: AlertVariant::Destructive, class: "max-w-[min(44vw,440px)] m-0 text-xs",
-                        p { "Your pending edits have not been saved. Download them before reloading if you want to keep them." }
-                        Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: {
-                            let runtime = runtime.clone();
-                            move |_| runtime.download_pending_edits()
-                        }, "Download my pending edits" }
-                        Button { variant: ButtonVariant::Secondary, button_type: "button", onclick: {
-                            let runtime = runtime.clone();
-                            move |_| runtime.recover_saved()
-                        }, "Reload saved version" }
-                    }
-                }
                 if status() == ListStatus::Failed {
                     Alert { variant: AlertVariant::Destructive, "Saved keyboards could not be loaded. "
                         Button {

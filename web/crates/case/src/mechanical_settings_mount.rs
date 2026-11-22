@@ -216,11 +216,6 @@ pub fn use_mechanical_settings_mount(
 
     let version = use_context::<Signal<u64>>();
     let resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);
-    let resolving_mechanical = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
-        ))
-    });
     let settled_mechanical = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
@@ -229,76 +224,39 @@ pub fn use_mechanical_settings_mount(
     use_effect(use_reactive((&version(), &workspace()), {
         let runtime = runtime.clone();
         let current = current.clone();
-        let alive = alive.clone();
-        let resolving = resolving_mechanical.clone();
         let settled = settled_mechanical.clone();
+        let mut resolved = resolved_mechanical;
         move |_| {
             if workspace() != "Case" {
                 return;
             }
-            let Some(current_settings) = current() else {
+            let Some(current_settings) =
+                current().filter(|settings| settings.configuration.is_some())
+            else {
                 return;
             };
-            if current_settings.configuration.is_none() {
-                return;
-            }
             let Some(key) = current_source_key(&runtime) else {
                 return;
             };
-            let identity = current_settings.identity.clone();
+            let identity = current_settings.identity;
             let request_key = (key.clone(), identity.clone());
             if settled.borrow().as_ref() == Some(&request_key) {
                 return;
             }
-            {
-                let mut pending = resolving.borrow_mut();
-                if pending.as_ref() == Some(&request_key) {
-                    return;
-                }
-                *pending = Some(request_key.clone());
-            }
-
-            let accepted = current_settings.accepted.clone();
+            *settled.borrow_mut() = Some(request_key);
+            let accepted = current_settings.accepted;
             let proposed = accepted.document.as_ref().clone();
-            let scope = key.scope.clone();
-            let runtime = runtime.clone();
-            let current = current.clone();
-            let alive = alive.clone();
-            let resolving = resolving.clone();
-            let settled = settled.clone();
-            let mut resolved = resolved_mechanical;
-            spawn_local(async move {
-                let result = runtime
-                    .resolve_mechanical_settings(accepted, scope, proposed)
-                    .await;
-                if !alive.get() {
-                    return;
+            let result = runtime.resolve_mechanical_settings(accepted, key.scope.clone(), proposed);
+            resolved.set(result.ok().map(|(assembly, effective_configuration)| {
+                MechanicalSettingsResolvedProjection {
+                    key,
+                    identity,
+                    resolution: Rc::new(MechanicalResolution {
+                        assembly,
+                        effective_configuration,
+                    }),
                 }
-                let still_current = current().is_some_and(|live| live.identity == identity)
-                    && current_source_key(&runtime).as_ref() == Some(&key);
-                {
-                    let mut pending = resolving.borrow_mut();
-                    if pending.as_ref() == Some(&request_key) {
-                        *pending = None;
-                    }
-                }
-                if !still_current {
-                    return;
-                }
-                *settled.borrow_mut() = Some(request_key);
-                if let Ok((assembly, effective_configuration)) = result {
-                    resolved.set(Some(MechanicalSettingsResolvedProjection {
-                        key,
-                        identity,
-                        resolution: Rc::new(MechanicalResolution {
-                            assembly,
-                            effective_configuration,
-                        }),
-                    }));
-                } else {
-                    resolved.set(None);
-                }
-            });
+            }));
         }
     }));
     use_effect(use_reactive((&version(), &workspace()), {

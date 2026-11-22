@@ -300,6 +300,10 @@ fn WorkbenchApp() -> Element {
                 show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
                 has_project: runtime.model().accepted.is_some(),
                 save_state,
+                on_retry_save: {
+                    let runtime = runtime.clone();
+                    move |_| runtime.submit(boardstudio_application::Event::RetrySave { operation_id: runtime.operation() })
+                },
                 settings_open,
                 palette_open: palette.open,
                 on_search: move |_| palette.show(),

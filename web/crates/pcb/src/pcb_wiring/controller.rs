@@ -593,7 +593,7 @@ pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> 
     };
     let resolve: WiringResolver = Rc::new(move |accepted, scope| {
         let runtime = runtime.clone();
-        Box::pin(async move { runtime.resolve_electrical_preview(accepted, scope).await })
+        Box::pin(async move { runtime.resolve_electrical_preview(accepted, scope) })
     });
     use_pcb_wiring_resolution_owner(version, current, resolve)
 }

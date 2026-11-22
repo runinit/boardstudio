@@ -136,9 +136,11 @@ impl Runtime {
         let core = self.core.borrow().clone();
         let guard = || self.require_export_current(operation_id, snapshot, scope, Some(&core));
         guard()?;
-        let resolution = self
-            .resolve_case_keycaps_preview(scope.clone(), snapshot.token, snapshot.document.revision)
-            .await?;
+        let resolution = self.resolve_case_keycaps_preview(
+            scope.clone(),
+            snapshot.token,
+            snapshot.document.revision,
+        )?;
         guard()?;
         let errors = resolution
             .findings

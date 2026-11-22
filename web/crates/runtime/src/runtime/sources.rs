@@ -5,13 +5,13 @@ impl Runtime {
     /// Resolve mechanical settings against the exact accepted source and the proposed canonical
     /// document. The proposal carrier exists only for the existing effective-case projection;
     /// it is never installed in Session or any accepted/display authority.
-    pub async fn resolve_mechanical_settings(
+    pub fn resolve_mechanical_settings(
         &self,
         accepted: AcceptedSnapshot,
         scope: Scope,
         proposed: ProjectDoc,
     ) -> Result<(MechanicalAssembly, MechanicalConfiguration), String> {
-        validate_mechanical_source(&accepted, &scope)?;
+        self.ensure_keycaps_source_current(&accepted, &scope)?;
         if proposed.id != accepted.document.id
             || proposed.revision != accepted.document.revision
             || proposed.physical_instance_id != accepted.document.physical_instance_id
@@ -21,7 +21,6 @@ impl Runtime {
                 "The proposed mechanical settings do not match the accepted board scope.".into(),
             );
         }
-        self.ensure_mechanical_source_current(&accepted, &scope)?;
 
         // This temporary carrier lets the established projection apply physical-instance
         // defaults (including wireless battery defaults) without granting it Session authority.
@@ -60,36 +59,13 @@ impl Runtime {
             .find(|board| board.board_id == scope.board_id)
             .map_or_else(Vec::new, |board| board.contours);
 
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch().0;
-        self.ensure_mechanical_source_current(&accepted, &scope)?;
-        let current_core = self.core.borrow().clone();
-        if self.session.borrow().core_executor_epoch().0 != executor_epoch
-            || !Rc::ptr_eq(&core, &current_core)
-        {
-            return Err("The Core worker changed before mechanical resolution started.".into());
-        }
-
         let request_id = format!("mechanical-settings-{}", self.operation().0);
         let request = CoreRequest::ResolveMechanical {
             id: request_id.clone(),
             document: effective_document,
             contours,
         };
-        let executor_epoch_string = executor_epoch.to_string();
-        let reply = core
-            .request(&request_id, &executor_epoch_string, &request)
-            .await;
-
-        self.ensure_mechanical_source_current(&accepted, &scope)?;
-        let current_core = self.core.borrow().clone();
-        if self.session.borrow().core_executor_epoch().0 != executor_epoch
-            || !Rc::ptr_eq(&core, &current_core)
-        {
-            return Err("The Core worker changed during mechanical resolution.".into());
-        }
-        let reply = reply.map_err(|error| format!("Mechanical resolution failed: {error}"))?;
-
+        let reply = (self.core_services.open_scratch)()(request);
         let assembly = match reply {
             CoreReply::MechanicalResolved { id, assembly } if id == request_id => assembly,
             CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
@@ -109,82 +85,56 @@ impl Runtime {
         Ok((assembly, configuration))
     }
 
-    /// Resolve the accepted PCB's read-only wiring plan through the current Core worker.
-    /// The board scope deliberately has no physical instance; switch selection is not part of
-    /// this plan's lifetime.
-    pub async fn resolve_electrical_preview(
+    /// Wiring is board-scoped even when a physical instance is selected.
+    pub fn resolve_electrical_preview(
         &self,
         accepted: AcceptedSnapshot,
         scope: Scope,
     ) -> Result<ElectricalPlan, String> {
-        validate_electrical_source(&accepted, &scope)?;
-        self.ensure_electrical_source_current(&accepted, &scope)?;
-
-        let request_id = format!("pcb-electrical-{}", self.operation().0);
-        let request = electrical_preview_request(&request_id, &accepted.document, &scope.board_id);
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        self.ensure_electrical_source_current(&accepted, &scope)?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        let board_scope = self.scope().map(|mut scope| {
+            scope.instance_id = None;
+            scope
+        });
+        if board_scope.as_ref() != Some(&scope)
+            || self
+                .model()
+                .accepted
+                .is_none_or(|current| current.token != accepted.token)
+            || accepted.scene.revision != accepted.document.revision
         {
-            return Err("The Core worker changed before wiring resolution started.".into());
+            return Err("The accepted PCB wiring source changed.".into());
         }
-
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await;
-
-        // Recheck both accepted board identity and the exact worker owner before interpreting a
-        // reply. An old worker's reply cannot become current after a restart/reopen ABA.
-        self.ensure_electrical_source_current(&accepted, &scope)?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-        {
-            return Err("The Core worker changed during wiring resolution.".into());
+        let id = format!("pcb-electrical-{}", self.operation().0);
+        let request = electrical_preview_request(&id, &accepted.document, &scope.board_id);
+        match (self.core_services.open_scratch)()(request) {
+            CoreReply::ElectricalResolved { plan, .. } => Ok(plan),
+            CoreReply::Error { message, .. } => Err(message),
+            _ => Err("Unexpected wiring resolution reply.".into()),
         }
-        let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
-        let plan = match reply {
-            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a wiring reply for another request.".into());
-            }
-            _ => return Err("Core returned an unexpected wiring-resolution reply.".into()),
-        };
-        if plan.revision != accepted.document.revision
-            || plan.board_id.as_deref() != Some(scope.board_id.as_str())
-            || plan.instance_id.is_some()
-        {
-            return Err("Core resolved wiring for another board or revision.".into());
-        }
-        Ok(plan)
     }
 
     /// Resolve keycap fit against one accepted canonical board and the matching prepared Case
     /// preview, if the current physical-instance preview belongs to this exact snapshot.
-    pub async fn resolve_keycaps_preview(
+    pub fn resolve_keycaps_preview(
         &self,
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
     ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         self.resolve_keycaps_preview_source(scope, token, revision, false)
-            .await
     }
 
     /// Case consumes the selected physical projection; Layout retains the canonical document.
-    pub async fn resolve_case_keycaps_preview(
+    pub fn resolve_case_keycaps_preview(
         &self,
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
     ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         self.resolve_keycaps_preview_source(scope, token, revision, true)
-            .await
     }
 
-    pub(super) async fn resolve_keycaps_preview_source(
+    fn resolve_keycaps_preview_source(
         &self,
         scope: Scope,
         token: SnapshotToken,
@@ -207,14 +157,6 @@ impl Runtime {
                 && scene.prepared.revision == accepted.document.revision
         });
         let cases = case_preview.as_ref().map(|scene| scene.prepared.clone());
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-        {
-            return Err("The Core worker changed before keycap fit resolution started.".into());
-        }
-
         let document = if physical_case {
             captured_case_document(&accepted, &scope)
                 .map_err(|error| format!("Could not capture physical Case keycaps: {error:?}"))?
@@ -228,30 +170,7 @@ impl Runtime {
             board_id: scope.board_id.clone(),
             cases,
         };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await;
-
-        self.ensure_keycaps_source_current(&accepted, &scope)?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-        {
-            return Err("The Core worker changed during keycap fit resolution.".into());
-        }
-        let current_case = self.cad_scene().filter(|scene| {
-            scene.exact
-                && scene.scope == scope
-                && scene.token == accepted.token
-                && scene.snapshot.document.revision == accepted.document.revision
-                && scene.prepared.revision == accepted.document.revision
-        });
-        if current_case.as_ref().map(|scene| &scene.prepared)
-            != case_preview.as_ref().map(|scene| &scene.prepared)
-        {
-            return Err("The Case preview changed during keycap fit resolution.".into());
-        }
-
-        let reply = reply.map_err(|error| format!("Keycap fit resolution failed: {error}"))?;
+        let reply = (self.core_services.open_scratch)()(request);
         let result = match reply {
             CoreReply::KeycapsResolved { id, result } if id == request_id => result,
             CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
@@ -271,24 +190,13 @@ impl Runtime {
         accepted: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<(), String> {
-        let model = self.model();
-        let Some(current) = model.accepted.as_ref() else {
-            return Err("The accepted Keycaps source is no longer open.".into());
-        };
-        if self.scope().as_ref() != Some(scope)
-            || model.active_board_id.as_str() != scope.board_id.as_str()
-            || scope.session_epoch != accepted.session_epoch
-            || scope.document_id != accepted.document.id
-            || current.session_epoch != accepted.session_epoch
-            || current.token != accepted.token
-            || current.document.id != accepted.document.id
-            || current.document.revision != accepted.document.revision
-            || current.scene.revision != accepted.scene.revision
-            || accepted.scene.revision != accepted.document.revision
+        if self.snapshot_current(accepted.token, scope)
+            && accepted.scene.revision == accepted.document.revision
         {
-            return Err("The accepted Keycaps source changed during resolution.".into());
+            Ok(())
+        } else {
+            Err("The accepted preview source changed.".into())
         }
-        Ok(())
     }
 
     /// Build the mesh preview from the already accepted Core keycap resolution. This worker is
@@ -405,97 +313,6 @@ impl Runtime {
             worker.close();
         }
     }
-
-    pub(super) fn ensure_electrical_source_current(
-        &self,
-        accepted: &AcceptedSnapshot,
-        scope: &Scope,
-    ) -> Result<(), String> {
-        let model = self.model();
-        let Some(current) = model.accepted.as_ref() else {
-            return Err("The accepted PCB wiring source is no longer open.".into());
-        };
-        let current_scope = self.scope();
-        let same_board_scope = current_scope.as_ref().is_some_and(|current| {
-            current.session_epoch == scope.session_epoch
-                && current.document_id == scope.document_id
-                && current.board_id == scope.board_id
-        });
-        if !same_board_scope
-            || model.active_board_id != scope.board_id
-            || scope.instance_id.is_some()
-            || scope.session_epoch != accepted.session_epoch
-            || scope.document_id != accepted.document.id
-            || current.session_epoch != accepted.session_epoch
-            || current.token != accepted.token
-            || current.document.id != accepted.document.id
-            || current.document.revision != accepted.document.revision
-            || current.scene.revision != accepted.scene.revision
-        {
-            return Err("The accepted PCB wiring source changed during resolution.".into());
-        }
-        Ok(())
-    }
-
-    pub(super) fn ensure_mechanical_source_current(
-        &self,
-        accepted: &AcceptedSnapshot,
-        scope: &Scope,
-    ) -> Result<(), String> {
-        let model = self.model();
-        let Some(current) = model.accepted.as_ref() else {
-            return Err("The accepted mechanical source is no longer open.".into());
-        };
-        if self.scope().as_ref() != Some(scope)
-            || scope.session_epoch != accepted.session_epoch
-            || scope.document_id != accepted.document.id
-            || current.session_epoch != accepted.session_epoch
-            || current.token != accepted.token
-            || current.document.id != accepted.document.id
-            || current.document.revision != accepted.document.revision
-            || current.scene.revision != accepted.scene.revision
-            || accepted.scene.revision != accepted.document.revision
-        {
-            return Err("The accepted mechanical source changed during resolution.".into());
-        }
-        Ok(())
-    }
-}
-
-fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
-    if scope.session_epoch != accepted.session_epoch
-        || scope.document_id != accepted.document.id
-        || accepted.scene.revision != accepted.document.revision
-    {
-        return Err("The accepted mechanical source does not match its scope or revision.".into());
-    }
-    if !mechanical_document_targets_scope(&accepted.document, scope) {
-        return Err(
-            "The accepted mechanical source does not contain the selected board scope.".into(),
-        );
-    }
-    Ok(())
-}
-
-fn validate_electrical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
-    if scope.instance_id.is_some()
-        || scope.session_epoch != accepted.session_epoch
-        || scope.document_id != accepted.document.id
-        || accepted.scene.revision != accepted.document.revision
-    {
-        return Err(
-            "The accepted wiring source does not match its board scope or revision.".into(),
-        );
-    }
-    if !accepted
-        .document
-        .boards
-        .iter()
-        .any(|board| board.id == scope.board_id)
-    {
-        return Err("The selected board is not present in the accepted wiring source.".into());
-    }
-    Ok(())
 }
 
 fn mechanical_document_targets_scope(document: &ProjectDoc, scope: &Scope) -> bool {

@@ -324,7 +324,6 @@ impl Runtime {
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
                 let persistence = self.persistence.borrow().clone();
-                *self.pending_document.borrow_mut() = Some(document.clone());
                 let expected = self.saved_tokens.borrow().get(&document.id).cloned();
                 let result = match persistence
                     .save_document(&document, &assets, expected.as_ref())
@@ -334,17 +333,12 @@ impl Runtime {
                         self.saved_tokens
                             .borrow_mut()
                             .insert(document.id.clone(), token);
-                        self.pending_document.borrow_mut().take();
-                        self.save_conflict.set(false);
                         for asset in &document.assets {
                             self.assets.borrow_mut().remove(&asset.sha256);
                         }
                         SaveResult::Committed
                     }
-                    Err(error) => {
-                        self.save_conflict.set(error == SaveError::Conflict);
-                        SaveResult::Aborted(error.to_string())
-                    }
+                    Err(error) => SaveResult::Aborted(error.to_string()),
                 };
                 let persisted = result == SaveResult::Committed;
                 let effects = self.complete(Completion::Persist {
@@ -356,8 +350,6 @@ impl Runtime {
                         self.apply_report(RuntimeReport::status("Saved locally.").transient());
                     }
                     Durability::Failed { reason, .. } => {
-                        *self.pending_document.borrow_mut() =
-                            self.model().accepted.map(|snapshot| snapshot.document);
                         self.report(reason);
                     }
                     _ => {}

@@ -44,7 +44,6 @@ use boardstudio_web_host::{
 };
 #[cfg(test)]
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -97,7 +96,7 @@ pub struct KeycapsCadPreview {
 }
 
 use gloo_timers::future::TimeoutFuture;
-use js_sys::{Array, Function, JsString, Object, Reflect, Uint8Array};
+use js_sys::{Array, Function, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -333,8 +332,6 @@ pub struct Runtime {
     storage_initializing: Cell<bool>,
     storage_error: RefCell<Option<String>>,
     saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
-    pending_document: RefCell<Option<Arc<ProjectDoc>>>,
-    save_conflict: Cell<bool>,
     before_unload: RefCell<Option<Closure<dyn FnMut(web_sys::Event)>>>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
@@ -419,7 +416,7 @@ use mechanical_export::authored_case_filename;
 
 impl Runtime {
     /// Keep one injected engine for the document; scratch probes create their own engines.
-    /// Archive and artifact work remains on the auxiliary Core worker.
+    /// Archive and artifact operations also execute in process.
     pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
         let document_core = (core_services.open_scratch)();
         Self::new_with_restoration(true, core_services, Some(document_core))
@@ -465,8 +462,6 @@ impl Runtime {
             storage_initializing: Cell::new(restore_active_project),
             storage_error: RefCell::new(None),
             saved_tokens: RefCell::default(),
-            pending_document: RefCell::default(),
-            save_conflict: Cell::new(false),
             before_unload: RefCell::default(),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
@@ -621,61 +616,16 @@ impl Runtime {
             MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
             MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
         };
-        self.standard_builtin_profile(
-            operation_id,
-            definition_id,
-            source,
-            Some(family),
-            plate_to_pcb,
-        )
-        .await
-    }
-
-    /// Load a reviewed Core builtin profile for the Case editor's private assignment path.
-    pub async fn standard_builtin_profile(
-        &self,
-        operation_id: OperationId,
-        definition_id: String,
-        source: MechanicalBuiltinProfile,
-        expected_family: Option<MechanicalSwitchFamily>,
-        plate_to_pcb: f64,
-    ) -> Result<MechanicalPartProfile, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request_id = format!("parts-standard-profile-{}", operation_id.0);
         let request = CoreRequest::MechanicalProfile {
-            id: request_id.clone(),
-            definition_id: definition_id.clone(),
-            source: source.clone(),
+            id: request_id,
+            definition_id,
+            source,
             plate_to_pcb,
         };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Standard switch fit failed: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("Core worker changed during standard switch fit lookup.".into());
-        }
-        match reply {
-            CoreReply::MechanicalProfile { id, profile } if id == request_id => {
-                if profile.definition_id != definition_id
-                    || profile.switch_family != expected_family
-                    || (profile.plate_to_pcb - plate_to_pcb).abs() > f64::EPSILON
-                    || (matches!(
-                        source,
-                        MechanicalBuiltinProfile::MxStab2u | MechanicalBuiltinProfile::MxStab625u
-                    ) && profile.source_geometry.is_none())
-                {
-                    return Err("Core returned a different standard mechanical profile.".into());
-                }
-                Ok(profile)
-            }
-            CoreReply::Error { id, message, .. } if id == request_id => Err(message),
-            CoreReply::MechanicalProfile { .. } | CoreReply::Error { .. } => {
-                Err("Core returned a stale standard mechanical profile reply.".into())
-            }
+        match (self.core_services.open_scratch)()(request) {
+            CoreReply::MechanicalProfile { profile, .. } => Ok(profile),
+            CoreReply::Error { message, .. } => Err(message),
             _ => Err("Core returned an unexpected standard mechanical profile reply.".into()),
         }
     }
@@ -688,43 +638,14 @@ impl Runtime {
         definition_id: String,
         source: String,
     ) -> Result<CompiledFootprint, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request = ArtifactRequest::ImportFootprint {
-            id: request_id.clone(),
+            id: request_id,
             definition_id,
             source,
         };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not import KiCad footprint: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err(
-                "The KiCad footprint import became stale when the Core worker changed.".into(),
-            );
-        }
-        match reply {
-            ArtifactReply::ImportFootprint { id, result } if id == request_id => Ok(*result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let diagnostics = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                let details = if diagnostics.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", diagnostics.join(" "))
-                };
-                Err(format!("{}{}", error.message, details))
-            }
-            ArtifactReply::ImportFootprint { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned a KiCad footprint result for another request.".into())
-            }
-            _ => Err("Core returned an unexpected KiCad footprint import reply.".into()),
+        match self.artifact_reply(&request)? {
+            ArtifactReply::ImportFootprint { result, .. } => Ok(*result),
+            _ => Err("Unexpected KiCad artifact reply.".into()),
         }
     }
 
@@ -737,44 +658,32 @@ impl Runtime {
         mappings: Vec<MechanicalPurposeMapping>,
         max_deviation_mm: f64,
     ) -> Result<MechanicalExtraction, String> {
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
         let request = ArtifactRequest::ExtractMechanical {
-            id: request_id.clone(),
+            id: request_id,
             source,
             mappings,
             max_deviation_mm,
         };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not read KiCad mechanical geometry: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err(
-                "The KiCad geometry result became stale when the Core worker changed.".into(),
-            );
+        match self.artifact_reply(&request)? {
+            ArtifactReply::ExtractMechanical { result, .. } => Ok(result),
+            _ => Err("Unexpected KiCad artifact reply.".into()),
         }
+    }
+
+    fn artifact_reply(&self, request: &ArtifactRequest) -> Result<ArtifactReply, String> {
+        let request = serde_json::to_string(request).map_err(|error| error.to_string())?;
+        let reply = serde_json::from_str(&(self.core_services.artifact)(&request))
+            .map_err(|error| error.to_string())?;
         match reply {
-            ArtifactReply::ExtractMechanical { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let diagnostics = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                let details = if diagnostics.is_empty() {
-                    String::new()
-                } else {
-                    format!(" {}", diagnostics.join(" "))
-                };
-                Err(format!("{}{}", error.message, details))
+            ArtifactReply::Error { error, .. } => {
+                let mut message = error.message;
+                for diagnostic in error.diagnostics {
+                    message.push(' ');
+                    message.push_str(&diagnostic.message);
+                }
+                Err(message)
             }
-            ArtifactReply::ExtractMechanical { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned KiCad geometry for another request.".into())
-            }
-            _ => Err("Core returned an unexpected KiCad geometry reply.".into()),
+            reply => Ok(reply),
         }
     }
 
@@ -1110,11 +1019,3 @@ mod cad_scene_rebind_tests;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod offline_safety_tests;
-
-/// Quota-recovery RED tests: with origin storage full every save aborts, so the
-/// in-app delete path must not rewrite durable state before the single-key
-/// delete, and create-new must discard the latched pending doc without
-/// committing it. Saves are failed through the persistence port (the quota
-/// simulation); single-key deletes go straight to the store and must succeed.
-#[cfg(all(test, target_arch = "wasm32"))]
-mod quota_recovery_deletion_tests;

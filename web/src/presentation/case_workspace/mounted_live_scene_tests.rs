@@ -408,7 +408,6 @@ async fn production_workspace_keeps_same_scope_layer_context_then_retires_it_on_
             scope.clone(),
             updated.document.as_ref().clone(),
         )
-        .await
         .expect("the accepted fixture has a current mechanical resolution");
     let current_finding = current_assembly
         .diagnostics

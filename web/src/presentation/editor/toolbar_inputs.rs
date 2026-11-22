@@ -76,9 +76,6 @@ pub(super) struct LayoutToolbarArgs<'a> {
     pub layout_assembly_3d: Signal<bool>,
     pub on_layout_view_mode: EventHandler<bool>,
     pub toggle_footprints: EventHandler<()>,
-    pub retry_save: EventHandler<()>,
-    pub download_pending: EventHandler<()>,
-    pub recover_saved: EventHandler<()>,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
     pub component_inspector: Option<inspector::LayoutComponentInspectorProjection>,
     pub layout_transform_target: Option<(
@@ -109,15 +106,12 @@ pub(super) fn layout_toolbar_input(
         matrices,
         toolbar_selection_availability,
         layer_visibility,
-        model,
+        model: _,
         layout_snap_settings,
         layout_command_menu,
         layout_assembly_3d,
         on_layout_view_mode,
         toggle_footprints,
-        retry_save,
-        download_pending,
-        recover_saved,
         layout_selection_kind,
         component_inspector,
         layout_transform_target,
@@ -220,19 +214,10 @@ pub(super) fn layout_toolbar_input(
     let footprints_pressed =
         (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
     workspace_composition::WorkspaceToolbarInput::Layout(Box::new(layout_workspace::ToolbarInput {
-        save_failure: match &model.durability {
-            Durability::Failed { reason, .. } => Some(reason.clone()),
-            _ => None,
-        },
-        recovery_required: model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired,
         footprints_pressed,
         on_toggle_footprints: toggle_footprints,
         assembly_3d: layout_assembly_3d(),
         on_view_mode: on_layout_view_mode,
-        on_retry_save: retry_save,
-        save_conflict: runtime.has_save_conflict(),
-        on_download_pending: download_pending,
-        on_recover_saved: recover_saved,
         selection_kind: layout_selection_kind(),
         snap_settings: layout_snap_settings.read().clone(),
         command_label: "Layout commands".to_owned(),
@@ -469,9 +454,6 @@ pub(super) struct ToolbarInputArgs<'a> {
     pub layout_assembly_3d: Signal<bool>,
     pub on_layout_view_mode: EventHandler<bool>,
     pub toggle_footprints: EventHandler<()>,
-    pub retry_save: EventHandler<()>,
-    pub download_pending: EventHandler<()>,
-    pub recover_saved: EventHandler<()>,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
     pub component_inspector: Option<inspector::LayoutComponentInspectorProjection>,
     pub pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
@@ -512,9 +494,6 @@ pub(super) fn toolbar_input(
         layout_assembly_3d,
         on_layout_view_mode,
         toggle_footprints,
-        retry_save,
-        download_pending,
-        recover_saved,
         layout_selection_kind,
         component_inspector,
         pcb_selection_kind,
@@ -547,9 +526,6 @@ pub(super) fn toolbar_input(
             layout_assembly_3d,
             on_layout_view_mode,
             toggle_footprints,
-            retry_save,
-            download_pending,
-            recover_saved,
             layout_selection_kind,
             component_inspector,
             layout_transform_target,
@@ -672,9 +648,6 @@ pub(super) fn use_workspace_inputs(
     let layout_snap_settings = setup_a.layout_snap_settings;
     let layout_command_menu = setup_a.layout_command_menu;
     let toggle_footprints = wir.wiring.toggle_footprints;
-    let retry_save = wir.wiring.retry_save;
-    let download_pending = wir.wiring.download_pending;
-    let recover_saved = wir.wiring.recover_saved;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let component_inspector = &canvas.inspector.component_inspector;
     let pcb_selection_kind = wir.wiring.pcb_selection_kind;
@@ -754,9 +727,6 @@ pub(super) fn use_workspace_inputs(
         layout_assembly_3d,
         on_layout_view_mode,
         toggle_footprints,
-        retry_save,
-        download_pending,
-        recover_saved,
         layout_selection_kind,
         component_inspector: component_inspector.clone(),
         pcb_selection_kind,
