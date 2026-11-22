@@ -256,7 +256,6 @@ fn pill_duplicate_probe_host(props: PillDuplicateProbeProps) -> Element {
         action: None,
         enabled: false,
         disabled_reason: None,
-        busy: false,
         feedback: None,
         on_reference: EventHandler::new(|_: String| {}),
         on_align: EventHandler::new(|_: super::super::layout_align::AlignAction| {}),

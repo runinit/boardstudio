@@ -114,14 +114,6 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
             ..
         })
     ));
-    assert!(
-        probe
-            .pending_edits
-            .borrow()
-            .expect("mounted pending edits")
-            .peek()
-            .is_pending(&layout_component_edits::InspectorField::MirroredHalfState)
-    );
     drive_to_state(&probe, HalfExceptionState::Omitted, revision).await;
 
     let revision = accepted_revision(&probe);
@@ -174,14 +166,6 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
             ..
         })
     ));
-    assert!(
-        probe
-            .pending_edits
-            .borrow()
-            .expect("mounted pending edits")
-            .peek()
-            .is_pending(&layout_component_edits::InspectorField::MirroredHalfState)
-    );
     drive_to_state(&probe, HalfExceptionState::Local, revision).await;
 
     let revision = accepted_revision(&probe);
@@ -198,7 +182,7 @@ async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
 
     async fn settled_part_mirror(probe: &MountedProbe, expected: Option<bool>) -> bool {
         accept_pending(probe).await;
-        accept_pending_ready(probe)
+        current_revision_is_saved(probe)
             && probe
                 .projection
                 .borrow()
@@ -290,7 +274,7 @@ async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
     ));
     wait_until_step("unmirroring is accepted", async || {
         accept_pending(&probe).await;
-        accept_pending_ready(&probe)
+        current_revision_is_saved(&probe)
             && accepted_part_records(&probe).is_empty()
             && part_mirror(&probe) == Some(false)
     })
@@ -326,7 +310,7 @@ async fn mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo() {
     ));
     wait_until_step("remirroring is accepted", async || {
         accept_pending(&probe).await;
-        accept_pending_ready(&probe) && part_mirror(&probe) == Some(true)
+        current_revision_is_saved(&probe) && part_mirror(&probe) == Some(true)
     })
     .await;
     assert!(

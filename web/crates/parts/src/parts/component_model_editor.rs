@@ -10,13 +10,11 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView, PendingEditResult};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::FieldError,
     spinner::Spinner,
 };
 use dioxus::prelude::*;
@@ -747,55 +745,20 @@ fn ModelVectorEditor(
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let runtime = use_context::<Rc<Runtime>>();
-    // This editor's own collection: the editor is remounted per owner (its parent keys
-    // it by the model owner), so its lifetime is the owner lifetime and it settles its
-    // own axes here, like the render-body settlement it replaces.
-    let pending = use_hook(DraftEdits::<Axis>::default);
-    let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
     let mut dirty = use_signal(|| [false; 3]);
     let mut synced = use_signal(|| current);
     let mut error = use_signal(|| None::<(usize, String)>);
-    let failure = use_signal(|| None::<String>);
     {
         let previous = synced();
         for index in 0..3 {
-            let key = axes[index];
-            if !pending.is_pending(&key)
-                && !dirty.peek()[index]
-                && current[index] != previous[index]
-            {
+            if !dirty.peek()[index] && current[index] != previous[index] {
                 drafts[index].set(current[index].to_string());
             }
         }
         if previous != current {
             synced.set(current);
-        }
-    }
-    // Settle this editor's axes before rendering: a failure restores the accepted
-    // value and reports inline; landed and retired edits drop silently.
-    let settled = pending.settle(true, |axis| {
-        match axis {
-            Axis::X => value.x,
-            Axis::Y => value.y,
-            Axis::Z => value.z,
-        }
-        .to_string()
-    });
-    for result in settled {
-        let key = match result {
-            PendingEditResult::Landed { key, .. }
-            | PendingEditResult::Failed { key, .. }
-            | PendingEditResult::Retired { key } => key,
-        };
-        let index = match key {
-            Axis::X => 0,
-            Axis::Y => 1,
-            Axis::Z => 2,
-        };
-        if drafts[index].peek().as_str() == current[index].to_string() {
-            dirty.write()[index] = false;
         }
     }
     rsx! {
@@ -804,8 +767,6 @@ fn ModelVectorEditor(
             ModelAxisGrid {
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
                 {
-                    let pending = pending.clone();
-                    let pending_for_escape = pending.clone();
                     let runtime = runtime.clone();
                     rsx! {
                     ModelAxisField {
@@ -830,28 +791,14 @@ fn ModelVectorEditor(
                             }
                             let number = parsed.unwrap_or_default();
                             error.set(None);
-                            let key = axis;
-                            let already_submitted =
-                                pending.pending_submission(&key).as_deref() == Some(raw.as_str());
-                            let axis_pending = pending.is_pending(&key);
-                            if !axis_pending && number == current[index] {
-                                dirty.write()[index] = false;
-                                return;
-                            }
-                            if !already_submitted
-                                && let Some(resolver) = on_commit.call((axis, raw.clone(), number))
+                            dirty.write()[index] = false;
+                            if number != current[index]
+                                && let Some(resolver) = on_commit.call((axis, raw, number))
+                                && let Err(message) = runtime.commit("parts-component-model", resolver)
                             {
-                                // The helper remembers the submitted axis text, so an
-                                // older outcome can never clobber a newer draft.
-                                pending.submit(
-                                    &runtime,
-                                    key,
-                                    "parts-component-model",
-                                    Some("component model".into()),
-                                    resolver,
-                                    FieldView::new(drafts[index], failure).submitted(raw),
-                                );
+                                error.set(Some((index, message)));
                             }
+                            drafts[index].set(current[index].to_string());
                         },
                         onkeydown: move |event: KeyboardEvent| {
                             let key = event.key().to_string();
@@ -860,15 +807,7 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                let escape_key = axis;
-                                let restored = if pending_for_escape.is_pending(&escape_key) {
-                                    pending_for_escape
-                                        .pending_submission(&escape_key)
-                                        .unwrap_or_else(|| current[index].to_string())
-                                } else {
-                                    current[index].to_string()
-                                };
-                                drafts[index].set(restored);
+                                drafts[index].set(current[index].to_string());
                                 dirty.write()[index] = false;
                                 error.set(None);
                             }
@@ -878,7 +817,6 @@ fn ModelVectorEditor(
                 }
             }
             }
-            if let Some(message) = failure() { FieldError { "{message}" } }
         }
     }
 }

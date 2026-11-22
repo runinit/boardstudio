@@ -131,18 +131,8 @@ pub(crate) fn sort_companion_targets(targets: &mut Vec<CompanionPlacementTarget>
     targets.dedup();
 }
 
-/// Begin the pending edit for an Inspector field and park it on its field of the
-/// Inspector's pending-edit state, so the form renders the draft while it is pending and
-/// the accepted value again when it settles.
-pub(super) fn submit_layout_component_edit(
-    runtime: &Rc<Runtime>,
-    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
-    field: layout_component_edits::InspectorField,
-    resolver: boardstudio_application::EditResolver,
-    display: boardstudio_web_ui_shared::draft_edits::EditDisplay<String>,
-) {
-    let helper = pending_edits.peek().clone();
-    let label = match field {
+fn inspector_edit_label(field: layout_component_edits::InspectorField) -> &'static str {
+    match field {
         layout_component_edits::InspectorField::X => "layout-inspector-x",
         layout_component_edits::InspectorField::Y => "layout-inspector-y",
         layout_component_edits::InspectorField::Margin => "layout-inspector-outline",
@@ -157,15 +147,7 @@ pub(super) fn submit_layout_component_edit(
         layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
         layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
         layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
-    };
-    helper.submit(
-        runtime,
-        field,
-        label,
-        Some("layout".into()),
-        resolver,
-        display,
-    );
+    }
 }
 
 pub(super) fn dispatch_layout_component_inspector_action(
@@ -174,10 +156,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
     (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
-    (pending_edits, views): (
-        Signal<layout_component_edits::LayoutComponentInspectorEdits>,
-        layout_component_edits::ComponentEditViews,
-    ),
+    views: layout_component_edits::ComponentEditViews,
     action: inspector::LayoutComponentInspectorAction,
 ) {
     let action_owner = match &action {
@@ -230,14 +209,47 @@ pub(super) fn dispatch_layout_component_inspector_action(
     {
         return;
     }
-    let submit = |field, resolver, draft| {
-        submit_layout_component_edit(
-            runtime,
-            pending_edits,
-            field,
-            resolver,
-            views.display(field, draft),
-        );
+    let part_id = action_owner.part_id.clone();
+    let submit = |field, resolver, _draft: Option<String>| {
+        use layout_component_edits::InspectorField;
+        let result = runtime.commit(inspector_edit_label(field), resolver);
+        let mut error = views.error;
+        let view = match field {
+            InspectorField::X => Some(views.x),
+            InspectorField::Y => Some(views.y),
+            InspectorField::Margin => Some(views.margin),
+            _ => None,
+        };
+        if let Some((mut draft, mut failure)) = view {
+            let accepted = result.as_ref().unwrap_or(snapshot);
+            if let Some(part) = accepted
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == part_id)
+            {
+                let position = if part.anchor.is_some() {
+                    boardstudio_core::evaluated_part_pose(&accepted.document, part).at
+                } else {
+                    part.pose.at
+                };
+                draft.set(match field {
+                    InspectorField::X => format!("{:.2}", position.x),
+                    InspectorField::Y => format!("{:.2}", position.y),
+                    InspectorField::Margin => part
+                        .outline
+                        .as_ref()
+                        .and_then(|outline| outline.margin)
+                        .map(|value| value.to_string())
+                        .unwrap_or_default(),
+                    _ => unreachable!("only inspector number fields have drafts"),
+                });
+            }
+            failure.set(result.err());
+            error.set(None);
+        } else {
+            error.set(result.err());
+        }
     };
     match action {
         inspector::LayoutComponentInspectorAction::SetPosition {

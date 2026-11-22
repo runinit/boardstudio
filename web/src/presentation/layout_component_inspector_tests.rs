@@ -28,8 +28,6 @@ struct MountedProbe {
     selection_kind: std::rc::Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
     projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
     action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
-    pending_edits:
-        std::rc::Rc<RefCell<Option<Signal<layout_component_edits::LayoutComponentInspectorEdits>>>>,
     render_generation: std::rc::Rc<RefCell<Option<Signal<u64>>>>,
     mirrored_half_override: std::rc::Rc<RefCell<Option<MirroredHalfProjection>>>,
     last_action: std::rc::Rc<RefCell<Option<LayoutComponentInspectorAction>>>,
@@ -144,9 +142,6 @@ fn mounted_component_inspector_host() -> Element {
     let adapter =
         use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
     let lifetime = use_hook(|| std::rc::Rc::new(LayoutComponentInspectorLifetime::default()));
-    let pending_edits =
-        use_signal(super::layout_component_edits::LayoutComponentInspectorEdits::default);
-    *probe.pending_edits.borrow_mut() = Some(pending_edits);
     let x_draft = use_signal(String::new);
     let y_draft = use_signal(String::new);
     let margin_draft = use_signal(String::new);
@@ -154,10 +149,6 @@ fn mounted_component_inspector_host() -> Element {
     let y_failure = use_signal(|| None::<String>);
     let margin_failure = use_signal(|| None::<String>);
     let error = use_signal(|| None::<String>);
-    let layout_pending = use_signal(|| false);
-    let constraint_pending = use_signal(|| false);
-    let remove_pending = use_signal(|| false);
-    let mirrored_half_pending = use_signal(|| false);
     let runtime = probe.runtime.clone();
     let model = runtime.model();
     let next_context = probe
@@ -200,17 +191,11 @@ fn mounted_component_inspector_host() -> Element {
     let action_adapter = adapter.clone();
     let action_lifetime = lifetime.clone();
     let action_workspace = workspace;
-    use boardstudio_web_ui_shared::draft_edits::FieldView;
     let views = layout_component_edits::ComponentEditViews {
-        x: FieldView::new(x_draft, x_failure),
-        y: FieldView::new(y_draft, y_failure),
-        margin: FieldView::new(margin_draft, margin_failure),
-        actions: (
-            layout_pending,
-            constraint_pending,
-            remove_pending,
-            mirrored_half_pending,
-        ),
+        x: (x_draft, x_failure),
+        y: (y_draft, y_failure),
+        margin: (margin_draft, margin_failure),
+        error,
     };
     let last_action = probe.last_action.clone();
     let action_handler = EventHandler::new(move |action: LayoutComponentInspectorAction| {
@@ -221,7 +206,7 @@ fn mounted_component_inspector_host() -> Element {
             &layout_owner,
             &action_lifetime,
             (action_workspace, inspect_open),
-            (pending_edits, views),
+            views,
             action,
         )
     });
@@ -241,7 +226,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
             if show_component() {
-                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
+                LayoutComponentInspector { projection, inspector_tab, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, on_action: action_handler }
             }
         }
         output { "data-test-render-generation": "", "{render_generation()}" }
@@ -378,7 +363,6 @@ async fn mounted_runtime_probe(
         selection_kind: std::rc::Rc::default(),
         projection: std::rc::Rc::default(),
         action: std::rc::Rc::default(),
-        pending_edits: std::rc::Rc::default(),
         render_generation: std::rc::Rc::default(),
         mirrored_half_override: std::rc::Rc::default(),
         last_action: std::rc::Rc::default(),
@@ -519,11 +503,13 @@ fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
         .push("selected-part-mirror".into());
 }
 
-/// Whether the mounted Inspector has settled on the latest accepted revision.
-fn accept_pending_ready(probe: &MountedProbe) -> bool {
-    probe.pending_edits.borrow().as_ref().is_none_or(|edits| {
-        use super::layout_component_edits::InspectorField;
-        !edits.peek().is_pending(&InspectorField::PartMirror)
+fn current_revision_is_saved(probe: &MountedProbe) -> bool {
+    let model = probe.runtime.model();
+    model.accepted.as_ref().is_some_and(|snapshot| {
+        model.durability
+            == (boardstudio_application::Durability::Saved {
+                revision: snapshot.document.revision,
+            })
     })
 }
 

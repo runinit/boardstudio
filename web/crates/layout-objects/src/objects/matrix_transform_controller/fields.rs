@@ -1,6 +1,5 @@
 use super::projection::transform_fields;
 use super::*;
-use boardstudio_web_ui_shared::draft_edits::DraftEdits;
 
 pub(super) fn field_value(
     fields: &MatrixTransformFields,
@@ -176,66 +175,7 @@ pub(super) fn field_value(
     }
 }
 
-pub(super) fn settle_pending(
-    runtime: &Runtime,
-    edits: &DraftEdits<TransformPendingKey>,
-    owner_is_live: bool,
-    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    change_status: &mut Signal<Option<TransformChangeAnnouncement>>,
-) {
-    for result in edits.settle(owner_is_live, |key| accepted_field_text(runtime, key)) {
-        match result {
-            PendingEditResult::Landed { key, .. } => {
-                if key.failure.is_none() {
-                    publish_feedback(feedback, &key.owner, key.request_id, key.field, None)
-                }
-                let revision = runtime
-                    .model()
-                    .accepted
-                    .map(|snapshot| snapshot.document.revision);
-                if let Some(revision) = revision {
-                    change_status.set(Some(TransformChangeAnnouncement {
-                        owner: key.owner.clone(),
-                        revision,
-                        message: format!(
-                            "Changed {} · one Undo entry",
-                            transform_field_label(key.field)
-                        ),
-                    }));
-                }
-            }
-            PendingEditResult::Failed { key, message } => {
-                if key.failure.is_none() {
-                    publish_feedback(
-                        feedback,
-                        &key.owner,
-                        key.request_id,
-                        key.field,
-                        Some(message),
-                    )
-                }
-                change_status.set(None);
-            }
-            PendingEditResult::Retired { key } => {
-                clear_feedback(feedback, &key);
-            }
-        }
-    }
-    // Undo, canvas drags and other writers move the revision without a mount
-    // submit; their result retires an announcement they did not produce.
-    let revision = runtime
-        .model()
-        .accepted
-        .map(|snapshot| snapshot.document.revision);
-    if change_status()
-        .as_ref()
-        .is_some_and(|announcement| Some(announcement.revision) != revision)
-    {
-        change_status.set(None);
-    }
-}
-
-pub(super) fn accepted_field_text(runtime: &Runtime, key: &TransformPendingKey) -> String {
+pub(super) fn accepted_field_text(runtime: &Runtime, request: &MatrixTransformRequest) -> String {
     let Some(snapshot) = runtime.model().accepted else {
         return String::new();
     };
@@ -243,17 +183,17 @@ pub(super) fn accepted_field_text(runtime: &Runtime, key: &TransformPendingKey) 
         .document
         .matrices
         .iter()
-        .find(|matrix| matrix.id == key.owner.matrix_id)
+        .find(|matrix| matrix.id == request.owner.matrix_id)
     else {
         return String::new();
     };
     transform_fields(
         &snapshot,
-        &key.owner.scope.board_id,
-        &key.owner.context,
+        &request.owner.scope.board_id,
+        &request.owner.context,
         matrix,
     )
-    .and_then(|fields| field_value(&fields, key.field, &key.splay_affect))
+    .and_then(|fields| field_value(&fields, request.field, &request.splay_affect))
     .and_then(|value| match value {
         MatrixTransformValue::Number(value) => Some(value.to_string()),
         _ => None,
@@ -277,17 +217,6 @@ pub(super) fn publish_request_failure(
             message,
         );
     }
-}
-
-pub(super) fn clear_feedback(
-    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    key: &TransformPendingKey,
-) {
-    let mut entries = feedback.read().clone();
-    entries.retain(|entry| {
-        entry.owner != key.owner || entry.field != key.field || entry.request_id != key.request_id
-    });
-    feedback.set(entries);
 }
 
 pub(super) fn publish_feedback(

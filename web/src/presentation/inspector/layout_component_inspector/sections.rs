@@ -131,7 +131,6 @@ macro_rules! render_inspector {
                                             inline: true, id: "component-inspector-part-mirror",
                                             label: "Mirror on both halves", aria_label: "Mirror on both halves",
                                             checked: if mirrored { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                                            disabled: (props.mirrored_half_pending)(),
                                             on_checked_change: {
                                                 let action = props.on_action;
                                                 let part_id = owner.part_id.clone();
@@ -168,7 +167,7 @@ macro_rules! render_inspector {
                                                 variant: ButtonVariant::Secondary,
                                                 id: "component-inspector-mirrored-half-local",
                                                 button_type: "button",
-                                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Local,
+                                                disabled: mirrored_half.state == HalfExceptionState::Local,
                                                 onclick: mirrored_half_action(HalfExceptionState::Local),
 
                                                 "Make local"
@@ -178,8 +177,7 @@ macro_rules! render_inspector {
                                                 variant: ButtonVariant::Secondary,
                                                 id: "component-inspector-mirrored-half-omit",
                                                 button_type: "button",
-                                                disabled: (props.mirrored_half_pending)()
-                                                    || mirrored_half.state == HalfExceptionState::Omitted,
+                                                disabled: mirrored_half.state == HalfExceptionState::Omitted,
                                                 onclick: mirrored_half_action(HalfExceptionState::Omitted),
 
                                                 "Omit"
@@ -189,7 +187,7 @@ macro_rules! render_inspector {
                                                 variant: ButtonVariant::Secondary,
                                                 id: "component-inspector-mirrored-half-rejoin",
                                                 button_type: "button",
-                                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Linked,
+                                                disabled: mirrored_half.state == HalfExceptionState::Linked,
                                                 onclick: mirrored_half_action(HalfExceptionState::Linked),
 
                                                 "Rejoin"
@@ -238,7 +236,6 @@ macro_rules! render_inspector {
                                                     aria_label: control_aria_label.clone(),
                                                     list_aria_label: control_aria_label.clone(),
                                                     value: Some(layout_choice.into()),
-                                                    disabled: (props.layout_pending)(),
                                                     on_value_change,
                                                     for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
                                                         ComboboxOption::<String> {
@@ -255,7 +252,6 @@ macro_rules! render_inspector {
                                                     id: control_id.clone(),
                                                     aria_label: control_aria_label.clone(),
                                                     value: Some(layout_choice.into()),
-                                                    disabled: (props.layout_pending)(),
                                                     on_value_change,
                                                     for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
                                                         SelectOption::<String> {
@@ -920,7 +916,6 @@ macro_rules! render_inspector {
                                                 Button {
                                                     variant: ButtonVariant::Secondary,
                                                     button_type: "button",
-                                                    disabled: (props.constraint_pending)(),
                                                     onclick: save_constraint,
                                                     if active_constraint.is_some() {
                                                         "Save constraint"
@@ -932,7 +927,6 @@ macro_rules! render_inspector {
                                                     Button {
                                                         variant: ButtonVariant::Secondary,
                                                         button_type: "button",
-                                                        disabled: (props.remove_pending)(),
                                                         onclick: remove_constraint,
                                                         "Remove"
                                                     }

@@ -9,7 +9,6 @@ use boardstudio_model::model::{
     AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -33,40 +32,6 @@ struct AssemblyDraft {
     document_id: String,
     session_epoch: boardstudio_application::SessionEpoch,
     scope: Option<Scope>,
-}
-
-/// This panel's three bounded one-shot keys, one per action kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AssemblyKey {
-    Save,
-    Place,
-    Matrix,
-}
-
-type PendingAssemblyActions = DraftEdits<AssemblyKey, AssemblyAction>;
-
-/// The editor lifetime every observed action shares: a change retires all
-/// observations before the next action begins under the fresh owner.
-#[derive(Clone, PartialEq)]
-struct AssemblyOwner {
-    view_generation: u64,
-    scope: Option<Scope>,
-    project: Option<(String, boardstudio_application::SessionEpoch)>,
-}
-
-#[derive(Clone)]
-enum AssemblyAction {
-    Assembly {
-        id: String,
-        created: bool,
-    },
-    Matrix(String),
-    BoardAssembly {
-        scope: Scope,
-        board_id: String,
-        assembly_id: String,
-        placement_seed: String,
-    },
 }
 
 fn derived_identity(root: &str, id: &str) -> bool {
@@ -324,90 +289,9 @@ pub fn SavedAssembliesEditor(
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut editor_generation = use_signal(|| 0_u64);
-    let pending_edits = use_hook(PendingAssemblyActions::default);
-    let owner_seen = use_signal(|| None::<AssemblyOwner>);
     let preparing_apply = use_signal(|| false);
     let preparing_place = use_signal(|| false);
     let mut feedback = use_signal(|| None::<String>);
-
-    use_effect({
-        let runtime = runtime.clone();
-        let pending_edits = pending_edits.clone();
-        let mut workspace = workspace;
-        let mut selected_context = selected_context;
-        let mut owner_seen = owner_seen;
-        move || {
-            let _ = runtime_version();
-            let accepted = runtime.model().accepted;
-            let current_owner = AssemblyOwner {
-                view_generation: editor_generation(),
-                scope: runtime.scope(),
-                project: accepted
-                    .as_ref()
-                    .map(|accepted| (accepted.document.id.clone(), accepted.session_epoch)),
-            };
-            if owner_seen.read().as_ref() != Some(&current_owner) {
-                if owner_seen.read().is_some() {
-                    // The editor lifetime moved on: retire every observation silently
-                    // before any new action begins under the fresh owner.
-                    pending_edits.clear();
-                }
-                owner_seen.set(Some(current_owner));
-                return;
-            }
-            // The owner identity above already covers generation, scope and project,
-            // so liveness is the workspace plus the accepted project still matching.
-            let live = workspace() == "Parts"
-                && accepted.is_some_and(|accepted| {
-                    Some((accepted.document.id.clone(), accepted.session_epoch))
-                        == current_owner.project
-                });
-            let model = runtime.model();
-            let results = pending_edits.settle_values_where(|_| live);
-            for (result, waiting) in results {
-                match &result {
-                    PendingEditResult::Retired { .. } => {}
-                    PendingEditResult::Failed { message, .. } => {
-                        feedback.set(Some(message.clone()))
-                    }
-                    PendingEditResult::Landed { .. } => {
-                        let Some(accepted) = model.accepted.as_ref() else {
-                            continue;
-                        };
-                        match &waiting {
-                            AssemblyAction::Assembly { id, created } => {
-                                if let Some(saved) = saved_assembly_for_submission(&accepted.document, id, *created) {
-                                    editing.with_mut(|draft| {
-                                        if let Some(draft) = draft.as_mut().filter(|draft| draft.value.id == *id) {
-                                            draft.base = Some(saved.clone());
-                                            draft.value.id = saved.id.clone();
-                                            draft.assets.retain(|asset| !accepted.document.assets.contains(asset));
-                                        }
-                                    });
-                                }
-                            }
-                            AssemblyAction::Matrix(id) => {
-                                if selected_context.peek().as_ref().is_some_and(|selected| matches!(&selected.context, super::super::objects::TreeContext::Matrix { matrix_id } if matrix_id == id)) {
-                                    feedback.set(Some("Assembly applied to the selected matrix.".into()));
-                                }
-                            }
-                            AssemblyAction::BoardAssembly { scope, board_id, assembly_id, placement_seed } => {
-                                if !editing.peek().as_ref().is_some_and(|draft| draft.value.id == *assembly_id) { continue; }
-                                let part_ids = placed_parts_for_submission(&accepted.document, board_id, placement_seed);
-                                if let Some(first) = part_ids.first() {
-                                    selected_context.set(super::super::objects::context_for_part(&model, first).map(|context| super::super::objects::ScopedTreeContext { scope: scope.clone(), context }));
-                                    editing.set(None);
-                                    on_board_placed.call(());
-                                    workspace.set("Layout");
-                                    runtime.submit(Event::SelectParts { operation_id: runtime.operation(), part_ids, range_part_ids: Vec::new(), mode: boardstudio_application::SelectionMode::Replace });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
 
     let open_existing = {
         let snapshot = snapshot.clone();
@@ -471,9 +355,8 @@ pub fn SavedAssembliesEditor(
         let runtime = runtime.clone();
         let snapshot = snapshot.clone();
         let scope = scope.clone();
-        let pending_edits = pending_edits.clone();
         move |_| {
-            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
+            if workspace() != "Parts" {
                 return;
             }
             let Some(preset) = assembly_selection.peek().as_ref().copied() else {
@@ -569,7 +452,6 @@ pub fn SavedAssembliesEditor(
         let snapshot = snapshot.clone();
         let selected_context = selected_context;
         let definitions = definitions.clone();
-        let pending_edits = pending_edits.clone();
         let feedback = feedback;
         move |assembly| {
             begin_apply_assembly_to_matrix(
@@ -581,7 +463,6 @@ pub fn SavedAssembliesEditor(
                 definitions.clone(),
                 assembly,
                 preparing_apply,
-                pending_edits.clone(),
                 editor_generation,
                 feedback,
             );
@@ -594,7 +475,6 @@ pub fn SavedAssembliesEditor(
         let snapshot = snapshot.clone();
         let definitions = definitions.clone();
         let preparing = preparing_place;
-        let pending_edits = pending_edits.clone();
         let feedback = feedback;
         move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
             begin_place_assembly_on_board(
@@ -607,7 +487,9 @@ pub fn SavedAssembliesEditor(
                 origin_x,
                 origin_y,
                 preparing,
-                pending_edits.clone(),
+                selected_context,
+                editing,
+                on_board_placed,
                 editor_generation,
                 feedback,
             );
@@ -618,9 +500,8 @@ pub fn SavedAssembliesEditor(
         let runtime = runtime.clone();
         let scope = scope.clone();
         let definitions = definitions.clone();
-        let pending_edits = pending_edits.clone();
         move |_| {
-            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
+            if workspace() != "Parts" {
                 return;
             }
             let Some(draft) = editing.read().clone() else {
@@ -639,18 +520,31 @@ pub fn SavedAssembliesEditor(
                 feedback.set(Some("The project or Parts scope changed while this assembly draft was open. Reopen it before saving.".into()));
                 return;
             }
-            pending_edits.submit_value(
-                &runtime,
-                AssemblyKey::Save,
+            match runtime.commit(
                 "parts-assembly-editor",
-                Some("assembly".into()),
                 assembly_save_resolver(draft.clone(), definitions.clone()),
-                AssemblyAction::Assembly {
-                    id: draft.value.id.clone(),
-                    created: draft.base.is_none(),
-                },
-            );
-            feedback.set(None);
+            ) {
+                Ok(accepted) => {
+                    let id = &draft.value.id;
+                    if let Some(saved) =
+                        saved_assembly_for_submission(&accepted.document, id, draft.base.is_none())
+                    {
+                        editing.with_mut(|current| {
+                            if let Some(current) =
+                                current.as_mut().filter(|current| &current.value.id == id)
+                            {
+                                current.base = Some(saved.clone());
+                                current.value.id = saved.id.clone();
+                                current
+                                    .assets
+                                    .retain(|asset| !accepted.document.assets.contains(asset));
+                            }
+                        });
+                    }
+                    feedback.set(None);
+                }
+                Err(message) => feedback.set(Some(message)),
+            }
         }
     };
 
@@ -707,9 +601,8 @@ pub fn SavedAssembliesEditor(
                     snapshot: snapshot.clone(),
                     draft,
                     definitions: definitions.clone(),
-                    save_pending: pending_edits.is_pending(&AssemblyKey::Save),
-                    place_pending: preparing_place() || pending_edits.is_pending(&AssemblyKey::Place),
-                    matrix_pending: preparing_apply() || pending_edits.is_pending(&AssemblyKey::Matrix),
+                    place_pending: preparing_place(),
+                    matrix_pending: preparing_apply(),
                     selected_context,
                     on_place,
                     on_place_board: place_on_board,
@@ -1254,6 +1147,3 @@ fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod assembly_selector_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod resolution_tests;

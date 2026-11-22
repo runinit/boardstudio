@@ -7,7 +7,6 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(test)]
 use boardstudio_model::model::EditOperation;
 use boardstudio_model::model::{Asset, PartDefinition};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -74,24 +73,6 @@ struct GeneratorParameter {
     kind: String,
     group: &'static str,
     value: Value,
-}
-
-/// The apply or upload this panel observes while its edit is pending: the helper owns
-/// the observation, the panel keeps the follow-up context (whose owner, which draft
-/// generation, which uploaded parameter).
-#[derive(Clone)]
-struct GeneratorAction {
-    owner: GeneratorOwner,
-    draft_sequence: u64,
-    apply: bool,
-    uploaded_parameter: Option<String>,
-}
-
-/// This panel's two bounded one-shot keys.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GeneratorKey {
-    Apply,
-    Upload,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -336,7 +317,7 @@ pub fn GeneratorSettingsEditor(
     let scope_generation = use_context::<super::super::SelectionAdapter>().generation;
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
     let workspace = use_context::<super::super::WorkspaceState>().0;
-    let version = use_context::<Signal<u64>>();
+    let _ = use_context::<Signal<u64>>()();
     let generator_source = definition
         .generator
         .as_ref()
@@ -349,11 +330,9 @@ pub fn GeneratorSettingsEditor(
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_edits = use_hook(DraftEdits::<GeneratorKey, GeneratorAction>::default);
 
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
-    let draft_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     let model_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let mut model_uploading = use_signal(|| false);
@@ -382,67 +361,6 @@ pub fn GeneratorSettingsEditor(
             edits.set(BTreeMap::new());
             changed_parameters.set(BTreeSet::new());
             store.set(None);
-        }
-    }));
-
-    use_effect(use_reactive((&version(),), {
-        let runtime = runtime.clone();
-        let sequence = sequence.clone();
-        let draft_generation = draft_generation.clone();
-        let pending_edits = pending_edits.clone();
-        let mut feedback = feedback;
-        let mut store = store;
-        let mut edits = edits;
-        let mut changed_parameters = changed_parameters;
-
-        move |_| {
-            let results = pending_edits.settle_values_where(|intent| {
-                owner_context_is_current(
-                    &intent.owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                )
-            });
-            for (result, intent) in results {
-                match result {
-                    // Landed means landed: drop the draft store without re-checking the
-                    // accepted document for the requested values.
-                    PendingEditResult::Landed { .. } => {
-                        if intent.apply && draft_generation.get() == intent.draft_sequence {
-                            sequence.set(sequence.get().wrapping_add(1));
-                            store.set(None);
-                            edits.set(BTreeMap::new());
-                            changed_parameters.set(BTreeSet::new());
-                        }
-                        if let Some(parameter) = &intent.uploaded_parameter {
-                            // Upload owns this disabled file control until settlement;
-                            // reveal its accepted value without erasing other draft fields.
-                            edits.write().remove(parameter);
-                            changed_parameters.write().remove(parameter);
-                            sequence.set(sequence.get().wrapping_add(1));
-                            store.set(None);
-                            uploaded_preview_generation += 1;
-                        }
-                        feedback.set(None);
-                    }
-                    PendingEditResult::Failed { message, .. } => {
-                        if intent.apply && draft_generation.get() == intent.draft_sequence {
-                            sequence.set(sequence.get().wrapping_add(1));
-                            store.set(None);
-                            edits.set(BTreeMap::new());
-                            changed_parameters.set(BTreeSet::new());
-                        }
-                        feedback.set(Some(ScopedFeedback {
-                            owner: intent.owner.clone(),
-                            message,
-                        }));
-                    }
-                    PendingEditResult::Retired { .. } => {}
-                }
-            }
         }
     }));
 
@@ -537,9 +455,7 @@ pub fn GeneratorSettingsEditor(
             }));
         });
     });
-    let user_draft_generation = draft_generation.clone();
     let change_parameter = use_callback(move |(key, value): (String, Value)| {
-        user_draft_generation.set(user_draft_generation.get().wrapping_add(1));
         let mut next = edits();
         changed_parameters.write().insert(key.clone());
         next.insert(key, value);
@@ -565,15 +481,11 @@ pub fn GeneratorSettingsEditor(
     });
     let model_import_runtime = runtime.clone();
     let model_import_owner = owner.clone();
-    let import_pending_edits = pending_edits.clone();
+    let import_sequence = sequence.clone();
     let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
-        let pending_edits = import_pending_edits.clone();
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
-        if model_uploading()
-            || pending_edits.is_pending(&GeneratorKey::Upload)
-            || !parameter.ends_with("3dmodel_filename")
-        {
+        if model_uploading() || !parameter.ends_with("3dmodel_filename") {
             return;
         }
         if !owner_is_current(
@@ -597,9 +509,11 @@ pub fn GeneratorSettingsEditor(
         let error_prefix = parameter_label(&parameter).to_ascii_lowercase();
         let mut feedback = feedback;
         let mut model_uploading = model_uploading;
-        let pending_edits = pending_edits.clone();
 
-        let draft_sequence = 0;
+        let sequence = import_sequence.clone();
+        let mut edits = edits;
+        let mut store = store;
+        let mut changed_parameters = changed_parameters;
         spawn_local(async move {
             let imported = read_model_file(file).await;
             if !alive.get() || model_sequence.get() != ticket {
@@ -734,11 +648,8 @@ pub fn GeneratorSettingsEditor(
             };
             model_uploading.set(false);
             let asset_seed = runtime.operation().0;
-            pending_edits.submit_value(
-                &runtime,
-                GeneratorKey::Upload,
+            let result = runtime.commit(
                 "parts-generator-settings",
-                Some("generator".into()),
                 generator_model_upload_resolver(
                     owner.clone(),
                     latest_definition,
@@ -746,20 +657,26 @@ pub fn GeneratorSettingsEditor(
                     asset,
                     asset_seed,
                 ),
-                GeneratorAction {
-                    owner,
-                    draft_sequence,
-                    apply: false,
-                    uploaded_parameter: Some(parameter),
-                },
             );
-            feedback.set(None);
+            match result {
+                Ok(_) => {
+                    edits.write().remove(&parameter);
+                    changed_parameters.write().remove(&parameter);
+                    sequence.set(sequence.get().wrapping_add(1));
+                    store.set(None);
+                    uploaded_preview_generation += 1;
+                    feedback.set(None);
+                }
+                Err(message) => feedback.set(Some(ScopedFeedback { owner, message })),
+            }
         });
     });
     let on_apply = {
         let runtime = runtime.clone();
-        let pending_edits = pending_edits.clone();
 
+        let sequence = sequence.clone();
+        let mut store = store;
+        let mut edits = edits;
         let mut feedback = feedback;
         let current_owner = active_draft
             .as_ref()
@@ -775,32 +692,28 @@ pub fn GeneratorSettingsEditor(
             else {
                 return;
             };
-            if pending_edits.is_pending(&GeneratorKey::Apply)
-                || !owner_context_is_current(
-                    &current_owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                )
-            {
+            if !owner_context_is_current(
+                &current_owner,
+                &runtime,
+                selected,
+                scope_generation(),
+                selection_generation(),
+                workspace(),
+            ) {
                 return;
             }
-            pending_edits.submit_value(
-                &runtime,
-                GeneratorKey::Apply,
+            let result = runtime.commit(
                 "parts-generator-settings",
-                Some("generator settings".into()),
                 generator_apply_resolver(current_owner.clone(), candidate, changed_parameters()),
-                GeneratorAction {
-                    owner: current_owner.clone(),
-                    draft_sequence: draft_generation.get(),
-                    apply: true,
-                    uploaded_parameter: None,
-                },
             );
-            feedback.set(None);
+            sequence.set(sequence.get().wrapping_add(1));
+            store.set(None);
+            edits.set(BTreeMap::new());
+            changed_parameters.set(BTreeSet::new());
+            feedback.set(result.err().map(|message| ScopedFeedback {
+                owner: current_owner.clone(),
+                message,
+            }));
         }
     };
 
@@ -844,7 +757,7 @@ pub fn GeneratorSettingsEditor(
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
                                     on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
                                     on_import: import_generator_model,
-                                    busy: model_uploading() || pending_edits.is_pending(&GeneratorKey::Upload),
+                                    busy: model_uploading(),
                                     feedback: feedback()
                                         .filter(|message| owner_context_is_current(
                                             &message.owner,
@@ -886,7 +799,7 @@ pub fn GeneratorSettingsEditor(
             Button {
                 variant: ButtonVariant::Default,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
+                disabled: !preview_ready,
                 onclick: on_apply,
                 "Apply generator settings"
             }

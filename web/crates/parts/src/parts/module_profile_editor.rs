@@ -17,7 +17,6 @@ use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::FieldLabel,
     select::{Select, SelectOption},
-    spinner::Spinner,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -487,6 +486,8 @@ pub fn ModuleProfileEditor(
         let baseline = baseline.clone();
         let draft = draft;
         let rotary = rotary;
+        let mut rotary = rotary;
+        let mut draft = draft;
         let mut failure = failure;
         let mut error = error;
         let selected = selected;

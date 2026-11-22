@@ -6,7 +6,6 @@ pub(super) fn AssemblyDraftFields(
     snapshot: AcceptedSnapshot,
     draft: AssemblyDraft,
     definitions: Vec<PartDefinition>,
-    save_pending: bool,
     place_pending: bool,
     matrix_pending: bool,
     selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
@@ -100,7 +99,7 @@ pub(super) fn AssemblyDraftFields(
               }, "Add component" } }
             }
             div { class: "flex flex-wrap gap-2",
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: on_save, "Save assembly" }
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: on_close, "Close editor" }
             }
             div { class: "flex flex-wrap gap-2",

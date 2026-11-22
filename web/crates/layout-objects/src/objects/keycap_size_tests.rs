@@ -47,8 +47,6 @@ fn host() -> Element {
         request_sequence,
         editable: true,
         feedback: probe.feedback.borrow().clone(),
-        inspector_mounted: use_signal(|| true),
-        on_bind_draft: use_callback(|_| {}),
         on_resize,
     };
     rsx! {

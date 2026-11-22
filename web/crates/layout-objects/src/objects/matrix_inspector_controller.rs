@@ -14,59 +14,12 @@ use boardstudio_application::{
 use boardstudio_model::model::{
     DiodeDirection, EditOperation, Matrix, PartDefinition, ProjectDoc, Side, Vec2,
 };
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
 use wasm_bindgen_futures::spawn_local;
-
-/// One-shot action keys compare by action kind; request data travels with its result.
-#[derive(Clone)]
-enum MatrixActionKey {
-    Preset(Option<MatrixPresetRequest>),
-    Delete(Option<MatrixDeleteRequest>),
-    Unlink,
-}
-
-#[derive(Clone)]
-enum MatrixPendingKey {
-    Field(MatrixEditField),
-    Action(MatrixActionKey),
-}
-
-impl PartialEq for MatrixPendingKey {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Field(left), Self::Field(right)) => left == right,
-            (Self::Action(left), Self::Action(right)) => left == right,
-            _ => false,
-        }
-    }
-}
-
-impl PartialEq for MatrixActionKey {
-    fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Preset(_), Self::Preset(_))
-                | (Self::Delete(_), Self::Delete(_))
-                | (Self::Unlink, Self::Unlink)
-        )
-    }
-}
-
-impl MatrixActionKey {
-    fn preset() -> Self {
-        Self::Preset(None)
-    }
-
-    fn delete() -> Self {
-        Self::Delete(None)
-    }
-}
 
 /// A matrix preset prepared from the Parts catalogue: the template matrix and the
 /// definitions it needs. The edit applies it to whatever matrix is accepted at execution.
@@ -283,7 +236,6 @@ fn submit_dimension_bump(
     scope_generation: Signal<u64>,
     workspace: Signal<&'static str>,
     editor_instance_id: u64,
-    field_pending: &dyn Fn(MatrixEditField) -> bool,
     mut request_sequence: Signal<u64>,
     on_edit: EventHandler<MatrixEditRequest>,
     field: MatrixEditField,
@@ -318,7 +270,7 @@ fn submit_dimension_bump(
     let Some(value) = grown else {
         return;
     };
-    if !editable || field_pending(field) {
+    if !editable {
         return;
     }
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -383,48 +335,22 @@ pub fn use_matrix_inspector(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    // Field edits and one-shot actions are observed through shared draft tickets keyed
-    // by field or action kind. The submitted view travels on the ticket so settlement
-    // restores the durable draft only while it still is the submitted value. No Signal
-    // mirrors the pending state: availability derives from `is_pending` below.
-    let edits = use_signal(DraftEdits::<MatrixPendingKey>::default);
+    let _ = version();
     let inspector_mounted = use_signal(|| false);
     // One draft/failure pair per editable field, in `MatrixEditField::ALL` order.
     // `from_fn` invokes the hooks in a fixed order, so every render keeps the
     // same durable draft signals.
     let drafts: [(Signal<String>, Signal<Option<String>>); MatrixEditField::ALL.len()] =
         std::array::from_fn(|_| (use_signal(String::new), use_signal(|| None::<String>)));
-    let settlement_tick = use_signal(|| 0u64);
-    let _ = settlement_tick();
     let fields: Vec<(MatrixEditField, MatrixFieldView)> = MatrixEditField::ALL
         .into_iter()
         .zip(drafts)
         .map(|(field, (draft, failure))| (field, MatrixFieldView { draft, failure }))
         .collect();
     let mut field_owner = use_signal(|| None::<MatrixInspectorOwner>);
-    let mut pending_action_owner = use_signal(|| None::<MatrixInspectorOwner>);
-    let mut last_projection = use_signal(|| None::<MatrixInspectorProjection>);
-    let edits_for_busy = edits;
-    let one_shot_busy = move || {
-        edits_for_busy
-            .read()
-            .is_pending(&MatrixPendingKey::Action(MatrixActionKey::preset()))
-            || edits_for_busy
-                .read()
-                .is_pending(&MatrixPendingKey::Action(MatrixActionKey::delete()))
-            || edits_for_busy
-                .read()
-                .is_pending(&MatrixPendingKey::Action(MatrixActionKey::Unlink))
-    };
-    let edits_for_pending = edits;
-    let field_pending = move |field: MatrixEditField| {
-        edits_for_pending
-            .read()
-            .is_pending(&MatrixPendingKey::Field(field))
-    };
     let preparing_preset = use_signal(|| false);
     let duplicating = use_signal(|| false);
-    let mut feedback = use_signal(Vec::<MatrixEditFeedback>::new);
+    let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
     let switch_catalog = use_signal(Vec::<PartDefinition>::new);
     let mut switch_catalog_loaded = use_signal(|| false);
     let catalog_alive = alive.clone();
@@ -443,7 +369,7 @@ pub fn use_matrix_inspector(
             }
         });
     });
-    let (fresh_projection, mut editable) = project_current(
+    let (fresh_projection, editable) = project_current(
         &runtime,
         selected.as_ref(),
         editor_instance_id,
@@ -458,59 +384,11 @@ pub fn use_matrix_inspector(
         }
         projection
     });
-    if let Some(projection) = fresh_projection.as_ref()
-        && last_projection.read().as_ref() != Some(projection)
-    {
-        last_projection.set(Some(projection.clone()));
-    }
-    // Keep the deleted Matrix visible until the helper drains its Delete result. This
-    // lets the action's own landing run its exact-selection follow-up before the view
-    // unmounts. An externally hidden Inspector still retires through `inspector_mounted`.
-    let projection_was_missing = fresh_projection.is_none();
-    let delete_observed = edits
-        .read()
-        .observations()
-        .into_iter()
-        .any(|(key, _)| matches!(key, MatrixPendingKey::Action(MatrixActionKey::Delete(_))));
-    let projection = fresh_projection.or_else(|| {
-        let delete_owner = pending_action_owner.read().as_ref()?.clone();
-        if !delete_observed {
-            return None;
-        }
-        let selected_matches = selected_context.read().as_ref().is_some_and(|selected| {
-            selected.scope == delete_owner.scope
-                && matches!(
-                    &selected.context,
-                    TreeContext::Matrix { matrix_id } if matrix_id == &delete_owner.matrix_id
-                )
-        });
-        if !selected_matches {
-            return None;
-        }
-        let cached = last_projection.read().clone()?;
-        (cached.owner == delete_owner).then_some(cached)
-    });
-    if projection_was_missing && projection.is_some() {
-        editable = false;
-    }
+    let projection = fresh_projection;
     let current_field_owner = projection
         .as_ref()
         .map(|projection| projection.owner.clone());
-    let identity = observed_identity.clone();
-
     if field_owner.read().as_ref() != current_field_owner.as_ref() {
-        if field_owner.read().is_some() {
-            let results = edits
-                .read()
-                .settle(false, |key| matrix_field_text(key, projection.as_ref()));
-            settle_action_results(&runtime, &mut feedback, selected_context, results);
-        }
-        if !edits
-            .read()
-            .is_pending(&MatrixPendingKey::Action(MatrixActionKey::delete()))
-        {
-            pending_action_owner.set(None);
-        }
         field_owner.set(current_field_owner);
         for (field, view) in &fields {
             let mut draft = view.draft;
@@ -520,65 +398,11 @@ pub fn use_matrix_inspector(
         }
     }
 
-    use_effect(use_reactive(
-        (
-            &version(),
-            &workspace(),
-            &scope_generation(),
-            &identity,
-            &inspector_mounted(),
-        ),
-        {
-            let runtime = runtime.clone();
-            let alive = alive.clone();
-            let mut pending_action_owner = pending_action_owner;
-            let mut feedback = feedback;
-            let mut settlement_tick = settlement_tick;
-            let context_generation = context_generation.clone();
-            let projection = projection.clone();
-            move |(_, _, _, _, _)| {
-                let current_owner = pending_action_owner.read().clone();
-                let owner_is_live = current_owner.as_ref().is_some_and(|owner| {
-                    alive.get()
-                        && inspector_mounted()
-                        && owner.editor_instance_id == editor_instance_id
-                        && owner.context_generation == context_generation.borrow().value
-                        && owner.scope_generation == scope_generation()
-                        && workspace() == "Layout"
-                });
-                let results = edits.read().settle(owner_is_live, |key| {
-                    matrix_field_text(key, projection.as_ref())
-                });
-                if !results.is_empty() {
-                    settlement_tick.set(settlement_tick().wrapping_add(1));
-                }
-                settle_action_results(&runtime, &mut feedback, selected_context, results);
-                if pending_action_owner.read().is_some()
-                    && !edits
-                        .read()
-                        .is_pending(&MatrixPendingKey::Action(MatrixActionKey::preset()))
-                    && !edits
-                        .read()
-                        .is_pending(&MatrixPendingKey::Action(MatrixActionKey::delete()))
-                    && !edits
-                        .read()
-                        .is_pending(&MatrixPendingKey::Action(MatrixActionKey::Unlink))
-                    && MatrixEditField::ALL
-                        .iter()
-                        .all(|field| !edits.read().is_pending(&MatrixPendingKey::Field(*field)))
-                {
-                    pending_action_owner.set(None);
-                }
-            }
-        },
-    ));
-
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let callback_fields = fields.clone();
         let mut last_request_id = last_request_id;
-        let mut edits = edits;
         let mut feedback = feedback;
         move |request: MatrixEditRequest| {
             let current_generation = context_generation.borrow().value;
@@ -672,18 +496,8 @@ pub fn use_matrix_inspector(
                 }
                 _ => None,
             };
-            let display = callback_fields
-                .iter()
-                .find(|(field, _)| *field == request.field)
-                .map(|(_, view)| {
-                    FieldView::new(view.draft, view.failure).submitted(view.draft.peek().clone())
-                })
-                .expect("Matrix Inspector field is bound by the controller");
-            edits.write().submit(
-                &runtime,
-                MatrixPendingKey::Field(request.field),
+            let result = runtime.commit(
                 "layout-matrix-inspector",
-                Some("matrix".into()),
                 matrix_field_resolver(
                     request.owner.matrix_id.clone(),
                     request.owner.name_target.clone(),
@@ -691,14 +505,28 @@ pub fn use_matrix_inspector(
                     request.value.clone(),
                     catalogue_definition,
                 ),
-                display,
             );
-            pending_action_owner.set(Some(request.owner.clone()));
+            let (next, _) = project_current(
+                &runtime,
+                Some(&selected),
+                editor_instance_id,
+                current_generation,
+                current_scope_generation,
+                current_workspace,
+            );
+            if let Some((_, view)) = callback_fields
+                .iter()
+                .find(|(field, _)| *field == request.field)
+            {
+                let mut draft = view.draft;
+                draft.set(matrix_field_value_text(next.as_ref(), request.field));
+                let mut failure = view.failure;
+                failure.set(result.err());
+            }
         }
     });
 
     let preset_alive = alive.clone();
-    let preset_edits = edits;
     let on_apply_preset = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
@@ -717,7 +545,7 @@ pub fn use_matrix_inspector(
                 return;
             }
             last_request_id.set(request.request_id);
-            if one_shot_busy() || preparing_preset() || duplicating() {
+            if preparing_preset() || duplicating() {
                 return;
             }
             let selected = selected_context.read().clone();
@@ -767,8 +595,6 @@ pub fn use_matrix_inspector(
             preparing_preset.set(true);
             let runtime = runtime.clone();
             let mut preparing = preparing_preset;
-            let mut preset_edits = preset_edits;
-            let mut pending_action_owner = pending_action_owner;
             let mut feedback = feedback;
             let selected_context = selected_context;
             let context_generation = context_generation.clone();
@@ -847,14 +673,21 @@ pub fn use_matrix_inspector(
                 if !alive.get() {
                     return;
                 }
-                pending_action_owner.set(Some(request.owner.clone()));
-                preset_edits.write().begin(
-                    &runtime,
-                    MatrixPendingKey::Action(MatrixActionKey::Preset(Some(request.clone()))),
+                match runtime.commit(
                     "layout-matrix-preset",
-                    Some("matrix preset".into()),
                     matrix_preset_resolver(request.owner.matrix_id.clone(), prepared),
-                );
+                ) {
+                    Ok(_) => {
+                        clear_action_feedback(&mut feedback, &request.owner, request.request_id)
+                    }
+                    Err(message) => publish_action_feedback(
+                        &mut feedback,
+                        &request.owner,
+                        request.request_id,
+                        MatrixEditField::ApplyPreset,
+                        message,
+                    ),
+                }
             });
         }
     });
@@ -862,14 +695,11 @@ pub fn use_matrix_inspector(
     let on_delete = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let mut edits = edits;
-        let mut pending_action_owner = pending_action_owner;
         move |request: MatrixDeleteRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -898,15 +728,23 @@ pub fn use_matrix_inspector(
                 );
                 return;
             }
-            let matrix_id = request.owner.matrix_id.clone();
-            pending_action_owner.set(Some(request.owner.clone()));
-            edits.write().begin(
-                &runtime,
-                MatrixPendingKey::Action(MatrixActionKey::Delete(Some(request))),
+            let result = runtime.commit(
                 "layout-matrix-delete",
-                Some("matrix delete".into()),
-                matrix_delete_resolver(matrix_id),
+                matrix_delete_resolver(request.owner.matrix_id),
             );
+            match result {
+                Ok(_) => {
+                    let mut selected_context = selected_context;
+                    selected_context.set(None);
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: Vec::new(),
+                        range_part_ids: Vec::new(),
+                        mode: boardstudio_application::SelectionMode::Replace,
+                    });
+                }
+                Err(message) => runtime.report(format!("Could not delete matrix: {message}")),
+            }
         }
     });
 
@@ -921,7 +759,6 @@ pub fn use_matrix_inspector(
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -1014,7 +851,6 @@ pub fn use_matrix_inspector(
                 scope_generation,
                 workspace,
                 editor_instance_id,
-                &field_pending,
                 request_sequence,
                 on_edit,
                 MatrixEditField::Rows,
@@ -1033,7 +869,6 @@ pub fn use_matrix_inspector(
                 scope_generation,
                 workspace,
                 editor_instance_id,
-                &field_pending,
                 request_sequence,
                 on_edit,
                 MatrixEditField::Columns,
@@ -1044,14 +879,11 @@ pub fn use_matrix_inspector(
     let on_unlink = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
-        let mut edits = edits;
-        let mut pending_action_owner = pending_action_owner;
         move |request: MatrixUnlinkRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -1087,14 +919,12 @@ pub fn use_matrix_inspector(
                 );
                 return;
             }
-            pending_action_owner.set(Some(request.owner.clone()));
-            edits.write().begin(
-                &runtime,
-                MatrixPendingKey::Action(MatrixActionKey::Unlink),
+            if let Err(message) = runtime.commit(
                 "layout-matrix-unlink",
-                Some("unlink".into()),
-                unlink_layout_resolver(request.owner.scope.board_id.clone(), request.layout_id),
-            );
+                unlink_layout_resolver(request.owner.scope.board_id, request.layout_id),
+            ) {
+                runtime.report(format!("Could not unlink the halves: {message}"));
+            }
         }
     });
 
@@ -1102,15 +932,12 @@ pub fn use_matrix_inspector(
         projection,
         request_sequence,
         editable,
-        busy: one_shot_busy() || preparing_preset() || duplicating(),
+        busy: preparing_preset() || duplicating(),
         inspector_mounted,
         fields,
-        pending_fields: MatrixEditField::ALL
-            .into_iter()
-            .filter(|field| field_pending(*field))
-            .collect(),
-        add_row_pending: field_pending(MatrixEditField::Rows),
-        add_column_pending: field_pending(MatrixEditField::Columns),
+        pending_fields: Vec::new(),
+        add_row_pending: false,
+        add_column_pending: false,
         feedback: feedback.read().clone(),
         on_edit,
         on_add_row,
@@ -1124,20 +951,15 @@ pub fn use_matrix_inspector(
 
 mod edits;
 mod projection;
-#[cfg(test)]
-mod tests;
 mod variant;
 
 use edits::{
     build_operation, clear_action_feedback, duplicate_design_variant, field_value,
-    prepare_preset_matrix, publish_action_feedback, publish_feedback, settle_action_results,
+    prepare_preset_matrix, publish_action_feedback, publish_feedback,
 };
 use projection::{
-    MatrixProjectionContext, matrix_field_text, matrix_field_value_text, project_current,
-    project_current_for,
+    MatrixProjectionContext, matrix_field_value_text, project_current, project_current_for,
 };
-#[cfg(test)]
-use variant::current_variant_snapshot;
 use variant::is_reversible;
 
 pub use projection::switch_choices;

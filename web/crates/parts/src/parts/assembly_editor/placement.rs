@@ -3,7 +3,7 @@ use super::*;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn begin_place_assembly_on_board(
     runtime: Rc<crate::runtime::Runtime>,
-    workspace: Signal<&'static str>,
+    mut workspace: Signal<&'static str>,
     scope: Option<Scope>,
     source: AcceptedSnapshot,
     definitions: Vec<PartDefinition>,
@@ -11,12 +11,14 @@ pub(super) fn begin_place_assembly_on_board(
     origin_x: String,
     origin_y: String,
     mut preparing: Signal<bool>,
-    pending_edits: PendingAssemblyActions,
+    mut selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
+    mut editing: Signal<Option<AssemblyDraft>>,
+    on_board_placed: EventHandler<()>,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || pending_edits.is_pending(&AssemblyKey::Place) || workspace() != "Parts" {
+    if preparing() || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -130,11 +132,8 @@ pub(super) fn begin_place_assembly_on_board(
             ));
             return;
         }
-        pending_edits.submit_value(
-            &runtime,
-            AssemblyKey::Place,
+        match runtime.commit(
             "parts-assembly-place",
-            Some("assembly placement".into()),
             assembly_place_resolver(
                 scope.clone(),
                 proposal,
@@ -142,13 +141,33 @@ pub(super) fn begin_place_assembly_on_board(
                 placement_id.clone(),
                 part_ids,
             ),
-            AssemblyAction::BoardAssembly {
-                scope: scope.clone(),
-                board_id: scope.board_id.clone(),
-                assembly_id: draft.value.id,
-                placement_seed: placement_id,
-            },
-        );
+        ) {
+            Ok(accepted) => {
+                let part_ids =
+                    placed_parts_for_submission(&accepted.document, &scope.board_id, &placement_id);
+                if let Some(first) = part_ids.first() {
+                    let model = runtime.model();
+                    selected_context.set(
+                        super::super::super::objects::context_for_part(&model, first).map(
+                            |context| super::super::super::objects::ScopedTreeContext {
+                                scope,
+                                context,
+                            },
+                        ),
+                    );
+                    editing.set(None);
+                    on_board_placed.call(());
+                    workspace.set("Layout");
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids,
+                        range_part_ids: Vec::new(),
+                        mode: boardstudio_application::SelectionMode::Replace,
+                    });
+                }
+            }
+            Err(message) => feedback.set(Some(message)),
+        }
     });
 }
 
@@ -162,12 +181,11 @@ pub(super) fn begin_apply_assembly_to_matrix(
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
-    pending_edits: PendingAssemblyActions,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || pending_edits.is_pending(&AssemblyKey::Matrix) || workspace() != "Parts" {
+    if preparing() || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -266,19 +284,19 @@ pub(super) fn begin_apply_assembly_to_matrix(
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;
         }
-        pending_edits.submit_value(
-            &runtime,
-            AssemblyKey::Matrix,
+        let result = runtime.commit(
             "parts-assembly-matrix-apply",
-            Some("matrix assembly".into()),
             assembly_matrix_resolver(
-                scope.clone(),
-                matrix_id.clone(),
+                scope,
+                matrix_id,
                 assembly,
                 definitions,
                 operation_id.0.to_string(),
             ),
-            AssemblyAction::Matrix(matrix_id),
         );
+        feedback.set(Some(match result {
+            Ok(_) => "Assembly applied to the selected matrix.".into(),
+            Err(message) => message,
+        }));
     });
 }

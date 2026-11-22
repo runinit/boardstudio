@@ -4,7 +4,7 @@
 //! Coverage limitation, recorded for the root review: the former module held these
 //! scenarios as native `#[test]`s inside this wasm32-only parent, so it compiled on
 //! neither target and executed never. The tests below restore executable coverage of the
-//! behavior the DraftEdits migration changed — silent landing, silent retirement and
+//! behavior of physical setup — silent landing, silent retirement and
 //! owner attribution at dispatch and settlement. The scenarios that relied on the native
 //! stub's synchronous VirtualDom polling remain uncovered by any executing test:
 //! preparation results arriving after their source was replaced, unmount races, and the

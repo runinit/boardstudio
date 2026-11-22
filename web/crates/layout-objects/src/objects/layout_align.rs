@@ -47,7 +47,6 @@ pub struct LayoutAlignMount {
     pub action: Option<AlignAction>,
     pub enabled: bool,
     pub disabled_reason: Option<String>,
-    pub busy: bool,
     pub feedback: Option<AlignFeedback>,
     pub on_reference: EventHandler<String>,
     pub on_align: EventHandler<AlignAction>,
@@ -101,7 +100,7 @@ pub fn LayoutAlignToolbar(
                 for command in AlignCommand::ALL {
                     Button {
                         key: "{command.label()}", size: ButtonSize::Sm, variant: ButtonVariant::Secondary,
-                        disabled: !mount.enabled || mount.busy || mount.selected_reference.is_none(),
+                        disabled: !mount.enabled || mount.selected_reference.is_none(),
                         onclick: {
                             let action = mount.action.as_ref().map(|action| AlignAction { command, ..action.clone() });
                             move |_| if let Some(action) = action.clone() {
@@ -140,7 +139,7 @@ mod tests {
                 mount: LayoutAlignMount {
                     references: vec![AlignReference { id: "reference".into(), label: "Reference switch".into() }],
                     selected_reference: Some(reference()), action: None, enabled: false,
-                    disabled_reason: Some("Select a part to align.".into()), busy: false, feedback: feedback(),
+                    disabled_reason: Some("Select a part to align.".into()), feedback: feedback(),
                     on_reference: EventHandler::new(move |_| {}), on_align: EventHandler::new(move |_| {}),
                 },
                 open_menu, show_relationships: false, has_selection_context: false,

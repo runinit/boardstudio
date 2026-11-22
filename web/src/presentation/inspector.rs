@@ -1,7 +1,6 @@
 use crate::runtime::Runtime;
-use boardstudio_application::{Event, Scope};
+use boardstudio_application::Event;
 use boardstudio_core::model::{EditOperation, Position, Vec2};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use boardstudio_web_ui_shared::ui::{
     button::Button,
     callout::{Callout, CalloutVariant},
@@ -39,12 +38,6 @@ struct NumericEdit {
     y_changed: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct NumericOwner {
-    scope: Option<Scope>,
-    part_ids: Vec<String>,
-    board_id: String,
-}
 type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
 #[component]
 pub(super) fn Inspector() -> Element {
@@ -64,9 +57,6 @@ pub(super) fn Inspector() -> Element {
     let mut draft = use_signal(|| (String::new(), String::new()));
     let mut dirty_axes = use_signal(|| (None::<String>, false, false));
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
-    let pending = use_signal(DraftEdits::<(), (String, String)>::default);
-    let apply_disabled = use_signal(|| false);
-    let mut pending_owner = use_signal(|| None::<NumericOwner>);
     let mut failure = use_signal(|| None::<String>);
     use_drop({
         let runtime = runtime.clone();
@@ -82,76 +72,49 @@ pub(super) fn Inspector() -> Element {
     let key = selected
         .as_ref()
         .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
-    let current_owner = selected.as_ref().map(|_| NumericOwner {
-        scope: runtime.scope(),
-        part_ids: model.selected_part_ids.clone(),
-        board_id: model.active_board_id.clone(),
-    });
-    use_effect(use_reactive(
-        (&key, &version, &current_owner, &pending_owner),
-        {
-            let runtime = runtime.clone();
-            let numeric_edit = numeric_edit.clone();
-            move |(key, _, current_owner, captured_owner)| {
-                let owner_is_live = current_owner.is_some() && current_owner == captured_owner();
-                pending.peek().settle(owner_is_live, |_| {
-                    key.as_ref()
-                        .map(|(_, px, py)| (px.to_string(), py.to_string()))
-                        .unwrap_or_default()
-                });
-                if !pending.peek().is_pending(&()) && pending_owner.peek().is_some() {
-                    pending_owner.set(None);
+    use_effect(use_reactive((&key, &version), {
+        let runtime = runtime.clone();
+        let numeric_edit = numeric_edit.clone();
+        move |(key, _)| {
+            let (draft_id, x_dirty, y_dirty) = dirty_axes.peek().clone();
+            let selected_id = key.as_ref().map(|(id, _, _)| id);
+            let same_target = draft_id.as_ref() == selected_id;
+            if !same_target {
+                dirty_axes.set((selected_id.cloned(), false, false));
+                failure.set(None);
+            }
+            if let Some((_, px, py)) = key.as_ref() {
+                let mut projected = draft.peek().clone();
+                if !same_target || !x_dirty {
+                    projected.0 = px.to_string();
                 }
-                let (draft_id, x_dirty, y_dirty) = dirty_axes.peek().clone();
-                let selected_id = key.as_ref().map(|(id, _, _)| id);
-                let same_target = draft_id.as_ref() == selected_id;
-                if !same_target {
-                    dirty_axes.set((selected_id.cloned(), false, false));
+                if !same_target || !y_dirty {
+                    projected.1 = py.to_string();
                 }
-                if let Some((_, px, py)) = key.as_ref()
-                    && !pending.peek().is_pending(&())
-                {
-                    let mut projected = draft.peek().clone();
-                    if !same_target || !x_dirty {
-                        projected.0 = px.to_string();
-                    }
-                    if !same_target || !y_dirty {
-                        projected.1 = py.to_string();
-                    }
-                    if *draft.peek() != projected {
-                        draft.set(projected);
-                    }
-                }
-                let changed_target = numeric_edit
-                    .borrow()
-                    .as_ref()
-                    .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
-                if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
-                    let start = edit.start;
-                    submit_position(&runtime, &Rc::new(RefCell::new(None)), edit, start);
+                if *draft.peek() != projected {
+                    draft.set(projected);
                 }
             }
-        },
-    ));
+            let changed_target = numeric_edit
+                .borrow()
+                .as_ref()
+                .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
+            if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
+                let start = edit.start;
+                submit_position(&runtime, &Rc::new(RefCell::new(None)), edit, start);
+            }
+        }
+    }));
     let submit = {
-        let mut pending_owner = pending_owner;
         let mut dirty_axes = dirty_axes;
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
         move |_| {
             failure.set(None);
-            commit_numeric(
-                &runtime,
-                &numeric_edit,
-                &pending,
-                &mut pending_owner,
-                &mut dirty_axes,
-                (FieldView::new(draft, failure), apply_disabled),
-            );
+            commit_numeric(&runtime, &numeric_edit, &mut dirty_axes, draft, failure);
         }
     };
     let cancel_numeric: KeyboardHandler = {
-        let mut pending_owner = pending_owner;
         let mut dirty_axes = dirty_axes;
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
@@ -195,14 +158,7 @@ pub(super) fn Inspector() -> Element {
             } else if key == "Enter" {
                 event.prevent_default();
                 failure.set(None);
-                commit_numeric(
-                    &runtime,
-                    &numeric_edit,
-                    &pending,
-                    &mut pending_owner,
-                    &mut dirty_axes,
-                    (FieldView::new(draft, failure), apply_disabled),
-                );
+                commit_numeric(&runtime, &numeric_edit, &mut dirty_axes, draft, failure);
             }
         })))
     };
@@ -248,7 +204,7 @@ pub(super) fn Inspector() -> Element {
                 edit.y_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
             }} } InputGroupText { "mm" } } } }
-            Button { class: "mx-4 mt-1", disabled: apply_disabled(), onclick: submit, "Apply position" }
+            Button { class: "mx-4 mt-1", onclick: submit, "Apply position" }
             if let Some(message) = failure() { FieldError { "{message}" } }
             if numeric_edit.borrow().is_some() { div { role: "status", Callout { variant: CalloutVariant::Info, "Preview only. Press Enter or Apply position to save, or Escape to cancel." } } }
         } else { Callout { variant: CalloutVariant::Info, "Select a component to edit its position." } }
@@ -282,13 +238,12 @@ fn submit_position(
 fn commit_numeric(
     runtime: &Rc<Runtime>,
     current: &Rc<RefCell<Option<NumericEdit>>>,
-    pending: &Signal<DraftEdits<(), (String, String)>>,
-    pending_owner: &mut Signal<Option<NumericOwner>>,
     dirty_axes: &mut Signal<(Option<String>, bool, bool)>,
-    (view, apply_disabled): (FieldView<(String, String)>, Signal<bool>),
+    mut draft: Signal<(String, String)>,
+    mut failure: Signal<Option<String>>,
 ) {
-    let draft = view.draft.peek().clone();
-    let (Ok(x), Ok(y)) = (draft.0.parse::<f64>(), draft.1.parse::<f64>()) else {
+    let text = draft.peek().clone();
+    let (Ok(x), Ok(y)) = (text.0.parse::<f64>(), text.1.parse::<f64>()) else {
         runtime.report("Enter finite X and Y coordinates.");
         return;
     };
@@ -321,18 +276,10 @@ fn commit_numeric(
     if edit.part_ids != model.selected_part_ids || edit.board_id != model.active_board_id {
         return;
     }
-    let owner = NumericOwner {
-        scope: runtime.scope(),
-        part_ids: edit.part_ids.clone(),
-        board_id: edit.board_id.clone(),
-    };
-    pending_owner.set(Some(owner));
-    dirty_axes.set((Some(edit.id.clone()), false, false));
-    pending.peek().submit(
-        runtime,
-        (),
+    let id = edit.id;
+    dirty_axes.set((Some(id.clone()), false, false));
+    let result = runtime.commit(
         "layout-old-position",
-        Some("position".into()),
         super::layout_component_edits::commit_position_resolver(
             edit.part_ids,
             edit.board_id,
@@ -340,8 +287,16 @@ fn commit_numeric(
             edit.y_changed.then_some(y),
             edit.transaction_id,
         ),
-        view.submitted(draft).disabling(apply_disabled),
     );
+    if let Some(part) = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .and_then(|snapshot| snapshot.document.parts.iter().find(|part| part.id == id))
+    {
+        draft.set((part.pose.at.x.to_string(), part.pose.at.y.to_string()));
+    }
+    failure.set(result.err());
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

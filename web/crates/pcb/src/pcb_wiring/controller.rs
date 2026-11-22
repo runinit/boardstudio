@@ -15,15 +15,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
-use std::{
-    cell::{Cell, RefCell},
-    collections::VecDeque,
-    future::Future,
-    pin::Pin,
-    rc::Rc,
-};
+use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 use super::{
@@ -43,18 +36,6 @@ fn firmware_key_target(
     }
 }
 
-#[derive(Clone, Copy)]
-struct FirmwareOwner(Signal<DraftEdits<FirmwarePositionFeedbackTarget, String>>);
-
-pub(crate) fn pending_binding(
-    identity: &crate::firmware_position_projection::FirmwarePositionIdentity,
-    key_id: &str,
-) -> Option<String> {
-    let owner = try_consume_context::<FirmwareOwner>()?;
-    let key = firmware_key_target(identity, key_id);
-    owner.0.read().pending_submission(&key)
-}
-
 pub struct FirmwarePositionActions {
     pub feedback: Option<FirmwarePositionFeedback>,
     pub editable: bool,
@@ -70,42 +51,11 @@ pub fn use_firmware_position_edits(
     instance_is_current: Rc<dyn Fn() -> bool>,
     resolution: Signal<PcbWiringResolution>,
 ) -> FirmwarePositionActions {
-    let mut edits = use_signal(DraftEdits::<FirmwarePositionFeedbackTarget, String>::default);
-    let latest = use_signal(|| None::<FirmwarePositionFeedbackTarget>);
+    let _ = version();
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
-    use_context_provider(|| FirmwareOwner(edits));
     let generation = scope_generation();
-    let observed_version = version();
-
-    use_effect(use_reactive((&observed_version,), {
-        let mut feedback = feedback;
-        move |_| {
-            let live = workspace() == "PCB";
-            if live && !edits.peek().has_terminal() {
-                return;
-            }
-            for result in edits.write().discard_drafts(live) {
-                let (key, state) = match result {
-                    PendingEditResult::Failed { key, message } => {
-                        (key, Some(FirmwarePositionFeedbackState::Failed(message)))
-                    }
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        (key, None)
-                    }
-                };
-                if latest.peek().as_ref() == Some(&key) {
-                    feedback.set(state.map(|state| FirmwarePositionFeedback {
-                        target: key.clone(),
-                        state,
-                    }));
-                }
-            }
-        }
-    }));
-
     let on_edit = use_callback({
         let runtime = runtime.clone();
-        let mut latest = latest;
         let mut feedback = feedback;
         let instance_is_current = instance_is_current.clone();
         move |request: FirmwarePositionEditRequest| {
@@ -192,18 +142,12 @@ pub fn use_firmware_position_edits(
             ) {
                 return;
             }
-            let key = firmware_key_target(&request.identity, &request.key_id);
-            latest.set(Some(key.clone()));
-            feedback.set(None);
-            let binding = request.binding.clone();
-            edits.write().submit_value(
-                &runtime,
-                key,
-                "firmware-position",
-                Some("firmware position".into()),
-                firmware_position_resolver(request),
-                binding,
-            );
+            let target = firmware_key_target(&request.identity, &request.key_id);
+            let result = runtime.commit("firmware-position", firmware_position_resolver(request));
+            feedback.set(result.err().map(|message| FirmwarePositionFeedback {
+                target,
+                state: FirmwarePositionFeedbackState::Failed(message),
+            }));
         }
     });
 
@@ -216,16 +160,7 @@ pub fn use_firmware_position_edits(
         &resolution.read(),
     );
     FirmwarePositionActions {
-        feedback: feedback().or_else(|| {
-            let target = latest()?;
-            edits
-                .read()
-                .is_pending(&target)
-                .then_some(FirmwarePositionFeedback {
-                    target,
-                    state: FirmwarePositionFeedbackState::Pending,
-                })
-        }),
+        feedback: feedback(),
         editable,
         on_edit,
     }
@@ -283,63 +218,6 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
     })
 }
 
-/// One part-connection edit's bounded logical key: the part target plus its assignment
-/// (a pad set) or the part's one-shot net creation.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum PartNetEditKey {
-    AssignPads {
-        target: super::PartNetTarget,
-        pad_ids: Vec<String>,
-    },
-    CreateNet {
-        target: super::PartNetTarget,
-    },
-}
-
-impl PartNetEditKey {
-    fn of(request: &PartNetEditRequest) -> Self {
-        let target = super::PartNetTarget::of(&request.identity);
-        match &request.action {
-            PartNetEditAction::AssignPads { pad_ids, .. } => Self::AssignPads {
-                target,
-                pad_ids: pad_ids.clone(),
-            },
-            PartNetEditAction::CreateNet { .. } => Self::CreateNet { target },
-        }
-    }
-
-    fn target(&self) -> &super::PartNetTarget {
-        match self {
-            Self::AssignPads { target, .. } | Self::CreateNet { target } => target,
-        }
-    }
-}
-
-type PartNetEdits = DraftEdits<PartNetEditKey, Option<String>>;
-
-#[derive(Clone, Copy)]
-struct PartNetOwner(Signal<PartNetEdits>);
-
-fn is_creating_net(edits: &PartNetEdits) -> bool {
-    edits
-        .observations()
-        .into_iter()
-        .any(|(key, pending)| pending && matches!(key, PartNetEditKey::CreateNet { .. }))
-}
-
-pub(super) fn pending_net(
-    identity: &PartNetEditIdentity,
-    pad_ids: &[String],
-) -> Option<Option<String>> {
-    let owner = try_consume_context::<PartNetOwner>()?;
-    let key = PartNetEditKey::AssignPads {
-        target: super::PartNetTarget::of(identity),
-        pad_ids: pad_ids.to_vec(),
-    };
-    owner.0.read().pending_submission(&key)
-}
-
-/// Queue each connection intent against the accepted board at execution.
 pub fn use_pcb_part_net_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -347,46 +225,11 @@ pub fn use_pcb_part_net_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartNetActions {
-    let mut edits = use_signal(PartNetEdits::default);
-    let latest = use_signal(|| None::<PartNetEditKey>);
+    let _ = version();
     let feedback = use_signal(|| None::<PartNetFeedback>);
     let preparing_create = use_signal(|| false);
-    use_context_provider(|| PartNetOwner(edits));
-    let queue = use_hook(|| {
-        Rc::new(RefCell::new(VecDeque::<(
-            PartNetEditRequest,
-            String,
-            Option<String>,
-            bool,
-        )>::new()))
-    });
-    let preparing = use_hook(|| Rc::new(Cell::new(false)));
     let alive = use_part_net_owner_lifetime();
     let generation = scope_generation();
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let mut feedback = feedback;
-        move |_| {
-            let live = workspace() == "PCB";
-            if live && !edits.peek().has_terminal() {
-                return;
-            }
-            for result in edits.write().discard_drafts(live) {
-                let (key, failure) = match result {
-                    PendingEditResult::Failed { key, message } => (key, Some(message)),
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        (key, None)
-                    }
-                };
-                if latest.peek().as_ref() == Some(&key) {
-                    feedback.set(failure.map(|failure| PartNetFeedback {
-                        target: key.target().clone(),
-                        failure,
-                    }));
-                }
-            }
-        }
-    }));
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
@@ -403,7 +246,7 @@ pub fn use_pcb_part_net_edits(
                 return;
             }
             let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
-            if create && (*preparing_create.peek() || is_creating_net(&edits.peek())) {
+            if create && *preparing_create.peek() {
                 return;
             }
             let accepted = runtime.model().accepted.unwrap();
@@ -424,91 +267,69 @@ pub fn use_pcb_part_net_edits(
                 .generator
                 .as_ref()
                 .map(|generator| generator.source.clone());
+            let mut feedback = feedback;
+            let target = super::PartNetTarget::of(&request.identity);
+            let seed = runtime.operation().0;
+            if source.is_none() {
+                let resolver = part_net_resolver(request, definition_id, None, false, seed);
+                feedback.set(
+                    runtime
+                        .commit("pcb-part-net", resolver)
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
+                return;
+            }
+
             let mut preparing_create = preparing_create;
             if create {
                 preparing_create.set(true);
             }
-            let mut latest = latest;
-            latest.set(None);
-            let mut feedback = feedback;
-            feedback.set(None);
-            queue
-                .borrow_mut()
-                .push_back((request, definition_id, source, create));
-            if preparing.replace(true) {
-                return;
-            }
-            let queue = queue.clone();
-            let preparing = preparing.clone();
             let runtime = runtime.clone();
             let alive = alive.clone();
             let instance_is_current = instance_is_current.clone();
             spawn_local(async move {
-                loop {
-                    let item = queue.borrow_mut().pop_front();
-                    let Some((request, definition_id, source, create)) = item else {
-                        preparing.set(false);
-                        break;
-                    };
-                    let classified = match source.as_deref() {
-                        Some(source) => {
-                            crate::presentation::parts::is_generator_source(source.to_owned()).await
-                        }
-                        None => Ok(false),
-                    };
-                    if !alive.get() {
-                        return;
-                    }
-                    if create {
-                        preparing_create.set(false);
-                    }
-                    if !part_net_owner_context_is_current(
-                        &alive,
-                        workspace,
-                        scope_generation,
-                        request.identity.generation,
-                    ) || !instance_is_current()
-                        || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
-                        || runtime.model().selected_part_ids.as_slice()
-                            != [request.identity.part_id.as_str()]
-                    {
-                        continue;
-                    }
-                    let key = PartNetEditKey::of(&request);
-                    let submitted = match &request.action {
-                        PartNetEditAction::AssignPads { net_id, .. } => net_id.clone(),
-                        PartNetEditAction::CreateNet { .. } => None,
-                    };
-                    let seed = runtime.operation().0;
-                    let resolver = match classified {
-                        Ok(is_generator_source) => part_net_resolver(
-                            request,
-                            definition_id,
-                            source,
-                            is_generator_source,
-                            seed,
-                        ),
-                        Err(reason) => EditResolver::new("pcb-part-net", move |_| {
-                            Resolution::Retire(reason.clone())
-                        }),
-                    };
-                    latest.set(Some(key.clone()));
-                    feedback.set(None);
-                    edits.write().submit_value(
-                        &runtime,
-                        key,
-                        "pcb-part-net",
-                        Some("connection".into()),
-                        resolver,
-                        submitted,
-                    );
+                let classified =
+                    crate::presentation::parts::is_generator_source(source.clone().unwrap()).await;
+                if !alive.get() {
+                    return;
                 }
+                if create {
+                    preparing_create.set(false);
+                }
+                if !part_net_owner_context_is_current(
+                    &alive,
+                    workspace,
+                    scope_generation,
+                    request.identity.generation,
+                ) || current_part_net_identity(&runtime, generation, instance_is_current())
+                    .is_none_or(|current| {
+                        !request_matches_current_part(&request.identity, &current)
+                    })
+                {
+                    return;
+                }
+                let result = classified.and_then(|is_generator_source| {
+                    let resolver = part_net_resolver(
+                        request,
+                        definition_id,
+                        source,
+                        is_generator_source,
+                        seed,
+                    );
+                    runtime.commit("pcb-part-net", resolver)
+                });
+                feedback.set(
+                    result
+                        .err()
+                        .map(|failure| PartNetFeedback { target, failure }),
+                );
             });
         }
     });
     let identity = current_part_net_identity(&runtime, generation, instance_is_current());
     let editable = identity.is_some() && workspace() == "PCB";
-    let create_pending = preparing_create() || is_creating_net(&edits.read());
+    let create_pending = preparing_create();
     let visible_feedback = feedback().filter(|feedback| {
         identity
             .as_ref()
