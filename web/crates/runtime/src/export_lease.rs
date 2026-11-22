@@ -3,12 +3,11 @@
 //! A lease is valid only while Session still owns the export and the accepted project,
 //! scope, Core executor epoch, and worker identity remain the ones captured at start.
 
-use boardstudio_application::{AcceptedSnapshot, ExecutorEpoch, OperationId, Scope, SnapshotToken};
-use std::collections::BTreeMap;
+use boardstudio_application::{AcceptedSnapshot, ExecutorEpoch, Scope, SnapshotToken};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExportKind {
-    ProjectCopy,
+    ProjectCopy { embed_used_models: bool },
     Step,
     KeycapsStl,
     Firmware,
@@ -122,29 +121,6 @@ impl ExportLease {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct ExportLeases {
-    active: BTreeMap<OperationId, ExportLease>,
-}
-
-impl ExportLeases {
-    pub(crate) fn begin(&mut self, operation_id: OperationId, lease: ExportLease) {
-        self.active.insert(operation_id, lease);
-    }
-
-    pub(crate) fn get(&self, operation_id: OperationId) -> Option<&ExportLease> {
-        self.active.get(&operation_id)
-    }
-
-    pub(crate) fn finish(&mut self, operation_id: OperationId) -> Option<ExportLease> {
-        self.active.remove(&operation_id)
-    }
-
-    pub(crate) fn cancel(&mut self, operation_id: OperationId) -> Option<ExportLease> {
-        self.active.remove(&operation_id)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,7 +166,9 @@ mod tests {
     #[test]
     fn worker_replacement_invalidates_every_export_kind() {
         for kind in [
-            ExportKind::ProjectCopy,
+            ExportKind::ProjectCopy {
+                embed_used_models: true,
+            },
             ExportKind::Step,
             ExportKind::KeycapsStl,
             ExportKind::Firmware,
@@ -244,19 +222,6 @@ mod tests {
                     .is_err()
             );
         }
-    }
-
-    #[test]
-    fn registry_finishes_and_cancels_leases_by_operation() {
-        let operation = OperationId(9);
-        let mut leases = ExportLeases::default();
-        leases.begin(operation, captured(ExportKind::Step));
-        assert!(leases.get(operation).is_some());
-        assert!(leases.finish(operation).is_some());
-        assert!(leases.get(operation).is_none());
-        leases.begin(operation, captured(ExportKind::Firmware));
-        assert!(leases.cancel(operation).is_some());
-        assert!(leases.get(operation).is_none());
     }
 
     #[test]

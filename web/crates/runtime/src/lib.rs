@@ -8,7 +8,11 @@
 //! Runtime exists only in test and test-support builds.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
-pub mod archive_export;
+pub mod archive_export {
+    pub fn archive_filename(project_name: &str) -> String {
+        format!("{project_name}.boardstudio")
+    }
+}
 pub mod bundled_models;
 pub mod case_generation_lifecycle;
 pub mod case_model_lifecycle;
@@ -18,7 +22,6 @@ pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
 pub mod gate_driver;
-pub(crate) mod handoff_ordering;
 pub(crate) mod keycap_package;
 pub mod layout_viewer_source;
 pub(crate) mod mechanical_package;

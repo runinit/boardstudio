@@ -1,8 +1,7 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
-use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 pub use crate::core_services::CoreServices;
 use crate::core_services::DocumentCore;
-use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
+use crate::export_lease::{ExportKind, ExportLease};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
@@ -336,7 +335,7 @@ pub struct Runtime {
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
-    export_leases: RefCell<ExportLeases>,
+    export_leases: RefCell<BTreeMap<OperationId, ExportLease>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
@@ -378,7 +377,7 @@ pub struct Runtime {
     collision_batch: Cell<u64>,
     collision_alive: RefCell<Rc<Cell<bool>>>,
     collision_generated_attempts: RefCell<BTreeSet<String>>,
-    archive_export_options: ArchiveExportOptions,
+    embed_used_models: Cell<bool>,
     #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
     #[cfg(any(test, feature = "test-support"))]
@@ -465,7 +464,7 @@ impl Runtime {
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
-            export_leases: RefCell::new(ExportLeases::default()),
+            export_leases: RefCell::default(),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
@@ -500,7 +499,7 @@ impl Runtime {
             collision_batch: Cell::new(0),
             collision_alive: RefCell::new(Rc::new(Cell::new(true))),
             collision_generated_attempts: RefCell::new(BTreeSet::new()),
-            archive_export_options: ArchiveExportOptions::default(),
+            embed_used_models: Cell::new(true),
             #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
@@ -768,10 +767,10 @@ impl Runtime {
         std::mem::take(&mut *self.notifications.borrow_mut())
     }
     pub fn embed_used_models(&self) -> bool {
-        self.archive_export_options.embed_used_models()
+        self.embed_used_models.get()
     }
     pub fn set_embed_used_models(&self, value: bool) {
-        if self.archive_export_options.set_embed_used_models(value) {
+        if self.embed_used_models.replace(value) != value {
             self.changed();
         }
     }

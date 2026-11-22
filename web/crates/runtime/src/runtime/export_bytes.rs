@@ -8,29 +8,15 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let guard = || -> Result<(), String> {
-            let current_core = self.core.borrow().clone();
-            let current = self.model().accepted;
-            if self.export_current(operation_id, snapshot.token, scope)
-                && self.scope().as_ref() == Some(scope)
-                && self.session.borrow().core_executor_epoch() == executor_epoch
-                && Rc::ptr_eq(&core, &current_core)
-                && current.as_ref().is_some_and(|accepted| {
-                    accepted.token == snapshot.token
-                        && accepted.session_epoch == snapshot.session_epoch
-                        && accepted.document.id == snapshot.document.id
-                        && accepted.document.revision == snapshot.document.revision
-                        && accepted.scene.revision == snapshot.document.revision
-                })
-            {
-                Ok(())
-            } else {
-                Err("Authored Case STEP was cancelled, superseded, or its source changed.".into())
-            }
-        };
+        let guard = || self.require_export_current(operation_id, snapshot, scope, None);
         guard()?;
+        let contours = snapshot
+            .scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == scope.board_id)
+            .map(|entry| entry.contours.as_slice())
+            .unwrap_or_default();
         let bodies = snapshot
             .document
             .case_bodies
@@ -40,12 +26,7 @@ impl Runtime {
             .map(|body| CaseIR {
                 revision: snapshot.document.revision,
                 body,
-                contours: snapshot
-                    .scene
-                    .board_contours
-                    .iter()
-                    .find(|entry| entry.board_id == scope.board_id)
-                    .map_or_else(Vec::new, |entry| entry.contours.clone()),
+                contours: contours.to_vec(),
             })
             .collect::<Vec<_>>();
         if bodies.is_empty() {
@@ -59,11 +40,7 @@ impl Runtime {
                 bodies,
             },
         };
-        let prepared = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Authored case preparation failed: {error}"))?;
-        guard()?;
+        let prepared = (self.core_services.open_scratch)()(request);
         let prepared = match prepared {
             CoreReply::CasePrepared { id, ir } if id == request_id => ir,
             CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
@@ -133,8 +110,7 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let core = self.core.borrow().clone();
-        let guard = || self.require_export_current(operation_id, snapshot, scope, Some(&core));
+        let guard = || self.require_export_current(operation_id, snapshot, scope, None);
         guard()?;
         let resolution = self.resolve_case_keycaps_preview(
             scope.clone(),
@@ -326,11 +302,34 @@ impl Runtime {
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
         self.require_export_current(operation_id, snapshot, scope, Some(core))?;
+        let plan = self
+            .resolve_export_wiring(
+                snapshot,
+                core,
+                executor_epoch,
+                target.board_id,
+                target.instance_id,
+                format!("firmware-electrical-{}-{}", operation_id.0, target.label),
+            )
+            .await;
+        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
+        plan
+    }
+
+    pub(super) async fn resolve_export_wiring(
+        &self,
+        snapshot: &AcceptedSnapshot,
+        core: &Rc<dyn CoreExecutor>,
+        executor_epoch: boardstudio_application::ExecutorEpoch,
+        board_id: &str,
+        instance_id: Option<&str>,
+        request_id: String,
+    ) -> Result<ElectricalPlan, String> {
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
             hardware
                 .boards
                 .iter()
-                .find(|configuration| configuration.board_id == target.board_id)
+                .find(|configuration| configuration.board_id == board_id)
         });
         let controller_part_id = snapshot
             .document
@@ -340,50 +339,46 @@ impl Runtime {
                 hardware
                     .instances
                     .iter()
-                    .find(|instance| Some(instance.id.as_str()) == target.instance_id)
+                    .find(|instance| Some(instance.id.as_str()) == instance_id)
             })
             .and_then(|instance| instance.controller_part_id.clone())
             .or_else(|| {
                 configuration.and_then(|configuration| configuration.controller_part_id.clone())
             });
-        let request_id = format!("firmware-electrical-{}-{}", operation_id.0, target.label);
         let request = CoreRequest::ResolveElectrical {
             id: request_id.clone(),
             request: ElectricalPlanRequest {
                 document: (*snapshot.document).clone(),
-                instance_id: target.instance_id.map(str::to_owned),
+                instance_id: instance_id.map(str::to_owned),
                 mode: configuration
                     .map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
                 locks: configuration.map_or_else(Default::default, |configuration| {
                     configuration.locks.clone()
                 }),
                 controller_profile: None,
-                board_id: Some(target.board_id.to_owned()),
+                board_id: Some(board_id.to_owned()),
                 controller_part_id,
             },
         };
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
-        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
         let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
         let plan = match reply {
             CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
             CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
             CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a wiring reply for another firmware plan.".into());
+                return Err("Core returned wiring for another request.".into());
             }
             _ => {
-                return Err("Core returned an unexpected firmware wiring-resolution reply.".into());
+                return Err("Core returned an unexpected wiring reply.".into());
             }
         };
         if plan.revision != snapshot.document.revision
-            || plan.board_id.as_deref() != Some(target.board_id)
-            || plan.instance_id.as_deref() != target.instance_id
+            || plan.board_id.as_deref() != Some(board_id)
+            || plan.instance_id.as_deref() != instance_id
         {
-            return Err(
-                "Core resolved firmware wiring for another board, instance, or revision.".into(),
-            );
+            return Err("Core resolved wiring for another board, instance, or revision.".into());
         }
         Ok(plan)
     }

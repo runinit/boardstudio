@@ -155,11 +155,8 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             exact: true,
             contours,
         });
-        let core = runtime.core.borrow().clone();
         let error = runtime
             .prepare_physical_step_assembly(
-                core.as_ref(),
-                &runtime.electrical_preview_executor_epoch().to_string(),
                 "refused-source-operand",
                 &accepted,
                 &scope,

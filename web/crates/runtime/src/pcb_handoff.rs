@@ -31,8 +31,6 @@ pub struct HandoffPorts<'a> {
     pub executor_epoch: u64,
 }
 
-pub use crate::handoff_ordering::package_then_protect;
-
 pub async fn build_handoff(
     source: HandoffSource<'_>,
     ports: HandoffPorts<'_>,

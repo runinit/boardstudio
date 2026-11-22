@@ -59,14 +59,13 @@ pub struct ModelOwnerIdentity {
 }
 
 impl ModelOwnerIdentity {
-    pub fn new(
+    fn capture(
         scope: Scope,
         snapshot_token: SnapshotToken,
         viewer_instance: u64,
         projection_generation: u64,
-        source_owner: &Rc<CasePreviewOwnerLease>,
+        source_owner: Rc<dyn ModelSourceLease>,
     ) -> Self {
-        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
         Self {
             scope,
             snapshot_token,
@@ -76,22 +75,35 @@ impl ModelOwnerIdentity {
         }
     }
 
+    pub fn new(
+        scope: Scope,
+        snapshot_token: SnapshotToken,
+        viewer_instance: u64,
+        projection_generation: u64,
+        source_owner: &Rc<CasePreviewOwnerLease>,
+    ) -> Self {
+        Self::capture(
+            scope,
+            snapshot_token,
+            viewer_instance,
+            projection_generation,
+            source_owner.clone(),
+        )
+    }
+
     pub fn new_layout(
         scope: Scope,
         snapshot_token: SnapshotToken,
         source_generation: u64,
         source_owner: &Rc<LayoutSourceLease>,
     ) -> Self {
-        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
-        Self {
+        Self::capture(
             scope,
             snapshot_token,
-            // These keys are local to model delivery and do not share a sequence
-            // domain with the renderer's independent ViewerOwner.
-            viewer_instance: 0,
-            projection_generation: source_generation,
-            source_owner: Rc::downgrade(&source_owner),
-        }
+            0,
+            source_generation,
+            source_owner.clone(),
+        )
     }
 
     pub fn new_parts(
@@ -100,14 +112,13 @@ impl ModelOwnerIdentity {
         source_generation: u64,
         source_owner: &Rc<PartsPreviewOwnerLease>,
     ) -> Self {
-        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
-        Self {
+        Self::capture(
             scope,
             snapshot_token,
-            viewer_instance: 0,
-            projection_generation: source_generation,
-            source_owner: Rc::downgrade(&source_owner),
-        }
+            0,
+            source_generation,
+            source_owner.clone(),
+        )
     }
 
     fn same_owner(&self, other: &Self) -> bool {
@@ -129,22 +140,18 @@ impl ModelOwnerIdentity {
         current_projection_generation: u64,
         current_owner: &Rc<CasePreviewOwnerLease>,
     ) -> bool {
-        self.scope == *current_scope
-            && self.snapshot_token == current_token
-            && self.viewer_instance == current_viewer_instance
-            && self.projection_generation == current_projection_generation
-            && self.source_owner.upgrade().is_some_and(|captured| {
-                let current_lease: Rc<dyn ModelSourceLease> = current_owner.clone();
-                Rc::ptr_eq(&captured, &current_lease)
-                    && captured.is_active()
-                    && current_lease.is_active()
-                    && current_owner.identity_matches(
-                        current_scope,
-                        current_token,
-                        current_viewer_instance,
-                        current_projection_generation,
-                    )
-            })
+        current_owner.identity_matches(
+            current_scope,
+            current_token,
+            current_viewer_instance,
+            current_projection_generation,
+        ) && self.matches(
+            current_scope,
+            current_token,
+            current_viewer_instance,
+            current_projection_generation,
+            current_owner.clone(),
+        )
     }
 
     pub fn is_current_layout_owner(
@@ -154,16 +161,13 @@ impl ModelOwnerIdentity {
         source_generation: u64,
         current_owner: &Rc<LayoutSourceLease>,
     ) -> bool {
-        self.scope == *current_scope
-            && self.snapshot_token == current_token
-            && self.viewer_instance == 0
-            && self.projection_generation == source_generation
-            && self.source_owner.upgrade().is_some_and(|captured| {
-                let current_owner: Rc<dyn ModelSourceLease> = current_owner.clone();
-                Rc::ptr_eq(&captured, &current_owner)
-                    && captured.is_active()
-                    && current_owner.is_active()
-            })
+        self.matches(
+            current_scope,
+            current_token,
+            0,
+            source_generation,
+            current_owner.clone(),
+        )
     }
 
     pub fn is_current_parts_owner(
@@ -173,16 +177,29 @@ impl ModelOwnerIdentity {
         source_generation: u64,
         current_owner: &Rc<PartsPreviewOwnerLease>,
     ) -> bool {
-        self.scope == *current_scope
-            && self.snapshot_token == current_token
-            && self.viewer_instance == 0
-            && self.projection_generation == source_generation
-            && self.source_owner.upgrade().is_some_and(|captured| {
-                let current_owner: Rc<dyn ModelSourceLease> = current_owner.clone();
-                Rc::ptr_eq(&captured, &current_owner)
-                    && captured.is_active()
-                    && current_owner.is_active()
-            })
+        self.matches(
+            current_scope,
+            current_token,
+            0,
+            source_generation,
+            current_owner.clone(),
+        )
+    }
+
+    fn matches(
+        &self,
+        scope: &Scope,
+        token: SnapshotToken,
+        viewer: u64,
+        generation: u64,
+        owner: Rc<dyn ModelSourceLease>,
+    ) -> bool {
+        self.scope == *scope
+            && self.snapshot_token == token
+            && self.viewer_instance == viewer
+            && self.projection_generation == generation
+            && owner.is_active()
+            && Weak::ptr_eq(&self.source_owner, &Rc::downgrade(&owner))
     }
 }
 
@@ -244,10 +261,7 @@ pub enum AssetSelection {
     NoAssetId,
 }
 
-/// Apply the same source precedence as React's AssemblyPreview: attached
-/// BoardReference mapping, native preview path table, then version-matched
-/// generator path helper. The helper is injected because its packaged source is
-/// owned by the layout-generator build, not duplicated here.
+/// Prefer the reference mapping, then preview paths, then the bundled asset ID.
 pub fn select_model_asset(
     model_path: &str,
     reference: Option<&BoardReference>,
@@ -273,20 +287,7 @@ pub fn select_model_asset(
         return AssetSelection::NoAssetId;
     };
 
-    if let Some(asset) = document_assets.iter().find(|asset| asset.id == asset_id) {
-        return AssetSelection::Archived(ResolvedModelAsset {
-            id: asset.id.clone(),
-            sha256: asset.sha256.clone(),
-            filename: asset.name.clone(),
-            source: ModelAssetSource::Document,
-        });
-    }
-
-    if asset_id.starts_with("bundled-model:") {
-        AssetSelection::MissingBundledProvider { asset_id }
-    } else {
-        AssetSelection::MissingDocumentAsset { asset_id }
-    }
+    select_model_asset_id(&asset_id, document_assets, |_| None)
 }
 
 /// Bytes crossing the page-model adapter must be revalidated even if they
@@ -361,23 +362,13 @@ impl ModelFormat {
 /// accepts an exact source descriptor; decoding callbacks consume verified bytes.
 /// STEP uses the existing identity-checked CAD worker rather than a second
 /// parser implementation in presentation code.
+#[derive(Clone)]
 pub struct ModelDeliveryPorts {
     pub load_verified_bytes:
         Rc<dyn Fn(ResolvedModelAsset) -> ModelFuture<Option<VerifiedModelBytes>>>,
     pub decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub read_step: Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
-}
-
-impl Clone for ModelDeliveryPorts {
-    fn clone(&self) -> Self {
-        Self {
-            load_verified_bytes: self.load_verified_bytes.clone(),
-            decode_stl: self.decode_stl.clone(),
-            decode_wrl: self.decode_wrl.clone(),
-            read_step: self.read_step.clone(),
-        }
-    }
 }
 
 impl ModelDeliveryPorts {

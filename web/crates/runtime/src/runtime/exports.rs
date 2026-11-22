@@ -326,8 +326,14 @@ impl Runtime {
             return;
         };
         let operation_id = self.operation();
-        self.archive_export_options.begin_archive(operation_id);
-        self.begin_export_lease(operation_id, ExportKind::ProjectCopy, &snapshot, &scope);
+        self.begin_export_lease(
+            operation_id,
+            ExportKind::ProjectCopy {
+                embed_used_models: self.embed_used_models(),
+            },
+            &snapshot,
+            &scope,
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -399,7 +405,7 @@ impl Runtime {
         let lease = self
             .export_leases
             .borrow()
-            .get(operation_id)
+            .get(&operation_id)
             .cloned()
             .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
         if !matches!(lease.kind(), ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
@@ -466,7 +472,7 @@ impl Runtime {
         worker: &Rc<dyn CoreExecutor>,
     ) -> bool {
         let core = self.core.borrow().clone();
-        self.export_leases.borrow().get(operation_id) == Some(lease)
+        self.export_leases.borrow().get(&operation_id) == Some(lease)
             && self.export_current(operation_id, lease.token(), lease.scope())
             && Rc::ptr_eq(worker, &core)
     }
@@ -481,7 +487,7 @@ impl Runtime {
         let session = self.session.borrow();
         self.export_leases
             .borrow()
-            .get(operation_id)
+            .get(&operation_id)
             .is_some_and(|lease| {
                 let session_owns_export = session.export_is_current(operation_id, token, scope)
                     && session.scope().as_ref() == Some(scope);
@@ -507,7 +513,7 @@ impl Runtime {
     ) {
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch();
-        self.export_leases.borrow_mut().begin(
+        self.export_leases.borrow_mut().insert(
             operation_id,
             ExportLease::new(
                 kind,
@@ -538,7 +544,7 @@ impl Runtime {
     ) -> bool {
         self.export_leases
             .borrow()
-            .get(operation_id)
+            .get(&operation_id)
             .cloned()
             .is_some_and(|lease| {
                 lease.token() == token
@@ -722,31 +728,12 @@ impl Runtime {
         scope: &Scope,
         worker: Option<&Rc<dyn CoreExecutor>>,
     ) -> Result<(), String> {
-        let lease = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Export lease is no longer current.".to_owned())?;
-        if lease.token() != snapshot.token
-            || lease.scope() != scope
-            || lease.snapshot().document.revision != snapshot.document.revision
+        if self.export_current(operation_id, snapshot.token, scope)
+            && worker.is_none_or(|worker| Rc::ptr_eq(worker, &self.core.borrow()))
         {
-            return Err("Export lease is no longer current.".into());
+            Ok(())
+        } else {
+            Err("Export lease is no longer current.".into())
         }
-        let core = self.core.borrow().clone();
-        let session = self.session.borrow();
-        let session_owns_export = session.export_is_current(operation_id, lease.token(), scope)
-            && session.scope().as_ref() == Some(scope);
-        lease.require_current(
-            session_owns_export,
-            session.read_model().accepted.as_ref(),
-            session.core_executor_epoch(),
-            core_executor_identity(&core),
-        )?;
-        if worker.is_some_and(|worker| !Rc::ptr_eq(worker, &core)) {
-            return Err("Export lease is no longer current.".into());
-        }
-        Ok(())
     }
 }
