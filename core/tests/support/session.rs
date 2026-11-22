@@ -7,6 +7,13 @@ use boardstudio_core::{CoreEngine, model::*};
 pub(crate) struct Session(CoreEngine);
 
 impl Session {
+    #[track_caller]
+    pub fn opened(document: ProjectDoc) -> (Self, SceneDelta, ProjectDoc) {
+        let mut session = Self::default();
+        let (scene, document) = fixture::scene_and_document(session.open(document));
+        (session, scene, document)
+    }
+
     pub fn send(&mut self, request: CoreRequest) -> CoreReply {
         self.0.handle(request)
     }

@@ -137,7 +137,7 @@ fn local_hole_delta(holes: &[&[Expr]], expected_rotation: f64) -> [f64; 2] {
     );
     near(
         upper[2],
-        socket_model_rotation(side),
+        expected_rotation,
         "common upper hole emitted rotation",
     );
     // Producer configuration regression only; this is not a manufacturer angle or fit claim.
