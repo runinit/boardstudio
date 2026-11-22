@@ -9,9 +9,7 @@ use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{
-    Asset, BoardReference, ModuleModelPlacement, PcbModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
-};
+use boardstudio_model::model::{Asset, BoardReference, ModuleModelPlacement, PcbModel, ProjectDoc};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, VecDeque},
@@ -560,32 +558,6 @@ impl PartialEq for ModelDeliveryRows {
     }
 }
 
-/// Merge successful/error outcomes without substituting asset or reference
-/// IDs for renderer model IDs. Rows preserve the preview's order. Absent
-/// outcomes remain pending instead of being misreported as missing; terminal
-/// provider/asset errors must be supplied explicitly.
-pub fn merge_model_rows(
-    models: &[PcbModel],
-    outcomes: &BTreeMap<String, Result<Rc<ValidatedMesh>, String>>,
-) -> ModelDeliveryRows {
-    let mut rows = ModelDeliveryRows::default();
-    for model in models {
-        match outcomes.get(&model.id) {
-            Some(Ok(mesh)) => rows.delivered.push(DeliveredModel {
-                id: model.id.clone(),
-                mesh: mesh.clone(),
-                matrix: None,
-            }),
-            Some(Err(reason)) => rows.failures.push(ModelFailure {
-                reference: model.reference.clone(),
-                reason: reason.clone(),
-            }),
-            None => rows.pending.push(model.id.clone()),
-        }
-    }
-    rows
-}
-
 /// Resolve a mounted-module model's direct asset identity using the same
 /// document-first and packaged-provider semantics as preview path assets.
 pub fn select_model_asset_id(
@@ -680,6 +652,54 @@ impl ModelDeliveryAdapter {
         batch: &ModelBatchIdentity,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Option<ModelDeliveryRows> {
+        self.deliver(
+            preview_revision,
+            models
+                .iter()
+                .map(|model| (model.id.as_str(), model.reference.as_str(), None)),
+            selections,
+            ports,
+            batch,
+            is_current,
+        )
+        .await
+    }
+
+    pub async fn deliver_module_placements(
+        &self,
+        preview_revision: u64,
+        placements: &[ModuleModelPlacement],
+        selections: &BTreeMap<String, AssetSelection>,
+        ports: &ModelDeliveryPorts,
+        batch: &ModelBatchIdentity,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Option<ModelDeliveryRows> {
+        self.deliver(
+            preview_revision,
+            placements.iter().map(|placement| {
+                (
+                    placement.id.as_str(),
+                    placement.id.as_str(),
+                    Some(placement.matrix),
+                )
+            }),
+            selections,
+            ports,
+            batch,
+            is_current,
+        )
+        .await
+    }
+
+    async fn deliver<'a>(
+        &self,
+        preview_revision: u64,
+        models: impl Iterator<Item = (&'a str, &'a str, Option<[f64; 16]>)>,
+        selections: &BTreeMap<String, AssetSelection>,
+        ports: &ModelDeliveryPorts,
+        batch: &ModelBatchIdentity,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Option<ModelDeliveryRows> {
         if !batch.is_current(batch.owner(), preview_revision, batch.batch_generation)
             || !is_current()
         {
@@ -687,21 +707,17 @@ impl ModelDeliveryAdapter {
         }
 
         let mut assets = BTreeMap::new();
-        let mut rows = Vec::new();
-        let mut outcomes = BTreeMap::new();
-        for model in models {
-            match selected_asset(selections.get(&model.id)) {
-                Ok(asset) => {
-                    rows.push((model.id.clone(), asset.sha256.clone()));
-                    assets.entry(asset.sha256.clone()).or_insert(asset);
+        let models = models
+            .map(|(id, reference, matrix)| {
+                let asset = selected_asset(selections.get(id));
+                if let Ok(asset) = asset {
+                    assets.entry(asset.sha256.as_str()).or_insert(asset);
                 }
-                Err(message) => {
-                    outcomes.insert(model.id.clone(), Err(message));
-                }
-            }
-        }
+                (id, reference, matrix, asset)
+            })
+            .collect::<Vec<_>>();
 
-        let results = RefCell::new(BTreeMap::<String, ModelResult>::new());
+        let results = RefCell::new(BTreeMap::<&str, ModelResult>::new());
         let mut tasks: Vec<DeliveryTask<'_>> = Vec::new();
         for (sha, asset) in assets {
             let results = &results;
@@ -712,14 +728,14 @@ impl ModelDeliveryAdapter {
                         return Err("Model request became stale before loading".into());
                     }
                     let format = ModelFormat::from_filename(&asset.filename)?;
-                    if let Some(mesh) = self.cached(&sha) {
+                    if let Some(mesh) = self.cached(sha) {
                         return Ok(mesh);
                     }
                     let mesh = Rc::new(
                         load_and_decode(ports, asset, format, batch.owner().clone(), current)
                             .await?,
                     );
-                    self.cache(sha.clone(), mesh.clone());
+                    self.cache(sha.to_owned(), mesh.clone());
                     Ok(mesh)
                 }
                 .await;
@@ -732,70 +748,24 @@ impl ModelDeliveryAdapter {
         }
 
         let results = results.into_inner();
-        for (id, sha) in rows {
-            if let Some(result) = results.get(&sha) {
-                outcomes.insert(id, result.clone());
+        let mut rows = ModelDeliveryRows::default();
+        for (id, reference, matrix, asset) in models {
+            let result = asset.as_ref().map_err(String::as_str).and_then(|asset| {
+                results[asset.sha256.as_str()]
+                    .as_ref()
+                    .map_err(String::as_str)
+            });
+            match result {
+                Ok(mesh) => rows.delivered.push(DeliveredModel {
+                    id: id.to_owned(),
+                    mesh: mesh.clone(),
+                    matrix,
+                }),
+                Err(reason) => rows.failures.push(ModelFailure {
+                    reference: reference.to_owned(),
+                    reason: reason.to_owned(),
+                }),
             }
-        }
-        Some(merge_model_rows(models, &outcomes))
-    }
-
-    /// Deliver Core-resolved mounted-module placements through the same
-    /// verification, format decoder, SHA cache, and batch liveness checks used
-    /// by ordinary preview models. The returned rows retain Core's stable IDs
-    /// and carry its authoritative affine transform to the renderer adapter.
-    pub async fn deliver_module_placements(
-        &self,
-        preview_revision: u64,
-        placements: &[ModuleModelPlacement],
-        selections: &BTreeMap<String, AssetSelection>,
-        ports: &ModelDeliveryPorts,
-        batch: &ModelBatchIdentity,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> Option<ModelDeliveryRows> {
-        let models = placements
-            .iter()
-            .map(|placement| PcbModel {
-                id: placement.id.clone(),
-                reference: placement.id.clone(),
-                path: placement.asset_id.clone(),
-                pose: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                side: Side::Front,
-                offset: Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                rotation: Vec3 {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                scale: Vec3 {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                },
-            })
-            .collect::<Vec<_>>();
-        let mut rows = self
-            .deliver_models(
-                preview_revision,
-                &models,
-                selections,
-                ports,
-                batch,
-                is_current,
-            )
-            .await?;
-        for model in &mut rows.delivered {
-            model.matrix = placements
-                .iter()
-                .find(|placement| placement.id == model.id)
-                .map(|placement| placement.matrix);
         }
         Some(rows)
     }

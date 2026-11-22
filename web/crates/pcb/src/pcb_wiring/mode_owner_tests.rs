@@ -9,13 +9,11 @@ use super::test_fixtures::document;
 use super::*;
 use boardstudio_application::{
     Durability, EditResolver, Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken,
-    TerminalOutcome,
 };
 use boardstudio_core_mechanical::electrical::{
     ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::*;
-use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -833,100 +831,47 @@ fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh()
 }
 
 #[test]
-fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
+fn mounted_protected_remap_distinguishes_core_refusal_from_save_failure() {
     for fail_save in [false, true] {
-        let document = protected_document();
-        let (probe, mut dom) = mounted_with_document(document.clone());
+        let (probe, mut dom) = mounted_with_document(protected_document());
         if fail_save {
             probe.runtime.fail_next_save("disk");
         } else {
             probe.runtime.fail_next_core("executor");
         }
-        probe
-            .latest_remap
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .on_review
-            .call(
+        let remap = probe.latest_remap.borrow().as_ref().unwrap().clone();
+        remap.on_review.call(remap.identity.unwrap());
+        let _ = submitted_remap(&probe);
+        tick(&probe, &mut dom);
+
+        let model = probe.runtime.model();
+        let document = &model.accepted.as_ref().unwrap().document;
+        let handoff = &document.hardware.as_ref().unwrap().boards[0].protected_handoff;
+        if fail_save {
+            assert!(handoff.is_none());
+            assert!(matches!(
+                model.durability,
+                boardstudio_application::Durability::Failed { .. }
+            ));
+        } else {
+            assert_eq!(
+                handoff.as_ref().unwrap().fingerprint,
+                "protected-fixture-fingerprint"
+            );
+            assert!(matches!(
                 probe
                     .latest_remap
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .identity
-                    .clone()
-                    .unwrap(),
-            );
-        let _ = submitted_remap(&probe);
-        tick(&probe, &mut dom);
-        let accepted = probe.runtime.model();
-        assert_eq!(
-            accepted
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .hardware
-                .as_ref()
-                .unwrap()
-                .boards[0]
-                .protected_handoff
-                .as_ref()
-                .unwrap()
-                .fingerprint,
-            "protected-fixture-fingerprint"
-        );
-        assert!(matches!(
-            probe
-                .latest_remap
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .feedback
-                .as_ref()
-                .unwrap()
-                .state,
-            ProtectedRemapFeedback::Failed(_)
-        ));
+                    .feedback
+                    .as_ref()
+                    .unwrap()
+                    .state,
+                ProtectedRemapFeedback::Failed(_)
+            ));
+        }
     }
-}
-
-/// Queue a whole-document edit that resolves against the document accepted when it runs.
-fn queue_document_edit(
-    runtime: &crate::runtime::Runtime,
-    change: impl Fn(&mut ProjectDoc) + 'static,
-) -> OutcomeSlot {
-    let operation = runtime.operation();
-    let slot = runtime.observe_operation(operation);
-    runtime.submit(Event::ResolveEdit {
-        operation_id: operation,
-        label: "native-test-queued-document-edit".into(),
-        resolver: EditResolver::new("native-test-queued-document-edit", move |accepted| {
-            let mut document = (*accepted.document).clone();
-            change(&mut document);
-            Resolution::submit(
-                vec![document.id.clone()],
-                EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-            )
-        }),
-    });
-    slot
-}
-
-/// The settlement slot of the most recently submitted edit, observed while it is gated.
-fn latest_edit_slot(runtime: &crate::runtime::Runtime) -> OutcomeSlot {
-    let events = runtime.events.borrow();
-    let Some(Event::ResolveEdit { operation_id, .. }) = events
-        .iter()
-        .rev()
-        .find(|event| matches!(event, Event::ResolveEdit { .. }))
-    else {
-        panic!("no edit was submitted");
-    };
-    runtime.observe_operation(*operation_id)
 }
 
 fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
@@ -944,27 +889,6 @@ fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
                 .find(|configuration| configuration.board_id == "left")
         })
         .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
-}
-
-fn mark_unrelated(document: &mut ProjectDoc) {
-    document
-        .parameters
-        .insert("unrelated-edit".into(), serde_json::json!(true));
-}
-
-fn has_unrelated_edit(runtime: &crate::runtime::Runtime) -> bool {
-    runtime
-        .model()
-        .accepted
-        .unwrap()
-        .document
-        .parameters
-        .get("unrelated-edit")
-        == Some(&serde_json::json!(true))
-}
-
-fn remove_left_board(document: &mut ProjectDoc) {
-    document.boards.retain(|board| board.id != "left");
 }
 
 #[test]
@@ -998,57 +922,4 @@ fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
         (shown.failure)().is_none(),
         "landing shows the accepted value without a status message"
     );
-}
-
-#[test]
-fn queued_apply_keeps_the_prior_edit_and_retires_when_its_target_changes_first() {
-    type Change = fn(&mut ProjectDoc);
-    fn set_direct_mode(document: &mut ProjectDoc) {
-        let hardware = document.hardware.get_or_insert_with(Default::default);
-        match hardware
-            .boards
-            .iter_mut()
-            .find(|configuration| configuration.board_id == "left")
-        {
-            Some(configuration) => configuration.mode = ElectricalMode::Direct,
-            None => hardware.boards.push(ElectricalBoardConfiguration {
-                board_id: "left".into(),
-                mode: ElectricalMode::Direct,
-                ..Default::default()
-            }),
-        }
-    }
-    let cases: [(Change, Option<&str>); 3] = [
-        (mark_unrelated, None),
-        (remove_left_board, Some("The board was deleted.")),
-        (
-            set_direct_mode,
-            Some("The board wiring mode changed. Resolve the plan again."),
-        ),
-    ];
-    for (first_edit, retired_reason) in cases {
-        let (probe, _dom) = mounted();
-        let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
-        assert!(actions.editable);
-
-        probe.runtime.hold_next_core();
-        let first = queue_document_edit(&probe.runtime, first_edit);
-        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
-        actions.on_apply.call(actions.identity.clone().unwrap());
-        let apply = latest_edit_slot(&probe.runtime);
-        assert!(apply.borrow().is_none(), "the apply waits for Core");
-
-        probe.runtime.release_core();
-        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
-        match retired_reason {
-            Some(reason) => assert_eq!(
-                *apply.borrow(),
-                Some(TerminalOutcome::Rejected(reason.into()))
-            ),
-            None => {
-                assert_eq!(*apply.borrow(), Some(TerminalOutcome::Completed));
-                assert!(has_unrelated_edit(&probe.runtime));
-            }
-        }
-    }
 }

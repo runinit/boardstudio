@@ -1,5 +1,6 @@
 //! CAD collision subjects, findings and assessment of collision observations.
 use super::*;
+use boardstudio_model::model::Side;
 
 pub const TIGHT_COLLISION_ACCURACY_MM: f64 = 0.01;
 pub const IDENTITY_ROW_TRANSFORM_F64: [f64; 16] = [

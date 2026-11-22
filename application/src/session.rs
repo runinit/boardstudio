@@ -1043,6 +1043,22 @@ impl ReadModel {
             .is_none_or(|s| s.scene.revision != s.document.revision)
     }
 }
+fn update_selection(selection: &mut Vec<String>, incoming: Vec<String>, mode: SelectionMode) {
+    if matches!(mode, SelectionMode::Replace | SelectionMode::Range) {
+        *selection = incoming;
+        return;
+    }
+    for id in incoming {
+        match selection.iter().position(|current| current == &id) {
+            Some(index) if mode == SelectionMode::Toggle => {
+                selection.remove(index);
+            }
+            None => selection.push(id),
+            _ => {}
+        }
+    }
+}
+
 fn gesture_view(g: &Gesture) -> GestureView {
     GestureView {
         pointer_id: g.pointer_id,
@@ -1530,28 +1546,6 @@ impl Session {
                         .filter(|id| valid.contains(id.as_str()))
                         .collect::<Vec<_>>();
                     match mode {
-                        SelectionMode::Replace => self.model.selected_part_ids = incoming.clone(),
-                        SelectionMode::Add => {
-                            for id in &incoming {
-                                if !self.model.selected_part_ids.contains(id) {
-                                    self.model.selected_part_ids.push(id.clone());
-                                }
-                            }
-                        }
-                        SelectionMode::Toggle => {
-                            for id in &incoming {
-                                if let Some(index) = self
-                                    .model
-                                    .selected_part_ids
-                                    .iter()
-                                    .position(|current| current == id)
-                                {
-                                    self.model.selected_part_ids.remove(index);
-                                } else {
-                                    self.model.selected_part_ids.push(id.clone());
-                                }
-                            }
-                        }
                         SelectionMode::Range => {
                             let valid_order = range_part_ids
                                 .iter()
@@ -1570,6 +1564,11 @@ impl Session {
                                     valid_order[a.min(b)..=a.max(b)].to_vec();
                             }
                         }
+                        _ => update_selection(
+                            &mut self.model.selected_part_ids,
+                            incoming.clone(),
+                            mode,
+                        ),
                     }
                     self.model.selection_mode = mode;
                     if let Some(anchor) = incoming.first() {
@@ -1708,32 +1707,7 @@ impl Session {
                     retained_anchor = Some(target_part_id.clone());
                     incoming
                 };
-                match effective_mode {
-                    SelectionMode::Replace | SelectionMode::Range => {
-                        self.model.selected_part_ids = selected;
-                    }
-                    SelectionMode::Add => {
-                        for id in selected {
-                            if !self.model.selected_part_ids.contains(&id) {
-                                self.model.selected_part_ids.push(id);
-                            }
-                        }
-                    }
-                    SelectionMode::Toggle => {
-                        for id in selected {
-                            if let Some(index) = self
-                                .model
-                                .selected_part_ids
-                                .iter()
-                                .position(|current| current == &id)
-                            {
-                                self.model.selected_part_ids.remove(index);
-                            } else {
-                                self.model.selected_part_ids.push(id);
-                            }
-                        }
-                    }
-                }
+                update_selection(&mut self.model.selected_part_ids, selected, effective_mode);
                 self.model.selection_mode = effective_mode;
                 self.model.selection_anchor_id = retained_anchor;
                 self.settle(operation_id, TerminalOutcome::Completed, &mut effects);

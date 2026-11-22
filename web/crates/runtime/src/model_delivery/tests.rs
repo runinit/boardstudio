@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_model::model::{Pose2, Side, Vec2, Vec3};
 
 struct InactiveTestLease;
 
