@@ -441,11 +441,6 @@ pub enum Completion {
         save_attempt_id: SaveAttemptId,
         result: SaveResult,
     },
-    GenerationProgress {
-        job_id: JobId,
-        scope: Scope,
-        message: String,
-    },
     GenerationFinished {
         job_id: JobId,
         scope: Scope,
@@ -909,15 +904,7 @@ impl Session {
     }
     fn job_is_current(&self, job_id: JobId, scope: &Scope) -> bool {
         self.active_job.as_ref().is_some_and(|(id, _, captured)| {
-            *id == job_id
-                && captured == scope
-                && self.snapshot_matches(
-                    self.model
-                        .accepted
-                        .as_ref()
-                        .map_or(SnapshotToken(0), |s| s.token),
-                    scope,
-                )
+            *id == job_id && captured == scope && self.scope_is_current(scope)
         })
     }
     fn close(&mut self, operation_id: OperationId, effects: &mut Vec<Effect>) {
@@ -1818,15 +1805,6 @@ impl Session {
                 save_attempt_id,
                 result,
             } => self.persist_completed(save_attempt_id, result, &mut effects),
-            Completion::GenerationProgress {
-                job_id,
-                scope,
-                message: _,
-            } => {
-                if self.job_is_current(job_id, &scope) {
-                    self.model.generation = GenerationStatus::Running { job_id };
-                }
-            }
             Completion::GenerationFinished {
                 job_id,
                 scope,

@@ -67,11 +67,8 @@ impl Runtime {
         };
         let reply = (self.core_services.open_scratch)()(request);
         let assembly = match reply {
-            CoreReply::MechanicalResolved { id, assembly } if id == request_id => assembly,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::MechanicalResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a mechanical reply for another request.".into());
-            }
+            CoreReply::MechanicalResolved { assembly, .. } => assembly,
+            CoreReply::Error { message, .. } => return Err(message),
             _ => return Err("Core returned an unexpected mechanical-resolution reply.".into()),
         };
         if assembly.revision != accepted.document.revision
@@ -104,13 +101,12 @@ impl Runtime {
         {
             return Err("The accepted PCB wiring source changed.".into());
         }
-        let id = format!("pcb-electrical-{}", self.operation().0);
-        let request = electrical_preview_request(&id, &accepted.document, &scope.board_id);
-        match (self.core_services.open_scratch)()(request) {
-            CoreReply::ElectricalResolved { plan, .. } => Ok(plan),
-            CoreReply::Error { message, .. } => Err(message),
-            _ => Err("Unexpected wiring resolution reply.".into()),
-        }
+        self.resolve_export_wiring(
+            &accepted,
+            &scope.board_id,
+            None,
+            format!("pcb-electrical-{}", self.operation().0),
+        )
     }
 
     /// Resolve keycap fit against one accepted canonical board and the matching prepared Case
@@ -172,11 +168,8 @@ impl Runtime {
         };
         let reply = (self.core_services.open_scratch)()(request);
         let result = match reply {
-            CoreReply::KeycapsResolved { id, result } if id == request_id => result,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::KeycapsResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a keycap fit reply for another request.".into());
-            }
+            CoreReply::KeycapsResolved { result, .. } => result,
+            CoreReply::Error { message, .. } => return Err(message),
             _ => return Err("Core returned an unexpected keycap fit reply.".into()),
         };
         if result.revision != accepted.document.revision {

@@ -448,7 +448,6 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
         CurrentSnapshotBlocker::InstanceSelection
     );
 
-    probe.runtime.hold_next_core();
     let mut opening_document = document();
     opening_document.id = "opening-project".into();
     probe.runtime.submit(Event::Open {
@@ -457,9 +456,8 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
     });
     assert_eq!(
         check("PCB", true).unwrap_err(),
-        CurrentSnapshotBlocker::Lifecycle
+        CurrentSnapshotBlocker::SessionEpoch
     );
-    probe.runtime.release_core();
 
     let (preview_probe, _preview_dom) = mounted();
     let preview_identity = preview_probe
@@ -571,14 +569,12 @@ fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
     let (probe, mut dom) = mounted();
     assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
 
-    probe.runtime.hold_next_core();
     probe.runtime.submit(Event::Open {
         operation_id: probe.runtime.operation(),
         document: document(),
     });
     tick(&probe, &mut dom);
     assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
-    probe.runtime.release_core();
     navigate(&probe.runtime, "left");
 
     navigate(&probe.runtime, "right");

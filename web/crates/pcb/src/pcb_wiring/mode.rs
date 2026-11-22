@@ -324,7 +324,7 @@ fn snapshot_probe(
     workspace: &str,
     scope_generation: u64,
     instance_is_current: bool,
-    queued: bool,
+    allow_saving: bool,
 ) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
     if workspace != "PCB" {
         return Err(CurrentSnapshotBlocker::Workspace);
@@ -346,9 +346,7 @@ fn snapshot_probe(
         revision: snapshot.document.revision,
         executor_epoch: runtime.electrical_preview_executor_epoch(),
     };
-    if !(model.lifecycle == Lifecycle::Ready
-        || queued && matches!(model.lifecycle, Lifecycle::Applying | Lifecycle::Saving))
-    {
+    if model.lifecycle != Lifecycle::Ready {
         return Err(CurrentSnapshotBlocker::Lifecycle);
     }
     if model.display_preview.is_some() {
@@ -361,7 +359,7 @@ fn snapshot_probe(
         == (Durability::Saved {
             revision: snapshot.document.revision,
         })
-        || queued && matches!(model.durability, Durability::Saving { .. }))
+        || allow_saving && matches!(model.durability, Durability::Saving { .. }))
     {
         return Err(CurrentSnapshotBlocker::Durability);
     }

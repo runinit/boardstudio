@@ -1,6 +1,5 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 pub use crate::core_services::CoreServices;
-use crate::electrical_preview_request;
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
