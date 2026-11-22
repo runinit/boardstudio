@@ -56,15 +56,18 @@ Read [00-agent-guardrails-and-gate.md](00-agent-guardrails-and-gate.md) FIRST �
 
 ## 4. Multi-Provider Routing & Review Protocol
 
-Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Clean-Slate Rewriting**, and **Adversarial Review / Mechanical Consolidation** across all three providers (`serviceTier: "default"`, `fastMode: false`). *Observed Wave 1–2 routing note: do not assign unattended full-track rewrites to `gpt-6.1-terra` (use `claude-sonnet-5-5`, `gpt-6.2-sol` at `medium`, or `gemini-4-neon` at `medium` for implementation; keep cross-provider review independence):*
+Never let one provider both invent policy and self-grade its own diffs. Split **Orchestration**, **Implementation**, and **Adversarial Review** across providers (`serviceTier: "default"`, `fastMode: false`):
+- **Implementation preference:** Prefer **Codex (`gpt-6.1-terra` and `gpt-6.2-sol`)** first for implementation tracks; fall back to **Antigravity Hydrogen (`gemini-4-hydrogen`)** if Codex usage/quota runs out (or for additional parallel capacity).
+- **Reviews only on Claude:** Reserve **Claude (`claude-opus-5-5`, `claude-sonnet-5-5`) strictly for read-only reviews** (no new implementation delegations on Claude). Keep **Antigravity Neon High (`gemini-4-neon`, `thought_level: "high"`)** for wave-end gate & feature-parity audits.
 
 | Provider & Model | Role | Assigned Tracks | Guardrail |
 |---|---|---|---|
 | **Antigravity — Orchestrator (Neon)** (`thought_level: "low"` / planning coordinator) | **Sole Coordinator, Gatekeeper & Integrator** | Runs Waves 1–3, merges, `check_reduction.py`, full `check.py`, worktree cleanup | Owns all merges, preserves feature parity, enforces hard `--must-delete` / anti-bloat floors |
-| **Claude — Opus 5.5** (`effort: "medium"`) | **Architectural Rewriter & Track 4 Diff Reviewer** | Track 1 (`high`), Track 2, **Track 4 Read-Only Diff Review** | Reviews invariants + feature parity; never self-reviews own implementation |
-| **Claude — Sonnet 5.5** (`effort: "medium"` / `"high"`) | **Declarative UI, Layout & Script Rewriter** | Track 3B `case`, Track 4 (`high`), Track 5B `scripts/` | Preserves all user-facing features declaratively; passes `check_reduction.py` (`net < 0` + `--must-delete`) |
-| **Codex — GPT-6.2 Sol** (`reasoningEffort: "medium"`) | **Architectural Rewriter / Reviewer** | Track 2 (`0c41526d`), Track 3C+3D (`parts` + `pcb`), Track 6B `core/` trim / Track 1 review | Must preserve features & domain invariants; passes `check_reduction.py` |
-| **Antigravity — Gemini 4 Neon** (`thought_level: "medium"` impl / `"high"` gate) | **Cross-Crate Web/3D Consolidation & Wave-End Auditor** | Track 3E+3F (`medium`), Track 6A unified 3D host (`medium`), **Wave-End Gate Audit (`high`, read-only)** | Wave-end audits explicitly verify Feature Parity + runtime/bundle/gate health before auto-approving next wave |
+| **Codex — GPT-6.2 Sol** (`reasoningEffort: "medium"` / `"high"`) | **Primary Architectural Implementer** *(first choice)* | Architectural refactors (e.g., Wave 2 `3C+3D`, Wave 3 Track 6B `core/` trim / Track 6A) | Must preserve features & domain invariants; passes `check_reduction.py` |
+| **Codex — GPT-6.1 Terra** (`reasoningEffort: "low"` / `"medium"`) | **Primary Mechanical & Test-Consolidation Implementer** *(first choice alongside Sol; avoid `low` unattended on open-ended multi-crate rewrites)* | Wave 3 Track 5A `core/tests/`, Track 5B `scripts/` & Chrome launch retirement | Strictly fenced by `check_reduction.py` manifest, coverage preservation, & anti-bloat floor |
+| **Antigravity — Gemini 4 Hydrogen** (`gemini-4-hydrogen`, `thought_level: "medium"` / `"high"`) | **Implementation Fallback** *(when Codex usage runs out)* | Any Wave 3 implementation track (`5A`, `5B`, `6A`, `6B`) if Codex quota/capacity is constrained | Follows full clean-slate & Feature Preservation contract; passes `check_reduction.py` |
+| **Claude — Opus 5.5 / Sonnet 5.5** (`effort: "medium"`, `fastMode: false`) | **Read-Only Reviews Only** | Track 4 diff review, architectural/security/invariant reviews (no new implementation runs) | Read-only reviews checking invariants + Feature Parity; Orchestrator applies real fixes cleanly |
+| **Antigravity — Gemini 4 Neon** (`thought_level: "high"` gate) | **Wave-End Gate & Feature-Parity Auditor** | **Wave-End Gate Audits (read-only)** across Waves 1–3 | Verifies Feature Parity + runtime/bundle/gate health before `AUTO-APPROVE NEXT WAVE` |
 
 ---
 
