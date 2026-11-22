@@ -1,7 +1,7 @@
 //! Context providers that mounted Case tests, here and in the page, wrap their components in.
 use crate::runtime::Runtime;
 use crate::{
-    InstanceSelection, ResolvedAppearance, WorkspaceState, case_viewer, mechanical_settings_mount,
+    InstanceSelection, ResolvedAppearance, WorkspaceState, case_viewer, mechanical_settings,
     objects,
 };
 use boardstudio_application::Scope;
@@ -36,19 +36,9 @@ pub fn use_case_viewer_test_contexts() {
 }
 
 // Assemble the real mechanical owner hook's contexts for mounted Case tests.
-// The readiness predicate remains owned by mechanical_settings_mount.
 pub fn use_case_generation_readiness_test_bridge(runtime: Rc<Runtime>) -> bool {
-    let adapter = use_context::<SelectionAdapter>();
     let WorkspaceState(workspace) = use_context::<WorkspaceState>();
     let instance_selection = use_context::<InstanceSelection>();
-    let case_selection = use_context::<case_viewer::CaseSelection>();
-    mechanical_settings_mount::use_mechanical_settings_mount(
-        runtime,
-        adapter.generation,
-        workspace,
-        instance_selection,
-        case_selection,
-        EventHandler::new(|_| {}),
-    )
-    .generation_ready
+    mechanical_settings::use_mechanical_settings(runtime, workspace, instance_selection)
+        .generation_ready
 }

@@ -8,8 +8,6 @@
 //! unit tests run under `cargo test`.
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
-mod layer_projection;
-
 // Modules keep the page bin's paths: `super::InstanceSelection`, `super::objects::TreeContext`,
 // `crate::presentation::model_delivery`, `crate::runtime`.
 #[allow(unused_imports)]
@@ -50,11 +48,11 @@ pub(crate) mod parts {
 }
 
 mod case_assembly_projection;
+pub mod case_body_edit;
 pub mod case_display;
 pub mod case_generation_admission;
 pub mod case_gesture_math;
 pub mod closure_clearance;
-pub mod mechanical_feedback;
 pub mod mechanical_pair;
 pub mod mechanical_rules;
 
@@ -76,9 +74,7 @@ pub mod case_viewer;
 #[cfg(target_arch = "wasm32")]
 pub mod mechanical_settings;
 #[cfg(target_arch = "wasm32")]
-pub mod mechanical_settings_controller;
-#[cfg(target_arch = "wasm32")]
-pub mod mechanical_settings_mount;
+mod pair_controls;
 #[cfg(target_arch = "wasm32")]
 pub mod shared_viewer;
 #[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
