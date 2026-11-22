@@ -38,6 +38,10 @@ fn open(session: &mut Session, id: u64, document: ProjectDoc) {
     );
 }
 
+fn document(session: &Session) -> &ProjectDoc {
+    &session.read_model().accepted.as_ref().unwrap().document
+}
+
 fn rename(id: u64, name: &str) -> Event {
     Event::ResolveEdit {
         operation_id: OperationId(id),
@@ -68,16 +72,7 @@ fn rename_refusal_save_retry_and_history() {
         SaveResult::Committed,
     );
     assert!(matches!(refusal.as_slice(), [TerminalOutcome::Rejected(_)]));
-    assert_eq!(
-        session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .revision,
-        0
-    );
+    assert_eq!(document(&session).revision, 0);
 
     let failure = drive(
         &mut session,
@@ -85,16 +80,7 @@ fn rename_refusal_save_retry_and_history() {
         SaveResult::Aborted("storage full".into()),
     );
     assert_eq!(failure, [TerminalOutcome::Completed]);
-    assert_eq!(
-        session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .name,
-        "Edited"
-    );
+    assert_eq!(document(&session).name, "Edited");
     assert!(matches!(
         session.read_model().durability,
         Durability::Failed { revision: 1, .. }
@@ -129,16 +115,7 @@ fn rename_refusal_save_retry_and_history() {
             drive(&mut session, event, SaveResult::Committed),
             [TerminalOutcome::Completed]
         );
-        assert_eq!(
-            session
-                .read_model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .name,
-            expected
-        );
+        assert_eq!(document(&session).name, expected);
     }
 }
 
@@ -170,16 +147,7 @@ fn commits_publish_while_saving_and_only_save_the_latest_waiting_revision() {
                 .iter()
                 .all(|effect| !matches!(effect, Effect::Persist { .. }))
         );
-        assert_eq!(
-            session
-                .read_model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .name,
-            name
-        );
+        assert_eq!(document(&session).name, name);
     }
 
     let latest = session.complete(Completion::Persist {
@@ -233,10 +201,7 @@ fn open_after_save_failure_stale_revision_refusal_and_generation_cancel() {
     );
 
     open(&mut session, 3, ProjectDoc::empty("other", "Replacement"));
-    assert_eq!(
-        session.read_model().accepted.as_ref().unwrap().document.id,
-        "other"
-    );
+    assert_eq!(document(&session).id, "other");
     assert_eq!(
         drive(&mut session, rename(4, "Rev1"), SaveResult::Committed,),
         [TerminalOutcome::Completed]

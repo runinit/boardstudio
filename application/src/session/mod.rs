@@ -10,8 +10,7 @@ mod selection;
 mod types;
 
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Matrix, Position, ProjectDoc,
-    Vec2,
+    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Position, ProjectDoc, Vec2,
 };
 use gesture::Gesture;
 use persistence::{PendingOpen, PendingSave};

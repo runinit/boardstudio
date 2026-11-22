@@ -10,7 +10,7 @@ use boardstudio_model::model::{
     Asset, Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest,
     ProjectDoc, Side, Vec2,
 };
-use std::{cell::Cell, collections::BTreeMap, rc::Rc, sync::Arc};
+use std::{cell::Cell, collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartsPreviewOwnerIdentity {
