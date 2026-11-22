@@ -52,6 +52,7 @@ mod matrix_edit_test_support;
 mod matrix_inspector;
 mod matrix_placement_controller;
 mod matrix_preset;
+mod matrix_preset_logic;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;

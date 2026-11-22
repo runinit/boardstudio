@@ -4,11 +4,10 @@ use super::layout_rail::LayoutTransformRuntime;
 use super::matrix_preset::{
     MatrixPreset, SwitchOrientation, apply_preset, duplicate_variant, matrix_preset, switch_choices,
 };
+use super::matrix_preset_logic::resize;
 use super::{ScopedTreeContext, TreeContext};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_model::model::{
-    DiodeDirection, EditOperation, Matrix, MatrixCell, PartDefinition, Vec2,
-};
+use boardstudio_model::model::{DiodeDirection, EditOperation, Matrix, PartDefinition, Vec2};
 use boardstudio_web_layout_core::rail_drag::nudge_session_is_ready;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, TextCommitField,
@@ -168,65 +167,6 @@ impl MatrixInspectorMount {
             })
         })
     }
-}
-
-/// Resize keeping preset cells: new cells copy the preset template's assemblies.
-fn resize(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, String> {
-    if rows.checked_mul(columns).is_none_or(|cells| cells > 4096) {
-        return Err("Matrix dimensions cannot exceed 4096 cells.".into());
-    }
-    let template = matrix.cells.iter().find(|cell| {
-        cell.definition_id.as_deref() == Some(matrix.definition_id.as_str())
-            && cell
-                .variant
-                .as_deref()
-                .is_some_and(|variant| variant.starts_with("preset/"))
-    });
-    let mut next = matrix.clone();
-    next.rows = rows;
-    next.columns = columns;
-    let Some(template) = template else {
-        return Ok(next);
-    };
-    next.cells
-        .retain(|cell| cell.row < rows && cell.column < columns);
-    let rotation = Some(
-        if template
-            .variant
-            .as_deref()
-            .is_some_and(|variant| variant.ends_with("/north"))
-        {
-            180.0
-        } else {
-            0.0
-        },
-    );
-    let assemblies: Vec<_> = template
-        .assemblies
-        .iter()
-        .filter(|a| a.id == "diode" || a.id == "led")
-        .cloned()
-        .collect();
-    for row in 0..rows {
-        for column in (0..columns).filter(|&column| row >= matrix.rows || column >= matrix.columns)
-        {
-            next.cells.push(MatrixCell {
-                shift: None,
-                bend: None,
-                deleted: false,
-                row,
-                column,
-                enabled: true,
-                definition_id: template.definition_id.clone(),
-                variant: template.variant.clone(),
-                offset: None,
-                rotation,
-                assemblies: assemblies.clone(),
-                assemblies_local: template.assemblies_local,
-            });
-        }
-    }
-    Ok(next)
 }
 
 #[component]
@@ -453,78 +393,5 @@ pub fn MatrixInspector(mount: MatrixInspectorMount) -> Element {
             }, "Delete matrix" }
             if let Some(message) = error() { p { role: "alert", class: "text-destructive", "{message}" } }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::resize;
-    use boardstudio_model::model::Matrix;
-
-    fn preset_matrix(rows: u32, columns: u32) -> Matrix {
-        serde_json::from_value(serde_json::json!({
-            "id": "m1",
-            "rows": rows,
-            "columns": columns,
-            "pitch": { "x": 19.05, "y": 19.05 },
-            "origin": { "x": 0.0, "y": 0.0 },
-            "definitionId": "switch_mx",
-            "partIds": [],
-            "boardId": "b1",
-            "cells": [
-                {
-                    "row": 0,
-                    "column": 0,
-                    "enabled": true,
-                    "definitionId": "switch_mx",
-                    "variant": "preset/mx-hotswap/north",
-                    "assemblies": [
-                        { "id": "diode", "definitionId": "d1", "offset": { "x": 0.0, "y": 0.0 } },
-                        { "id": "custom_mount", "definitionId": "c1", "offset": { "x": 1.0, "y": 0.0 } }
-                    ],
-                    "assembliesLocal": true
-                },
-                {
-                    "row": 1,
-                    "column": 2,
-                    "enabled": false,
-                    "definitionId": "switch_mx",
-                    "variant": "preset/mx-hotswap/north",
-                    "assemblies": []
-                }
-            ]
-        }))
-        .unwrap()
-    }
-
-    #[test]
-    fn resize_preserves_sparse_preset_cells_and_enforces_4096_cell_limit() {
-        let matrix = preset_matrix(2, 3);
-        let err = resize(&matrix, 65, 65).unwrap_err();
-        assert!(err.contains("4096"), "{err}");
-
-        let expanded = resize(&matrix, 3, 4).unwrap();
-        assert_eq!(expanded.rows, 3);
-        assert_eq!(expanded.columns, 4);
-        // Existing sparse disabled slot stays disabled and unused middle slots aren't invented.
-        assert!(
-            expanded
-                .cells
-                .iter()
-                .any(|c| c.row == 1 && c.column == 2 && !c.enabled)
-        );
-        assert!(!expanded.cells.iter().any(|c| c.row == 1 && c.column == 1));
-        // Newly added frontier slot copies diode/led template assemblies + 180 deg north rotation.
-        let added = expanded
-            .cells
-            .iter()
-            .find(|c| c.row == 2 && c.column == 3)
-            .expect("frontier cell");
-        assert_eq!(added.rotation, Some(180.0));
-        assert_eq!(added.assemblies.len(), 1);
-        assert_eq!(added.assemblies[0].id, "diode");
-
-        let shrunk = resize(&expanded, 2, 2).unwrap();
-        assert!(shrunk.cells.iter().all(|c| c.row < 2 && c.column < 2));
     }
 }

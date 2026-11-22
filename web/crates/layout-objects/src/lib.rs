@@ -80,6 +80,9 @@ mod objects {
     mod matrix_setup_logic;
 
     #[cfg(test)]
+    mod matrix_preset_logic;
+
+    #[cfg(test)]
     #[path = "layout_align_geometry.rs"]
     mod layout_align_geometry_tests;
 
