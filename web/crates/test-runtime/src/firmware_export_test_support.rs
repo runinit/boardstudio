@@ -1,6 +1,6 @@
 use super::in_process_support::DeliveredArtifact;
 use super::project_name_test_support as support;
-use crate::runtime::{Runtime, test_hooks};
+use crate::runtime::Runtime;
 use boardstudio_application::Scope;
 use boardstudio_application::{AcceptedSnapshot, Effect, ReadModel};
 use boardstudio_model::model::*;
