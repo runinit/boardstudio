@@ -10,14 +10,13 @@ use crate::runtime::{CoreExecutor, DocumentPersistence, test_hooks::InstalledAda
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, OperationId, SaveResult, Scope, Session,
 };
-use boardstudio_core::{archive as core_archive, artifact_request};
+use boardstudio_core::artifact_request;
 use boardstudio_model::model::{
     ArtifactReply, ArtifactRequest, Board, CoreReply, CoreRequest, ProjectDoc,
 };
-use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
 use boardstudio_web_host::host::{BrowserStore, SaveError, StorageToken};
+use boardstudio_web_host::host::{CoreExecutorFuture, HostError};
 use futures_channel::oneshot;
-use js_sys::Uint8Array;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -52,9 +51,6 @@ pub struct InProcessCore {
     gate: RefCell<Option<AsyncGate>>,
     request_filter: Cell<Option<RequestFilter>>,
     scripted_reply: Cell<Option<ScriptedReply>>,
-    archive_behavior: GateDriver,
-    archive_gate: RefCell<Option<AsyncGate>>,
-    archive_reply: RefCell<Option<ArchiveResult>>,
 }
 
 impl InProcessCore {
@@ -67,9 +63,6 @@ impl InProcessCore {
             gate: RefCell::new(None),
             request_filter: Cell::new(None),
             scripted_reply: Cell::new(None),
-            archive_behavior: GateDriver::default(),
-            archive_gate: RefCell::new(None),
-            archive_reply: RefCell::new(None),
         }
     }
 
@@ -125,22 +118,6 @@ impl InProcessCore {
     /// Script only the external-provider reply a fixture needs; return None for real Core.
     pub fn script_replies(&self, reply: fn(&CoreRequest) -> Option<CoreReply>) {
         self.scripted_reply.set(Some(reply));
-    }
-
-    pub fn fail_next_archive(&self, reason: impl Into<String>) {
-        self.archive_behavior.fail_next_save(reason);
-    }
-
-    pub fn gate_next_archive(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
-        let (entered, entered_rx) = oneshot::channel();
-        let (release, release_rx) = oneshot::channel();
-        self.archive_behavior.hold_next_save();
-        *self.archive_gate.borrow_mut() = Some((entered, release_rx));
-        (entered_rx, release)
-    }
-
-    pub fn reply_to_next_archive(&self, reply: ArchiveResult) {
-        *self.archive_reply.borrow_mut() = Some(reply);
     }
 
     fn take_behavior(&self) -> Option<OneShotBehavior> {
@@ -218,52 +195,6 @@ impl CoreExecutor for InProcessCore {
         })
     }
 
-    fn archive<'a>(
-        &'a self,
-        _request_id: &'a str,
-        _executor_epoch: &'a str,
-        metadata: &'a str,
-        buffers: Vec<Uint8Array>,
-    ) -> CoreExecutorFuture<'a, ArchiveResult> {
-        Box::pin(async move {
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            let behavior = self.archive_behavior.take_save();
-            let scripted = self.archive_reply.borrow_mut().take();
-            if let Some(behavior) = behavior {
-                match behavior {
-                    OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
-                    OneShotBehavior::Hold => {
-                        let Some((entered, release)) = self.archive_gate.borrow_mut().take() else {
-                            return Err(HostError("archive gate was not configured".into()));
-                        };
-                        let _ = entered.send(());
-                        let _ = release.await;
-                    }
-                }
-            }
-            if self.closed.get() {
-                return Err(HostError("core worker is closed".into()));
-            }
-            if let Some(reply) = scripted {
-                return Ok(reply);
-            }
-            let inputs = buffers
-                .iter()
-                .map(|buffer| buffer.to_vec())
-                .collect::<Vec<_>>();
-            let (reply, output_bytes) = core_archive::request(metadata, &inputs);
-            Ok(ArchiveResult {
-                metadata: reply,
-                buffers: output_bytes
-                    .iter()
-                    .map(|bytes| Uint8Array::from(bytes.as_slice()))
-                    .collect(),
-            })
-        })
-    }
-
     fn artifact<'a>(
         &'a self,
         request_id: &'a str,
@@ -315,10 +246,7 @@ impl CoreExecutor for InProcessCore {
         self.closed.set(true);
         self.take_behavior();
         self.fail_after_hold.borrow_mut().take();
-        self.archive_behavior.take_save();
         self.gate.borrow_mut().take();
-        self.archive_gate.borrow_mut().take();
-        self.archive_reply.borrow_mut().take();
     }
 }
 

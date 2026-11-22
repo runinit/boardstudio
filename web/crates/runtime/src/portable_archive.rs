@@ -1,6 +1,32 @@
+use crate::core_services::ArchiveHandler;
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{Asset, ProjectDoc};
+use boardstudio_model::model::{ArchiveEntry, ArchiveReply, ArchiveRequest, Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
+
+pub(crate) fn pack_files(
+    archive: ArchiveHandler,
+    files: impl IntoIterator<Item = (String, Vec<u8>)>,
+) -> Result<Vec<u8>, String> {
+    let mut entries = Vec::new();
+    let mut buffers = Vec::new();
+    for (path, bytes) in files {
+        let buffer_index = u32::try_from(buffers.len()).map_err(|_| "Too many archive files.")?;
+        entries.push(ArchiveEntry { path, buffer_index });
+        buffers.push(bytes);
+    }
+    let request = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+        .map_err(|error| error.to_string())?;
+    let (metadata, buffers) = archive(&request, &buffers);
+    match serde_json::from_str(&metadata).map_err(|error| error.to_string())? {
+        ArchiveReply::Packed => buffers
+            .into_iter()
+            .next()
+            .filter(|bytes| !bytes.is_empty())
+            .ok_or_else(|| "Archive returned no ZIP bytes.".into()),
+        ArchiveReply::Error { message } => Err(message),
+        ArchiveReply::Unpacked { .. } => Err("Archive returned an unpacked project.".into()),
+    }
+}
 
 pub struct PreparedArchive {
     pub metadata: String,

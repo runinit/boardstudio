@@ -188,41 +188,8 @@ impl Runtime {
         worker.close();
         self.export_workers.borrow_mut().remove(&operation_id);
         let files = result?;
-        let entries = files
-            .iter()
-            .enumerate()
-            .map(|(index, (path, _))| {
-                Ok(ArchiveEntry {
-                    path: path.clone(),
-                    buffer_index: u32::try_from(index)
-                        .map_err(|_| "Too many keycap STL files.".to_owned())?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-            .map_err(|error| error.to_string())?;
-        let buffers = files
-            .iter()
-            .map(|(_, bytes)| Uint8Array::from(bytes.as_slice()))
-            .collect();
         guard()?;
-        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
-        let packed = core
-            .archive(
-                &format!("keycaps-stl-archive-{}", operation_id.0),
-                &epoch,
-                &metadata,
-                buffers,
-            )
-            .await
-            .map_err(|error| format!("Keycap STL packaging failed: {error}"))?;
-        guard()?;
-        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-            .map_err(|error| error.to_string())?
-        {
-            ArchiveReply::Packed if packed.buffers.len() == 1 => Ok(packed.buffers[0].to_vec()),
-            _ => Err("Core returned an incomplete keycap STL archive.".into()),
-        }
+        crate::portable_archive::pack_files(self.core_services.archive, files)
     }
 
     pub(super) async fn firmware_bytes(
@@ -341,42 +308,12 @@ impl Runtime {
                 .map_err(|error| format!("Could not serialize electrical plan: {error}"))?,
         );
         self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
-        let entries = files
-            .keys()
-            .enumerate()
-            .map(|(index, path)| {
-                Ok(ArchiveEntry {
-                    path: path.clone(),
-                    buffer_index: u32::try_from(index)
-                        .map_err(|_| "Too many firmware package files".to_owned())?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-            .map_err(|error| format!("Could not prepare ZIP package request: {error}"))?;
-        let buffers = files
-            .values()
-            .map(|contents| Uint8Array::from(contents.as_bytes()))
-            .collect();
-        let pack_id = format!("firmware-pack-{}", operation_id.0);
-        let packed = core
-            .archive(&pack_id, &executor_epoch.0.to_string(), &metadata, buffers)
-            .await;
-        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
-        let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
-        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-            .map_err(|error| format!("Could not read firmware package result: {error}"))?
-        {
-            ArchiveReply::Packed => packed
-                .buffers
-                .first()
-                .map(Uint8Array::to_vec)
-                .ok_or_else(|| "Firmware package returned no ZIP bytes.".into()),
-            ArchiveReply::Error { message } => Err(format!("Firmware packaging failed: {message}")),
-            ArchiveReply::Unpacked { .. } => {
-                Err("Core returned an unexpected unpacked archive.".into())
-            }
-        }
+        crate::portable_archive::pack_files(
+            self.core_services.archive,
+            files
+                .into_iter()
+                .map(|(path, contents)| (path, contents.into_bytes())),
+        )
     }
 
     pub(super) async fn resolve_firmware_plan(

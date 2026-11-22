@@ -1,4 +1,4 @@
-use super::in_process_support::{DeliveredArtifact, InProcessCore};
+use super::in_process_support::DeliveredArtifact;
 use super::project_name_test_support as support;
 use crate::runtime::{Runtime, test_hooks};
 use boardstudio_application::Scope;
@@ -15,7 +15,6 @@ use std::{
 pub enum Stage {
     Resolution,
     Generation,
-    Packaging,
 }
 
 fn resolution(request: &CoreRequest) -> bool {
@@ -58,7 +57,6 @@ pub fn fail(runtime: &Runtime, stage: Stage) {
         Stage::Generation => {
             core.fail_matching_reply(generation, "injected firmware-generation failure")
         }
-        Stage::Packaging => core.fail_next_archive("injected ZIP-packaging failure"),
     }
 }
 
@@ -67,18 +65,7 @@ pub fn gate(runtime: &Runtime, stage: Stage) -> (oneshot::Receiver<()>, oneshot:
     match stage {
         Stage::Resolution => core.gate_matching_reply(resolution),
         Stage::Generation => core.gate_matching_reply(generation),
-        Stage::Packaging => core.gate_next_archive(),
     }
-}
-
-pub async fn restart_executor(runtime: &Rc<Runtime>) {
-    let old: Rc<InProcessCore> = support::in_process_core(runtime);
-    old.fail_next_reply("controlled Session executor failure");
-    let document = (*runtime.model().accepted.unwrap().document).clone();
-    support::replace_document(runtime, "restart-fixture", &document.id.clone(), document).await;
-    assert!(old.is_closed());
-    assert!(!Rc::ptr_eq(&old, &support::in_process_core(runtime)));
-    support::in_process_core(runtime).script_replies(generated);
 }
 
 pub async fn run_effects(runtime: &Rc<Runtime>, initial: Vec<Effect>) {

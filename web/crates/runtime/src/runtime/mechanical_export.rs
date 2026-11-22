@@ -130,6 +130,7 @@ impl Runtime {
                         crate::pcb_handoff::HandoffPorts {
                             core: package_core.as_ref(),
                             store: &runtime.store,
+                            archive: runtime.core_services.archive,
                             executor_epoch: package_capture.executor_epoch().0,
                         },
                         is_current,
@@ -652,45 +653,7 @@ impl Runtime {
                 .map_err(|error| format!("Could not serialize mechanical assembly: {error}"))?,
         )?;
         ensure_current()?;
-        let entries = files
-            .iter()
-            .enumerate()
-            .map(|(index, (path, _))| {
-                Ok(ArchiveEntry {
-                    path: path.clone(),
-                    buffer_index: u32::try_from(index)
-                        .map_err(|_| "Too many mechanical package files.".to_owned())?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-            .map_err(|error| format!("Could not prepare mechanical ZIP request: {error}"))?;
-        let buffers = files
-            .iter()
-            .map(|(_, contents)| Uint8Array::from(contents.as_slice()))
-            .collect();
-        let archive_id = format!("mechanical-archive-{}", operation_id.0);
-        let packed = core
-            .archive(&archive_id, &executor_epoch, &metadata, buffers)
-            .await
-            .map_err(|error| format!("Mechanical packaging failed: {error}"))?;
-        ensure_current()?;
-        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-            .map_err(|error| format!("Could not read mechanical ZIP result: {error}"))?
-        {
-            ArchiveReply::Packed => packed
-                .buffers
-                .first()
-                .map(Uint8Array::to_vec)
-                .filter(|bytes| !bytes.is_empty())
-                .ok_or_else(|| "Mechanical ZIP provider returned no bytes.".into()),
-            ArchiveReply::Error { message } => {
-                Err(format!("Mechanical packaging failed: {message}"))
-            }
-            ArchiveReply::Unpacked { .. } => {
-                Err("Core returned an unpacked project for mechanical export.".into())
-            }
-        }
+        crate::portable_archive::pack_files(self.core_services.archive, files)
     }
 
     pub(super) async fn resolve_pcb_handoff_plan(
@@ -873,6 +836,7 @@ impl Runtime {
                 snapshot,
                 core: core.as_ref(),
                 store: &self.store,
+                archive: self.core_services.archive,
                 executor_epoch: capture.executor_epoch().0,
             },
             ensure_current,

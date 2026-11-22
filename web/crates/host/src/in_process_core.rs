@@ -33,16 +33,14 @@ pub type ArtifactHandler = fn(&str) -> String;
 /// builds a new one with a fresh engine, so a closed executor refuses all further work.
 pub struct InProcessCoreExecutor {
     core: RefCell<CoreHandler>,
-    archive: ArchiveHandler,
     artifact: ArtifactHandler,
     closed: Cell<bool>,
 }
 
 impl InProcessCoreExecutor {
-    pub fn new(core: CoreHandler, archive: ArchiveHandler, artifact: ArtifactHandler) -> Self {
+    pub fn new(core: CoreHandler, artifact: ArtifactHandler) -> Self {
         Self {
             core: RefCell::new(core),
-            archive,
             artifact,
             closed: Cell::new(false),
         }
@@ -73,16 +71,6 @@ impl InProcessCoreExecutor {
             return Err(HostError("core reply id mismatch".into()));
         }
         Ok(reply)
-    }
-
-    pub fn run_archive(
-        &self,
-        request_id: &str,
-        metadata: &str,
-        inputs: &[Vec<u8>],
-    ) -> Result<(String, Vec<Vec<u8>>), HostError> {
-        self.admit(request_id)?;
-        Ok((self.archive)(metadata, inputs))
     }
 
     pub fn run_artifact(
@@ -193,7 +181,6 @@ mod tests {
         let mut engine = CoreEngine::new();
         InProcessCoreExecutor::new(
             Box::new(move |request| engine.handle(request)),
-            boardstudio_core::archive::request,
             boardstudio_core::artifact_request,
         )
     }
@@ -223,7 +210,6 @@ mod tests {
                     revision: replies.len() as u64,
                 }
             }),
-            boardstudio_core::archive::request,
             boardstudio_core::artifact_request,
         );
         executor.run_request("a", &snapshot("a")).unwrap();
@@ -254,7 +240,6 @@ mod tests {
                 message: String::new(),
                 revision: 0,
             }),
-            boardstudio_core::archive::request,
             boardstudio_core::artifact_request,
         );
         assert_eq!(
@@ -295,7 +280,6 @@ mod tests {
     fn artifact_reply_id_must_match_the_request() {
         let executor = InProcessCoreExecutor::new(
             Box::new(|_| unreachable!("artifacts never reach the document engine")),
-            boardstudio_core::archive::request,
             |_| r#"{"kind":"compile-footprints","id":"other","result":[]}"#.into(),
         );
         assert_eq!(
@@ -311,20 +295,6 @@ mod tests {
     }
 
     #[test]
-    fn archive_passes_metadata_and_buffers_to_core() {
-        let executor = InProcessCoreExecutor::new(
-            Box::new(|_| unreachable!("archives never reach the document engine")),
-            |metadata, inputs| (format!("{metadata}:{}", inputs.len()), inputs.to_vec()),
-            boardstudio_core::artifact_request,
-        );
-        assert_eq!(
-            executor.run_archive("archive-1", "meta", &[vec![1, 2], vec![3]]),
-            Ok(("meta:2".into(), vec![vec![1, 2], vec![3]]))
-        );
-        assert!(executor.run_archive("", "meta", &[]).is_err());
-    }
-
-    #[test]
     fn closed_executor_refuses_all_work() {
         let executor = executor();
         assert_eq!(executor.check_ready(), Ok(()));
@@ -333,10 +303,6 @@ mod tests {
         assert_eq!(executor.check_ready(), Err(closed.clone()));
         assert_eq!(
             executor.run_request("m1-1", &snapshot("m1-1")),
-            Err(closed.clone())
-        );
-        assert_eq!(
-            executor.run_archive("archive-1", "{}", &[]),
             Err(closed.clone())
         );
         assert_eq!(

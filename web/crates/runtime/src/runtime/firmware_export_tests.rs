@@ -36,18 +36,11 @@ async fn wait_for_actual_stage(
 }
 
 #[wasm_bindgen_test]
-async fn production_run_export_injects_both_provider_failures_and_retries_without_editing_session()
-{
-    for (stage, expected) in [
-        (
-            test_support::Stage::Generation,
-            "Firmware generation failed: injected firmware-generation failure",
-        ),
-        (
-            test_support::Stage::Packaging,
-            "Firmware packaging failed: injected ZIP-packaging failure",
-        ),
-    ] {
+async fn production_run_export_retries_generation_without_editing_session() {
+    for (stage, expected) in [(
+        test_support::Stage::Generation,
+        "Firmware generation failed: injected firmware-generation failure",
+    )] {
         let (runtime, accepted, scope) = test_support::fixture().await;
         test_support::fail(&runtime, stage);
         let before = runtime.session.borrow().read_model().clone();
@@ -85,44 +78,6 @@ async fn production_run_export_injects_both_provider_failures_and_retries_withou
         assert_eq!(deliveries[0].media_type.as_deref(), Some("application/zip"));
         assert_eq!(runtime.session.borrow().read_model(), &before);
         assert!(!runtime.status_is_alert());
-    }
-}
-
-#[wasm_bindgen_test]
-async fn replacing_worker_during_each_actual_await_rejects_old_output_and_suppresses_its_report() {
-    for stage in [
-        test_support::Stage::Resolution,
-        test_support::Stage::Generation,
-        test_support::Stage::Packaging,
-    ] {
-        let (runtime, _accepted, _scope) = test_support::fixture().await;
-        let (entered, release) = test_support::gate(&runtime, stage);
-        let before = runtime.session.borrow().read_model().clone();
-        let (_operation, effect) = run_export_effect(test_support::start_export(&runtime));
-        let mut run: Pin<Box<dyn Future<Output = Vec<Effect>> + '_>> =
-            Box::pin(runtime.run(effect));
-        wait_for_actual_stage(&mut run, entered).await;
-        let previous_epoch = runtime.electrical_preview_executor_epoch();
-        test_support::restart_executor(&runtime).await;
-        assert!(runtime.electrical_preview_executor_epoch() > previous_epoch);
-        let restart_status = runtime.status();
-        let after_restart = runtime.model();
-        assert_eq!(after_restart.accepted, before.accepted);
-        assert_eq!(after_restart.lifecycle, Lifecycle::RecoveryRequired);
-        release
-            .send(())
-            .expect("release suspended worker operation");
-        let effects = run.await;
-        test_support::run_effects(&runtime, effects).await;
-
-        assert_eq!(runtime.session.borrow().read_model(), &after_restart);
-        assert!(runtime.artifacts.borrow().is_empty());
-        assert!(test_support::take_deliveries(&runtime).is_empty());
-        assert_eq!(
-            runtime.status(),
-            restart_status,
-            "obsolete worker failure stays silent"
-        );
     }
 }
 

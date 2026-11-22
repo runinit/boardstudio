@@ -6,7 +6,7 @@ pub use crate::runtime::test_hooks::{
 };
 use crate::runtime::{Runtime, test_hooks};
 use boardstudio_application::{Event, Session};
-use boardstudio_model::model::{ArchiveReply, ProjectDoc};
+use boardstudio_model::model::ProjectDoc;
 use std::rc::Rc;
 
 pub fn new_runtime() -> Rc<Runtime> {
@@ -51,25 +51,6 @@ pub async fn open_document(runtime: &Rc<Runtime>, document: ProjectDoc) {
 pub(super) fn installed(runtime: &Runtime) -> Rc<InProcessAdapters> {
     let adapters: Rc<dyn std::any::Any> = test_hooks::installed(runtime);
     adapters.downcast().expect("in-process adapter type")
-}
-
-pub fn gate_import_archive(
-    runtime: &Runtime,
-    document: &ProjectDoc,
-) -> (
-    futures_channel::oneshot::Receiver<()>,
-    futures_channel::oneshot::Sender<()>,
-) {
-    let core = installed(runtime).current_core();
-    let reply = ArchiveReply::Unpacked {
-        project_json: serde_json::to_string(document).expect("fixture document serializes"),
-        assets: Vec::new(),
-    };
-    core.reply_to_next_archive(boardstudio_web_host::host::ArchiveResult {
-        metadata: serde_json::to_string(&reply).expect("archive reply serializes"),
-        buffers: Vec::new(),
-    });
-    core.gate_next_archive()
 }
 
 pub fn gate_open_saved_result(

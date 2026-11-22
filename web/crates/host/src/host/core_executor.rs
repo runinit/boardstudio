@@ -1,6 +1,5 @@
 use crate::in_process_core::{HostError, InProcessCoreExecutor};
 use boardstudio_model::model::{ArtifactReply, ArtifactRequest, CoreReply, CoreRequest};
-use js_sys::Uint8Array;
 use std::{future::Future, future::ready, pin::Pin};
 
 pub type CoreExecutorFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, HostError>> + 'a>>;
@@ -17,14 +16,6 @@ pub trait CoreExecutor {
         request: &'a CoreRequest,
     ) -> CoreExecutorFuture<'a, CoreReply>;
 
-    fn archive<'a>(
-        &'a self,
-        request_id: &'a str,
-        executor_epoch: &'a str,
-        metadata: &'a str,
-        buffers: Vec<Uint8Array>,
-    ) -> CoreExecutorFuture<'a, ArchiveResult>;
-
     fn artifact<'a>(
         &'a self,
         request_id: &'a str,
@@ -35,12 +26,6 @@ pub trait CoreExecutor {
     fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()>;
 
     fn close(&self);
-}
-
-#[derive(Clone, Debug)]
-pub struct ArchiveResult {
-    pub metadata: String,
-    pub buffers: Vec<Uint8Array>,
 }
 
 /// Every future is already complete when returned. The executor epoch is not checked here:
@@ -55,26 +40,6 @@ impl CoreExecutor for InProcessCoreExecutor {
         request: &'a CoreRequest,
     ) -> CoreExecutorFuture<'a, CoreReply> {
         Box::pin(ready(self.run_request(request_id, request)))
-    }
-
-    fn archive<'a>(
-        &'a self,
-        request_id: &'a str,
-        _executor_epoch: &'a str,
-        metadata: &'a str,
-        buffers: Vec<Uint8Array>,
-    ) -> CoreExecutorFuture<'a, ArchiveResult> {
-        let inputs: Vec<Vec<u8>> = buffers.iter().map(Uint8Array::to_vec).collect();
-        let result = self
-            .run_archive(request_id, metadata, &inputs)
-            .map(|(metadata, outputs)| ArchiveResult {
-                metadata,
-                buffers: outputs
-                    .iter()
-                    .map(|bytes| Uint8Array::from(bytes.as_slice()))
-                    .collect(),
-            });
-        Box::pin(ready(result))
     }
 
     fn artifact<'a>(

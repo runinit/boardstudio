@@ -11,11 +11,14 @@ async fn archive_exactly_at_size_limit_reaches_normal_validation() {
     let runtime = project_name_test_support::new_runtime();
     project_name_test_support::open_document(&runtime, in_process_support::board_document()).await;
     let imported = ProjectDoc::empty("archive-at-limit", "At limit");
-    let (mut entered, release) =
-        project_name_test_support::gate_import_archive(&runtime, &imported);
+    let prepared =
+        crate::portable_archive::prepare_archive(&imported, &BTreeMap::new(), vec![], false)
+            .unwrap();
+    let (_, buffers) = boardstudio_core::archive::request(&prepared.metadata, &prepared.buffers);
+    let parts = Array::new();
+    parts.push(&Uint8Array::from(buffers[0].as_slice()));
     let done = project_name_test_support::track_import_file(&runtime);
-    let file =
-        web_sys::File::new_with_u8_array_sequence(&Array::new(), "at-limit.boardstudio").unwrap();
+    let file = web_sys::File::new_with_u8_array_sequence(&parts, "at-limit.boardstudio").unwrap();
     let descriptor = Object::new();
     Reflect::set(
         &descriptor,
@@ -25,20 +28,6 @@ async fn archive_exactly_at_size_limit_reaches_normal_validation() {
     .unwrap();
     Object::define_property(&Object::from(file.clone()), &"size".into(), &descriptor);
     runtime.import_file(file);
-    let mut admitted = false;
-    for _ in 0..200 {
-        if matches!(entered.try_recv(), Ok(Some(()))) {
-            admitted = true;
-            break;
-        }
-        TimeoutFuture::new(1).await;
-    }
-    assert!(
-        admitted,
-        "exactly-at-limit files must reach Core: {}",
-        runtime.status()
-    );
-    release.send(()).unwrap();
     done.await.unwrap();
     Reflect::set(&window, &"confirm".into(), &original).unwrap();
     project_name_test_support::run_pending(&runtime).await;

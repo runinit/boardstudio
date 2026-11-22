@@ -18,11 +18,11 @@ use boardstudio_core_mechanical::electrical::{
     ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
 use boardstudio_model::model::{
-    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-    CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
-    KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile, MechanicalConfiguration,
-    MechanicalExtraction, MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily,
-    Operation, OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+    ArchiveReply, ArtifactReply, ArtifactRequest, Board, CaseAssemblyIR, CaseIR, CompiledFootprint,
+    CoreReply, CoreRequest, HardwareTopology, KeycapSpec, Material, MechanicalAssembly,
+    MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
+    MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings,
+    PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 pub use boardstudio_web_host::host::CoreExecutor;
 
@@ -447,7 +447,6 @@ impl Runtime {
         let prefix = deployment_prefix()?;
         let core = Rc::new(InProcessCoreExecutor::new(
             (core_services.open_scratch)(),
-            core_services.archive,
             core_services.artifact,
         ));
         let runtime = Rc::new(Self {
