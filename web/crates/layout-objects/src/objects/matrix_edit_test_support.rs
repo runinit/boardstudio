@@ -5,9 +5,8 @@
 #![cfg(all(test, target_arch = "wasm32"))]
 use crate::runtime::Runtime;
 use boardstudio_model::model::{
-    Board, Follow, Layout, LayoutMirrorLink, Matrix, MatrixAnchor, MatrixCell,
-    MirroredCorrespondence, MirroredItemKind, OutlineFeature, OutlineSettings, Part, PartAnchor,
-    Pose2, ProjectDoc, Side, Vec2,
+    Board, Follow, Layout, Matrix, MatrixAnchor, MatrixCell, OutlineFeature, OutlineSettings, Part,
+    PartAnchor, Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
@@ -178,55 +177,11 @@ pub async fn open_detached_part_runtime() -> Rc<Runtime> {
     runtime
 }
 
-/// Ticket 07: a mirrored pair whose halves each carry an anchored independent
-/// part, with a Part correspondence so a rail drag on one half fans out to
-/// the other per ADR-0038.
+/// Ticket 07: a mirrored pair whose source half carries an anchored independent part so a
+/// rail drag on either half fans out through Core projection.
 pub fn part_pair_document() -> ProjectDoc {
     let mut document = matrix_document();
     document.boards[0].part_ids.push("mcu".into());
-    document.boards[0].part_ids.push("mcu-mirror".into());
-    document.matrices.push(
-        serde_json::from_value(serde_json::json!({
-            "id": "matrix-mirror",
-            "rows": 1,
-            "columns": 3,
-            "pitch": {"x": 19.05, "y": 19.05},
-            "origin": {"x": 0.0, "y": 0.0},
-            "definitionId": "switch:base",
-            "partIds": ["matrix/matrix-mirror/r0c0", "matrix/matrix-mirror/r0c1", "matrix/matrix-mirror/r0c2"],
-            "mirror": "x",
-            "boardId": BOARD_ID,
-            "cells": (0..3).map(|column| serde_json::json!({
-                "row": 0, "column": column, "enabled": true,
-                "definitionId": "switch:base", "assemblies": []
-            })).collect::<Vec<_>>()
-        }))
-        .unwrap(),
-    );
-    for (index, column) in [0, 1, 2].iter().enumerate() {
-        document.parts.push(Part {
-            keycap: None,
-            outline: None,
-            anchor: None,
-            id: format!("matrix/matrix-mirror/r0c{column}"),
-            definition_id: "switch:base".into(),
-            reference: format!("SW{}M", index + 1),
-            pose: Pose2 {
-                at: Vec2 {
-                    x: 19.05 * *column as f64,
-                    y: 0.0,
-                },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
-        document.boards[0]
-            .part_ids
-            .push(format!("matrix/matrix-mirror/r0c{column}"));
-    }
     document.layouts.push(Layout {
         id: "left".into(),
         name: "Left".into(),
@@ -239,41 +194,27 @@ pub fn part_pair_document() -> ProjectDoc {
         id: "right".into(),
         name: "Right".into(),
         board_id: BOARD_ID.into(),
-        matrix_ids: vec!["matrix-mirror".into()],
-        part_ids: vec!["mcu-mirror".into()],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "left".into(),
-            axis_x: 40.0,
-            split_gap: Some(80.0),
-            spacing: None,
-            correspondences: vec![
-                MirroredCorrespondence {
-                    kind: MirroredItemKind::Matrix,
-                    source_id: MATRIX_ID.into(),
-                    mirror_id: "matrix-mirror".into(),
-                    companion_mode: None,
-                    companion_tweak: None,
-                },
-                MirroredCorrespondence {
-                    kind: MirroredItemKind::Part,
-                    source_id: "mcu".into(),
-                    mirror_id: "mcu-mirror".into(),
-                    companion_mode: None,
-                    companion_tweak: None,
-                },
-            ],
-            exceptions: vec![],
-        }),
+        matrix_ids: vec![],
+        part_ids: vec![],
+        mirror_link: None,
     });
-    let mut mcu = anchored_part((19.0, 0.0), true, false);
-    document.parts.push(mcu.clone());
-    mcu.id = "mcu-mirror".into();
-    mcu.reference = "U1M".into();
-    if let Some(anchor) = mcu.anchor.as_mut() {
-        anchor.matrix_id = "matrix-mirror".into();
-        anchor.spread = -19.0;
-    }
-    document.parts.push(mcu);
+    document
+        .mirrored_pairs
+        .push(boardstudio_model::mirrored_half::MirroredPair {
+            id: "pair".into(),
+            source: boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                "left".into(),
+            ),
+            destination: boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                "right".into(),
+            ),
+            mapping: Pose2 {
+                at: Vec2 { x: 80.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            overrides: vec![],
+        });
+    document.parts.push(anchored_part((19.0, 0.0), true, false));
     document
 }
 

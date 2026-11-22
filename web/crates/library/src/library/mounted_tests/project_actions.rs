@@ -641,6 +641,11 @@ async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_projec
         matches!(entered.try_recv(), Ok(Some(())))
     })
     .await;
+    assert_eq!(
+        *slot.borrow(),
+        Some(boardstudio_application::TerminalOutcome::Completed),
+        "the edit settles synchronously before persistence finishes"
+    );
     let (replacement, _replacement_core) =
         accepted(ProjectDoc::empty("menu-name-replacement", "Replacement"));
     boardstudio_web_test_runtime::project_name_test_support::replace_session(&runtime, replacement);
@@ -662,10 +667,6 @@ async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_projec
     )
     .await;
     drain_and_yield(&runtime).await;
-    assert!(
-        slot.borrow().is_none(),
-        "a completion owned by the prior session epoch is ignored"
-    );
     assert_eq!(
         runtime.model().accepted.unwrap().document.name,
         "Replacement"

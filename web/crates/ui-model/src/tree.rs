@@ -165,7 +165,8 @@ pub fn build_pcb_tree(
     let Some(snapshot) = model.accepted.as_ref() else {
         return Vec::new();
     };
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     let Some(board) = document
         .boards
         .iter()
@@ -463,7 +464,23 @@ pub fn build_tree(
                 .map(move |id| (id.as_str(), *layout))
         })
         .collect();
-    let has_split = layouts.iter().any(|layout| layout.mirror_link.is_some())
+    let same_board_pair = |layout: &Layout| {
+        document.mirrored_pairs.iter().find(|pair| {
+            matches!(
+                &pair.source,
+                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(id)
+                    if id == &layout.id
+            ) || matches!(
+                &pair.destination,
+                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(id)
+                    if id == &layout.id
+            )
+        })
+    };
+    let has_split = layouts
+        .iter()
+        .any(|layout| same_board_pair(layout).is_some())
+        || layouts.iter().any(|layout| layout.mirror_link.is_some())
         || layouts.iter().any(|layout| {
             layouts.iter().any(|other| {
                 other
@@ -474,7 +491,12 @@ pub fn build_tree(
         });
     let split_x = layouts
         .iter()
-        .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x));
+        .find_map(|layout| same_board_pair(layout).map(|pair| pair.mapping.at.x / 2.0))
+        .or_else(|| {
+            layouts
+                .iter()
+                .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x))
+        });
     let halves: Vec<(&str, Vec<&Layout>)> = if has_split {
         let axis = split_x.unwrap_or_default();
         vec![
@@ -608,7 +630,8 @@ pub fn build_tree(
         for layout in half_layouts {
             let layout_key = format!("half:{}", layout.id);
             let is_open = expanded.contains(&layout_key);
-            let linked = layout.mirror_link.is_some()
+            let linked = same_board_pair(layout).is_some()
+                || layout.mirror_link.is_some()
                 || layouts.iter().any(|other| {
                     other
                         .mirror_link

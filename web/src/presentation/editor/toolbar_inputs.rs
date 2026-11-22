@@ -695,7 +695,10 @@ pub(super) fn use_workspace_inputs(
     let toolbar_selection_availability = use_toolbar_selection_availability(
         tree_cell_anchor.clone(),
         layout_owner.clone(),
-        accepted_canvas_source.clone(),
+        layout_canvas::SceneSource {
+            document: snapshot.document.clone(),
+            ..accepted_canvas_source.clone()
+        },
         snapshot,
         model,
         selected_tree_context.clone(),

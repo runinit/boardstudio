@@ -148,8 +148,10 @@ impl Runtime {
     }
 
     pub(super) fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
+        let previous_scope = self.scope();
+        let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().complete(event);
-        self.changed();
+        self.refresh_after_session(previous_scope, previous_snapshot);
         effects
     }
 
@@ -246,19 +248,25 @@ impl Runtime {
                     }
                     Err(error) => SaveResult::Aborted(error.to_string()),
                 };
+                let pre_snapshot = self.accepted_identity();
+                let pre_durability = self.model().durability;
                 let persisted = result == SaveResult::Committed;
                 let effects = self.complete(Completion::Persist {
                     save_attempt_id,
                     result,
                 });
-                match self.model().durability {
-                    Durability::Saved { .. } if persisted => {
-                        self.apply_report(RuntimeReport::status("Saved locally.").transient());
+                if self.model().durability != pre_durability
+                    || self.accepted_identity() != pre_snapshot
+                {
+                    match self.model().durability {
+                        Durability::Saved { .. } if persisted => {
+                            self.apply_report(RuntimeReport::status("Saved locally.").transient());
+                        }
+                        Durability::Failed { reason, .. } => {
+                            self.report(reason);
+                        }
+                        _ => {}
                     }
-                    Durability::Failed { reason, .. } => {
-                        self.report(reason);
-                    }
-                    _ => {}
                 }
                 return effects;
             }

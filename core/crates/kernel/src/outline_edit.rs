@@ -40,6 +40,18 @@ pub fn apply(doc: &mut ProjectDoc, edit: &OutlineEdit) -> Result<Vec<String>, St
     Ok(changed)
 }
 
+pub(super) fn resolved_doc(doc: &ProjectDoc) -> std::borrow::Cow<'_, ProjectDoc> {
+    if doc.mirrored_pairs.is_empty() {
+        std::borrow::Cow::Borrowed(doc)
+    } else {
+        std::borrow::Cow::Owned(
+            boardstudio_core_mirrored_half::project_document(doc)
+                .geometry()
+                .clone(),
+        )
+    }
+}
+
 /// Evaluates one typed outline edit against the accepted document.
 ///
 /// This is the read-only settlement half: it shares the private implementation with
@@ -160,11 +172,12 @@ fn active_version_id(doc: &ProjectDoc, board_id: &str) -> Option<String> {
 
 /// The board's current generated source contours, from the authored generated features.
 fn generated_source_shape(doc: &ProjectDoc, board_id: &str) -> Vec<Contour> {
-    let Some(board) = doc.boards.iter().find(|board| board.id == board_id) else {
+    let resolved = resolved_doc(doc);
+    let Some(board) = resolved.boards.iter().find(|board| board.id == board_id) else {
         return vec![];
     };
-    let (cache, _, _) = geometry::outlines(doc, None, &[]);
-    geometry::generated_source(doc, &cache, board).source
+    let (cache, _, _) = geometry::outlines(&resolved, None, &[]);
+    geometry::generated_source(&resolved, &cache, board).source
 }
 
 /// One version's current source contours: a linked refinement's resolved projection from
@@ -174,13 +187,14 @@ fn version_source_shape(
     board_id: &str,
     version: &OutlineVersion,
 ) -> Vec<Contour> {
+    let resolved = resolved_doc(doc);
     let features = if version.ownership.is_fixed() {
         version.geometry.features.clone()
     } else {
-        outline_versions::resolved_features(doc, board_id, version)
+        outline_versions::resolved_features(&resolved, board_id, version)
     };
-    let (cache, _, _) = geometry::outlines(doc, None, &[]);
-    geometry::feature_source_contours(doc, &cache, &features)
+    let (cache, _, _) = geometry::outlines(&resolved, None, &[]);
+    geometry::feature_source_contours(&resolved, &cache, &features)
 }
 
 fn version<'a>(
@@ -578,9 +592,10 @@ fn set_protected_gap(
     if points.len() < 3 || !outline_points_finite(points) {
         return Err("A protected gap needs at least three finite points".into());
     }
+    let resolved = resolved_doc(doc);
     for point in points {
         if point.part_id.is_some() {
-            crate::outline_controls::point(doc, point)?;
+            crate::outline_controls::point(&resolved, point)?;
         }
     }
     let target = edit.target.clone();
@@ -702,8 +717,9 @@ fn gap_is_accepted(gaps: &[ProtectedOutlineGap], gap: &ProtectedOutlineGap) -> b
 /// authored gap's id can stop matching the candidate it protects, so removal clears the
 /// protection by the candidate's identity rather than one alias string.
 fn protecting_gap_ids(doc: &ProjectDoc, board_id: &str, gap_id: &str) -> Option<Vec<String>> {
-    let (cache, _, _) = geometry::outlines(doc, None, &[]);
-    let scenes = geometry::board_outline_scenes(doc, &cache);
+    let resolved = resolved_doc(doc);
+    let (cache, _, _) = geometry::outlines(&resolved, None, &[]);
+    let scenes = geometry::board_outline_scenes(&resolved, &cache);
     let gap = scenes
         .iter()
         .find(|scene| scene.board_id == board_id)?

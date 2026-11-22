@@ -512,10 +512,13 @@ async fn committed_shift_names_the_changed_field_with_one_undo() {
         "the commit names the changed field"
     );
     set_numeric_field(&root, "Shift X", "5");
-    probe.settle().await;
-    assert!(
-        status().is_none(),
-        "a newer submit retires the previous announcement"
-    );
     probe.run().await;
+    assert_eq!(probe.matrix("matrix").row_layout[0].shift.x, 5.0);
+    let status_text = status()
+        .and_then(|element| element.text_content())
+        .unwrap_or_default();
+    assert!(
+        status_text.contains("Changed Shift X · one Undo entry"),
+        "expected Shift X announcement, got {status_text:?}"
+    );
 }

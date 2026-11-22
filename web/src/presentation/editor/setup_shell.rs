@@ -476,6 +476,7 @@ pub(super) struct EditorContexts {
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub field_preview: Signal<Option<FieldPreviewState>>,
+    pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
 }
 
 pub(super) struct EditorContextsInput {
@@ -530,6 +531,27 @@ pub(super) fn use_editor_contexts(
         }
     });
     let model = runtime.model();
+    let resolved_doc_cache = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+                std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+            )>,
+        ))
+    });
+    let resolved_document = model.accepted.as_ref().map(|snapshot| {
+        if let Some((raw, resolved)) = resolved_doc_cache.borrow().as_ref()
+            && std::sync::Arc::ptr_eq(raw, &snapshot.document)
+        {
+            return resolved.clone();
+        }
+        let resolved = match boardstudio_application::resolved_document(&snapshot.document) {
+            std::borrow::Cow::Borrowed(_) => snapshot.document.clone(),
+            std::borrow::Cow::Owned(doc) => std::sync::Arc::new(doc),
+        };
+        *resolved_doc_cache.borrow_mut() = Some((snapshot.document.clone(), resolved.clone()));
+        resolved
+    });
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let layout_owner = LayoutOwnerIdentity {
@@ -580,10 +602,15 @@ pub(super) fn use_editor_contexts(
     // the accepted document, so a commit always stales it).
     let field_preview = use_signal(|| None::<FieldPreviewState>);
     use_context_provider(|| FieldPreview(field_preview));
-    let field_preview_source = model.accepted.as_ref().map(|snapshot| FieldPreviewSource {
-        document: snapshot.document.clone(),
-        scene: snapshot.scene.clone(),
-    });
+    let field_preview_source =
+        model
+            .accepted
+            .as_ref()
+            .zip(resolved_document.as_ref())
+            .map(|(snapshot, document)| FieldPreviewSource {
+                document: document.clone(),
+                scene: snapshot.scene.clone(),
+            });
     use_context_provider(|| field_preview_source.clone());
     let field_preview_context = (
         adapter.selected_context.read().clone(),
@@ -616,6 +643,7 @@ pub(super) fn use_editor_contexts(
             layout_owner,
             layout_findings,
             field_preview,
+            resolved_document,
         },
         on_parts_select,
     )

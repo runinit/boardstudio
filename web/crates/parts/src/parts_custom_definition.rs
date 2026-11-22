@@ -406,6 +406,9 @@ pub(crate) mod ui {
         let on_width_blur = {
             let begin_width = submit;
             move |_| {
+                if !width_dirty() {
+                    return;
+                }
                 let draft = width();
                 begin_width.call(DefinitionFieldEdit {
                     row: None,
@@ -416,6 +419,9 @@ pub(crate) mod ui {
         let on_height_blur = {
             let begin_height = submit;
             move |_| {
+                if !height_dirty() {
+                    return;
+                }
                 let draft = height();
                 begin_height.call(DefinitionFieldEdit {
                     row: None,

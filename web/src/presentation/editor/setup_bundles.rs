@@ -66,6 +66,7 @@ pub(super) struct SetupA {
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub field_preview: Signal<Option<FieldPreviewState>>,
+    pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
 }
 
 pub(super) struct SetupB {
@@ -191,6 +192,7 @@ pub(super) fn use_editor_setup_shell() -> (
             layout_owner,
             layout_findings,
             field_preview,
+            resolved_document,
         },
         on_parts_select,
     ) = super::setup_shell::use_editor_contexts(super::setup_shell::EditorContextsInput {
@@ -271,6 +273,7 @@ pub(super) fn use_editor_setup_shell() -> (
             layout_owner,
             layout_findings,
             field_preview,
+            resolved_document,
         },
         workspace_routing,
         matrix_setup,

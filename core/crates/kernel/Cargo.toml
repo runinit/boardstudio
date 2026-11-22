@@ -8,6 +8,7 @@ description = "BoardStudio Core matrix layout kernel, constraint resolution and 
 
 [dependencies]
 boardstudio-model = { path = "../model" }
+boardstudio-core-mirrored-half = { path = "../mirrored-half" }
 boardstudio-contracts = { path = "../../../contracts/rust" }
 boardstudio-footprints = { path = "../../../footprints" }
 i_overlay = "9.0.0"

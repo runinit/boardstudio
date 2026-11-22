@@ -479,8 +479,11 @@ pub(super) struct Views {
     pub visible_ids: Rc<Vec<String>>,
 }
 
-pub(super) fn derive_views(model: &ReadModel, snapshot: &AcceptedSnapshot) -> Views {
-    let document = snapshot.document.clone();
+pub(super) fn derive_views(
+    model: &ReadModel,
+    snapshot: &AcceptedSnapshot,
+    document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+) -> Views {
     let scene = model
         .display_preview
         .clone()

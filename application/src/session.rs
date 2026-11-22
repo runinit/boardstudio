@@ -491,6 +491,14 @@ struct PendingSave {
     revision: u64,
     operation: Option<OperationId>,
 }
+
+struct PendingOpen {
+    operation_id: OperationId,
+    save_attempt_id: SaveAttemptId,
+    document: Arc<ProjectDoc>,
+    scene: Arc<SceneDelta>,
+    core: boardstudio_core::CoreEngine,
+}
 #[derive(Clone, Debug)]
 struct Gesture {
     pointer_id: i64,
@@ -518,6 +526,7 @@ pub struct Session {
     core: boardstudio_core::CoreEngine,
     display_preview_transaction_id: Option<String>,
     pending_save: Option<PendingSave>,
+    pending_open: Option<PendingOpen>,
     next_save: u64,
     next_token: u64,
     next_gesture: u64,
@@ -542,6 +551,7 @@ impl Session {
             core: boardstudio_core::CoreEngine::new(),
             display_preview_transaction_id: None,
             pending_save: None,
+            pending_open: None,
             next_save: 1,
             next_token: 1,
             next_gesture: 1,
@@ -832,6 +842,9 @@ impl Session {
         self.invalidate_gesture(effects);
         self.cancel_job(effects);
         self.retain_export(None, effects);
+        if let Some(pending) = self.pending_open.take() {
+            self.settle(pending.operation_id, TerminalOutcome::Cancelled, effects);
+        }
         if self.model.lifecycle == Lifecycle::RecoveryRequired
             || matches!(self.model.durability, Durability::Failed { .. })
         {
@@ -945,28 +958,58 @@ impl Session {
             self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
             return;
         }
-        if recovering {
-            self.pending_save = None;
-            self.model.durability =
-                self.model
-                    .accepted
-                    .as_ref()
-                    .map_or(Durability::NoDocument, |snapshot| Durability::Saved {
-                        revision: snapshot.document.revision,
-                    });
-            self.model.last_error = None;
+        let mut next_core = boardstudio_core::CoreEngine::new();
+        let reply = next_core.handle(CoreRequest::Open {
+            id: wire_id(operation_id),
+            document,
+        });
+        match reply {
+            CoreReply::Scene {
+                scene, document, ..
+            } if scene.revision == document.revision => {
+                if let Some(prior) = self.pending_open.take() {
+                    self.settle(prior.operation_id, TerminalOutcome::Superseded, effects);
+                }
+                let document = Arc::new(*document);
+                let save_attempt_id = SaveAttemptId(self.next_save);
+                self.next_save += 1;
+                self.pending_open = Some(PendingOpen {
+                    operation_id,
+                    save_attempt_id,
+                    document: document.clone(),
+                    scene: Arc::new(scene),
+                    core: next_core,
+                });
+                effects.push(Effect::Persist {
+                    save_attempt_id,
+                    document,
+                });
+            }
+            CoreReply::Error { message, .. } => {
+                self.model.last_error = Some(message.clone());
+                self.settle(operation_id, TerminalOutcome::Rejected(message), effects);
+            }
+            CoreReply::Scene { .. } => {
+                let failure = "core scene and document revisions differ";
+                self.model.last_error = Some(failure.into());
+                self.model.lifecycle = Lifecycle::RecoveryRequired;
+                self.settle(
+                    operation_id,
+                    TerminalOutcome::ExecutorFailed(failure.into()),
+                    effects,
+                );
+            }
+            _ => {
+                let failure = "core returned an unexpected reply variant";
+                self.model.last_error = Some(failure.into());
+                self.model.lifecycle = Lifecycle::RecoveryRequired;
+                self.settle(
+                    operation_id,
+                    TerminalOutcome::ExecutorFailed(failure.into()),
+                    effects,
+                );
+            }
         }
-        self.invalidate_gesture(effects);
-        self.cancel_job(effects);
-        self.retain_export(None, effects);
-        self.apply_document_request(
-            operation_id,
-            CoreRequest::Open {
-                id: wire_id(operation_id),
-                document,
-            },
-            effects,
-        );
     }
 
     fn resolve_edit(
@@ -1268,23 +1311,30 @@ impl Session {
                 mode,
             } => {
                 if let Some(snapshot) = &self.model.accepted {
-                    let valid = snapshot
-                        .document
-                        .parts
-                        .iter()
-                        .map(|part| part.id.as_str())
-                        .collect::<HashSet<_>>();
-                    let incoming = part_ids
-                        .into_iter()
-                        .filter(|id| valid.contains(id.as_str()))
-                        .collect::<Vec<_>>();
-                    match mode {
-                        SelectionMode::Range => {
-                            let valid_order = range_part_ids
+                    let (incoming, valid_order) = {
+                        let document = crate::resolved_document(&snapshot.document);
+                        let valid = document
+                            .parts
+                            .iter()
+                            .map(|part| part.id.as_str())
+                            .collect::<HashSet<_>>();
+                        let incoming = part_ids
+                            .into_iter()
+                            .filter(|id| valid.contains(id.as_str()))
+                            .collect::<Vec<_>>();
+                        let valid_order = if mode == SelectionMode::Range {
+                            range_part_ids
                                 .iter()
                                 .filter(|id| valid.contains(id.as_str()))
                                 .cloned()
-                                .collect::<Vec<_>>();
+                                .collect::<Vec<_>>()
+                        } else {
+                            Vec::new()
+                        };
+                        (incoming, valid_order)
+                    };
+                    match mode {
+                        SelectionMode::Range => {
                             let anchor =
                                 self.model.selection_anchor_id.as_ref().or(incoming.first());
                             if let (Some(anchor), Some(last)) = (anchor, incoming.last())
@@ -1324,60 +1374,62 @@ impl Session {
                     self.reject(operation_id, "no accepted document is open", &mut effects);
                     return effects;
                 };
-                let board = snapshot
-                    .document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == scope.board_id);
-                let matrix = snapshot.document.matrices.iter().find(|matrix| {
-                    matrix.id == matrix_id
-                        && matrix
-                            .board_id
-                            .as_ref()
-                            .is_none_or(|id| id == &scope.board_id)
-                });
-                let scene = snapshot
-                    .scene
-                    .matrix_scenes
-                    .iter()
-                    .find(|scene| scene.matrix_id == matrix_id);
-                let Some(((board, matrix), scene)) = board
-                    .zip(matrix)
-                    .zip(scene)
-                    .filter(|_| self.scope_is_current(&scope))
-                else {
+                let Some((mut primary_cells, incoming)) = ({
+                    let document = crate::resolved_document(&snapshot.document);
+                    let board = document
+                        .boards
+                        .iter()
+                        .find(|board| board.id == scope.board_id);
+                    let matrix = document.matrices.iter().find(|matrix| {
+                        matrix.id == matrix_id
+                            && matrix
+                                .board_id
+                                .as_ref()
+                                .is_none_or(|id| id == &scope.board_id)
+                    });
+                    let scene = snapshot
+                        .scene
+                        .matrix_scenes
+                        .iter()
+                        .find(|scene| scene.matrix_id == matrix_id);
+                    board
+                        .zip(matrix)
+                        .zip(scene)
+                        .filter(|_| self.scope_is_current(&scope))
+                        .map(|((board, matrix), scene)| {
+                            let board_parts: HashSet<_> =
+                                board.part_ids.iter().map(String::as_str).collect();
+                            let document_parts: HashSet<_> =
+                                document.parts.iter().map(|part| part.id.as_str()).collect();
+                            let owns_part =
+                                |id: &str| board_parts.contains(id) && document_parts.contains(id);
+                            let primary_cells = scene
+                                .cells
+                                .iter()
+                                .filter_map(|cell| {
+                                    let id = cell.member_id.as_deref()?;
+                                    (cell.enabled
+                                        && matrix.part_ids.iter().any(|member| member == id)
+                                        && owns_part(id))
+                                    .then(|| (cell.row, cell.column, id.to_owned()))
+                                })
+                                .collect::<Vec<_>>();
+                            let incoming = part_ids
+                                .into_iter()
+                                .filter(|id| owns_part(id))
+                                .collect::<Vec<_>>();
+                            (primary_cells, incoming)
+                        })
+                }) else {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 };
-                let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
-                let document_parts: HashSet<_> = snapshot
-                    .document
-                    .parts
-                    .iter()
-                    .map(|part| part.id.as_str())
-                    .collect();
-                let owns_part = |id: &str| board_parts.contains(id) && document_parts.contains(id);
-                let mut primary_cells = scene
-                    .cells
-                    .iter()
-                    .filter_map(|cell| {
-                        let id = cell.member_id.as_deref()?;
-                        (cell.enabled
-                            && matrix.part_ids.iter().any(|member| member == id)
-                            && owns_part(id))
-                        .then(|| (cell.row, cell.column, id.to_owned()))
-                    })
-                    .collect::<Vec<_>>();
                 primary_cells.sort_by_key(|(row, column, _)| (*row, *column));
                 let target_is_live = primary_cells.iter().any(|(_, _, id)| id == &target_part_id);
                 if !target_is_live {
                     self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
                     return effects;
                 }
-                let incoming = part_ids
-                    .into_iter()
-                    .filter(|id| owns_part(id))
-                    .collect::<Vec<_>>();
                 let mut retained_anchor = self.model.selection_anchor_id.clone();
                 let mut effective_mode = mode;
                 let selected = if mode == SelectionMode::Range {
@@ -1423,18 +1475,18 @@ impl Session {
                 instance_id,
             } => {
                 if let Some(snapshot) = &self.model.accepted {
-                    let board_ok = snapshot
-                        .document
-                        .boards
-                        .iter()
-                        .any(|board| board.id == board_id);
-                    let instance_ok = instance_id.as_ref().is_none_or(|id| {
-                        snapshot.document.hardware.as_ref().is_some_and(|h| {
-                            h.instances
-                                .iter()
-                                .any(|i| &i.id == id && i.board_id == board_id)
-                        })
-                    });
+                    let (board_ok, instance_ok) = {
+                        let document = crate::resolved_document(&snapshot.document);
+                        let board_ok = document.boards.iter().any(|board| board.id == board_id);
+                        let instance_ok = instance_id.as_ref().is_none_or(|id| {
+                            document.hardware.as_ref().is_some_and(|h| {
+                                h.instances
+                                    .iter()
+                                    .any(|i| &i.id == id && i.board_id == board_id)
+                            })
+                        });
+                        (board_ok, instance_ok)
+                    };
                     if board_ok && instance_ok {
                         self.model.active_board_id = board_id;
                         self.model.active_instance_id = instance_id;
@@ -1730,6 +1782,48 @@ impl Session {
         result: SaveResult,
         effects: &mut Vec<Effect>,
     ) {
+        if let Some(pending) = self
+            .pending_open
+            .take_if(|pending| pending.save_attempt_id == save_attempt_id)
+        {
+            match result {
+                SaveResult::Committed => {
+                    self.invalidate_gesture(effects);
+                    self.cancel_job(effects);
+                    self.retain_export(None, effects);
+                    self.core = pending.core;
+                    self.pending_save = None;
+                    let revision = pending.document.revision;
+                    let epoch = SessionEpoch(self.epoch().0 + 1);
+                    let token = SnapshotToken(self.next_token);
+                    self.next_token += 1;
+                    self.model.accepted = Some(AcceptedSnapshot {
+                        token,
+                        session_epoch: epoch,
+                        document: pending.document,
+                        scene: pending.scene,
+                    });
+                    self.model.display_preview = None;
+                    self.display_preview_transaction_id = None;
+                    self.model.selected_part_ids.clear();
+                    self.model.active_instance_id = None;
+                    self.model.last_error = None;
+                    self.reconcile_selection_and_board();
+                    self.model.durability = Durability::Saved { revision };
+                    self.model.lifecycle = Lifecycle::Ready;
+                    self.settle(pending.operation_id, TerminalOutcome::Completed, effects);
+                }
+                SaveResult::Aborted(reason) => {
+                    self.model.last_error = Some(reason.clone());
+                    self.settle(
+                        pending.operation_id,
+                        TerminalOutcome::PersistenceFailed(reason),
+                        effects,
+                    );
+                }
+            }
+            return;
+        }
         let Some(pending) = self
             .pending_save
             .take_if(|pending| pending.save_attempt_id == save_attempt_id)
@@ -1826,8 +1920,8 @@ impl Session {
         let Some(snapshot) = &self.model.accepted else {
             return;
         };
-        let parts = snapshot
-            .document
+        let resolved = crate::resolved_document(&snapshot.document);
+        let parts = resolved
             .parts
             .iter()
             .map(|part| part.id.as_str())

@@ -3,7 +3,7 @@ use super::*;
 use crate::matrix_transform_operation::placement_operation;
 use boardstudio_model::model::{MatrixPlacementChange, Mirror};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use fixture::{matrix_named, redo, undo};
+use fixture::{redo, undo};
 
 const TRANSACTION: &str = "layout-transform-test";
 
@@ -477,88 +477,6 @@ async fn arrow_up_moves_the_column_up_on_screen_on_a_mirror_y_matrix() {
     assert_eq!(
         nudge_value(&basis, stagger, value, ArrowKey::Left, false),
         None
-    );
-}
-
-/// A linked left/right pair on the fixture board, for the mirror-sync drag tests.
-async fn open_mirrored_pair_runtime() -> Rc<Runtime> {
-    let mut document = fixture::matrix_document();
-    document.matrices.clear();
-    document.parts.clear();
-    document.boards[0].part_ids.clear();
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, document).await;
-    let operation: EditOperation = serde_json::from_value(serde_json::json!({
-        "kind": "create-mirrored-pair",
-        "matrix": {
-            "id": "left-matrix", "rows": 1, "columns": 3,
-            "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": -20.0, "y": 0.0},
-            "mirror": "x", "definitionId": "switch:base",
-            "boardId": fixture::BOARD_ID, "partIds": []
-        },
-        "left": {"id": "left-layout", "name": "Left", "boardId": fixture::BOARD_ID,
-                 "matrixIds": ["left-matrix"], "partIds": []},
-        "right": {"id": "right-layout", "name": "Right", "boardId": fixture::BOARD_ID,
-                  "matrixIds": ["right-matrix"], "partIds": [],
-                  "mirrorLink": {"sourceId": "left-layout", "axisX": 10.0}}
-    }))
-    .expect("a mirrored pair operation");
-    let resolver = EditResolver::new("pair", move |_: &AcceptedSnapshot| {
-        Resolution::submit(vec![], operation.clone())
-    });
-    run(&runtime, begin_edit(&runtime, "pair", resolver)).await;
-    runtime
-}
-
-/// A drag on the right half of a linked pair updates both halves equally: Core mirrors the
-/// carried stagger and offsets, and the carried row shift, onto the left half.
-#[wasm_bindgen_test]
-async fn drags_on_the_right_half_of_a_linked_pair_update_both_halves_equally() {
-    let runtime = open_mirrored_pair_runtime().await;
-    let both = || {
-        (
-            matrix_named(&runtime, "left-matrix"),
-            matrix_named(&runtime, "right-matrix"),
-        )
-    };
-    drag_to(
-        &runtime,
-        stagger_drag(&runtime, "right-matrix", 1),
-        Vec2 { x: 0.0, y: 2.0 },
-    )
-    .await;
-    let (left, right) = both();
-    assert_eq!(right.column_layout[1].stagger, 2.0);
-    assert_eq!(staggers(&left), staggers(&right));
-    let offsets = |matrix: &Matrix| {
-        matrix
-            .column_layout
-            .iter()
-            .map(|record| record.offset)
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(offsets(&left), offsets(&right));
-
-    let shift = PlacementParameter::RowShift { row: 0 };
-    drag_to(
-        &runtime,
-        offset_drag(&runtime, "right-matrix", shift),
-        Vec2 { x: 4.7625, y: 0.0 },
-    )
-    .await;
-    let (left, right) = both();
-    assert_eq!(right.row_layout[0].shift, Vec2 { x: 4.7625, y: 0.0 });
-    let shifts = |matrix: &Matrix| {
-        matrix
-            .row_layout
-            .iter()
-            .map(|record| record.shift)
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(
-        shifts(&left),
-        shifts(&right),
-        "Core mirrors the carried shift onto the linked half"
     );
 }
 

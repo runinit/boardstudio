@@ -37,7 +37,14 @@ pub(super) fn Editor() -> Element {
     let Some(snapshot) = setup_a.model.accepted.as_ref() else {
         return rsx! {};
     };
-    let views = setup_workspaces::derive_views(&setup_a.model, snapshot);
+    let views = setup_workspaces::derive_views(
+        &setup_a.model,
+        snapshot,
+        setup_a
+            .resolved_document
+            .clone()
+            .unwrap_or_else(|| snapshot.document.clone()),
+    );
     let board = views
         .document
         .boards

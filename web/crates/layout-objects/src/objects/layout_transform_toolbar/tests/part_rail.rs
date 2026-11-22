@@ -376,21 +376,27 @@ async fn part_stagger_drag_on_one_half_updates_both_halves() {
     };
     let (from, to) = (client(center.x, center.y), client(center.x, center.y + 2.0));
     drag_commit(&runtime, &handle, from, to, false, true).await;
-    let (source, partner) = (
-        part_anchor_of(&runtime, "mcu"),
-        part_anchor_of(&runtime, "mcu-mirror"),
-    );
+    let anchors = || {
+        let document = runtime.model().accepted.expect("accepted").document;
+        let resolved = boardstudio_application::resolved_document(&document);
+        let anchor_of = |part_id: &str| {
+            resolved
+                .parts
+                .iter()
+                .find(|part| part.id == part_id)
+                .and_then(|part| part.anchor.clone())
+                .unwrap_or_else(|| panic!("expected anchor on projected part {part_id}"))
+        };
+        (anchor_of("mcu"), anchor_of("4/pair/part/mcu"))
+    };
+    let (source, partner) = anchors();
     assert_eq!(source.stagger, 2.0, "the dragged half carries +2");
     assert_eq!(partner.stagger, 2.0, "the partner mirrors the edit");
     assert_eq!(source.offset, Vec2::default(), "Offset is untouched");
     undo(&runtime).await;
-    for part_id in ["mcu", "mcu-mirror"] {
-        assert_eq!(
-            part_anchor_of(&runtime, part_id).stagger,
-            0.0,
-            "one Undo restores {part_id}"
-        );
-    }
+    let (source, partner) = anchors();
+    assert_eq!(source.stagger, 0.0, "one Undo restores mcu");
+    assert_eq!(partner.stagger, 0.0, "one Undo restores partner");
 }
 
 /// Ticket 07: pressing a part token focuses the part's half, like a body click

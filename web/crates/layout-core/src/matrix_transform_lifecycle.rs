@@ -175,8 +175,8 @@ mod selection_retention_tests {
         let Some(snapshot) = &model.accepted else {
             return vec![];
         };
-        let Some(board) = snapshot
-            .document
+        let document = boardstudio_application::resolved_document(&snapshot.document);
+        let Some(board) = document
             .boards
             .iter()
             .find(|board| board.id == model.active_board_id)
@@ -186,9 +186,7 @@ mod selection_retention_tests {
         board
             .part_ids
             .iter()
-            .filter(|id| {
-                id.as_str() == key_id && snapshot.document.parts.iter().any(|part| &part.id == *id)
-            })
+            .filter(|id| id.as_str() == key_id && document.parts.iter().any(|part| &part.id == *id))
             .cloned()
             .collect()
     }

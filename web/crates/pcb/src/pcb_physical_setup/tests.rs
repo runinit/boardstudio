@@ -349,14 +349,14 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
     settle_until(
         &runtime,
         support::run_pending,
-        "the failed save clears busy and reports",
+        "the failed save clears busy and records durability failure",
         || {
             !mount(&probe).projection.busy
-                && mount(&probe)
-                    .projection
-                    .project_feedback
-                    .as_deref()
-                    .is_some_and(|message| message.contains("disk"))
+                && matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Failed { ref reason, .. }
+                        if reason.contains("disk")
+                )
         },
     )
     .await;
@@ -366,11 +366,13 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
         "the failed setup no longer holds the busy gate"
     );
     assert!(
-        projection
-            .project_feedback
-            .as_deref()
-            .is_some_and(|message| message.contains("disk")),
-        "the failure reports for its exact owner"
+        matches!(
+            runtime.model().durability,
+            boardstudio_application::Durability::Failed { ref reason, .. }
+                if reason.contains("disk")
+        ),
+        "durability records the failed save reason: {:?}",
+        runtime.model().durability
     );
     assert!(
         projection.feedback.is_none(),

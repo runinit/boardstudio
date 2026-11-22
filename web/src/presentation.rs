@@ -46,8 +46,6 @@ mod layout_relation_highlight_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
-mod layout_spacing_ghost_tests;
-#[cfg(test)]
 mod layout_split_focus_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{

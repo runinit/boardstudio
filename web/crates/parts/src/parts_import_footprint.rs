@@ -828,15 +828,7 @@ mod mounted_tests {
             entered.try_recv().unwrap().is_some()
         })
         .await;
-        assert!(input.disabled());
-        assert!(probe.borrow().as_ref().unwrap()().is_none());
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.definitions.len(),
-            0
-        );
-        release.send(()).unwrap();
-        wait_until_step("footprint import is accepted and selected", async || {
-            support::run_pending(&runtime).await;
+        wait_until("footprint import commits and selects synchronously", || {
             probe.borrow().as_ref().unwrap()().is_some()
         })
         .await;
@@ -847,6 +839,18 @@ mod mounted_tests {
             selected.1
         );
         assert!(!input.disabled());
+        release.send(()).unwrap();
+        wait_until_step(
+            "background persistence lands for the imported footprint",
+            async || {
+                support::run_pending(&runtime).await;
+                matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Saved { .. }
+                )
+            },
+        )
+        .await;
         runtime.unsubscribe();
         root.remove();
     }

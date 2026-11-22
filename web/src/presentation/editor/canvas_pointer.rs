@@ -142,14 +142,14 @@ pub(super) fn matrix_pointer_down_handler(
         };
         // Ticket 14: clicking the dimmed half on the canvas moves the
         // view-only editing focus and still performs normal selection.
-        if let Some(accepted) = current.accepted.as_ref()
-            && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
-                &accepted.document,
-                &hit_context,
-            )
-            && half != split_focus()
-        {
-            split_focus.set(half);
+        if let Some(accepted) = current.accepted.as_ref() {
+            let resolved = boardstudio_application::resolved_document(&accepted.document);
+            if let Some(half) =
+                boardstudio_web_ui_model::split_focus::context_half(resolved.as_ref(), &hit_context)
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
         }
         update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
         let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
@@ -334,14 +334,14 @@ pub(super) fn part_pointer_down_handler(
         };
         // Ticket 14: clicking the dimmed half on the canvas moves the
         // view-only editing focus and still performs normal selection.
-        if let Some(accepted) = current.accepted.as_ref()
-            && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
-                &accepted.document,
-                &hit_context,
-            )
-            && half != split_focus()
-        {
-            split_focus.set(half);
+        if let Some(accepted) = current.accepted.as_ref() {
+            let resolved = boardstudio_application::resolved_document(&accepted.document);
+            if let Some(half) =
+                boardstudio_web_ui_model::split_focus::context_half(resolved.as_ref(), &hit_context)
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
         }
         update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
         let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);

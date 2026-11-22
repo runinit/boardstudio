@@ -429,17 +429,6 @@ async fn mount_split(root_id: &'static str) -> Probe {
         ),
     );
     support::run_pending(&runtime).await;
-    let revision = runtime.model().accepted.unwrap().document.revision;
-    support::submit_fixed_command(
-        &runtime,
-        set_matrix_command(
-            revision,
-            matrix_json(
-                json!({"id": "paired", "rows": 2, "columns": 2, "origin": {"x": 40.0, "y": 0.0}}),
-            ),
-        ),
-    );
-    support::run_pending(&runtime).await;
     let accepted = runtime.model().accepted.expect("accepted document");
     let mut document = (*accepted.document).clone();
     document.layouts.push(
@@ -452,13 +441,18 @@ async fn mount_split(root_id: &'static str) -> Probe {
     document.layouts.push(
         serde_json::from_value(
             json!({ "id": "right", "name": "Right half", "boardId": "board",
-            "matrixIds": ["paired"], "partIds": [],
-            "mirrorLink": { "sourceId": "left", "axisX": 0.0,
-                "correspondences": [{ "kind": "matrix", "sourceId": "main", "mirrorId": "paired" }],
-                "exceptions": [] } }),
+            "matrixIds": [], "partIds": [] }),
         )
         .unwrap(),
     );
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair",
+        "source": {"kind": "sameBoardLayout", "id": "left"},
+        "destination": {"kind": "sameBoardLayout", "id": "right"},
+        "mapping": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0},
+        "overrides": []
+    }]))
+    .unwrap();
     support::submit_fixed_command(&runtime, replace_command(document.revision, document));
     support::run_pending(&runtime).await;
     let probe = launch_host(root_id, runtime);
@@ -486,7 +480,7 @@ async fn badge_draws_on_the_dimmed_half() {
     })
     .await;
     probe.select(objects::TreeContext::Key {
-        matrix_id: "paired".into(),
+        matrix_id: "mirror_70616972_main".into(),
         row: 1,
         column: 1,
     });
@@ -501,7 +495,7 @@ async fn badge_draws_on_the_dimmed_half() {
     );
     let target = element(
         root_id,
-        "[data-matrix-id='paired'][data-row='0'][data-column='1']",
+        "[data-matrix-id='mirror_70616972_main'][data-row='0'][data-column='1']",
     );
     assert!(
         target.get_attribute("data-anchor-target").as_deref() == Some("true"),

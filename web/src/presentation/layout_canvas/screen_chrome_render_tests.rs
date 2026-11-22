@@ -21,28 +21,23 @@ use wasm_bindgen_test::wasm_bindgen_test;
 /// and a part name together.
 fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
     let mut document = ProjectDoc::empty("chrome", "Chrome");
-    for (half, part_id, origin_x) in [
-        ("left", "matrix/left/r0c0", -30.0),
-        ("right", "matrix/right/r0c0", 30.0),
-    ] {
-        document.parts.push(
-            serde_json::from_value(json!({
-                "id": part_id, "definitionId": "switch", "reference": "SW1",
-                "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
-                "keycap": {"x": 18.0, "y": 18.0}
-            }))
-            .unwrap(),
-        );
-        document.matrices.push(
-            serde_json::from_value(json!({
-                "id": half, "rows": 1, "columns": 1,
-                "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": origin_x, "y": 0.0},
-                "definitionId": "switch", "partIds": [part_id], "boardId": "board",
-                "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
-            }))
-            .unwrap(),
-        );
-    }
+    document.parts.push(
+        serde_json::from_value(json!({
+            "id": "matrix/left/r0c0", "definitionId": "switch", "reference": "SW1",
+            "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
+            "keycap": {"x": 18.0, "y": 18.0}
+        }))
+        .unwrap(),
+    );
+    document.matrices.push(
+        serde_json::from_value(json!({
+            "id": "left", "rows": 1, "columns": 1,
+            "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": -30.0, "y": 0.0},
+            "definitionId": "switch", "partIds": ["matrix/left/r0c0"], "boardId": "board",
+            "cells": [{"row": 0, "column": 0, "enabled": true, "definitionId": "switch", "assemblies": []}]
+        }))
+        .unwrap(),
+    );
     document.parts.push(
         serde_json::from_value(json!({
             "id": "d1", "definitionId": "diode", "reference": "D1",
@@ -71,7 +66,7 @@ fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
     document.boards.push(
         serde_json::from_value(json!({
             "id": "board", "name": "Board",
-            "partIds": ["matrix/left/r0c0", "matrix/right/r0c0", "d1"],
+            "partIds": ["matrix/left/r0c0", "d1"],
             "outlineIds": [], "netIds": [], "thickness": 1.6
         }))
         .unwrap(),
@@ -86,13 +81,18 @@ fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
     document.layouts.push(
         serde_json::from_value(json!({
             "id": "right", "name": "Right half", "boardId": "board",
-            "matrixIds": ["right"], "partIds": [],
-            "mirrorLink": { "sourceId": "left", "axisX": 0.0,
-                "correspondences": [{ "kind": "matrix", "sourceId": "left", "mirrorId": "right" }],
-                "exceptions": [] }
+            "matrixIds": [], "partIds": []
         }))
         .unwrap(),
     );
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair",
+        "source": {"kind": "sameBoardLayout", "id": "left"},
+        "destination": {"kind": "sameBoardLayout", "id": "right"},
+        "mapping": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0},
+        "overrides": []
+    }]))
+    .unwrap();
     let document = Arc::new(document);
     let cell = |matrix: &str, x: f64| {
         json!({
@@ -108,7 +108,7 @@ fn chrome_fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
             "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
             "matrixScenes": [
                 {"matrixId": "left", "cells": [cell("left", -30.0)], "columns": []},
-                {"matrixId": "right", "cells": [cell("right", 30.0)], "columns": []}
+                {"matrixId": "mirror_70616972_left", "cells": [cell("mirror_70616972_left", 30.0)], "columns": []}
             ],
             "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
             "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
@@ -165,6 +165,10 @@ fn RenderChromeCase(props: ChromeCaseProps) -> Element {
 
 async fn mount_chrome(view_width: f64) -> web_sys::Element {
     let (document, scene) = chrome_fixture();
+    let document = match boardstudio_application::resolved_document(&document) {
+        std::borrow::Cow::Borrowed(_) => document,
+        std::borrow::Cow::Owned(resolved) => Arc::new(resolved),
+    };
     let ghost = SpacingGhost {
         scene: scene.clone(),
         delta_mm: 10.0,

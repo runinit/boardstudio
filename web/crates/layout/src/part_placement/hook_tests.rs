@@ -9,9 +9,8 @@ use crate::selection::SelectionAdapter;
 use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
 use boardstudio_application::TerminalOutcome;
 use boardstudio_application::{Event, Lifecycle};
-use boardstudio_model::model::{Board, OutlineSettings};
 use boardstudio_model::model::{
-    MatrixAssembly, MatrixCell, OutlineFeature, PartDefinition, PartKind, ProjectDoc, Vec2,
+    MatrixAssembly, MatrixCell, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use dioxus::prelude::*;
@@ -259,18 +258,6 @@ async fn flush_tasks(dom: &mut VirtualDom) {
     flush_hook(dom);
 }
 
-async fn wait_for_outcome(
-    outcome: &boardstudio_web_runtime::operation_outcomes::OutcomeSlot,
-) -> TerminalOutcome {
-    for _ in 0..100 {
-        if let Some(outcome) = outcome.borrow().clone() {
-            return outcome;
-        }
-        gloo_timers::future::TimeoutFuture::new(20).await;
-    }
-    panic!("runtime did not settle the observed operation");
-}
-
 async fn run_pending_runtime(probe: &HookProbe) {
     boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
 }
@@ -467,7 +454,32 @@ async fn accepted_general_placement_selects_the_component_and_part_tool_context(
 
 #[wasm_bindgen_test::wasm_bindgen_test]
 async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_parts() {
-    let (probe, mut dom) = hook_mounted_with_document(mirrored_fixture()).await;
+    let mut fixture = mirrored_fixture();
+    let mirror_map_x = 200.0;
+    fixture
+        .mirrored_pairs
+        .push(boardstudio_model::mirrored_half::MirroredPair {
+            id: "pair".into(),
+            source: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
+                "board-main".into(),
+            ),
+            destination: boardstudio_model::mirrored_half::MirrorDestination::SecondBoard(
+                "board-mirror".into(),
+            ),
+            mapping: boardstudio_model::model::Pose2 {
+                at: Vec2 {
+                    x: mirror_map_x,
+                    y: 0.0,
+                },
+                rotation: 0.0,
+            },
+            overrides: vec![],
+        });
+    let before_parts = fixture.parts.len();
+    let before_resolved = boardstudio_application::resolved_document(&fixture)
+        .parts
+        .len();
+    let (probe, mut dom) = hook_mounted_with_document(fixture).await;
     clear_guide(&probe, &mut dom);
 
     let active = start_component_placement(
@@ -486,34 +498,20 @@ async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_
 
     assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
     let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.parts.len(), before_parts + 1);
     let source_part = accepted
         .document
         .parts
         .iter()
         .find(|part| part.definition_id == "catalog:paired-reset")
         .expect("the catalogue request creates the source part");
-    let association = accepted.document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap()
-        .correspondences
-        .iter()
-        .find(|association| {
-            association.kind == boardstudio_model::model::MirroredItemKind::Part
-                && association.source_id == source_part.id
-        })
-        .expect("the ordinary Add Object action creates one correspondence");
-    let mirror_part = accepted
-        .document
+    let resolved = boardstudio_application::resolved_document(&accepted.document);
+    assert_eq!(resolved.parts.len(), before_resolved + 2);
+    let mirror_part = resolved
         .parts
         .iter()
-        .find(|part| part.id == association.mirror_id)
-        .expect("the linked mirror part exists");
-    assert_eq!(mirror_part.definition_id, source_part.definition_id);
-    let mirror_map_x = accepted.document.hardware.as_ref().unwrap().pairs[0]
-        .mapping
-        .at
-        .x;
+        .find(|part| part.definition_id == "catalog:paired-reset" && part.id != source_part.id)
+        .expect("the projected partner part exists");
     assert!((source_part.pose.at.x + mirror_part.pose.at.x - mirror_map_x).abs() < 1e-6);
     assert!((source_part.pose.at.y - mirror_part.pose.at.y).abs() < 1e-6);
     assert!(
@@ -521,12 +519,7 @@ async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_
             .part_ids
             .contains(&source_part.id)
     );
-    assert!(
-        accepted.document.boards[1]
-            .part_ids
-            .contains(&mirror_part.id)
-    );
-    assert_eq!(accepted.document.parts.len(), 3);
+    assert!(resolved.boards[1].part_ids.contains(&mirror_part.id));
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
@@ -745,17 +738,16 @@ async fn selected_key_edit_rejection_is_reported_to_the_current_parts_owner() {
 
     let mount = latest(&probe);
     assert!(!mount.busy);
-    assert_eq!(
-        *outcome.borrow(),
-        Some(TerminalOutcome::PersistenceFailed("disk full".into()))
-    );
+    assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(mount.error, None);
     assert!(
-        mount
-            .error
-            .as_deref()
-            .is_some_and(|message| message.contains("disk full")),
-        "the standard failure wording carries the reason: {:?}",
-        mount.error
+        matches!(
+            probe.runtime.model().durability,
+            boardstudio_application::Durability::Failed { ref reason, .. }
+                if reason.contains("disk full")
+        ),
+        "background persistence failure reaches Durability::Failed: {:?}",
+        probe.runtime.model().durability
     );
     assert_eq!(workspace(&probe), "Parts");
 }
@@ -983,11 +975,19 @@ async fn production_hook_routes_persistence_failure_but_close_drains_pending_sav
         }
         let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        let mut draining_close = None;
         if let Some((entered, release)) = save_gate {
             start_pending_runtime(&probe);
             entered.await.expect("save reaches the persistence gate");
+            let close_op = probe.runtime.operation();
+            draining_close = Some(
+                boardstudio_web_test_runtime::project_name_test_support::observe(
+                    &probe.runtime,
+                    close_op,
+                ),
+            );
             probe.runtime.submit(Event::Close {
-                operation_id: probe.runtime.operation(),
+                operation_id: close_op,
             });
             let_hook_tasks_run().await;
             let _ = release.send(());
@@ -996,146 +996,54 @@ async fn production_hook_routes_persistence_failure_but_close_drains_pending_sav
             run_pending_runtime(&probe).await;
         }
         flush_tasks(&mut dom).await;
-        assert_eq!(
-            *outcome.borrow(),
-            Some(if fail_save {
-                TerminalOutcome::PersistenceFailed("disk full".into())
-            } else {
-                TerminalOutcome::Completed
-            })
-        );
-        let expected_workspace = if fail_save { "Parts" } else { "PCB" };
-        assert_eq!(workspace(&probe), expected_workspace);
-        let error = latest(&probe).error.clone();
-        assert_eq!(
-            error.is_some(),
-            fail_save,
-            "failure message presence: {error:?}"
-        );
-        if let Some(error) = error {
-            assert!(
-                error.contains("disk full"),
-                "{error} should carry disk full"
-            );
-        }
-    }
-}
-
-#[wasm_bindgen_test::wasm_bindgen_test]
-async fn production_hook_never_redirects_a_stale_board_or_project_owner() {
-    for stale_identity in ["board", "project"] {
-        let (probe, mut dom) = hook_mounted().await;
-        if stale_identity == "board" {
-            let mut document = accepted_document(&probe);
-            document.boards.push(Board {
-                id: "board-other".into(),
-                name: "Other".into(),
-                outline_ids: vec!["envelope-other".into()],
-                part_ids: vec![],
-                net_ids: vec![],
-                thickness: 1.6,
-                traces: vec![],
-                vias: vec![],
-            });
-            document.outline.push(OutlineFeature::PartEnvelope {
-                connections: vec![],
-                settings: OutlineSettings::default(),
-                id: "envelope-other".into(),
-                part_ids: vec![],
-                margin: 4.0,
-                operation: boardstudio_model::model::Operation::Add,
-            });
-            replace_accepted_document(&probe, document).await;
-            flush_hook(&mut dom);
-        }
-        let active = start_hook_placement(&probe, &mut dom).await;
-        let (entered, release) =
-            boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(
-                &probe.runtime,
-            );
-        let outcome = observe_next_operation(&probe);
-        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-        start_pending_runtime(&probe);
-        entered.await.expect("save reaches persistence gate");
-        let mut open_outcome = None;
-        if stale_identity == "board" {
-            probe.runtime.submit(Event::Navigate {
-                operation_id: probe.runtime.operation(),
-                board_id: "board-other".into(),
-                instance_id: None,
-            });
-            start_pending_runtime(&probe);
-            assert_eq!(probe.runtime.model().active_board_id, "board-other");
-        } else {
-            let open_operation = probe.runtime.operation();
-            open_outcome = Some(
-                boardstudio_web_test_runtime::project_name_test_support::observe(
-                    &probe.runtime,
-                    open_operation,
-                ),
-            );
-            probe.runtime.submit(Event::Open {
-                operation_id: open_operation,
-                document: ProjectDoc::empty("replacement-project", "Replacement"),
-            });
-            // Event::Open queues behind the held save in this Session. Keep that Session
-            // alive so its active placement and queued project replacement both settle.
-        }
-        let _ = release.send(());
-        assert_eq!(
-            wait_for_outcome(&outcome).await,
-            TerminalOutcome::Completed,
-            "stale {stale_identity} placement should finish saving"
-        );
-        if let Some(open_outcome) = open_outcome {
-            assert_eq!(
-                wait_for_outcome(&open_outcome).await,
-                TerminalOutcome::Completed,
-                "queued project open should complete after the save"
-            );
-        }
-        flush_hook(&mut dom);
-        assert_eq!(
-            workspace(&probe),
-            "Layout",
-            "stale {stale_identity} route redirected"
-        );
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        assert_eq!(workspace(&probe), "PCB");
         assert!(
-            probe.runtime.model().selected_part_ids.is_empty(),
-            "stale {stale_identity} completion selected a new owner"
+            latest(&probe).error.is_none(),
+            "unexpected hook error: {:?}",
+            latest(&probe).error
         );
+        if fail_save {
+            assert!(
+                matches!(
+                    probe.runtime.model().durability,
+                    boardstudio_application::Durability::Failed { ref reason, .. }
+                        if reason.contains("disk full")
+                ),
+                "expected Durability::Failed with disk full, got {:?}",
+                probe.runtime.model().durability
+            );
+            let close_op = probe.runtime.operation();
+            let close_outcome = boardstudio_web_test_runtime::project_name_test_support::observe(
+                &probe.runtime,
+                close_op,
+            );
+            probe.runtime.submit(Event::Close {
+                operation_id: close_op,
+            });
+            run_pending_runtime(&probe).await;
+            assert!(
+                matches!(
+                    &*close_outcome.borrow(),
+                    Some(TerminalOutcome::BlockedByRecovery(_))
+                ),
+                "closing with failed persistence must block on recovery: {:?}",
+                *close_outcome.borrow()
+            );
+        } else {
+            run_pending_runtime(&probe).await;
+            assert_eq!(
+                *draining_close.expect("close observed").borrow(),
+                Some(TerminalOutcome::Completed),
+                "draining save allows Event::Close to settle"
+            );
+            assert_eq!(
+                probe.runtime.model().lifecycle,
+                boardstudio_application::Lifecycle::Closed,
+                "draining save allows Event::Close to close the session"
+            );
+        }
     }
-}
-
-#[wasm_bindgen_test::wasm_bindgen_test]
-async fn production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state() {
-    let (probe, mut dom) = hook_mounted().await;
-    let active = start_hook_placement(&probe, &mut dom).await;
-    let (entered, release) =
-        boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(&probe.runtime);
-    let outcome = observe_next_operation(&probe);
-    active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-    start_pending_runtime(&probe);
-    entered.await.expect("save reaches persistence gate");
-    probe.mounted.set(false);
-    flush_hook(&mut dom);
-    assert!(
-        probe.unmounted.get(),
-        "mounted hook component was not dropped"
-    );
-    assert_eq!(
-        *outcome.borrow(),
-        None,
-        "placement should still be pending while its owner is unmounted"
-    );
-    drop(dom);
-    let _ = release.send(());
-    let_hook_tasks_run().await;
-    assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
-    assert!(
-        probe.runtime.model().selected_part_ids.is_empty(),
-        "unmounted observer must not submit a selection"
-    );
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]

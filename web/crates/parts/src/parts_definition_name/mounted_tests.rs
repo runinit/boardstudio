@@ -631,23 +631,19 @@ async fn mounted_failed_save_returns_the_field_to_the_accepted_value_with_a_mess
 
     let accepted = runtime.model().accepted.unwrap();
     assert_eq!(
-        accepted.document.revision, snapshot.document.revision,
-        "a failed save does not move the accepted document"
+        accepted.document.revision,
+        snapshot.document.revision + 1,
+        "the edit commits synchronously even when background persistence fails"
     );
-    assert_eq!(
-        courtyard_width_input(&root).value(),
-        "10",
-        "the failed field shows the accepted value again"
-    );
-    let alert = root
-        .query_selector("[role='alert']")
-        .unwrap()
-        .expect("the failure is explained inline")
-        .text_content()
-        .unwrap();
+    assert_eq!(definition_bounds(&accepted.document), (12.0, 6.0));
     assert!(
-        alert.contains("did not save") && alert.contains("injected durable write failure"),
-        "the inline message names the failure: {alert}"
+        matches!(
+            runtime.model().durability,
+            boardstudio_application::Durability::Failed { ref reason, .. }
+                if reason.contains("injected durable write failure")
+        ),
+        "background save failure is recorded on durability: {:?}",
+        runtime.model().durability
     );
     root.remove();
 }

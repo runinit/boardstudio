@@ -239,6 +239,7 @@ name = "boardstudio-core-kernel"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-core-mirrored-half",
  "boardstudio-footprints",
  "boardstudio-model",
  "i_overlay",

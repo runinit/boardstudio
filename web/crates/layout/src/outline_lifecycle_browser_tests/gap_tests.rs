@@ -6,13 +6,14 @@ fn gap_world_points(
     document: &ProjectDoc,
     gap: &boardstudio_model::model::OutlineGap,
 ) -> Vec<Vec2> {
+    let resolved = boardstudio_application::resolved_document(document);
     gap.points
         .iter()
         .map(|point| {
             let Some(id) = &point.part_id else {
                 return point.at;
             };
-            let part = document.parts.iter().find(|part| &part.id == id).unwrap();
+            let part = resolved.parts.iter().find(|part| &part.id == id).unwrap();
             let x = if part.side == Side::Back {
                 -point.at.x
             } else {

@@ -9,9 +9,8 @@ use crate::presentation::objects::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Event, SelectionMode};
 use boardstudio_model::model::{
-    AggregateAnchor, AggregateMethod, AnchorPart, Board, Layout, LayoutMirrorLink, Matrix,
-    MatrixAnchor, MatrixAssembly, MirroredCorrespondence, MirroredException,
-    MirroredExceptionState, MirroredItemKind, PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
+    AggregateAnchor, AggregateMethod, AnchorPart, Board, Layout, Matrix, MatrixAnchor,
+    MatrixAssembly, PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;

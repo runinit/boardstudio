@@ -4,10 +4,7 @@ use super::inspector::{
 };
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch};
-use boardstudio_core::model::{
-    Board, Constraint, Layout, LayoutMirrorLink, Matrix, MatrixCell, MirroredCorrespondence,
-    MirroredItemKind, Pose2, ProjectDoc, Side, Vec2,
-};
+use boardstudio_core::model::{Constraint, Layout, Matrix, MatrixCell, ProjectDoc, Vec2};
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::cell::RefCell;
 use wasm_bindgen::JsCast;
@@ -238,85 +235,57 @@ fn mounted_component_inspector_host() -> Element {
 /// projection tests read. Core owns revisions from here on.
 fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
     fixture_document(|document| {
-        for matrix_id in ["matrix", "paired-matrix"] {
-            document.matrices.push(Matrix {
-                id: matrix_id.into(),
-                name: Some(matrix_id.into()),
-                rows: 1,
-                columns: 1,
-                pitch: Vec2 { x: 19.0, y: 19.0 },
-                origin: Vec2::default(),
-                definition_id: "component-definition".into(),
-                part_ids: vec![],
-                board_id: Some("board".into()),
-                mirror: None,
-                rotation: None,
-                edge_gap: None,
-                diode_direction: None,
-                row_layout: vec![],
-                column_layout: vec![],
-                anchor: None,
-                cells: vec![MatrixCell {
-                    shift: None,
-                    bend: None,
-                    deleted: false,
-                    row: 0,
-                    column: 0,
-                    enabled: false,
-                    definition_id: None,
-                    variant: None,
-                    offset: None,
-                    rotation: None,
-                    assemblies: vec![],
-                    assemblies_local: None,
-                }],
-            });
+        if let Some(paired) = document
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == "paired-layout")
+        {
+            paired.matrix_ids.clear();
+            paired.mirror_link = None;
         }
+        document.mirrored_pairs = serde_json::from_value(serde_json::json!([{
+            "id": "pair",
+            "source": {"kind": "sameBoardLayout", "id": "source-layout"},
+            "destination": {"kind": "sameBoardLayout", "id": "paired-layout"},
+            "mapping": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0},
+            "overrides": []
+        }]))
+        .unwrap();
+        let matrix_id = "matrix";
+        document.matrices.push(Matrix {
+            id: matrix_id.into(),
+            name: Some(matrix_id.into()),
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            origin: Vec2::default(),
+            definition_id: "component-definition".into(),
+            part_ids: vec![],
+            board_id: Some("board".into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
+            cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: false,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        });
         configure(document);
     })
-}
-
-fn configure_mirrored_part_pair(document: &mut ProjectDoc) {
-    document.boards[0].part_ids = vec!["selected-part".into()];
-    document.boards.push(Board {
-        id: "mirror-board".into(),
-        name: "Mirror board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["source-part".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document
-        .parts
-        .iter_mut()
-        .find(|part| part.id == "source-part")
-        .unwrap()
-        .pose
-        .at
-        .x = -4.0;
-    document.layouts.clear();
-    document.matrices.clear();
-    document.hardware = Some(
-        serde_json::from_value(serde_json::json!({
-            "topology":"split", "transport":"wireless",
-            "instances":[
-                {"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":null,"mechanical":null},
-                {"id":"mirror-instance","name":"Right half","boardId":"mirror-board","half":"right","role":"secondary","flipped":true,"controllerPartId":null,"mechanical":null}
-            ],
-            "pairs":[{
-                "id":"pair/A","members":["source-instance","mirror-instance"],
-                "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
-                "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
-                "constructionSource":"source-instance",
-                "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
-                    {"kind":"part","sourceId":"selected-part","mirrorId":"source-part"}
-                ]}
-            }]
-        }))
-        .expect("the mirrored board pair is valid"),
-    );
 }
 
 /// A runtime whose Core requests run through the in-process engine and whose saves stay
@@ -454,65 +423,6 @@ fn click_component_inspector(root_id: &str, role: &str, name: &str) {
     component_inspector_control(root_id, role, name).click();
 }
 
-/// Ticket 12: the source layout and its mirror partner with a stored gap,
-/// plus a mirrored controller pair. The partner pose is the half-frame
-/// reflection of the source pose (stored x negates).
-fn configure_gapped_part_mirror(document: &mut ProjectDoc) {
-    let link = document
-        .layouts
-        .iter_mut()
-        .find(|layout| layout.id == "paired-layout")
-        .expect("mirror layout")
-        .mirror_link
-        .as_mut()
-        .expect("mirror link");
-    link.axis_x = 40.0;
-    link.split_gap = Some(40.0);
-    link.correspondences.push(MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: MirroredItemKind::Part,
-        source_id: "selected-part".into(),
-        mirror_id: "selected-part-mirror".into(),
-    });
-    document.parts.push(Part {
-        keycap: None,
-        outline: None,
-        id: "selected-part-mirror".into(),
-        definition_id: "component-definition".into(),
-        reference: "U3".into(),
-        pose: Pose2 {
-            at: Vec2 { x: -4.0, y: 3.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        anchor: None,
-        locked: Some(false),
-        properties: None,
-        generator_parameters: None,
-    });
-    document.boards[0]
-        .part_ids
-        .push("selected-part-mirror".into());
-    document
-        .layouts
-        .iter_mut()
-        .find(|layout| layout.id == "paired-layout")
-        .expect("mirror layout")
-        .part_ids
-        .push("selected-part-mirror".into());
-}
-
-fn current_revision_is_saved(probe: &MountedProbe) -> bool {
-    let model = probe.runtime.model();
-    model.accepted.as_ref().is_some_and(|snapshot| {
-        model.durability
-            == (boardstudio_application::Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-    })
-}
-
 /// The position of a fixture part in the accepted document.
 fn accepted_position(probe: &MountedProbe, part_id: &str) -> Vec2 {
     probe
@@ -637,12 +547,6 @@ async fn choose_offset_axes_in_form(root_id: &str, option: &str) {
 // ---- Matrix Relationships section: the real Layout Inspector over a real Session ----
 mod matrix_relations_panel;
 
-fn companion_click(root: &web_sys::Element, role: &str, name: &str) {
-    by_role_name(root, role, name)
-        .unwrap_or_else(|| panic!("{role} {name} is rendered"))
-        .click();
-}
-
 fn companion_placement_component_host() -> Element {
     let projection = use_context::<inspector::CompanionPlacementProjection>();
     let actions = use_context::<Rc<RefCell<Option<inspector::CompanionPlacementAction>>>>();
@@ -652,48 +556,6 @@ fn companion_placement_component_host() -> Element {
             projection,
             error,
             on_apply: EventHandler::new(move |action| *actions.borrow_mut() = Some(action)),
-        }
-    }
-}
-
-fn companion_placement_runtime_host() -> Element {
-    let projection = use_context::<inspector::CompanionPlacementProjection>();
-    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
-    let refuse_as_invalid_pair_tweak = use_context::<Rc<std::cell::Cell<bool>>>();
-    let generation = use_signal(|| 0u64);
-    let _ = generation();
-    use_hook(|| {
-        runtime.subscribe(Rc::new(move || {
-            let mut generation = generation;
-            generation += 1;
-        }));
-    });
-    let mut error = use_signal(|| None::<String>);
-    let action_runtime = runtime.clone();
-    rsx! {
-        inspector::CompanionPlacementInspector {
-            projection,
-            error,
-            on_apply: EventHandler::new(move |mut action: inspector::CompanionPlacementAction| {
-                if refuse_as_invalid_pair_tweak.get() {
-                    action.targets.push(boardstudio_core::model::CompanionPlacementTarget::Pair);
-                    action.tweak = Some(boardstudio_core::model::MirroredCompanionTweak {
-                        x: 0.5,
-                        y: 0.25,
-                        rotation: 2.0,
-                    });
-                }
-                let result = action_runtime.commit(
-                    "layout-companion-placement",
-                    layout_component_edits::companion_placement_resolver(
-                        action.pair_id,
-                        action.targets,
-                        action.mode,
-                        action.tweak,
-                    ),
-                );
-                error.set(result.err());
-            }),
         }
     }
 }

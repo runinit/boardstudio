@@ -69,7 +69,7 @@ fn mirrored_document() -> ProjectDoc {
     // these, so the preview names both halves.
     let mut board_parts = Vec::new();
     let mut matrices = Vec::new();
-    for (id, origin_x, prefix) in [("left-matrix", -20.0, "L"), ("right-matrix", 40.0, "R")] {
+    for (id, origin_x, prefix) in [("left-matrix", -20.0, "L")] {
         let mut part_ids = Vec::new();
         let mut cells = Vec::new();
         for row in 0..ROWS {
@@ -122,17 +122,18 @@ fn mirrored_document() -> ProjectDoc {
     document.layouts.push(
         serde_json::from_value(json!({
             "id": "paired-layout", "name": "Right half", "boardId": "board",
-            "matrixIds": ["right-matrix"], "partIds": [],
-            "mirrorLink": {
-                "sourceId": "source-layout", "axisX": 10.0,
-                "correspondences": [
-                    {"kind": "matrix", "sourceId": "left-matrix", "mirrorId": "right-matrix"}
-                ],
-                "exceptions": []
-            }
+            "matrixIds": [], "partIds": []
         }))
         .unwrap(),
     );
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair",
+        "source": {"kind": "sameBoardLayout", "id": "source-layout"},
+        "destination": {"kind": "sameBoardLayout", "id": "paired-layout"},
+        "mapping": {"at": {"x": 20.0, "y": 0.0}, "rotation": 0.0},
+        "overrides": []
+    }]))
+    .unwrap();
     document
 }
 
@@ -328,15 +329,15 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
             == 6
             && previewed
                 .iter()
-                .filter(|(matrix, _, _)| matrix == "right-matrix")
+                .filter(|(matrix, _, _)| matrix == "mirror_70616972_left-matrix")
                 .count()
                 == 6,
         "both halves move: {previewed:?}"
     );
     assert!(
-        previewed
-            .iter()
-            .all(|(matrix, _, _)| matrix == "left-matrix" || matrix == "right-matrix"),
+        previewed.iter().all(
+            |(matrix, _, _)| matrix == "left-matrix" || matrix == "mirror_70616972_left-matrix"
+        ),
         "no other matrix moves: {previewed:?}"
     );
     assert_eq!(

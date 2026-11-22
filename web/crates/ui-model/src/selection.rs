@@ -67,20 +67,16 @@ pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String>
     let Some(snapshot) = model.accepted.as_ref() else {
         return Vec::new();
     };
-    let Some(board) = snapshot
-        .document
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)
     else {
         return Vec::new();
     };
-    let live: std::collections::HashSet<_> = snapshot
-        .document
-        .parts
-        .iter()
-        .map(|part| part.id.as_str())
-        .collect();
+    let live: std::collections::HashSet<_> =
+        document.parts.iter().map(|part| part.id.as_str()).collect();
     board
         .part_ids
         .iter()
