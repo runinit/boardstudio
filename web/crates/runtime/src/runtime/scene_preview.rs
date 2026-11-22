@@ -369,18 +369,7 @@ impl Runtime {
             &native_paths,
             &preview.accepted_document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
@@ -489,37 +478,24 @@ impl Runtime {
                         return Err("Model asset request became stale before loading".into());
                     }
                     let cached = runtime.assets.borrow().get(&sha256).cloned();
-                    let (bytes, cache_packaged) = match (asset.source.clone(), cached) {
-                        (ModelAssetSource::Document, Some(bytes)) => (Some(bytes.to_vec()), false),
-                        (ModelAssetSource::Document, None) => (
-                            runtime
-                                .store
-                                .load_asset(sha256.clone())
-                                .await
-                                .map_err(|error| error.to_string())?
-                                .map(|bytes| bytes.to_vec()),
-                            false,
-                        ),
-                        (ModelAssetSource::Packaged { .. }, Some(bytes)) => {
-                            (Some(bytes.to_vec()), false)
-                        }
-                        (ModelAssetSource::Packaged { url_path }, None) => {
-                            let descriptor_matches = crate::bundled_models::bundled_model(
-                                &asset.id,
-                            )
-                            .is_some_and(|model| {
-                                model.url_path == url_path && model.sha256 == asset.sha256
-                            });
-                            if !descriptor_matches {
+                    let packaged = matches!(asset.source, ModelAssetSource::Packaged { .. });
+                    let cache_packaged = packaged && cached.is_none();
+                    let bytes = match (cached, &asset.source) {
+                        (Some(bytes), _) => Some(bytes),
+                        (None, ModelAssetSource::Document) => runtime
+                            .store
+                            .load_asset(sha256.clone())
+                            .await
+                            .map_err(|error| error.to_string())?
+                            .map(|bytes| bytes.to_vec()),
+                        (None, ModelAssetSource::Packaged { .. }) => {
+                            if packaged_model_asset(&asset.id).as_ref() != Some(&asset) {
                                 return Err(
                                     "Packaged model descriptor no longer matches the catalogue"
                                         .into(),
                                 );
                             }
-                            (
-                                Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?),
-                                true,
-                            )
+                            Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?)
                         }
                     };
                     if !is_current() || runtime.scope().as_ref() != Some(&scope) {
@@ -718,27 +694,10 @@ impl Runtime {
         }
 
         let native_paths = crate::model_delivery::native_model_path_assets(&capture.path_assets);
-        let unique_model_paths = preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut bundled_ids_by_path = BTreeMap::new();
-        if !unique_model_paths.is_empty() {
-            let ids =
-                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
-                    .await?;
-            if !is_current() {
-                capture.lease.invalidate();
-                return Err("Parts model resolution became stale".into());
-            }
-            if ids.len() != unique_model_paths.len() {
-                capture.lease.invalidate();
-                return Err("Model path resolver returned an incomplete Parts mapping".into());
-            }
-            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        let bundled_ids_by_path = bundled_preview_paths(&preview.models).await?;
+        if !is_current() {
+            capture.lease.invalidate();
+            return Err("Parts model resolution became stale".into());
         }
         let selections = crate::model_delivery::resolve_preview_assets(
             &preview.models,
@@ -746,18 +705,7 @@ impl Runtime {
             &native_paths,
             &capture.sample_document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();

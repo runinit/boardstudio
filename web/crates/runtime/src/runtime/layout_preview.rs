@@ -176,26 +176,9 @@ impl Runtime {
             _ => return Err("Core returned an unexpected mounted-module model reply".into()),
         };
         let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
-        let unique_model_paths = preview
-            .preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut bundled_ids_by_path = BTreeMap::new();
-        if !unique_model_paths.is_empty() {
-            let ids =
-                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
-                    .await?;
-            if !source_is_current() {
-                return Ok(());
-            }
-            if ids.len() != unique_model_paths.len() {
-                return Err("Model path resolver returned an incomplete Layout mapping".into());
-            }
-            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        let bundled_ids_by_path = bundled_preview_paths(&preview.preview.models).await?;
+        if !source_is_current() {
+            return Ok(());
         }
         let selections = crate::model_delivery::resolve_preview_assets(
             &preview.preview.models,
@@ -203,18 +186,7 @@ impl Runtime {
             &native_paths,
             &preview.document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
@@ -238,18 +210,7 @@ impl Runtime {
                     let selection = crate::model_delivery::select_model_asset_id(
                         &placement.asset_id,
                         &preview.document.assets,
-                        |asset_id| {
-                            crate::bundled_models::bundled_model(asset_id).map(|model| {
-                                crate::model_delivery::ResolvedModelAsset {
-                                    id: model.id.to_owned(),
-                                    sha256: model.sha256.to_owned(),
-                                    filename: model.filename.to_owned(),
-                                    source: crate::model_delivery::ModelAssetSource::Packaged {
-                                        url_path: model.url_path.to_owned(),
-                                    },
-                                }
-                            })
-                        },
+                        packaged_model_asset,
                     );
                     (placement.id.clone(), selection)
                 })

@@ -405,6 +405,38 @@ mod collision;
 mod effects;
 mod export_bytes;
 mod exports;
+fn packaged_model_asset(asset_id: &str) -> Option<crate::model_delivery::ResolvedModelAsset> {
+    use crate::model_delivery::{ModelAssetSource, ResolvedModelAsset};
+    let model = crate::bundled_models::bundled_model(asset_id)?;
+    Some(ResolvedModelAsset {
+        id: model.id.to_owned(),
+        sha256: model.sha256.to_owned(),
+        filename: model.filename.to_owned(),
+        source: ModelAssetSource::Packaged {
+            url_path: model.url_path.to_owned(),
+        },
+    })
+}
+
+async fn bundled_preview_paths(
+    models: &[boardstudio_model::model::PcbModel],
+) -> Result<BTreeMap<String, Option<String>>, String> {
+    let paths: Vec<_> = models
+        .iter()
+        .map(|model| model.path.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    if paths.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let ids = crate::bundled_models::generated_model_asset_ids_for_paths(&paths).await?;
+    if ids.len() != paths.len() {
+        return Err("Model path resolver returned an incomplete mapping".into());
+    }
+    Ok(paths.into_iter().zip(ids).collect())
+}
+
 mod layout_preview;
 mod mechanical_export;
 mod projects;
