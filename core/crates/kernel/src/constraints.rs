@@ -297,26 +297,42 @@ pub fn retune_offset(
             .with_key(target.owner.as_deref().map(at).transpose()?);
         let authority = at(&target.authoritative_id)?;
         let same_view = target_id == target.visible_id;
-        let visible = target_frame.project(authority)?;
         let requested = if same_view {
-            Pose2 {
-                at: requested,
-                rotation: visible.rotation + turn.unwrap_or(0.0),
-            }
+            requested
         } else {
-            target_frame.project(Pose2 {
-                at: requested,
-                rotation: authority.rotation + turn.unwrap_or(0.0),
-            })?
+            target_frame
+                .project(Pose2 {
+                    at: requested,
+                    ..authority
+                })?
+                .at
         };
+        let heading = turn
+            .map(|turn| -> Result<f64, String> {
+                let visible = target_frame.project(authority)?.rotation;
+                if same_view {
+                    Ok(visible + turn)
+                } else if matches!(target_frame, EndpointFrame::LinkedMirror { .. }) {
+                    // Projecting a full angle wraps at 360°; the stored turn is a signed delta.
+                    Ok(visible - turn)
+                } else {
+                    target_frame
+                        .project(Pose2 {
+                            rotation: authority.rotation + turn,
+                            ..authority
+                        })
+                        .map(|pose| pose.rotation)
+                }
+            })
+            .transpose()?;
         let retuned = boardstudio_model::constraints::retune::retune_target(
             relation,
             at(&source.authoritative_id)?,
             source_frame,
             target_frame,
             authority,
-            requested.at,
-            turn.map(|_| requested.rotation),
+            requested,
+            heading,
         )?;
         let Constraint::Framed { relation, .. } = &mut doc.constraints[index] else {
             unreachable!();

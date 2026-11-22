@@ -363,7 +363,10 @@ impl CoreEngine {
     }
 
     fn edit(&mut self, id: String, command: EditCommand) -> CoreReply {
-        let move_preview = self.move_preview.take();
+        let move_preview = self
+            .move_preview
+            .take()
+            .filter(|preview| command.phase == EditPhase::Commit && preview.matches(&command));
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
@@ -558,37 +561,20 @@ impl CoreEngine {
         if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
             return self.error(id, &message);
         }
-        let move_preview = move_preview.filter(|preview| {
-            command.phase == EditPhase::Commit
-                && !spacing_changed
+        let move_preview = move_preview.filter(|_| {
+            !spacing_changed
                 && self.document.mirrored_pairs.is_empty()
                 && move_scene_can_publish(&next)
-                && preview.matches(&command)
         });
-        if let Some(preview) = move_preview {
-            return self.publish_prepared_edit(
-                id,
-                PreparedEdit {
-                    transaction: command.transaction_id,
-                    document: next,
-                    changed,
-                    outline: Some(preview.outline),
-                    board_geometry: None,
-                    preview_scene: Some(preview.scene),
-                    reuse_scene: false,
-                    cacheable: false,
-                },
-            );
-        }
-        let (outline, board_geometry) = if !next.mirrored_pairs.is_empty()
-            || !self.document.mirrored_pairs.is_empty()
-        {
-            (Some(outlines(resolved.geometry(), None, &[])), None)
+        let (outline, board_geometry, preview_scene) = if let Some(preview) = move_preview {
+            (Some(preview.outline), None, Some(preview.scene))
+        } else if !next.mirrored_pairs.is_empty() || !self.document.mirrored_pairs.is_empty() {
+            (Some(outlines(resolved.geometry(), None, &[])), None, None)
         } else if reuse_scene || !affects_outline(&command.operation) {
-            (None, None)
+            (None, None, None)
         } else {
             let (outline, board_geometry) = self.edited_outlines(&next, &command, layout_settled);
-            (Some(outline), board_geometry)
+            (Some(outline), board_geometry, None)
         };
         if command.phase == EditPhase::Preview {
             let accepted = (&self.outline_cache, &self.contours, &self.findings);
@@ -624,7 +610,7 @@ impl CoreEngine {
                 changed,
                 outline,
                 board_geometry,
-                preview_scene: None,
+                preview_scene,
                 reuse_scene,
                 cacheable: !matches!(command.operation, EditOperation::MoveParts { .. }),
             },

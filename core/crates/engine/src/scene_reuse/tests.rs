@@ -340,6 +340,96 @@ fn plain_move_commit_reuses_only_a_matching_preview() {
     }
 }
 
+#[test]
+fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
+    use mirrored_half::{MirrorDestination, MirroredPair};
+
+    let mut document = fixture();
+    let source = document.boards[0].id.clone();
+    document.boards.push(Board {
+        id: "other-half".into(),
+        name: "Other half".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.mirrored_pairs.push(MirroredPair {
+        id: "pair".into(),
+        source: MirrorDestination::SecondBoard(source),
+        destination: MirrorDestination::SecondBoard("other-half".into()),
+        mapping: Pose2 {
+            at: Vec2 { x: 100.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        overrides: vec![],
+    });
+    let open = CoreRequest::Open {
+        id: "open".into(),
+        document,
+    };
+    let mut engine = CoreEngine::new();
+    let mut cold = CoreEngine::new();
+    for session in [&mut engine, &mut cold] {
+        assert!(matches!(
+            session.handle(open.clone()),
+            CoreReply::Scene { .. }
+        ));
+    }
+    let source_id = String::from("matrix/matrix/r0c1");
+    let sources = [source_id.clone()];
+    let target_id = engine
+        .resolved
+        .affected_targets(&sources)
+        .next()
+        .unwrap()
+        .clone();
+    let request = preview_move(vec![Position {
+        id: source_id.clone(),
+        at: Vec2 { x: 22.0, y: 4.0 },
+    }]);
+    assert!(matches!(
+        engine.handle(request.clone()),
+        CoreReply::Preview { .. }
+    ));
+    assert!(engine.move_preview.is_none());
+    let projections = engine.full_scene_projections.get();
+    let CoreRequest::Edit { id, mut command } = request else {
+        unreachable!()
+    };
+    command.phase = EditPhase::Commit;
+    let commit = CoreRequest::Edit { id, command };
+    let actual = engine.handle(commit.clone());
+    assert_eq!(engine.full_scene_projections.get(), projections + 1);
+    assert_eq!(
+        boardstudio_model::wire::encode_core_reply(&actual),
+        boardstudio_model::wire::encode_core_reply(&cold.handle(commit)),
+    );
+    let CoreReply::Scene { scene, .. } = actual else {
+        panic!("expected mirrored move scene")
+    };
+    let at = |id| {
+        scene
+            .transforms
+            .iter()
+            .find(|item| item.id == id)
+            .unwrap()
+            .pose
+            .at
+    };
+    let source = at(source_id);
+    let target = at(target_id);
+    assert_eq!(
+        target,
+        Vec2 {
+            x: 100.0 - source.x,
+            y: source.y
+        }
+    );
+}
+
 fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
     assert_eq!(engine.document, cold.document);
     assert_eq!(
