@@ -5,41 +5,21 @@
 //! accepted document, exactly as an archive round trip does. Both must reproduce the
 //! same explicit ownership and geometry, and a document this build writes must already
 //! be at the current integrated format version.
+use crate::support::fixture::{self, outline_snapshot as accepted, scene};
 use boardstudio_core::model::{
-    ArchiveAssetBuffer, ArchiveReply, CoreReply, CoreRequest, EditCommand, EditPhase, ProjectDoc,
-    SceneDelta,
+    ArchiveAssetBuffer, ArchiveReply, CoreReply, CoreRequest, ProjectDoc, SceneDelta,
 };
 use boardstudio_core::{CoreEngine, archive, document_format};
 use sha2::{Digest, Sha256};
 
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
-
-fn accepted(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
-}
-
 fn edit(engine: &mut CoreEngine, revision: u64, operation: &serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation.clone()).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit(
+        "outline-edit",
+        "outline-edit",
+        revision,
+        operation,
+    )))
 }
 
 fn unpack_project(bytes: &[u8]) -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
@@ -79,10 +59,7 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
     }];
     let buffers = vec![asset_bytes];
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    }));
+    let opened = scene(engine.handle(fixture::open(document)));
     let linked = edit(
         &mut engine,
         opened.revision,
@@ -248,10 +225,7 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
     let mut fixture: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
     fixture.format_version = document_format::CURRENT_VERSION;
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture,
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture)));
     let created = edit(
         &mut engine,
         opened.revision,

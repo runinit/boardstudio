@@ -2,8 +2,8 @@
 //! acceptance suites, split halves, splay, key moves and the project library.
 //! See `integration.rs` for the split.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "electrical_wiring.rs"]

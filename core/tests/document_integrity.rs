@@ -1,11 +1,8 @@
 //! Ticket 01: document admission rejects ambiguous identities and revision
 //! exhaustion before any accepted state or history changes.
+use crate::support::fixture::{self, request};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
-
-fn request(engine: &mut CoreEngine, input: Value) -> Value {
-    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
-}
 
 fn baseline() -> Value {
     let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
@@ -38,11 +35,11 @@ fn baseline() -> Value {
 }
 
 fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    request(engine, json!({"kind":"open","id":id,"document":document}))
+    fixture::wire_open(engine, id, &document)
 }
 
 fn snapshot(engine: &mut CoreEngine) -> Value {
-    request(engine, json!({"kind":"snapshot","id":"snapshot"}))["document"].clone()
+    fixture::wire_snapshot(engine, "snapshot")["document"].clone()
 }
 
 fn duplicate(document: &mut Value, collection: &str) {
@@ -236,22 +233,22 @@ fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() 
     matrix["columns"] = json!(3);
     matrix["columnLayout"] = json!([{"splay": 12.0}, {"rotation": 18.0}]);
     matrix["rowLayout"] = json!([{"bend": 30.0}]);
-    let mut accepted = request(
+    let mut accepted = fixture::wire_commit(
         &mut engine,
-        json!({"kind":"edit","id":"setup","command":{
-            "baseRevision":0,"transactionId":"setup","phase":"commit","targetIds":[],
-            "operation":{"kind":"set-matrix","matrix":matrix}
-        }}),
+        "setup",
+        "setup",
+        0,
+        json!({"kind":"set-matrix","matrix":matrix}),
     );
     assert_eq!(accepted["kind"], "scene", "{accepted}");
     for column in 0..3 {
-        let edited = request(
+        let edited = fixture::wire_commit(
             &mut engine,
-            json!({"kind":"edit","id":"align","command":{
-                "baseRevision":accepted["document"]["revision"],"transactionId":"align","phase":"commit","targetIds":[],
-                "operation":{"kind":"set-matrix-placement","matrixId":"matrix", "change":{
-                    "kind":"column-translation", "column":column, "delta":{"x":3.0,"y":4.0}
-                }}
+            "align",
+            "align",
+            accepted["document"]["revision"].as_u64().unwrap(),
+            json!({"kind":"set-matrix-placement","matrixId":"matrix", "change":{
+                "kind":"column-translation", "column":column, "delta":{"x":3.0,"y":4.0}
             }}),
         );
         assert_eq!(edited["kind"], "scene", "{edited}");
@@ -294,12 +291,12 @@ fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records(
     matrix["columnLayout"] = json!([{}, {"spread": -5.0, "stagger": 2.0}, {"spread": 30.0}]);
     matrix["rowLayout"] = json!([{}, {"padding": 0.0}, {"padding": -4.0}]);
     let set = |engine: &mut CoreEngine, revision: u64, matrix: Value| {
-        let reply = request(
+        let reply = fixture::wire_commit(
             engine,
-            json!({"kind":"edit","id":"steps","command":{
-                "baseRevision":revision,"transactionId":"steps","phase":"commit","targetIds":[],
-                "operation":{"kind":"set-matrix","matrix":matrix}
-            }}),
+            "steps",
+            "steps",
+            revision,
+            json!({"kind":"set-matrix","matrix":matrix}),
         );
         assert_eq!(reply["kind"], "scene", "{reply}");
         reply
@@ -342,12 +339,12 @@ fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records(
     matrix["columns"] = json!(4);
     let grown = set(&mut engine, 3, matrix);
     assert_eq!(key(&grown, 2, 2), json!({"x":35.0,"y":52.0}));
-    let compacted = request(
+    let compacted = fixture::wire_commit(
         &mut engine,
-        json!({"kind":"edit","id":"remove-first-column","command":{
-            "baseRevision":4,"transactionId":"remove-first-column","phase":"commit","targetIds":[],
-            "operation":{"kind":"remove-matrix-column","matrixId":"matrix","column":0}
-        }}),
+        "remove-first-column",
+        "remove-first-column",
+        4,
+        json!({"kind":"remove-matrix-column","matrixId":"matrix","column":0}),
     );
     assert_eq!(compacted["kind"], "scene", "{compacted}");
     assert!(
@@ -369,12 +366,12 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     for route in ["open", "replace"] {
         let mut engine = CoreEngine::new();
         assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
-        let committed = request(
+        let committed = fixture::wire_commit(
             &mut engine,
-            json!({"kind":"edit","id":"wiring","command":{
-                "baseRevision":0,"transactionId":"wiring","phase":"commit","targetIds":[],
-                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
-            }}),
+            "wiring",
+            "wiring",
+            0,
+            json!({"kind":"set-wiring-mode","boardId":"board","mode":"direct"}),
         );
         assert_eq!(committed["kind"], "scene", "{committed}");
         let accepted = snapshot(&mut engine);
@@ -395,13 +392,12 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
             let reply = if route == "open" {
                 open(&mut engine, "refused", &candidate)
             } else {
-                request(
+                fixture::wire_commit(
                     &mut engine,
-                    json!({"kind":"edit","id":"refused","command":{
-                        "baseRevision":accepted["revision"],"transactionId":"refused",
-                        "phase":"commit","targetIds":[],
-                        "operation":{"kind":"replace-document","document":candidate}
-                    }}),
+                    "refused",
+                    "refused",
+                    accepted["revision"].as_u64().unwrap(),
+                    json!({"kind":"replace-document","document":candidate}),
                 )
             };
             assert_error(&reply);
@@ -446,13 +442,12 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
             let reply = if route == "open" {
                 open(&mut engine, "refused", &candidate)
             } else {
-                request(
+                fixture::wire_commit(
                     &mut engine,
-                    json!({"kind":"edit","id":"refused","command":{
-                        "baseRevision":accepted["revision"],"transactionId":"refused",
-                        "phase":"commit","targetIds":[],
-                        "operation":{"kind":"replace-document","document":candidate}
-                    }}),
+                    "refused",
+                    "refused",
+                    accepted["revision"].as_u64().unwrap(),
+                    json!({"kind":"replace-document","document":candidate}),
                 )
             };
             assert_error(&reply);
@@ -519,15 +514,12 @@ fn duplicate_identity_is_rejected_on_replacement_and_preserves_accepted_state() 
         let mut replacement = baseline();
         replacement["revision"] = accepted["revision"].clone();
         duplicate(&mut replacement, collection);
-        let reply = request(
+        let reply = fixture::wire_commit(
             &mut engine,
-            json!({
-                "kind":"edit","id":"replace",
-                "command":{
-                    "baseRevision":accepted["revision"],"transactionId":"replace","phase":"commit",
-                    "targetIds":[],"operation":{"kind":"replace-document","document":replacement}
-                }
-            }),
+            "replace",
+            "replace",
+            accepted["revision"].as_u64().unwrap(),
+            json!({"kind":"replace-document","document":replacement}),
         );
         assert_error(&reply);
         assert!(
@@ -904,13 +896,7 @@ fn non_finite_evaluated_layouts_and_empty_ownership_are_refused() {
 }
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: Value) -> Value {
-    request(
-        engine,
-        json!({"kind":"edit","id":"probe","command":{
-            "baseRevision":revision,"transactionId":"probe","phase":"commit","targetIds":[],
-            "operation":operation
-        }}),
-    )
+    fixture::wire_commit(engine, "probe", "probe", revision, json!(operation))
 }
 
 #[test]
@@ -1070,45 +1056,19 @@ fn with_dimensions(document: &Value, rows: u32, columns: u32) -> Value {
 }
 
 #[test]
-fn a_matrix_of_u32_max_rows_is_refused_on_open_before_any_row_walk() {
-    let mut engine = CoreEngine::new();
+fn oversized_matrices_are_refused_atomically_on_open_edit_and_draft_projection() {
     let document = anchored_document();
-    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
-    let huge = with_dimensions(&document, u32::MAX, 2);
-    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
-    assert_eq!(snapshot(&mut engine), accepted);
-}
-
-#[test]
-fn a_matrix_of_u32_max_columns_is_refused_on_open_before_any_column_walk() {
-    let mut engine = CoreEngine::new();
-    let document = anchored_document();
-    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
-    let huge = with_dimensions(&document, 1, u32::MAX);
-    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
-    assert_eq!(snapshot(&mut engine), accepted);
-}
-
-#[test]
-fn a_matrix_one_over_the_part_limit_is_refused_on_open() {
-    let mut engine = CoreEngine::new();
-    let document = anchored_document();
-    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
-    let over = with_dimensions(&document, ONE_OVER_PART_LIMIT, 1);
-    assert_refused(&open(&mut engine, "over", &over), DIMENSION_REFUSAL);
-    assert_eq!(snapshot(&mut engine), accepted);
-}
-
-#[test]
-fn oversized_matrices_are_refused_through_set_matrix_and_project_matrices_with_state_unchanged() {
-    let mut engine = CoreEngine::new();
-    let document = anchored_document();
-    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
     for (rows, columns) in [(u32::MAX, 2), (1, u32::MAX), (ONE_OVER_PART_LIMIT, 1)] {
+        let mut engine = CoreEngine::new();
+        assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+        let accepted = snapshot(&mut engine);
+        let oversized = with_dimensions(&document, rows, columns);
+        assert_refused(
+            &open(&mut engine, "oversized", &oversized),
+            DIMENSION_REFUSAL,
+        );
+        assert_eq!(snapshot(&mut engine), accepted, "open {rows}x{columns}");
+
         let mut matrix = accepted["matrices"][0].clone();
         matrix["rows"] = json!(rows);
         matrix["columns"] = json!(columns);

@@ -11,6 +11,7 @@
 //! Board "board": part a at (0,0), part b at (14,0); board outline feature "gen";
 //! active version "refined" (linked) and fixed version "edited" (30x30 fixed square
 //! polygon, bounds -30..30).
+use crate::support::fixture::{self, outline_snapshot as document, scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 const ENVELOPE: &str = "board:board:version:refined:contour:0";
@@ -121,40 +122,14 @@ fn fixture_with_choices() -> serde_json::Value {
 }
 
 fn open(engine: &mut CoreEngine, document: serde_json::Value) -> SceneDelta {
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(document).expect("fixture is a valid document"),
-    }))
-}
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
+    scene(engine.handle(fixture::open(
+        serde_json::from_value(document).expect("fixture is a valid document"),
+    )))
 }
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
+    scene(engine.handle(fixture::commit("edit", "edit", revision, operation)))
 }
 
 fn saved(engine: &mut CoreEngine) -> serde_json::Value {

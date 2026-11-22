@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::model::*;
 use serde_json::json;
 
@@ -76,25 +77,7 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
                 spacing: None,
             }),
         },
-        matrix: Box::new(Matrix {
-            id: "matrix".into(),
-            name: None,
-            rows: 1,
-            columns: 1,
-            pitch: Vec2 { x: 19.0, y: 19.0 },
-            origin: Vec2::default(),
-            definition_id: "switch".into(),
-            part_ids: vec![],
-            board_id: None,
-            mirror: None,
-            rotation: None,
-            edge_gap: None,
-            diode_direction: None,
-            row_layout: vec![],
-            column_layout: vec![],
-            anchor: None,
-            cells: vec![],
-        }),
+        matrix: Box::new(fixture::matrix("matrix", 1, 1)),
         definitions: None,
     })
     .unwrap();
@@ -302,13 +285,7 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
     assert!(authored.definitions[0].kicad_source.is_none());
 
     let mut engine = boardstudio_core::CoreEngine::new();
-    engine.request(
-        &serde_json::to_string(&CoreRequest::Open {
-            id: "open".into(),
-            document: document.clone(),
-        })
-        .unwrap(),
-    );
+    engine.request(&serde_json::to_string(&fixture::open(document.clone())).unwrap());
     let mut replacement = document.clone();
     replacement.name = "Replaced".into();
     let command = EditCommand {

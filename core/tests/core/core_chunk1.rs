@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn open_preserves_generator_and_copper() {
@@ -39,11 +40,7 @@ fn open_preserves_generator_and_copper() {
         net_id: None,
     });
     let mut engine = CoreEngine::new();
-    let json = serde_json::to_string(&CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    })
-    .unwrap();
+    let json = serde_json::to_string(&fixture::open(doc)).unwrap();
     let (_, reopened) = scene(serde_json::from_str(&engine.request(&json)).unwrap());
     assert_eq!(
         reopened.definitions[0].generator.as_ref().unwrap().source,
@@ -60,27 +57,13 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
         courtyard: vec![
             Vec2 { x: -1.0, y: -1.0 },
             Vec2 { x: 1.0, y: -1.0 },
             Vec2 { x: 1.0, y: 1.0 },
             Vec2 { x: -1.0, y: 1.0 },
         ],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition("switch", "Switch", PartKind::Switch)
     });
     doc.outline.push(OutlineFeature::PartEnvelope {
         connections: vec![],
@@ -91,35 +74,11 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         operation: Operation::Add,
     });
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
         outline_ids: vec!["env".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
-    let part = Part {
-        anchor: None,
-        id: "k1".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    };
+    engine.handle(fixture::open(doc));
+    let part = fixture::part("k1", "switch", "SW1");
     let (added, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
@@ -168,28 +127,13 @@ fn invalid_definition_geometry_blocks_own_board() {
             vias: vec![],
         });
         doc.parts.push(Part {
-            anchor: None,
-            id: format!("{id}-part"),
-            definition_id: format!("{id}-def"),
-            reference: id.into(),
             pose: Pose2 {
                 at: Vec2 { x, y: 0.0 },
                 rotation: 0.0,
             },
-            side: Side::Front,
-            locked: None,
-            keycap: None,
-            outline: None,
-            properties: None,
-            generator_parameters: None,
+            ..fixture::part(format!("{id}-part"), format!("{id}-def"), id)
         });
         doc.definitions.push(PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            mechanical_profile: None,
-            id: format!("{id}-def"),
-            name: id.into(),
-            kind: PartKind::Custom,
             courtyard: vec![Vec2 { x: 0.0, y: 0.0 }],
             pads: vec![Pad {
                 id: "p1".into(),
@@ -203,14 +147,7 @@ fn invalid_definition_geometry_blocks_own_board() {
                 rotation: None,
                 net_id: None,
             }],
-            models: None,
-            keycap: None,
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            generator: None,
+            ..fixture::part_definition(format!("{id}-def"), id, PartKind::Custom)
         });
     }
     let bad = &mut doc.definitions[1];
@@ -232,10 +169,7 @@ fn invalid_definition_geometry_blocks_own_board() {
         rotation: None,
         net_id: None,
     });
-    let (scene, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, _) = scene(engine.handle(fixture::open(doc)));
     assert!(scene.board_readiness[0].pcb);
     assert!(!scene.board_readiness[1].pcb);
     for suffix in [
@@ -261,25 +195,10 @@ fn case_readiness_uses_its_board() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.boards.push(Board {
-        id: "case-board".into(),
-        name: "Case Board".into(),
         outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("case-board", "Case Board")
     });
-    doc.boards.push(Board {
-        id: "empty".into(),
-        name: "Empty".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.boards.push(fixture::board("empty", "Empty"));
     doc.case_bodies.push(CaseBody {
         features: None,
         openings: None,
@@ -297,10 +216,7 @@ fn case_readiness_uses_its_board() {
         pcb_source: None,
         gasket: None,
     });
-    let (valid_scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (valid_scene, doc) = scene(engine.handle(fixture::open(doc)));
     assert!(!valid_scene.readiness.pcb);
     assert!(valid_scene.board_readiness[0].pcb);
     assert!(!valid_scene.board_readiness[1].pcb);
@@ -356,14 +272,8 @@ fn case_mounts_walls_and_gasket_are_validated() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
         outline_ids: vec!["edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
     doc.case_bodies.push(CaseBody {
         features: None,
@@ -424,29 +334,16 @@ fn case_mounts_walls_and_gasket_are_validated() {
 #[test]
 fn matrix_duplicate_allocates_new_member_ids() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, original) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 1)),
     )));
     let mut duplicate = original.matrices[0].clone();
     duplicate.id = "copy".into();
     duplicate.origin.x = 30.0;
-    let (_, doc) = scene(engine.handle(edit(
-        1,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: duplicate,
-            definitions: None,
-        },
-    )));
+    let (_, doc) = scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(duplicate))));
     assert_eq!(doc.matrices[0].part_ids, vec!["matrix/main/r0c0"]);
     assert_eq!(doc.matrices[1].part_ids, vec!["matrix/copy/r0c0"]);
     assert_ne!(doc.parts[0].reference, doc.parts[1].reference);
@@ -455,17 +352,11 @@ fn matrix_duplicate_allocates_new_member_ids() {
 #[test]
 fn matrix_shrink_prunes_net_pins_and_stale_members() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, mut doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 2),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 2)),
     )));
     doc.nets.push(Net {
         id: "row".into(),
@@ -490,10 +381,7 @@ fn matrix_shrink_prunes_net_pins_and_stale_members() {
     let (_, shrunk) = scene(engine.handle(edit(
         1,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 1)),
     )));
     assert!(shrunk.nets[0].pins.is_empty());
     assert!(shrunk.constraints.is_empty());
@@ -518,10 +406,7 @@ fn matrix_accepts_stable_ergogen_catalogue_ids() {
         "generator": {"source": "ceoloide/switch_mx", "version": "bundled-1", "parameters": {}}
     })).unwrap();
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let mut incoming = matrix(1, 1);
     incoming.definition_id = definition.id.clone();
     let reply = engine.handle(edit(
@@ -542,10 +427,7 @@ fn matrix_accepts_stable_ergogen_catalogue_ids() {
 #[test]
 fn matrix_custom_splay_origin_survives_export_and_resize() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
     {
@@ -577,14 +459,7 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
             record.splay_origin = value;
         }
     }
-    let (_, doc) = scene(engine.handle(edit(
-        0,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: value,
-            definitions: None,
-        },
-    )));
+    let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let key = doc
         .parts
         .iter()
@@ -600,14 +475,7 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     );
     let mut value = reopened.matrices[0].clone();
     value.columns = 1;
-    let (_, shrunk) = scene(engine.handle(edit(
-        1,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: value,
-            definitions: None,
-        },
-    )));
+    let (_, shrunk) = scene(engine.handle(edit(1, EditPhase::Commit, fixture::set_matrix(value))));
     assert_eq!(
         shrunk.matrices[0]
             .column_layout
@@ -634,17 +502,11 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
 #[test]
 fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, mut doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(3, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(3, 1)),
     )));
     let survivor = doc
         .parts

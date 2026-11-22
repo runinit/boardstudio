@@ -1,49 +1,22 @@
+use crate::support::fixture::{
+    self, outline_document as fixture, outline_snapshot as document, scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn fixture() -> ProjectDoc {
-    let mut document: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::document_format::CURRENT_VERSION;
-    document
-}
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
-}
-
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
+    scene(engine.handle(fixture::commit(
+        "outline-edit",
+        "outline-edit",
+        revision,
+        operation,
+    )))
 }
 
 #[test]
 fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available() {
     let mut engine = CoreEngine::new();
-    let original = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let original = scene(engine.handle(fixture::open(fixture())));
     let copied = edit(
         &mut engine,
         original.revision,
@@ -123,10 +96,7 @@ fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available
 #[test]
 fn version_rename_delete_undo_and_roundtrip_preserve_independent_copies() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let a = edit(
         &mut engine,
         opened.revision,
@@ -210,10 +180,7 @@ fn version_rename_delete_undo_and_roundtrip_preserve_independent_copies() {
 #[test]
 fn first_point_edit_is_one_undo_step_and_preview_never_creates_a_saved_version() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let mut points = opened.board_outline_scenes[0].source_contours[0]
         .points
         .clone();
@@ -257,10 +224,7 @@ fn first_point_edit_is_one_undo_step_and_preview_never_creates_a_saved_version()
 #[test]
 fn editing_one_version_leaves_other_versions_and_generated_source_intact() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let first = edit(
         &mut engine,
         opened.revision,
@@ -312,10 +276,7 @@ fn editing_one_version_leaves_other_versions_and_generated_source_intact() {
 #[test]
 fn first_drawn_feature_and_its_fixed_copy_undo_together() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let copied = edit(
         &mut engine,
         opened.revision,
@@ -356,10 +317,7 @@ fn copying_keeps_an_authored_rounded_cutout_as_a_world_cad_primitive() {
     });
     doc.boards[0].outline_ids.push("rounded-opening".into());
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let opened = scene(engine.handle(fixture::open(doc)));
     let copied = edit(
         &mut engine,
         opened.revision,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
@@ -11,14 +12,7 @@ fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
             ..Default::default()
         },
     ];
-    let (_, before) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let request = |revision, world: serde_json::Value| {
         serde_json::json!({
         "kind":"edit","id":"swing","command":{"baseRevision":revision,"transactionId":format!("swing-{revision}"),"phase":"commit","targetIds":[],
@@ -67,14 +61,7 @@ fn relative_origin_field_holds_keys_by_writing_only_the_nearest_steps() {
             ..Default::default()
         },
     ];
-    let (_, before) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let reply=engine.request(&serde_json::json!({"kind":"edit","id":"relative","command":{
         "baseRevision":before.revision,"transactionId":"relative","phase":"commit","targetIds":[],
         "operation":{"kind":"set-matrix-splay","matrixId":"main","column":1,"change":{"kind":"origin-relative","value":{"x":2.0,"y":3.0}}}
@@ -120,14 +107,7 @@ fn rigid_column_align_and_origin_hold_use_steps_under_bend_splay_and_mirrors() {
                     ..Default::default()
                 })
                 .collect();
-            let (_, before) = edit(
-                &mut engine,
-                &doc,
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
-                },
-            );
+            let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
             let (_, after) = edit(
                 &mut engine,
                 &before,
@@ -264,19 +244,15 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
             value: f64::NAN,
         },
     ] {
-        let reply = engine.handle(CoreRequest::Edit {
-            id: "invalid".into(),
-            command: EditCommand {
-                base_revision: before.revision,
-                transaction_id: "invalid".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::SetMatrixPlacement {
-                    matrix_id: "main".into(),
-                    change,
-                },
+        let reply = engine.handle(fixture::commit(
+            "invalid",
+            "invalid",
+            before.revision,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "main".into(),
+                change,
             },
-        });
+        ));
         assert!(matches!(reply, CoreReply::Error { .. }));
         assert_eq!(snapshot(&mut engine), before);
     }
@@ -300,20 +276,16 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
             }),
         },
     ] {
-        let reply = engine.handle(CoreRequest::Edit {
-            id: "invalid-origin".into(),
-            command: EditCommand {
-                base_revision: before.revision,
-                transaction_id: "invalid-origin".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::SetMatrixSplay {
-                    matrix_id: "main".into(),
-                    column: 1,
-                    change,
-                },
+        let reply = engine.handle(fixture::commit(
+            "invalid-origin",
+            "invalid-origin",
+            before.revision,
+            EditOperation::SetMatrixSplay {
+                matrix_id: "main".into(),
+                column: 1,
+                change,
             },
-        });
+        ));
         assert!(matches!(reply, CoreReply::Error { .. }));
         assert_eq!(snapshot(&mut engine), before);
     }
@@ -365,22 +337,19 @@ fn exact_column_align_refuses_external_constraint_without_retuning_it() {
     });
     let (mut engine, _, before) = open(document);
     for phase in [EditPhase::Preview, EditPhase::Commit] {
-        let reply = engine.handle(CoreRequest::Edit {
-            id: "align".into(),
-            command: EditCommand {
-                base_revision: before.revision,
-                transaction_id: "align".into(),
-                phase,
-                target_ids: vec![],
-                operation: EditOperation::SetMatrixPlacement {
-                    matrix_id: "main".into(),
-                    change: MatrixPlacementChange::ColumnTranslation {
-                        column: 1,
-                        delta: Vec2 { x: 4.0, y: -3.0 },
-                    },
+        let reply = engine.handle(fixture::edit(
+            "align",
+            "align",
+            before.revision,
+            phase,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: "main".into(),
+                change: MatrixPlacementChange::ColumnTranslation {
+                    column: 1,
+                    delta: Vec2 { x: 4.0, y: -3.0 },
                 },
             },
-        });
+        ));
         assert!(matches!(reply,CoreReply::Error {message,..} if message.contains("constraint")));
         assert_eq!(snapshot(&mut engine), before);
     }
@@ -403,14 +372,7 @@ fn swing_origin_at_column_zero_uses_mirrored_incoming_axes() {
             rotation: 90.0,
             ..Default::default()
         }];
-        let (_, before) = edit(
-            &mut engine,
-            &doc,
-            EditOperation::SetMatrix {
-                matrix,
-                definitions: None,
-            },
-        );
+        let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
         let (_, after) = edit(
             &mut engine,
             &before,

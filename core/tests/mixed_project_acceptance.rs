@@ -1,5 +1,6 @@
 //! Public acceptance flow for one mixed host/module project.
 //! Module envelope values below are explicit test fixtures, not upstream hardware claims.
+use crate::support::fixture::{self, request};
 use boardstudio_core::{CoreEngine, artifact_request};
 use serde_json::{Value, json};
 
@@ -27,10 +28,6 @@ fn vik_definition(row: &str) -> Value {
         .find(|entry| entry["row"] == row)
         .unwrap()["definition"]
         .clone()
-}
-
-fn request(engine: &mut CoreEngine, input: Value) -> Value {
-    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
 }
 
 fn base_document() -> Value {
@@ -97,10 +94,7 @@ fn import_haptic() -> Value {
 #[test]
 fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() {
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":base_document()}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &base_document());
     assert_eq!(opened["kind"], "scene", "{opened}");
     let mut replacement = opened["document"]["matrices"][0].clone();
     let tactile = thq_definition("thqwgd001:c-2pin-reversible");

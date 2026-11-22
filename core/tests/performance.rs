@@ -1,3 +1,8 @@
+#[allow(dead_code)]
+#[path = "support.rs"]
+mod support;
+
+use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 use std::time::Instant;
@@ -9,34 +14,16 @@ const KEY_PITCH_MM: f64 = 19.05;
 fn fixture(keys: usize) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("bench", "Benchmark");
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
         courtyard: vec![
             Vec2 { x: -7.0, y: -7.0 },
             Vec2 { x: 7.0, y: -7.0 },
             Vec2 { x: 7.0, y: 7.0 },
             Vec2 { x: -7.0, y: 7.0 },
         ],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition("switch", "Switch", PartKind::Switch)
     });
     for index in 0..keys {
         doc.parts.push(Part {
-            anchor: None,
-            id: format!("key-{index}"),
-            definition_id: "switch".into(),
-            reference: format!("SW{}", index + 1),
             pose: Pose2 {
                 at: Vec2 {
                     x: (index % 20) as f64 * KEY_PITCH_MM,
@@ -44,12 +31,7 @@ fn fixture(keys: usize) -> ProjectDoc {
                 },
                 rotation: 0.0,
             },
-            side: Side::Front,
-            locked: None,
-            keycap: None,
-            outline: None,
-            properties: None,
-            generator_parameters: None,
+            ..fixture::part(format!("key-{index}"), "switch", format!("SW{}", index + 1))
         });
     }
     doc.outline.push(OutlineFeature::PartEnvelope {
@@ -65,10 +47,7 @@ fn fixture(keys: usize) -> ProjectDoc {
 
 fn measure(keys: usize) {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(keys),
-    });
+    engine.handle(fixture::open(fixture(keys)));
     let mut samples = Vec::with_capacity(SAMPLES);
     for revision in 0..(SAMPLES + WARMUP) {
         let command = EditCommand {

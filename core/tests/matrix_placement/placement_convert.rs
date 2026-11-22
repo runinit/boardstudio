@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
@@ -30,29 +31,18 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
             record.offset = value;
         }
     }
-    let (_, before) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let reason = "Converting requires zero Splay, Column rotation and carried Bend";
     assert_eq!(
         convert_offset_available(&before.matrices[0], 1),
         Err(reason.to_string())
     );
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "convert".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "convert".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: convert("main", 1),
-        },
-    });
+    let reply = engine.handle(fixture::commit(
+        "convert",
+        "convert",
+        before.revision,
+        convert("main", 1),
+    ));
     match reply {
         CoreReply::Error { message, .. } => assert_eq!(message, reason),
         other => panic!("expected an error: {other:?}"),
@@ -113,14 +103,7 @@ fn placement_survives_save_and_reopen_unnormalized() {
     }
     configured.cells[0].offset = Some(Vec2 { x: 0.75, y: -0.5 });
     configured.cells[0].rotation = Some(5.0);
-    let (_, laid_out) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: configured,
-            definitions: None,
-        },
-    );
+    let (_, laid_out) = edit(&mut engine, &doc, fixture::set_matrix(configured));
 
     let saved = serde_json::to_string(&laid_out).unwrap();
     let reloaded: ProjectDoc = serde_json::from_str(&saved).unwrap();
@@ -150,14 +133,7 @@ fn curved_key_world_move_changes_only_its_independent_offset() {
         bend: 90.0,
         ..Default::default()
     }];
-    let (_, before) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let (_, before) = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     let id = member("main", 1, 0);
     let start = at(&before, &id);
     let (changed, after) = edit(
@@ -378,10 +354,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
     let (_, doc) = edit(
         &mut engine,
         &doc,
-        EditOperation::SetMatrix {
-            matrix: matrix("anchor", 1, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix("anchor", 1, 1)),
     );
     let mut target = matrix("main", 3, 3);
     target.origin = Vec2 { x: 9.0, y: 3.0 };
@@ -393,14 +366,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
         bend: 35.0,
         ..Default::default()
     }];
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: target,
-            definitions: None,
-        },
-    );
+    let (_, doc) = edit(&mut engine, &doc, fixture::set_matrix(target));
     let mut doc = doc;
     doc.layouts.push(Layout {
         id: "layout".into(),
@@ -450,22 +416,18 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
     ));
     assert!(changed.column_layout[0].spread.is_none());
     assert!(close(changed.origin, Vec2 { x: 9.0, y: 7.0 }));
-    let refused = engine.handle(CoreRequest::Edit {
-        id: "refuse".into(),
-        command: EditCommand {
-            base_revision: after.revision,
-            transaction_id: "refuse".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetMatrixSplay {
-                matrix_id: "main".into(),
-                column: 0,
-                change: MatrixSplayChange::Origin {
-                    world: Some(Vec2 { x: 2.0, y: 6.0 }),
-                },
+    let refused = engine.handle(fixture::commit(
+        "refuse",
+        "refuse",
+        after.revision,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "main".into(),
+            column: 0,
+            change: MatrixSplayChange::Origin {
+                world: Some(Vec2 { x: 2.0, y: 6.0 }),
             },
         },
-    });
+    ));
     assert!(matches!(refused, CoreReply::Error { message, .. } if message.contains("Follow")));
     assert_eq!(snapshot(&mut engine), after);
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));

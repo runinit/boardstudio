@@ -1,49 +1,22 @@
 //! A `part-offset` constraint holds its target at a fixed distance and angle along its
 //! source part's own axes, so a companion held to a key keeps its pose in the key's frame
 //! whenever the key turns. An `offset` constraint keeps its board-axes meaning.
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 const KEY: &str = "matrix/m/r0c1";
 const HELD: &str = "matrix/m/r0c1/held";
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn edit(
     engine: &mut CoreEngine,
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
-        shift: None,
-        bend: None,
-        deleted: false,
-        row: 0,
-        column,
-        enabled: true,
-        definition_id: None,
-        variant: None,
-        offset: None,
-        rotation: None,
         assemblies: vec![MatrixAssembly {
             id: "held".into(),
             definition_id: "diode".into(),
@@ -51,30 +24,16 @@ fn matrix() -> Matrix {
             rotation: None,
             side: None,
         }],
-        assemblies_local: None,
+        ..fixture::cell(0, column)
     };
     Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: None,
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
         column_layout: vec![
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
         ],
-        anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
+        ..fixture::matrix("m", 1, 3)
     }
 }
 
@@ -109,18 +68,8 @@ fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) 
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let (_, mut doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: matrix(),
-            definitions: None,
-        },
-    );
+    let (_, doc) = scene(engine.handle(fixture::open(doc)));
+    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix()));
     doc.constraints.push(constraint());
     let mut engine = CoreEngine::new();
     scene(engine.handle(CoreRequest::Open {
@@ -196,14 +145,7 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_through_a_matrix_rotation() 
     let (mut engine, before) = fixture(held_by_part_axes);
     let mut turned = before.matrices[0].clone();
     turned.rotation = Some(25.0);
-    let (_, after) = edit(
-        &mut engine,
-        &before,
-        EditOperation::SetMatrix {
-            matrix: turned,
-            definitions: None,
-        },
-    );
+    let (_, after) = edit(&mut engine, &before, fixture::set_matrix(turned));
     assert!(
         (part(&after, KEY).pose.rotation - part(&before, KEY).pose.rotation).abs() > 1e-6,
         "the matrix rotation must turn the key"
@@ -323,19 +265,15 @@ fn convert(
     constraint_id: &str,
     to: OffsetAxes,
 ) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "convert".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "convert".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ConvertOffsetConstraint {
-                constraint_id: constraint_id.into(),
-                to,
-            },
+    engine.handle(fixture::commit(
+        "convert",
+        "convert",
+        doc.revision,
+        EditOperation::ConvertOffsetConstraint {
+            constraint_id: constraint_id.into(),
+            to,
         },
-    })
+    ))
 }
 
 fn assert_every_part_kept(before: &ProjectDoc, after: &ProjectDoc) {
@@ -492,24 +430,21 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
     ] {
         let (mut engine, before) = splayed(constraint);
         let start = part(&before, HELD).pose.at;
-        let _ = engine.handle(CoreRequest::Edit {
-            id: "preview".into(),
-            command: EditCommand {
-                base_revision: before.revision,
-                transaction_id: "drag".into(),
-                phase: EditPhase::Preview,
-                target_ids: vec![],
-                operation: EditOperation::MoveParts {
-                    positions: vec![Position {
-                        id: HELD.into(),
-                        at: Vec2 {
-                            x: start.x + 3.0,
-                            y: start.y,
-                        },
-                    }],
-                },
+        let _ = engine.handle(fixture::edit(
+            "preview",
+            "drag",
+            before.revision,
+            EditPhase::Preview,
+            EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: HELD.into(),
+                    at: Vec2 {
+                        x: start.x + 3.0,
+                        y: start.y,
+                    },
+                }],
             },
-        });
+        ));
         let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
         assert_eq!(
             now.constraints, before.constraints,

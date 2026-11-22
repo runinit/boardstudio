@@ -4,34 +4,19 @@
 //! from origin provenance. A linked refinement records that it follows the board's
 //! current included components; an edited copy stays fixed. Documents written before
 //! this state existed keep their serialized shape and never gain a link.
+use crate::support::fixture::{
+    self, outline_document as fixture, outline_snapshot as document, scene,
+};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn fixture() -> ProjectDoc {
-    let mut document: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::document_format::CURRENT_VERSION;
-    document
-}
-
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } => scene,
-        reply => panic!("{reply:?}"),
-    }
-}
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(CoreRequest::Edit {
-        id: "outline-edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "outline-edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit(
+        "outline-edit",
+        "outline-edit",
+        revision,
+        operation,
+    )))
 }
 
 fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
@@ -43,23 +28,11 @@ fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Val
         .expect("the named version exists")
 }
 
-fn document(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        reply => panic!("{reply:?}"),
-    }
-}
-
 /// Two fixed versions created by this build; the serialized document is exactly the
 /// shape an older build wrote, because fixed ownership is the absent default.
 fn two_versions() -> (CoreEngine, serde_json::Value) {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let first = edit(
         &mut engine,
         opened.revision,
@@ -261,10 +234,7 @@ fn linked_source() -> (ProjectDoc, serde_json::Value) {
 fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_components() {
     let (input, saved) = linked_source();
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: input,
-    }));
+    let opened = scene(engine.handle(fixture::open(input)));
     let copied = edit(
         &mut engine,
         opened.revision,
@@ -451,10 +421,7 @@ fn copy(engine: &mut CoreEngine, revision: u64, version_id: &str) -> CoreReply {
 #[test]
 fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach_a_later_version() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    let opened = scene(engine.handle(fixture::open(fixture())));
     let first = edit(
         &mut engine,
         opened.revision,
@@ -538,10 +505,7 @@ fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespac
     // setup, not behavior: hand-edit the snapshotted document the same way the
     // fixed-copy suite persists invalid inactive geometry, then reopen.
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: fixture(),
-    }));
+    scene(engine.handle(fixture::open(fixture())));
     let mut authored = serde_json::to_value(document(&mut engine)).unwrap();
     let outline = authored["outline"]
         .as_array_mut()

@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
 use boardstudio_core::model::*;
@@ -26,49 +27,23 @@ fn definition(
         })
         .collect();
     PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
         terminals,
         matrix_terminals: Some(MatrixTerminals {
             row: "row".into(),
             column: "column".into(),
         }),
-        envelope_notice: None,
-        courtyard: vec![],
         pads,
-        models: None,
         generator: source.map(|s| PartGenerator {
             source: s.into(),
             version: "test".into(),
             parameters: BTreeMap::new(),
         }),
-        mechanical_profile: None,
+        ..fixture::part_definition(id, id, kind)
     }
 }
 
 fn part(id: &str, definition_id: &str) -> Part {
-    Part {
-        anchor: None,
-        id: id.into(),
-        definition_id: definition_id.into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2::default(),
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    }
+    fixture::part(id, definition_id, id)
 }
 
 fn wired_document() -> ProjectDoc {
@@ -109,52 +84,22 @@ fn wired_document() -> ProjectDoc {
     }
     doc.parts.push(part("mcu-left", "mcu"));
     doc.boards.push(Board {
-        id: "board-a".into(),
-        name: "A".into(),
-        outline_ids: vec![],
         part_ids: doc.parts.iter().map(|p| p.id.clone()).collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board-a", "A")
     });
     doc.matrices.push(Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 2,
-        columns: 2,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: matrix_parts,
         board_id: Some("board-a".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-
         diode_direction: Some(DiodeDirection::Row2col),
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
         cells: (0..2)
             .flat_map(|r| {
                 (0..2).map(move |c| MatrixCell {
-                    shift: None,
-                    bend: None,
-                    deleted: false,
-                    row: r,
-                    column: c,
-                    enabled: true,
-
                     definition_id: Some("switch".into()),
-                    variant: None,
-                    offset: None,
-                    rotation: None,
-                    assemblies: vec![],
-                    assemblies_local: None,
+                    ..fixture::cell(r, c)
                 })
             })
             .collect(),
+        ..fixture::matrix("m", 2, 2)
     });
     doc
 }
@@ -609,10 +554,7 @@ fn missing_controller_is_reported_without_inventing_one() {
 fn apply_request_is_reversible() {
     let mut engine = CoreEngine::new();
     let doc = wired_document();
-    let opened = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    let opened = engine.handle(fixture::open(doc));
     let doc = match opened {
         CoreReply::Scene { document, .. } => document,
         other => panic!("{other:?}"),
