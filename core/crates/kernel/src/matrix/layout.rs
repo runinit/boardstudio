@@ -16,7 +16,7 @@ pub use keys::{
     companion_mode, edits_alone, is_matrix_key, move_keys, plan_linked_matrix_removal,
     reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
-use reflection::{carrier_offset, remap_anchor_target};
+use reflection::carrier_offset;
 pub use reflection::{
     exception_state, omitted, part_correspondence, reflected, refresh_existing, resolve, sync,
 };

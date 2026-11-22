@@ -150,10 +150,6 @@ pub(super) fn settled_outline_changes(
     if !(is_column_stagger(operation) || matches!(operation, EditOperation::MoveParts { .. }))
         || accepted.definitions != next.definitions
         || accepted.layouts != next.layouts
-        || accepted
-            .layouts
-            .iter()
-            .any(|layout| layout.mirror_link.is_some())
         || accepted.boards != next.boards
         || accepted.outline != next.outline
         || !next.board_outlines.is_empty()

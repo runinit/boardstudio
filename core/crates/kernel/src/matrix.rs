@@ -14,7 +14,7 @@
 //!      placement edits (`SetMatrix` edits: ticket 144);
 //!   3. following: generated from the key by `project_matrix` here; the solver places it with
 //!      `follow_pose` in constraints.rs.
-//! - Key moves and linked halves: `layout::move_keys`, `layout::sync`, `set_component_pose`.
+//! - Key moves and linked halves: `layout::move_keys`, `layout::sync`.
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
 pub mod anchors;

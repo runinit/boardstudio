@@ -956,7 +956,7 @@ fn open_and_project(document: Value) -> (Value, Value, Vec<String>) {
     )
 }
 
-fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
+fn states_document(source_cell: Value) -> Value {
     use boardstudio_core::model::ProjectDoc;
     use serde_json::json;
     let mut document = serde_json::to_value(ProjectDoc::empty("states", "States")).unwrap();
@@ -976,7 +976,7 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
         cell["row"] != row || (cell["enabled"] != false && cell["deleted"] != true)
     };
     let mut parts = vec![];
-    let (mut source_ids, mut mirror_ids) = (vec![], vec![]);
+    let mut source_ids = vec![];
     let mut push = |id: String, x: f64| {
         let n = parts.len() + 1;
         parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{n}"),"pose":{"at":{"x":x,"y":-456.0},"rotation":17.0},"side":"front"}));
@@ -987,17 +987,11 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
             push(id.clone(), 1000.0 + column as f64);
             source_ids.push(id);
         }
-        if !(omit_mirror_first && column == 0) {
-            let id = format!("matrix/mir/r{column}c0");
-            push(id.clone(), 2000.0 + column as f64);
-            mirror_ids.push(id);
-        }
     }
     let source = matrix("src", 0.0, &source_cell, &source_ids);
-    let mirror = matrix("mir", 200.0, &source_cell, &mirror_ids);
     document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,"partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
     document["parts"] = json!(parts);
-    document["matrices"] = json!([source, mirror]);
+    document["matrices"] = json!([source]);
     document
 }
 
@@ -1014,14 +1008,13 @@ fn scene_cell<'a>(scenes: &'a Value, matrix: &str, row: u64) -> Option<&'a Value
 }
 
 /// Ticket 16 Answer: the kernel proves supplied logical values carry, but not that
-/// production selects the right state. Enabled, deleted and omitted keys all keep
+/// production selects the right state. Enabled and deleted keys keep
 /// their carried Shift and Bend in Core's actual and draft scenes and materialized parts.
 #[test]
 fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     use serde_json::json;
     let carry = json!({"row":0,"column":0,"enabled":true,"shift":{"x":2.0,"y":0.0},"bend":90.0});
-    let (base_actual, base_draft, base_parts) =
-        open_and_project(states_document(carry.clone(), false));
+    let (base_actual, base_draft, base_parts) = open_and_project(states_document(carry.clone()));
     assert!(base_parts.contains(&"matrix/src/r0c0".to_owned()));
     let carried = |scenes: &Value, matrix: &str, column| {
         scene_cell(scenes, matrix, column).unwrap()["pose"].clone()
@@ -1039,8 +1032,8 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     disabled["enabled"] = json!(false);
     let mut deleted = carry.clone();
     deleted["deleted"] = json!(true);
-    for (state, cell, omit) in [("disabled", disabled, false), ("deleted", deleted, false)] {
-        let (actual, draft, parts) = open_and_project(states_document(cell, omit));
+    for (state, cell) in [("disabled", disabled), ("deleted", deleted)] {
+        let (actual, draft, parts) = open_and_project(states_document(cell));
         for (scenes, base) in [(&actual, &base_actual), (&draft, &base_draft)] {
             for matrix in ["src"] {
                 for column in [1, 2] {
@@ -1071,18 +1064,7 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
                 }
                 assert!(!parts.contains(&"matrix/src/r0c0".to_owned()));
             }
-            _ => {
-                assert!(
-                    !parts.contains(&"matrix/mir/r0c0".to_owned()),
-                    "omitted key is never rematerialized"
-                );
-                for scenes in [&actual, &draft] {
-                    let cell =
-                        scene_cell(scenes, "mir", 0).expect("omitted key keeps its logical cell");
-                    assert_eq!(cell["pose"], carried(&base_actual, "mir", 0));
-                    assert!(cell["memberId"].is_null());
-                }
-            }
+            _ => unreachable!(),
         }
         for column in [1, 2] {
             let id = format!("matrix/src/r{column}c0");

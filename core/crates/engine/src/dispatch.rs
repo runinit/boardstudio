@@ -1275,10 +1275,6 @@ fn settle_layout_dependents(
     if accepted_projection
         && is_column_stagger(operation)
         && doc.constraints.is_empty()
-        && doc
-            .layouts
-            .iter()
-            .all(|layout| layout.mirror_link.is_none())
         && doc.parts.iter().all(|part| part.anchor.is_none())
         && doc
             .matrices
