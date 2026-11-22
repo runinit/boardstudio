@@ -15,7 +15,6 @@ use boardstudio_model::constraints::endpoints;
 #[cfg(test)]
 mod framed_tests;
 use boardstudio_model::constraints::relation;
-use boardstudio_model::constraints::retune;
 
 // The mirrored-half preparation seam carries only these private compiler records across the
 // crate; no public document or operation API is widened.
@@ -30,84 +29,6 @@ pub use relation::ConstraintRelation;
 /// value is chosen and pinned by below/at/above boundary tests on both native and packaged
 /// WASM while leaving ordinary design chains ample room.
 const MAX_DEPENDENCY_DEPTH: usize = 256;
-
-/// Outcome for the mirrored edit preparer when a moved target has an owner-dependent view.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PreparedTargetRetune {
-    Retuned(FramedConstraint),
-    Deferred(DeferredTargetRetune),
-}
-
-/// Target drag intent that must wait for live endpoint owners to resolve (usually a key).
-#[derive(Clone, Debug, PartialEq)]
-pub struct DeferredTargetRetune {
-    pub record: FramedConstraint,
-    pub requested: Position,
-    pub source_owner: Option<String>,
-    pub target_owner: Option<String>,
-}
-
-/// Retunes an already compiled record through its authored endpoint views.
-///
-/// `requested` is in authoritative part coordinates. Position edits have no requested heading,
-/// so the existing relation turn is preserved exactly. Owner poses are supplied by a caller
-/// that has resolved the MoveParts batch; missing owner poses return an explicit deferred intent.
-pub fn prepare_target_retune(
-    document: &ProjectDoc,
-    record: &FramedConstraint,
-    source_authority: Pose2,
-    target_authority: Pose2,
-    requested: &Position,
-    owner_poses: [Option<Pose2>; 2],
-) -> Result<PreparedTargetRetune, String> {
-    let FramedConstraint::Framed {
-        id,
-        source: source_endpoint,
-        target: target_endpoint,
-        relation,
-    } = record;
-    let source =
-        endpoints::resolve_endpoint(document, id, endpoints::Side::Source, source_endpoint)?;
-    let target =
-        endpoints::resolve_endpoint(document, id, endpoints::Side::Target, target_endpoint)?;
-    if matches!(relation, ConstraintRelation::MirrorLine { .. }) {
-        return Err(mirror_drag_refusal(&target.visible_id));
-    }
-
-    let owners = [source.owner.clone(), target.owner.clone()];
-    if (owners[0].is_some() && owner_poses[0].is_none())
-        || (owners[1].is_some() && owner_poses[1].is_none())
-    {
-        return Ok(PreparedTargetRetune::Deferred(DeferredTargetRetune {
-            record: record.clone(),
-            requested: requested.clone(),
-            source_owner: owners[0].clone(),
-            target_owner: owners[1].clone(),
-        }));
-    }
-
-    let source_frame = source.frame.with_key(owner_poses[0]);
-    let target_frame = target.frame.with_key(owner_poses[1]);
-    let requested_view = target_frame.project(Pose2 {
-        at: requested.at,
-        rotation: target_authority.rotation,
-    })?;
-    let retuned = retune::retune_target(
-        relation,
-        source_authority,
-        source_frame,
-        target_frame,
-        target_authority,
-        requested_view.at,
-        None,
-    )?;
-    Ok(PreparedTargetRetune::Retuned(FramedConstraint::Framed {
-        id: id.clone(),
-        source: source_endpoint.clone(),
-        target: target_endpoint.clone(),
-        relation: retuned.relation,
-    }))
-}
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])

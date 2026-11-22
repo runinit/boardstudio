@@ -6,6 +6,20 @@ pub fn compile_authored(
     definition: &PartDefinition,
     side: Side,
 ) -> Result<CompiledFootprint, String> {
+    let geometry = authored_geometry(definition, side)?;
+    let preview_svg = Some(preview_svg(&geometry)?);
+    Ok(CompiledFootprint {
+        definition: definition.clone(),
+        geometry,
+        diagnostics: vec![],
+        preview_svg,
+    })
+}
+
+pub(super) fn authored_geometry(
+    definition: &PartDefinition,
+    side: Side,
+) -> Result<FootprintGeometry, String> {
     if definition.kicad_source.is_some() {
         return Err(format!(
             "Footprint '{}' has authoritative KiCad source and must use source projection",
@@ -29,13 +43,7 @@ pub fn compile_authored(
         pad.net_id = None;
     }
     validate_geometry(definition, &geometry)?;
-    let preview_svg = Some(preview_svg(&geometry)?);
-    Ok(CompiledFootprint {
-        definition: definition.clone(),
-        geometry,
-        diagnostics: vec![],
-        preview_svg,
-    })
+    Ok(geometry)
 }
 
 pub fn validate_geometry(

@@ -21,7 +21,10 @@ mod stack;
 use construction::{ConstructionGeometry, construct_bodies, finalize_assembly};
 use foam::{add_foam_clearance, fallback_foam_geometry, subtract_foam_exclusions};
 use part_geometry::{BatterySpace, PartGeometry, collect_part_geometry, resolve_battery_space};
-use stack::{build_stack, dimensions_are_valid, resolve_foam_contours, resolve_profiles};
+use stack::{
+    build_stack, dimensions_are_valid, frame_dimensions_are_valid, resolve_foam_contours,
+    resolve_profiles,
+};
 
 type FloatPath = Vec<[f64; 2]>;
 type FloatShapes = Vec<Vec<FloatPath>>;
@@ -339,11 +342,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         .unwrap_or_else(|| (config.clone(), Vec::new()));
     let config = &effective_config;
     let mut frame_contours = contours.to_vec();
-    if config.wall_thickness.is_finite()
-        && config.clearance.is_finite()
-        && config.wall_thickness > 0.0
-        && config.clearance >= 0.0
-    {
+    if frame_dimensions_are_valid(config) {
         match expanded_outline(
             contours,
             config.wall_thickness + config.clearance,

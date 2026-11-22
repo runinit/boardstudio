@@ -36,6 +36,28 @@ fn require_mechanical_export_clearance(
     }
 }
 
+/// A generated footprint needs a render job. Imported and authored footprints
+/// are validated here and read directly from the captured document at finish.
+fn needs_render_job(
+    definition: &PartDefinition,
+    side: Side,
+    fabrication: bool,
+) -> Result<bool, ArtifactError> {
+    if fabrication {
+        require_footprint_qualification(definition)?;
+    }
+    if is_generated(definition) {
+        return Ok(true);
+    }
+    if let Some(source) = &definition.kicad_source {
+        source::import_footprint(&source.source, &definition.id)?;
+    } else {
+        let geometry = compile::authored_geometry(definition, side).map_err(validation)?;
+        unique_ids(geometry.pads.iter().map(|pad| pad.id.as_str()), "pad")?;
+    }
+    Ok(false)
+}
+
 fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPlan, ArtifactError> {
     let doc = &request.document;
     if doc.format != "boardstudio/v2" {
@@ -65,25 +87,12 @@ fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPla
                 let definition = definitions
                     .get(part.definition_id.as_str())
                     .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
-                if fabrication {
-                    require_footprint_qualification(definition)?;
-                }
-                if is_generated(definition) {
+                if needs_render_job(definition, part.side.clone(), fabrication)? {
                     jobs.push(RenderJob {
                         job_id: format!("{}:{}", board.id, part.id),
                         definition: (*definition).clone(),
                         part: terminal_parameters(definition, part, doc, board, &pin_map)?,
                     });
-                } else if is_imported(definition) {
-                    // Validate imports before workers start; raw source is retained in the captured document.
-                    source::import_footprint(
-                        &definition.kicad_source.as_ref().expect("checked").source,
-                        &definition.id,
-                    )?;
-                } else {
-                    let compiled = compile::compile_authored(definition, part.side.clone())
-                        .map_err(validation)?;
-                    assert_geometry(&compiled.geometry)?;
                 }
             }
             validate_contours(&request.contours)?;
@@ -114,24 +123,12 @@ fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPla
                         format!("Missing definition: {id}"),
                     )
                 })?;
-                if fabrication {
-                    require_footprint_qualification(definition)?;
-                }
-                if is_generated(definition) {
+                if needs_render_job(definition, Side::Front, fabrication)? {
                     jobs.push(RenderJob {
                         job_id: format!("definition:{}", definition.id),
                         definition: (*definition).clone(),
                         part: standalone_part(definition),
                     });
-                } else if is_imported(definition) {
-                    source::import_footprint(
-                        &definition.kicad_source.as_ref().expect("checked").source,
-                        &definition.id,
-                    )?;
-                } else {
-                    let compiled =
-                        compile::compile_authored(definition, Side::Front).map_err(validation)?;
-                    assert_geometry(&compiled.geometry)?;
                 }
             }
             (jobs, vec![], 1)

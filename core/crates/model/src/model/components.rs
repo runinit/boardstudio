@@ -560,10 +560,6 @@ impl MatrixAnchor {
             Some(aggregate) => aggregate.parts.clone(),
         }
     }
-
-    pub fn is_aggregate(&self) -> bool {
-        self.aggregate.is_some()
-    }
 }
 
 /// Aggregate anchor target: one combined pose from N single-key parts.

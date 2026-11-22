@@ -152,23 +152,29 @@ pub(super) fn build_stack(
     .collect()
 }
 
+pub(super) fn frame_dimensions_are_valid(config: &MechanicalConfiguration) -> bool {
+    config.wall_thickness.is_finite()
+        && config.wall_thickness > 0.0
+        && config.clearance.is_finite()
+        && config.clearance >= 0.0
+}
+
 pub(super) fn dimensions_are_valid(config: &MechanicalConfiguration) -> bool {
     let dimensions = [
         config.plate_thickness,
         config.pcb_thickness,
         config.bottom_thickness,
-        config.wall_thickness,
         config.plate_to_pcb,
     ];
     let clearances = [
         config.plate_foam_thickness,
         config.bottom_foam_thickness,
         config.battery_height,
-        config.clearance,
     ];
-    dimensions
-        .iter()
-        .all(|value| value.is_finite() && *value > 0.0)
+    frame_dimensions_are_valid(config)
+        && dimensions
+            .iter()
+            .all(|value| value.is_finite() && *value > 0.0)
         && clearances
             .iter()
             .all(|value| value.is_finite() && *value >= 0.0)

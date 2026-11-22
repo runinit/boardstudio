@@ -1,5 +1,6 @@
 //! Bounded exterior pockets are repaired once, before authored differences.
 //! The span is the mouth chord, not the recess depth or a global hull radius.
+use super::automatic::{cross, sub};
 use super::{Path, Shapes, automatic, point, snap};
 use crate::{model::*, outline_controls};
 use boardstudio_contracts::{path_contains, path_signed_area};
@@ -9,12 +10,6 @@ use i_overlay::{
 };
 use std::collections::BTreeSet;
 
-fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
-    [a[0] - b[0], a[1] - b[1]]
-}
-fn cross(a: [f64; 2], b: [f64; 2]) -> f64 {
-    a[0] * b[1] - a[1] * b[0]
-}
 fn dot(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
 }
