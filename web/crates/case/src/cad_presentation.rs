@@ -245,22 +245,15 @@ pub fn CasePanel(
                     }
                 }
             }
-            if scene.is_none()
-                && let Some(preview) = accepted_preview.clone()
+            if let Some(scope) = scene.as_ref().map(|scene| &scene.scope)
+                .or_else(|| accepted_preview.as_ref().map(|preview| &preview.owner.scope))
             {
-                crate::presentation::CasePreviewViewer {
-                    key: "{preview.owner.scope.session_epoch.0}:{preview.owner.scope.board_id}:{preview.owner.scope.instance_id:?}:preview",
-                    model_rows: runtime.native_model_delivery(&preview),
-                    preview,
-                }
-            }
-            if let Some(scene) = scene {
-                crate::presentation::CaseViewer {
-                    key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}",
-                    scene,
+                crate::shared_viewer::CaseViewport {
+                    key: "{scope.session_epoch.0}:{scope.board_id}:{scope.instance_id:?}:{scene.is_none()}",
                     model_rows: accepted_preview.as_ref().and_then(|preview| runtime.native_model_delivery(preview)),
+                    mechanical_settings: scene.as_ref().and(mechanical_settings),
+                    scene,
                     preview: accepted_preview,
-                    mechanical_settings,
                 }
             }
             footer { class: "relative order-10 m-0 flex flex-none flex-wrap items-center gap-1.5 border-0 border-t border-border bg-card px-3 py-1.5 [&_h2]:hidden max-[760px]:gap-2 max-[760px]:[&>button]:min-h-11",

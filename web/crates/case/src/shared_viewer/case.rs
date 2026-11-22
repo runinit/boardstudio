@@ -1,15 +1,15 @@
-//! Case owns display persistence and domain selection; the viewer owns GPU state.
+//! Case scene admission, selection, display preferences, and edit gestures.
 mod gesture;
 use gesture::*;
 
-use super::case_bodies::CaseBodyEdit;
-use super::mechanical_settings::MechanicalSettingsPatchExt;
-use super::shared_viewer::{
-    CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
-    ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
+use super::{
+    CaseDisplay, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal, ViewerFocusRequest,
+    ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind, Viewport3D,
 };
-use super::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
+use crate::case_bodies::CaseBodyEdit;
+use crate::mechanical_settings::{self, MechanicalSettingsPatchExt};
 use crate::runtime::{CadScene, Runtime};
+use crate::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
@@ -318,39 +318,41 @@ fn use_case_keycaps(
 }
 
 #[component]
-pub fn CaseViewer(
-    scene: Rc<CadScene>,
+pub(crate) fn CaseViewport(
+    scene: Option<Rc<CadScene>>,
     preview: Option<Rc<crate::case_preview::NativePreviewSnapshot>>,
-    model_rows: Option<super::model_delivery::ModelDeliveryRows>,
-    mechanical_settings: Option<super::MechanicalSettingsProps>,
+    model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
+    mechanical_settings: Option<crate::MechanicalSettingsProps>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let (keycaps_preview, keycaps_feedback) = use_case_keycaps(
-        runtime.clone(),
-        &scene.scope,
-        scene.token,
-        scene.snapshot.document.revision,
-    );
+    let (scope, token, revision) = if let Some(scene) = scene.as_ref() {
+        (&scene.scope, scene.token, scene.snapshot.document.revision)
+    } else if let Some(preview) = preview.as_ref() {
+        (
+            &preview.owner.scope,
+            preview.owner.snapshot_token,
+            preview.owner.accepted_revision,
+        )
+    } else {
+        return rsx! {};
+    };
+    let (keycaps_preview, keycaps_feedback) =
+        use_case_keycaps(runtime.clone(), scope, token, revision);
     let instance_selection = use_context::<InstanceSelection>();
-    let case_generation = use_context::<super::CaseGenerationState>();
-    let runtime_version = use_context::<Signal<u64>>();
-    let _ = runtime_version();
+    let live_preview = (use_context::<crate::CaseGenerationState>().live_preview)();
     let selection_adapter = use_context::<SelectionAdapter>();
-    let selection = use_context::<CaseSelection>();
+    let mut selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedAppearance>().0;
-    #[cfg(all(test, target_arch = "wasm32"))]
-    let gesture_probe = try_consume_context::<CaseViewerGestureProbe>();
     let selected_reference = {
-        let model = runtime.model();
         let selected = selection_adapter
             .selected_context
             .read()
             .clone()
-            .filter(|selected| selected.scope == scene.scope);
-        crate::case_selection::selected_part_summary(&model, selected.as_ref())
+            .filter(|selected| selected.scope == *scope);
+        crate::case_selection::selected_part_summary(&runtime.model(), selected.as_ref())
             .map(|summary| summary.title)
     };
-    let key = display_key(&scene.scope);
+    let key = display_key(scope);
     let initial_display = use_hook({
         let key = key.clone();
         move || read_display(&key)
@@ -361,66 +363,55 @@ pub fn CaseViewer(
         .get(&key)
         .cloned()
         .unwrap_or(initial_display);
-    // The Case editor keeps its independently selected authored body, but a
-    // newer explicit tree/viewer layer choice owns the viewer highlight.
-    let selected_layer = selection
-        .layer
-        .read()
-        .as_ref()
-        .filter(|selected| selected.scope == scene.scope && is_layer(&scene, &selected.id))
-        .map(|selected| selected.id.clone())
-        .or_else(|| {
+    let selected_layer = scene.as_ref().map_or_else(
+        || "pcb".to_owned(),
+        |scene| {
+            let layer = selection.layer_id(scope);
+            if is_layer(scene, &layer) {
+                return layer;
+            }
             selection
                 .body
                 .read()
                 .as_ref()
-                .filter(|selected| {
-                    selected.scope == scene.scope && is_layer(&scene, &selected.body_id)
-                })
-                .map(|selected| selected.body_id.clone())
-        })
-        .unwrap_or_default();
-    let focus_request = selection.viewer_focus_request(&scene);
-    let direct_handles = case_viewer_handles(
-        &scene,
-        mechanical_settings.as_ref(),
-        (selection.body_edit_portal.editable)(),
+                .filter(|body| body.scope == *scope && is_layer(scene, &body.body_id))
+                .map(|body| body.body_id.clone())
+                .unwrap_or_default()
+        },
     );
-    let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
-    let draft_preview_owner = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<crate::case_gesture_preview::CaseGesturePreviewOwner>,
-        ))
+    let focus_request = scene
+        .as_ref()
+        .and_then(|scene| selection.viewer_focus_request(scene));
+    let handles = scene.as_ref().map_or_else(Vec::new, |scene| {
+        editable_handles(
+            scene,
+            mechanical_settings.as_ref(),
+            (selection.body_edit_portal.editable)(),
+        )
     });
-    let handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
-    let gesture_field = use_signal(|| None::<String>);
-    let gesture_message = use_signal(|| None::<String>);
+    let gesture = use_hook(|| Rc::new(RefCell::new(None::<CaseGestureDraft>)));
+    let draft_preview_owner = use_hook(|| Rc::new(RefCell::new(None)));
+    let mut handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
+    let mut gesture_field = use_signal(|| None::<String>);
+    let mut gesture_message = use_signal(|| None::<String>);
     use_effect(use_reactive(
-        (
-            &scene.scope,
-            &scene.token,
-            &scene.snapshot.document.revision,
-            &(Rc::as_ptr(&scene) as usize),
-        ),
+        (scope, &token, &revision, &scene.as_ref().map(Rc::as_ptr)),
         {
             let gesture = gesture.clone();
-            let mut handle_preview = handle_preview;
-            let mut gesture_field = gesture_field;
-            let mut gesture_message = gesture_message;
             let draft_preview_owner = draft_preview_owner.clone();
             let runtime = runtime.clone();
             move |_| {
                 if let Some(owner) = draft_preview_owner.borrow_mut().take() {
                     runtime.cancel_case_gesture_preview(&owner);
                 }
-                *gesture.borrow_mut() = None;
+                gesture.borrow_mut().take();
                 handle_preview.set(None);
                 gesture_field.set(None);
                 gesture_message.set(None);
             }
         },
     ));
-    use_effect(use_reactive((&(case_generation.live_preview)(),), {
+    use_effect(use_reactive((&live_preview,), {
         let draft_preview_owner = draft_preview_owner.clone();
         let runtime = runtime.clone();
         move |(live_preview,)| {
@@ -438,146 +429,131 @@ pub fn CaseViewer(
             }
         }
     });
-    let on_signal = {
-        let runtime = runtime.clone();
+    let current = {
         let scene = scene.clone();
         let preview = preview.clone();
-        let direct_handles = direct_handles.clone();
-        let mechanical_settings = mechanical_settings.clone();
-        let gesture = gesture.clone();
-        let mut selection = selection;
-        let mut handle_preview = handle_preview;
-        let mut gesture_field = gesture_field;
-        let mut gesture_message = gesture_message;
-        let draft_preview_owner = draft_preview_owner.clone();
-        let live_preview = (case_generation.live_preview)();
-        move |event: super::shared_viewer::ScopedViewerSignal| {
-            if !event.is_current()
-                || !source_is_current(&runtime, instance_selection, &scene, &event.identity)
-            {
-                return;
-            }
-            if let ViewerSignalKind::Picked(id) = &event.kind
-                && let Some(preview) = preview.as_ref()
-                && select_native_preview_model(
-                    &runtime,
-                    instance_selection,
-                    &selection_adapter,
-                    preview,
-                    &event.identity,
-                    id,
-                )
-            {
-                return;
-            }
-            match event.kind {
-                ViewerSignalKind::Picked(id) | ViewerSignalKind::LayerSelected(id) => {
-                    if !is_layer(&scene, &id) {
-                        return;
-                    }
-                    selection.layer.set(Some(LayerSelection {
-                        scope: scene.scope.clone(),
-                        id: id.clone(),
-                        focus: None,
-                    }));
-                    // CAD mesh IDs become authored body selections only when the
-                    // current captured document proves that exact membership.
-                    if let Ok(document) = captured_case_document(&scene.snapshot, &scene.scope)
-                        && document
-                            .case_bodies
-                            .iter()
-                            .any(|body| body.id == id && body.board_id == scene.scope.board_id)
+        let runtime = runtime.clone();
+        Rc::new(move |identity: &ViewerIdentity| match scene.as_ref() {
+            Some(scene) => source_is_current(&runtime, instance_selection, scene, identity),
+            None => preview.as_ref().is_some_and(|preview| {
+                identity.scope == preview.owner.scope
+                    && identity.snapshot_token == preview.owner.snapshot_token
+                    && runtime.native_case_preview().is_some_and(|current| {
+                        current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
+                    })
+            }),
+        })
+    };
+    let on_signal =
+        {
+            let runtime = runtime.clone();
+            let scene = scene.clone();
+            let preview = preview.clone();
+            let handles = handles.clone();
+            let settings = mechanical_settings.clone();
+            let current = current.clone();
+            move |event: ScopedViewerSignal| {
+                if !event.is_current() || !current(&event.identity) {
+                    return;
+                }
+                if let ViewerSignalKind::Picked(id) = &event.kind
+                    && let Some(preview) = preview.as_ref()
+                    && select_native_preview_model(
+                        &runtime,
+                        instance_selection,
+                        &selection_adapter,
+                        preview,
+                        &event.identity,
+                        id,
+                    )
+                {
+                    return;
+                }
+                if let ViewerSignalKind::Failed(message) = event.kind {
+                    runtime.report(message);
+                    return;
+                }
+                let Some(scene) = scene.as_ref() else { return };
+                match event.kind {
+                    ViewerSignalKind::Picked(id) | ViewerSignalKind::LayerSelected(id)
+                        if is_layer(scene, &id) =>
                     {
-                        selection.body.set(Some(BodySelection {
+                        selection.select_layer(scene.scope.clone(), id.clone());
+                        let authored = captured_case_document(&scene.snapshot, &scene.scope)
+                            .is_ok_and(|document| {
+                                document.case_bodies.iter().any(|body| {
+                                    body.id == id && body.board_id == scene.scope.board_id
+                                })
+                            });
+                        selection.body.set(authored.then(|| BodySelection {
                             scope: scene.scope.clone(),
                             body_id: id,
                         }));
-                    } else {
-                        selection.body.set(None);
                     }
+                    ViewerSignalKind::HandleGesture {
+                        phase,
+                        handle_id,
+                        point,
+                    } => handle_case_gesture(
+                        CaseGestureContext {
+                            scene,
+                            identity: &event.identity,
+                            settings: settings.as_ref(),
+                            handles: &handles,
+                            gesture: &gesture,
+                            preview: &mut handle_preview,
+                            feedback_field: &mut gesture_field,
+                            message: &mut gesture_message,
+                            selection,
+                            runtime: &runtime,
+                            draft_preview_owner: &draft_preview_owner,
+                            live_preview,
+                        },
+                        phase,
+                        &handle_id,
+                        point,
+                    ),
+                    _ => {}
                 }
-                ViewerSignalKind::Failed(message) => runtime.report(message),
-                ViewerSignalKind::HandleGesture {
-                    phase,
-                    handle_id,
-                    point,
-                } => handle_case_gesture(
-                    CaseGestureContext {
-                        scene: &scene,
-                        identity: &event.identity,
-                        settings: mechanical_settings.as_ref(),
-                        handles: &direct_handles,
-                        gesture: &gesture,
-                        preview: &mut handle_preview,
-                        feedback_field: &mut gesture_field,
-                        message: &mut gesture_message,
-                        selection,
-                        runtime: &runtime,
-                        draft_preview_owner: &draft_preview_owner,
-                        live_preview,
-                    },
-                    phase,
-                    &handle_id,
-                    point,
-                ),
-                ViewerSignalKind::SceneAccepted(_)
-                | ViewerSignalKind::Lifecycle(_)
-                | ViewerSignalKind::WorldPoint(_) => {}
             }
-        }
-    };
-    #[cfg(all(test, target_arch = "wasm32"))]
+        };
+    #[cfg(test)]
     let on_signal = EventHandler::new(on_signal);
-    #[cfg(all(test, target_arch = "wasm32"))]
-    if let Some(probe) = gesture_probe {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<CaseViewerGestureProbe>() {
         let identity = ViewerIdentity {
-            scope: scene.scope.clone(),
-            snapshot_token: scene.token,
-            revision: scene.snapshot.document.revision,
+            scope: scope.clone(),
+            snapshot_token: token,
+            revision,
             viewer_instance: 0,
             projection_generation: 1,
             renderer_sequence: 1,
         };
         *probe.0.borrow_mut() = Some(Rc::new(move |phase, handle_id, point| {
-            super::shared_viewer::emit_handle_gesture_for_test(
-                on_signal, &identity, phase, handle_id, point,
-            );
+            super::emit_handle_gesture_for_test(on_signal, &identity, phase, handle_id, point);
         }));
     }
-    let on_display_change = {
-        let runtime = runtime.clone();
-        let expected_scene = scene.clone();
-        let scope = scene.scope.clone();
-        move |event: super::shared_viewer::ScopedDisplayChange| {
-            if !event.is_current()
-                || !source_is_current(
-                    &runtime,
-                    instance_selection,
-                    &expected_scene,
-                    &event.identity,
-                )
-            {
-                return;
-            }
-            // Keep the entire preference value, including temporarily absent
-            // geometry, so a regenerated scene or Undo can restore its display.
-            selection.save_display(&scope, event.display.clone());
+    let on_display_change = move |event: ScopedDisplayChange| {
+        if event.is_current() && current(&event.identity) {
+            selection.save_display(&event.identity.scope, event.display);
         }
     };
-    let displayed_gesture_message = runtime.case_gesture_preview_message().or_else(|| {
+    let displayed_scene = scene.as_ref().map(|scene| {
+        runtime
+            .case_gesture_preview_scene(scene)
+            .unwrap_or_else(|| scene.clone())
+    });
+    let gesture_message = runtime.case_gesture_preview_message().or_else(|| {
         direct_gesture_message(
             gesture_field(),
             gesture_message(),
             mechanical_settings.as_ref(),
         )
     });
-    let display_scene = runtime
-        .case_gesture_preview_scene(&scene)
-        .unwrap_or_else(|| scene.clone());
     rsx! {
-        CaseSharedViewer {
-            scene: Some(display_scene),
-            handle_source: Some(scene.clone()),
+        Viewport3D {
+            scene: displayed_scene,
+            handle_source: scene.clone(),
             preview: preview.clone(),
             layout_preview: None,
             keycaps_preview,
@@ -586,125 +562,20 @@ pub fn CaseViewer(
             selected_layer,
             selected_reference,
             display,
-            resolved_theme: theme().to_owned(),
+            resolved_theme: theme,
             on_signal,
             on_display_change,
             mechanical_settings,
             inline_case_controls: true,
-            handles: direct_handles,
+            handles,
             handle_preview: handle_preview(),
-            gesture_message: displayed_gesture_message,
+            gesture_message,
             focus_request,
         }
         {keycaps_feedback}
-        super::case_collision::CaseCollisionChecks { scene, preview, model_rows }
-    }
-}
-
-#[component]
-pub fn CasePreviewViewer(
-    preview: Rc<crate::case_preview::NativePreviewSnapshot>,
-    model_rows: Option<super::model_delivery::ModelDeliveryRows>,
-) -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let (keycaps_preview, keycaps_feedback) = use_case_keycaps(
-        runtime.clone(),
-        &preview.owner.scope,
-        preview.owner.snapshot_token,
-        preview.owner.accepted_revision,
-    );
-    let instance_selection = use_context::<InstanceSelection>();
-    let selection_adapter = use_context::<SelectionAdapter>();
-    let selection = use_context::<CaseSelection>();
-    let theme = use_context::<ResolvedAppearance>().0;
-    let selected_reference = {
-        let model = runtime.model();
-        let selected = selection_adapter
-            .selected_context
-            .read()
-            .clone()
-            .filter(|selected| selected.scope == preview.owner.scope);
-        crate::case_selection::selected_part_summary(&model, selected.as_ref())
-            .map(|summary| summary.title)
-    };
-    let key = display_key(&preview.owner.scope);
-    let initial_display = use_hook({
-        let key = key.clone();
-        move || read_display(&key)
-    });
-    let display = selection
-        .display
-        .read()
-        .get(&key)
-        .cloned()
-        .unwrap_or(initial_display);
-    let on_signal = {
-        let runtime = runtime.clone();
-        let preview = preview.clone();
-        move |event: ScopedViewerSignal| {
-            if !event.is_current()
-                || runtime.native_case_preview().is_none_or(|current| {
-                    current.owner != preview.owner || !Rc::ptr_eq(&current.lease, &preview.lease)
-                })
-                || event.identity.scope != preview.owner.scope
-                || event.identity.snapshot_token != preview.owner.snapshot_token
-            {
-                return;
-            }
-            match event.kind {
-                ViewerSignalKind::Picked(id) => {
-                    select_native_preview_model(
-                        &runtime,
-                        instance_selection,
-                        &selection_adapter,
-                        &preview,
-                        &event.identity,
-                        &id,
-                    );
-                }
-                ViewerSignalKind::Failed(message) => runtime.report(message),
-                _ => {}
-            }
+        if let Some(scene) = scene {
+            crate::case_collision::CaseCollisionChecks { scene, preview, model_rows }
         }
-    };
-    let on_display_change = {
-        let runtime = runtime.clone();
-        let preview = preview.clone();
-        let scope = preview.owner.scope.clone();
-        move |event: ScopedDisplayChange| {
-            if !event.is_current()
-                || runtime.native_case_preview().is_none_or(|current| {
-                    current.owner != preview.owner || !Rc::ptr_eq(&current.lease, &preview.lease)
-                })
-                || event.identity.scope != preview.owner.scope
-                || event.identity.snapshot_token != preview.owner.snapshot_token
-            {
-                return;
-            }
-            selection.save_display(&scope, event.display.clone());
-        }
-    };
-    rsx! {
-        CaseSharedViewer {
-            scene: None,
-            preview: Some(preview),
-            layout_preview: None,
-            keycaps_preview,
-            parts_preview: None,
-            model_rows,
-            selected_layer: "pcb".to_owned(),
-            selected_reference,
-            display,
-            resolved_theme: theme,
-            on_signal,
-            on_display_change,
-            mechanical_settings: None,
-            inline_case_controls: true,
-            handles: Vec::new(),
-            handle_preview: None,
-            gesture_message: None,
-        }
-        {keycaps_feedback}
     }
 }
 
@@ -757,13 +628,13 @@ fn select_native_preview_model(
     ) else {
         return false;
     };
-    let Some(context) = super::objects::context_for_part(&model, &part_id) else {
+    let Some(context) = crate::objects::context_for_part(&model, &part_id) else {
         return false;
     };
-    super::selection::submit_context(
+    crate::selection::submit_context(
         runtime,
         adapter,
-        super::selection::ContextRequest {
+        crate::selection::ContextRequest {
             scope: owner.scope.clone(),
             context,
             mode: boardstudio_application::SelectionMode::Replace,

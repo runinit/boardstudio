@@ -3,7 +3,6 @@
 //! `use_mechanical_settings` projects the accepted snapshot into `MechanicalSettingsProps` and
 //! commits each request synchronously through `Runtime::commit`; `MechanicalSettings` renders
 //! the sections directly from those props. The 3D viewer reads the same props for its handles.
-use crate::case_viewer::CaseSelection;
 use crate::mechanical_fits::{ClosureHardwareSection, HardwareAndFitsSection};
 use crate::mechanical_layers::{
     ContextualLayerInspector, GasketSupportInspector, ResolvedStack, StackupPreview,
@@ -20,6 +19,7 @@ use crate::mechanical_rules::dimension_range;
 use crate::pair_controls::{
     LegacyConstructionControl, PairLinkControls, PairMemberRemoval, PairRowControls,
 };
+use crate::shared_viewer::CaseSelection;
 use crate::{InstanceSelection, parts};
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
@@ -63,15 +63,21 @@ pub struct MechanicalSettingsRequest {
     pub identity: MechanicalSettingsIdentity,
     pub request_id: u64,
     pub field_id: String,
-    pub patch: MechanicalSettingsPatch,
-    /// Fingerprint of the reviewed inputs of a pair link/rejoin; a changed input retires it.
-    pub reviewed_fingerprint: Option<String>,
+    pub edit: MechanicalSettingsEdit,
 }
 
-// `Pending` stays because the (Track 6A) viewer matches on it; commits are synchronous.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MechanicalSettingsEdit {
+    Change(MechanicalSettingsPatch),
+    // Link/rejoin actions are admitted by their reviewed inputs across unrelated edits.
+    Reviewed {
+        change: MechanicalSettingsPatch,
+        fingerprint: String,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MechanicalSettingsFeedbackState {
-    Pending,
     Landed,
     Failed,
 }
@@ -114,14 +120,6 @@ impl MechanicalGasketSupportRow {
     }
 }
 
-/// The mount lists the viewer's handles drag.
-#[derive(Clone, Debug, PartialEq)]
-pub struct MechanicalSettingsValues {
-    pub mount: MechanicalMount,
-    pub suspension_mounts: Vec<Mount>,
-    pub closure_mounts: Option<Vec<Mount>>,
-}
-
 #[derive(Props, Clone, PartialEq)]
 pub struct MechanicalSettingsProps {
     pub identity: MechanicalSettingsIdentity,
@@ -129,7 +127,6 @@ pub struct MechanicalSettingsProps {
     pub configuration: Option<Rc<MechanicalConfiguration>>,
     /// The suggested stack shown before the board is configured.
     pub preview: Option<Rc<MechanicalConfiguration>>,
-    pub values: Option<MechanicalSettingsValues>,
     pub transport: HardwareTransport,
     pub profiles: Rc<[MechanicalProfileChoice]>,
     #[props(default)]
@@ -449,8 +446,7 @@ pub fn use_mechanical_settings(
             },
             request_id: id,
             field_id: "InitializeClosures".into(),
-            patch: MechanicalSettingsPatch::InitializeClosures,
-            reviewed_fingerprint: None,
+            edit: MechanicalSettingsEdit::Change(MechanicalSettingsPatch::InitializeClosures),
         });
     }));
 
@@ -512,7 +508,6 @@ pub fn use_mechanical_settings(
             else { "Finish or cancel the active edit before changing mechanical settings." }
         }.to_owned()).or_else(|| mismatch.as_ref().map(|_| "Show the configured board before changing its mechanical settings.".to_owned()));
         MechanicalSettingsProps {
-            values: configuration.as_ref().map(|config| MechanicalSettingsValues { mount: config.mount.clone(), suspension_mounts: config.mounts.clone(), closure_mounts: config.closure_mounts.clone() }),
             transport: accepted.document.hardware.as_ref().map_or(HardwareTransport::None, |hardware| hardware.transport),
             identity,
             request_sequence,
@@ -585,19 +580,21 @@ fn commit_patch(
 ) -> Result<(), String> {
     let identity = &request.identity;
     let accepted = runtime.model().accepted.ok_or("No accepted keyboard.")?;
-    let reviewed = matches!(
-        request.patch,
+    let (change, review) = match &request.edit {
+        MechanicalSettingsEdit::Change(change) => (change, None),
+        MechanicalSettingsEdit::Reviewed {
+            change,
+            fingerprint,
+        } => (change, Some(fingerprint)),
+    };
+    if matches!(
+        change,
         MechanicalSettingsPatch::RejoinFeatureMember { .. }
             | MechanicalSettingsPatch::LinkMirrorPair { .. }
-    );
-    if reviewed {
-        // A pair review stays valid across unrelated edits; only a changed reviewed input retires it.
-        let current = reviewed_fingerprint(
-            &accepted.document,
-            &accepted.scene.board_contours,
-            &request.patch,
-        )?;
-        if request.reviewed_fingerprint.as_deref() != Some(current.as_str()) {
+    ) {
+        let current =
+            reviewed_fingerprint(&accepted.document, &accepted.scene.board_contours, change)?;
+        if review != Some(&current) {
             return Err("The reviewed inputs changed since this pair action was submitted; review it again.".into());
         }
     } else if accepted.token != identity.snapshot_token
@@ -621,7 +618,7 @@ fn commit_patch(
     };
     let edit = MechanicalEdit {
         target,
-        change: request.patch.clone(),
+        change: change.clone(),
         mounting_hole: hole.map(|definition| Box::new((*definition).clone())),
     };
     let resolver = EditResolver::new("mechanical-settings", move |accepted: &AcceptedSnapshot| {
@@ -653,22 +650,31 @@ pub(crate) struct Sender {
 
 impl Sender {
     pub(crate) fn send(self, patch: MechanicalSettingsPatch) {
-        self.send_reviewed(patch, None);
+        let field = patch.field_id();
+        self.submit(field, MechanicalSettingsEdit::Change(patch));
     }
 
-    pub(crate) fn send_reviewed(
-        mut self,
-        patch: MechanicalSettingsPatch,
-        reviewed_fingerprint: Option<String>,
-    ) {
+    pub(crate) fn send_reviewed(self, patch: MechanicalSettingsPatch, fingerprint: Option<String>) {
+        if let Some(fingerprint) = fingerprint {
+            let field = patch.field_id();
+            self.submit(
+                field,
+                MechanicalSettingsEdit::Reviewed {
+                    change: patch,
+                    fingerprint,
+                },
+            );
+        }
+    }
+
+    fn submit(mut self, field_id: String, edit: MechanicalSettingsEdit) {
         let id = self.sequence.peek().saturating_add(1);
         self.sequence.set(id);
         self.on_request.call(MechanicalSettingsRequest {
             identity: self.identity.peek().clone(),
             request_id: id,
-            field_id: patch.field_id(),
-            patch,
-            reviewed_fingerprint,
+            field_id,
+            edit,
         });
     }
 

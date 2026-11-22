@@ -1,14 +1,20 @@
-//! Private page viewer shared by workflow-owned, immutable scene projections.
-//!
-//! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
-//! this module owns only renderer controls, transient view state and host lifetime.
+//! Shared 3D viewport for immutable scene projections from each workspace.
 
 mod canvas;
+mod case;
+pub(crate) use case::CaseViewport;
+pub use case::{
+    BodySelection, CaseBodyEditDispatch, CaseBodyEditPortal, CaseSelection, LayerSelection,
+};
+mod interaction;
 mod mount;
 mod scene;
 
 use canvas::*;
 use scene::*;
+
+// Layout and Parts use this name for the same component.
+pub use Viewport3D as CaseSharedViewer;
 
 use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
@@ -18,10 +24,10 @@ use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
-use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_host::renderer_host::{RendererPageHost, js_error};
 use boardstudio_web_ui_shared::ui::{
     button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
     checkbox::{Checkbox as UiCheckbox, CheckboxState},
@@ -244,7 +250,6 @@ struct ViewerOwner {
     identity: RefCell<Option<ViewerIdentity>>,
     last_inputs: RefCell<Option<ProjectionInputs>>,
     projection_generation: Cell<u64>,
-    renderer_sequence: Cell<u64>,
     viewer_instance: u64,
 }
 
@@ -263,7 +268,6 @@ impl ViewerOwner {
             identity: RefCell::new(None),
             last_inputs: RefCell::new(None),
             projection_generation: Cell::new(0),
-            renderer_sequence: Cell::new(0),
             viewer_instance: next_viewer_instance()?,
         }))
     }
@@ -281,15 +285,9 @@ impl ViewerOwner {
                 .projection_generation
                 .get()
                 .checked_add(1)
-                .ok_or_else(|| "Viewer projection identity exhausted".to_owned())?;
-            let sequence = self
-                .renderer_sequence
-                .get()
-                .checked_add(1)
-                .filter(|sequence| *sequence <= 9_007_199_254_740_991)
+                .filter(|generation| *generation <= 9_007_199_254_740_991)
                 .ok_or_else(|| "Renderer scene sequence exhausted".to_owned())?;
             self.projection_generation.set(generation);
-            self.renderer_sequence.set(sequence);
             *self.last_inputs.borrow_mut() = Some(inputs.clone());
         }
         let identity = ViewerIdentity {
@@ -298,7 +296,7 @@ impl ViewerOwner {
             revision,
             viewer_instance: self.viewer_instance,
             projection_generation: self.projection_generation.get(),
-            renderer_sequence: self.renderer_sequence.get(),
+            renderer_sequence: self.projection_generation.get(),
         };
         *self.identity.borrow_mut() = Some(identity.clone());
         Ok(identity)
@@ -342,7 +340,7 @@ impl PartialEq for RendererSceneProjection {
 }
 
 #[component]
-pub fn CaseSharedViewer(
+pub fn Viewport3D(
     scene: Option<Rc<CadScene>>,
     preview: Option<Rc<NativePreviewSnapshot>>,
     layout_preview: Option<Rc<LayoutPreviewSnapshot>>,
@@ -398,25 +396,26 @@ pub fn CaseSharedViewer(
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
+    if match &source {
+        ViewerSource::Layout(preview) => !preview.lease.matches(&preview.owner),
+        ViewerSource::Parts(preview) => !preview.lease.matches(&preview.owner),
+        _ => false,
+    } {
+        return rsx! { p { role: "alert", "3D preview source is no longer current." } };
+    }
     let (source_scope, source_token, _) = source.identity_parts();
-    let matching_preview = preview
-        .as_ref()
-        .filter(|preview| preview_matches_source(&preview.owner, source_scope, source_token));
+    let matching_preview = preview.as_ref().filter(|preview| {
+        preview.owner.scope == *source_scope && preview.owner.snapshot_token == source_token
+    });
     let matching_model_rows = match &source {
         ViewerSource::Cad(_) | ViewerSource::Native(_) => matching_preview.and(model_rows.as_ref()),
-        ViewerSource::Layout(source_preview)
-            if layout_preview.as_ref().is_some_and(|input_preview| {
-                Rc::ptr_eq(input_preview, source_preview)
-                    && input_preview.lease.matches(&input_preview.owner)
-            }) =>
-        {
+        ViewerSource::Layout(preview) if preview.lease.matches(&preview.owner) => {
             model_rows.as_ref()
         }
-        ViewerSource::Layout(_) => None,
         ViewerSource::Parts(preview) if preview.lease.matches(&preview.owner) => {
             preview.model_rows.as_ref()
         }
-        ViewerSource::Parts(_) => None,
+        _ => None,
     };
     let preview_key = (
         matching_preview.map_or(0, |preview| Rc::as_ptr(preview) as usize),
@@ -520,7 +519,8 @@ pub fn CaseSharedViewer(
         let source = source.clone();
         let keycaps_preview = keycaps_preview.clone();
         Rc::new(move || {
-            source.is_current(&runtime)
+            runtime.scope().as_ref() == Some(source.identity_parts().0)
+                && source.is_current(&runtime)
                 && keycaps_preview.as_ref().is_none_or(|preview| {
                     runtime.scope().as_ref() == Some(&preview.scope)
                         && runtime.model().accepted.as_ref().is_some_and(|accepted| {
@@ -617,8 +617,7 @@ pub fn CaseSharedViewer(
             _ => format!("Mounted-module model: {}", module_model_errors.join("; ")),
         })
     };
-    rsx! {
-        SharedViewer {
+    rsx! { MountedCanvas {
             projection,
             assembly_layers,
             component_layers,
@@ -640,8 +639,7 @@ pub fn CaseSharedViewer(
             handle_preview,
             gesture_message,
             focus_request,
-        }
-    }
+    } }
 }
 
 #[derive(Clone)]
@@ -923,10 +921,8 @@ enum PointerOwner {
     Orbit {
         identity: ViewerIdentity,
         pointer_id: i32,
-        last_x: f64,
-        last_y: f64,
-        start_x: f64,
-        start_y: f64,
+        last: (f64, f64),
+        start: (f64, f64),
         moved: bool,
         picked: Option<String>,
     },
@@ -1182,7 +1178,7 @@ fn pointer_point(event: &PointerEvent) -> (f64, f64) {
 }
 
 fn run_host(
-    host: &Rc<RefCell<Option<RendererPageHost>>>,
+    host: &Rc<RefCell<Option<Rc<RendererPageHost>>>>,
     operation: impl FnOnce(&RendererPageHost) -> Result<(), String>,
     status: &mut Signal<String>,
 ) {
@@ -1193,9 +1189,9 @@ fn run_host(
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "shared_viewer_020_tests.rs"]
 mod rust_ui_020_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod projection_tests;

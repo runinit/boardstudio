@@ -106,15 +106,15 @@ pub(super) struct OnKeycapsFindingInput {
     pub workspace: Signal<&'static str>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub body_selection: Signal<Option<case_viewer::BodySelection>>,
-    pub case_selection_for_owner: case_viewer::CaseSelection,
+    pub body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    pub case_selection_for_owner: shared_viewer::CaseSelection,
     pub navigation_alive: Rc<Cell<bool>>,
     pub inspector_settings: Signal<PanelSettings>,
     pub fit_state: Option<keycaps_fit::KeycapsFitState>,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub source_surface: Rc<RefCell<Option<SvgElement>>>,
     pub select_tree: EventHandler<objects::TreeSelectRequest>,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
 }
 
 pub(super) fn on_keycaps_finding_handler(
@@ -226,7 +226,7 @@ pub(super) fn on_keycaps_finding_handler(
                     // Dioxus retains body and layer selections independently; clear an older
                     // layer so the body finding becomes the active, reachable Inspector owner.
                     case_selection_for_owner.clear_layer_for_scope(&scope);
-                    body_selection.set(Some(case_viewer::BodySelection { scope, body_id }));
+                    body_selection.set(Some(shared_viewer::BodySelection { scope, body_id }));
                 }
                 keycaps_navigation::RouteAction::CloseObjects => objects_open.set(false),
                 keycaps_navigation::RouteAction::OpenInspector => inspect_open.set(true),
@@ -271,7 +271,7 @@ pub(super) struct LayoutFindingCallbacksInput {
     pub workspace_routing: WorkspaceRoutingSlots,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub keycaps_navigation_alive: Rc<Cell<bool>>,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
 }
 
@@ -517,7 +517,7 @@ pub(super) struct LayoutFindingResumeInput {
     pub version: Signal<u64>,
     pub runtime: Rc<Runtime>,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
-    pub case_selection: case_viewer::CaseSelection,
+    pub case_selection: shared_viewer::CaseSelection,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub keycaps_navigation_alive: Rc<Cell<bool>>,
     pub keycaps_fit_state: keycaps_fit::KeycapsFitActions,

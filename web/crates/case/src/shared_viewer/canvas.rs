@@ -1,34 +1,70 @@
 use super::*;
 use crate::mechanical_settings;
 
+#[derive(Props, Clone, PartialEq)]
+pub(super) struct ViewportCanvas {
+    pub projection: Rc<RendererSceneProjection>,
+    pub assembly_layers: Vec<crate::presentation::case_assembly_layers::CaseAssemblyLayer>,
+    pub component_layers: Vec<crate::presentation::case_assembly_layers::CaseComponentLayer>,
+    pub selectable_layers: Vec<String>,
+    pub canvas_context: ViewerCanvasContext,
+    pub selected_layer: String,
+    pub selected_reference: Option<String>,
+    pub display: CaseDisplay,
+    pub theme: String,
+    pub owner: Rc<ViewerOwner>,
+    pub current_source: SourceGuard,
+    pub on_signal: EventHandler<ScopedViewerSignal>,
+    pub on_display_change: EventHandler<ScopedDisplayChange>,
+    pub mechanical_settings: Option<crate::presentation::MechanicalSettingsProps>,
+    pub inline_case_controls: bool,
+    pub toolbar_leading: Option<Element>,
+    pub handle_projection: Option<CaseHandleProjection>,
+    pub handles: Vec<ViewerHandle>,
+    pub handle_preview: Option<Vec<ViewerHandle>>,
+    pub gesture_message: Option<String>,
+    pub focus_request: Option<ViewerFocusRequest>,
+}
+
+// The canvas can disappear when a source lease is revoked. Give its WebGL
+// attachment a matching Dioxus lifetime, including when the viewport shows an error.
 #[component]
-pub(super) fn SharedViewer(
-    projection: Rc<RendererSceneProjection>,
-    assembly_layers: Vec<crate::presentation::case_assembly_layers::CaseAssemblyLayer>,
-    component_layers: Vec<crate::presentation::case_assembly_layers::CaseComponentLayer>,
-    selectable_layers: Vec<String>,
-    canvas_context: ViewerCanvasContext,
-    selected_layer: String,
-    selected_reference: Option<String>,
-    display: CaseDisplay,
-    theme: String,
-    owner: Rc<ViewerOwner>,
-    current_source: SourceGuard,
-    on_signal: EventHandler<ScopedViewerSignal>,
-    on_display_change: EventHandler<ScopedDisplayChange>,
-    mechanical_settings: Option<crate::presentation::MechanicalSettingsProps>,
-    inline_case_controls: bool,
-    #[props(default)] toolbar_leading: Option<Element>,
-    handle_projection: Option<CaseHandleProjection>,
-    handles: Vec<ViewerHandle>,
-    handle_preview: Option<Vec<ViewerHandle>>,
-    gesture_message: Option<String>,
-    focus_request: Option<ViewerFocusRequest>,
-) -> Element {
+pub(super) fn MountedCanvas(props: ViewportCanvas) -> Element {
+    use_hook({
+        let owner = props.owner.clone();
+        move || owner.active.set(true)
+    });
+    use_viewport_canvas(props)
+}
+
+pub(super) fn use_viewport_canvas(canvas: ViewportCanvas) -> Element {
+    let ViewportCanvas {
+        projection,
+        assembly_layers,
+        component_layers,
+        selectable_layers,
+        canvas_context,
+        selected_layer,
+        selected_reference,
+        display,
+        theme,
+        owner,
+        current_source,
+        on_signal,
+        on_display_change,
+        mechanical_settings,
+        inline_case_controls,
+        toolbar_leading,
+        handle_projection,
+        handles,
+        handle_preview,
+        gesture_message,
+        focus_request,
+    } = canvas;
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let mut editing_gaskets = use_signal(|| false);
     let mut editing_mounts = use_signal(|| false);
-    let host = use_hook(|| Rc::new(RefCell::new(None::<RendererPageHost>)));
+    let host = use_hook(|| Rc::new(RefCell::new(None::<Rc<RendererPageHost>>)));
     let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
     let live_projection = use_hook(|| Rc::new(RefCell::new(projection.clone())));
     *live_projection.borrow_mut() = projection.clone();
@@ -291,6 +327,7 @@ pub(super) fn SharedViewer(
         projection: projection.clone(),
         host: host.clone(),
         canvas_state: canvas.clone(),
+        pointer: pointer.clone(),
         owner: owner.clone(),
         runtime: runtime.clone(),
         live_projection: live_projection.clone(),
@@ -309,483 +346,56 @@ pub(super) fn SharedViewer(
         editing_gaskets(),
         editing_mounts(),
     );
+    let interaction = super::interaction::ViewportInteraction {
+        host: host.clone(),
+        canvas,
+        pointer,
+        owner: owner.clone(),
+        identity: projection.identity.clone(),
+        source: current_source.clone(),
+        applied: applied_identity,
+        handles: active_handles,
+        handle_projection,
+        on_signal,
+        status,
+    };
     let on_pointer_down = {
-        let handle_projection = handle_projection.clone();
-        let projection = projection.clone();
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
-        let handles = active_handles.clone();
-        let applied_identity = applied_identity.clone();
-        let mut status = status;
+        let interaction = interaction.clone();
         move |event: dioxus::prelude::PointerEvent| {
-            let Some(event) = event.data().try_as_web_event() else {
-                return;
-            };
-            if !owner_is_current(&owner, &projection.identity) || pointer.borrow().is_some() {
-                return;
-            }
-            event.prevent_default();
-            let (x, y) = pointer_point(&event);
-            let host_guard = host.borrow();
-            let Some(host) = host_guard.as_ref() else {
-                return;
-            };
-            let picked = if (current_source.0)()
-                && applied_identity.borrow().as_ref() == Some(&projection.identity)
-            {
-                match host.pick_at_client(x, y) {
-                    Ok(id) => id.filter(|id| !id.is_empty()),
-                    Err(error) => {
-                        status.set(error.clone());
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &projection.identity,
-                            ViewerSignalKind::Failed(error),
-                        );
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-            if let Some(handle) = picked
-                .as_ref()
-                .and_then(|id| handles.iter().find(|handle| &handle.id == id))
-            {
-                let point = match host.point_on_plane_at_client(x, y, handle.z) {
-                    Ok(point) => point,
-                    Err(error) => {
-                        status.set(error.clone());
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &projection.identity,
-                            ViewerSignalKind::Failed(error),
-                        );
-                        return;
-                    }
-                };
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    &projection.identity,
-                    ViewerSignalKind::WorldPoint(point),
-                );
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    &projection.identity,
-                    ViewerSignalKind::HandleGesture {
-                        phase: HandleGesturePhase::Start,
-                        handle_id: handle.id.clone(),
-                        point,
-                    },
-                );
-                *pointer.borrow_mut() = Some(PointerOwner::Handle {
-                    projection: handle_projection.clone(),
-                    identity: projection.identity.clone(),
-                    pointer_id: event.pointer_id(),
-                    z: handle.z,
-                    id: handle.id.clone(),
-                });
-            } else {
-                *pointer.borrow_mut() = Some(PointerOwner::Orbit {
-                    identity: projection.identity.clone(),
-                    pointer_id: event.pointer_id(),
-                    last_x: x,
-                    last_y: y,
-                    start_x: x,
-                    start_y: y,
-                    moved: false,
-                    picked,
-                });
-            }
-            if let Some(canvas) = canvas.borrow().as_ref()
-                && let Err(error) = canvas.set_pointer_capture(event.pointer_id())
-            {
-                status.set(js_error(error));
+            if let Some(event) = event.data().try_as_web_event() {
+                interaction.down(&event);
             }
         }
     };
-
-    let on_wheel = {
-        let projection = projection.clone();
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let mut status = status;
-        move |event: WheelEvent| {
-            if !owner_is_current(&owner, &projection.identity) {
-                return;
-            }
-            let Some(wheel) = event.data().try_as_web_event() else {
-                return;
-            };
-            wheel.prevent_default();
-            let delta = wheel.delta_y();
-            let factor = (delta.signum() * (delta.abs() * 0.001).min(1.0)).exp();
-            let result = host
-                .borrow()
-                .as_ref()
-                .ok_or_else(|| "3D renderer is not mounted".to_owned())
-                .and_then(|host| host.zoom(factor));
-            if let Err(error) = result {
-                status.set(error.clone());
-                if (current_source.0)() {
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &projection.identity,
-                        ViewerSignalKind::Failed(error),
-                    );
-                }
-            }
-        }
-    };
-
     let on_pointer_move = {
-        let projection = projection.clone();
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let applied_identity = applied_identity.clone();
-        let on_signal = on_signal;
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
-        let mut status = status;
+        let interaction = interaction.clone();
         move |event: dioxus::prelude::PointerEvent| {
-            let Some(event) = event.data().try_as_web_event() else {
-                return;
-            };
-            if !owner_is_current(&owner, &projection.identity) {
-                return;
-            }
-            let host_guard = host.borrow();
-            let Some(host) = host_guard.as_ref() else {
-                return;
-            };
-            let (x, y) = pointer_point(&event);
-            let Some(active) =
-                take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity)
-            else {
-                return;
-            };
-            let identity = active.identity().clone();
-            match active {
-                PointerOwner::Orbit {
-                    identity: pointer_identity,
-                    pointer_id,
-                    last_x,
-                    last_y,
-                    start_x,
-                    start_y,
-                    mut moved,
-                    picked,
-                } if pointer_id == event.pointer_id() => {
-                    let delta_x = x - last_x;
-                    let delta_y = y - last_y;
-                    moved |= (x - start_x).abs() + (y - start_y).abs() > 4.0;
-                    if let Err(error) = host.orbit(delta_x, delta_y) {
-                        status.set(error.clone());
-                        if (current_source.0)() {
-                            emit_signal(
-                                &owner,
-                                on_signal,
-                                &identity,
-                                ViewerSignalKind::Failed(error),
-                            );
-                        }
-                    }
-                    *pointer.borrow_mut() = Some(PointerOwner::Orbit {
-                        identity: pointer_identity,
-                        pointer_id,
-                        last_x: x,
-                        last_y: y,
-                        start_x,
-                        start_y,
-                        moved,
-                        picked,
-                    });
-                }
-                PointerOwner::Handle {
-                    identity: pointer_identity,
-                    projection: handle_projection,
-                    pointer_id,
-                    z,
-                    id,
-                } if pointer_id == event.pointer_id() => {
-                    if !(current_source.0)()
-                        || applied_identity.borrow().as_ref() != Some(&identity)
-                    {
-                        release_pointer_capture(&canvas, pointer_id);
-                        return;
-                    }
-                    let point = match host.point_on_plane_at_client(x, y, z) {
-                        Ok(point) => point,
-                        Err(error) => {
-                            status.set(error.clone());
-                            emit_signal(
-                                &owner,
-                                on_signal,
-                                &identity,
-                                ViewerSignalKind::Failed(error),
-                            );
-                            *pointer.borrow_mut() = Some(PointerOwner::Handle {
-                                projection: handle_projection,
-                                identity: pointer_identity,
-                                pointer_id,
-                                z,
-                                id,
-                            });
-                            return;
-                        }
-                    };
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &identity,
-                        ViewerSignalKind::WorldPoint(point),
-                    );
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &identity,
-                        ViewerSignalKind::HandleGesture {
-                            phase: HandleGesturePhase::Move,
-                            handle_id: id.clone(),
-                            point,
-                        },
-                    );
-                    *pointer.borrow_mut() = Some(PointerOwner::Handle {
-                        projection: handle_projection,
-                        identity: pointer_identity,
-                        pointer_id,
-                        z,
-                        id,
-                    });
-                }
-                _ => {}
+            if let Some(event) = event.data().try_as_web_event() {
+                interaction.drag(&event);
             }
         }
     };
-
-    let on_pointer_up = {
-        let projection = projection.clone();
-        let host = host.clone();
-        let owner = owner.clone();
-        let runtime = runtime.clone();
-        let current_source = current_source.clone();
-        let applied_identity = applied_identity.clone();
-        let on_signal = on_signal;
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
+    let finish_pointer = |phase| {
+        let interaction = interaction.clone();
         move |event: dioxus::prelude::PointerEvent| {
-            let Some(event) = event.data().try_as_web_event() else {
-                return;
-            };
-            if !owner_is_current(&owner, &projection.identity) {
-                return;
-            }
-            let active = take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity);
-            let Some(active) = active else {
-                return;
-            };
-            release_pointer_capture(&canvas, event.pointer_id());
-            let identity = active.identity().clone();
-            if identity != projection.identity {
-                return;
-            }
-            match active {
-                PointerOwner::Orbit {
-                    pointer_id,
-                    moved,
-                    picked,
-                    ..
-                } if pointer_id == event.pointer_id() => {
-                    if !moved
-                        && (current_source.0)()
-                        && applied_identity.borrow().as_ref() == Some(&identity)
-                        && runtime.scope().as_ref() == Some(&projection.identity.scope)
-                        && let Some(id) = picked
-                    {
-                        if let Some(host) = host.borrow().as_ref() {
-                            let _ = host.focus_objects(&[]);
-                        }
-                        emit_signal(&owner, on_signal, &identity, ViewerSignalKind::Picked(id));
-                    }
-                }
-                PointerOwner::Handle {
-                    pointer_id, z, id, ..
-                } if pointer_id == event.pointer_id() => {
-                    if !(current_source.0)()
-                        || applied_identity.borrow().as_ref() != Some(&identity)
-                    {
-                        return;
-                    }
-                    if let Some(host) = host.borrow().as_ref() {
-                        let (x, y) = pointer_point(&event);
-                        let point = match host.point_on_plane_at_client(x, y, z) {
-                            Ok(point) => point,
-                            Err(error) => {
-                                emit_signal(
-                                    &owner,
-                                    on_signal,
-                                    &identity,
-                                    ViewerSignalKind::Failed(error),
-                                );
-                                emit_signal(
-                                    &owner,
-                                    on_signal,
-                                    &identity,
-                                    ViewerSignalKind::HandleGesture {
-                                        phase: HandleGesturePhase::Cancel,
-                                        handle_id: id,
-                                        point: None,
-                                    },
-                                );
-                                return;
-                            }
-                        };
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &identity,
-                            ViewerSignalKind::WorldPoint(point),
-                        );
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &identity,
-                            ViewerSignalKind::HandleGesture {
-                                phase: HandleGesturePhase::End,
-                                handle_id: id,
-                                point,
-                            },
-                        );
-                    }
-                }
-                _ => {}
+            if let Some(event) = event.data().try_as_web_event() {
+                interaction.finish(&event, phase);
             }
         }
     };
-
-    let on_pointer_cancel = {
-        let projection = projection.clone();
-        let host = host.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
-        let applied_identity = applied_identity.clone();
-        move |event: dioxus::prelude::PointerEvent| {
-            let Some(event) = event.data().try_as_web_event() else {
-                return;
-            };
-            if !owner_is_current(&owner, &projection.identity) {
-                return;
-            }
-            let active = take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity);
-            let Some(active) = active else {
-                return;
-            };
-            release_pointer_capture(&canvas, event.pointer_id());
-            let identity = active.identity().clone();
-            if identity != projection.identity
-                || !(current_source.0)()
-                || applied_identity.borrow().as_ref() != Some(&identity)
-            {
-                return;
-            }
-            if let PointerOwner::Handle {
-                pointer_id, z, id, ..
-            } = active
-                && pointer_id == event.pointer_id()
-            {
-                let point = if let Some(host) = host.borrow().as_ref() {
-                    let (x, y) = pointer_point(&event);
-                    match host.point_on_plane_at_client(x, y, z) {
-                        Ok(point) => point,
-                        Err(error) => {
-                            emit_signal(
-                                &owner,
-                                on_signal,
-                                &identity,
-                                ViewerSignalKind::Failed(error),
-                            );
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    &identity,
-                    ViewerSignalKind::WorldPoint(point),
-                );
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    &identity,
-                    ViewerSignalKind::HandleGesture {
-                        phase: HandleGesturePhase::Cancel,
-                        handle_id: id,
-                        point,
-                    },
-                );
-            }
-        }
-    };
-
+    let on_pointer_up = finish_pointer(HandleGesturePhase::End);
+    let on_pointer_cancel = finish_pointer(HandleGesturePhase::Cancel);
     let on_key_down = {
-        let projection = projection.clone();
-        let owner = owner.clone();
-        let current_source = current_source.clone();
-        let on_signal = on_signal;
-        let pointer = pointer.clone();
-        let canvas = canvas.clone();
+        let interaction = interaction.clone();
         move |event: KeyboardEvent| {
-            let Some(keyboard) = event.data().try_as_web_event() else {
-                return;
-            };
-            if keyboard.key() != "Escape"
-                || !owner_is_current(&owner, &projection.identity)
-                || !(current_source.0)()
-            {
-                return;
+            if let Some(event) = event.data().try_as_web_event() {
+                interaction.key(&event);
             }
-            let active = pointer.borrow_mut().take();
-            match active {
-                Some(PointerOwner::Handle {
-                    identity,
-                    pointer_id,
-                    id,
-                    ..
-                }) if identity == projection.identity => {
-                    release_pointer_capture(&canvas, pointer_id);
-                    keyboard.prevent_default();
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &identity,
-                        ViewerSignalKind::HandleGesture {
-                            phase: HandleGesturePhase::Cancel,
-                            handle_id: id,
-                            point: None,
-                        },
-                    );
-                }
-                Some(active) => *pointer.borrow_mut() = Some(active),
-                None => {}
-            }
+        }
+    };
+    let on_wheel = move |event: WheelEvent| {
+        if let Some(event) = event.data().try_as_web_event() {
+            interaction.wheel(&event);
         }
     };
 
@@ -833,20 +443,8 @@ pub(super) fn SharedViewer(
 
     let on_pointer_cancel = EventHandler::new(on_pointer_cancel);
     let on_key_down = EventHandler::new(on_key_down);
-    let fit = host.clone();
-    let top = host.clone();
-    let top_for_gaskets = host.clone();
-    let top_for_mounts = host.clone();
-    let bottom = host.clone();
-    let iso = host.clone();
-    let case_fit = host.clone();
-    let case_top = host.clone();
-    let case_bottom = host.clone();
-    let case_iso = host.clone();
-    let left = host.clone();
-    let right = host.clone();
-    let zoom_in = host.clone();
-    let zoom_out = host.clone();
+    let camera =
+        EventHandler::new(move |action: CameraAction| run_host(&host, action, &mut status));
     let assembly_change_display = change_display.clone();
     let selected_support = mechanical_settings.as_ref().and_then(|settings| {
         settings.gasket_supports.iter().find(|support| {
@@ -911,9 +509,6 @@ pub(super) fn SharedViewer(
     let unlink_message = unlink_feedback
         .as_ref()
         .and_then(|feedback| match feedback.state {
-            mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-                Some((false, "Unlinking selected support…".to_owned()))
-            }
             mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
             mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some((
                 true,
@@ -933,7 +528,38 @@ pub(super) fn SharedViewer(
         .is_none_or(|settings| !settings.editable);
     let select_assembly_layer = select_layer.clone();
 
+    let display_mode = view_choices(
+        if inline_case_controls {
+            "Display mode"
+        } else {
+            canvas_context.display_label()
+        },
+        inline_case_controls,
+        transient().mode,
+        [
+            ("Shaded", RenderMode::Shaded),
+            ("Wireframe", RenderMode::Wireframe),
+            ("Hybrid", RenderMode::Hybrid),
+        ],
+        move |mode| transient.with_mut(|view| view.mode = mode),
+    );
+    let assembly_view = view_choices(
+        if inline_case_controls {
+            "Mechanical assembly view"
+        } else {
+            canvas_context.assembly_label()
+        },
+        inline_case_controls,
+        transient().assembly,
+        [
+            ("Assembled", AssemblyView::Assembled),
+            ("Exploded", AssemblyView::Exploded),
+            ("Section", AssemblyView::Section),
+        ],
+        move |assembly| transient.with_mut(|view| view.assembly = assembly),
+    );
     let section_plane = use_memo(move || Some(transient().section_plane.to_owned()));
+    let assembly_adjustments = assembly_adjustments(transient, section_plane, inline_case_controls);
     let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
         CaseAssemblyLayers {
             initially_open: false,
@@ -1036,84 +662,14 @@ pub(super) fn SharedViewer(
                 {toolbar_leading}
                 if inline_case_controls {
                     div { class: "static flex flex-wrap items-center gap-0.5 border-0 bg-transparent p-0", role: "group", "aria-label": "Assembly camera",
-                        Tooltip {
-                            TooltipTrigger { as: move |attributes| { let fit = case_fit.clone(); rsx! {
-                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                    aria_label: "Fit",
-                                    onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
-                                    {viewer_control_icon("Fit")}
-                                }
-                            } } }
-                            TooltipContent { "Fit model" }
-                        }
-                        Tooltip {
-                            TooltipTrigger { as: move |attributes| { let top = case_top.clone(); rsx! {
-                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                    aria_label: "Top",
-                                    onclick: move |_| run_host(&top, |host| host.view("top"), &mut status),
-                                    {viewer_control_icon("Top")}
-                                }
-                            } } }
-                            TooltipContent { "Top view" }
-                        }
-                        Tooltip {
-                            TooltipTrigger { as: move |attributes| { let bottom = case_bottom.clone(); rsx! {
-                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                    aria_label: "Bottom",
-                                    onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status),
-                                    {viewer_control_icon("Bottom")}
-                                }
-                            } } }
-                            TooltipContent { "Bottom view" }
-                        }
-                        Tooltip {
-                            TooltipTrigger { as: move |attributes| { let iso = case_iso.clone(); rsx! {
-                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                    aria_label: "Isometric",
-                                    onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status),
-                                    {viewer_control_icon("Isometric")}
-                                }
-                            } } }
-                            TooltipContent { "Isometric view" }
+                        {camera_button("Fit", "Fit", "Fit model", camera, RendererPageHost::fit)}
+                        for (name, label, action) in CAMERA_VIEWS {
+                            {camera_button(name, name, label, camera, action)}
                         }
                     }
                 }
-
                 if inline_case_controls {
-                    ToggleGroup {
-                        aria_label: "Display mode",
-                        pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
-                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            if let Some(index) = next.iter().next() {
-                                transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
-                            }
-                        },
-                        for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
-                            {
-                                let label = match mode {
-                                    RenderMode::Shaded => "Shaded",
-                                    RenderMode::Wireframe => "Wireframe",
-                                    RenderMode::Hybrid => "Hybrid",
-                                };
-                                rsx! {
-                                    Tooltip {
-                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                                            ToggleItem { index, aria_label: label,
-                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                                attributes,
-                                                {viewer_control_icon(label)}
-                                            }
-                                        } }
-                                        TooltipContent { "{label}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    {display_mode.clone()}
                     ToggleGroup {
                         aria_label: "Hidden lines",
                         pressed: Some(if transient().show_hidden { [0].into_iter().collect() } else { Default::default() }),
@@ -1136,38 +692,7 @@ pub(super) fn SharedViewer(
                             TooltipContent { "Show hidden lines" }
                         }
                     }
-                if show_assembly_controls {
-                    ToggleGroup {
-                        aria_label: "Mechanical assembly view",
-                        pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
-                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                            if let Some(index) = next.iter().next() {
-                                transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
-                            }
-                        },
-                        for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
-                            {
-                                let label = match view {
-                                    AssemblyView::Assembled => "Assembled",
-                                    AssemblyView::Exploded => "Exploded",
-                                    AssemblyView::Section => "Section",
-                                };
-                                rsx! {
-                                    Tooltip {
-                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
-                                            ToggleItem { index, aria_label: label,
-                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                                                attributes,
-                                                {viewer_control_icon(label)}
-                                            }
-                                        } }
-                                        TooltipContent { "{label}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    }
+                    if show_assembly_controls { {assembly_view.clone()} }
                 }
                 if can_edit_gaskets || can_edit_mounts {
                     ToggleGroup {
@@ -1184,11 +709,8 @@ pub(super) fn SharedViewer(
                             if enable_gaskets != editing_gaskets() || enable_mounts != editing_mounts() {
                                 editing_gaskets.set(enable_gaskets);
                                 editing_mounts.set(enable_mounts);
-                                if enable_gaskets {
-                                    run_host(&top_for_gaskets, |host| host.view("top"), &mut status);
-                                }
-                                if enable_mounts {
-                                    run_host(&top_for_mounts, |host| host.view("top"), &mut status);
+                                if enable_gaskets || enable_mounts {
+                                    camera.call(CAMERA_VIEWS[0].2);
                                 }
                             }
                         },
@@ -1240,8 +762,7 @@ pub(super) fn SharedViewer(
                                     identity: identity.clone(),
                                     request_id,
                                     field_id: patch.field_id(),
-                                    patch,
-                                    reviewed_fingerprint: None,
+                                    edit: mechanical_settings::MechanicalSettingsEdit::Change(patch),
                                 });
                             },
                             "Unlink selected support"
@@ -1257,17 +778,7 @@ pub(super) fn SharedViewer(
                     }
                 }
                 if !inline_case_controls {
-                Tooltip {
-                    TooltipTrigger { as: move |attributes| { let fit = fit.clone(); rsx! {
-                        UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
-                            class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
-                            aria_label: canvas_context.fit_label(),
-                            onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
-                            {viewer_control_icon("Fit")}
-                        }
-                    } } }
-                    TooltipContent { "{canvas_context.fit_label()}" }
-                }
+                {camera_button(canvas_context.fit_label(), "Fit", canvas_context.fit_label(), camera, RendererPageHost::fit)}
                 Collapsible { keep_mounted: true,
                     Tooltip {
                         TooltipTrigger { as: move |attributes| rsx! {
@@ -1277,74 +788,16 @@ pub(super) fn SharedViewer(
                     }
                     CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[min(60vh,max(0px,calc(100cqh-5rem)))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
-                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
-            }
-            ToggleGroup {
-                aria_label: canvas_context.display_label(), horizontal: true,
-                pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
-                on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                    if let Some(index) = next.iter().next() {
-                        transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
-                    }
-                },
-                for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
-                    ToggleItem { index, "{mode.renderer_value()}" }
+                for (_, label, action) in CAMERA_VIEWS {
+                    UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| camera.call(action), "{label}" }
+                }
+                for (label, action) in CAMERA_NAVIGATION {
+                    UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| camera.call(action), "{label}" }
                 }
             }
-            ToggleGroup {
-                aria_label: canvas_context.assembly_label(), horizontal: true,
-                pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
-                on_pressed_change: move |next: std::collections::HashSet<usize>| {
-                    if let Some(index) = next.iter().next() {
-                        transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
-                    }
-                },
-                for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
-                    ToggleItem { index, "{view.renderer_value()}" }
-                }
-            }
-            if transient().assembly == AssemblyView::Exploded {
-                Slider {
-                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
-                    value: Some(f64::from(transient().explode_amount)),
-                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
-                }
-            }
-            if transient().assembly == AssemblyView::Section {
-                Field {
-                    Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
-                    Select::<String> {
-                        id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
-                        value: Some(section_plane.into()),
-                        on_value_change: move |value: Option<String>| {
-                            if let Some(value) = value {
-                                transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                            }
-                        },
-                        for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
-                            SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
-                        }
-                    }
-                }
-                Slider {
-                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
-                    value: Some(f64::from(transient().section_position)),
-                    on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
-                }
-                Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
-                    UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show section plane",
-                        checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                        on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
-                    }
-                    "Show section plane"
-                }
-            }
+            {display_mode}
+            {assembly_view}
+            {assembly_adjustments.clone()}
             Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
                 UiCheckbox { id: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), aria_label: "Show hidden lines",
                     checked: Some(if transient().show_hidden { CheckboxState::Checked } else { CheckboxState::Unchecked }),
@@ -1356,43 +809,8 @@ pub(super) fn SharedViewer(
                 }
                 }
             }
-            if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Exploded {
-                Slider {
-                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
-                    value: Some(f64::from(transient().explode_amount)),
-                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
-                }
-            }
-            if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
-                div { class: "flex flex-wrap items-center gap-3 border-b border-border px-2.5 py-1.5",
-                    Field {
-                        Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
-                        Select::<String> {
-                            id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
-                            value: Some(section_plane.into()),
-                            on_value_change: move |value: Option<String>| {
-                                if let Some(value) = value {
-                                    transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                                }
-                            },
-                            for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
-                                SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
-                            }
-                        }
-                    }
-                    Slider {
-                        label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
-                        value: Some(f64::from(transient().section_position)),
-                        on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
-                    }
-                    Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
-                        UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show plane",
-                            checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                            on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
-                        }
-                        "Show plane"
-                    }
-                }
+            if inline_case_controls && show_assembly_controls {
+                {assembly_adjustments}
             }
             div { class: "relative flex min-h-[160px] min-w-0 flex-1 [&>canvas]:h-full [&>canvas]:min-h-0 [&>canvas]:min-w-0 [&>canvas]:w-full [&>canvas]:flex-1 [&>canvas]:border-0",
                 if let Some(reference) = selected_reference.as_deref() {
@@ -1402,6 +820,7 @@ pub(super) fn SharedViewer(
                     style: "width:100%;height:100%;display:block",
                     tabindex: "0", role: "img",
                     "aria-label": "{canvas_context.accessible_name()}",
+                    "data-case-viewer-canvas": (canvas_context == ViewerCanvasContext::Case).then_some("true"),
                     onmounted: mount_host,
                     onpointerdown: on_pointer_down,
                     onpointermove: on_pointer_move,
@@ -1421,5 +840,137 @@ pub(super) fn SharedViewer(
             {docked_layers}
 
         }
+    }
+}
+
+type CameraAction = fn(&RendererPageHost) -> Result<(), String>;
+
+const CAMERA_VIEWS: [(&str, &str, CameraAction); 3] = [
+    ("Top", "Top view", |host| host.view("top")),
+    ("Bottom", "Bottom view", |host| host.view("bottom")),
+    ("Isometric", "Isometric view", |host| host.view("isometric")),
+];
+
+const CAMERA_NAVIGATION: [(&str, CameraAction); 4] = [
+    ("Rotate left", |host| host.orbit(-50.0, 0.0)),
+    ("Rotate right", |host| host.orbit(50.0, 0.0)),
+    ("Zoom in", |host| host.zoom(0.85)),
+    ("Zoom out", |host| host.zoom(1.15)),
+];
+
+const ICON_CONTROL: &str = "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]";
+
+fn camera_button(
+    name: &'static str,
+    icon: &'static str,
+    tooltip: &'static str,
+    camera: EventHandler<CameraAction>,
+    action: CameraAction,
+) -> Element {
+    rsx! {
+        Tooltip {
+            TooltipTrigger { as: move |attributes| rsx! {
+                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                    class: ICON_CONTROL, aria_label: name, onclick: move |_| camera.call(action),
+                    {viewer_control_icon(icon)}
+                }
+            } }
+            TooltipContent { "{tooltip}" }
+        }
+    }
+}
+
+fn view_choices<T: Copy + PartialEq + 'static>(
+    label: &'static str,
+    inline: bool,
+    selected: T,
+    choices: [(&'static str, T); 3],
+    on_change: impl FnMut(T) + 'static,
+) -> Element {
+    let mut on_change = on_change;
+    let pressed = choices.iter().position(|(_, choice)| *choice == selected);
+    rsx! {
+        ToggleGroup {
+            aria_label: label, horizontal: true,
+            pressed: Some(pressed.into_iter().collect()),
+            on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                if let Some((_, choice)) = next.iter().next().and_then(|index| choices.get(*index)) {
+                    on_change(*choice);
+                }
+            },
+            for (index, (name, _)) in choices.into_iter().enumerate() {
+                if inline {
+                    Tooltip {
+                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                            ToggleItem { index, aria_label: name, class: ICON_CONTROL, attributes,
+                                {viewer_control_icon(name)}
+                            }
+                        } }
+                        TooltipContent { "{name}" }
+                    }
+                } else {
+                    ToggleItem { index, "{name.to_ascii_lowercase()}" }
+                }
+            }
+        }
+    }
+}
+
+fn assembly_adjustments(
+    mut transient: Signal<TransientView>,
+    section_plane: Memo<Option<String>>,
+    inline: bool,
+) -> Element {
+    const SLIDER_CLASS: &str = "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1";
+    if transient().assembly == AssemblyView::Exploded {
+        return rsx! {
+            Slider {
+                label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: SLIDER_CLASS,
+                value: Some(f64::from(transient().explode_amount)),
+                on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
+            }
+        };
+    }
+    if transient().assembly != AssemblyView::Section {
+        return rsx! {};
+    }
+    let show_plane = if inline {
+        "Show plane"
+    } else {
+        "Show section plane"
+    };
+    let section = rsx! {
+        Field {
+            Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
+            Select::<String> {
+                id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
+                value: Some(section_plane.into()),
+                on_value_change: move |value: Option<String>| {
+                    if let Some(value) = value {
+                        transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
+                    }
+                },
+                for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
+                    SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
+                }
+            }
+        }
+        Slider {
+            label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: SLIDER_CLASS,
+            value: Some(f64::from(transient().section_position)),
+            on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
+        }
+        Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+            UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: show_plane,
+                checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
+            }
+            "{show_plane}"
+        }
+    };
+    if inline {
+        rsx! { div { class: "flex flex-wrap items-center gap-3 border-b border-border px-2.5 py-1.5", {section} } }
+    } else {
+        section
     }
 }

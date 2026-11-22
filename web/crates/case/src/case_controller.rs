@@ -2,7 +2,7 @@
 //! synchronously through the Runtime.
 use super::case_bodies::{CaseBoardSummary, CaseBodies, CaseMismatch};
 use super::case_body_edit::{CaseBodyEdit, new_case_body};
-use super::case_viewer::{BodySelection, CaseBodyEditDispatch, CaseSelection};
+use super::shared_viewer::{BodySelection, CaseBodyEditDispatch, CaseSelection};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 use boardstudio_model::model::{EditOperation, ProjectDoc};

@@ -46,9 +46,9 @@ fn mounted_host() -> Element {
         }))
     });
     let _ = version();
-    super::super::use_empty_test_instance_selection();
+    crate::use_empty_test_instance_selection();
     crate::test_contexts::use_case_viewer_test_contexts();
-    super::super::use_test_case_generation_state();
+    crate::use_test_case_generation_state();
     let mut mounted = use_signal(|| true);
     let mut cad = use_signal(|| false);
     let instance = use_context::<InstanceSelection>();
@@ -83,9 +83,9 @@ fn mounted_host() -> Element {
         Button { id: "case-caps-unmount", onclick: move |_| mounted.set(false), "Leave Case" }
         if mounted() {
             if cad() {
-                CaseViewer { scene: runtime.cad_scene().unwrap(), preview: runtime.native_case_preview(), model_rows: None, mechanical_settings: None }
+                CaseViewport { scene: runtime.cad_scene(), preview: runtime.native_case_preview(), model_rows: None, mechanical_settings: None }
             } else if let Some(preview) = runtime.native_case_preview() {
-                CasePreviewViewer { preview, model_rows: None }
+                CaseViewport { scene: None, preview: Some(preview), model_rows: None, mechanical_settings: None }
             }
         }
     }

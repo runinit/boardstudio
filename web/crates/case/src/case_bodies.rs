@@ -2,7 +2,7 @@
 //! controller owns admission and commits every `CaseBodyEdit`.
 pub use super::case_body_edit::CaseBodyEdit;
 use super::case_body_edit::{BodyField, MountField};
-use super::case_viewer::{BodySelection, CaseSelection};
+use super::shared_viewer::{BodySelection, CaseSelection};
 use boardstudio_application::Scope;
 use boardstudio_model::model::{CaseBody, CaseKind, Gasket, MountKind};
 use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, NumericField, SelectField};

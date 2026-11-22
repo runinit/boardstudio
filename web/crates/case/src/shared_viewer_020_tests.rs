@@ -34,18 +34,29 @@ fn viewer_fixture(inline_case_controls: bool) -> Element {
             ],
         })
     });
-    rsx! {
-        SharedViewer {
-            projection, owner, assembly_layers: vec![], component_layers: vec![],
-            selectable_layers: vec!["pcb".into(), "plate".into()],
-            canvas_context: ViewerCanvasContext::Parts, selected_layer: "pcb".to_owned(),
-            selected_reference: None, display: CaseDisplay::default(), theme: "light".to_owned(),
-            current_source: SourceGuard(Rc::new(|| false)), on_signal: |_| {},
-            on_display_change: |_| {},
-            mechanical_settings: None, inline_case_controls, handle_projection: None,
-            handles: vec![], handle_preview: None, gesture_message: None, focus_request: None,
-        }
-    }
+    use_viewport_canvas(ViewportCanvas {
+        projection,
+        owner,
+        assembly_layers: vec![],
+        component_layers: vec![],
+        selectable_layers: vec!["pcb".into(), "plate".into()],
+        canvas_context: ViewerCanvasContext::Parts,
+        selected_layer: "pcb".to_owned(),
+        selected_reference: None,
+        display: CaseDisplay::default(),
+        theme: "light".to_owned(),
+        current_source: SourceGuard(Rc::new(|| false)),
+        on_signal: EventHandler::new(|_| {}),
+        on_display_change: EventHandler::new(|_| {}),
+        mechanical_settings: None,
+        inline_case_controls,
+        toolbar_leading: None,
+        handle_projection: None,
+        handles: vec![],
+        handle_preview: None,
+        gesture_message: None,
+        focus_request: None,
+    })
 }
 
 fn fixture() -> Element {

@@ -1,6 +1,4 @@
-//! Candidate production adoption of the accepted P2 renderer attachment lifetime.
-//! The caller supplies neutral provider-derived scenes; the host owns DOM/GPU cleanup.
-//! Production acceptance still requires the M1 renderer and exact-case browser gates.
+//! Packaged renderer initialization and the lifetime of a canvas attachment.
 use js_sys::{Array, Float32Array, Function, Object, Promise, Reflect};
 use std::{
     cell::{Cell, RefCell},
@@ -8,10 +6,21 @@ use std::{
 };
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Event, HtmlCanvasElement, MediaQueryList, ResizeObserver, Window};
+use web_sys::{Event, EventTarget, HtmlCanvasElement, MediaQueryList, ResizeObserver, Window};
 
-pub struct RendererHost {
+#[derive(Debug, PartialEq, Eq)]
+pub enum RendererStatus {
+    Ready,
+    ContextLost,
+    ContextRestored,
+    Error(String),
+}
+
+type StatusCallback = Rc<dyn Fn(RendererStatus)>;
+
+pub struct RendererPageHost {
     inner: Rc<RendererInner>,
+    last_sequence: Cell<u64>,
 }
 
 type EventCallback = Closure<dyn FnMut(Event)>;
@@ -19,58 +28,81 @@ type ObserverCallback = Closure<dyn FnMut(Array, ResizeObserver)>;
 type FrameCallback = Closure<dyn FnMut(f64)>;
 
 struct RendererInner {
-    renderer: JsValue,
+    renderer: RefCell<JsValue>,
+    constructor: RefCell<Option<Function>>,
+    scene: RefCell<JsValue>,
+    state: RefCell<Option<JsValue>>,
+    handles: RefCell<Option<JsValue>>,
     canvas: HtmlCanvasElement,
-    status: Rc<dyn Fn(String)>,
+    status: StatusCallback,
     disposed: Cell<bool>,
     context_lost: Cell<bool>,
     frame_id: Cell<i32>,
     render_submissions: Cell<u32>,
     observer: RefCell<Option<ResizeObserver>>,
     observer_callback: RefCell<Option<ObserverCallback>>,
-    resize_callback: RefCell<Option<EventCallback>>,
+    listeners: RefCell<Vec<Listener>>,
     dpr_query: RefCell<Option<MediaQueryList>>,
     dpr_callback: RefCell<Option<EventCallback>>,
-    context_callback: RefCell<Option<EventCallback>>,
     frame_callback: RefCell<Option<FrameCallback>>,
 }
 
-impl RendererHost {
+struct Listener {
+    target: EventTarget,
+    name: &'static str,
+    callback: EventCallback,
+}
+
+impl RendererInner {
+    fn listen(
+        self: &Rc<Self>,
+        target: &EventTarget,
+        name: &'static str,
+        mut handler: impl FnMut(&Self, Event) + 'static,
+    ) -> Result<(), JsValue> {
+        let weak = Rc::downgrade(self);
+        let callback = EventCallback::new(move |event| {
+            if let Some(inner) = weak.upgrade() {
+                handler(&inner, event);
+            }
+        });
+        target.add_event_listener_with_callback(name, callback.as_ref().unchecked_ref())?;
+        self.listeners.borrow_mut().push(Listener {
+            target: target.clone(),
+            name,
+            callback,
+        });
+        Ok(())
+    }
+
+    fn report_error(&self, error: String) {
+        (self.status)(RendererStatus::Error(error));
+    }
+}
+
+impl RendererPageHost {
     pub async fn mount(
         canvas: HtmlCanvasElement,
         input: JsValue,
-        status: Rc<dyn Fn(String)>,
+        sequence: u64,
+        status: StatusCallback,
         is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<Self, String> {
+    ) -> Result<(Self, bool), String> {
+        if sequence == 0 {
+            return Err("Renderer sequence must be positive".into());
+        }
+        let input = with_scene_sequence(&input, sequence)?;
         ensure_current(&is_current)?;
-        let module_url = resource_url("assets/renderer/boardstudio_renderer_wasm.js")?;
-        let import = Function::new_with_args("url", "return import(url)");
-        let module = import
-            .call1(&JsValue::NULL, &JsValue::from_str(&module_url))
-            .map_err(js_error)?
-            .dyn_into::<Promise>()
-            .map_err(js_error)?;
-        let module = JsFuture::from(module).await.map_err(js_error)?;
+        let module = renderer_module().await?;
         ensure_current(&is_current)?;
-        let init = Reflect::get(&module, &JsValue::from_str("default"))
-            .map_err(js_error)?
-            .dyn_into::<Function>()
+        let constructor = Reflect::get(&module, &"Renderer".into())
+            .and_then(JsCast::dyn_into::<Function>)
             .map_err(js_error)?;
-        let ready = init.call0(&JsValue::NULL).map_err(js_error)?;
-        JsFuture::from(ready.dyn_into::<Promise>().map_err(js_error)?)
-            .await
-            .map_err(js_error)?;
-        ensure_current(&is_current)?;
-
-        let constructor = Reflect::get(&module, &JsValue::from_str("Renderer"))
-            .map_err(js_error)?
-            .dyn_into::<Function>()
-            .map_err(js_error)?;
-        ensure_current(&is_current)?;
-        let arguments = Array::new();
-        arguments.push(&canvas);
-        let renderer = Reflect::construct(&constructor, &arguments).map_err(js_error)?;
-        Self::attach(renderer, canvas, input, status, is_current)
+        let renderer = construct_renderer(&constructor, &canvas).map_err(js_error)?;
+        let (host, accepted) = Self::attach(renderer, canvas, input, status, is_current)?;
+        host.last_sequence.set(sequence);
+        *host.inner.constructor.borrow_mut() = Some(constructor);
+        Ok((host, accepted))
     }
 
     /// Take ownership of an already constructed renderer object. Everything
@@ -79,13 +111,17 @@ impl RendererHost {
         renderer: JsValue,
         canvas: HtmlCanvasElement,
         input: JsValue,
-        status: Rc<dyn Fn(String)>,
+        status: StatusCallback,
         is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<Self, String> {
+    ) -> Result<(Self, bool), String> {
         // From the first allocation onward all fallible initialization is owned
         // by this guard; any failure runs every available cleanup step.
         let inner = Rc::new(RendererInner {
-            renderer,
+            renderer: RefCell::new(renderer),
+            constructor: RefCell::new(None),
+            scene: RefCell::new(JsValue::UNDEFINED),
+            state: RefCell::new(None),
+            handles: RefCell::new(None),
             canvas,
             status,
             disposed: Cell::new(false),
@@ -94,16 +130,18 @@ impl RendererHost {
             render_submissions: Cell::new(0),
             observer: RefCell::new(None),
             observer_callback: RefCell::new(None),
-            resize_callback: RefCell::new(None),
+            listeners: RefCell::new(Vec::new()),
             dpr_query: RefCell::new(None),
             dpr_callback: RefCell::new(None),
-            context_callback: RefCell::new(None),
             frame_callback: RefCell::new(None),
         });
-        let initialized = (|| -> Result<(), String> {
+        let initialized = (|| -> Result<bool, String> {
             ensure_current(&is_current)?;
-            call_method(&inner.renderer, "setScene", &[input]).map_err(js_error)?;
-            call_method(&inner.renderer, "fit", &[]).map_err(js_error)?;
+            let accepted = set_scene(&inner, input)?;
+            if !accepted {
+                return Err("The renderer rejected its initial scene".into());
+            }
+            call_method(&inner.renderer.borrow(), "fit", &[]).map_err(js_error)?;
             install_lifecycle(&inner).map_err(js_error)?;
             resize(&inner).map_err(js_error)?;
             schedule_frame(&inner).map_err(js_error)?;
@@ -112,16 +150,22 @@ impl RendererHost {
                 .canvas
                 .set_attribute("data-renderer-state", "active")
                 .map_err(js_error)?;
-            (inner.status)("Renderer initialized; first render submission queued".to_owned());
-            Ok(())
+            (inner.status)(RendererStatus::Ready);
+            Ok(accepted)
         })();
-        if let Err(error) = initialized {
-            return match dispose(&inner) {
+        match initialized {
+            Ok(accepted) => Ok((
+                Self {
+                    inner,
+                    last_sequence: Cell::new(0),
+                },
+                accepted,
+            )),
+            Err(error) => match dispose(&inner) {
                 Ok(()) => Err(error),
                 Err(cleanup) => Err(format!("{error}; renderer cleanup also failed: {cleanup}")),
-            };
+            },
         }
-        Ok(Self { inner })
     }
 
     pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
@@ -140,52 +184,12 @@ impl RendererHost {
         if self.inner.disposed.get() || self.inner.context_lost.get() {
             return Err("3D view is unavailable; reopen the preview.".into());
         }
-        call_method(&self.inner.renderer, method, arguments).map_err(js_error)?;
+        call_method(&self.inner.renderer.borrow(), method, arguments).map_err(js_error)?;
         schedule_frame(&self.inner).map_err(js_error)
     }
 
     pub fn dispose(&self) -> Result<(), String> {
         dispose(&self.inner)
-    }
-}
-
-impl Drop for RendererHost {
-    fn drop(&mut self) {
-        if let Err(error) = dispose(&self.inner) {
-            (self.inner.status)(format!("Renderer disposal failed: {error}"));
-        }
-    }
-}
-
-/// Page adapter for sequence-checked scenes and interactive renderer operations.
-pub struct RendererPageHost {
-    host: RendererHost,
-    last_sequence: Cell<u64>,
-}
-
-impl RendererPageHost {
-    pub async fn mount(
-        canvas: HtmlCanvasElement,
-        input: JsValue,
-        sequence: u64,
-        status: Rc<dyn Fn(String)>,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<(Self, bool), String> {
-        let initial_sequence = sequence
-            .checked_sub(1)
-            .ok_or_else(|| "Renderer sequence must be positive".to_owned())?;
-        let initial_input = with_scene_sequence(&input, initial_sequence)?;
-        let host = RendererHost::mount(canvas, initial_input, status, is_current).await?;
-        let page_host = Self {
-            host,
-            last_sequence: Cell::new(initial_sequence),
-        };
-        let accepted = page_host.submit_scene(input, sequence)?;
-        Ok((page_host, accepted))
-    }
-
-    pub fn dispose(&self) -> Result<(), String> {
-        self.host.dispose()
     }
 
     pub fn submit_scene(&self, input: JsValue, sequence: u64) -> Result<bool, String> {
@@ -195,44 +199,52 @@ impl RendererPageHost {
         }
         self.last_sequence.set(sequence);
         let input = with_scene_sequence(&input, sequence)?;
-        let accepted = call_method(&self.host.inner.renderer, "setScene", &[input])
-            .map_err(js_error)?
-            .as_bool()
-            .ok_or_else(|| "Renderer setScene returned no scene acceptance result".to_owned())?;
+        let accepted = set_scene(&self.inner, input)?;
         if accepted {
-            schedule_frame(&self.host.inner).map_err(js_error)?;
+            schedule_frame(&self.inner).map_err(js_error)?;
         }
         Ok(accepted)
     }
 
     pub fn set_display_state(&self, state: JsValue) -> Result<(), String> {
         self.ensure_active()?;
-        call_method(&self.host.inner.renderer, "setState", &[state]).map_err(js_error)?;
-        schedule_frame(&self.host.inner).map_err(js_error)
+        call_method(
+            &self.inner.renderer.borrow(),
+            "setState",
+            std::slice::from_ref(&state),
+        )
+        .map_err(js_error)?;
+        *self.inner.state.borrow_mut() = Some(state);
+        schedule_frame(&self.inner).map_err(js_error)
     }
 
     pub fn resize(&self) -> Result<(), String> {
         self.ensure_active()?;
-        resize(&self.host.inner).map_err(js_error)
+        resize(&self.inner).map_err(js_error)
     }
 
     pub fn set_handles(&self, handles: JsValue) -> Result<u32, String> {
         self.ensure_active()?;
-        let count = call_method(&self.host.inner.renderer, "setHandles", &[handles])
-            .map_err(js_error)?
-            .as_f64()
-            .ok_or_else(|| "Renderer returned no handle count".to_owned())?;
+        let count = call_method(
+            &self.inner.renderer.borrow(),
+            "setHandles",
+            std::slice::from_ref(&handles),
+        )
+        .map_err(js_error)?
+        .as_f64()
+        .ok_or_else(|| "Renderer returned no handle count".to_owned())?;
         if !count.is_finite() || !(0.0..=f64::from(u32::MAX)).contains(&count) {
             return Err("Renderer returned an invalid handle count".to_owned());
         }
-        schedule_frame(&self.host.inner).map_err(js_error)?;
+        *self.inner.handles.borrow_mut() = Some(handles);
+        schedule_frame(&self.inner).map_err(js_error)?;
         Ok(count as u32)
     }
 
     pub fn pick_at_client(&self, client_x: f64, client_y: f64) -> Result<Option<String>, String> {
         self.ensure_active()?;
         let (x, y) = self.renderer_coordinates(client_x, client_y)?;
-        let result = call_method(&self.host.inner.renderer, "pick", &[x.into(), y.into()])
+        let result = call_method(&self.inner.renderer.borrow(), "pick", &[x.into(), y.into()])
             .map_err(js_error)?;
         if result.is_null() || result.is_undefined() {
             return Ok(None);
@@ -252,7 +264,7 @@ impl RendererPageHost {
         self.ensure_active()?;
         let (x, y) = self.renderer_coordinates(client_x, client_y)?;
         let value = call_method(
-            &self.host.inner.renderer,
+            &self.inner.renderer.borrow(),
             "pointOnPlane",
             &[x.into(), y.into(), z.into()],
         )
@@ -278,38 +290,26 @@ impl RendererPageHost {
         }
     }
 
-    pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
-        self.host.orbit(delta_x, delta_y)
-    }
-
-    pub fn zoom(&self, factor: f64) -> Result<(), String> {
-        self.host.zoom(factor)
-    }
-
-    pub fn view(&self, preset: &str) -> Result<(), String> {
-        self.host.view(preset)
-    }
-
-    pub fn fit(&self) -> Result<(), String> {
-        self.host.fit()
-    }
-
     pub fn focus_objects(&self, ids: &[String]) -> Result<bool, String> {
         self.ensure_active()?;
         let values = Array::new();
         for id in ids {
             values.push(&JsValue::from_str(id));
         }
-        let focused = call_method(&self.host.inner.renderer, "focusObjects", &[values.into()])
-            .map_err(js_error)?;
-        schedule_frame(&self.host.inner).map_err(js_error)?;
+        let focused = call_method(
+            &self.inner.renderer.borrow(),
+            "focusObjects",
+            &[values.into()],
+        )
+        .map_err(js_error)?;
+        schedule_frame(&self.inner).map_err(js_error)?;
         focused
             .as_bool()
             .ok_or_else(|| "Renderer returned an invalid focus result".to_owned())
     }
 
     fn ensure_active(&self) -> Result<(), String> {
-        if self.host.inner.disposed.get() || self.host.inner.context_lost.get() {
+        if self.inner.disposed.get() || self.inner.context_lost.get() {
             Err("Renderer is no longer active".to_owned())
         } else {
             Ok(())
@@ -321,13 +321,12 @@ impl RendererPageHost {
         if !client_x.is_finite() || !client_y.is_finite() {
             return Err("Pointer coordinates are not finite".to_owned());
         }
-        let rect = self.host.inner.canvas.get_bounding_client_rect();
+        let rect = self.inner.canvas.get_bounding_client_rect();
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return Err("Renderer canvas has no visible area".to_owned());
         }
-        let x = (client_x - rect.left()) * f64::from(self.host.inner.canvas.width()) / rect.width();
-        let y =
-            (client_y - rect.top()) * f64::from(self.host.inner.canvas.height()) / rect.height();
+        let x = (client_x - rect.left()) * f64::from(self.inner.canvas.width()) / rect.width();
+        let y = (client_y - rect.top()) * f64::from(self.inner.canvas.height()) / rect.height();
         if !x.is_finite() || !y.is_finite() {
             return Err("Renderer pointer coordinates are invalid".to_owned());
         }
@@ -335,41 +334,92 @@ impl RendererPageHost {
     }
 }
 
+impl Drop for RendererPageHost {
+    fn drop(&mut self) {
+        if let Err(error) = dispose(&self.inner) {
+            self.inner
+                .report_error(format!("Renderer disposal failed: {error}"));
+        }
+    }
+}
+
 fn with_scene_sequence(input: &JsValue, sequence: u64) -> Result<JsValue, String> {
-    if !input.is_object() || input.is_null() {
-        return Err("Renderer scene update must be an object".to_owned());
+    fn stamp(input: &JsValue, sequence: u64) -> Result<Object, JsValue> {
+        let input = input
+            .dyn_ref::<Object>()
+            .ok_or_else(|| JsValue::from_str("Renderer scene update must be an object"))?;
+        let copy = Object::assign(&Object::new(), input);
+        Reflect::set(&copy, &"revision".into(), &(sequence as f64).into())?;
+        Ok(copy)
     }
-    let output = Object::new();
-    let keys = Object::keys(input.unchecked_ref::<Object>());
-    for index in 0..keys.length() {
-        let key = keys.get(index);
-        let value = Reflect::get(input, &key).map_err(js_error)?;
-        Reflect::set(&output, &key, &value).map_err(js_error)?;
-    }
-    Reflect::set(
-        &output,
-        &"revision".into(),
-        &JsValue::from_f64(sequence as f64),
-    )
-    .map_err(js_error)?;
+    let output = stamp(input, sequence).map_err(js_error)?;
     let board = Reflect::get(input, &"board".into()).map_err(js_error)?;
     if !board.is_null() && !board.is_undefined() {
-        let board_copy = Object::new();
-        let board_keys = Object::keys(board.unchecked_ref::<Object>());
-        for index in 0..board_keys.length() {
-            let key = board_keys.get(index);
-            let value = Reflect::get(&board, &key).map_err(js_error)?;
-            Reflect::set(&board_copy, &key, &value).map_err(js_error)?;
-        }
-        Reflect::set(
-            &board_copy,
-            &"revision".into(),
-            &JsValue::from_f64(sequence as f64),
-        )
-        .map_err(js_error)?;
-        Reflect::set(&output, &"board".into(), &board_copy).map_err(js_error)?;
+        let board = stamp(&board, sequence).map_err(js_error)?;
+        Reflect::set(&output, &"board".into(), &board).map_err(js_error)?;
     }
     Ok(output.into())
+}
+
+thread_local! {
+    static RENDERER_MODULE: RefCell<Option<Promise>> = const { RefCell::new(None) };
+}
+
+pub async fn renderer_module() -> Result<JsValue, String> {
+    let promise = RENDERER_MODULE.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if let Some(promise) = slot.as_ref() {
+            return Ok(promise.clone());
+        }
+        let url = resource_url("assets/renderer/boardstudio_renderer_wasm.js")?;
+        let load = Function::new_with_args(
+            "url",
+            "return import(url).then(async module => { await module.default(); return module; })",
+        );
+        let promise = load
+            .call1(&JsValue::NULL, &url.into())
+            .and_then(JsCast::dyn_into::<Promise>)
+            .map_err(js_error)?;
+        *slot = Some(promise.clone());
+        Ok::<_, String>(promise)
+    })?;
+    let result = JsFuture::from(promise.clone()).await.map_err(js_error);
+    if result.is_err() {
+        RENDERER_MODULE.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            if slot
+                .as_ref()
+                .is_some_and(|cached| Object::is(cached.as_ref(), promise.as_ref()))
+            {
+                slot.take();
+            }
+        });
+    }
+    result
+}
+
+fn construct_renderer(
+    constructor: &Function,
+    canvas: &HtmlCanvasElement,
+) -> Result<JsValue, JsValue> {
+    let args = Array::new();
+    args.push(canvas);
+    Reflect::construct(constructor, &args)
+}
+
+fn set_scene(inner: &RendererInner, input: JsValue) -> Result<bool, String> {
+    let accepted = call_method(
+        &inner.renderer.borrow(),
+        "setScene",
+        std::slice::from_ref(&input),
+    )
+    .map_err(js_error)?
+    .as_bool()
+    .ok_or("Renderer setScene returned no scene acceptance result")?;
+    if accepted {
+        *inner.scene.borrow_mut() = input;
+    }
+    Ok(accepted)
 }
 
 fn ensure_current(is_current: &Rc<dyn Fn() -> bool>) -> Result<(), String> {
@@ -386,7 +436,7 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
         if let Some(inner) = weak.upgrade()
             && let Err(error) = resize(&inner)
         {
-            (inner.status)(format!("Resize failed: {}", js_error(error)));
+            inner.report_error(format!("Resize failed: {}", js_error(error)));
         }
     });
     let observer = ResizeObserver::new(observer_callback.as_ref().unchecked_ref())?;
@@ -394,57 +444,48 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
     *inner.observer.borrow_mut() = Some(observer);
     *inner.observer_callback.borrow_mut() = Some(observer_callback);
 
-    let weak = Rc::downgrade(inner);
-    let resize_callback = Closure::<dyn FnMut(Event)>::new(move |_| {
-        if let Some(inner) = weak.upgrade()
-            && let Err(error) = resize(&inner)
-        {
-            (inner.status)(format!("Resize failed: {}", js_error(error)));
+    inner.listen(window()?.as_ref(), "resize", |inner, _| {
+        if let Err(error) = resize(inner) {
+            inner.report_error(format!("Resize failed: {}", js_error(error)));
         }
-    });
-    window()?
-        .add_event_listener_with_callback("resize", resize_callback.as_ref().unchecked_ref())?;
-    *inner.resize_callback.borrow_mut() = Some(resize_callback);
+    })?;
 
     let weak = Rc::downgrade(inner);
     let dpr_callback = Closure::<dyn FnMut(Event)>::new(move |_| {
         if let Some(inner) = weak.upgrade() {
             if let Err(error) = resize(&inner) {
-                (inner.status)(format!("DPR resize failed: {}", js_error(error)));
+                inner.report_error(format!("DPR resize failed: {}", js_error(error)));
             }
             if let Err(error) = arm_dpr_listener(&inner) {
-                (inner.status)(format!("DPR listener re-arm failed: {}", js_error(error)));
+                inner.report_error(format!("DPR listener re-arm failed: {}", js_error(error)));
             }
         }
     });
     *inner.dpr_callback.borrow_mut() = Some(dpr_callback);
     arm_dpr_listener(inner)?;
 
-    let weak = Rc::downgrade(inner);
-    let context_callback = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+    inner.listen(inner.canvas.as_ref(), "webglcontextlost", |inner, event| {
         event.prevent_default();
-        if let Some(inner) = weak.upgrade() {
-            inner.context_lost.set(true);
-            if let Err(error) = inner
-                .canvas
-                .set_attribute("data-renderer-state", "context-lost")
-            {
-                (inner.status)(format!(
-                    "Context-loss state update failed: {}",
-                    js_error(error)
-                ));
-            }
-            if let Err(error) = cancel_frame(&inner) {
-                (inner.status)(format!("Context loss cleanup failed: {}", js_error(error)));
-            }
-            (inner.status)("WebGL context lost; renderer stopped and reported failure".to_owned());
+        inner.context_lost.set(true);
+        if let Err(error) = inner
+            .canvas
+            .set_attribute("data-renderer-state", "context-lost")
+        {
+            inner.report_error(format!(
+                "Context-loss state update failed: {}",
+                js_error(error)
+            ));
         }
-    });
-    inner.canvas.add_event_listener_with_callback(
-        "webglcontextlost",
-        context_callback.as_ref().unchecked_ref(),
-    )?;
-    *inner.context_callback.borrow_mut() = Some(context_callback);
+        if let Err(error) = cancel_frame(inner) {
+            inner.report_error(format!("Context loss cleanup failed: {}", js_error(error)));
+        }
+        (inner.status)(RendererStatus::ContextLost);
+    })?;
+    inner.listen(inner.canvas.as_ref(), "webglcontextrestored", |inner, _| {
+        if let Err(error) = restore_context(inner) {
+            inner.report_error(format!("WebGL recovery failed: {}", js_error(error)));
+        }
+    })?;
 
     let weak: Weak<RendererInner> = Rc::downgrade(inner);
     let frame_callback = Closure::<dyn FnMut(f64)>::new(move |_| {
@@ -455,7 +496,7 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
             if inner.disposed.get() || inner.context_lost.get() {
                 return;
             }
-            match call_method(&inner.renderer, "render", &[]) {
+            match call_method(&inner.renderer.borrow(), "render", &[]) {
                 Ok(_) => {
                     let submissions = inner.render_submissions.get().saturating_add(1);
                     inner.render_submissions.set(submissions);
@@ -463,7 +504,7 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
                         .canvas
                         .set_attribute("data-render-submissions", &submissions.to_string())
                     {
-                        (inner.status)(format!(
+                        inner.report_error(format!(
                             "Render submission counter failed: {}",
                             js_error(error)
                         ));
@@ -475,17 +516,65 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
                         .canvas
                         .set_attribute("data-renderer-state", "frame-failed")
                     {
-                        (inner.status)(format!(
+                        inner.report_error(format!(
                             "Renderer state update failed: {}",
                             js_error(state_error)
                         ));
                     }
-                    (inner.status)(format!("Renderer submission failed: {}", js_error(error)));
+                    inner.report_error(format!("Renderer submission failed: {}", js_error(error)));
                 }
             }
         }
     });
     *inner.frame_callback.borrow_mut() = Some(frame_callback);
+    Ok(())
+}
+
+fn restore_context(inner: &RendererInner) -> Result<(), JsValue> {
+    if inner.disposed.get() || !inner.context_lost.get() {
+        return Ok(());
+    }
+    let constructor = inner.constructor.borrow();
+    let Some(constructor) = constructor.as_ref() else {
+        return Ok(());
+    };
+    let renderer = construct_renderer(constructor, &inner.canvas)?;
+    let restored = (|| {
+        let scene = inner.scene.borrow();
+        if call_method(&renderer, "setScene", std::slice::from_ref(&*scene))?.as_bool()
+            != Some(true)
+        {
+            return Err(JsValue::from_str("Renderer rejected its restored scene"));
+        }
+        if let Some(state) = inner.state.borrow().as_ref() {
+            call_method(&renderer, "setState", std::slice::from_ref(state))?;
+        }
+        if let Some(handles) = inner.handles.borrow().as_ref() {
+            call_method(&renderer, "setHandles", std::slice::from_ref(handles))?;
+        }
+        call_method(
+            &renderer,
+            "resize",
+            &[inner.canvas.width().into(), inner.canvas.height().into()],
+        )?;
+        call_method(&renderer, "fit", &[])?;
+        Ok(())
+    })();
+    if let Err(error) = restored {
+        let _ = call_method(&renderer, "dispose", &[]);
+        let _ = call_method(&renderer, "free", &[]);
+        return Err(error);
+    }
+    let retired = inner.renderer.replace(renderer);
+    let _ = call_method(&retired, "dispose", &[]);
+    let _ = call_method(&retired, "free", &[]);
+    inner.context_lost.set(false);
+    resize(inner)?;
+    schedule_frame(inner)?;
+    inner
+        .canvas
+        .set_attribute("data-renderer-state", "active")?;
+    (inner.status)(RendererStatus::ContextRestored);
     Ok(())
 }
 
@@ -503,7 +592,11 @@ fn resize(inner: &RendererInner) -> Result<(), JsValue> {
     if inner.canvas.width() != width || inner.canvas.height() != height {
         inner.canvas.set_width(width);
         inner.canvas.set_height(height);
-        call_method(&inner.renderer, "resize", &[width.into(), height.into()])?;
+        call_method(
+            &inner.renderer.borrow(),
+            "resize",
+            &[width.into(), height.into()],
+        )?;
         let count = inner
             .canvas
             .get_attribute("data-resize-count")
@@ -570,12 +663,16 @@ fn dispose(inner: &RendererInner) -> Result<(), String> {
     if let Some(observer) = inner.observer.borrow_mut().take() {
         observer.disconnect();
     }
-    if let Some(callback) = inner.resize_callback.borrow_mut().take() {
-        match window().and_then(|window| {
-            window.remove_event_listener_with_callback("resize", callback.as_ref().unchecked_ref())
-        }) {
-            Ok(()) => {}
-            Err(error) => failures.push(format!("remove resize listener: {}", js_error(error))),
+    for listener in inner.listeners.borrow_mut().drain(..) {
+        if let Err(error) = listener.target.remove_event_listener_with_callback(
+            listener.name,
+            listener.callback.as_ref().unchecked_ref(),
+        ) {
+            failures.push(format!(
+                "remove {} listener: {}",
+                listener.name,
+                js_error(error)
+            ));
         }
     }
     if let Some(query) = inner.dpr_query.borrow_mut().take() {
@@ -589,22 +686,13 @@ fn dispose(inner: &RendererInner) -> Result<(), String> {
             }
         }
     }
-    if let Some(callback) = inner.context_callback.borrow_mut().take() {
-        match inner.canvas.remove_event_listener_with_callback(
-            "webglcontextlost",
-            callback.as_ref().unchecked_ref(),
-        ) {
-            Ok(()) => {}
-            Err(error) => failures.push(format!("remove context listener: {}", js_error(error))),
-        }
-    }
     if let Err(error) = cancel_frame(inner) {
         failures.push(format!("cancel animation frame: {}", js_error(error)));
     }
-    if let Err(error) = call_method(&inner.renderer, "dispose", &[]) {
+    if let Err(error) = call_method(&inner.renderer.borrow(), "dispose", &[]) {
         failures.push(format!("renderer dispose: {}", js_error(error)));
     }
-    if let Err(error) = call_method(&inner.renderer, "free", &[]) {
+    if let Err(error) = call_method(&inner.renderer.borrow(), "free", &[]) {
         failures.push(format!("renderer free: {}", js_error(error)));
     }
     if let Err(error) = release_graphics_context(&inner.canvas) {
@@ -676,7 +764,7 @@ fn window() -> Result<Window, JsValue> {
     web_sys::window().ok_or_else(|| JsValue::from_str("window unavailable"))
 }
 
-fn js_error(error: JsValue) -> String {
+pub fn js_error(error: JsValue) -> String {
     error
         .as_string()
         .or_else(|| {
@@ -717,7 +805,7 @@ mod lifecycle_tests {
                if (name === 'pointOnPlane') { return new Float32Array(); }
                if (name === 'focusObjects') { return false; }
              };
-             return { calls, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
+             return { calls, sceneAcceptance: true, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
                       render: hook('render'), dispose: hook('dispose'), free: hook('free'),
                       zoom: hook('zoom'), orbit: hook('orbit'), view: hook('view'),
                       setState: hook('setState'), setHandles: hook('setHandles'),
@@ -780,7 +868,7 @@ mod lifecycle_tests {
             Function::new_no_args(
                 "if (window.__rendererSpy) { return; }
                  const spy = { entries: [], observers: 0, queries: [], original: {} };
-                 const watched = ['resize', 'change', 'webglcontextlost'];
+                 const watched = ['resize', 'change', 'webglcontextlost', 'webglcontextrestored'];
                  const proto = EventTarget.prototype;
                  spy.original.add = proto.addEventListener;
                  spy.original.remove = proto.removeEventListener;
@@ -878,7 +966,7 @@ mod lifecycle_tests {
         canvas
     }
 
-    type StatusLog = (Rc<dyn Fn(String)>, Rc<RefCell<Vec<String>>>);
+    type StatusLog = (StatusCallback, Rc<RefCell<Vec<RendererStatus>>>);
 
     fn status_log() -> StatusLog {
         let log = Rc::new(RefCell::new(Vec::new()));
@@ -889,15 +977,16 @@ mod lifecycle_tests {
     fn attach(
         renderer: &JsValue,
         canvas: &HtmlCanvasElement,
-        status: Rc<dyn Fn(String)>,
-    ) -> Result<RendererHost, String> {
-        RendererHost::attach(
+        status: StatusCallback,
+    ) -> Result<RendererPageHost, String> {
+        RendererPageHost::attach(
             renderer.clone(),
             canvas.clone(),
             JsValue::from_str("scene"),
             status,
             Rc::new(|| true),
         )
+        .map(|(host, _)| host)
     }
 
     async fn settle() {
@@ -906,10 +995,7 @@ mod lifecycle_tests {
 
     fn page_host(renderer: &JsValue, canvas: &HtmlCanvasElement) -> RendererPageHost {
         let (status, _) = status_log();
-        RendererPageHost {
-            host: attach(renderer, canvas, status).unwrap(),
-            last_sequence: Cell::new(0),
-        }
+        attach(renderer, canvas, status).unwrap()
     }
 
     #[wasm_bindgen_test]
@@ -1108,7 +1194,7 @@ mod lifecycle_tests {
         assert!(
             log.borrow()
                 .iter()
-                .any(|message| message.contains("context lost"))
+                .any(|event| *event == RendererStatus::ContextLost)
         );
 
         // Callers settle with an error instead of waiting on a dead renderer.
@@ -1153,6 +1239,67 @@ mod lifecycle_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn context_restoration_rebuilds_the_current_scene_and_resumes_rendering() {
+        let old = scripted_renderer("");
+        let restored = scripted_renderer("");
+        let canvas = make_canvas();
+        let host = page_host(&old, &canvas);
+        let constructor =
+            Function::new_with_args("renderer", "return function () { return renderer; }")
+                .call1(&JsValue::NULL, &restored)
+                .unwrap()
+                .dyn_into::<Function>()
+                .unwrap();
+        *host.inner.constructor.borrow_mut() = Some(constructor);
+
+        let scene = Object::new();
+        Reflect::set(&scene, &"marker".into(), &"latest".into()).unwrap();
+        assert!(host.submit_scene(scene.into(), 2).unwrap());
+        host.set_display_state(Object::new().into()).unwrap();
+        host.set_handles(Array::new().into()).unwrap();
+        canvas
+            .dispatch_event(&Event::new("webglcontextlost").unwrap())
+            .unwrap();
+        assert!(host.zoom(1.1).is_err());
+        canvas
+            .dispatch_event(&Event::new("webglcontextrestored").unwrap())
+            .unwrap();
+        settle().await;
+
+        assert_eq!(state(&canvas).as_deref(), Some("active"));
+        assert_eq!(calls(&old, "free"), 1);
+        for method in [
+            "setScene",
+            "setState",
+            "setHandles",
+            "resize",
+            "fit",
+            "render",
+        ] {
+            assert_eq!(calls(&restored, method), 1, "{method}");
+        }
+        let call_log = Reflect::get(&restored, &"calls".into()).unwrap();
+        let args = Reflect::get(&call_log, &"args".into()).unwrap();
+        let scene = Array::from(&Reflect::get(&args, &"setScene".into()).unwrap()).get(0);
+        let scene = Array::from(&scene).get(0);
+        assert_eq!(
+            Reflect::get(&scene, &"marker".into())
+                .unwrap()
+                .as_string()
+                .as_deref(),
+            Some("latest")
+        );
+        assert_eq!(
+            Reflect::get(&scene, &"revision".into()).unwrap().as_f64(),
+            Some(2.0)
+        );
+        host.zoom(1.1).unwrap();
+        host.dispose().unwrap();
+        assert_eq!(calls(&restored, "free"), 1);
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn render_submission_error_marks_the_host_failed_and_settles_callers() {
         let renderer = scripted_renderer("render");
         let canvas = make_canvas();
@@ -1163,7 +1310,7 @@ mod lifecycle_tests {
         assert!(
             log.borrow()
                 .iter()
-                .any(|message| message.contains("Renderer submission failed"))
+                .any(|event| matches!(event, RendererStatus::Error(message) if message.contains("Renderer submission failed")))
         );
         assert!(host.zoom(1.1).unwrap_err().contains("unavailable"));
         let renders = calls(&renderer, "render");
@@ -1232,7 +1379,7 @@ mod lifecycle_tests {
         let (status, _) = status_log();
         let checks = Rc::new(Cell::new(0u32));
         let counter = checks.clone();
-        let result = RendererHost::attach(
+        let result = RendererPageHost::attach(
             renderer.clone(),
             canvas.clone(),
             JsValue::from_str("scene"),

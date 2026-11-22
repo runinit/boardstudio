@@ -3,9 +3,7 @@ use crate::case_gesture_math::{
     MountMoveConstraints, mount_radius, move_case_mount, move_gasket_support,
     supports_equal_positions,
 };
-use crate::mechanical_settings;
 
-#[derive(Clone)]
 pub(super) enum CaseGestureDraft {
     Gasket {
         support_id: String,
@@ -22,13 +20,44 @@ pub(super) enum CaseGestureDraft {
     },
 }
 
+impl CaseGestureDraft {
+    fn move_to(&mut self, point: Vec2) -> bool {
+        match self {
+            Self::Gasket {
+                support_id,
+                before,
+                pending,
+                tracks,
+            } => {
+                if let Some(next) = move_gasket_support(point, support_id, before, tracks) {
+                    *pending = next;
+                    return true;
+                }
+            }
+            Self::Mount {
+                mount_id,
+                before,
+                pending,
+                constraints,
+                ..
+            } => {
+                if let Some(next) = move_case_mount(point, mount_id, before, constraints) {
+                    *pending = next;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 #[derive(Clone)]
 pub(super) enum CaseMountTarget {
     Mechanical(mechanical_settings::MechanicalMountCollection),
     Authored { body_id: String },
 }
 
-pub(super) fn case_viewer_handles(
+pub(super) fn editable_handles(
     scene: &CadScene,
     settings: Option<&mechanical_settings::MechanicalSettingsProps>,
     authored_mounts_editable: bool,
@@ -71,7 +100,7 @@ pub(super) fn case_viewer_handles(
     }
 
     if let (Some(settings), Some(assembly)) = (settings, scene.mechanical.as_ref())
-        && let Some(values) = settings.values.as_ref()
+        && let Some(values) = settings.configuration.as_ref()
     {
         if values.mount != MechanicalMount::Gasket {
             let target_body = if values.mount == MechanicalMount::Rigid {
@@ -86,7 +115,7 @@ pub(super) fn case_viewer_handles(
                     .find(|layer| layer.id == target_body)
                     .map(|layer| layer.z + 0.8)
                     .unwrap_or(0.8);
-                handles.extend(values.suspension_mounts.iter().map(|mount| {
+                handles.extend(values.mounts.iter().map(|mount| {
                     mount_handle(
                         mount,
                         z,
@@ -261,12 +290,12 @@ pub(super) fn handle_case_gesture(
                     mount_id,
                 } => {
                     let Some(settings) = settings else { return };
-                    let Some(values) = settings.values.as_ref() else {
+                    let Some(values) = settings.configuration.as_ref() else {
                         return;
                     };
                     let before = match collection {
                         mechanical_settings::MechanicalMountCollection::Suspension => {
-                            values.suspension_mounts.clone()
+                            values.mounts.clone()
                         }
                         mechanical_settings::MechanicalMountCollection::Closure => {
                             values.closure_mounts.clone().unwrap_or_default()
@@ -337,70 +366,52 @@ pub(super) fn handle_case_gesture(
             let Some(point) = point.map(world_xy) else {
                 return;
             };
-            let Some(current) = gesture.borrow().clone() else {
-                return;
-            };
-            let mut valid_point = false;
-            match current {
-                CaseGestureDraft::Gasket {
-                    support_id,
-                    before,
-                    pending,
-                    tracks,
-                } => {
-                    if let Some(next) = move_gasket_support(point, &support_id, &before, &tracks) {
-                        valid_point = true;
-                        *gesture.borrow_mut() = Some(CaseGestureDraft::Gasket {
-                            support_id,
-                            before,
-                            pending: next.clone(),
-                            tracks,
-                        });
-                        preview.set(Some(gasket_handles(handles, &next, None)));
-                        message.set(Some(
-                            "Release to place; fit is checked after placement.".into(),
-                        ));
-                    } else {
-                        preview.set(Some(gasket_handles(handles, &pending, Some(&support_id))));
-                        message.set(Some("No valid gasket perimeter position here.".into()));
-                    }
-                }
-                CaseGestureDraft::Mount {
-                    target,
-                    mount_id,
-                    before,
-                    pending,
-                    constraints,
-                } => {
-                    if let Some(next) = move_case_mount(point, &mount_id, &before, &constraints) {
-                        valid_point = true;
-                        *gesture.borrow_mut() = Some(CaseGestureDraft::Mount {
-                            target: target.clone(),
-                            mount_id,
-                            before,
-                            pending: next.clone(),
-                            constraints,
-                        });
-                        preview.set(Some(mount_handles(handles, &target, &next, None)));
-                        message.set(Some("Release to save mount position.".into()));
-                    } else {
-                        preview.set(Some(mount_handles(
+            let (handle_overlay, guidance, provisional) = {
+                let mut gesture = gesture.borrow_mut();
+                let Some(draft) = gesture.as_mut() else {
+                    return;
+                };
+                let valid = draft.move_to(point);
+                let (overlay, guidance) = match draft {
+                    CaseGestureDraft::Gasket {
+                        support_id,
+                        pending,
+                        ..
+                    } => (
+                        gasket_handles(handles, pending, (!valid).then_some(support_id.as_str())),
+                        if valid {
+                            "Release to place; fit is checked after placement."
+                        } else {
+                            "No valid gasket perimeter position here."
+                        },
+                    ),
+                    CaseGestureDraft::Mount {
+                        target,
+                        mount_id,
+                        pending,
+                        ..
+                    } => (
+                        mount_handles(
                             handles,
-                            &target,
-                            &pending,
-                            Some(&mount_id),
-                        )));
-                        message.set(Some(
+                            target,
+                            pending,
+                            (!valid).then_some(mount_id.as_str()),
+                        ),
+                        if valid {
+                            "Release to save mount position."
+                        } else {
                             "Placement blocked by the case edge, openings, or another mount."
-                                .into(),
-                        ));
-                    }
-                }
-            }
-            if valid_point
-                && live_preview
-                && let Some(draft) = gesture.borrow().clone()
-                && let Some(document) = case_gesture_preview_document(scene, &draft)
+                        },
+                    ),
+                };
+                let provisional = (valid && live_preview)
+                    .then(|| case_gesture_preview_document(scene, draft))
+                    .flatten();
+                (overlay, guidance, provisional)
+            };
+            preview.set(Some(handle_overlay));
+            message.set(Some(guidance.into()));
+            if let Some(document) = provisional
                 && let Some(owner) = runtime.update_case_gesture_preview(
                     scene.scope.clone(),
                     scene.token,
@@ -415,55 +426,17 @@ pub(super) fn handle_case_gesture(
             if let Some(owner) = draft_preview_owner.borrow_mut().take() {
                 runtime.cancel_case_gesture_preview(&owner);
             }
+            let current = gesture.borrow_mut().take();
+            preview.set(None);
             if !identity_current {
-                *gesture.borrow_mut() = None;
-                preview.set(None);
                 message.set(None);
                 return;
-            };
-            let Some(current) = gesture.borrow().clone() else {
-                return;
-            };
-            let current = if let Some(point) = point.map(world_xy) {
-                match current {
-                    CaseGestureDraft::Gasket {
-                        support_id,
-                        before,
-                        tracks,
-                        ..
-                    } => move_gasket_support(point, &support_id, &before, &tracks).map(|pending| {
-                        CaseGestureDraft::Gasket {
-                            support_id,
-                            before,
-                            pending,
-                            tracks,
-                        }
-                    }),
-                    CaseGestureDraft::Mount {
-                        target,
-                        mount_id,
-                        before,
-                        constraints,
-                        ..
-                    } => move_case_mount(point, &mount_id, &before, &constraints).map(|pending| {
-                        CaseGestureDraft::Mount {
-                            target,
-                            mount_id,
-                            before,
-                            pending,
-                            constraints,
-                        }
-                    }),
-                }
-            } else {
-                Some(current)
-            };
-            let Some(current) = current else {
-                *gesture.borrow_mut() = None;
-                preview.set(None);
+            }
+            let Some(mut current) = current else { return };
+            if point.is_some_and(|point| !current.move_to(world_xy(point))) {
                 message.set(Some("Blocked move was not saved.".into()));
                 return;
-            };
+            }
             let mut body_edit = None;
             let patch = match current {
                 CaseGestureDraft::Gasket {
@@ -547,8 +520,6 @@ pub(super) fn handle_case_gesture(
             } else {
                 message.set(None);
             }
-            *gesture.borrow_mut() = None;
-            preview.set(None);
         }
         HandleGesturePhase::Cancel => {
             if let Some(owner) = draft_preview_owner.borrow_mut().take() {
@@ -576,9 +547,6 @@ pub(super) fn direct_gesture_message(
         .rev()
         .find(|entry| entry.field_id == field_id)?;
     match feedback.state {
-        mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-            Some("Saving position…".into())
-        }
         mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
         mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some(
             feedback
@@ -608,8 +576,7 @@ fn submit_settings_patch(
             identity: settings.identity.clone(),
             request_id,
             field_id,
-            patch,
-            reviewed_fingerprint: None,
+            edit: mechanical_settings::MechanicalSettingsEdit::Change(patch),
         });
     true
 }

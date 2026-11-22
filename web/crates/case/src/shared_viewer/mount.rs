@@ -1,9 +1,11 @@
 use super::*;
+use boardstudio_web_host::renderer_host::RendererStatus;
 
 pub(super) struct RendererMount {
     pub(super) projection: Rc<RendererSceneProjection>,
-    pub(super) host: Rc<RefCell<Option<RendererPageHost>>>,
+    pub(super) host: Rc<RefCell<Option<Rc<RendererPageHost>>>>,
     pub(super) canvas_state: Rc<RefCell<Option<HtmlCanvasElement>>>,
+    pub(super) pointer: Rc<RefCell<Option<PointerOwner>>>,
     pub(super) owner: Rc<ViewerOwner>,
     pub(super) runtime: Rc<crate::runtime::Runtime>,
     pub(super) live_projection: Rc<RefCell<Rc<RendererSceneProjection>>>,
@@ -21,6 +23,7 @@ impl RendererMount {
             projection,
             host,
             canvas_state,
+            pointer,
             owner,
             runtime,
             live_projection,
@@ -51,6 +54,8 @@ impl RendererMount {
             };
             *canvas_state.borrow_mut() = Some(element.clone());
             let host = host.clone();
+            let pointer = pointer.clone();
+            let canvas_state = canvas_state.clone();
             let owner = owner.clone();
             let runtime = runtime.clone();
             let live_projection = live_projection.clone();
@@ -98,14 +103,40 @@ impl RendererMount {
                     let report_applied = applied_identity.clone();
                     let report_request_identity = request.identity.clone();
                     let report_status = status;
+                    let report_pointer = pointer.clone();
+                    let report_canvas = canvas_state.clone();
                     let status_callback =
-                        Rc::new(move |message: String| {
+                        Rc::new(move |event: RendererStatus| {
+                            if !report_owner.active.get() {
+                                return;
+                            }
+                            let mut mounted = mounted;
+                            if event == RendererStatus::ContextLost {
+                                mounted.set(false);
+                                let pointer = report_pointer.borrow_mut().take();
+                                if let Some(pointer) = pointer {
+                                    release_pointer_capture(&report_canvas, pointer.pointer_id());
+                                    if let PointerOwner::Handle { identity, id, .. } = pointer {
+                                        emit_signal(
+                                            &report_owner,
+                                            on_signal,
+                                            &identity,
+                                            ViewerSignalKind::HandleGesture {
+                                                phase: HandleGesturePhase::Cancel,
+                                                handle_id: id,
+                                                point: None,
+                                            },
+                                        );
+                                    }
+                                }
+                            } else if event == RendererStatus::ContextRestored {
+                                mounted.set(true);
+                            }
                             let identity = report_applied
                                 .borrow()
                                 .clone()
                                 .unwrap_or_else(|| report_request_identity.clone());
-                            if !owner_is_current(&report_owner, &identity)
-                                || report_runtime.scope().as_ref() != Some(&identity.scope)
+                            if report_runtime.scope().as_ref() != Some(&identity.scope)
                                 || !(report_source.borrow().0)()
                                 || !report_runtime.model().accepted.as_ref().is_some_and(
                                     |snapshot| snapshot.token == identity.snapshot_token,
@@ -113,22 +144,24 @@ impl RendererMount {
                             {
                                 return;
                             }
-                            let kind = if message.to_ascii_lowercase().contains("context lost") {
-                                ViewerSignalKind::Lifecycle(ViewerLifecycle::ContextLost)
-                            } else if message.contains("initialized") {
-                                ViewerSignalKind::Lifecycle(ViewerLifecycle::Ready)
-                            } else if message.to_ascii_lowercase().contains("failed") {
-                                ViewerSignalKind::Failed(message.clone())
-                            } else {
-                                return;
+                            let (kind, message) = match event {
+                                RendererStatus::Ready | RendererStatus::ContextRestored => (
+                                    ViewerSignalKind::Lifecycle(ViewerLifecycle::Ready),
+                                    "3D preview ready.".into(),
+                                ),
+                                RendererStatus::ContextLost => (
+                                    ViewerSignalKind::Lifecycle(ViewerLifecycle::ContextLost),
+                                    "WebGL context lost. Waiting for 3D recovery…".into(),
+                                ),
+                                RendererStatus::Error(message) => {
+                                    (ViewerSignalKind::Failed(message.clone()), message)
+                                }
                             };
                             let mut report_status = report_status;
-                            report_status.set(message);
-                            on_signal.call(ScopedViewerSignal {
-                                identity,
-                                kind,
-                                owner: Rc::downgrade(&report_owner),
-                            });
+                            if owner_is_current(&report_owner, &identity) {
+                                report_status.set(message);
+                                emit_signal(&report_owner, on_signal, &identity, kind);
+                            }
                         });
                     #[cfg(any(test, feature = "test-support"))]
                     let injected_mount_error = take_renderer_mount_error_for_test();
@@ -148,7 +181,7 @@ impl RendererMount {
                     };
                     match mount_result {
                         Ok((renderer, accepted)) if is_current() => {
-                            *host.borrow_mut() = Some(renderer);
+                            *host.borrow_mut() = Some(Rc::new(renderer));
                             applied_sequence.set(request.identity.renderer_sequence);
                             if accepted {
                                 *applied_identity.borrow_mut() = Some(request.identity.clone());

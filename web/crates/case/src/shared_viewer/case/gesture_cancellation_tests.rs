@@ -218,9 +218,9 @@ fn mounted_case_viewer() -> Element {
         }));
     });
     let _ = version();
-    super::super::use_empty_test_instance_selection();
+    crate::use_empty_test_instance_selection();
     crate::test_contexts::use_case_viewer_test_contexts();
-    super::super::use_test_case_generation_state();
+    crate::use_test_case_generation_state();
     let mut selection = use_context::<CaseSelection>();
     use_hook(move || selection.body_edit_portal.editable.set(true));
     let original = use_context::<Rc<CadScene>>();
@@ -231,7 +231,7 @@ fn mounted_case_viewer() -> Element {
     let restore = runtime.clone();
     let instance = use_context::<InstanceSelection>();
     rsx! {
-        style { {include_str!("../../../../assets/workbench-base.css")} }
+        style { {include_str!("../../../../../assets/workbench-base.css")} }
         Button { id: "case-gesture-scope", onclick: move |_| {
             instance.reconcile(away_source.scope.session_epoch, away_source.scope.document_id.clone(), "alternate".into());
             navigate.submit(Event::Navigate {
@@ -264,8 +264,8 @@ fn mounted_case_viewer() -> Element {
             mounted.set(true);
         }, "Return to Case viewer" }
         if mounted() {
-            CaseViewer {
-                scene: scene(),
+            CaseViewport {
+                scene: Some(scene()),
                 preview: None,
                 model_rows: None,
                 mechanical_settings: None,
