@@ -225,7 +225,11 @@ impl Session {
         }
         if failed && let Some(operation) = self.close_operation.take() {
             self.model.lifecycle = Lifecycle::Ready;
-            self.reject(operation, "save failed before close", effects);
+            self.settle(
+                operation,
+                TerminalOutcome::PersistenceFailed("save failed before close".into()),
+                effects,
+            );
         }
     }
 

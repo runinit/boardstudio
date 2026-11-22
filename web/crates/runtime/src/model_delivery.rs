@@ -7,6 +7,7 @@
 use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
+#[cfg(any(test, target_arch = "wasm32"))]
 use boardstudio_application::SnapshotToken;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference, ModuleModelPlacement, PcbModel, ProjectDoc};
@@ -51,11 +52,13 @@ pub type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'stat
 /// sequence while remaining attached to this exact Case projection.
 #[derive(Clone)]
 pub struct ModelOwnerIdentity {
+    #[cfg(any(test, target_arch = "wasm32"))]
     token: SnapshotToken,
     source: Weak<dyn ModelSourceLease>,
 }
 
 impl ModelOwnerIdentity {
+    #[cfg(any(test, target_arch = "wasm32"))]
     pub(crate) fn capture(token: SnapshotToken, source: Rc<dyn ModelSourceLease>) -> Self {
         Self {
             token,
@@ -63,6 +66,7 @@ impl ModelOwnerIdentity {
         }
     }
 
+    #[cfg(any(test, target_arch = "wasm32"))]
     pub(crate) fn is_current(&self, token: SnapshotToken) -> bool {
         self.token == token && self.is_active()
     }

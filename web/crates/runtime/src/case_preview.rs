@@ -381,6 +381,7 @@ impl NativePreviewState {
                 .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
     }
 
+    #[cfg(any(test, target_arch = "wasm32"))]
     pub(crate) fn current_error(
         &self,
         is_current: impl FnOnce(&CasePreviewOwnerIdentity) -> bool,
@@ -640,14 +641,14 @@ mod capture_error_tests {
         });
         let snapshot = runtime.model().accepted.unwrap();
         let scope = runtime.scope().unwrap();
-        let error = capture_native_preview(&snapshot, &scope, 1, 1, "capture".into())
+        let error = capture_native_preview(&snapshot, &scope, 1, "capture".into())
             .err()
             .unwrap();
         assert!(
             error.contains("Imported board asset is unavailable"),
             "{error}"
         );
-        let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, 1, "capture".into());
+        let owner = CasePreviewOwnerIdentity::capture(&snapshot, &scope, 1, "capture".into());
         let state = NativePreviewState {
             error: Some((owner, error.clone())),
             ..Default::default()

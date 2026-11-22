@@ -339,10 +339,10 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     assert_eq!(replies.borrow().len(), 1);
     {
         let failed = &replies.borrow()[0];
-        assert_eq!(failed.request_id, "raw-preview-missing");
-        assert_eq!(failed.job_id, "job-missing");
-        assert_eq!(failed.identity, identity);
-        assert_eq!(failed.operation, CadOperation::Preview);
+        assert_eq!(failed.header.request_id, "raw-preview-missing");
+        assert_eq!(failed.header.job_id, "job-missing");
+        assert_eq!(failed.header.identity, identity);
+        assert_eq!(failed.header.operation, CadOperation::Preview);
         assert_eq!(failed.outcome, CadReplyOutcome::Failed);
         assert!(
             failed
@@ -384,7 +384,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     }
     assert!(!queue.borrow().active);
     assert_eq!(replies.borrow().len(), 2);
-    assert_eq!(replies.borrow()[1].request_id, "raw-preview-case");
+    assert_eq!(replies.borrow()[1].header.request_id, "raw-preview-case");
     assert_eq!(replies.borrow()[1].outcome, CadReplyOutcome::Completed);
 
     let keycap = boardstudio_model::model::KeycapSpec {
@@ -433,6 +433,6 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     }
     assert!(!queue.borrow().active);
     assert_eq!(replies.borrow().len(), 3);
-    assert_eq!(replies.borrow()[2].request_id, "raw-preview-keycaps");
+    assert_eq!(replies.borrow()[2].header.request_id, "raw-preview-keycaps");
     assert_eq!(replies.borrow()[2].outcome, CadReplyOutcome::Completed);
 }

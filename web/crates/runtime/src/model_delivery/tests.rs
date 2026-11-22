@@ -147,6 +147,7 @@ fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
 
     let lease: Rc<dyn ModelSourceLease> = Rc::new(TestLease);
     let owner = ModelOwnerIdentity::capture(SnapshotToken(1), lease.clone());
+    assert!(owner.is_current(SnapshotToken(1)) && !owner.is_current(SnapshotToken(2)));
     let rows = block_on(adapter.deliver_models(&models, &assets, &ports, &owner, live()))
         .expect("current model batch completes");
 

@@ -1,7 +1,12 @@
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::{ArchiveEntry, ArchiveReply, ArchiveRequest, Asset, ProjectDoc};
+#[cfg(any(test, target_arch = "wasm32"))]
+use boardstudio_model::model::ArchiveReply;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_model::model::ArchiveEntry;
+use boardstudio_model::model::{ArchiveRequest, Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn pack_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
 ) -> Result<Vec<u8>, String> {

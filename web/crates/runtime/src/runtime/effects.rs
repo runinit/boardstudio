@@ -164,12 +164,16 @@ impl Runtime {
                 self.record_report(report);
             }
             if same_lifecycle && !snapshot_changed && self.scope() == previous_scope {
-                if (next_durability != durability || has_report)
-                    && let Some(notify) = self.notify_durability.borrow().as_ref().cloned()
-                {
-                    notify();
+                if next_durability != durability {
+                    let notify = self.notify_durability.borrow().clone();
+                    if let Some(notify) = notify {
+                        notify();
+                    }
+                    return effects;
                 }
-                return effects;
+                if !has_report {
+                    return effects;
+                }
             }
         }
         self.refresh_after_session(previous_scope, previous_snapshot);

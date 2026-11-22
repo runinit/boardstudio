@@ -116,17 +116,19 @@ fn preparation(id: &str) -> WireRequest {
     let body: boardstudio_model::model::PreparedCaseIR =
         serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
     WireRequest {
-        request_id: id.into(),
-        job_id: id.into(),
-        identity: CadSnapshotIdentity {
-            token: 11,
-            session_epoch: 2,
-            document_id: "contract-document".into(),
-            board_id: "contract-board".into(),
-            instance_id: None,
-            revision: body.revision,
+        header: CadEnvelope {
+            request_id: id.into(),
+            job_id: id.into(),
+            identity: CadSnapshotIdentity {
+                token: 11,
+                session_epoch: 2,
+                document_id: "contract-document".into(),
+                board_id: "contract-board".into(),
+                instance_id: None,
+                revision: body.revision,
+            },
+            operation: CadOperation::AnalyzeGeneratedBody,
         },
-        operation: CadOperation::AnalyzeGeneratedBody,
         generated_analysis_request: Some(CadGeneratedAnalysisRequest {
             body_id: body.body.id.clone(),
             geometry_identity: generated_geometry_identity(&body).unwrap(),
@@ -159,7 +161,7 @@ async fn prepare(
 
 fn query(asset: &CadGeneratedAnalysis) -> WireRequest {
     let mut request = preparation("query");
-    request.operation = CadOperation::CollisionQuery;
+    request.header.operation = CadOperation::CollisionQuery;
     request.prepared = None;
     request.generated_analysis_request = None;
     let binding: qualification::Binding = serde_json::from_value(
@@ -249,7 +251,7 @@ async fn owned_provider_handle_survives_original_buffer_transfer_and_qualifies_o
     ));
     assert_eq!(
         report.binding.snapshot,
-        qualification::Snapshot::from(&request.identity)
+        qualification::Snapshot::from(&request.header.identity)
     );
     assert_eq!(report.binding.worker_generation, queue.borrow().generation);
     assert_eq!(count(&module, "queries"), 1.);
@@ -263,7 +265,7 @@ async fn owned_provider_handle_survives_original_buffer_transfer_and_qualifies_o
                     .unwrap()
                     .left_triangle_face_occurrence_indices[0] += 1
             }
-            2 => bad.identity.board_id.push('x'),
+            2 => bad.header.identity.board_id.push('x'),
             3 => {
                 bad.collision_query
                     .as_mut()
@@ -390,7 +392,7 @@ async fn evidence_eviction_cost_refusal_cancel_stale_and_restart_never_resurrect
     ));
     assert!(restarted.borrow().evidence.is_empty());
     restarted.borrow_mut().cancelled.clear();
-    let mut latest = preparation("latest").identity;
+    let mut latest = preparation("latest").header.identity;
     latest.token += 1;
     restarted.borrow_mut().latest_snapshot = Some(latest);
     assert!(
@@ -452,14 +454,14 @@ async fn worker_context_keeps_full_u64_snapshot_token_and_session_epoch() {
     let queue = Rc::new(RefCell::new(WorkerQueue::default()));
     let module = controlled_provider(false);
     let mut preparation = preparation("lossless");
-    preparation.identity.token = u64::MAX;
-    preparation.identity.session_epoch = u64::MAX - 1;
+    preparation.header.identity.token = u64::MAX;
+    preparation.header.identity.session_epoch = u64::MAX - 1;
     let (_, result) = run_request(&queue, &module, preparation.clone(), vec![])
         .await
         .unwrap_or_else(|(_, e, _)| panic!("{e}"));
     let asset = decode_result(result).unwrap().generated_analysis.unwrap();
     let mut request = query(&asset);
-    request.identity = preparation.identity;
+    request.header.identity = preparation.header.identity;
     let (_, result) = run_request(&queue, &module, request, vec![])
         .await
         .unwrap_or_else(|(_, e, _)| panic!("{e}"));
@@ -499,7 +501,7 @@ async fn post_failure_and_pinned_eviction_release_only_their_own_handles() {
         .borrow_mut()
         .lookup(
             operand,
-            &request.identity,
+            &request.header.identity,
             &meshes.left_positions_mm_f64,
             &meshes.left_triangle_face_occurrence_indices,
         )
@@ -517,7 +519,7 @@ async fn post_failure_and_pinned_eviction_release_only_their_own_handles() {
     assert_eq!(count(&module, "frees"), 2.);
     let restored = prepare(&queue, &module, "restored").await;
     let query = query(&restored);
-    queue.borrow_mut().cancelled.insert(query.job_id.clone());
+    queue.borrow_mut().cancelled.insert(query.header.job_id.clone());
     assert!(run_request(&queue, &module, query, vec![]).await.is_err());
     assert_eq!(
         queue.borrow().evidence.len(),
@@ -539,7 +541,7 @@ async fn authenticated_step_bytes_bind_owned_unknown_evidence_and_immutable_sour
     let queue = Rc::new(RefCell::new(WorkerQueue::default()));
     let module = controlled_provider(false);
     let mut request = preparation("vendor");
-    request.operation = CadOperation::ReadStep;
+    request.header.operation = CadOperation::ReadStep;
     request.prepared = None;
     request.generated_analysis_request = None;
     request.source_sha256 = Some("a".repeat(64));
@@ -609,11 +611,11 @@ async fn authenticated_step_bytes_bind_owned_unknown_evidence_and_immutable_sour
             analysis_mesh: asset.analysis_mesh.clone(),
         }
     };
-    request.operation = CadOperation::CollisionQuery;
+    request.header.operation = CadOperation::CollisionQuery;
     request.source_sha256 = None;
     request.step_import_options = None;
-    request.identity.revision += 1;
-    request.identity.token += 1;
+    request.header.identity.revision += 1;
+    request.header.identity.token += 1;
     request.collision_query = Some(CadCollisionQuery {
         left: make_operand("left", 0.),
         right: make_operand("right", 3.),
@@ -631,7 +633,7 @@ async fn authenticated_step_bytes_bind_owned_unknown_evidence_and_immutable_sour
         .await
         .unwrap_or_else(|(_, e, _)| panic!("{e}"));
     assert!(decode_result(result).unwrap().collision.is_some());
-    request.identity.board_id.push('x');
+    request.header.identity.board_id.push('x');
     assert!(
         run_request(&queue, &module, request, vec![]).await.is_err(),
         "a STEP lease cannot cross scope"
@@ -650,7 +652,7 @@ async fn aggregate_provider_cost_evicts_without_freeing_an_inflight_pin() {
         .borrow_mut()
         .lookup(
             &request.collision_query.as_ref().unwrap().left,
-            &request.identity,
+            &request.header.identity,
             &meshes.left_positions_mm_f64,
             &meshes.left_triangle_face_occurrence_indices,
         )

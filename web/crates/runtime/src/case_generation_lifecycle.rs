@@ -8,7 +8,9 @@ use boardstudio_application::{GenerationStatus, Scope, SnapshotToken};
 use boardstudio_model::model::{ProjectDoc, SceneDelta};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, rc::Rc};
+use std::collections::BTreeSet;
+#[cfg(any(test, target_arch = "wasm32"))]
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct CadScene {
@@ -23,6 +25,7 @@ pub struct CadScene {
     pub contours: Vec<boardstudio_model::model::Contour>,
 }
 
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) fn current_cad_scene(
     cached: &mut Option<Rc<CadScene>>,
     current_scope: &Scope,
