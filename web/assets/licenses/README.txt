@@ -9,6 +9,13 @@ distributed under the Apache License 2.0, whose text is in Apache-2.0.txt:
 - parry3d-f64 0.31.1. Source: https://github.com/dimforge/parry
 - manifold-rust 0.16.0. Source: https://crates.io/crates/manifold-rust/0.16.0
 
+Inflector 0.11.4 (Copyright 2017 Josh Teeter) is used by step-p21 under
+BSD-2-Clause. See Inflector-BSD-2-Clause.txt.
+
+clipper2-rust 1.2.0 (Clipper2 by Angus Johnson, Rust port by Lars Brubaker
+and contributors) is used by manifold-rust under the Boost Software License
+1.0. See clipper2-rust-BSL-1.0.txt.
+
 Keycap lettering embeds DejaVu Sans outlines. The Bitstream Vera and Arev
 notices, including the public-domain DejaVu changes, are in
 fonts/dejavu-LICENSE.txt. Source: https://dejavu-fonts.github.io/
