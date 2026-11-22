@@ -6,7 +6,6 @@
 //! Modules that only run in the browser are `wasm32`-only; the rest also compile
 //! natively so their unit tests run under `cargo test`. The real Session/Core native
 //! Runtime exists only in test and test-support builds.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 pub mod archive_export {
     pub fn archive_filename(project_name: &str) -> String {

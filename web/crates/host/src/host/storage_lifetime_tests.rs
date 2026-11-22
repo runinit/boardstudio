@@ -75,7 +75,7 @@ async fn normal_completion_is_saved_and_detaches_handlers() {
     assert!(transaction.onabort().is_none());
     database.close();
     assert_eq!(
-        load_value(&database_name, ASSET_STORE, "key".into())
+        load_value(&BrowserStore::new(&database_name).unwrap(), ASSET_STORE, "key".into())
             .await
             .unwrap()
             .unwrap()
@@ -117,7 +117,7 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
     assert!(transaction.onabort().is_none());
     database.close();
     assert!(
-        load_value(&database_name, ASSET_STORE, "key".into())
+        load_value(&BrowserStore::new(&database_name).unwrap(), ASSET_STORE, "key".into())
             .await
             .unwrap()
             .is_none()

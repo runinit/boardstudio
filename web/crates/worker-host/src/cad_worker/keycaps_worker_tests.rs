@@ -57,15 +57,14 @@ async fn keycaps_print_uses_a_distinct_operation_and_one_fused_body() {
       self.postMessage({kind:'ready'});
       self.onmessage = event => {
         const input = JSON.parse(event.data.frame);
-        const correct = input.operation === 'print-keycaps';
-        const replyOperation = input.requestId === 'print-stale' ? 'preview' : input.operation;
-        const frame = JSON.stringify({requestId:input.requestId,jobId:input.jobId,
-          identity:input.identity,operation:replyOperation,outcome:correct?'completed':'failed',
+        const correct = input.header.operation === 'print-keycaps';
+        const replyOperation = input.header.requestId === 'print-stale' ? 'preview' : input.header.operation;
+        const frame = JSON.stringify({header: {...input.header, operation:replyOperation},outcome:correct?'completed':'failed',
           error:correct?null:'Print must not use preview identity'});
-        const result = {revision:input.identity.revision,step:new Uint8Array(),mesh:null,
+        const result = {revision:input.header.identity.revision,step:new Uint8Array(),mesh:null,
           bodies:[{id:'keycap:key-1',name:'A1',positions:new Float32Array([0,0,0,1,0,0,0,1,0]),
             normals:new Float32Array([0,0,1,0,0,1,0,0,1])}],bounds:null};
-        if(input.requestId === 'print-truncated') {
+        if(input.header.requestId === 'print-truncated') {
           result.bodies[0].positions = new Float32Array([0,0,0]);
           result.bodies[0].normals = new Float32Array([0,0,1]);
         }
@@ -118,12 +117,9 @@ async fn keycaps_worker_failure_late_reply_stale_revision_and_retry_are_correlat
         self.postMessage({ kind: "ready" });
         self.onmessage = (event) => {
           const input = JSON.parse(event.data.frame);
-          const respond = (outcome, error, bodyId, revision = input.identity.revision) => {
+          const respond = (outcome, error, bodyId, revision = input.header.identity.revision) => {
             const frame = JSON.stringify({
-              requestId: input.requestId,
-              jobId: input.jobId,
-              identity: input.identity,
-              operation: input.operation,
+              header: input.header,
               outcome,
               error,
             });
@@ -131,20 +127,20 @@ async fn keycaps_worker_failure_late_reply_stale_revision_and_retry_are_correlat
               revision,
               step: new Uint8Array([73, 83, 79, 45, 49, 48, 51, 48, 51, 45, 50, 49, 59]),
               mesh: null,
-              bodies: input.operation === "preview"
+              bodies: input.header.operation === "preview"
                 ? [{ id: bodyId, name: "test cap", positions: new Float32Array([0, 0, 0]), normals: new Float32Array([0, 0, 1]) }]
                 : [],
               bounds: null,
             };
             self.postMessage({ kind: "reply", frame, result });
           };
-          if (input.requestId === "keycaps-preview-old") {
+          if (input.header.requestId === "keycaps-preview-old") {
             respond("failed", "injected preview provider failure", "keycap:key-1");
             setTimeout(() => respond("completed", null, "keycap:late-old"), 25);
-          } else if (input.requestId === "keycaps-preview-current") {
+          } else if (input.header.requestId === "keycaps-preview-current") {
             setTimeout(() => respond("completed", null, "keycap:key-1"), 60);
-          } else if (input.requestId === "keycaps-preview-stale") {
-            respond("completed", null, "", input.identity.revision + 1);
+          } else if (input.header.requestId === "keycaps-preview-stale") {
+            respond("completed", null, "", input.header.identity.revision + 1);
           }
         };
         "#,
@@ -220,17 +216,14 @@ async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replie
         self.postMessage({ kind: "ready" });
         self.onmessage = (event) => {
           const input = JSON.parse(event.data.frame);
-          if (input.operation === "read-step") {
+          if (input.header.operation === "read-step") {
             const frame = JSON.stringify({
-              requestId: input.requestId,
-              jobId: input.jobId,
-              identity: input.identity,
-              operation: input.operation,
+              header: input.header,
               outcome: "completed",
               error: null,
             });
             const result = {
-              revision: input.identity.revision,
+              revision: input.header.identity.revision,
               step: new Uint8Array(),
               mesh: {
                 positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
@@ -288,19 +281,16 @@ async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replie
               },
             };
             self.postMessage({ kind: "reply", frame, result });
-          } else if (input.operation === "collision-query") {
+          } else if (input.header.operation === "collision-query") {
             const leftTags = new Uint32Array(event.data.leftTags);
             const rightTags = new Uint32Array(event.data.rightTags);
             const frame = JSON.stringify({
-              requestId: input.requestId,
-              jobId: input.jobId,
-              identity: input.identity,
-              operation: input.operation,
+              header: input.header,
               outcome: "completed",
               error: null,
             });
             const result = {
-              revision: input.identity.revision,
+              revision: input.header.identity.revision,
               step: new Uint8Array(),
               mesh: null,
               bodies: [],
@@ -321,7 +311,7 @@ async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replie
             const q = input.collisionQuery;
             const unknown = () => ({state:'unknown',reasons:['evidence-unavailable']});
             result.queryQualification = {version:1,algorithm:'aabb-interval-exact-v1',limits:q.qualificationLimits,
-              binding:{snapshotRevision:input.identity.revision,snapshot:{...input.identity,token:String(input.identity.token),sessionEpoch:String(input.identity.sessionEpoch)},
+              binding:{snapshotRevision:input.header.identity.revision,snapshot:{...input.header.identity,token:String(input.header.identity.token),sessionEpoch:String(input.header.identity.sessionEpoch)},
                 workerGeneration:q.left.analysisRef.workerGeneration,leftModelId:q.left.modelId,rightModelId:q.right.modelId,
                 leftMeshIdentity:q.left.analysisRef.meshIdentity,rightMeshIdentity:q.right.analysisRef.meshIdentity,
                 leftAnalysis:q.left.analysisRef,rightAnalysis:q.right.analysisRef,leftMesh:q.left.analysisMesh,rightMesh:q.right.analysisMesh,

@@ -27,7 +27,6 @@ pub fn install(runtime: &Runtime, session: Session, _core: boardstudio_core::Cor
 /// Route saves into the in-process memory store. Requires `install` to have run.
 pub fn install_memory_persistence(runtime: &Runtime) {
     installed(runtime).use_memory_saves();
-    test_hooks::clear_saved_tokens(runtime);
 }
 
 /// Install the in-process adapters with memory saves and open `document` through the real

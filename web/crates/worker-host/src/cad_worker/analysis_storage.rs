@@ -13,12 +13,12 @@ fn worker_metadata_storage(
         &descriptor.version,
         &descriptor.mesh_identity,
         &descriptor.source_proof,
-        &request.identity.document_id,
-        &request.identity.board_id,
-        &request.request_id,
-        &request.job_id,
+        &request.header.identity.document_id,
+        &request.header.identity.board_id,
+        &request.header.request_id,
+        &request.header.job_id,
     ];
-    if let Some(instance) = &request.identity.instance_id {
+    if let Some(instance) = &request.header.identity.instance_id {
         strings.push(instance);
     }
     match &reference.source {
@@ -153,9 +153,9 @@ pub(super) fn stage_analysis(
         reference,
         descriptor,
         source: report,
-        scope: request.identity.clone(),
-        task: request.request_id.clone(),
-        job: request.job_id.clone(),
+        scope: request.header.identity.clone(),
+        task: request.header.request_id.clone(),
+        job: request.header.job_id.clone(),
         retained_bytes,
         positions,
         tags,

@@ -213,6 +213,7 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
         target_deflection_mm: Some(0.01),
     };
     let mut request = WireRequest {
+        header: CadEnvelope {
         request_id: "analysis-1".into(),
         job_id: "analysis-1".into(),
         identity: CadSnapshotIdentity {
@@ -224,6 +225,7 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
             revision: 7,
         },
         operation: CadOperation::AnalyzeGeneratedBody,
+        },
         prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
             revision: 7,
             bodies: vec![body],
@@ -257,7 +259,7 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
     let failed = run_request(&queue, &module, request.clone(), vec![]).await;
     assert!(matches!(failed, Err((_, reason, false)) if reason.contains("identity")));
     request.generated_analysis_request = Some(metadata);
-    queue.borrow_mut().cancelled.insert(request.job_id.clone());
+    queue.borrow_mut().cancelled.insert(request.header.job_id.clone());
     assert!(matches!(
         run_request(&queue, &module, request.clone(), vec![]).await,
         Err((_, _, true))
@@ -305,10 +307,12 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         revision: 7,
     };
     let missing_frame = serde_json::json!({
-        "requestId": "raw-preview-missing",
-        "jobId": "job-missing",
-        "identity": identity,
-        "operation": "preview",
+        "header": {
+            "requestId": "raw-preview-missing",
+            "jobId": "job-missing",
+            "identity": identity,
+            "operation": "preview",
+        },
         "prepared": null
     })
     .to_string();
@@ -316,7 +320,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &missing_frame, None),
+        worker_message("request", &missing_frame),
     )
     .unwrap();
     yield_to_worker().await;
@@ -356,10 +360,12 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     )
     .unwrap();
     let case_frame = serde_json::json!({
-        "requestId": "raw-preview-case",
-        "jobId": "job-case",
-        "identity": identity,
-        "operation": "preview",
+        "header": {
+            "requestId": "raw-preview-case",
+            "jobId": "job-case",
+            "identity": identity,
+            "operation": "preview",
+        },
         "prepared": { "revision": 7, "bodies": [body] }
     })
     .to_string();
@@ -367,7 +373,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &case_frame, None),
+        worker_message("request", &case_frame),
     )
     .unwrap();
     for _ in 0..4 {
@@ -403,10 +409,12 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         legend_color: "#202124".into(),
     };
     let keycap_frame = serde_json::json!({
-        "requestId": "raw-preview-keycaps",
-        "jobId": "job-keycaps",
-        "identity": identity,
-        "operation": "preview",
+        "header": {
+            "requestId": "raw-preview-keycaps",
+            "jobId": "job-keycaps",
+            "identity": identity,
+            "operation": "preview",
+        },
         "keycaps": { "revision": 7, "specs": [keycap] }
     })
     .to_string();
@@ -414,7 +422,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &keycap_frame, None),
+        worker_message("request", &keycap_frame),
     )
     .unwrap();
     for _ in 0..4 {

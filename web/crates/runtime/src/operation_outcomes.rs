@@ -24,11 +24,26 @@ pub(crate) fn observed_outcome(
     })
 }
 
+#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+pub(crate) fn commit_result(
+    outcome: Option<TerminalOutcome>,
+    accepted: impl FnOnce() -> Option<boardstudio_application::AcceptedSnapshot>,
+) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+    match outcome {
+        Some(TerminalOutcome::Completed) => {
+            accepted().ok_or_else(|| "No accepted keyboard after the edit.".into())
+        }
+        Some(TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason)) =>
+            Err(reason),
+        Some(outcome) => Err(format!("The change could not be applied: {outcome:?}")),
+        None => Err("The change did not complete synchronously.".into()),
+    }
+}
+
 pub type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
 /// Presentation of a resolved edit's Session outcome.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Settlement {
-    Pending,
     Landed { revision: u64 },
     Failed { message: String },
     Retired,
@@ -46,10 +61,6 @@ pub struct EditOutcome {
 impl EditOutcome {
     pub fn operation(&self) -> OperationId {
         self.operation
-    }
-
-    pub fn is_pending(&self) -> bool {
-        false
     }
 
     pub fn settlement(&self, owner_is_live: bool) -> Settlement {
@@ -157,11 +168,6 @@ fn settlement_of(
         }
         TerminalOutcome::Rejected(reason) => Settlement::Failed {
             message: format!("The {subject} change was refused: {reason}"),
-        },
-        TerminalOutcome::BlockedByRecovery(reason) => Settlement::Failed {
-            message: format!(
-                "The {subject} change was refused while saving is in recovery: {reason}"
-            ),
         },
         TerminalOutcome::PersistenceFailed(reason) => Settlement::Failed {
             message: format!(

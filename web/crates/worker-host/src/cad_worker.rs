@@ -54,24 +54,27 @@ impl fmt::Display for CadWorkerError {
 impl std::error::Error for CadWorkerError {}
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WireReply {
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CadEnvelope {
     request_id: String,
     job_id: String,
     identity: CadSnapshotIdentity,
     operation: CadOperation,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WireReply {
+    header: CadEnvelope,
     outcome: CadReplyOutcome,
     #[serde(default)]
     error: Option<String>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct WireRequest {
-    request_id: String,
-    job_id: String,
-    identity: CadSnapshotIdentity,
-    operation: CadOperation,
+    header: CadEnvelope,
     prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
     #[serde(default)]
     source_sha256: Option<String>,
@@ -94,10 +97,7 @@ struct WireRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RequestEnvelope {
-    request_id: String,
-    job_id: String,
-    identity: CadSnapshotIdentity,
-    operation: CadOperation,
+    header: CadEnvelope,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -110,10 +110,7 @@ struct KeycapsInput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct KeycapsCadRequest {
-    request_id: String,
-    job_id: String,
-    identity: CadSnapshotIdentity,
-    operation: CadOperation,
+    header: CadEnvelope,
     keycaps: KeycapsInput,
 }
 
@@ -217,34 +214,37 @@ impl CadWorker {
         request: CadRequest,
         packaged_step: bool,
     ) -> Result<CadReply, CadWorkerError> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Frame<'a> {
-            #[serde(flatten)]
-            request: &'a CadRequest,
-            packaged_step: bool,
-        }
         validate_request(&request)?;
         self.ready().await?;
-        let frame = if packaged_step {
-            serde_json::to_string(&Frame {
-                request: &request,
-                packaged_step,
-            })
-        } else {
-            serde_json::to_string(&request)
-        }
-        .map_err(|error| CadWorkerError(error.to_string()))?;
+        let wire = WireRequest {
+            header: CadEnvelope {
+                request_id: request.request_id,
+                job_id: request.job_id,
+                identity: request.identity,
+                operation: request.operation,
+            },
+            prepared: request.prepared,
+            source_sha256: request.source_sha256,
+            step_import_options: request.step_import_options,
+            collision_query: request.collision_query,
+            generated_analysis_request: request.generated_analysis_request,
+            keycaps: None,
+            collision_meshes: request.collision_meshes,
+            input_bytes: request.input_bytes,
+            packaged_step,
+        };
+        let frame = serde_json::to_string(&wire)
+            .map_err(|error| CadWorkerError(error.to_string()))?;
         let reply = self
             .request_frame_with_payloads(
-                &request.request_id,
+                &wire.header.request_id,
                 &frame,
-                &request.input_bytes,
-                request.collision_meshes.as_ref(),
+                &wire.input_bytes,
+                wire.collision_meshes.as_ref(),
             )
             .await;
         if reply.is_err() {
-            let _ = self.cancel(&request.job_id);
+            let _ = self.cancel(&wire.header.job_id);
         }
         reply
     }
@@ -303,10 +303,12 @@ impl CadWorker {
             .collect::<Vec<_>>();
         let revision = identity.revision;
         let frame = serde_json::to_string(&KeycapsCadRequest {
-            request_id: request_id.clone(),
-            job_id: job_id.clone(),
-            identity: identity.clone(),
-            operation,
+            header: CadEnvelope {
+                request_id: request_id.clone(),
+                job_id: job_id.clone(),
+                identity: identity.clone(),
+                operation,
+            },
             keycaps: KeycapsInput { revision, specs },
         })
         .map_err(|error| CadWorkerError(error.to_string()))?;
@@ -677,7 +679,7 @@ fn receive(state: &Rc<RefCell<ClientState>>, data: JsValue) {
             let sender = state
                 .borrow_mut()
                 .pending
-                .remove(&wire.request_id)
+                .remove(&wire.header.request_id)
                 .map(|pending| pending.sender);
             if let Some(sender) = sender {
                 let result = if wire.outcome == CadReplyOutcome::Completed {
@@ -690,10 +692,10 @@ fn receive(state: &Rc<RefCell<ClientState>>, data: JsValue) {
                     Ok(None)
                 };
                 let reply = result.map(|result| CadReply {
-                    request_id: wire.request_id,
-                    job_id: wire.job_id,
-                    identity: wire.identity,
-                    operation: wire.operation,
+                    request_id: wire.header.request_id,
+                    job_id: wire.header.job_id,
+                    identity: wire.header.identity,
+                    operation: wire.header.operation,
                     outcome: wire.outcome,
                     result,
                     error: wire.error,
@@ -744,7 +746,7 @@ pub fn start_cad_worker(
         let module = match initialize_cad_module(&cad_module_url).await {
             Ok(module) => Rc::new(module),
             Err(error) => {
-                let _ = target.post_message(&worker_message("init-failed", &error, None));
+                let _ = target.post_message(&worker_message("init-failed", &error));
                 return;
             }
         };
@@ -764,7 +766,7 @@ pub fn start_cad_worker(
         });
         target.set_onmessage(Some(callback.as_ref().unchecked_ref()));
         callback.forget();
-        let _ = target.post_message(&worker_message("ready", "", None));
+        let _ = target.post_message(&worker_message("ready", ""));
     });
     Ok(())
 }
@@ -863,7 +865,7 @@ impl WorkerQueue {
             || self
                 .pending
                 .iter()
-                .any(|(request, _)| request.job_id == job)
+                .any(|(request, _)| request.header.job_id == job)
         {
             self.cancelled.insert(job.into());
         }
@@ -987,38 +989,30 @@ fn receive_worker_message(
             return post_reply(
                 scope,
                 WireReply {
-                    request_id: envelope.request_id,
-                    job_id: envelope.job_id,
-                    identity: envelope.identity,
-                    operation: envelope.operation,
+                    header: envelope.header,
                     outcome: CadReplyOutcome::Failed,
                     error: Some(error.to_string()),
-                }
-                .into(),
+                },
                 None,
                 Array::new(),
             );
         }
     };
-    if let Some(message) = keycap_operation_error(&request.operation, request.keycaps.is_some()) {
+    if let Some(message) = keycap_operation_error(&request.header.operation, request.keycaps.is_some()) {
         return post_reply(
             scope,
             WireReply {
-                request_id: request.request_id,
-                job_id: request.job_id,
-                identity: request.identity,
-                operation: request.operation,
+                header: request.header,
                 outcome: CadReplyOutcome::Failed,
                 error: Some(message.into()),
-            }
-            .into(),
+            },
             None,
             Array::new(),
         );
     }
     if let Some(keycaps) = request.keycaps.as_ref()
         && (request.prepared.is_some()
-            || keycaps.revision != request.identity.revision
+            || keycaps.revision != request.header.identity.revision
             || keycaps.specs.is_empty()
             || keycaps.specs.len() > MAX_KEYCAPS_PER_REQUEST)
     {
@@ -1026,18 +1020,14 @@ fn receive_worker_message(
             "Keycap CAD input does not match its captured revision",
         ));
     }
-    if request.identity.revision > crate::cad_jobs::MAX_CAD_REVISION {
+    if request.header.identity.revision > crate::cad_jobs::MAX_CAD_REVISION {
         return post_reply(
             scope,
             WireReply {
-                request_id: request.request_id,
-                job_id: request.job_id,
-                identity: request.identity,
-                operation: request.operation,
+                header: request.header,
                 outcome: CadReplyOutcome::Failed,
                 error: Some("CAD revision is outside the exact JavaScript integer range".into()),
-            }
-            .into(),
+            },
             None,
             Array::new(),
         );
@@ -1048,21 +1038,17 @@ fn receive_worker_message(
     {
         request.input_bytes = Uint8Array::new(&buffer).to_vec();
     }
-    if request.operation == CadOperation::CollisionQuery {
+    if request.header.operation == CadOperation::CollisionQuery {
         match decode_query_buffers(&data) {
             Ok(meshes) => request.collision_meshes = Some(meshes),
             Err(error) => {
                 return post_reply(
                     scope,
                     WireReply {
-                        request_id: request.request_id,
-                        job_id: request.job_id,
-                        identity: request.identity,
-                        operation: request.operation,
+                        header: request.header,
                         outcome: CadReplyOutcome::Failed,
                         error: Some(error),
-                    }
-                    .into(),
+                    },
                     None,
                     Array::new(),
                 );
@@ -1075,21 +1061,21 @@ fn receive_worker_message(
         if queue
             .pending
             .iter()
-            .any(|(item, _)| item.request_id == request.request_id)
-            || queue.active_request.as_ref() == Some(&request.request_id)
+            .any(|(item, _)| item.header.request_id == request.header.request_id)
+            || queue.active_request.as_ref() == Some(&request.header.request_id)
         {
             return Err(JsValue::from_str("duplicate in-flight CAD request id"));
         }
         if queue
             .latest_snapshot
             .as_ref()
-            .is_some_and(|old| !same_scope(old, &request.identity))
+            .is_some_and(|old| !same_scope(old, &request.header.identity))
         {
             queue.evidence.clear();
             queue.evidence_recency.clear();
             queue.retained_bytes = 0;
         }
-        queue.latest_snapshot = Some(request.identity.clone());
+        queue.latest_snapshot = Some(request.header.identity.clone());
         queue.pending.push_back((request, input_bytes));
     }
     pump_worker(queue.clone(), scope.clone(), module.clone());
@@ -1157,8 +1143,8 @@ fn pump_worker(
         match queue.pending.pop_front() {
             Some(request) => {
                 queue.active = true;
-                queue.active_job = Some(request.0.job_id.clone());
-                queue.active_request = Some(request.0.request_id.clone());
+                queue.active_job = Some(request.0.header.job_id.clone());
+                queue.active_request = Some(request.0.header.request_id.clone());
                 request
             }
             None => return,
@@ -1169,8 +1155,8 @@ fn pump_worker(
     let next_module = module.clone();
     spawn_local(async move {
         let (request, bytes) = request;
-        let completed_job_id = request.job_id.clone();
-        let completed_request_id = request.request_id.clone();
+        let completed_job_id = request.header.job_id.clone();
+        let completed_request_id = request.header.request_id.clone();
         let reply = run_request(&queue, &module, request, bytes).await;
         match reply {
             Ok((wire, result)) => {
@@ -1181,10 +1167,7 @@ fn pump_worker(
                     .borrow_mut()
                     .remove_task_evidence(&completed_request_id);
                 let metadata = WireReply {
-                    request_id: wire.request_id,
-                    job_id: wire.job_id,
-                    identity: wire.identity,
-                    operation: wire.operation,
+                    header: wire.header,
                     outcome: if cancelled {
                         CadReplyOutcome::Cancelled
                     } else {
@@ -1192,7 +1175,7 @@ fn pump_worker(
                     },
                     error: Some(reason),
                 };
-                let _ = post_reply(&scope, ReplyWire::from(metadata), None, Array::new());
+                let _ = post_reply(&scope, metadata, None, Array::new());
             }
         }
         next_queue.borrow_mut().active = false;
@@ -1208,10 +1191,8 @@ fn post_result(
     wire: WireReply,
     result: JsValue,
 ) -> Result<(), JsValue> {
-    let transfers = result_transfers(&wire.operation, &result)?;
-    let metadata =
-        serde_json::to_string(&wire).map_err(|error| JsValue::from_str(&error.to_string()))?;
-    post_reply(scope, ReplyWire::from(metadata), Some(result), transfers)
+    let transfers = result_transfers(&wire.header.operation, &result)?;
+    post_reply(scope, wire, Some(result), transfers)
 }
 
 fn post_owned_result(
@@ -1221,15 +1202,14 @@ fn post_owned_result(
     result: JsValue,
 ) -> Result<(), JsValue> {
     if let Err(error) = post_result(scope, wire.clone(), result) {
-        queue.borrow_mut().remove_task_evidence(&wire.request_id);
+        queue.borrow_mut().remove_task_evidence(&wire.header.request_id);
         return post_reply(
             scope,
             WireReply {
                 outcome: CadReplyOutcome::Failed,
                 error: Some(js_message(error)),
                 ..wire
-            }
-            .into(),
+            },
             None,
             Array::new(),
         );
@@ -1237,27 +1217,17 @@ fn post_owned_result(
     Ok(())
 }
 
-// Internal adapter keeps the worker's error and success paths on the same frame format.
-struct ReplyWire(String);
-impl From<String> for ReplyWire {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-impl From<WireReply> for ReplyWire {
-    fn from(value: WireReply) -> Self {
-        Self(serde_json::to_string(&value).unwrap_or_else(|_| "{}".into()))
-    }
-}
 fn post_reply(
     scope: &DedicatedWorkerGlobalScope,
-    wire: ReplyWire,
+    wire: WireReply,
     result: Option<JsValue>,
     transfers: Array,
 ) -> Result<(), JsValue> {
+    let metadata = serde_json::to_string(&wire)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let message = Object::new();
     Reflect::set(&message, &"kind".into(), &"reply".into())?;
-    Reflect::set(&message, &"frame".into(), &JsValue::from_str(&wire.0))?;
+    Reflect::set(&message, &"frame".into(), &JsValue::from_str(&metadata))?;
     if let Some(result) = result {
         Reflect::set(&message, &"result".into(), &result)?;
     }
@@ -1347,7 +1317,7 @@ fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue
     Ok(())
 }
 
-fn worker_message(kind: &str, message: &str, _unused: Option<JsValue>) -> JsValue {
+fn worker_message(kind: &str, message: &str) -> JsValue {
     let value = Object::new();
     let _ = Reflect::set(&value, &"kind".into(), &JsValue::from_str(kind));
     let _ = Reflect::set(&value, &"frame".into(), &JsValue::from_str(message));

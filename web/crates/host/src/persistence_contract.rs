@@ -1,6 +1,6 @@
 use boardstudio_core_kernel::hash::sha256_hex;
 
-pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+use boardstudio_web_worker_host::cad_jobs::MAX_SAFE_INTEGER;
 
 pub fn validate_exact_json_integers(value: &serde_json::Value) -> Result<(), String> {
     match value {
