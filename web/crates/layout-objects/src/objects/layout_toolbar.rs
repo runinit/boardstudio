@@ -8,7 +8,7 @@ pub use super::layout_toolbar_logic::{
     gesture_snap_inputs, layout_canvas_grid_style, snap_label,
 };
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
-use boardstudio_web_ui_shared::inspector_fields::ToggleField;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     callout::Callout,
@@ -18,7 +18,6 @@ use boardstudio_web_ui_shared::ui::{
     input_group::{InputGroup, InputGroupInput},
     label::Label,
     popover::{Popover, PopoverContent, PopoverTrigger},
-    select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
     toolbar::Toolbar,
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
@@ -564,22 +563,18 @@ fn LayoutSnapOptions(
         "m1-layout-snap-envelope-gap-{}",
         dioxus::core::current_scope_id().0
     );
-    let fraction = use_memo(use_reactive((&settings.snap_fraction,), |(value,)| {
-        Some(value.to_string())
-    }));
     rsx! {
         div { class: "layout-snap-fields",
-            Label { "Snap increment" }
-            Select::<String> {
-                aria_label: "Snap increment", value: Some(fraction.into()),
-                on_value_change: move |value: Option<String>| {
-                    if let Some(value) = value.and_then(|value| value.parse::<f64>().ok())
+            SelectField::<String> {
+                label: "Snap increment".to_owned(),
+                aria_label: "Snap increment",
+                value: settings.snap_fraction.to_string(),
+                options: SNAP_STEPS.iter().map(|(_, value, label)| (value.to_string(), label.to_string())).collect(),
+                on_commit: move |next: String| {
+                    if let Ok(value) = next.parse::<f64>()
                         && value.is_finite() && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
                     { on_snap_intent.call(LayoutSnapIntent::Fraction(value)); }
                 },
-                for (index, (_, value, label)) in SNAP_STEPS.into_iter().enumerate() {
-                    SelectOption::<String> { index, value: value.to_owned(), text_value: label, "{label}" }
-                }
             }
             ToggleField {
                 id: geometry_id, aria_label: "Geometry snap", label: "Geometry snap",
