@@ -463,7 +463,9 @@ def run_browser(commands, environment, cwd, state, keep_going):
                     command = [*command, "--test-binary", state["page"]]
                 spare = check_jobs() - len(lanes)
                 env = dict(env, BOARDSTUDIO_CHECK_JOBS=str(max(1, min(2, spare))))
-            if not keep_going and (command in (CAD_BROWSER, *PROVIDER_CHECKS) or (crate and support_checks)):
+            if command == DRAG_SMOKE and not keep_going and check_jobs() > 2:
+                lanes += [[([*command, "--suite", suite], directory, env)] for suite in ("drag", "collision")]
+            elif not keep_going and (command in (CAD_BROWSER, *PROVIDER_CHECKS) or (crate and support_checks)):
                 if not support_checks:
                     lanes.append(support_checks)
                 support_checks.append((command, directory, env))
