@@ -2,9 +2,7 @@
 mod reassignment_owner;
 
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Event, OperationId, Resolution};
 use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use dioxus::prelude::*;
@@ -262,18 +260,8 @@ fn current_source(
     generation: u64,
     context: OwnerContext,
 ) -> Option<(AcceptedSnapshot, String, Option<String>, OwnerIdentity)> {
+    let accepted = crate::pcb_wiring::ready_snapshot(runtime)?;
     let model = runtime.model();
-    if model.lifecycle != Lifecycle::Ready
-        || !matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
-        return None;
-    }
-    let accepted = model.accepted?.clone();
     let (board_id, instance_id) = match context {
         OwnerContext::ProjectGuide => (
             model.active_board_id.clone(),
@@ -551,7 +539,7 @@ fn fresh_id(document: &ProjectDoc, prefix: &str, operation: u64) -> String {
 // The setup guide renders these controls through the page's existing entrypoint.
 pub mod controller {
     use super::*;
-    use boardstudio_web_ui_shared::inspector_fields::ToggleField;
+    use boardstudio_web_ui_shared::inspector_fields::{TOUCH_CLS, ToggleField};
     use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 
     pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
@@ -603,7 +591,7 @@ pub mod controller {
                         else if next.contains(&1) || (next.is_empty() && pressed == 1) { on_select.call(1); }
                     },
                     for (index, option) in options.into_iter().enumerate() {
-                        ToggleItem { key: "{index}", index, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option}" }
+                        ToggleItem { key: "{index}", index, class: TOUCH_CLS, "{option}" }
                     }
                 }
             }

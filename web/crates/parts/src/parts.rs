@@ -8,7 +8,7 @@ pub use boardstudio_web_catalogue::bundled::{
     prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
-use boardstudio_web_ui_shared::inspector_fields::SelectField;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TOUCH_CLS};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -26,6 +26,7 @@ mod component_model_editor;
 mod details;
 mod details_logic;
 mod generator_settings;
+mod model_transform;
 mod module_profile_editor;
 mod modules_catalogue;
 mod modules_catalogue_logic;
@@ -51,7 +52,7 @@ fn AssemblyCreateButton() -> Element {
     rsx! { Tooltip {
         TooltipTrigger { as: move |attributes| rsx! {
             Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::IconSm,
-                class: "max-[960px]:min-h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:min-h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                class: "{TOUCH_CLS} max-[960px]:min-w-control-touch [@media(pointer:coarse)]:min-w-control-touch",
                 aria_label: "New assembly", disabled: current.is_none(),
                 onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
                 svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
@@ -68,7 +69,7 @@ fn PartsCatalogueCategory(label: String, reveal: bool, children: Element) -> Ele
     rsx! {
         Collapsible { class: "py-1", aria_label: label.clone(), keep_mounted: true,
             open: Some(open()), on_open_change: move |next| open.set(next),
-            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+            CollapsibleTrigger { class: TOUCH_CLS, "{label}" }
             CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { {children} } }
         }
     }
@@ -235,7 +236,7 @@ fn AddObjectChoice(
         div { role: "group", "aria-label": "Add {label}", class: "w-full",
             Button {
                 key: "{definition_id}", variant: ButtonVariant::Ghost,
-                class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "w-full justify-start whitespace-normal text-left {TOUCH_CLS}",
                 aria_label: "Add {label}",
                 onclick: move |_| on_place.call(
                     super::part_placement::ComponentPlacementAction::AddObject {
@@ -247,7 +248,7 @@ fn AddObjectChoice(
             }
             if mirror_only_available {
                 Button { variant: ButtonVariant::Ghost,
-                    class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "w-full justify-start whitespace-normal text-left {TOUCH_CLS}",
                     aria_label: "Add {label} to this half only",
                     onclick: move |_| on_place.call(
                         super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
@@ -296,7 +297,7 @@ pub fn AddObjectComponentChooser(
             rsx! {
                 for (label, items) in groups {
                     Collapsible { key: "{label}", class: "py-1", default_open: label == "Components", keep_mounted: true,
-                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+                        CollapsibleTrigger { class: TOUCH_CLS, "{label}" }
                         CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { class: "gap-px",
                             for entry in items {
                                 { let definition_id = entry.definition.id.clone();
@@ -367,7 +368,7 @@ pub fn AddObjectComponentChooser(
             }
             {content}
             Button { variant: ButtonVariant::Secondary,
-                class: "mt-1 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: "mt-1 {TOUCH_CLS}",
                 onclick: move |_| on_browse.call(()),
                 "Browse all parts"
             }
@@ -534,7 +535,7 @@ pub fn PartsInspectorPanel(
             SelectedDefinition { entry: entry.clone() }
             if let Some(preset) = active_assembly {
                 Button {
-                    class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: "w-full {TOUCH_CLS}",
                     disabled: placement_busy,
                     onclick: move |_| on_place_assembly.call(super::objects::MatrixPlacementSource::Preset(preset)),
                     "Place key assembly"
@@ -587,7 +588,7 @@ pub fn PartsInspectorPanel(
                 }
                 if let Some(definition_id) = controller_id {
                     Button {
-                        class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: "w-full {TOUCH_CLS}",
                         disabled: placement_busy,
                         onclick: move |_| on_place_controller.call(definition_id.clone()),
                         if placement_busy { "Preparing controller…" } else { "Place component" }
@@ -614,7 +615,7 @@ fn PartsInspectorPlacementAction(
     let can_apply_to_key = matrix_input_available(&entry.definition);
     rsx! {
         Button {
-            class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            class: "w-full {TOUCH_CLS}",
             disabled: busy || (apply_to_key && !can_apply_to_key),
             onclick: move |_| on_place.call(
                 super::part_placement::ComponentPlacementAction::PartsInspector {

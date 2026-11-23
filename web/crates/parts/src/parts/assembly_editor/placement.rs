@@ -9,8 +9,8 @@ pub(super) fn begin_place_assembly_on_board(
     source: AcceptedSnapshot,
     definitions: Vec<PartDefinition>,
     draft: AssemblyDraft,
-    origin_x: String,
-    origin_y: String,
+    origin_x: f64,
+    origin_y: f64,
     mut preparing: Signal<bool>,
     mut selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
     mut editing: Signal<Option<AssemblyDraft>>,
@@ -35,17 +35,15 @@ pub(super) fn begin_place_assembly_on_board(
         ));
         return;
     }
-    let origin = match (
-        origin_x.trim().parse::<f64>(),
-        origin_y.trim().parse::<f64>(),
-    ) {
-        (Ok(x), Ok(y)) if x.is_finite() && y.is_finite() => Vec2 { x, y },
-        _ => {
-            feedback.set(Some(
-                "Enter finite X and Y coordinates for assembly placement.".into(),
-            ));
-            return;
-        }
+    if !origin_x.is_finite() || !origin_y.is_finite() {
+        feedback.set(Some(
+            "Enter finite X and Y coordinates for assembly placement.".into(),
+        ));
+        return;
+    }
+    let origin = Vec2 {
+        x: origin_x,
+        y: origin_y,
     };
     let model = runtime.model();
     let Some(accepted) = model.accepted.as_ref() else {

@@ -1,29 +1,37 @@
 //! Parts-owned file import and acceptance reconciliation for source-owned KiCad footprints.
 
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_model::model::{CompiledFootprint, EditOperation};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Scope};
+use boardstudio_model::model::CompiledFootprint;
 use boardstudio_web_ui_model::Workspace;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportCapture {
+    guard: crate::parts_custom_definition::PartsOwnerGuard,
     scope: Scope,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
     view_generation: u64,
-    scope_generation: u64,
-    selection: Option<(Option<Scope>, String)>,
     definition_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ImportOwner {
+    guard: crate::parts_custom_definition::PartsOwnerGuard,
+    view_generation: u64,
+    workspace: Workspace,
+}
+
+fn import_guard(
+    snapshot: &AcceptedSnapshot,
     scope: Option<Scope>,
     selection: Option<(Option<Scope>, String)>,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    view_generation: u64,
     scope_generation: u64,
-    workspace: Workspace,
+) -> crate::parts_custom_definition::PartsOwnerGuard {
+    crate::parts_custom_definition::PartsOwnerGuard::document(
+        scope,
+        snapshot.session_epoch,
+        snapshot.document.id.clone(),
+    )
+    .with_selection(selection)
+    .generations(None, Some(scope_generation))
 }
 
 impl ImportOwner {
@@ -36,12 +44,8 @@ impl ImportOwner {
         workspace: Workspace,
     ) -> Self {
         Self {
-            scope,
-            selection,
-            session_epoch: current.session_epoch,
-            document_id: current.document.id.clone(),
+            guard: import_guard(current, scope, selection, scope_generation),
             view_generation,
-            scope_generation,
             workspace,
         }
     }
@@ -57,47 +61,37 @@ impl ImportCapture {
         definition_id: String,
     ) -> Self {
         Self {
+            guard: import_guard(snapshot, Some(scope.clone()), selection, scope_generation),
             scope,
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
             view_generation,
-            scope_generation,
-            selection,
             definition_id,
         }
     }
 }
 
 fn owner_matches(capture: &ImportCapture, owner: &ImportOwner) -> bool {
-    owner.scope.as_ref() == Some(&capture.scope)
-        && owner.selection == capture.selection
-        && owner.session_epoch == capture.session_epoch
-        && owner.document_id == capture.document_id
-        && capture.scope.document_id == capture.document_id
-        && capture.scope.session_epoch == capture.session_epoch
+    owner.guard == capture.guard
         && owner.view_generation == capture.view_generation
-        && owner.scope_generation == capture.scope_generation
+        && capture.scope.document_id == capture.guard.document_id
+        && capture.scope.session_epoch == capture.guard.session_epoch
         && owner.workspace == Workspace::Parts
 }
 
 fn import_resolver(capture: ImportCapture, imported: CompiledFootprint) -> EditResolver {
-    EditResolver::new(
+    crate::parts_custom_definition::replace_document_resolver(
         "parts-import-footprint",
-        move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != capture.document_id
-                || accepted.session_epoch != capture.session_epoch
+        move |accepted, replacement| {
+            if accepted.document.id != capture.guard.document_id
+                || accepted.session_epoch != capture.guard.session_epoch
             {
-                return Resolution::Retire("The Parts project changed during import.".into());
+                return Err("The Parts project changed during import.".into());
             }
             if imported.definition.id != capture.definition_id {
-                return Resolution::Retire(
-                    "The importer returned a different definition identity.".into(),
-                );
+                return Err("The importer returned a different definition identity.".into());
             }
             let mut definition = imported.definition.clone();
             let mut suffix = 0_u64;
-            while accepted
-                .document
+            while replacement
                 .definitions
                 .iter()
                 .any(|existing| existing.id == definition.id)
@@ -108,14 +102,8 @@ fn import_resolver(capture: ImportCapture, imported: CompiledFootprint) -> EditR
             definition.pads = imported.geometry.pads.clone();
             definition.courtyard = imported.geometry.courtyard.clone();
             let id = definition.id.clone();
-            let mut document = accepted.document.as_ref().clone();
-            document.definitions.push(definition);
-            crate::parts_custom_definition::replacement_commit(
-                EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-                vec![id],
-            )
+            replacement.definitions.push(definition);
+            Ok(vec![id])
         },
     )
 }
@@ -134,34 +122,34 @@ mod tests {
             board_id: "board-1".into(),
             instance_id: None,
         };
+        let guard_for = |id: &str| {
+            crate::parts_custom_definition::PartsOwnerGuard::document(
+                Some(scope.clone()),
+                SessionEpoch(4),
+                "project-1".into(),
+            )
+            .with_selection(Some((Some(scope.clone()), id.into())))
+            .generations(None, Some(5))
+        };
         let capture = ImportCapture {
+            guard: guard_for("existing-footprint"),
             scope: scope.clone(),
-            session_epoch: SessionEpoch(4),
-            document_id: "project-1".into(),
             view_generation: 3,
-            scope_generation: 5,
-            selection: Some((Some(scope.clone()), "existing-footprint".into())),
             definition_id: "imported-1".into(),
         };
         let owner = ImportOwner {
-            scope: Some(scope.clone()),
-            selection: capture.selection.clone(),
-            session_epoch: SessionEpoch(4),
-            document_id: "project-1".into(),
+            guard: guard_for("existing-footprint"),
             view_generation: 3,
-            scope_generation: 5,
             workspace: Workspace::Parts,
         };
-
         // Persistence may advance the accepted revision before its failure is reported.
         // Feedback still belongs to this selection as long as the project/view owner holds.
         assert!(owner_matches(&capture, &owner));
-
-        let replacement_selection = ImportOwner {
-            selection: Some((Some(scope), "replacement-footprint".into())),
+        let replacement = ImportOwner {
+            guard: guard_for("replacement-footprint"),
             ..owner
         };
-        assert!(!owner_matches(&capture, &replacement_selection));
+        assert!(!owner_matches(&capture, &replacement));
     }
 }
 
@@ -169,17 +157,15 @@ mod tests {
 mod ui {
     use super::*;
     use crate::{parts_new_component::new_definition_identity, runtime::Runtime};
+    use boardstudio_web_ui_shared::inspector_fields::FilePickerButton;
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
-        button::Button,
+        button::{Button, ButtonVariant},
         spinner::Spinner,
     };
     use dioxus::{dioxus_core::Task, prelude::*};
-    use dioxus_web::WebEventExt;
     use std::rc::Rc;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
-    use web_sys::HtmlInputElement;
 
     #[component]
     pub fn ImportKiCadFootprintAction(
@@ -192,7 +178,6 @@ mod ui {
         on_select: EventHandler<()>,
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
-        let mut input = use_signal(|| None::<HtmlInputElement>);
         let mut pending = use_signal(|| None::<(Task, String)>);
         let mut feedback = use_signal(|| None::<(ImportOwner, Result<String, String>)>);
         let current_owner = {
@@ -208,27 +193,15 @@ mod ui {
                 ))
             }
         };
-        let on_file = {
+        let mut on_file = {
             let runtime = runtime.clone();
             let scope = scope.clone();
             let current_owner = current_owner.clone();
-            move |event: FormEvent| {
-                let Some(input) = event
-                    .data()
-                    .try_as_web_event()
-                    .and_then(|event| event.target())
-                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                else {
-                    return;
-                };
-                let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                    return;
-                };
-                input.set_value("");
+            move |file: web_sys::File| {
                 let Some(owner) = current_owner() else { return };
                 let Some(scope) = scope
                     .clone()
-                    .filter(|scope| owner.scope.as_ref() == Some(scope))
+                    .filter(|scope| owner.guard.scope.as_ref() == Some(scope))
                 else {
                     return;
                 };
@@ -327,13 +300,9 @@ mod ui {
         };
         let busy = pending().is_some();
         rsx! {
-            Button { disabled: busy || scope.is_none(), onclick: move |_| if let Some(input) = input() { input.click(); }, "Import KiCad footprint" }
-            input {
-                r#type: "file", hidden: true, accept: ".kicad_mod", disabled: busy || scope.is_none(),
-                aria_label: "Import KiCad footprint", onchange: on_file,
-                onmounted: move |event: MountedEvent| {
-                    input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
-                },
+            FilePickerButton { label: "Import KiCad footprint", accept: ".kicad_mod",
+                variant: ButtonVariant::Default, disabled: busy || scope.is_none(),
+                on_files: move |files: Vec<web_sys::File>| if let Some(file) = files.into_iter().next() { on_file(file); },
             }
             if let Some((task, filename)) = pending() {
                 div { role: "status", Spinner {} "Importing {filename}…" }

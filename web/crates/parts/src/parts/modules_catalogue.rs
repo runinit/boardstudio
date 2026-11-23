@@ -4,6 +4,7 @@ use super::modules_catalogue_logic::{
     ModuleCatalogueRequest, ModuleCatalogueResult, catalogue_view, merge_project_overrides,
     normalize_host_connector_definition,
 };
+use boardstudio_web_ui_shared::inspector_fields::TOUCH_CLS;
 // Host-compatible catalogue projection lives in `modules_catalogue_logic` so the same
 // merge/selection predicates run under `cargo test` without a browser.
 pub use super::modules_catalogue_logic::{
@@ -369,7 +370,7 @@ pub fn ModuleInspector(
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
             Button { variant: ButtonVariant::Secondary,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: TOUCH_CLS,
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"
             }
@@ -385,7 +386,7 @@ pub fn ModuleInspector(
         }
         if !definition.gates.is_empty() {
             Collapsible { keep_mounted: true,
-                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Review {gate_count} remaining {gate_noun}" }
+                CollapsibleTrigger { class: TOUCH_CLS, "Review {gate_count} remaining {gate_noun}" }
                 CollapsibleContent { class: "data-[open=false]:hidden", ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }

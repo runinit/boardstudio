@@ -7,7 +7,7 @@ use boardstudio_model::model::{
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TOUCH_CLS, ToggleField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::Button,
@@ -267,7 +267,7 @@ pub fn ModuleAttachment(
 
     rsx! {
         section { "aria-label": "Attach module to PCB",
-            Button { class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            Button { class: "w-full {TOUCH_CLS}",
                 disabled: preparing() || !can_attach,
                 onclick: attach,
                 "Attach module to {board_name}"
@@ -306,21 +306,6 @@ pub fn ModuleAttachment(
     }
 }
 
-fn attachment_selection_current(
-    runtime: &Rc<Runtime>,
-    scope: &Scope,
-    selected: super::super::PartsSelection,
-    selection_generation: Signal<u64>,
-    expected_selection: &(Option<Scope>, String),
-    expected_generation: u64,
-    workspace: Signal<Workspace>,
-) -> bool {
-    workspace() == Workspace::Parts
-        && runtime.scope().as_ref() == Some(scope)
-        && selected() == Some(expected_selection.clone())
-        && selection_generation() == expected_generation
-}
-
 fn attachment_owner_current(
     runtime: &Rc<Runtime>,
     scope: &Scope,
@@ -330,20 +315,23 @@ fn attachment_owner_current(
     expected_generation: u64,
     workspace: Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
-    if !attachment_selection_current(
-        runtime,
-        scope,
-        selected,
-        selection_generation,
-        expected_selection,
-        expected_generation,
-        workspace,
-    ) {
-        return None;
-    }
-    let model = runtime.model();
-    let accepted = model.accepted?;
-    (accepted.document.id == scope.document_id && accepted.session_epoch == scope.session_epoch)
+    let guard = crate::parts_custom_definition::PartsOwnerGuard::document(
+        Some(scope.clone()),
+        scope.session_epoch,
+        scope.document_id.clone(),
+    )
+    .with_selection(Some(expected_selection.clone()))
+    .generations(Some(expected_generation), None);
+    let accepted = runtime.model().accepted?;
+    guard
+        .is_current(
+            &accepted,
+            runtime.scope(),
+            selected(),
+            Some(selection_generation()),
+            None,
+            Some(workspace()),
+        )
         .then_some(accepted)
 }
 

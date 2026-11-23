@@ -1,9 +1,7 @@
 //! Parts-private custom-component creation through the edit ticket.
 
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_model::model::{EditOperation, PartDefinition};
-
-use crate::parts_custom_definition::replacement_commit;
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Scope};
+use boardstudio_model::model::PartDefinition;
 
 #[cfg(target_arch = "wasm32")]
 mod ui {
@@ -11,6 +9,7 @@ mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
     use boardstudio_web_ui_model::Workspace;
+    use boardstudio_web_ui_shared::inspector_fields::TOUCH_CLS;
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -82,7 +81,7 @@ mod ui {
         rsx! {
             Button {
                 variant: ButtonVariant::Secondary,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: TOUCH_CLS,
                 onclick: create,
                 "New custom component"
             }
@@ -154,30 +153,19 @@ pub fn accepted_project_definition(
 /// the replacement is cloned from the accepted document, so a create queued behind
 /// another edit never reverts it.
 pub fn new_component_resolver(base: String) -> EditResolver {
-    EditResolver::new("parts-new-component", move |accepted: &AcceptedSnapshot| {
-        let document = &accepted.document;
-        let definition_id = match non_colliding_id(&base, &document.definitions) {
-            Some(id) => id,
-            None => {
-                return Resolution::Retire(
-                    "Could not allocate a unique component identity.".into(),
-                );
-            }
-        };
-        let definition =
-            match custom_definition(definition_id.clone(), document.definitions.len() + 1) {
-                Ok(definition) => definition,
-                Err(error) => return Resolution::Retire(error),
-            };
-        let mut replacement = document.as_ref().clone();
-        replacement.definitions.push(definition);
-        replacement_commit(
-            EditOperation::ReplaceDocument {
-                document: Box::new(replacement),
-            },
-            vec![definition_id],
-        )
-    })
+    crate::parts_custom_definition::replace_document_resolver(
+        "parts-new-component",
+        move |accepted, replacement| {
+            let definition_id = non_colliding_id(&base, &accepted.document.definitions)
+                .ok_or("Could not allocate a unique component identity.")?;
+            let definition = custom_definition(
+                definition_id.clone(),
+                accepted.document.definitions.len() + 1,
+            )?;
+            replacement.definitions.push(definition);
+            Ok(vec![definition_id])
+        },
+    )
 }
 
 /// The definition this create landed, read from the accepted document at the landing:

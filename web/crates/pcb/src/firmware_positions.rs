@@ -7,7 +7,7 @@ use super::pcb_wiring::{
 };
 use crate::firmware_position_choices;
 use crate::firmware_position_projection::{FirmwarePositionProjection, FirmwarePositionState};
-use boardstudio_web_ui_shared::inspector_fields::SelectField;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TOUCH_CLS};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -120,7 +120,7 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
 
     rsx! {
         Collapsible { class: "firmware-keymap-panel", open: open(), on_open_change: move |next| open.set(next), keep_mounted: true,
-            CollapsibleTrigger { aria_label: "Firmware keymap {assigned}/{keys.len()} assigned", class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+            CollapsibleTrigger { aria_label: "Firmware keymap {assigned}/{keys.len()} assigned", class: "w-full p-3 bg-muted text-foreground {TOUCH_CLS}",
                 span { "Firmware keymap" }
                 span { class: "firmware-keymap-summary", "{assigned}/{keys.len()} assigned" }
             }

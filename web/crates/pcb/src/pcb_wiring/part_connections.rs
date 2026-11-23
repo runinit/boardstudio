@@ -1,5 +1,23 @@
 //! Accepted-document transformations for the contextual PCB part connection editor.
-use boardstudio_model::model::{PartKind, ProjectDoc};
+use boardstudio_model::model::{Board, Net, PartKind, ProjectDoc};
+
+/// A net belongs to a board when the board lists it or any of its pins sit on a
+/// part placed on the board — the one board-net filter for wiring projections.
+pub fn net_on_board(net: &Net, board: &Board) -> bool {
+    board.net_ids.contains(&net.id)
+        || net
+            .pins
+            .iter()
+            .any(|pin| board.part_ids.contains(&pin.part_id))
+}
+
+pub fn board_nets<'a>(document: &'a ProjectDoc, board: &'a Board) -> Vec<&'a Net> {
+    document
+        .nets
+        .iter()
+        .filter(|net| net_on_board(net, board))
+        .collect()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartNetIntent {
@@ -65,14 +83,10 @@ pub fn propose(
                 return Err("These pads are not an editable terminal or plated pad.".into());
             }
             if let Some(net_id) = net_id.as_deref() {
-                let net_is_available = document.nets.iter().any(|net| {
-                    net.id == net_id
-                        && (board.net_ids.contains(&net.id)
-                            || net
-                                .pins
-                                .iter()
-                                .any(|pin| board.part_ids.contains(&pin.part_id)))
-                });
+                let net_is_available = document
+                    .nets
+                    .iter()
+                    .any(|net| net.id == net_id && net_on_board(net, board));
                 if !net_is_available {
                     return Err("Choose a net available on the selected board.".into());
                 }
