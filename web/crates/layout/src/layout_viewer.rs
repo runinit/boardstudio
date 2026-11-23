@@ -419,20 +419,13 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
             {keycap_status}
             div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             Viewport3D {
-                scene: None,
-                preview: None,
-                layout_preview: Some(preview),
+                source: super::shared_viewer::ViewportSource::Layout(preview),
                 keycaps_preview: keycaps_preview(),
-                parts_preview: None,
                 model_rows,
-                selected_layer: "pcb".to_owned(),
-                selected_reference: None,
                 display: display(),
                 resolved_theme: theme,
                 on_signal,
                 on_display_change,
-                mechanical_settings: None,
-                inline_case_controls: false,
                 focus_request,
             }
             }
