@@ -27,7 +27,6 @@ use boardstudio_web_ui_shared::ui::{
 
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -317,14 +316,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         section {
             class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_fieldset_small]:text-[11px] [&_fieldset_small]:leading-[1.45] [&_fieldset_small]:text-muted-foreground",
             aria_label: "Component inspector",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() {
-                        raw.stop_propagation();
-                    }
-                }
-            },
+            onkeydown: crate::presentation::view_helpers::stop_space_propagation,
             header { class: "flex items-start justify-between gap-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:[overflow-wrap:anywhere]",
                 h2 { "{projection.reference}" }
                 if projection.locked {

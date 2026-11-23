@@ -1,5 +1,6 @@
 //! Admission and synchronous execution for Layout Align commands.
 use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
+use super::layout_align_geometry::reference_choice;
 use super::layout_align_logic::{make_edit, workspace_route_matches};
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
@@ -136,12 +137,24 @@ pub fn use_canvas_align(
         .iter()
         .map(|reference| reference.id.clone())
         .collect();
-    projection.selected_reference = reconcile_reference_choice(
+    let authoritative = projection.reference_authoritative;
+    projection.selected_reference = reference_choice(
         reference_id.as_deref(),
         &eligible_reference_ids,
-        projection.reference_authoritative,
-        |next| selected_reference.set(next),
+        authoritative,
     );
+    // Reconcile the retained choice after render; writing the signal here would
+    // mark subscribers dirty mid-pass. Non-authoritative projections (owner
+    // workspace hidden) never write, preserving the choice across switches.
+    use_effect(use_reactive(
+        (&eligible_reference_ids, &authoritative),
+        move |(eligible, authoritative)| {
+            let current = selected_reference.peek().clone();
+            reconcile_reference_choice(current.as_deref(), &eligible, authoritative, |next| {
+                selected_reference.set(next)
+            });
+        },
+    ));
     let shown_feedback = feedback.read().clone().and_then(|state| {
         (selected
             .as_ref()

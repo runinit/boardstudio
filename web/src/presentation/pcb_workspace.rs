@@ -1,10 +1,10 @@
 //! PCB-owned workspace surface composition.
-use super::workbench::editor_session::{action_handlers, selection_handlers, toolbar_inputs};
+use super::workbench::editor_session::selection_handlers;
 mod interaction;
 use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::workspace_composition::{
-    WorkspaceInteraction, WorkspaceOutputs, WorkspaceSurfaces, publish_surfaces, use_frame,
+    WorkspaceInteraction, WorkspaceSurfaces, use_frame, use_publish_surfaces,
 };
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, Scope};
@@ -157,7 +157,6 @@ pub(super) fn PcbWorkspace() -> Element {
     let adapter = use_context::<SelectionAdapter>();
     let frame = use_frame();
     let interaction = use_context::<WorkspaceInteraction>();
-    let outputs = use_context::<WorkspaceOutputs>();
     let runtime = editor.runtime();
     let EditorContext {
         version,
@@ -191,9 +190,9 @@ pub(super) fn PcbWorkspace() -> Element {
         editor,
         workspace: Workspace::Pcb,
     };
-    let wiring = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), version);
+    let wiring = use_context::<pcb_wiring::SharedPcbWiring>();
     let resolution_signal = wiring.resolution_signal;
-    let resolution = wiring.resolution;
+    let resolution = wiring.current_resolution(&runtime, true);
     let part_net_actions = pcb_wiring::use_pcb_part_net_edits(guard);
     let part_input_actions = pcb_wiring::use_part_input_edits(guard);
     let firmware = pcb_wiring::use_firmware_position_edits(guard, resolution_signal);
@@ -230,7 +229,7 @@ pub(super) fn PcbWorkspace() -> Element {
         pcb_wiring_source.clone(),
         resolution_signal,
     );
-    let pcb_wiring_edit_board = action_handlers::on_pcb_wiring_edit_board_handler(
+    let pcb_wiring_edit_board = on_pcb_wiring_edit_board_handler(
         runtime.clone(),
         adapter.clone(),
         render_scope.clone(),
@@ -288,7 +287,7 @@ pub(super) fn PcbWorkspace() -> Element {
                     board_overview: true, source, resolution,
                     firmware_positions: firmware_position_projection,
                     firmware_feedback, firmware_controls, part_net_actions, part_input_actions,
-                    on_firmware_edit: firmware_on_edit, on_resolve: wiring.on_resolve,
+                    on_firmware_edit: firmware_on_edit, on_resolve: EventHandler::new(move |()| wiring.on_resolve.call(())),
                     on_choose_controller: part_placement.on_choose_controller,
                     on_edit_board_wiring: pcb_wiring_edit_board, mode_actions: pcb_wiring_mode_actions,
                     pin_actions: pcb_wiring_pin_actions, apply_actions: pcb_wiring_apply_actions,
@@ -360,18 +359,19 @@ pub(super) fn PcbWorkspace() -> Element {
         scope_generation,
         Workspace::Pcb,
     );
-    let toolbar_selection_availability = toolbar_inputs::use_toolbar_selection_availability(
-        interaction.tree_cell_anchor.clone(),
-        layout_owner.clone(),
-        layout_canvas::SceneSource {
-            document: snapshot.document.clone(),
-            ..frame.camera.accepted_canvas_source.clone()
-        },
-        snapshot,
-        &model,
-        selected_tree_context.clone(),
-        Some(Workspace::Pcb),
-    );
+    let toolbar_selection_availability =
+        super::workspace_composition::use_toolbar_selection_availability(
+            interaction.tree_cell_anchor.clone(),
+            layout_owner.clone(),
+            layout_canvas::SceneSource {
+                document: snapshot.document.clone(),
+                ..frame.camera.accepted_canvas_source.clone()
+            },
+            snapshot,
+            &model,
+            selected_tree_context.clone(),
+            Some(Workspace::Pcb),
+        );
     let show_position_inspector = frame.show_position_inspector;
     let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
         matches!(
@@ -457,6 +457,54 @@ pub(super) fn PcbWorkspace() -> Element {
         status: rsx! {},
         layers: rsx! { pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() } },
     };
-    publish_surfaces(outputs, Workspace::Pcb, surfaces);
+    use_publish_surfaces(Workspace::Pcb, surfaces);
     rsx! {}
+}
+
+pub(super) fn on_pcb_wiring_edit_board_handler(
+    runtime: Rc<Runtime>,
+    adapter: SelectionAdapter,
+    scope: Scope,
+    generation: u64,
+    token: boardstudio_application::SnapshotToken,
+    workspace: Signal<Workspace>,
+    instance_selection: InstanceSelection,
+) -> EventHandler<()> {
+    EventHandler::new(move |()| {
+        if workspace() != Workspace::Pcb
+            || runtime.scope().as_ref() != Some(&scope)
+            || (adapter.generation)() != generation
+        {
+            return;
+        }
+        let model = runtime.model();
+        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
+            return;
+        }
+        let Some(snapshot) = model
+            .accepted
+            .as_ref()
+            .filter(|snapshot| snapshot.token == token)
+        else {
+            return;
+        };
+        if !snapshot
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+        {
+            return;
+        }
+        let mut selected_context = adapter.selected_context;
+        selected_context.set(None);
+        let mut anchor_scope = adapter.anchor_scope;
+        anchor_scope.set(None);
+        runtime.submit(boardstudio_application::Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: Vec::new(),
+            range_part_ids: Vec::new(),
+            mode: SelectionMode::Replace,
+        });
+    })
 }

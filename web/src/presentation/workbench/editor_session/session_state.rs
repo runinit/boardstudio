@@ -2,126 +2,7 @@ use super::super::*;
 use super::EditorContext;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) struct LayoutViewState {
-    pub spacing_ghost_state: Signal<Option<spacing_ghost::SpacingGhostState>>,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub matrix_inspector: objects::MatrixInspectorMount,
-    pub board_inspector: board_inspector::BoardInspectorMount,
-    pub key_size: objects::KeySizeMount,
-    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub layout_align: objects::LayoutAlignMount,
-    pub matrix_setup: objects::MatrixSetupMount,
-    pub parts_state: parts_workspace::PartsWorkspaceState,
-    pub parts_assembly_orientation: Signal<parts::SwitchOrientation>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-}
-
-pub(super) fn use_layout_view_state(
-    editor: EditorContext,
-    adapter: &SelectionAdapter,
-    layout_state: layout_workspace::LayoutWorkspaceState,
-) -> LayoutViewState {
-    let runtime = editor.runtime();
-    let EditorContext {
-        version, workspace, ..
-    } = editor;
-    // A spacing commit shows the previous accepted scene until another edit,
-    // undo/redo, or selection change. The tracker only writes view state.
-    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
-    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
-    let ghost_effect_runtime = runtime.clone();
-    let ghost_effect_selection = adapter.selected_context;
-    use_effect(move || {
-        let _ = version();
-        let tree_context = (ghost_effect_selection)();
-        let model = ghost_effect_runtime.model();
-        let Some(snapshot) = model.accepted.clone() else {
-            return;
-        };
-        let current = spacing_ghost::AcceptedView {
-            revision: snapshot.document.revision,
-            transaction: snapshot.scene.transaction_id.clone(),
-            document: snapshot.document.clone(),
-            scene: snapshot.scene.clone(),
-            selected_ids: model.selected_part_ids.clone(),
-            selected_context: tree_context,
-        };
-        // Clone the settled values first: the tracker borrows nothing, and the
-        // guarded writes below only fire on real advances.
-        let seen_before = last_spacing_seen.peek().clone();
-        let ghost_before = spacing_ghost_state.peek().clone();
-        match spacing_ghost::advance_spacing_ghost(
-            seen_before.as_ref(),
-            &current,
-            ghost_before.as_ref(),
-        ) {
-            spacing_ghost::GhostAdvance::Keep => {}
-            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
-                if Some(&seen) != seen_before.as_ref() {
-                    last_spacing_seen.set(Some(seen));
-                }
-                if ghost != ghost_before {
-                    spacing_ghost_state.set(ghost);
-                }
-            }
-        }
-    });
-    let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
-    let matrix_inspector = objects::use_matrix_inspector(runtime.clone(), adapter.selected_context);
-    let board_inspector = board_inspector::use_board_inspector(
-        runtime.clone(),
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-    );
-    let key_size = objects::use_key_size(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-    );
-    let matrix_transform_inspector = objects::use_workspace_matrix_transform(
-        runtime.clone(),
-        adapter.selected_context,
-        layout_state.splay_affect(),
-    );
-    let layout_align = objects::use_canvas_align(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        workspace,
-        adapter.generation,
-        Workspace::Layout,
-    );
-    let matrix_setup = objects::use_matrix_setup(
-        runtime.clone(),
-        version,
-        adapter.selected_context,
-        adapter.anchor_scope,
-        workspace,
-        adapter.generation,
-    );
-    let parts_state = parts_workspace::use_parts_workspace_state();
-    use_context_provider(|| parts_state);
-    let parts_assembly_orientation = parts_state.assembly_orientation();
-    let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
-    LayoutViewState {
-        spacing_ghost_state,
-        tree_cell_anchor,
-        matrix_inspector,
-        board_inspector,
-        key_size,
-        matrix_transform_inspector,
-        layout_align,
-        matrix_setup,
-        parts_state,
-        parts_assembly_orientation,
-        canvas_interaction,
-    }
-}
-
-pub(super) struct SessionState<'a> {
+pub(in crate::presentation) struct SessionState<'a> {
     pub snapshot: &'a AcceptedSnapshot,
     pub render_scope: &'a Scope,
     pub views: super::setup_workspaces::Views,
@@ -151,7 +32,7 @@ pub(super) struct SessionState<'a> {
     pub view: EditorContexts,
 }
 
-pub(super) fn use_session_state<'a>(
+pub(in crate::presentation) fn use_session_state<'a>(
     snapshot: &'a AcceptedSnapshot,
     render_scope: &'a Scope,
 ) -> (
@@ -200,7 +81,7 @@ pub(super) fn use_session_state<'a>(
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (editor.scope_generation)();
-    let LayoutViewState {
+    let layout_workspace::LayoutViewState {
         spacing_ghost_state,
         tree_cell_anchor,
         matrix_inspector,
@@ -212,7 +93,7 @@ pub(super) fn use_session_state<'a>(
         parts_state,
         parts_assembly_orientation,
         canvas_interaction,
-    } = use_layout_view_state(editor, &adapter, layout_state);
+    } = layout_workspace::use_layout_view_state(editor, &adapter, layout_state);
     let matrix_pair = use_matrix_pair_wiring(MatrixPairWiringInput {
         editor,
         adapter: adapter.clone(),
@@ -273,7 +154,7 @@ pub(super) fn use_session_state<'a>(
     )
 }
 
-pub(super) fn use_case_and_project_setup(
+pub(in crate::presentation) fn use_case_and_project_setup(
     state: &SessionState,
 ) -> (
     pcb_physical_setup::PhysicalSetupMount,
@@ -320,7 +201,7 @@ pub(super) fn use_case_and_project_setup(
     (physical_setup_mount, mechanical_settings)
 }
 
-pub(super) struct MatrixPairWiringInput<'a> {
+pub(in crate::presentation) struct MatrixPairWiringInput<'a> {
     pub editor: EditorContext,
     pub adapter: SelectionAdapter,
     pub layout_assembly_3d: Signal<bool>,
@@ -331,14 +212,16 @@ pub(super) struct MatrixPairWiringInput<'a> {
     pub matrix_setup: &'a mut objects::MatrixSetupMount,
 }
 
-pub(super) struct MatrixPairWiring {
+pub(in crate::presentation) struct MatrixPairWiring {
     pub matrix_placement: objects::MatrixPlacementMount,
     pub on_place_matrix_assembly: EventHandler<objects::MatrixPlacementSource>,
     pub pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
     pub mirrored_pair: objects::MirroredPairMount,
 }
 
-pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> MatrixPairWiring {
+pub(in crate::presentation) fn use_matrix_pair_wiring(
+    input: MatrixPairWiringInput<'_>,
+) -> MatrixPairWiring {
     let MatrixPairWiringInput {
         editor,
         adapter,
@@ -507,7 +390,7 @@ pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> Matrix
     }
 }
 
-pub(super) struct EditorContexts {
+pub(in crate::presentation) struct EditorContexts {
     pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
     pub outline_activation: EventHandler<outline_lifecycle::OutlineAction>,
     pub parts_query: parts::PartsQuery,
@@ -523,7 +406,7 @@ pub(super) struct EditorContexts {
     pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
 }
 
-pub(super) fn use_editor_contexts(
+pub(in crate::presentation) fn use_editor_contexts(
     editor: EditorContext,
     adapter: &SelectionAdapter,
     parts_state: parts_workspace::PartsWorkspaceState,
@@ -596,46 +479,12 @@ pub(super) fn use_editor_contexts(
             }
         }
     }));
-    // The Relations highlight is transient view state. A selection, workspace or board change
-    // clears it; an accepted revision that drops its parts is handled by the canvas filter.
-    let relation_highlight = use_signal(|| None::<Vec<String>>);
-    use_context_provider(|| RelationHighlight(relation_highlight));
-    let highlight_context = (
-        adapter.selected_context.read().clone(),
-        model.selected_part_ids.clone(),
-        model.active_board_id.clone(),
+    let field_preview = layout_workspace::use_layout_transient_highlights(
+        adapter,
+        &model,
         active_workspace,
+        resolved_document.clone(),
     );
-    use_effect(use_reactive((&highlight_context,), move |(_,)| {
-        RelationHighlight(relation_highlight).clear();
-    }));
-    // Hovering or focusing an Inspector number field shows its accepted geometry.
-    // Leave, blur, unmount, selection changes, and accepted revisions clear it.
-    let field_preview = use_signal(|| None::<FieldPreviewState>);
-    use_context_provider(|| FieldPreview(field_preview));
-    let field_preview_source =
-        model
-            .accepted
-            .as_ref()
-            .zip(resolved_document.as_ref())
-            .map(|(snapshot, document)| FieldPreviewSource {
-                document: document.clone(),
-                scene: snapshot.scene.clone(),
-            });
-    use_context_provider(|| field_preview_source.clone());
-    let field_preview_context = (
-        adapter.selected_context.read().clone(),
-        model.selected_part_ids.clone(),
-        model.active_board_id.clone(),
-        active_workspace,
-        model
-            .accepted
-            .as_ref()
-            .map(|snapshot| snapshot.document.revision),
-    );
-    use_effect(use_reactive((&field_preview_context,), move |(_,)| {
-        FieldPreview(field_preview).clear();
-    }));
     EditorContexts {
         outline_inspector,
         outline_activation,

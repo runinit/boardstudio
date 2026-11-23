@@ -1,7 +1,7 @@
 use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) struct MatrixPointerDownInput {
+pub(in crate::presentation) struct MatrixPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
@@ -25,7 +25,7 @@ pub(super) struct MatrixPointerDownInput {
     pub height: f64,
 }
 
-pub(super) fn matrix_pointer_down_handler(
+pub(in crate::presentation) fn matrix_pointer_down_handler(
     input: MatrixPointerDownInput,
 ) -> EventHandler<layout_canvas::MatrixPointerDown> {
     let MatrixPointerDownInput {
@@ -201,7 +201,7 @@ pub(super) fn matrix_pointer_down_handler(
     })
 }
 
-pub(super) struct PartPointerDownInput {
+pub(in crate::presentation) struct PartPointerDownInput {
     pub runtime: Rc<Runtime>,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub drag: Rc<RefCell<Option<Drag>>>,
@@ -226,7 +226,7 @@ pub(super) struct PartPointerDownInput {
     pub height: f64,
 }
 
-pub(super) fn part_pointer_down_handler(
+pub(in crate::presentation) fn part_pointer_down_handler(
     input: PartPointerDownInput,
 ) -> EventHandler<layout_canvas::PartPointerDown> {
     let PartPointerDownInput {

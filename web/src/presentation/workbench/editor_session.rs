@@ -3,20 +3,16 @@ use boardstudio_web_ui_model::editor::EditorContext;
 pub(in crate::presentation) mod action_handlers;
 pub(in crate::presentation) mod camera;
 mod canvas_adapter;
-mod canvas_inspector_inputs;
-mod canvas_pointer;
-mod canvas_state;
 pub(in crate::presentation) mod commands;
 pub(in crate::presentation) mod findings_navigation;
 pub(in crate::presentation) mod keyboard;
-mod pointer_bundles;
+pub(in crate::presentation) mod pointer_bundles;
 pub(in crate::presentation) mod selection_handlers;
-mod session_state;
-mod setup_guide_state;
-mod setup_workspaces;
-pub(in crate::presentation) mod toolbar_inputs;
+pub(in crate::presentation) mod session_state;
+pub(in crate::presentation) mod setup_guide_state;
+pub(in crate::presentation) mod setup_workspaces;
 mod view;
-mod workspace_inputs;
+pub(in crate::presentation) mod workspace_inputs;
 
 #[component]
 pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
@@ -26,8 +22,24 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
     let (state, workspace_routing, mut matrix_setup) =
         session_state::use_session_state(snapshot, &render_scope);
     let (physical_setup, mechanical_settings) = session_state::use_case_and_project_setup(&state);
-    let outputs = use_signal(|| None);
-    use_context_provider(|| workspace_composition::WorkspaceOutputs(outputs));
+    let outputs = workspace_composition::use_workspace_outputs();
+    use_context_provider(|| outputs);
+    // One wiring solve for PCB/Keymap/Export and the Setup Guide. The hook
+    // never reads the resolution signal here, so this session re-renders on
+    // wiring changes only while the guide (below) is reading it.
+    let guide_wiring_active = state.setup_state.guide_preferences()()
+        .as_ref()
+        .is_some_and(|guide| guide.open);
+    let shared_wiring = pcb_wiring::use_pcb_wiring_shared(
+        editor.runtime(),
+        editor.version,
+        guide_wiring_active
+            || matches!(
+                state.active_workspace,
+                Workspace::Pcb | Workspace::Keymap | Workspace::Export
+            ),
+    );
+    use_context_provider(|| shared_wiring);
     use_context_provider(|| workspace_composition::WorkspaceInteraction {
         navigation: state.canvas_navigation.clone(),
         arbiter: state.canvas_interaction.clone(),
@@ -88,7 +100,13 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         &render_scope,
         workspace_routing,
     );
-    let canvas = canvas_state::use_canvas_bundle(&state, views, &cam, snapshot, &render_scope);
+    let canvas = layout_workspace::inspector_wiring::use_canvas_bundle(
+        &state,
+        views,
+        &cam,
+        snapshot,
+        &render_scope,
+    );
     let (move_pointer, end_pointer, cancel_pointer) =
         pointer_bundles::use_pointer_bundle(&state, &cam, &render_scope);
     let (keyboard, key_up, start_pan) =
@@ -109,7 +127,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         select_tree,
         navigate_box,
     );
-    let inp = toolbar_inputs::use_layout_toolbar(
+    let inp = layout_workspace::toolbar_wiring::use_layout_toolbar(
         &state,
         &cam,
         &canvas,
@@ -118,11 +136,10 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         &matrix_setup,
     );
     let guide = setup_guide_state::use_setup_guide(
+        shared_wiring,
         &state,
         &mechanical_settings,
         &cam,
-        &canvas.selection.selected_tree_context,
-        inp.toolbar_input.as_ref(),
         (&visible, &matrices),
         &matrix_setup,
     );
@@ -153,64 +170,45 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         &cam,
     );
 
-    let layout_objects = || layout_workspace::ObjectsInput {
-        shared: wir.shared_objects.clone(),
-        matrix_setup: matrix_setup.clone(),
-        matrix_inspector: state.matrix_inspector.clone(),
-        pair_created: state.matrix_pair.pair_created_selection,
-        on_place_component: cam.placement.part_placement.on_place_component,
-        layout_target: state.view.layout_target,
-        parts_query: state.view.parts_query,
-        on_browse_parts: wir.on_browse_parts,
-        placement_error: state
-            .matrix_pair
-            .matrix_placement
-            .error
-            .clone()
-            .or_else(|| cam.placement.part_placement.error.clone()),
-        add_object_menu_open: state.layout_state.add_object_menu_open(),
-    };
-    let export_objects = (workspace == Workspace::Export).then(layout_objects);
-    let layout = inp.toolbar_input.clone().map(|toolbar| {
-        let inspector = canvas_inspector_inputs::layout_inspector_input(
-            editor,
-            &state,
-            &canvas,
-            &nav.callbacks,
-            &inp,
-            workspace_routing.select_tree,
-        );
-        layout_workspace::LayoutFrame {
-            objects: layout_objects(),
-            inspector,
-            toolbar,
-            scene: layout_workspace::scene::LayoutScene {
-                canvas_aria_label: canvas.inspector.canvas_aria_label,
-                canvas_grid: guide.canvas_grid,
-                outline_inspector: state.view.outline_inspector.clone(),
-                outline_overlay_key: guide.outline_overlay_key.clone(),
-                outline_snap_settings: guide.outline_snap_settings.clone(),
-                outline_pitch: guide.outline_pitch,
-                outline_snap_origins: guide.outline_snap_origins.clone(),
-                selected_bridge: guide_state.selected_bridge.cloned(),
-                matrix_placement: state.matrix_pair.matrix_placement.clone(),
-                mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
-                split_focused_half: cmds,
-                spacing_ghost_prop: canvas.selection.spacing_ghost_prop.clone(),
-                selected_tree_context: canvas.selection.selected_tree_context.clone(),
-                canvas_anchor_badge: canvas.selection.canvas_anchor_badge.clone(),
-                matrix_pointer_down: ptr.matrix_pointer_down,
-                part_pointer_down: ptr.part_pointer_down,
-                selection_geometry_anchor: guide.selection_geometry_anchor,
-                canvas_transform_menu: guide.canvas_transform_menu,
-                matrix_transform_inspector: state.matrix_transform_inspector.clone(),
-                drag: cam.placement.drag.clone(),
-                layout_transform_target: canvas.selection.layout_transform_target.clone(),
-                part_rail_selection: canvas.selection.part_rail_selection.clone(),
-                part_rail_snap: canvas.selection.part_rail_snap,
-            },
+    let payload = match workspace {
+        Workspace::Case => {
+            workspace_composition::WorkspacePayload::Case(case_workspace::CaseFrame {
+                instance_scope_pending,
+                mechanical_settings: mechanical_settings.clone(),
+                physical_setup: physical_setup.clone(),
+                on_show_configured_board: nav.show_configured_board,
+            })
         }
-    });
+        Workspace::Parts => {
+            workspace_composition::WorkspacePayload::Parts(parts_workspace::PartsFrame {
+                matrix_placement_busy: state.matrix_pair.matrix_placement.busy,
+                on_place_assembly: state.matrix_pair.on_place_matrix_assembly,
+                on_open_module_placement: wir.on_open_module_placement,
+                on_module_attached: wir.on_module_attached,
+            })
+        }
+        Workspace::Layout => layout_workspace::inspector_wiring::layout_payload(
+            layout_workspace::inspector_wiring::LayoutPayloadInput {
+                editor,
+                state: &state,
+                cam: &cam,
+                canvas: &canvas,
+                callbacks: &nav.callbacks,
+                inp: &inp,
+                guide: &guide,
+                wir: &wir,
+                matrix_setup: &matrix_setup,
+                snapshot,
+                select_tree: workspace_routing.select_tree,
+                split_focused_half: cmds,
+                ptr: &ptr,
+            },
+        ),
+        Workspace::Pcb => workspace_composition::WorkspacePayload::Pcb,
+        Workspace::Keymap => workspace_composition::WorkspacePayload::Keymap,
+        Workspace::Keycaps => workspace_composition::WorkspacePayload::Keycaps,
+        Workspace::Export => workspace_composition::WorkspacePayload::Export,
+    };
     let frame = (workspace != Workspace::Export).then(|| {
         workspace_composition::Frame::new(workspace_composition::WorkspaceFrame {
             scope: render_scope.clone(),
@@ -248,19 +246,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             show_position_inspector: canvas.inspector.show_position_inspector,
             camera: cam.scene_bounds.clone(),
             status,
-            case: (workspace == Workspace::Case).then(|| case_workspace::CaseFrame {
-                instance_scope_pending,
-                mechanical_settings: mechanical_settings.clone(),
-                physical_setup: physical_setup.clone(),
-                on_show_configured_board: nav.show_configured_board,
-            }),
-            parts: (workspace == Workspace::Parts).then_some(parts_workspace::PartsFrame {
-                matrix_placement_busy: state.matrix_pair.matrix_placement.busy,
-                on_place_assembly: state.matrix_pair.on_place_matrix_assembly,
-                on_open_module_placement: wir.on_open_module_placement,
-                on_module_attached: wir.on_module_attached,
-            }),
-            layout,
+            payload,
         })
     });
     rsx! {
@@ -276,7 +262,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                         objects_panel_settings: state.objects_panel_settings,
                         active_workspace: state.active_workspace,
                         layout_state: state.layout_state,
-                        export_objects,
                         layout_assembly_3d: state.layout_state.assembly_3d(),
                         layout_snap_settings: state.layout_state.snap_settings(),
                         layout_command_menu: state.layout_state.command_menu(),

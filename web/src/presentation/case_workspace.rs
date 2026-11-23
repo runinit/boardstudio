@@ -892,11 +892,15 @@ pub(super) struct CaseFrame {
 
 #[component]
 pub(super) fn CaseWorkspace() -> Element {
-    use super::workspace_composition::{WorkspaceSurfaces, publish_surfaces, use_frame};
+    use super::workspace_composition::{
+        WorkspacePayload, WorkspaceSurfaces, use_frame, use_publish_surfaces,
+    };
     use boardstudio_web_ui_model::{Workspace, editor::EditorContext};
 
     let frame = use_frame();
-    let case = frame.case.as_ref().expect("Case workspace frame");
+    let WorkspacePayload::Case(case) = &frame.payload else {
+        return rsx! {};
+    };
     let editor = use_context::<EditorContext>();
     let adapter = use_context::<SelectionAdapter>();
     let case_state = use_context::<CaseWorkspaceState>();
@@ -945,8 +949,7 @@ pub(super) fn CaseWorkspace() -> Element {
             apply_display_request(request, &admission);
         }
     });
-    publish_surfaces(
-        use_context(),
+    use_publish_surfaces(
         Workspace::Case,
         WorkspaceSurfaces {
             objects: objects(ObjectsInput {
@@ -987,4 +990,11 @@ pub(super) fn CaseWorkspace() -> Element {
         },
     );
     rsx! {}
+}
+
+pub(in crate::presentation) fn on_show_configured_board_handler(
+    mut navigate: impl FnMut((Scope, String, Option<String>)) + 'static,
+    scope: Scope,
+) -> EventHandler<String> {
+    EventHandler::new(move |board_id: String| navigate((scope.clone(), board_id, None)))
 }

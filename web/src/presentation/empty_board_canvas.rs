@@ -18,7 +18,7 @@ pub(super) fn EmptyBoardCanvas(
     let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
     let editable = runtime.with_model(|model| {
         model.lifecycle == Lifecycle::Ready
-            && model.durability == (Durability::Saved { revision })
+            && matches!(model.durability, Durability::Saved { revision: saved } | Durability::Saving { revision: saved } if saved == revision)
             && model.gesture.is_none()
             && model.display_preview.is_none()
     });

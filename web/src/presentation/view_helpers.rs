@@ -1,5 +1,6 @@
 use super::*;
 use boardstudio_web_ui_model::Workspace;
+use dioxus_web::WebEventExt;
 
 pub(crate) fn design_consumer_view_mode_handler(
     runtime: Rc<Runtime>,
@@ -135,4 +136,15 @@ pub(crate) fn focus_first_inspector_control_on_next_frame(
             let _ = window.request_animation_frame(cb.unchecked_ref());
         },
     );
+}
+
+/// Keep Space activation inside focused controls instead of arming the
+/// canvas pan shortcut. Shared by every surface that floats over a canvas.
+pub(crate) fn stop_space_propagation(event: KeyboardEvent) {
+    if matches!(event.key(), Key::Character(ref value) if value == " ") {
+        event.stop_propagation();
+        if let Some(raw) = event.data().try_as_web_event() {
+            raw.stop_propagation();
+        }
+    }
 }

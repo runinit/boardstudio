@@ -318,23 +318,24 @@ pub(super) fn build_selection_handlers(
             objects_panel_settings,
         },
     );
-    let on_open_module_placement = super::action_handlers::on_open_module_placement_handler(
-        super::action_handlers::OnOpenModulePlacementInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            scope: render_scope.clone(),
-            generation: render_generation,
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            workspace,
-            objects_open,
-            inspect_open,
-            instance_selection,
-            parts_selection,
-        },
-    );
-    let on_module_attached = super::action_handlers::on_module_attached_handler(
-        super::action_handlers::OnModuleAttachedInput {
+    let on_open_module_placement =
+        crate::presentation::parts_workspace::on_open_module_placement_handler(
+            crate::presentation::parts_workspace::OnOpenModulePlacementInput {
+                runtime: runtime.clone(),
+                adapter: adapter.clone(),
+                scope: render_scope.clone(),
+                generation: render_generation,
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                workspace,
+                objects_open,
+                inspect_open,
+                instance_selection,
+                parts_selection,
+            },
+        );
+    let on_module_attached = crate::presentation::parts_workspace::on_module_attached_handler(
+        crate::presentation::parts_workspace::OnModuleAttachedInput {
             runtime: runtime.clone(),
             adapter: adapter.clone(),
             workspace,

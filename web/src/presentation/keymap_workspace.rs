@@ -1,9 +1,8 @@
 //! Keymap-owned canvas and Inspector composition.
-use super::workbench::editor_session::action_handlers;
 use super::workspace_composition::CanvasEventHandlers;
 use super::workspace_composition::{
-    WorkspaceInteraction, WorkspaceOutputs, WorkspaceSurfaces, design_toolbar, publish_surfaces,
-    use_frame,
+    WorkspaceInteraction, WorkspaceSurfaces, design_toolbar, use_design_key_select, use_frame,
+    use_publish_surfaces,
 };
 use super::*;
 use boardstudio_application::{Scope, SnapshotToken};
@@ -151,7 +150,6 @@ pub(super) fn KeymapWorkspace() -> Element {
     let adapter = use_context::<SelectionAdapter>();
     let frame = use_frame();
     let interaction = use_context::<WorkspaceInteraction>();
-    let outputs = use_context::<WorkspaceOutputs>();
     let ActiveLayer(layer_id) = use_context::<ActiveLayer>();
     let runtime = editor.runtime();
     let workspace = editor.workspace;
@@ -192,7 +190,7 @@ pub(super) fn KeymapWorkspace() -> Element {
         || (None, Rc::from([])),
         |(view, contours)| (Some(view), contours),
     );
-    let wiring = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), editor.version);
+    let wiring = use_context::<pcb_wiring::SharedPcbWiring>();
     let encoders = keymap::use_encoder_inputs(
         runtime.clone(),
         layer_source.clone(),
@@ -221,8 +219,25 @@ pub(super) fn KeymapWorkspace() -> Element {
     let render_generation = frame.owner.generation;
     let scope = &frame.scope;
     let snapshot = &frame.snapshot;
-    let on_select_key = on_select_key(editor, adapter.clone(), &frame, layer_id);
-    let on_layer = action_handlers::on_keymap_layer_handler(
+    let on_select_key = use_design_key_select(
+        editor,
+        adapter.clone(),
+        &frame,
+        Workspace::Keymap,
+        true,
+        active_board_scope_matches,
+        move |model, scope, key_id| {
+            let layer_id = layer_id();
+            model
+                .accepted
+                .as_ref()
+                .and_then(|snapshot| {
+                    keymap::project(snapshot, Some(scope), &model.active_board_id, &layer_id)
+                })
+                .is_some_and(|view| view.keys.iter().any(|key| key.id.as_ref() == key_id))
+        },
+    );
+    let on_layer = on_keymap_layer_handler(
         runtime.clone(),
         adapter.clone(),
         scope.clone(),
@@ -230,17 +245,16 @@ pub(super) fn KeymapWorkspace() -> Element {
         workspace,
         layer_id,
     );
-    let on_export =
-        action_handlers::on_keymap_export_handler(action_handlers::OnKeymapExportInput {
-            runtime,
-            adapter: adapter.clone(),
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation: render_generation,
-            workspace,
-            instance_selection,
-        });
+    let on_export = on_keymap_export_handler(OnKeymapExportInput {
+        runtime,
+        adapter: adapter.clone(),
+        scope: scope.clone(),
+        token: snapshot.token,
+        revision: snapshot.document.revision,
+        generation: render_generation,
+        workspace,
+        instance_selection,
+    });
     let selected_ids = model.selected_part_ids.iter().cloned().collect();
     let selected_key_id = model.selected_part_ids.first().cloned();
     let (view_box, handlers, status) = frame.use_design_canvas(
@@ -304,25 +318,19 @@ pub(super) fn KeymapWorkspace() -> Element {
         status,
         layers: rsx! {},
     };
-    publish_surfaces(outputs, Workspace::Keymap, surfaces);
+    use_publish_surfaces(Workspace::Keymap, surfaces);
     rsx! {}
 }
 
-fn on_select_key(
-    editor: EditorContext,
+pub(super) fn on_keymap_layer_handler(
+    runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
-    frame: &workspace_composition::WorkspaceFrame,
-    keymap_layer_id: Signal<String>,
+    scope: Scope,
+    generation: u64,
+    workspace: Signal<Workspace>,
+    mut active_layer: Signal<String>,
 ) -> EventHandler<String> {
-    let runtime = editor.runtime();
-    let workspace = editor.workspace;
-    let scope = frame.scope.clone();
-    let generation = frame.owner.generation;
-    let CompactPanelState {
-        mut objects_open,
-        inspector_open: mut inspect_open,
-    } = editor.panels;
-    EventHandler::new(move |key_id: String| {
+    EventHandler::new(move |layer_id: String| {
         if workspace() != Workspace::Keymap
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -336,69 +344,60 @@ fn on_select_key(
         let Some(snapshot) = model.accepted.as_ref() else {
             return;
         };
-        if key_id.is_empty() {
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(boardstudio_application::Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
+        let exists = snapshot
+            .document
+            .keymap
+            .as_ref()
+            .filter(|map| !map.layers.is_empty())
+            .map_or(layer_id == "base", |map| {
+                map.layers.iter().any(|layer| layer.id == layer_id)
             });
-            return;
+        if exists {
+            active_layer.set(layer_id);
         }
-        let layer_id = keymap_layer_id();
-        let Some(view) = keymap::project(snapshot, Some(&scope), &model.active_board_id, &layer_id)
-        else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-            return;
-        }
-        let Some(context) = objects::context_for_part(&model, &key_id) else {
-            return;
-        };
-        if !selection::context_is_current(&model, &scope, &context) {
-            return;
-        }
-        let Some(selected_ids) = selection::submit_canvas_selection(
-            &runtime,
-            &adapter,
-            &scope,
-            generation,
-            context.clone(),
-            SelectionMode::Replace,
-            Vec::new(),
-        ) else {
-            return;
-        };
-        if selected_ids.is_empty()
+    })
+}
+
+pub(super) struct OnKeymapExportInput {
+    pub runtime: Rc<Runtime>,
+    pub adapter: SelectionAdapter,
+    pub scope: Scope,
+    pub token: boardstudio_application::SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
+    pub workspace: Signal<Workspace>,
+    pub instance_selection: InstanceSelection,
+}
+
+pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> EventHandler<()> {
+    let OnKeymapExportInput {
+        runtime,
+        adapter,
+        scope,
+        token,
+        revision,
+        generation,
+        workspace,
+        instance_selection,
+    } = input;
+    EventHandler::new(move |_| {
+        if workspace() != Workspace::Keymap
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
             return;
         }
-        let current = runtime.model();
-        if !active_board_scope_matches(&current, &scope)
-            || !selection::context_is_current(&current, &scope, &context)
-        {
+        let model = runtime.model();
+        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
             return;
         }
-        let Some(snapshot) = current.accepted.as_ref() else {
-            return;
-        };
-        let layer_id = keymap_layer_id();
-        let Some(view) =
-            keymap::project(snapshot, Some(&scope), &current.active_board_id, &layer_id)
-        else {
-            return;
-        };
-        if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
+        if model.accepted.as_ref().is_none_or(|accepted| {
+            accepted.token != token
+                || accepted.document.revision != revision
+                || accepted.scene.revision != revision
+        }) {
             return;
         }
-        objects_open.set(false);
-        inspect_open.set(true);
+        runtime.export_firmware();
     })
 }

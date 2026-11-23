@@ -1332,13 +1332,6 @@ fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {
     }
 }
 
-#[derive(Clone)]
-pub struct PcbWiringMount {
-    pub resolution: PcbWiringResolution,
-    pub resolution_signal: Signal<PcbWiringResolution>,
-    pub on_resolve: EventHandler<()>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WiringResolutionNotice {
     Pending,
@@ -1374,18 +1367,50 @@ pub fn wiring_resolution_notice(
     }
 }
 
-pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> PcbWiringMount {
-    use_pcb_wiring_preview(runtime, version, true)
+/// One wiring solve shared by the PCB, Keymap and Export workspaces and the
+/// Setup Guide. The signal lives at the editor-session lifetime so opening
+/// the guide never starts a second solve for the same accepted plan.
+#[derive(Clone, Copy)]
+pub struct SharedPcbWiring {
+    pub resolution_signal: Signal<PcbWiringResolution>,
+    pub on_resolve: Callback<()>,
 }
 
-pub fn use_pcb_wiring_preview(
+impl SharedPcbWiring {
+    /// The resolution current for the runtime's accepted plan, or
+    /// [`PcbWiringResolution::Idle`]. A disabled read never touches the
+    /// signal, so callers that only sometimes need wiring (the Setup Guide
+    /// inside the editor session) stay unsubscribed while disabled. The
+    /// shared hook itself never reads the signal in its render body; only
+    /// consumers calling this method subscribe.
+    pub fn current_resolution(&self, runtime: &Runtime, enabled: bool) -> PcbWiringResolution {
+        if !enabled {
+            return PcbWiringResolution::Idle;
+        }
+        let identity = current_input(runtime).map(|(identity, _, _)| identity);
+        let visible = (self.resolution_signal)();
+        match &visible {
+            PcbWiringResolution::Current {
+                identity: resolved, ..
+            }
+            | PcbWiringResolution::Failed {
+                identity: resolved, ..
+            } if Some(resolved) == identity.as_ref() => visible,
+            _ => PcbWiringResolution::Idle,
+        }
+    }
+}
+
+pub fn use_pcb_wiring_shared(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     enabled: bool,
-) -> PcbWiringMount {
+) -> SharedPcbWiring {
     let _ = version();
-    let input = enabled.then(|| current_input(&runtime)).flatten();
-    let identity = input.as_ref().map(|(identity, _, _)| identity.clone());
+    let identity = enabled
+        .then(|| current_input(&runtime))
+        .flatten()
+        .map(|(identity, _, _)| identity);
     let mut resolution = use_signal(|| PcbWiringResolution::Idle);
     let resolve = use_callback(move |()| {
         if enabled {
@@ -1393,18 +1418,7 @@ pub fn use_pcb_wiring_preview(
         }
     });
     use_effect(use_reactive((&identity,), move |_| resolve.call(())));
-    let visible = resolution();
-    let visible = match &visible {
-        PcbWiringResolution::Current {
-            identity: resolved, ..
-        }
-        | PcbWiringResolution::Failed {
-            identity: resolved, ..
-        } if Some(resolved) == identity.as_ref() => visible,
-        _ => PcbWiringResolution::Idle,
-    };
-    PcbWiringMount {
-        resolution: visible,
+    SharedPcbWiring {
         resolution_signal: resolution,
         on_resolve: resolve,
     }

@@ -98,7 +98,7 @@ pub(super) fn use_pointer_bundle(
     (move_pointer, end_pointer, cancel_pointer)
 }
 
-pub(super) struct PtrNamed {
+pub(in crate::presentation) struct PtrNamed {
     pub matrix_pointer_down: EventHandler<layout_canvas::MatrixPointerDown>,
     pub part_pointer_down: EventHandler<layout_canvas::PartPointerDown>,
 }
@@ -132,57 +132,59 @@ pub(super) fn build_canvas_pointer(
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
-    let matrix_pointer_down = super::canvas_pointer::matrix_pointer_down_handler(
-        super::canvas_pointer::MatrixPointerDownInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            svg: svg.clone(),
-            space_down: space_down.clone(),
-            scope: render_scope.clone(),
-            generation: render_generation,
-            range_ids: visible_ids.clone(),
-            selection_kind: layout_selection_kind,
-            owner: layout_owner.clone(),
-            tree_cell_anchor: tree_cell_anchor.clone(),
-            pending_splay_pick: pending_splay_origin_pick,
-            pending_anchor_pick,
-            transform_inspector: matrix_transform_inspector.clone(),
-            canvas_interaction: canvas_interaction.clone(),
-            mirrored_pair: mirrored_pair.clone(),
-            split_focus,
-            workspace,
-            view_x,
-            view_y,
-            width,
-            height,
-        },
-    );
-    let part_pointer_down = super::canvas_pointer::part_pointer_down_handler(
-        super::canvas_pointer::PartPointerDownInput {
-            runtime: runtime.clone(),
-            svg: svg.clone(),
-            drag: drag.clone(),
-            space_down: space_down.clone(),
-            canvas_interaction: canvas_interaction.clone(),
-            navigation: canvas_navigation.clone(),
-            adapter: adapter.clone(),
-            render_scope: render_scope.clone(),
-            generation: render_generation,
-            range_ids: visible_ids.clone(),
-            selection_kind: layout_selection_kind,
-            owner: layout_owner.clone(),
-            tree_cell_anchor: tree_cell_anchor.clone(),
-            mirrored_pair: mirrored_pair.clone(),
-            pending_splay_pick: pending_splay_origin_pick,
-            transform_inspector: matrix_transform_inspector.clone(),
-            split_focus,
-            workspace,
-            view_x,
-            view_y,
-            width,
-            height,
-        },
-    );
+    let matrix_pointer_down =
+        crate::presentation::layout_workspace::pointer::matrix_pointer_down_handler(
+            crate::presentation::layout_workspace::pointer::MatrixPointerDownInput {
+                runtime: runtime.clone(),
+                adapter: adapter.clone(),
+                svg: svg.clone(),
+                space_down: space_down.clone(),
+                scope: render_scope.clone(),
+                generation: render_generation,
+                range_ids: visible_ids.clone(),
+                selection_kind: layout_selection_kind,
+                owner: layout_owner.clone(),
+                tree_cell_anchor: tree_cell_anchor.clone(),
+                pending_splay_pick: pending_splay_origin_pick,
+                pending_anchor_pick,
+                transform_inspector: matrix_transform_inspector.clone(),
+                canvas_interaction: canvas_interaction.clone(),
+                mirrored_pair: mirrored_pair.clone(),
+                split_focus,
+                workspace,
+                view_x,
+                view_y,
+                width,
+                height,
+            },
+        );
+    let part_pointer_down =
+        crate::presentation::layout_workspace::pointer::part_pointer_down_handler(
+            crate::presentation::layout_workspace::pointer::PartPointerDownInput {
+                runtime: runtime.clone(),
+                svg: svg.clone(),
+                drag: drag.clone(),
+                space_down: space_down.clone(),
+                canvas_interaction: canvas_interaction.clone(),
+                navigation: canvas_navigation.clone(),
+                adapter: adapter.clone(),
+                render_scope: render_scope.clone(),
+                generation: render_generation,
+                range_ids: visible_ids.clone(),
+                selection_kind: layout_selection_kind,
+                owner: layout_owner.clone(),
+                tree_cell_anchor: tree_cell_anchor.clone(),
+                mirrored_pair: mirrored_pair.clone(),
+                pending_splay_pick: pending_splay_origin_pick,
+                transform_inspector: matrix_transform_inspector.clone(),
+                split_focus,
+                workspace,
+                view_x,
+                view_y,
+                width,
+                height,
+            },
+        );
     PtrNamed {
         matrix_pointer_down,
         part_pointer_down,

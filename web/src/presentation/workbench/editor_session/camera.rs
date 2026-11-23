@@ -2,12 +2,12 @@ use super::super::*;
 use super::EditorContext;
 use boardstudio_web_ui_model::Workspace;
 
-pub(super) struct SvgSurface {
+pub(in crate::presentation) struct SvgSurface {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub zoom_surface_size: Signal<(f64, f64)>,
 }
 
-pub(super) fn use_svg_surface(
+pub(in crate::presentation) fn use_svg_surface(
     canvas_navigation: &CanvasNavigationState,
     workspace: Signal<Workspace>,
 ) -> SvgSurface {
@@ -63,6 +63,7 @@ pub(super) fn use_svg_surface(
 }
 
 pub(in crate::presentation) struct SceneBoundsInput<'a> {
+    pub enabled: bool,
     pub model: &'a ReadModel,
     pub snapshot: &'a AcceptedSnapshot,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
@@ -98,6 +99,7 @@ pub(in crate::presentation) struct SceneBounds {
 
 pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
     let SceneBoundsInput {
+        enabled,
         model,
         snapshot,
         document,
@@ -119,16 +121,31 @@ pub(in crate::presentation) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> 
         scene: scene.clone(),
         ..accepted_canvas_source.clone()
     };
-    let accepted_layout_bounds = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
-        keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
-    }))();
+    let accepted_layout_bounds = use_memo(use_reactive(
+        (&accepted_canvas_source, &enabled),
+        |(source, enabled)| {
+            enabled
+                .then(|| {
+                    keycaps_fit::layout_canvas_bounds(
+                        &source.document,
+                        &source.scene,
+                        &source.board_id,
+                    )
+                })
+                .flatten()
+        },
+    ))();
     let displayed_layout_bounds = use_memo(use_reactive(
         (
             &canvas_source,
             &accepted_canvas_source,
             &accepted_layout_bounds,
+            &enabled,
         ),
-        |(source, accepted_source, accepted_bounds)| {
+        |(source, accepted_source, accepted_bounds, enabled)| {
+            if !enabled {
+                return None;
+            }
             if source == accepted_source {
                 accepted_bounds
             } else {
@@ -274,7 +291,7 @@ pub(in crate::presentation) fn footer_bounds(input: FooterBoundsInput<'_>) -> Fo
     }
 }
 
-pub(super) fn on_fit_keymap_board_handler(
+pub(in crate::presentation) fn on_fit_keymap_board_handler(
     layout_owner: LayoutOwnerIdentity,
     runtime: Rc<Runtime>,
     workspace: Signal<Workspace>,
@@ -322,7 +339,7 @@ pub(super) fn on_fit_keymap_board_handler(
     })
 }
 
-pub(super) struct OnFitKeymapSelectionInput {
+pub(in crate::presentation) struct OnFitKeymapSelectionInput {
     pub layout_owner: LayoutOwnerIdentity,
     pub runtime: Rc<Runtime>,
     pub workspace: Signal<Workspace>,
@@ -333,7 +350,7 @@ pub(super) struct OnFitKeymapSelectionInput {
     pub footer_selection_bounds: Option<(f64, f64, f64, f64)>,
 }
 
-pub(super) fn on_fit_keymap_selection_handler(
+pub(in crate::presentation) fn on_fit_keymap_selection_handler(
     input: OnFitKeymapSelectionInput,
 ) -> EventHandler<()> {
     let OnFitKeymapSelectionInput {
@@ -395,7 +412,7 @@ pub(super) fn on_fit_keymap_selection_handler(
     })
 }
 
-pub(super) struct ZoomKeymapInput {
+pub(in crate::presentation) struct ZoomKeymapInput {
     pub zoom_runtime: Rc<Runtime>,
     pub zoom_workspace: Signal<Workspace>,
     pub zoom_scope: Scope,
@@ -410,7 +427,9 @@ pub(super) struct ZoomKeymapInput {
     pub render_generation: u64,
 }
 
-pub(super) fn zoom_keymap_handler(input: ZoomKeymapInput) -> impl FnMut(f64) + Clone + 'static {
+pub(in crate::presentation) fn zoom_keymap_handler(
+    input: ZoomKeymapInput,
+) -> impl FnMut(f64) + Clone + 'static {
     let ZoomKeymapInput {
         zoom_runtime,
         zoom_workspace,
@@ -488,7 +507,7 @@ pub(super) fn zoom_keymap_handler(input: ZoomKeymapInput) -> impl FnMut(f64) + C
     }
 }
 
-pub(super) struct PlacementBindingsInput<'a> {
+pub(in crate::presentation) struct PlacementBindingsInput<'a> {
     pub min_x: f64,
     pub max_x: f64,
     pub min_y: f64,
@@ -513,7 +532,7 @@ pub(super) struct PlacementBindingsInput<'a> {
     pub canvas_navigation: &'a CanvasNavigationState,
 }
 
-pub(super) struct PlacementBindings {
+pub(in crate::presentation) struct PlacementBindings {
     pub part_placement: part_placement::PartPlacementMount,
     pub drag: Rc<RefCell<Option<Drag>>>,
     pub space_down: Rc<Cell<bool>>,
@@ -521,7 +540,9 @@ pub(super) struct PlacementBindings {
     pub observed_interaction_version: u64,
 }
 
-pub(super) fn use_placement_bindings(input: PlacementBindingsInput<'_>) -> PlacementBindings {
+pub(in crate::presentation) fn use_placement_bindings(
+    input: PlacementBindingsInput<'_>,
+) -> PlacementBindings {
     let PlacementBindingsInput {
         min_x,
         max_x,
@@ -611,7 +632,20 @@ pub(in crate::presentation) struct CameraActions {
     pub zoom_in: EventHandler<()>,
 }
 
-pub(super) fn visible_positions(visible: &[&Part]) -> Option<(f64, f64, f64, f64)> {
+impl CameraActions {
+    pub(in crate::presentation) fn noop() -> Self {
+        Self {
+            fit_board: EventHandler::new(|_| {}),
+            fit_selection: EventHandler::new(|_| {}),
+            zoom_out: EventHandler::new(|_| {}),
+            zoom_in: EventHandler::new(|_| {}),
+        }
+    }
+}
+
+pub(in crate::presentation) fn visible_positions(
+    visible: &[&Part],
+) -> Option<(f64, f64, f64, f64)> {
     let mut points = visible.iter().map(|part| part.pose.at);
     let first = points.next()?;
     Some(points.fold(
@@ -627,7 +661,7 @@ pub(super) fn visible_positions(visible: &[&Part]) -> Option<(f64, f64, f64, f64
     ))
 }
 
-pub(super) struct CamNamed {
+pub(in crate::presentation) struct CamNamed {
     pub svg_surface: SvgSurface,
     pub scene_bounds: SceneBounds,
     pub footer_bounds: FooterBounds,
@@ -635,7 +669,7 @@ pub(super) struct CamNamed {
     pub actions: CameraActions,
 }
 
-pub(super) fn use_camera_bundle(
+pub(in crate::presentation) fn use_camera_bundle(
     state: &super::session_state::SessionState,
     views: &super::setup_workspaces::Views,
     snapshot: &AcceptedSnapshot,
@@ -670,7 +704,13 @@ pub(super) fn use_camera_bundle(
         zoom_surface_size,
     } = use_svg_surface(canvas_navigation, workspace);
 
+    // Keymap and Keycaps derive their own bounds, footer and camera actions
+    // through the design-canvas path, so the session bundle skips the
+    // duplicate solve while either owns the canvas.
+    let design_canvas_workspace =
+        matches!(active_workspace, Workspace::Keymap | Workspace::Keycaps);
     let scene_bounds = use_scene_bounds(SceneBoundsInput {
+        enabled: !design_canvas_workspace,
         model,
         snapshot,
         document: document.clone(),
@@ -685,31 +725,44 @@ pub(super) fn use_camera_bundle(
         svg: svg.clone(),
         zoom_surface_size,
     });
-    let footer = footer_bounds(FooterBoundsInput {
-        min_x: scene_bounds.min_x,
-        max_x: scene_bounds.max_x,
-        min_y: scene_bounds.min_y,
-        max_y: scene_bounds.max_y,
-        workspace_rect_bounds: scene_bounds.workspace_rect_bounds,
-        displayed_layout_bounds: scene_bounds.displayed_layout_bounds,
-        active_workspace,
-        selection_bounds: None,
-        document: document.clone(),
-        scene: scene.clone(),
-        board_id: render_scope.board_id.clone(),
-        model,
-    });
-    let actions = camera_actions(
-        editor,
-        adapter,
-        layout_owner,
-        render_scope,
-        snapshot,
-        &svg,
-        &footer,
-        &scene_bounds,
-        &model.selected_part_ids,
-    );
+    let footer = if design_canvas_workspace {
+        FooterBounds {
+            footer_camera_bounds: scene_bounds.bounds,
+            footer_board_bounds: None,
+            footer_selection_bounds: None,
+            footer_selection_available: false,
+        }
+    } else {
+        footer_bounds(FooterBoundsInput {
+            min_x: scene_bounds.min_x,
+            max_x: scene_bounds.max_x,
+            min_y: scene_bounds.min_y,
+            max_y: scene_bounds.max_y,
+            workspace_rect_bounds: scene_bounds.workspace_rect_bounds,
+            displayed_layout_bounds: scene_bounds.displayed_layout_bounds,
+            active_workspace,
+            selection_bounds: None,
+            document: document.clone(),
+            scene: scene.clone(),
+            board_id: render_scope.board_id.clone(),
+            model,
+        })
+    };
+    let actions = if design_canvas_workspace {
+        CameraActions::noop()
+    } else {
+        camera_actions(
+            editor,
+            adapter,
+            layout_owner,
+            render_scope,
+            snapshot,
+            &svg,
+            &footer,
+            &scene_bounds,
+            &model.selected_part_ids,
+        )
+    };
     let PlacementBindings {
         part_placement,
         drag,

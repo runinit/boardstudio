@@ -56,20 +56,23 @@ pub(super) fn Inspector() -> Element {
             .as_ref()
             .map_or_else(String::new, |p| p.pose.at.y.to_string())
     });
-    if *synced_key.peek() != current_key {
-        synced_key.set(current_key);
-        x_text.set(
-            selected
-                .as_ref()
-                .map_or_else(String::new, |p| p.pose.at.x.to_string()),
-        );
-        y_text.set(
-            selected
-                .as_ref()
-                .map_or_else(String::new, |p| p.pose.at.y.to_string()),
-        );
-        failure.set(None);
-    }
+    use_effect(use_reactive((&current_key,), move |(current_key,)| {
+        if *synced_key.peek() != current_key {
+            let (x, y) = current_key.as_ref().map_or_else(
+                || (String::new(), String::new()),
+                |(_, x_bits, y_bits)| {
+                    (
+                        f64::from_bits(*x_bits).to_string(),
+                        f64::from_bits(*y_bits).to_string(),
+                    )
+                },
+            );
+            synced_key.set(current_key);
+            x_text.set(x);
+            y_text.set(y);
+            failure.set(None);
+        }
+    }));
     let apply_position = {
         let rt = runtime.clone();
         move || {
