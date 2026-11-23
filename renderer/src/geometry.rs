@@ -1,5 +1,4 @@
 use lyon_path::{Path, math::point};
-use lyon_tessellation::FillRule as FillRuleLyon;
 use lyon_tessellation::{
     BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex, StrokeOptions,
     StrokeTessellator, StrokeVertex, VertexBuffers,
@@ -22,6 +21,10 @@ pub(crate) fn polygon_area(points: &[[f32; 2]]) -> f32 {
     if points.len() < 3 {
         return 0.0;
     }
+    signed_polygon_area(points).abs() * 0.5
+}
+
+fn signed_polygon_area(points: &[[f32; 2]]) -> f32 {
     points
         .iter()
         .enumerate()
@@ -29,9 +32,7 @@ pub(crate) fn polygon_area(points: &[[f32; 2]]) -> f32 {
             let next = points[(index + 1) % points.len()];
             point[0] * next[1] - next[0] * point[1]
         })
-        .sum::<f32>()
-        .abs()
-        * 0.5
+        .sum()
 }
 
 struct ClipRing {
@@ -59,6 +60,32 @@ fn bounds(points: &[[f32; 2]]) -> [f32; 4] {
 }
 fn overlap(a: [f32; 4], b: [f32; 4]) -> bool {
     a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1]
+}
+
+fn tessellate_contours(
+    contours: &[BoardContour<'_>],
+    fill_rule: lyon_tessellation::FillRule,
+    context: &str,
+) -> Result<VertexBuffers<[f32; 2], u32>, String> {
+    let mut path = Path::builder();
+    for contour in contours.iter().filter(|contour| contour.points.len() >= 3) {
+        path.begin(point(contour.points[0][0], contour.points[0][1]));
+        for p in contour.points.iter().skip(1) {
+            path.line_to(point(p[0], p[1]));
+        }
+        path.close();
+    }
+    let mut buffers = VertexBuffers::new();
+    FillTessellator::new()
+        .tessellate_path(
+            &path.build(),
+            &FillOptions::default().with_fill_rule(fill_rule),
+            &mut BuffersBuilder::new(&mut buffers, |vertex: FillVertex<'_>| {
+                [vertex.position().x, vertex.position().y]
+            }),
+        )
+        .map_err(|error| format!("{context} failed: {error}"))?;
+    Ok(buffers)
 }
 
 pub(crate) struct SurfaceClipper {
@@ -169,27 +196,11 @@ impl SurfaceClipper {
                         hole: i > 0,
                     })
                     .collect::<Vec<_>>();
-                let mut path = Path::builder();
-                for contour in &contours {
-                    if contour.points.len() < 3 {
-                        continue;
-                    }
-                    path.begin(point(contour.points[0][0], contour.points[0][1]));
-                    for p in &contour.points[1..] {
-                        path.line_to(point(p[0], p[1]));
-                    }
-                    path.close();
-                }
-                let mut buffers = VertexBuffers::new();
-                FillTessellator::new()
-                    .tessellate_path(
-                        &path.build(),
-                        &FillOptions::default().with_fill_rule(FillRuleLyon::EvenOdd),
-                        &mut BuffersBuilder::new(&mut buffers, |v: FillVertex<'_>| {
-                            [v.position().x, v.position().y]
-                        }),
-                    )
-                    .map_err(|error| format!("PCB surface clipping failed: {error}"))?;
+                let buffers = tessellate_contours(
+                    &contours,
+                    lyon_tessellation::FillRule::EvenOdd,
+                    "PCB surface clipping",
+                )?;
                 append_layer(&mut result, &buffers, positions[0][2], normal);
             }
         }
@@ -262,25 +273,7 @@ pub(crate) fn board_mesh(
     contours: &[BoardContour<'_>],
     thickness: f32,
 ) -> Result<MeshData, String> {
-    let mut path = Path::builder();
-    for contour in contours.iter().filter(|contour| contour.points.len() >= 3) {
-        path.begin(point(contour.points[0][0], contour.points[0][1]));
-        for point2 in contour.points.iter().skip(1) {
-            path.line_to(point(point2[0], point2[1]));
-        }
-        path.close();
-    }
-    let path = path.build();
-    let mut buffers: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
-    FillTessellator::new()
-        .tessellate_path(
-            &path,
-            &FillOptions::default().with_fill_rule(FillRule::EvenOdd),
-            &mut BuffersBuilder::new(&mut buffers, |vertex: FillVertex<'_>| {
-                [vertex.position().x, vertex.position().y]
-            }),
-        )
-        .map_err(|error| format!("PCB outline tessellation failed: {error}"))?;
+    let buffers = tessellate_contours(contours, FillRule::EvenOdd, "PCB outline tessellation")?;
     let mut mesh = MeshData::default();
     append_layer(&mut mesh, &buffers, thickness, [0.0, 0.0, 1.0]);
     append_layer(&mut mesh, &buffers, 0.0, [0.0, 0.0, -1.0]);
@@ -316,22 +309,11 @@ pub(crate) fn surface_mesh(
     if points.len() < 3 {
         return Ok(MeshData::default());
     }
-    let mut path = Path::builder();
-    path.begin(point(points[0][0], points[0][1]));
-    for point2 in points.iter().skip(1) {
-        path.line_to(point(point2[0], point2[1]));
-    }
-    path.close();
-    let mut buffers: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
-    FillTessellator::new()
-        .tessellate_path(
-            &path.build(),
-            &FillOptions::default(),
-            &mut BuffersBuilder::new(&mut buffers, |vertex: FillVertex<'_>| {
-                [vertex.position().x, vertex.position().y]
-            }),
-        )
-        .map_err(|error| format!("PCB surface tessellation failed: {error}"))?;
+    let contours = [BoardContour {
+        points,
+        hole: false,
+    }];
+    let buffers = tessellate_contours(&contours, FillRule::EvenOdd, "PCB surface tessellation")?;
     let mut mesh = MeshData::default();
     append_layer(&mut mesh, &buffers, z, normal);
     Ok(mesh)
@@ -435,15 +417,11 @@ fn append_quad(
 }
 
 fn winding(points: &[[f32; 2]]) -> f32 {
-    let area = points
-        .iter()
-        .enumerate()
-        .map(|(index, point)| {
-            let next = points[(index + 1) % points.len()];
-            point[0] * next[1] - next[0] * point[1]
-        })
-        .sum::<f32>();
-    if area < 0.0 { -1.0 } else { 1.0 }
+    if signed_polygon_area(points) < 0.0 {
+        -1.0
+    } else {
+        1.0
+    }
 }
 
 /// Unique boundary and crease edges, independent of flat tessellation diagonals.
@@ -489,19 +467,29 @@ pub(crate) fn feature_edges(mesh: &MeshData) -> Vec<[[f32; 3]; 2]> {
 mod tests {
     use super::*;
 
-    fn triangle_dot_normal(mesh: &MeshData, triangle: [usize; 3]) -> f32 {
-        let a = mesh.positions[triangle[0]];
-        let b = mesh.positions[triangle[1]];
-        let c = mesh.positions[triangle[2]];
-        let normal = mesh.normals[triangle[0]];
+    fn triangle_dot_normal(mesh: &MeshData, t: [usize; 3]) -> f32 {
+        let (a, b, c) = (
+            mesh.positions[t[0]],
+            mesh.positions[t[1]],
+            mesh.positions[t[2]],
+        );
+        let n = mesh.normals[t[0]];
         let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
         let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-        let cross = [
-            ab[1] * ac[2] - ab[2] * ac[1],
-            ab[2] * ac[0] - ab[0] * ac[2],
-            ab[0] * ac[1] - ab[1] * ac[0],
-        ];
-        cross[0] * normal[0] + cross[1] * normal[1] + cross[2] * normal[2]
+        (ab[1] * ac[2] - ab[2] * ac[1]) * n[0]
+            + (ab[2] * ac[0] - ab[0] * ac[2]) * n[1]
+            + (ab[0] * ac[1] - ab[1] * ac[0]) * n[2]
+    }
+
+    fn assert_triangles_face_normal(mesh: &MeshData) {
+        for triangle in mesh.indices.as_chunks::<3>().0 {
+            let index = [
+                triangle[0] as usize,
+                triangle[1] as usize,
+                triangle[2] as usize,
+            ];
+            assert!(triangle_dot_normal(mesh, index) > 0.0);
+        }
     }
 
     #[test]
@@ -516,18 +504,7 @@ mod tests {
         )
         .unwrap();
 
-        for triangle in mesh.indices.as_chunks::<3>().0.iter() {
-            assert!(
-                triangle_dot_normal(
-                    &mesh,
-                    [
-                        triangle[0] as usize,
-                        triangle[1] as usize,
-                        triangle[2] as usize
-                    ]
-                ) > 0.0
-            );
-        }
+        assert_triangles_face_normal(&mesh);
     }
 
     #[test]
@@ -632,18 +609,7 @@ mod tests {
         let polygon = [[0.0, 0.0], [5.0, 0.0], [5.0, 4.0], [0.0, 4.0]];
         let mesh = surface_mesh(&polygon, -0.001, [0.0, 0.0, -1.0]).unwrap();
 
-        for triangle in mesh.indices.as_chunks::<3>().0.iter() {
-            assert!(
-                triangle_dot_normal(
-                    &mesh,
-                    [
-                        triangle[0] as usize,
-                        triangle[1] as usize,
-                        triangle[2] as usize
-                    ]
-                ) > 0.0
-            );
-        }
+        assert_triangles_face_normal(&mesh);
     }
 
     #[test]
@@ -664,14 +630,11 @@ mod tests {
             indices: vec![0, 1, 2],
             colors: None,
         };
-        clip_surface_to_board(
-            &mut crosses_notch,
-            &[BoardContour {
-                points: &notched_outline,
-                hole: false,
-            }],
-            &[],
-        );
+        let board = [BoardContour {
+            points: &notched_outline,
+            hole: false,
+        }];
+        clip_surface_to_board(&mut crosses_notch, &board, &[]);
         assert!(!crosses_notch.indices.is_empty());
         assert!(crosses_notch.indices.as_chunks::<3>().0.iter().all(|t| {
             let p = t
@@ -689,14 +652,11 @@ mod tests {
             indices: vec![0, 1, 2],
             colors: None,
         };
-        clip_surface_to_board(
-            &mut crosses_drill,
-            &[BoardContour {
-                points: &outline,
-                hole: false,
-            }],
-            &[drill],
-        );
+        let board = [BoardContour {
+            points: &outline,
+            hole: false,
+        }];
+        clip_surface_to_board(&mut crosses_drill, &board, &[drill]);
         assert!(!crosses_drill.indices.is_empty());
         assert!(crosses_drill.indices.as_chunks::<3>().0.iter().all(|t| {
             let p = t
@@ -750,14 +710,11 @@ mod tests {
     fn clips_crossing_triangles_instead_of_erasing_visible_copper() {
         let outline = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
         let mut mesh = surface_mesh(&[[-2., 2.], [4., 2.], [4., 8.]], 1.6, [0., 0., 1.]).unwrap();
-        clip_surface_to_board(
-            &mut mesh,
-            &[BoardContour {
-                points: &outline,
-                hole: false,
-            }],
-            &[],
-        );
+        let board = [BoardContour {
+            points: &outline,
+            hole: false,
+        }];
+        clip_surface_to_board(&mut mesh, &board, &[]);
         assert!(!mesh.indices.is_empty());
         assert!(
             mesh.positions

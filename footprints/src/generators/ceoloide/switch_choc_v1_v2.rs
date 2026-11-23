@@ -4,10 +4,11 @@
 //! Copyright (c) 2023 Marco Massarelli
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0
 //! Authors: @ergogen + @infused-kim, @ceoloide, @grazfather, @nxtk improvements
+use super::display_shared;
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::json_string;
+use crate::generators::util::{json_string, push_route_segment, push_route_via};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, KeycapParameters, License};
@@ -88,6 +89,138 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
     },
     body: crate::registry::Body::Text(body),
 };
+
+fn choc_routes_unplated(p: &RenderContext<'_>) -> String {
+    let mut out = String::new();
+    let width = n(p.number("trace_width"));
+    let locked = if p.flag("locked_traces_vias") {
+        "yes"
+    } else {
+        "no"
+    };
+    let from = p.net("from").index;
+    let to = p.net("to").index;
+    let size = n(p.number("via_size"));
+    let drill = n(p.number("via_drill"));
+    for ((sx, sy), (ex, ey)) in [
+        ((3.275, -5.95), (1.2, -3.875)),
+        ((1.2, -3.875), (0.0, -3.875)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "F",
+            from,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(0.0, -3.875), &size, &drill, locked, from);
+    for ((sx, sy), (ex, ey)) in [
+        ((-1.2, -3.875), (0.0, -3.875)),
+        ((-3.275, -5.95), (-1.2, -3.875)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "B",
+            from,
+        );
+    }
+    for ((sx, sy), (ex, ey)) in [
+        ((-6.421, -1.896), (-2.154, -1.896)),
+        ((-0.975, -3.075), (0.0, -3.075)),
+        ((-8.275, -3.75), (-6.421, -1.896)),
+        ((-2.154, -1.896), (-0.975, -3.075)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "F",
+            to,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(0.0, -3.075), &size, &drill, locked, to);
+    for ((sx, sy), (ex, ey)) in [
+        ((2.140166, -1.896), (0.961166, -3.075)),
+        ((6.421, -1.896), (2.140166, -1.896)),
+        ((0.961166, -3.075), (0.0, -3.075)),
+        ((8.275, -3.75), (6.421, -1.896)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "B",
+            to,
+        );
+    }
+    out.push_str("\n    ");
+    out
+}
+
+fn choc_routes_same_side(p: &RenderContext<'_>) -> String {
+    let mut out = String::new();
+    let width = n(p.number("trace_width"));
+    let locked = if p.flag("locked_traces_vias") {
+        "yes"
+    } else {
+        "no"
+    };
+    let from = p.net("from").index;
+    let to = p.net("to").index;
+    let size = n(p.number("via_size"));
+    let drill = n(p.number("via_drill"));
+    push_route_segment(
+        &mut out,
+        &p.eaxy(3.275, -5.95),
+        &p.eaxy(7.775, -5.95),
+        &width,
+        locked,
+        "F",
+        from,
+    );
+    push_route_via(&mut out, &p.eaxy(7.775, -5.95), &size, &drill, locked, from);
+    push_route_segment(
+        &mut out,
+        &p.eaxy(7.775, -3.75),
+        &p.eaxy(7.775, -5.95),
+        &width,
+        locked,
+        "B",
+        from,
+    );
+    push_route_segment(
+        &mut out,
+        &p.eaxy(-7.775, -3.75),
+        &p.eaxy(-7.775, -5.95),
+        &width,
+        locked,
+        "F",
+        to,
+    );
+    push_route_via(&mut out, &p.eaxy(-7.775, -5.95), &size, &drill, locked, to);
+    push_route_segment(
+        &mut out,
+        &p.eaxy(-3.275, -5.95),
+        &p.eaxy(-7.775, -5.95),
+        &width,
+        locked,
+        "B",
+        to,
+    );
+    out.push_str("\n    ");
+    out
+}
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
     const DEFAULT_SWITCH: &str = "${KIPRJMOD}/models/boardstudio/infused-kim/Choc_V1_Switch.step";
@@ -284,9 +417,8 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     );
 
-    let corner_marks = format!(
-        r####"
-    {e0}
+    const CORNER_MARKS: &str = r####"
+    
     (fp_line (start -7 -6) (end -7 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start -7 7) (end -6 7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start -6 -7) (end -7 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
@@ -295,10 +427,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_line (start 7 -7) (end 6 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start 6 7) (end 7 7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start 7 -7) (end 7 -6) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
-    "####,
-        e0 = ""
-    );
-
+    "####;
     let keycap_marks = format!(
         r####"
     (fp_rect (start {e0} {e1}) (end {e2} {e3}) (layer "Dwgs.User") (stroke (width 0.15) (type solid)) (fill none))
@@ -309,24 +438,19 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e3 = n(-keycap_yo)
     );
 
-    let choc_v1_led_cutout_marks = String::from(
-        r####"
+    const CHOC_V1_LED_CUTOUT_MARKS: &str = r####"
     (fp_rect (start -2.65 6.325) (end 2.65 3.075) (layer "Dwgs.User") (width 0.15) (stroke (width 0.15) (type solid)) (fill none))
-    "####,
-    );
+    "####;
 
-    let choc_v2_led_cutout_marks = String::from(
-        r####"
+    const CHOC_V2_LED_CUTOUT_MARKS: &str = r####"
     (fp_rect (start -2.75 6.405) (end 2.75 3.455) (layer "Dwgs.User") (width 0.15) (stroke (width 0.15) (type solid)) (fill none))
-    "####,
-    );
+    "####;
 
     let hotswap_common = format!(
         r####"
-    {e0}
+    
     {e1}
     "####,
-        e0 = "",
         e1 = if p.flag("include_plated_holes") {
             format!(
                 r####"
@@ -494,7 +618,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 
     let hotswap_back = format!(
         r####"
-    {e0}
+    
     {e1}
     (fp_line (start -1.5 -8.2) (end -2 -7.7) (layer "B.SilkS") (stroke (width 0.15) (type solid)))
     (fp_line (start 1.5 -8.2) (end -1.5 -8.2) (layer "B.SilkS") (stroke (width 0.15) (type solid)))
@@ -514,16 +638,14 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 
     {e3}
     "####,
-        e0 = "",
         e1 = "",
         e2 = "",
         e3 = if p.flag("include_plated_holes") {
             format!(
                 r####"
-    {e0}
+    
       {e1}
     "####,
-                e0 = "",
                 e1 = if p.flag("reversible") {
                     format!(
                         r####"
@@ -553,16 +675,15 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         } else {
             format!(
                 r####"
-    {e0}
+    
     {e1}
 
-    {e0}
+    
     (pad "2" smd rect (at {e2} -3.75 {e3}) (size {e4} 2.6) (layers "B.Cu" "B.Paste" "B.Mask") {e5})
 
-    {e0}
+    
     (pad "" np_thru_hole circle (at 5 -3.75 {e6}) (size 3 3) (drill 3) (layers "*.Cu" "*.Mask"))
     "####,
-                e0 = "",
                 e1 = if p.flag("reversible") {
                     hotswap_back_pad_cutoff.clone()
                 } else {
@@ -583,7 +704,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 
     let hotswap_front = format!(
         r####"
-    {e0}
+    
     {e1}
     (fp_line (start -7 -5.6) (end -7 -6.2) (layer "F.SilkS") (stroke (width 0.15) (type solid)))
     (fp_line (start -7 -6.2) (end -2.52 -6.2) (layer "F.SilkS") (stroke (width 0.15) (type solid)))
@@ -603,16 +724,14 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     
     {e3}
     "####,
-        e0 = "",
         e1 = "",
         e2 = "",
         e3 = if p.flag("include_plated_holes") {
             format!(
                 r####"
-    {e0}
+    
     {e1}
     "####,
-                e0 = "",
                 e1 = if p.flag("reversible") {
                     format!(
                         r####"
@@ -642,16 +761,15 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         } else {
             format!(
                 r####"
-    {e0}
+    
     (pad "" np_thru_hole circle (at -5 -3.75 {e1}) (size 3 3) (drill 3) (layers "*.Cu" "*.Mask"))
 
-    {e0}
+    
     {e2}
 
-    {e0}
+    
     (pad "2" smd rect (at {e3} -3.75 {e4}) (size {e5} 2.6) (layers "F.Cu" "F.Paste" "F.Mask") {e6})
     "####,
-                e0 = "",
                 e1 = n(195.0 + p.rotation()),
                 e2 = if p.flag("reversible") {
                     hotswap_front_pad_cutoff.clone()
@@ -759,281 +877,42 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     );
 
-    let switch_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(switch_filename),
-        e1 = n(switch_offset[0]),
-        e2 = n(switch_offset[1]),
-        e3 = n(switch_offset[2]),
-        e4 = n(p.component("switch_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("switch_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("switch_3dmodel_xyz_scale", 2)),
-        e7 = n(switch_rotation[0]),
-        e8 = n(switch_rotation[1]),
-        e9 = n(switch_rotation[2])
+    let switch_3dmodel = display_shared::ceoloide_model(
+        switch_filename,
+        switch_offset,
+        [
+            p.component("switch_3dmodel_xyz_scale", 0),
+            p.component("switch_3dmodel_xyz_scale", 1),
+            p.component("switch_3dmodel_xyz_scale", 2),
+        ],
+        switch_rotation,
     );
 
-    let hotswap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(hotswap_filename),
-        e1 = n(hotswap_offset[0]),
-        e2 = n(hotswap_offset[1]),
-        e3 = n(hotswap_offset[2]),
-        e4 = n(p.component("hotswap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("hotswap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("hotswap_3dmodel_xyz_scale", 2)),
-        e7 = n(hotswap_rotation[0]),
-        e8 = n(hotswap_rotation[1]),
-        e9 = n(hotswap_rotation[2])
+    let hotswap_3dmodel = display_shared::ceoloide_model(
+        hotswap_filename,
+        hotswap_offset,
+        [
+            p.component("hotswap_3dmodel_xyz_scale", 0),
+            p.component("hotswap_3dmodel_xyz_scale", 1),
+            p.component("hotswap_3dmodel_xyz_scale", 2),
+        ],
+        hotswap_rotation,
     );
 
-    let keycap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(keycap_filename),
-        e1 = n(keycap_offset[0]),
-        e2 = n(keycap_offset[1]),
-        e3 = n(keycap_offset[2]),
-        e4 = n(p.component("keycap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("keycap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("keycap_3dmodel_xyz_scale", 2)),
-        e7 = n(keycap_rotation[0]),
-        e8 = n(keycap_rotation[1]),
-        e9 = n(keycap_rotation[2])
+    let keycap_3dmodel = display_shared::ceoloide_model(
+        keycap_filename,
+        keycap_offset,
+        [
+            p.component("keycap_3dmodel_xyz_scale", 0),
+            p.component("keycap_3dmodel_xyz_scale", 1),
+            p.component("keycap_3dmodel_xyz_scale", 2),
+        ],
+        keycap_rotation,
     );
 
-    let common_bottom = String::from(
-        r####"
+    const COMMON_BOTTOM: &str = r####"
   )
-    "####,
-    );
-
-    let hotswap_routes_unplated = format!(
-        r####"
-	(segment
-		(start {e0})
-		(end {e1})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e1})
-		(end {e5})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(via
-		(at {e5})
-		(size {e6})
-    (drill {e7})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e4})
-	)
-	(segment
-		(start {e8})
-		(end {e5})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e9})
-		(end {e8})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e10})
-		(end {e11})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e13})
-		(end {e14})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e15})
-		(end {e10})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e11})
-		(end {e13})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e12})
-	)
-	(via
-		(at {e14})
-		(size {e6})
-    (drill {e7})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e12})
-	)
-	(segment
-		(start {e16})
-		(end {e17})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e18})
-		(end {e16})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e17})
-		(end {e14})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e12})
-	)
-	(segment
-		(start {e19})
-		(end {e18})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e12})
-	)
-    "####,
-        e0 = p.eaxy(3.275, -5.95),
-        e1 = p.eaxy(1.2, -3.875),
-        e2 = n(p.number("trace_width")),
-        e3 = if p.flag("locked_traces_vias") {
-            "yes".to_string()
-        } else {
-            "no".to_string()
-        },
-        e4 = p.net("from").index,
-        e5 = p.eaxy(0.0, -3.875),
-        e6 = n(p.number("via_size")),
-        e7 = n(p.number("via_drill")),
-        e8 = p.eaxy(-1.2, -3.875),
-        e9 = p.eaxy(-3.275, -5.95),
-        e10 = p.eaxy(-6.421, -1.896),
-        e11 = p.eaxy(-2.154, -1.896),
-        e12 = p.net("to").index,
-        e13 = p.eaxy(-0.975, -3.075),
-        e14 = p.eaxy(0.0, -3.075),
-        e15 = p.eaxy(-8.275, -3.75),
-        e16 = p.eaxy(2.140166, -1.896),
-        e17 = p.eaxy(0.961166, -3.075),
-        e18 = p.eaxy(6.421, -1.896),
-        e19 = p.eaxy(8.275, -3.75)
-    );
-
-    let hotswap_routes_same_side = format!(
-        r####"
-  (segment
-		(start {e0})
-		(end {e1})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(via
-		(at {e1})
-		(size {e5})
-    (drill {e6})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e4})
-	)
-	(segment
-		(start {e7})
-		(end {e1})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e8})
-		(end {e9})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e10})
-	)
-	(via
-		(at {e9})
-		(size {e5})
-    (drill {e6})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e10})
-	)
-	(segment
-		(start {e11})
-		(end {e9})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e10})
-	)
-    "####,
-        e0 = p.eaxy(3.275, -5.95),
-        e1 = p.eaxy(7.775, -5.95),
-        e2 = n(p.number("trace_width")),
-        e3 = if p.flag("locked_traces_vias") {
-            "yes".to_string()
-        } else {
-            "no".to_string()
-        },
-        e4 = p.net("from").index,
-        e5 = n(p.number("via_size")),
-        e6 = n(p.number("via_drill")),
-        e7 = p.eaxy(7.775, -3.75),
-        e8 = p.eaxy(-7.775, -3.75),
-        e9 = p.eaxy(-7.775, -5.95),
-        e10 = p.net("to").index,
-        e11 = p.eaxy(-3.275, -5.95)
-    );
+    "####;
 
     let (side, reversible, hotswap) = (p.side(), p.flag("reversible"), p.flag("hotswap"));
     let mut out = common_top;
@@ -1041,7 +920,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         out += &choc_v1_stabilizers;
     }
     if p.flag("include_corner_marks") {
-        out += &corner_marks;
+        out += CORNER_MARKS;
     }
     if p.flag("include_keycap") {
         out += &keycap_marks;
@@ -1066,10 +945,10 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     }
     if p.flag("include_choc_v1_led_cutout_marks") {
-        out += &choc_v1_led_cutout_marks;
+        out += CHOC_V1_LED_CUTOUT_MARKS;
     }
     if p.flag("include_choc_v2_led_cutout_marks") {
-        out += &choc_v2_led_cutout_marks;
+        out += CHOC_V2_LED_CUTOUT_MARKS;
     }
     if hotswap {
         out += &hotswap_common;
@@ -1098,12 +977,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     if !keycap_filename.is_empty() {
         out += &keycap_3dmodel;
     }
-    out += &common_bottom;
+    out += COMMON_BOTTOM;
     if reversible && hotswap && p.flag("include_traces_vias") && !p.flag("include_plated_holes") {
-        out += if p.flag("hotswap_pads_same_side") {
-            &hotswap_routes_same_side
+        out += &if p.flag("hotswap_pads_same_side") {
+            choc_routes_same_side(p)
         } else {
-            &hotswap_routes_unplated
+            choc_routes_unplated(p)
         };
     }
     Ok(out)

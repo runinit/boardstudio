@@ -8,7 +8,7 @@ use super::display_shared;
 use crate::Result;
 use crate::context::NetRef;
 use crate::context::RenderContext;
-use crate::generators::util::{join_numbers, json_string, xyz};
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -108,32 +108,26 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e4 = p.ref_hide()
     );
 
-    let front_silkscreen = String::from(
-        r####"
+    const FRONT_SILKSCREEN: &str = r####"
     (fp_line (start 5.14 15.37) (end 5.14 18.03) (layer "F.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start 5.14 15.37) (end -5.14 15.37) (layer "F.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start 5.14 18.03) (end -5.14 18.03) (layer "F.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start -5.14 15.37) (end -5.14 18.03) (layer "F.SilkS") (stroke (width 0.12) (type solid)))
-    "####,
-    );
+    "####;
 
-    let front_courtyard = String::from(
-        r####"
+    const FRONT_COURTYARD: &str = r####"
     (fp_line (start 5.61 14.9) (end 5.61 18.45) (layer "F.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start 5.61 18.45) (end -5.61 18.45) (layer "F.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start -5.61 18.45) (end -5.61 14.9) (layer "F.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start -5.61 14.9) (end 5.61 14.9) (layer "F.CrtYd") (stroke (width 0.15) (type solid)))
-    "####,
-    );
+    "####;
 
-    let front_fab = String::from(
-        r####"
+    const FRONT_FAB: &str = r####"
     (fp_line (start -3.77 -11.14) (end -3.77 11.24) (layer "F.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start 1.75 -11.14) (end 1.75 11.24) (layer "F.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start -3.77 -11.14) (end 1.75 -11.14) (layer "F.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start -3.77 11.24) (end 1.75 11.24) (layer "F.Fab") (stroke (width 0.15) (type solid)))
-    "####,
-    );
+    "####;
 
     let front_jumpers = format!(
         r####"
@@ -160,32 +154,26 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e10 = jumpers_front_bottom[3]
     );
 
-    let back_silkscreen = String::from(
-        r####"
+    const BACK_SILKSCREEN: &str = r####"
     (fp_line (start 5.14 15.37) (end 5.14 18.03) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start 5.14 15.37) (end -5.14 15.37) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start 5.14 18.03) (end -5.14 18.03) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start -5.14 15.37) (end -5.14 18.03) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
-    "####,
-    );
+    "####;
 
-    let back_courtyard = String::from(
-        r####"
+    const BACK_COURTYARD: &str = r####"
     (fp_line (start 5.61 14.9) (end 5.61 18.45) (layer "B.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start 5.61 18.45) (end -5.61 18.45) (layer "B.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start -5.61 18.45) (end -5.61 14.9) (layer "B.CrtYd") (stroke (width 0.15) (type solid)))
     (fp_line (start -5.61 14.9) (end 5.61 14.9) (layer "B.CrtYd") (stroke (width 0.15) (type solid)))
-    "####,
-    );
+    "####;
 
-    let back_fab = String::from(
-        r####"
+    const BACK_FAB: &str = r####"
     (fp_line (start 3.77 -11.14) (end 3.77 11.24) (layer "B.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start -1.75 -11.14) (end -1.75 11.24) (layer "B.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start 3.77 -11.14) (end -1.75 -11.14) (layer "B.Fab") (stroke (width 0.15) (type solid)))
     (fp_line (start 3.77 11.24) (end -1.75 11.24) (layer "B.Fab") (stroke (width 0.15) (type solid)))
-    "####,
-    );
+    "####;
 
     let back_jumpers = format!(
         r####"
@@ -365,41 +353,40 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e13 = socket_nets[3].index
     );
 
-    let final_add0 = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1}))
-      (scale (xyz {e2}))
-      (rotate (xyz {e3})))"####,
-        e0 = json_string(p.text("display_3dmodel_filename")),
-        e1 = xyz(offset),
-        e2 = join_numbers(p.list("display_3dmodel_xyz_scale")),
-        e3 = xyz(rotation)
+    let final_add0 = display_shared::ceoloide_model(
+        p.text("display_3dmodel_filename"),
+        offset,
+        [
+            p.component("display_3dmodel_xyz_scale", 0),
+            p.component("display_3dmodel_xyz_scale", 1),
+            p.component("display_3dmodel_xyz_scale", 2),
+        ],
+        rotation,
     );
 
     let mut out = top;
     if side == "F" || reversible {
-        out += &front_fab;
+        out += FRONT_FAB;
         if p.flag("include_silkscreen") {
-            out += &front_silkscreen;
+            out += FRONT_SILKSCREEN;
             if p.flag("include_labels") {
                 out += &silkscreen_labels_front;
             }
         }
         if p.flag("include_courtyard") {
-            out += &front_courtyard;
+            out += FRONT_COURTYARD;
         }
     }
     if side == "B" || reversible {
-        out += &back_fab;
+        out += BACK_FAB;
         if p.flag("include_silkscreen") {
-            out += &back_silkscreen;
+            out += BACK_SILKSCREEN;
             if p.flag("include_labels") {
                 out += &silkscreen_labels_back;
             }
         }
         if p.flag("include_courtyard") {
-            out += &back_courtyard;
+            out += BACK_COURTYARD;
         }
     }
     if reversible {

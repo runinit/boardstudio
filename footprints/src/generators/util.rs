@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::context::RenderContext;
 use crate::error::{GeneratorError, Result};
 use crate::number::js_number;
+use std::fmt::Write as _;
 
 /// `(xy x y) ` for each `[x, y]` of a list-of-pairs parameter.
 pub(crate) fn points_text(generator: &str, p: &RenderContext<'_>, name: &str) -> Result<String> {
@@ -110,6 +111,69 @@ pub(crate) fn model_side<'a>(
     } else {
         default_side
     }
+}
+
+/// A `(model ...)` block as the MIT ceoloide generators write it.
+///
+/// Neutral MIT/Apache-2.0 helper so MIT generators never import the
+/// `CC-BY-NC-SA-4.0` `display_shared` module; the emitted text matches the
+/// shared ceoloide model block without cross-licence sharing.
+/// A `(segment ...)` copper run as the switch route helpers write it.
+pub(crate) fn push_route_segment(
+    out: &mut String,
+    start: &str,
+    end: &str,
+    width: &str,
+    locked: &str,
+    layer: &str,
+    net: u32,
+) {
+    let _ = write!(
+        out,
+        "\n\t(segment\n\t\t(start {start})\n\t\t(end {end})\n\t\t(width {width})\n    (locked {locked})\n\t\t(layer \"{layer}.Cu\")\n\t\t(net {net})\n\t)"
+    );
+}
+
+/// A `(via ...)` as the switch route helpers write it.
+pub(crate) fn push_route_via(
+    out: &mut String,
+    at: &str,
+    size: &str,
+    drill: &str,
+    locked: &str,
+    net: u32,
+) {
+    let _ = write!(
+        out,
+        "\n\t(via\n\t\t(at {at})\n\t\t(size {size})\n    (drill {drill})\n\t\t(layers \"F.Cu\" \"B.Cu\")\n    (locked {locked})\n\t\t(net {net})\n\t)"
+    );
+}
+
+pub(crate) fn kicad_model(
+    filename: &str,
+    offset: [f64; 3],
+    scale: [f64; 3],
+    rotation: [f64; 3],
+) -> String {
+    format!(
+        r####"
+    (model {e0}
+      (offset (xyz {e1} {e2} {e3}))
+      (scale (xyz {e4} {e5} {e6}))
+      (rotate (xyz {e7} {e8} {e9}))
+    )
+    "####,
+        e0 = json_string(filename),
+        e1 = js_number(offset[0]),
+        e2 = js_number(offset[1]),
+        e3 = js_number(offset[2]),
+        e4 = js_number(scale[0]),
+        e5 = js_number(scale[1]),
+        e6 = js_number(scale[2]),
+        e7 = js_number(rotation[0]),
+        e8 = js_number(rotation[1]),
+        e9 = js_number(rotation[2])
+    )
 }
 
 /// A `(model ...)` block as the infused-kim generators write it: `(at ...)`
