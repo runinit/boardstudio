@@ -281,31 +281,8 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
     let mut engine = CoreEngine::new();
     engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(6, 7);
-    {
-        let values = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
-        value
-            .row_layout
-            .resize_with(values.len().max(value.row_layout.len()), Default::default);
-        for record in &mut value.row_layout {
-            record.offset = Vec2::default();
-        }
-        for (record, value) in value.row_layout.iter_mut().zip(values) {
-            record.offset = value;
-        }
-    }
-    {
-        let values = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
-        value.column_layout.resize_with(
-            values.len().max(value.column_layout.len()),
-            Default::default,
-        );
-        for record in &mut value.column_layout {
-            record.offset = Vec2::default();
-        }
-        for (record, value) in value.column_layout.iter_mut().zip(values) {
-            record.offset = value;
-        }
-    }
+    value.row_layout.resize_with(6, Default::default);
+    value.column_layout.resize_with(7, Default::default);
     value.cells = vec![MatrixCell {
         shift: None,
         bend: None,
@@ -505,32 +482,9 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
-    {
-        let values = vec![0.0, 5.0];
-        value.column_layout.resize_with(
-            values.len().max(value.column_layout.len()),
-            Default::default,
-        );
-        for record in &mut value.column_layout {
-            record.stagger = 0.0;
-        }
-        for (record, value) in value.column_layout.iter_mut().zip(values) {
-            record.stagger = value;
-        }
-    }
-    {
-        let values = vec![0.0, 90.0];
-        value.column_layout.resize_with(
-            values.len().max(value.column_layout.len()),
-            Default::default,
-        );
-        for record in &mut value.column_layout {
-            record.splay = 0.0;
-        }
-        for (record, value) in value.column_layout.iter_mut().zip(values) {
-            record.splay = value;
-        }
-    }
+    value.column_layout.resize_with(2, Default::default);
+    value.column_layout[1].stagger = 5.0;
+    value.column_layout[1].splay = 90.0;
     let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let key = doc
         .parts

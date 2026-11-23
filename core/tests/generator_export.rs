@@ -122,13 +122,7 @@ fn kicad_parses(content: &str) -> bool {
              set BOARDSTUDIO_ALLOW_NO_KICAD=1 to skip them"
         );
     }
-    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let directory = std::env::temp_dir().join(format!(
-        "boardstudio-generator-kicad-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&directory).unwrap();
+    let directory = crate::support::session::temp_dir("generator-kicad");
     let board = directory.join("main.kicad_pcb");
     std::fs::write(&board, content).unwrap();
     let report = directory.join("stats.json");

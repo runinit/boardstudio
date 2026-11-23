@@ -217,17 +217,13 @@ fn matrix_key_move_respects_rotated_splayed_and_mirrored_cell_coordinates() {
         let mut matrix = before.matrices[0].clone();
         matrix.rotation = Some(30.0);
         matrix.mirror = Some(mirror);
-        {
-            let values = vec![20.0];
-            let count = values.len().max(matrix.column_layout.len());
-            matrix.column_layout.resize_with(count, Default::default);
-            for record in &mut matrix.column_layout {
-                record.splay = 0.0;
-            }
-            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
-                record.splay = value;
-            }
+        matrix
+            .column_layout
+            .resize_with(matrix.column_layout.len().max(1), Default::default);
+        for record in &mut matrix.column_layout {
+            record.splay = 0.0;
         }
+        matrix.column_layout[0].splay = 20.0;
         let before = edit(&mut engine, &before, fixture::set_matrix(matrix));
         let initial = at(&before, "");
         let after = edit(

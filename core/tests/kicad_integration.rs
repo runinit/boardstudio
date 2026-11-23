@@ -3,8 +3,8 @@
 //! Ported from `kicad/test/export.test.ts` and `kicad/test/source.test.ts`,
 //! which drove the same boundary through a Node subprocess.
 use crate::support::query::{arr, empty_project};
+use crate::support::session::temp_dir;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use regex::Regex;
 use serde_json::{Value, json};
@@ -137,17 +137,6 @@ fn assert_match(text: &str, pattern: &str) {
 fn assert_error(result: Result<impl std::fmt::Debug, String>, pattern: &str) {
     let message = result.expect_err("expected the request to be rejected");
     assert_match(&message, pattern);
-}
-
-fn temp_dir(label: &str) -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let directory = std::env::temp_dir().join(format!(
-        "boardstudio-kicad-{label}-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&directory).unwrap();
-    directory
 }
 
 fn kicad_cli(arguments: &[&str]) {
