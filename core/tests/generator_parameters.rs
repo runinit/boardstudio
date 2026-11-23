@@ -6,7 +6,7 @@
 //! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
 //! legacy warning does not block an unrelated edit.
 use crate::support::fixture::{self, document as scene_document};
-use crate::support::{query::arr, session::Session};
+use crate::support::{query, query::arr, session::Session};
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
 use boardstudio_core::mechanical::MechanicalTarget;
@@ -535,18 +535,11 @@ fn saved_flipped_and_board_export_documents_validate_generator_jobs() {
         }))
         .expect("synthetic export board"),
     );
-    doc.mechanical = Some(
-        serde_json::from_value(json!({
-            "boardId":"synthetic-board", "method":"printed", "mount":"rigid",
-            "plateThickness":1.5, "plateFoamThickness":0, "pcbThickness":1.6,
-            "bottomFoamThickness":0, "batteryHeight":0, "bottomThickness":2,
-            "plateToPcb":3.5, "wallThickness":2, "clearance":0.2,
-            "profiles":[], "mounts":[], "closureMounts":[
-                {"id":"synthetic-closure-hole","at":{"x":8,"y":6},"kind":"hole","holeDiameter":2.2}
-            ]
-        }))
-        .expect("synthetic mechanical inputs"),
-    );
+    let mut mechanical = query::rigid_mechanical("synthetic-board", 3.5);
+    mechanical["closureMounts"] = json!([
+        {"id":"synthetic-closure-hole","at":{"x":8,"y":6},"kind":"hole","holeDiameter":2.2}
+    ]);
+    doc.mechanical = Some(serde_json::from_value(mechanical).expect("synthetic mechanical inputs"));
     doc.hardware = Some(serde_json::from_value(json!({
         "topology":"split", "transport":"wired",
         "instances":[{"id":"flipped","name":"Flipped synthetic board","boardId":"synthetic-board",

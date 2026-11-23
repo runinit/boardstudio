@@ -325,6 +325,24 @@ pub(crate) fn resolve_request(request: Value) -> Value {
     reply["assembly"].clone()
 }
 
+/// Resolve a mechanical document against explicit contours, asserting the
+/// `mechanical-resolved` reply. Covers the repeated `resolve-mechanical`
+/// request sequences in the mounted-module suites.
+#[track_caller]
+pub(crate) fn resolve_case(
+    engine: &mut CoreEngine,
+    id: &str,
+    document: &Value,
+    contours: impl serde::Serialize,
+) -> Value {
+    let reply = fixture::request(
+        engine,
+        serde_json::json!({"id":id,"kind":"resolve-mechanical","document":document,"contours":contours}),
+    );
+    assert_eq!(reply["kind"], "mechanical-resolved", "{reply}");
+    reply
+}
+
 /// Resolve a mechanical document against a `width` x `height` contour.
 /// Covers the repeated `resolve-mechanical` request sequences.
 #[track_caller]

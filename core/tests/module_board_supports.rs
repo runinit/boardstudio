@@ -1,5 +1,6 @@
 use crate::support::fixture::request;
 use crate::support::query;
+use crate::support::session::resolve_case;
 use boardstudio_core::{CoreEngine, artifact, model::*};
 use serde_json::{Value, json};
 
@@ -11,9 +12,7 @@ fn document() -> Value {
         "at":{"x":20,"y":-5},"rotation":90,"gap":3,"attachment":"board",
         "mountSupports":[{"mountId":"mh1","outerDiameter":6,"holeDiameter":2.8,"z":0.8,"height":3}]
     }]);
-    doc["mechanical"] = json!({"boardId":"host","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-        "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
-        "plateToPcb":6,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
+    doc["mechanical"] = query::rigid_mechanical("host", 6.0);
     doc
 }
 
@@ -51,11 +50,7 @@ fn board_attached_supports_export_host_npth_holes_and_real_standoff_solids() {
     assert!((support_preview["body"]["z"].as_f64().unwrap() - 0.8).abs() < 1e-8);
     assert!((support_preview["body"]["thickness"].as_f64().unwrap() - 3.0).abs() < 1e-8);
 
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":host_outline()}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, host_outline());
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], false,
@@ -251,11 +246,7 @@ fn board_attached_supports_contact_below_host_with_back_facing_module() {
     doc["modules"][0]["facingFace"] = json!("back");
     doc["modules"][0]["mountSupports"][0]["z"] = json!(-3.8);
 
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":host_outline()}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, host_outline());
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], false,
@@ -314,11 +305,7 @@ fn invalid_board_standoff_endpoint_is_blocked_without_guessing_a_host_drill() {
         "{}",
         module_scene["result"]["findings"]
     );
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":host_outline()}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, host_outline());
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], true,
@@ -368,11 +355,7 @@ fn invalid_board_standoff_endpoint_is_blocked_without_guessing_a_host_drill() {
 fn missing_board_mount_configuration_blocks_mechanical_and_pcb_fabrication() {
     let mut doc = document();
     doc["modules"][0]["mountSupports"] = json!([]);
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc.clone(),"contours":host_outline()}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, host_outline());
     let assembly = &resolved["assembly"];
     assert_eq!(
         assembly["generationBlocked"], true,
@@ -535,11 +518,7 @@ fn pinned_splitter_edge_mounts_keep_standoffs_with_partial_contact_warning() {
         Vec2 { x: 60.0, y: 60.0 },
         Vec2 { x: -60.0, y: 60.0 },
     ];
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":outline}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, outline);
     let assembly = &resolved["assembly"];
     let support_findings = assembly["diagnostics"]
         .as_array()
@@ -606,11 +585,7 @@ fn board_standoff_without_module_pcb_contact_is_blocked() {
     let mut doc = document();
     doc["moduleDefinitions"][0]["mounts"][0]["at"]["x"] = json!(20.0);
     doc["modules"][0]["at"] = json!({"x":-20.0,"y":5.0});
-    let resolved = request(
-        &mut CoreEngine::new(),
-        json!({"id":"case","kind":"resolve-mechanical","document":doc,"contours":host_outline()}),
-    );
-    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let resolved = resolve_case(&mut CoreEngine::new(), "case", &doc, host_outline());
     let assembly = &resolved["assembly"];
     assert!(
         assembly["diagnostics"]
