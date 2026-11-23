@@ -163,7 +163,11 @@ fn commit_field_row(
     let escape_value = accepted.clone();
     let validate_blur = validate.clone();
     let error_id = format!("{id}-error");
-    let current_draft = (failed_epoch() == Some(epoch) || focused()).then(|| draft());
+    let current_draft = if failed_epoch() == Some(epoch) || focused() {
+        Some(draft())
+    } else {
+        None
+    };
     let internal = (failed_epoch() == Some(epoch))
         .then_some(())
         .and_then(|()| current_draft.as_ref().filter(|(e, _)| *e == epoch))
@@ -706,9 +710,16 @@ mod commit_field_tests {
         assert_eq!(format_numeric(-0.0, 2), "0");
     }
 
+    type DraftSlot = Signal<(u64, String)>;
+    struct Harness {
+        _dom: VirtualDom,
+        state: CommitState,
+        draft: DraftSlot,
+        commits: Rc<RefCell<Vec<String>>>,
+    }
+
     thread_local! {
-        static STASH: RefCell<Option<(CommitState, Signal<(u64, String)>)>> =
-            const { RefCell::new(None) };
+        static STASH: RefCell<Option<(CommitState, DraftSlot)>> = const { RefCell::new(None) };
     }
 
     fn fixture() -> Element {
@@ -722,23 +733,19 @@ mod commit_field_tests {
         rsx! {}
     }
 
-    fn harness() -> (
-        VirtualDom,
-        CommitState,
-        Signal<(u64, String)>,
-        Rc<RefCell<Vec<String>>>,
-    ) {
+    fn harness() -> Harness {
         let mut dom = VirtualDom::new(fixture);
         dom.rebuild_in_place();
         let (state, draft) = STASH.take().expect("fixture stashes commit state");
-        (dom, state, draft, Rc::new(RefCell::new(Vec::new())))
+        Harness {
+            _dom: dom,
+            state,
+            draft,
+            commits: Rc::new(RefCell::new(Vec::new())),
+        }
     }
 
-    fn attempt(
-        state: CommitState,
-        draft: Signal<(u64, String)>,
-        commits: &Rc<RefCell<Vec<String>>>,
-    ) {
+    fn attempt(state: CommitState, draft: DraftSlot, commits: &Rc<RefCell<Vec<String>>>) {
         let pending = commits.clone();
         attempt_commit(state, draft, 0, &validate, |next| {
             pending.borrow_mut().push(next)
@@ -747,13 +754,13 @@ mod commit_field_tests {
 
     #[test]
     fn enter_then_blur_commits_once() {
-        let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty_epoch.set(Some(0));
-        draft.set((0, "20".into()));
-        attempt(state, draft, &commits);
-        attempt(state, draft, &commits);
+        let mut h = harness();
+        h.state.dirty_epoch.set(Some(0));
+        h.draft.set((0, "20".into()));
+        attempt(h.state, h.draft, &h.commits);
+        attempt(h.state, h.draft, &h.commits);
         assert_eq!(
-            commits.borrow().as_slice(),
+            h.commits.borrow().as_slice(),
             ["20"],
             "Enter commit must not double-fire on blur"
         );
@@ -761,37 +768,40 @@ mod commit_field_tests {
 
     #[test]
     fn escape_reverts_without_commit() {
-        let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty_epoch.set(Some(0));
-        draft.set((0, "99".into()));
-        revert_commit(state, draft, 0, "19.0");
-        attempt(state, draft, &commits);
+        let mut h = harness();
+        h.state.dirty_epoch.set(Some(0));
+        h.draft.set((0, "99".into()));
+        revert_commit(h.state, h.draft, 0, "19.0");
+        attempt(h.state, h.draft, &h.commits);
         assert!(
-            commits.borrow().is_empty(),
+            h.commits.borrow().is_empty(),
             "Escape must revert without committing"
         );
-        assert_eq!(draft().1, "19.0");
-        assert_eq!(*state.failed_epoch.peek(), None);
+        assert_eq!((h.draft)().1, "19.0");
+        assert_eq!(*h.state.failed_epoch.peek(), None);
     }
 
     #[test]
     fn invalid_refusal_keeps_draft_and_valid_retry_commits() {
-        let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty_epoch.set(Some(0));
-        draft.set((0, "abc".into()));
-        attempt(state, draft, &commits);
-        assert!(commits.borrow().is_empty(), "invalid input must not commit");
-        assert_eq!(draft().1, "abc");
-        assert_eq!(*state.failed_epoch.peek(), Some(0));
-        state.dirty_epoch.set(Some(0));
-        draft.set((0, "20".into()));
-        attempt(state, draft, &commits);
+        let mut h = harness();
+        h.state.dirty_epoch.set(Some(0));
+        h.draft.set((0, "abc".into()));
+        attempt(h.state, h.draft, &h.commits);
+        assert!(
+            h.commits.borrow().is_empty(),
+            "invalid input must not commit"
+        );
+        assert_eq!((h.draft)().1, "abc");
+        assert_eq!(*h.state.failed_epoch.peek(), Some(0));
+        h.state.dirty_epoch.set(Some(0));
+        h.draft.set((0, "20".into()));
+        attempt(h.state, h.draft, &h.commits);
         assert_eq!(
-            commits.borrow().as_slice(),
+            h.commits.borrow().as_slice(),
             ["20"],
             "valid follow-up must commit"
         );
-        assert_eq!(*state.failed_epoch.peek(), None);
+        assert_eq!(*h.state.failed_epoch.peek(), None);
     }
 
     thread_local! {
@@ -843,21 +853,38 @@ mod commit_field_tests {
 
     #[test]
     fn refused_draft_clears_after_external_change_and_undo() {
+        struct ProbeState {
+            id: Signal<String>,
+            accepted: Signal<String>,
+            state: CommitState,
+            draft: DraftSlot,
+            epoch: u64,
+        }
         thread_local! {
-            static STATE: RefCell<Option<(Signal<String>, Signal<String>, CommitState, Signal<(u64, String)>, u64)>> =
-                const { RefCell::new(None) };
+            static STATE: RefCell<Option<ProbeState>> = const { RefCell::new(None) };
         }
         fn probe_fixture() -> Element {
             let id = use_signal(|| "field-a".to_owned());
             let accepted = use_signal(|| "19".to_owned());
             let (state, draft, epoch) = use_commit_field_state(&id(), &accepted());
-            STATE.set(Some((id, accepted, state, draft, epoch)));
+            STATE.set(Some(ProbeState {
+                id,
+                accepted,
+                state,
+                draft,
+                epoch,
+            }));
             rsx! {}
         }
         let mut dom = VirtualDom::new(probe_fixture);
         dom.rebuild_in_place();
-        let (mut id, mut accepted, mut state, mut draft, epoch0) =
-            STATE.take().expect("probe state");
+        let ProbeState {
+            mut id,
+            mut accepted,
+            mut state,
+            mut draft,
+            epoch: epoch0,
+        } = STATE.take().expect("probe state");
         assert_eq!(epoch0, 0);
         let commits = Rc::new(RefCell::new(Vec::new()));
         state.dirty_epoch.set(Some(epoch0));
@@ -870,26 +897,26 @@ mod commit_field_tests {
         // External change to "20" advances epoch and clears the refusal.
         accepted.set("20".into());
         dom.render_immediate(&mut dioxus_core::Mutations::default());
-        let (_, _, _, _, epoch1) = STATE.take().expect("epoch1");
+        let epoch1 = STATE.take().expect("epoch1").epoch;
         assert_ne!(epoch1, epoch0);
         assert_ne!(*state.failed_epoch.peek(), Some(epoch1));
 
         // Undo back to "19" advances epoch again; stale "abc" at epoch0 cannot return.
         accepted.set("19".into());
         dom.render_immediate(&mut dioxus_core::Mutations::default());
-        let (_, _, _, _, epoch2) = STATE.take().expect("epoch2");
+        let epoch2 = STATE.take().expect("epoch2").epoch;
         assert_ne!(epoch2, epoch0);
         assert_ne!(*state.failed_epoch.peek(), Some(epoch2));
 
         // Switching entity ID with identical accepted "" advances epoch too.
         accepted.set(String::new());
         dom.render_immediate(&mut dioxus_core::Mutations::default());
-        let (_, _, _, _, epoch3) = STATE.take().expect("epoch3");
+        let epoch3 = STATE.take().expect("epoch3").epoch;
         state.failed_epoch.set(Some(epoch3));
         draft.set((epoch3, "bad".into()));
         id.set("field-b".into());
         dom.render_immediate(&mut dioxus_core::Mutations::default());
-        let (_, _, _, _, epoch4) = STATE.take().expect("epoch4");
+        let epoch4 = STATE.take().expect("epoch4").epoch;
         assert_ne!(epoch4, epoch3);
         assert_ne!(*state.failed_epoch.peek(), Some(epoch4));
     }
