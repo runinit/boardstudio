@@ -43,10 +43,10 @@ impl CatalogEntry {
 
     fn library_search_text(&self) -> String {
         format!(
-            "{} {} {} {} {}",
+            "{} {} {:?} {} {}",
             preferred_label(&self.definition),
             self.definition.name,
-            kind_search_label(&self.definition.kind),
+            self.definition.kind,
             self.definition
                 .generator
                 .as_ref()
@@ -500,18 +500,6 @@ mod generator_tests {
             std::task::Poll::Ready(value) => value,
             std::task::Poll::Pending => panic!("generator wrapper suspended"),
         }
-    }
-}
-
-fn kind_search_label(kind: &PartKind) -> &'static str {
-    match kind {
-        PartKind::Switch => "switch",
-        PartKind::Controller => "controller",
-        PartKind::Connector => "connector",
-        PartKind::Encoder => "encoder",
-        PartKind::Passive => "passive",
-        PartKind::Utility => "utility",
-        PartKind::Custom => "custom",
     }
 }
 
