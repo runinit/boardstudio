@@ -710,9 +710,11 @@ impl CoreEngine {
     ///
     /// Both commit (`edit`) and drag-preview (`preview_edit`) settlement flow
     /// through here. Previews skip keymap validation since they never publish,
-    /// and preserve the electrical handoff only for part moves (other previews
-    /// must materialize the same dependant poses the commit path publishes
-    /// without carrying handoff state). Generator checks run on every preview,
+    /// and preserve the electrical handoff only for part moves — other previews
+    /// still materialize the same dependant poses the commit path publishes:
+    /// anchored matrices follow from the anchor key's edited pose, and
+    /// `resolve` (which starts with `validate`) refreshes every dependant
+    /// without carrying handoff state. Generator checks run on every preview,
     /// even settled ones, while commits skip them for settled or wholesale
     /// replacements (`ReplaceDocument` is judged by its own arm in `apply`,
     /// which allows warnings).

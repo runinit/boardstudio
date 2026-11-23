@@ -81,6 +81,7 @@ pub fn bounds_of(points: impl IntoIterator<Item = [f64; 3]>) -> [[f64; 3]; 2] {
 
 /// Asserts a builder rejects its input with an error containing `fragment`.
 /// `context` names the rejected case for the failure message.
+#[track_caller]
 pub fn assert_rejected<T>(result: Result<T, String>, fragment: &str, context: &str) {
     match result {
         Ok(_) => panic!("{context}"),

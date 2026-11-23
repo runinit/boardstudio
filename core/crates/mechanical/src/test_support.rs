@@ -1,9 +1,10 @@
 //! Shared unit-test fixtures for mechanical resolution tests.
 //!
 //! Every builder here replaces two or more previously duplicated copies.
-//! Builders whose values differ across suites keep distinct names (for
-//! example [`configuration`] versus [`rigid_configuration`]) rather than
-//! silently merging, so each test keeps its exact fixture values.
+//! Builders whose key configuration values differ across suites keep distinct
+//! names (for example [`configuration`] versus [`rigid_configuration`]);
+//! callers override individual fields when a test depends on specific metadata
+//! or aliasing.
 
 use crate::model::*;
 use serde_json::json;
@@ -339,6 +340,7 @@ pub(crate) fn pair_construction() -> MechanicalConstruction {
     .unwrap()
 }
 
+#[track_caller]
 pub(crate) fn assert_close(actual: f64, expected: f64) {
     assert!(
         (actual - expected).abs() < 1e-9,
@@ -346,6 +348,7 @@ pub(crate) fn assert_close(actual: f64, expected: f64) {
     );
 }
 
+#[track_caller]
 pub(crate) fn assert_point(actual: Vec2, expected: Vec2) {
     assert_close(actual.x, expected.x);
     assert_close(actual.y, expected.y);

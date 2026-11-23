@@ -3,6 +3,9 @@
 //! Used by the CC-BY-NC-SA-4.0 display and ProMicro-family MCU generators;
 //! MIT-licensed ceoloide generators keep their own copies so the two
 //! licence families never mix.
+//! Derived from `display_ssd1306.js`, `display_nice_view.js`, `mcu_nice_nano.js`,
+//! and `mcu_supermini_nrf52840.js` of ceoloide/ergogen-footprints.
+//! Copyright (c) 2023 Marco Massarelli
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0
 //! Author: @infused-kim + @ceoloide improvements
 use crate::context::{NetRef, RenderContext};

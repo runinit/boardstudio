@@ -1482,7 +1482,8 @@ mod tests {
             at: Vec2 { x: 10.5, y: -3.75 },
             rotation: 90.0,
         };
-        // These inputs are order-sensitive: reassociating either axis
+        // These inputs are order-sensitive: at 90 deg, reassociating Y changes
+        // the last bit; at 123 deg (back face), reassociating either axis
         // changes the last bit, so the pins below catch any reordering.
         let point = Vec2 { x: 1.1, y: -2.25 };
         let front = part_to_world(point, &pose, Side::Front);
@@ -1491,6 +1492,16 @@ mod tests {
         let back = part_to_world(point, &pose, Side::Back);
         assert_eq!(back.x.to_bits(), 0x4029800000000000);
         assert_eq!(back.y.to_bits(), 0xc013666666666666);
+        let rotated = Pose2 {
+            at: pose.at,
+            rotation: 123.0,
+        };
+        let front_rotated = part_to_world(point, &rotated, Side::Front);
+        assert_eq!(front_rotated.x.to_bits(), 0x4027936864e8c357);
+        assert_eq!(front_rotated.y.to_bits(), 0xbff9a1e47da812df);
+        let back_rotated = part_to_world(point, &rotated, Side::Back);
+        assert_eq!(back_rotated.x.to_bits(), 0x4029f8e3a2883a1f);
+        assert_eq!(back_rotated.y.to_bits(), 0xc00b93a90ecd7090);
         // The outline-controls entry point delegates bit-identically.
         assert_eq!(
             crate::outline_controls::world(point, &pose, Side::Front),

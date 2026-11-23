@@ -206,7 +206,12 @@ fn reflected_feature_installation_preserves_each_members_identity() {
         (
             MechanicalFeatureKind::GasketSupport,
             MechanicalFeatureValue::GasketSupport {
-                anchor: anchor_at("left-feature", 0.25),
+                anchor: {
+                    let mut anchor = anchor_at("left-feature", 0.25);
+                    anchor.region_id = anchor.id.clone();
+                    anchor.outline_key = anchor.id.clone();
+                    anchor
+                },
             },
         ),
     ];

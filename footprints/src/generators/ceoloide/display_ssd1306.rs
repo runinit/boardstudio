@@ -74,7 +74,6 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         jumpers_front_bottom,
         jumpers_back_top,
         jumpers_back_bottom,
-        ..
     } = display_shared::display_jumper_nets(p, dst_nets, local_nets);
 
     // The model origin is its header; the footprint origin is the display center.

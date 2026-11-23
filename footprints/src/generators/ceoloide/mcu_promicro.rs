@@ -3,6 +3,9 @@
 //! The `mcu_nice_nano` and `mcu_supermini_nrf52840` generators differ only in
 //! parameters, footprint name, extra-pin placement and 3D-model defaults; the
 //! row, trace and silkscreen rendering below is byte-identical between them.
+//! Derived from `mcu_nice_nano.js` and `mcu_supermini_nrf52840.js` of
+//! ceoloide/ergogen-footprints.
+//! Copyright (c) 2023 Marco Massarelli
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0
 //! Author: @infused-kim + @ceoloide improvements
 use crate::Result;
