@@ -310,12 +310,10 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         revision: 7,
     };
     let missing_frame = serde_json::json!({
-        "header": {
-            "requestId": "raw-preview-missing",
-            "jobId": "job-missing",
-            "identity": identity,
-            "operation": "preview",
-        },
+        "requestId": "raw-preview-missing",
+        "jobId": "job-missing",
+        "identity": identity,
+        "operation": "preview",
         "prepared": null
     })
     .to_string();
@@ -363,12 +361,10 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     )
     .unwrap();
     let case_frame = serde_json::json!({
-        "header": {
-            "requestId": "raw-preview-case",
-            "jobId": "job-case",
-            "identity": identity,
-            "operation": "preview",
-        },
+        "requestId": "raw-preview-case",
+        "jobId": "job-case",
+        "identity": identity,
+        "operation": "preview",
         "prepared": { "revision": 7, "bodies": [body] }
     })
     .to_string();
@@ -412,12 +408,10 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         legend_color: "#202124".into(),
     };
     let keycap_frame = serde_json::json!({
-        "header": {
-            "requestId": "raw-preview-keycaps",
-            "jobId": "job-keycaps",
-            "identity": identity,
-            "operation": "preview",
-        },
+        "requestId": "raw-preview-keycaps",
+        "jobId": "job-keycaps",
+        "identity": identity,
+        "operation": "preview",
         "keycaps": { "revision": 7, "specs": [keycap] }
     })
     .to_string();

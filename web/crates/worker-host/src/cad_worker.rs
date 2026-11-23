@@ -54,7 +54,7 @@ impl fmt::Display for CadWorkerError {
 impl std::error::Error for CadWorkerError {}
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct CadEnvelope {
     request_id: String,
     job_id: String,
@@ -65,16 +65,38 @@ struct CadEnvelope {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WireReply {
+    #[serde(flatten)]
     header: CadEnvelope,
     outcome: CadReplyOutcome,
     #[serde(default)]
     error: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct WireRequest {
+    #[serde(flatten)]
     header: CadEnvelope,
+    prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
+    source_sha256: Option<String>,
+    step_import_options: Option<CadStepImportOptions>,
+    collision_query: Option<CadCollisionQuery>,
+    generated_analysis_request: Option<crate::cad_jobs::CadGeneratedAnalysisRequest>,
+    keycaps: Option<KeycapsInput>,
+    #[serde(skip)]
+    collision_meshes: Option<CadCollisionMeshPair>,
+    #[serde(skip)]
+    input_bytes: Vec<u8>,
+    packaged_step: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FlatWireRequest {
+    request_id: String,
+    job_id: String,
+    identity: CadSnapshotIdentity,
+    operation: CadOperation,
     prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
     #[serde(default)]
     source_sha256: Option<String>,
@@ -86,18 +108,30 @@ struct WireRequest {
     generated_analysis_request: Option<crate::cad_jobs::CadGeneratedAnalysisRequest>,
     #[serde(default)]
     keycaps: Option<KeycapsInput>,
-    #[serde(skip)]
-    collision_meshes: Option<CadCollisionMeshPair>,
-    #[serde(skip)]
-    input_bytes: Vec<u8>,
     #[serde(default)]
     packaged_step: bool,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RequestEnvelope {
-    header: CadEnvelope,
+impl From<FlatWireRequest> for WireRequest {
+    fn from(raw: FlatWireRequest) -> Self {
+        Self {
+            header: CadEnvelope {
+                request_id: raw.request_id,
+                job_id: raw.job_id,
+                identity: raw.identity,
+                operation: raw.operation,
+            },
+            prepared: raw.prepared,
+            source_sha256: raw.source_sha256,
+            step_import_options: raw.step_import_options,
+            collision_query: raw.collision_query,
+            generated_analysis_request: raw.generated_analysis_request,
+            keycaps: raw.keycaps,
+            collision_meshes: None,
+            input_bytes: Vec::new(),
+            packaged_step: raw.packaged_step,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -110,6 +144,7 @@ struct KeycapsInput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct KeycapsCadRequest {
+    #[serde(flatten)]
     header: CadEnvelope,
     keycaps: KeycapsInput,
 }
@@ -981,15 +1016,15 @@ fn receive_worker_message(
     let frame = Reflect::get(&data, &"frame".into())?
         .as_string()
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
-    let mut request = match serde_json::from_str::<WireRequest>(&frame) {
-        Ok(request) => request,
+    let mut request: WireRequest = match serde_json::from_str::<FlatWireRequest>(&frame) {
+        Ok(request) => request.into(),
         Err(error) => {
-            let envelope: RequestEnvelope =
+            let header: CadEnvelope =
                 serde_json::from_str(&frame).map_err(|e| JsValue::from_str(&e.to_string()))?;
             return post_reply(
                 scope,
                 WireReply {
-                    header: envelope.header,
+                    header,
                     outcome: CadReplyOutcome::Failed,
                     error: Some(error.to_string()),
                 },
