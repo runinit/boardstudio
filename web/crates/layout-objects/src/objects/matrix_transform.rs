@@ -12,7 +12,7 @@ use crate::matrix_transform_operation::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_model::model::{
     AggregateMethod, AnchorPart, EditOperation, Matrix, MatrixAnchor, MatrixSplayAffect, Mirror,
-    PartDefinition, ProjectDoc, Vec2, convert_offset_available,
+    PartDefinition, Vec2, convert_offset_available,
 };
 use boardstudio_web_layout_core::rail_drag::nudge_session_is_ready;
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
@@ -505,11 +505,6 @@ fn selected_cells(
     cells
 }
 
-fn linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool {
-    super::mirror_links::layout_for_matrix(&document.layouts, board_id, matrix_id)
-        .is_some_and(|layout| super::mirror_links::layout_is_linked(&document.layouts, layout))
-}
-
 /// The field projection of the selected matrix, row, column or key.
 pub(super) fn transform_fields(
     snapshot: &AcceptedSnapshot,
@@ -532,7 +527,11 @@ pub(super) fn transform_fields(
             origin: matrix.origin,
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
-            mirror_y_locked: linked_layout(&snapshot.document, board_id, &matrix.id),
+            mirror_y_locked: super::mirror_links::matrix_is_linked(
+                &snapshot.document.layouts,
+                board_id,
+                &matrix.id,
+            ),
             rotation_followed: matrix
                 .anchor
                 .as_ref()
@@ -927,7 +926,7 @@ pub fn MatrixTransformInspector(
     };
     rsx! {
         section { class: "grid min-w-0 gap-3 px-4 py-3", aria_label: "Matrix transform properties",
-            onkeydown: move |event: KeyboardEvent| { if event.key() == Key::Character(" ".into()) { event.stop_propagation(); } },
+            onkeydown: move |event: KeyboardEvent| super::stop_space_pan(event),
             {content}
             SelectionDeleteControl { mount: mount.clone() }
             if let Some(message) = error() {

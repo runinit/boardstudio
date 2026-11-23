@@ -399,7 +399,9 @@ fn project(
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
         .collect();
-    let moving_matrix = context_matrix(&selected.context).or_else(|| {
+    let moving_matrix = super::matrix_id_for_context(&selected.context)
+        .map(str::to_owned)
+        .or_else(|| {
         moving_ids.iter().find_map(|id| {
             snapshot
                 .document
@@ -542,22 +544,6 @@ fn unsupported_source(
         }
     }
     None
-}
-
-fn context_matrix(context: &TreeContext) -> Option<String> {
-    match context {
-        TreeContext::Matrix { matrix_id }
-        | TreeContext::Row { matrix_id, .. }
-        | TreeContext::Column { matrix_id, .. }
-        | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
-        TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
-        TreeContext::Board { .. }
-        | TreeContext::LayoutGroup { .. }
-        | TreeContext::Outline { .. }
-        | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. }
-        | TreeContext::MountedModule { .. } => None,
-    }
 }
 
 fn linked_selection(

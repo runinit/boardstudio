@@ -151,7 +151,9 @@ pub fn context_for_cell(
     tree::context_for_cell(model, matrix_id, row, column)
 }
 
-fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
+/// The matrix a tree selection belongs to, when it names one. Matrix, row,
+/// column, key and component selections all carry their matrix identity.
+pub fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
     match context {
         TreeContext::Matrix { matrix_id }
         | TreeContext::Row { matrix_id, .. }
