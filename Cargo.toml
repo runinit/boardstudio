@@ -182,6 +182,7 @@ incremental = false
 # level dev already uses for runtime-hot dependencies) keeps the single-unit
 # inliner from inflating the large serde visitors back past the baseline;
 # measured core-worker -1.5% and cad-worker -0.8% vs the pre-split record.
+# Wave 6 added lto = "thin", bringing the release main page wasm to 23,401,010 bytes (22.32 MiB).
 [profile.release]
 codegen-units = 1
 lto = "thin"
