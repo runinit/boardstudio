@@ -4,6 +4,7 @@ use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope,
 use boardstudio_model::model::{
     EditOperation, Pad, PadShape, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) const DEFINITION_GONE: &str = "This part definition no longer exists.";
 pub(crate) const GENERATOR_LOCKED: &str =
@@ -39,13 +40,14 @@ mod ui {
         definition: PartDefinition,
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
-        let capture = DefinitionPanelCapture::new(&snapshot, scope, &definition);
+        let capture =
+            PartsOwnerGuard::capture(&snapshot, scope.clone(), &definition.id).require_scope();
         let mut failure = use_signal(|| None::<String>);
         let submit = EventHandler::new(move |edit: DefinitionEdit| {
             let Some(current) = runtime.model().accepted else {
                 return;
             };
-            if !capture.owner_matches(&current, runtime.scope(), selection()) {
+            if !capture.is_current(&current, runtime.scope(), selection(), None, None, None) {
                 return;
             }
             let seed = if matches!(edit, DefinitionEdit::AddPad) {
@@ -53,7 +55,8 @@ mod ui {
             } else {
                 0
             };
-            let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
+            let resolver =
+                definition_field_resolver(capture.selection_id().unwrap_or_default(), edit, seed);
             failure.set(runtime.commit("parts-definition-field", resolver).err());
         });
         let (width, height, _) = courtyard_bounds(&definition.courtyard);
@@ -72,11 +75,11 @@ mod ui {
                     on_commit: move |kind| submit.call(DefinitionEdit::Kind(kind)),
                 }
                 for (label, value, edit) in [
-                    ("Courtyard width", width, DefinitionEdit::CourtyardWidth as fn(String) -> DefinitionEdit),
-                    ("Courtyard height", height, DefinitionEdit::CourtyardHeight as fn(String) -> DefinitionEdit),
+                    ("Courtyard width", width, DefinitionEdit::CourtyardWidth as fn(f64) -> DefinitionEdit),
+                    ("Courtyard height", height, DefinitionEdit::CourtyardHeight as fn(f64) -> DefinitionEdit),
                 ] {
                     NumericField { key: "{label}", label, unit: "mm", value, min: Some(0.01), step: Some(0.1),
-                        on_commit: move |value: f64| submit.call(edit(value.to_string())),
+                        on_commit: move |value: f64| submit.call(edit(value)),
                     }
                 }
                 if locked {
@@ -119,22 +122,21 @@ mod ui {
                         disabled_reason: reason.clone(),
                         on_commit: { let id = pad.id.clone(); move |value: f64| {
                             let pad_id = id.clone();
-                            let value = value.to_string();
                             submit.call(if size { DefinitionEdit::PadSize { pad_id, axis, value } }
                                 else { DefinitionEdit::PadCoordinate { pad_id, axis, value } });
                         }},
                     }
                 }
                 ToggleField { label: "Drill", checked: pad.drill.is_some(), disabled_reason: reason.clone(),
-                    on_commit: { let id = pad.id.clone(); move |enabled| submit.call(DefinitionEdit::PadDrill {
-                        pad_id: id.clone(), value: if enabled { "1".into() } else { String::new() },
+                    on_commit: { let id = pad.id.clone(); move |enabled: bool| submit.call(DefinitionEdit::PadDrill {
+                        pad_id: id.clone(), value: enabled.then_some(1.0),
                     })},
                 }
                 if let Some(drill) = pad.drill {
                     NumericField { label: "Drill diameter", unit: "mm", value: drill, min: Some(0.01), step: Some(0.1),
                         disabled_reason: reason.clone(),
                         on_commit: { let id = pad.id.clone(); move |value: f64| submit.call(DefinitionEdit::PadDrill {
-                            pad_id: id.clone(), value: value.to_string(),
+                            pad_id: id.clone(), value: Some(value),
                         })},
                     }
                 }
@@ -152,47 +154,101 @@ mod ui {
 #[cfg(target_arch = "wasm32")]
 pub(crate) use ui::CustomDefinitionFields;
 
-/// What a definition panel needs to know its owner is still current at dispatch:
-/// the scope, the document session and the selected definition. Deliberately not a
-/// snapshot token or revision — field edits queue freely and resolve against
-/// whatever document is accepted when they run (ADR-0005).
+/// The one Parts owner/liveness guard: the captured workspace scope, selection,
+/// document session and (where the panel captured them) selection/scope
+/// generations. Deliberately not a snapshot token or revision — field edits queue
+/// freely and resolve against whatever document is accepted when they run
+/// (ADR-0005); the resolver re-checks the target at execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DefinitionPanelCapture {
+pub struct PartsOwnerGuard {
     pub scope: Option<Scope>,
-    pub definition_id: String,
-    session_epoch: SessionEpoch,
-    document_id: String,
+    pub selection: Option<(Option<Scope>, String)>,
+    pub session_epoch: SessionEpoch,
+    pub document_id: String,
+    pub selection_generation: Option<u64>,
+    pub scope_generation: Option<u64>,
+    require_scope: bool,
+    check_selection: bool,
 }
 
-impl DefinitionPanelCapture {
-    pub fn new(
-        snapshot: &AcceptedSnapshot,
-        scope: Option<Scope>,
-        definition: &PartDefinition,
-    ) -> Self {
+impl PartsOwnerGuard {
+    /// Capture against the selected id (`definition.id`, or `module:<id>` for modules).
+    pub fn capture(snapshot: &AcceptedSnapshot, scope: Option<Scope>, selected_id: &str) -> Self {
         Self {
+            selection: Some((scope.clone(), selected_id.to_owned())),
             scope,
-            definition_id: definition.id.clone(),
             session_epoch: snapshot.session_epoch,
             document_id: snapshot.document.id.clone(),
+            selection_generation: None,
+            scope_generation: None,
+            require_scope: false,
+            check_selection: true,
         }
     }
 
-    /// Owner lifetime at dispatch: the panel still belongs to this scope, document
-    /// session and selected definition, so a stale callback is ignored early. A newer
-    /// accepted revision is not a liveness answer — the resolver re-checks the target
-    /// at execution.
-    pub fn owner_matches(
+    /// Capture for owners that track the document/session/scope only (assembly drafts).
+    pub fn document(
+        scope: Option<Scope>,
+        session_epoch: SessionEpoch,
+        document_id: String,
+    ) -> Self {
+        Self {
+            scope,
+            selection: None,
+            session_epoch,
+            document_id,
+            selection_generation: None,
+            scope_generation: None,
+            require_scope: false,
+            check_selection: false,
+        }
+    }
+
+    pub fn with_selection(mut self, selection: Option<(Option<Scope>, String)>) -> Self {
+        self.selection = selection;
+        self.check_selection = true;
+        self
+    }
+
+    pub fn generations(mut self, selection: Option<u64>, scope: Option<u64>) -> Self {
+        self.selection_generation = selection;
+        self.scope_generation = scope;
+        self
+    }
+
+    pub fn require_scope(mut self) -> Self {
+        self.require_scope = true;
+        self
+    }
+
+    pub fn selection_id(&self) -> Option<String> {
+        self.selection.as_ref().map(|(_, id)| id.clone())
+    }
+
+    /// Owner lifetime at dispatch. `workspace: None` skips the Parts-workspace check
+    /// for callers that gate the workspace themselves; a captured generation must be
+    /// supplied and equal, an uncaptured one is not checked.
+    pub fn is_current(
         &self,
         current: &AcceptedSnapshot,
-        current_scope: Option<Scope>,
-        current_selection: Option<(Option<Scope>, String)>,
+        scope: Option<Scope>,
+        selection: Option<(Option<Scope>, String)>,
+        selection_generation: Option<u64>,
+        scope_generation: Option<u64>,
+        workspace: Option<Workspace>,
     ) -> bool {
-        self.scope.is_some()
-            && current_scope == self.scope
+        workspace.is_none_or(|workspace| workspace == Workspace::Parts)
+            && (!self.require_scope || self.scope.is_some())
+            && scope == self.scope
+            && (!self.check_selection || selection == self.selection)
+            && self
+                .selection_generation
+                .is_none_or(|g| Some(g) == selection_generation)
+            && self
+                .scope_generation
+                .is_none_or(|g| Some(g) == scope_generation)
             && current.session_epoch == self.session_epoch
             && current.document.id == self.document_id
-            && current_selection == Some((self.scope.clone(), self.definition_id.clone()))
     }
 }
 
@@ -206,8 +262,8 @@ enum Axis {
 enum DefinitionEdit {
     Name(String),
     Kind(PartKind),
-    CourtyardWidth(String),
-    CourtyardHeight(String),
+    CourtyardWidth(f64),
+    CourtyardHeight(f64),
     AddPad,
     PadId {
         pad_id: String,
@@ -220,16 +276,16 @@ enum DefinitionEdit {
     PadCoordinate {
         pad_id: String,
         axis: Axis,
-        value: String,
+        value: f64,
     },
     PadSize {
         pad_id: String,
         axis: Axis,
-        value: String,
+        value: f64,
     },
     PadDrill {
         pad_id: String,
-        value: String,
+        value: Option<f64>,
     },
     PadShape {
         pad_id: String,
@@ -240,8 +296,65 @@ enum DefinitionEdit {
     },
 }
 
+/// The first free identity among `root`, `root-2`, `root-3`, … — the shared
+/// suffix-allocation loop for pads, assets, assemblies and generator models.
+pub(crate) fn unique_suffixed_id(root: &str, used: impl Fn(&str) -> bool) -> String {
+    if !used(root) {
+        return root.to_owned();
+    }
+    (2_u64..)
+        .map(|suffix| format!("{root}-{suffix}"))
+        .find(|candidate| !used(candidate))
+        .expect("suffix space is unbounded")
+}
+
+/// [`unique_suffixed_id`] bounded to suffixes 2..=1024 (`None` when exhausted).
+pub(crate) fn unique_suffixed_id_capped(root: &str, used: impl Fn(&str) -> bool) -> Option<String> {
+    if !used(root) {
+        return Some(root.to_owned());
+    }
+    (2_u64..=1024)
+        .map(|suffix| format!("{root}-{suffix}"))
+        .find(|candidate| !used(candidate))
+}
+
 pub(crate) fn replacement_commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
     Resolution::submit(target_ids, operation)
+}
+
+/// Replace the definition with the same id, or append it as a new project definition.
+pub(crate) fn upsert_definition(document: &mut ProjectDoc, definition: PartDefinition) {
+    if let Some(existing) = document
+        .definitions
+        .iter_mut()
+        .find(|item| item.id == definition.id)
+    {
+        *existing = definition;
+    } else {
+        document.definitions.push(definition);
+    }
+}
+
+/// The shared `ReplaceDocument` resolver: clone the accepted document, apply `edit`
+/// (returning submit target ids or the retire reason), resolve `Unchanged` when the
+/// clone still equals the accepted document (ADR-0005), else submit the replacement.
+pub(crate) fn replace_document_resolver(
+    name: &'static str,
+    edit: impl Fn(&AcceptedSnapshot, &mut ProjectDoc) -> Result<Vec<String>, String> + 'static,
+) -> EditResolver {
+    EditResolver::new(name, move |accepted: &AcceptedSnapshot| {
+        let mut replacement = accepted.document.as_ref().clone();
+        match edit(accepted, &mut replacement) {
+            Err(reason) => Resolution::Retire(reason),
+            Ok(_) if replacement == *accepted.document => Resolution::Unchanged,
+            Ok(target_ids) => replacement_commit(
+                EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+                target_ids,
+            ),
+        }
+    })
 }
 
 fn definition_field_resolver(
@@ -249,35 +362,17 @@ fn definition_field_resolver(
     edit: DefinitionEdit,
     pad_id_seed: u64,
 ) -> EditResolver {
-    EditResolver::new(
-        "parts-definition-field",
-        move |accepted: &AcceptedSnapshot| {
-            let document = &accepted.document;
-            let mut replacement = document.as_ref().clone();
-            let mut target_ids = vec![definition_id.clone()];
-            if let Err(reason) = apply_definition_edit(
-                &mut replacement,
-                &definition_id,
-                &mut target_ids,
-                &edit,
-                pad_id_seed,
-            ) {
-                return Resolution::Retire(reason);
-            }
-            // The clone is built from the accepted document, so equality means this
-            // field already holds the committed value: resolve Unchanged, not a
-            // landing heuristic (ADR-0005).
-            if replacement == **document {
-                return Resolution::Unchanged;
-            }
-            replacement_commit(
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
-                target_ids,
-            )
-        },
-    )
+    replace_document_resolver("parts-definition-field", move |_, replacement| {
+        let mut target_ids = vec![definition_id.clone()];
+        apply_definition_edit(
+            replacement,
+            &definition_id,
+            &mut target_ids,
+            &edit,
+            pad_id_seed,
+        )?;
+        Ok(target_ids)
+    })
 }
 
 /// Apply one field edit in place. `Err` is the retire reason.
@@ -305,12 +400,12 @@ fn apply_definition_edit(
         DefinitionEdit::Name(name) => definition.name = name.trim().to_owned(),
         DefinitionEdit::Kind(kind) => definition.kind = kind.clone(),
         DefinitionEdit::CourtyardWidth(value) => {
-            let width = parse_number(value, true, COURTYARD_NUMBERS)?;
+            let width = valid_number(*value, true, COURTYARD_NUMBERS)?;
             let (_, height, center) = courtyard_bounds(&definition.courtyard);
             authored_rectangle(definition, width, height, center);
         }
         DefinitionEdit::CourtyardHeight(value) => {
-            let height = parse_number(value, true, COURTYARD_NUMBERS)?;
+            let height = valid_number(*value, true, COURTYARD_NUMBERS)?;
             let (width, _, center) = courtyard_bounds(&definition.courtyard);
             authored_rectangle(definition, width, height, center);
         }
@@ -386,7 +481,7 @@ fn apply_definition_edit(
             value,
         } => {
             imported_pads_retire(definition)?;
-            let number = parse_number(value, false, PAD_NUMBERS)?;
+            let number = valid_number(*value, false, PAD_NUMBERS)?;
             let pad = find_pad(definition, pad_id)?;
             match axis {
                 Axis::X => pad.at.x = number,
@@ -399,7 +494,7 @@ fn apply_definition_edit(
             value,
         } => {
             imported_pads_retire(definition)?;
-            let number = parse_number(value, true, PAD_NUMBERS)?;
+            let number = valid_number(*value, true, PAD_NUMBERS)?;
             let pad = find_pad(definition, pad_id)?;
             match axis {
                 Axis::X => pad.size.x = number,
@@ -408,11 +503,9 @@ fn apply_definition_edit(
         }
         DefinitionEdit::PadDrill { pad_id, value } => {
             imported_pads_retire(definition)?;
-            let drill = if value.trim().is_empty() {
-                None
-            } else {
-                Some(parse_number(value, true, PAD_NUMBERS)?)
-            };
+            let drill = value
+                .map(|value| valid_number(value, true, PAD_NUMBERS))
+                .transpose()?;
             let pad = find_pad(definition, pad_id)?;
             pad.drill = drill;
         }
@@ -486,16 +579,11 @@ fn imported_pads_retire(definition: &PartDefinition) -> Result<(), String> {
         Ok(())
     }
 }
-fn parse_number(value: &str, positive: bool, message: &str) -> Result<f64, String> {
-    let number = if value.trim().is_empty() && !positive {
-        0.0
-    } else {
-        value.parse::<f64>().unwrap_or(f64::NAN)
-    };
-    if !number.is_finite() || (positive && number <= 0.0) {
+fn valid_number(value: f64, positive: bool, message: &str) -> Result<f64, String> {
+    if !value.is_finite() || (positive && value <= 0.0) {
         Err(message.into())
     } else {
-        Ok(number)
+        Ok(value)
     }
 }
 pub(crate) fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, Vec2) {
@@ -535,28 +623,16 @@ fn next_pad_number(pads: &[Pad]) -> String {
     candidate.to_string()
 }
 fn unique_pad_id(pads: &[Pad], operation: u64) -> String {
-    let base = format!("pad-{operation}");
-    if !pads.iter().any(|pad| pad.id == base) {
-        return base;
-    }
-    let mut suffix = 2;
-    loop {
-        let candidate = format!("{base}-{suffix}");
-        if !pads.iter().any(|pad| pad.id == candidate) {
-            return candidate;
-        }
-        suffix += 1;
-    }
+    unique_suffixed_id(&format!("pad-{operation}"), |candidate| {
+        pads.iter().any(|pad| pad.id == candidate)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     fn definition(pads: serde_json::Value) -> PartDefinition {
-        serde_json::from_value(serde_json::json!({
-            "id":"custom","name":"Custom","kind":"custom","courtyard":[],"pads":pads
-        }))
-        .expect("definition")
+        serde_json::from_value(serde_json::json!({"id":"custom","name":"Custom","kind":"custom","courtyard":[],"pads":pads})).expect("definition")
     }
     fn pad(id: &str, number: &str) -> serde_json::Value {
         serde_json::json!({ "id":id,"number":number,"at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle" })
@@ -569,15 +645,8 @@ mod tests {
             pad("old", "1"),
             pad("keep", "2")
         ])));
-        document.parts = serde_json::from_value(serde_json::json!([
-            {"id":"instance-a","definitionId":"custom","reference":"U1","pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0},"side":"front"},
-            {"id":"instance-b","definitionId":"custom","reference":"U2","pose":{"at":{"x":1.0,"y":0.0},"rotation":0.0},"side":"front"},
-            {"id":"other","definitionId":"other-definition","reference":"R1","pose":{"at":{"x":2.0,"y":0.0},"rotation":0.0},"side":"front"}
-        ])).unwrap();
-        document.nets = serde_json::from_value(serde_json::json!([
-            {"id":"net-a","name":"A","pins":[{"partId":"instance-a","padId":"old"},{"partId":"instance-b","padId":"old"},{"partId":"other","padId":"old"}]},
-            {"id":"net-b","name":"B","pins":[{"partId":"instance-a","padId":"keep"}]}
-        ])).unwrap();
+        document.parts = serde_json::from_value(serde_json::json!([{"id":"instance-a","definitionId":"custom","reference":"U1","pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0},"side":"front"},{"id":"instance-b","definitionId":"custom","reference":"U2","pose":{"at":{"x":1.0,"y":0.0},"rotation":0.0},"side":"front"},{"id":"other","definitionId":"other-definition","reference":"R1","pose":{"at":{"x":2.0,"y":0.0},"rotation":0.0},"side":"front"}])).unwrap();
+        document.nets = serde_json::from_value(serde_json::json!([{"id":"net-a","name":"A","pins":[{"partId":"instance-a","padId":"old"},{"partId":"instance-b","padId":"old"},{"partId":"other","padId":"old"}]},{"id":"net-b","name":"B","pins":[{"partId":"instance-a","padId":"keep"}]}])).unwrap();
         let mut targets = vec!["custom".to_owned()];
         apply_definition_edit(
             &mut document,
@@ -591,14 +660,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(document.definitions[0].pads[0].id, "renamed");
-        assert_eq!(
-            document.nets[0]
-                .pins
-                .iter()
-                .map(|pin| pin.pad_id.as_str())
-                .collect::<Vec<_>>(),
-            ["renamed", "renamed", "old"]
-        );
+        let first_net_pads: Vec<_> = document.nets[0]
+            .pins
+            .iter()
+            .map(|pin| pin.pad_id.as_str())
+            .collect();
+        assert_eq!(first_net_pads, ["renamed", "renamed", "old"]);
 
         apply_definition_edit(
             &mut document,
@@ -625,7 +692,7 @@ mod tests {
             &mut document,
             "custom",
             &mut vec![],
-            &DefinitionEdit::CourtyardWidth("8".into()),
+            &DefinitionEdit::CourtyardWidth(8.0),
             0,
         )
         .unwrap();

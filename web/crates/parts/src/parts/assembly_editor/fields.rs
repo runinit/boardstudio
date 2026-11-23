@@ -1,5 +1,8 @@
+use super::super::model_transform::ModelVec3Fields;
 use super::*;
-use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    FilePickerButton, InspectorSection, TOUCH_CLS, ToggleField,
+};
 
 #[component]
 pub(super) fn AssemblyDraftFields(
@@ -10,7 +13,7 @@ pub(super) fn AssemblyDraftFields(
     matrix_pending: bool,
     selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::super::objects::MatrixPlacementSource>,
-    on_place_board: EventHandler<(AssemblyDraft, String, String)>,
+    on_place_board: EventHandler<(AssemblyDraft, f64, f64)>,
     on_apply: EventHandler<AssemblyDefinition>,
     on_change: EventHandler<AssemblyDraft>,
     on_save: EventHandler<MouseEvent>,
@@ -18,8 +21,8 @@ pub(super) fn AssemblyDraftFields(
 ) -> Element {
     let value = use_signal(|| draft.value.clone());
     let assets = use_signal(|| draft.assets.clone());
-    let mut origin_x = use_signal(|| "0".to_owned());
-    let mut origin_y = use_signal(|| "0".to_owned());
+    let mut origin_x = use_signal(|| 0.0_f64);
+    let mut origin_y = use_signal(|| 0.0_f64);
     let import_pending = use_signal(|| false);
     let render_value = value();
     let apply_value = render_value.clone();
@@ -83,7 +86,7 @@ pub(super) fn AssemblyDraftFields(
             }
             { let add_draft = draft.clone();
               let mut add_value = value; let add_assets = assets;
-              rsx! { Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: move |_| {
+              rsx! { Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: controls_disabled, onclick: move |_| {
                   if let Some(id) = member_id(&add_value()) {
                       add_value.with_mut(|value| value.members.push(AssemblyMember {
                           parameters: None,
@@ -99,13 +102,13 @@ pub(super) fn AssemblyDraftFields(
               }, "Add component" } }
             }
             div { class: "flex flex-wrap gap-2",
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: on_save, "Save assembly" }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: controls_disabled, onclick: on_close, "Close editor" }
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: controls_disabled, onclick: on_save, "Save assembly" }
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: controls_disabled, onclick: on_close, "Close editor" }
             }
             div { class: "flex flex-wrap gap-2",
                 Button {
                     variant: ButtonVariant::Secondary,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: TOUCH_CLS,
                     disabled: controls_disabled || unsaved_assets,
                     onclick: move |_| on_place.call(super::super::super::objects::MatrixPlacementSource::Assembly {
                         assembly: placement_value.clone(),
@@ -116,7 +119,7 @@ pub(super) fn AssemblyDraftFields(
                 if matrix_selected {
                     Button {
                         variant: ButtonVariant::Secondary,
-                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: TOUCH_CLS,
                         disabled: controls_disabled || matrix_pending || unsaved_assets,
                         onclick: move |_| on_apply.call(apply_value.clone()),
                         "Apply to selected matrix"
@@ -129,23 +132,23 @@ pub(super) fn AssemblyDraftFields(
                     NumericField {
                         label: "X (mm)",
                         step: Some(0.1),
-                        value: origin_x().parse::<f64>().unwrap_or(f64::NAN),
+                        value: origin_x(),
                         disabled_reason: controls_disabled.then(|| "Assembly is read-only".to_owned()),
-                        on_commit: move |value: f64| origin_x.set(value.to_string()),
+                        on_commit: move |value: f64| origin_x.set(value),
                     }
                     NumericField {
                         label: "Y (mm)",
                         step: Some(0.1),
-                        value: origin_y().parse::<f64>().unwrap_or(f64::NAN),
+                        value: origin_y(),
                         disabled_reason: controls_disabled.then(|| "Assembly is read-only".to_owned()),
-                        on_commit: move |value: f64| origin_y.set(value.to_string()),
+                        on_commit: move |value: f64| origin_y.set(value),
                     }
                 }
                 { let place_render = render_value.clone();
                   let place_draft = draft.clone();
                   rsx! { Button {
                     variant: ButtonVariant::Secondary,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: TOUCH_CLS,
                     disabled: controls_disabled || place_pending || draft.scope.is_none() || render_value.members.is_empty(),
                     onclick: move |_| on_place_board.call((
                         AssemblyDraft {
@@ -199,7 +202,6 @@ fn AssemblyMemberFields(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let workspace = use_context::<super::super::super::WorkspaceState>().0;
     let import_feedback = use_signal(|| None::<String>);
-    let mut import_input = use_signal(|| None::<HtmlInputElement>);
     let definition = member
         .definition_id
         .as_deref()
@@ -228,24 +230,12 @@ fn AssemblyMemberFields(
         let id = member.id.clone();
         move |patch| update_member(value, assets, draft.clone(), on_change, id.clone(), patch)
     });
-    let import_model = {
+    let mut import_model = {
         let runtime = runtime.clone();
         let draft = draft.clone();
         let mut import_pending = import_pending;
         let mut import_feedback = import_feedback;
-        move |event: FormEvent| {
-            let Some(input) = event
-                .data()
-                .try_as_web_event()
-                .and_then(|event| event.target())
-                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-            else {
-                return;
-            };
-            let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                return;
-            };
-            input.set_value("");
+        move |file: web_sys::File| {
             if disabled || import_pending() {
                 return;
             }
@@ -317,7 +307,7 @@ fn AssemblyMemberFields(
                 {
                     assets.with_mut(|assets| assets.push(asset.clone()));
                 }
-                edit.call(MemberPatch::AddModel(default_model(asset.id)));
+                edit.call(MemberPatch::AddModel(new_model(asset.id)));
             });
         }
     };
@@ -421,9 +411,9 @@ fn AssemblyMemberFields(
                 on_commit: move |selected: String| edit.call(MemberPatch::Side(selected == "back")),
             }
             div { class: "grid grid-cols-3 gap-2",
-                NumericField { label: "X (mm)", step: Some(0.1), value: member.pose.at.x, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::X(number.to_string())) }
-                NumericField { label: "Y (mm)", step: Some(0.1), value: member.pose.at.y, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Y(number.to_string())) }
-                NumericField { label: "Angle (°)", step: Some(1.0), value: member.pose.rotation, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Rotation(number.to_string())) }
+                NumericField { label: "X (mm)", step: Some(0.1), value: member.pose.at.x, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::X(number)) }
+                NumericField { label: "Y (mm)", step: Some(0.1), value: member.pose.at.y, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Y(number)) }
+                NumericField { label: "Angle (°)", step: Some(1.0), value: member.pose.rotation, disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()), on_commit: move |number: f64| edit.call(MemberPatch::Rotation(number)) }
             }
             SelectField::<String> {
                 label: "3D models",
@@ -452,43 +442,27 @@ fn AssemblyMemberFields(
                 }
             } else if definition.is_some() {
                 p { "Uses {definition_models.len()} component model default(s)." }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: edit_defaults, "Edit model defaults" }
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled, onclick: edit_defaults, "Edit model defaults" }
             } else {
                 p { "No component model defaults are attached." }
             }
             if is_custom {
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: disabled || options.is_empty(), onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
-                        edit.call(MemberPatch::AddModel(default_model(option.id.clone())));
+                        edit.call(MemberPatch::AddModel(new_model(option.id.clone())));
                     }
                 }, "Add model" }
             }
-            Button {
-                variant: ButtonVariant::Secondary,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled,
-                onclick: move |_| {
-                    if let Some(input) = import_input() {
-                        input.click();
-                    }
-                },
-                "Import model"
-            }
-            input {
-                r#type: "file",
-                hidden: true,
+            FilePickerButton {
+                label: "Import model",
                 accept: ".step,.stp,.stl,.wrl",
-                aria_label: "Import model",
                 disabled,
-                onmounted: move |event: MountedEvent| {
-                    import_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
-                },
-                onchange: import_model,
+                on_files: move |files: Vec<web_sys::File>| if let Some(file) = files.into_iter().next() { import_model(file); },
             }
             if let Some(message) = import_feedback.read().as_ref() {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
-            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled, onclick: move |_| edit.call(MemberPatch::RemoveMember), "Remove component" }
+            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled, onclick: move |_| edit.call(MemberPatch::RemoveMember), "Remove component" }
         }
     }
 }
@@ -510,18 +484,13 @@ fn AssemblyModelFields(
                 on_commit: move |selected| edit.call(MemberPatch::ModelAsset(index, selected)),
             }
             for (label, field) in [("Offset (mm)", ModelVector::Offset), ("Rotation (°)", ModelVector::Rotation), ("Scale", ModelVector::Scale)] {
-                { let vector = model_vector(&model, field);
-                  rsx! { fieldset {
+                fieldset {
                     legend { "{label}" }
-                    div { class: "grid grid-cols-3 gap-2",
-                        for (label, axis, value) in [("X", ModelAxis::X, vector.x), ("Y", ModelAxis::Y, vector.y), ("Z", ModelAxis::Z, vector.z)] {
-                            NumericField { key: "{label}", label, value,
-                                disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()),
-                                on_commit: move |number: f64| edit.call(MemberPatch::ModelVector(index, field, axis, number.to_string())),
-                            }
-                        }
+                    ModelVec3Fields { value: model_vector(&model, field),
+                        labels: ["X".into(), "Y".into(), "Z".into()],
+                        disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()),
+                        on_commit: move |(axis, number)| edit.call(MemberPatch::ModelVector(index, field, axis, number)),
                     }
-                  } }
                 }
             }
             Button { disabled, onclick: move |_| edit.call(MemberPatch::RemoveModel(index)), "Remove model" }

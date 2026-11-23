@@ -1,11 +1,14 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
+use crate::parts_custom_definition::PartsOwnerGuard;
 use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Asset, PartDefinition};
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, TextareaField, ToggleField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    FilePickerButton, InspectorSection, TOUCH_CLS, TextareaField, ToggleField,
+};
 use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -14,46 +17,33 @@ use boardstudio_web_ui_shared::ui::{
     spinner::Spinner,
 };
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use serde_json::Value;
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::HtmlInputElement;
 
 mod resolvers;
 pub use resolvers::{generator_apply_resolver, generator_model_upload_resolver};
 
 #[derive(Clone, Debug)]
 pub struct GeneratorOwner {
-    pub scope: Option<Scope>,
-    pub selection: Option<(Option<Scope>, String)>,
-    pub session_epoch: boardstudio_application::SessionEpoch,
-    pub document_id: String,
+    pub guard: PartsOwnerGuard,
     pub definition_id: String,
     pub base_definition: PartDefinition,
     pub source: String,
     pub generator_version: String,
     pub project_owned_at_start: bool,
-    pub scope_generation: u64,
-    pub selection_generation: u64,
 }
 
 impl PartialEq for GeneratorOwner {
     fn eq(&self, other: &Self) -> bool {
-        self.scope == other.scope
-            && self.selection == other.selection
-            && self.session_epoch == other.session_epoch
-            && self.document_id == other.document_id
+        self.guard == other.guard
             && self.definition_id == other.definition_id
             && self.source == other.source
             && self.generator_version == other.generator_version
-            && self.scope_generation == other.scope_generation
-            && self.selection_generation == other.selection_generation
     }
 }
 
@@ -121,21 +111,16 @@ fn owner_context_is_current(
     selection_generation: u64,
     workspace: Workspace,
 ) -> bool {
-    if workspace != Workspace::Parts
-        || runtime.scope() != owner.scope
-        || selected() != owner.selection
-        || scope_generation != owner.scope_generation
-        || selection_generation != owner.selection_generation
-    {
-        return false;
-    }
-    let Some(snapshot) = runtime.model().accepted else {
-        return false;
-    };
-    if snapshot.session_epoch != owner.session_epoch || snapshot.document.id != owner.document_id {
-        return false;
-    }
-    true
+    runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+        owner.guard.is_current(
+            snapshot,
+            runtime.scope(),
+            selected(),
+            Some(selection_generation),
+            Some(scope_generation),
+            Some(workspace),
+        )
+    })
 }
 
 fn make_owner(
@@ -154,10 +139,13 @@ fn make_owner(
         return None;
     }
     Some(GeneratorOwner {
-        scope,
-        selection,
-        session_epoch: snapshot.session_epoch,
-        document_id: snapshot.document.id.clone(),
+        guard: PartsOwnerGuard::document(
+            scope,
+            snapshot.session_epoch,
+            snapshot.document.id.clone(),
+        )
+        .with_selection(selection)
+        .generations(Some(selection_generation), Some(scope_generation)),
         definition_id: definition.id.clone(),
         base_definition: definition.clone(),
         source: generator.source.clone(),
@@ -167,8 +155,6 @@ fn make_owner(
             .definitions
             .iter()
             .any(|accepted| accepted.id == definition.id),
-        scope_generation,
-        selection_generation,
     })
 }
 
@@ -677,7 +663,7 @@ pub fn GeneratorSettingsEditor(
             }
             Button {
                 variant: ButtonVariant::Default,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                class: TOUCH_CLS,
                 disabled: !preview_ready,
                 onclick: on_apply,
                 "Apply generator settings"
@@ -697,7 +683,6 @@ fn GeneratorParameterField(
 ) -> Element {
     let key = entry.key.clone();
     let label = entry.label.clone();
-    let mut file_input = use_signal(|| None::<HtmlInputElement>);
     if key.to_ascii_lowercase().ends_with("3dmodel_filename") {
         let current = input_value(&value, &entry.kind);
         let field_error = feedback.filter(|message| {
@@ -708,46 +693,18 @@ fn GeneratorParameterField(
         return rsx! {
             div { class: "grid gap-2",
                 p { "{label}: {current}" }
-                Button {
-                    variant: ButtonVariant::Secondary,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    disabled: busy,
-                    onclick: move |_| {
-                        if let Some(input) = file_input() {
-                            input.click();
-                        }
-                    },
-                    "Attach STEP / STL / WRL"
-                }
-                input {
-                    r#type: "file",
-                    hidden: true,
+                FilePickerButton {
+                    label: "Attach STEP / STL / WRL",
                     accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
-                    aria_label: "Attach STEP / STL / WRL",
                     disabled: busy,
-                    onmounted: move |event: MountedEvent| {
-                        file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
-                    },
-                    onchange: move |event| {
-                        let Some(input) = event
-                            .data()
-                            .try_as_web_event()
-                            .and_then(|event| event.target())
-                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                        else {
-                            return;
-                        };
-                        let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                            return;
-                        };
-                        input.set_value("");
+                    on_files: move |files: Vec<web_sys::File>| if let Some(file) = files.into_iter().next() {
                         on_import.call((key.clone(), file));
-                    }
+                    },
                 }
                 if !current.is_empty() {
                     Button {
                         variant: ButtonVariant::Default,
-                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: TOUCH_CLS,
                         disabled: busy,
                         onclick: move |_| on_change.call(Value::String(String::new())),
                         "Remove model"

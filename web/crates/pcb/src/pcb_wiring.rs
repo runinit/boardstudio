@@ -3,7 +3,9 @@ use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolut
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, Net, PartDefinition, PartKind, ProjectDoc};
 use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
-use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField, TextField};
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, SelectField, TOUCH_CLS, TextField,
+};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -32,6 +34,7 @@ pub use crate::firmware_position_projection::{
 use crate::runtime::Runtime;
 pub use apply::{BoardWiringApplyActions, use_board_wiring_apply};
 use mode::pcb_source;
+pub(crate) use mode::ready_snapshot;
 pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
 use part_connections::PartNetIntent;
 pub use part_input_settings::{PartInputActions, use_part_input_edits};
@@ -98,6 +101,18 @@ pub struct PartNetActions {
     pub(crate) create_pending: bool,
     pub feedback: Option<PartNetFeedback>,
     pub on_edit: EventHandler<PartNetEditRequest>,
+}
+
+/// Commit one scoped resolver and settle its failure (wrapped for its target)
+/// onto the hook's feedback signal; success clears it.
+pub(crate) fn settle_commit<F: 'static>(
+    runtime: &Rc<Runtime>,
+    label: &'static str,
+    resolver: EditResolver,
+    mut feedback: Signal<Option<F>>,
+    wrap: impl Fn(String) -> F,
+) {
+    feedback.set(runtime.commit(label, resolver).err().map(wrap));
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -359,14 +374,8 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                         .iter()
                         .map(|(name, pad_ids)| TerminalRow {
                             name: name.clone(),
-                            net_name: first_terminal_net(
-                                document,
-                                &board.part_ids,
-                                &board.net_ids,
-                                part_id,
-                                pad_ids,
-                            )
-                            .map(|net| net.name.clone()),
+                            net_name: first_terminal_net(document, board, part_id, pad_ids)
+                                .map(|net| net.name.clone()),
                         })
                         .collect();
                     SelectionView::Switch {
@@ -376,17 +385,7 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                     }
                 }
                 _ => {
-                    let nets = document
-                        .nets
-                        .iter()
-                        .filter(|net| {
-                            board.net_ids.contains(&net.id)
-                                || net
-                                    .pins
-                                    .iter()
-                                    .any(|pin| board.part_ids.contains(&pin.part_id))
-                        })
-                        .collect::<Vec<_>>();
+                    let nets = part_connections::board_nets(document, board);
                     let connections = definition
                         .terminals
                         .iter()
@@ -588,7 +587,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                     disabled: !actions.editable || identity.is_none(),
                     oninput: move |event: FormEvent| new_net_name.set(event.value()),
                 }
-                Button { button_type: "submit", variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
+                Button { button_type: "submit", variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
             div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: false, title: format!("Electrical nets ({})", nets.len()),
                 ul {
@@ -614,17 +613,12 @@ fn definition<'a>(document: &'a ProjectDoc, definition_id: &str) -> Option<&'a P
 
 fn first_terminal_net<'a>(
     document: &'a ProjectDoc,
-    board_part_ids: &[String],
-    board_net_ids: &[String],
+    board: &'a boardstudio_model::model::Board,
     part_id: &str,
     pad_ids: &[String],
 ) -> Option<&'a Net> {
     document.nets.iter().find(|net| {
-        (board_net_ids.contains(&net.id)
-            || net
-                .pins
-                .iter()
-                .any(|pin| board_part_ids.contains(&pin.part_id)))
+        part_connections::net_on_board(net, board)
             && net.pins.iter().any(|pin| {
                 pin.part_id == part_id && pad_ids.iter().any(|pad_id| pad_id == &pin.pad_id)
             })
@@ -658,7 +652,7 @@ fn switch_wiring(
                     }
                 }
             }
-            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_edit_board_wiring.call(()), "Edit board wiring" }
+            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, onclick: move |_| on_edit_board_wiring.call(()), "Edit board wiring" }
         }
     }
 }
@@ -742,7 +736,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             div { class: "border-t border-border py-4 [&_ul]:list-none [&_ul]:m-0 [&_ul]:p-0 [&_li]:flex [&_li]:items-baseline [&_li]:justify-between [&_li]:gap-2 [&_li]:py-1.5 [&_li]:border-b [&_li]:border-border [&_li_span]:text-muted-foreground [&_li_span]:text-xs", InspectorSection { default_open: true, title: "Nets",
                 ul {
-                    for net in props.source.document.nets.iter().filter(|net| props.source.document.boards.iter().find(|board| board.id == props.source.identity.scope.board_id).is_some_and(|board| board.net_ids.contains(&net.id) || net.pins.iter().any(|pin| board.part_ids.contains(&pin.part_id)))) {
+                    for net in props.source.document.nets.iter().filter(|net| props.source.document.boards.iter().find(|board| board.id == props.source.identity.scope.board_id).is_some_and(|board| part_connections::net_on_board(net, board))) {
                         li { key: "{net.id}", strong { "{net.name}" } span { "{net.pins.len()} pins" } }
                     }
                 }
@@ -758,7 +752,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             if display.controller_choices.is_empty() {
                 p { "Place a controller from Parts to assign this board’s wiring." }
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_choose_controller.call(()), "Add controller" }
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, onclick: move |_| on_choose_controller.call(()), "Add controller" }
             }
             if let Some(message) = &mode_failure {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
@@ -775,7 +769,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                         p { "Pins protected by PCB handoff at revision {revision}" }
                         InspectorSection { default_open: false, title: "Review PCB remap",
                             p { "Changing a protected assignment creates a new hardware revision. The old PCB and firmware must be regenerated before export." }
-                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS,
                                 disabled: !protected_remap_actions.editable,
                                 onclick: move |_| {
                                     let Some(identity) = protected_remap_identity.clone() else { return; };
@@ -813,10 +807,10 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
             }
             div { class: "flex flex-wrap gap-2",
-                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
+                Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                     if pending { "Resolving…" } else { "Resolve automatically" }
                 }
-                Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !apply_actions.editable, onclick: move |_| {
+                Button { class: TOUCH_CLS, disabled: !apply_actions.editable, onclick: move |_| {
                     let Some(identity) = apply_identity.clone() else { return; };
                     on_apply.call(identity);
                 }, "Apply wiring" }
@@ -836,7 +830,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 div { class: "grid gap-1.5 my-2.5 p-2.5 border border-border rounded [&>strong]:text-xs [&>strong]:text-muted-foreground [&_p]:!m-0",
                     strong { "Review existing connections" }
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS,
                         disabled: !mode_actions.editable || review_connections_identity.is_none(),
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
@@ -938,7 +932,7 @@ fn pin_assignment_row(
                         }
                     }
                 },
-                ToggleItem { index: 0usize, aria_label: "{pin_lock_action(row.locked)} {row.label}", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{pin_lock_action(row.locked)}" }
+                ToggleItem { index: 0usize, aria_label: "{pin_lock_action(row.locked)} {row.label}", class: TOUCH_CLS, "{pin_lock_action(row.locked)}" }
             }
         }
     }
@@ -986,6 +980,32 @@ pub struct FirmwarePositionActions {
     pub on_edit: EventHandler<FirmwarePositionEditRequest>,
 }
 
+/// Snapshot, wiring source, plan identity and firmware projection for the exact
+/// current plan, shared by firmware-position admission and editability.
+fn current_firmware_projection(
+    runtime: &Runtime,
+    generation: u64,
+    resolution: &PcbWiringResolution,
+) -> Option<(
+    AcceptedSnapshot,
+    PcbWiringSource,
+    WiringPlanIdentity,
+    FirmwarePositionProjection,
+)> {
+    let (snapshot, source) = pcb_source(runtime, generation)?;
+    let PcbWiringResolution::Current { identity, plan } = resolution else {
+        return None;
+    };
+    let projection = firmware_position_projection::project(
+        &snapshot.document,
+        &source.identity,
+        &source.ui_scope,
+        source.scope_generation,
+        PlanLifecycle::Current(identity, plan),
+    );
+    Some((snapshot, source, identity.clone(), projection))
+}
+
 /// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
 pub fn use_firmware_position_edits(
     guard: EditGuard,
@@ -993,23 +1013,15 @@ pub fn use_firmware_position_edits(
 ) -> FirmwarePositionActions {
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
     let generation = guard.editor.scope_generation;
-    let mut latest = feedback;
+    let latest = feedback;
     let on_edit = use_guarded_edit(
         guard,
         move |runtime, request: FirmwarePositionEditRequest| {
-            let Some((snapshot, source)) = pcb_source(runtime, generation()) else {
+            let Some((snapshot, source, identity, current)) =
+                current_firmware_projection(runtime, generation(), &resolution.read())
+            else {
                 return;
             };
-            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
-                return;
-            };
-            let current = firmware_position_projection::project(
-                &snapshot.document,
-                &source.identity,
-                &source.ui_scope,
-                source.scope_generation,
-                PlanLifecycle::Current(identity, plan),
-            );
             if !admits_edit(
                 &request.identity,
                 &request.key_id,
@@ -1017,37 +1029,32 @@ pub fn use_firmware_position_edits(
                     current_generation: generation(),
                     runtime_scope: Some(&source.ui_scope),
                     accepted: &snapshot,
-                    current_plan: Some(identity),
+                    current_plan: Some(&identity),
                     current_projection: &current,
                 },
             ) {
                 return;
             }
             let target = firmware_key_target(&request.identity, &request.key_id);
-            let result = runtime.commit("firmware-position", firmware_position_resolver(request));
-            latest.set(result.err().map(|message| FirmwarePositionFeedback {
-                target,
-                state: FirmwarePositionFeedbackState::Failed(message),
-            }));
+            settle_commit(
+                runtime,
+                "firmware-position",
+                firmware_position_resolver(request),
+                latest,
+                |message| FirmwarePositionFeedback {
+                    target: target.clone(),
+                    state: FirmwarePositionFeedbackState::Failed(message),
+                },
+            );
         },
     );
 
     let runtime = guard.editor.runtime();
     let editable = guard.workspace_is_current()
         && guard.instance_is_current(&runtime)
-        && pcb_source(&runtime, generation()).is_some_and(|(snapshot, source)| {
-            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
-                return false;
-            };
-            let projection = firmware_position_projection::project(
-                &snapshot.document,
-                &source.identity,
-                &source.ui_scope,
-                source.scope_generation,
-                PlanLifecycle::Current(identity, plan),
-            );
-            projection.identity.is_some() && !projection.keys.is_empty()
-        });
+        && current_firmware_projection(&runtime, generation(), &resolution.read()).is_some_and(
+            |(_, _, _, projection)| projection.identity.is_some() && !projection.keys.is_empty(),
+        );
     FirmwarePositionActions {
         feedback: feedback(),
         editable,
@@ -1115,7 +1122,8 @@ pub fn use_pcb_part_net_edits(guard: EditGuard) -> PartNetActions {
         if !guard.route_is_current(generation) {
             return;
         }
-        let Some(current) = current_part_net_identity(runtime, generation) else {
+        let Some((current, definition_id, source)) = current_part_net_target(runtime, generation)
+        else {
             return;
         };
         if !request_matches_current_part(&request.identity, &current) {
@@ -1125,34 +1133,19 @@ pub fn use_pcb_part_net_edits(guard: EditGuard) -> PartNetActions {
         if create && *preparing_create.peek() {
             return;
         }
-        let accepted = runtime.model().accepted.unwrap();
-        let part = accepted
-            .document
-            .parts
-            .iter()
-            .find(|part| part.id == request.identity.part_id)
-            .unwrap();
-        let definition = accepted
-            .document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id)
-            .unwrap();
-        let definition_id = definition.id.clone();
-        let source = definition
-            .generator
-            .as_ref()
-            .map(|generator| generator.source.clone());
         let mut feedback = feedback;
         let target = PartNetTarget::of(&request.identity);
         let seed = runtime.operation().0;
         if source.is_none() {
-            let resolver = part_net_resolver(request, definition_id, None, false, seed);
-            feedback.set(
-                runtime
-                    .commit("pcb-part-net", resolver)
-                    .err()
-                    .map(|failure| PartNetFeedback { target, failure }),
+            settle_commit(
+                runtime,
+                "pcb-part-net",
+                part_net_resolver(request, definition_id, None, false, seed),
+                feedback,
+                |failure| PartNetFeedback {
+                    target: target.clone(),
+                    failure,
+                },
             );
             return;
         }
@@ -1211,15 +1204,13 @@ fn part_net_resolver(
     is_generator_source: bool,
     seed: u64,
 ) -> EditResolver {
-    EditResolver::new("pcb-part-net", move |accepted: &AcceptedSnapshot| {
-        let part = accepted
-            .document
+    mode::replace_document_resolver("pcb-part-net", move |accepted, replacement| {
+        let part = replacement
             .parts
             .iter()
             .find(|part| part.id == request.identity.part_id);
         let definition = part.and_then(|part| {
-            accepted
-                .document
+            replacement
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)
@@ -1232,7 +1223,7 @@ fn part_net_resolver(
                     .map(|generator| &generator.source)
                     != source.as_ref()
         }) {
-            return Resolution::Retire("The part was deleted or its definition changed.".into());
+            return Err("The part was deleted or its definition changed.".into());
         }
         let intent = match &request.action {
             PartNetEditAction::AssignPads { pad_ids, net_id } => PartNetIntent::AssignPads {
@@ -1244,28 +1235,17 @@ fn part_net_resolver(
                 name: name.clone(),
             },
         };
-        let proposal = match part_connections::propose(
+        *replacement = part_connections::propose(
             &accepted.document,
             &request.identity.board_id,
             &request.identity.part_id,
             is_generator_source,
             intent,
-        ) {
-            Ok(proposal) => proposal,
-            Err(reason) => return Resolution::Retire(reason),
-        };
-        if proposal == *accepted.document {
-            return Resolution::Unchanged;
-        }
-        Resolution::submit(
-            vec![
-                request.identity.board_id.clone(),
-                request.identity.part_id.clone(),
-            ],
-            EditOperation::ReplaceDocument {
-                document: Box::new(proposal),
-            },
-        )
+        )?;
+        Ok(vec![
+            request.identity.board_id.clone(),
+            request.identity.part_id.clone(),
+        ])
     })
 }
 
@@ -1277,10 +1257,15 @@ fn live_part_net_identity(
     if !guard.instance_is_current(runtime) {
         return None;
     }
-    current_part_net_identity(runtime, generation)
+    current_part_net_target(runtime, generation).map(|(identity, _, _)| identity)
 }
 
-fn current_part_net_identity(runtime: &Runtime, generation: u64) -> Option<PartNetEditIdentity> {
+/// The selected part's net-edit identity plus its definition identity and
+/// generator source, resolved in one accepted-document lookup.
+fn current_part_net_target(
+    runtime: &Runtime,
+    generation: u64,
+) -> Option<(PartNetEditIdentity, String, Option<String>)> {
     let (accepted, source) = pcb_source(runtime, generation)?;
     let scope = source.ui_scope;
     let model = runtime.model();
@@ -1311,14 +1296,22 @@ fn current_part_net_identity(runtime: &Runtime, generation: u64) -> Option<PartN
     ) {
         return None;
     }
-    Some(PartNetEditIdentity {
-        board_id: scope.board_id.clone(),
-        ui_scope: scope,
-        part_id: part_id.clone(),
-        token: accepted.token,
-        revision: accepted.document.revision,
-        generation,
-    })
+    let source = definition
+        .generator
+        .as_ref()
+        .map(|generator| generator.source.clone());
+    Some((
+        PartNetEditIdentity {
+            board_id: scope.board_id.clone(),
+            ui_scope: scope,
+            part_id: part_id.clone(),
+            token: accepted.token,
+            revision: accepted.document.revision,
+            generation,
+        },
+        definition.id.clone(),
+        source,
+    ))
 }
 
 fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {

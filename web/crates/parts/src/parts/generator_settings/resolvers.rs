@@ -120,7 +120,7 @@ pub fn generator_apply_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.document.id != owner.document_id
+            if accepted.document.id != owner.guard.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.as_ref().is_none_or(|generator| {
                     generator.source != owner.source || generator.version != owner.generator_version
@@ -154,7 +154,7 @@ pub fn generator_model_upload_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.document.id != owner.document_id
+            if accepted.document.id != owner.guard.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.is_none()
             {
@@ -245,15 +245,7 @@ fn generator_replacement(
     let rebased = boardstudio_core_kernel::generators::normalize_definition(rebased)?;
     let nets = remap_terminal_nets(document, &original, &rebased)?;
     let mut replacement = document.clone();
-    if let Some(existing) = replacement
-        .definitions
-        .iter_mut()
-        .find(|definition| definition.id == rebased.id)
-    {
-        *existing = rebased.clone();
-    } else {
-        replacement.definitions.push(rebased.clone());
-    }
+    crate::parts_custom_definition::upsert_definition(&mut replacement, rebased.clone());
     replacement.nets = nets;
     let mut target_ids = vec![rebased.id.clone()];
     target_ids.extend(
@@ -277,18 +269,10 @@ fn generator_replacement(
 }
 
 fn unique_generator_model_id(document: &boardstudio_model::model::ProjectDoc, seed: u64) -> String {
-    let root = format!("generator-model-{seed}");
-    if !document.assets.iter().any(|asset| asset.id == root) {
-        return root;
-    }
-    let mut suffix = 2;
-    loop {
-        let candidate = format!("{root}-{suffix}");
-        if !document.assets.iter().any(|asset| asset.id == candidate) {
-            return candidate;
-        }
-        suffix += 1;
-    }
+    crate::parts_custom_definition::unique_suffixed_id(
+        &format!("generator-model-{seed}"),
+        |candidate| document.assets.iter().any(|asset| asset.id == candidate),
+    )
 }
 
 fn merge_generator_field<T: Clone + PartialEq>(base: &T, candidate: &T, rebased: &mut T) {

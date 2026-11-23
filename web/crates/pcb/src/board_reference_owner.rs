@@ -5,7 +5,7 @@ use super::{
     LayoutOwnerIdentity, SelectionAdapter, active_board_scope_matches, current_layout_owner,
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_model::model::EditOperation;
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
@@ -29,20 +29,10 @@ pub fn board_reference_owner_is_current(
     let (Some(token), Some(revision)) = (owner.token, owner.revision) else {
         return false;
     };
-    if !active_board_scope_matches(&model, scope)
-        || model.lifecycle != Lifecycle::Ready
-        || !matches!(
-            model.durability,
-            Durability::Saved { .. } | Durability::Saving { .. }
-        )
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
+    if !active_board_scope_matches(&model, scope) {
         return false;
     }
-    model
-        .accepted
-        .as_ref()
+    crate::pcb_wiring::ready_snapshot(runtime)
         .is_some_and(|accepted| accepted.token == token && accepted.document.revision == revision)
 }
 

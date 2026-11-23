@@ -80,12 +80,12 @@ pub fn use_part_input_edits(guard: EditGuard) -> PartInputActions {
             return;
         }
         let identity = request.identity.clone();
-        let result = runtime.commit("pcb-part-settings", input_resolver(request));
-        let mut failure = failure;
-        failure.set(
-            result
-                .err()
-                .map(|message| PartInputFailure::of(&identity, message)),
+        crate::pcb_wiring::settle_commit(
+            runtime,
+            "pcb-part-settings",
+            input_resolver(request),
+            failure,
+            |message| PartInputFailure::of(&identity, message),
         );
     });
     let runtime = guard.editor.runtime();

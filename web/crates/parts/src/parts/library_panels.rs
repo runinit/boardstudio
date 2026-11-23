@@ -1,6 +1,6 @@
 use super::*;
 use boardstudio_web_ui_model::Workspace;
-use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::inspector_fields::{TOUCH_CLS, TextField};
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
@@ -57,7 +57,7 @@ pub fn PartsLibraryPanel(
             }
             Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
                 div { class: "flex items-center justify-between gap-2",
-                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Key assemblies" small { "{visible_assemblies.len()}" } }
+                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2 {TOUCH_CLS}", "Key assemblies" small { "{visible_assemblies.len()}" } }
                     AssemblyCreateButton {}
                 }
                 CollapsibleContent { class: "data-[open=false]:hidden",
@@ -82,7 +82,7 @@ pub fn PartsLibraryPanel(
                           let scope = scope.clone();
                           rsx! { Item { size: ItemSize::Xs, class: "p-0",
                             Button { key: "{preset.name}", variant: ButtonVariant::Ghost,
-                                class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground {TOUCH_CLS}",
                                 aria_pressed: is_selected,
                                 onclick: move |_| {
                                     assembly_selection.set(Some(preset_id));
@@ -105,7 +105,7 @@ pub fn PartsLibraryPanel(
                 div { role: "status", Callout { "No component definitions are available." } }
             } else if !groups.is_empty() {
                 Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
-                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Components" small { "{result_count}" } }
+                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2 {TOUCH_CLS}", "Components" small { "{result_count}" } }
                     CollapsibleContent { class: "data-[open=false]:hidden", div { role: "group", "aria-label": "Footprint library",
                         for (group, items) in groups {
                             PartsCatalogueCategory { key: "{group.label}", label: group.label,
@@ -118,7 +118,7 @@ pub fn PartsLibraryPanel(
                                         Item { size: ItemSize::Xs, class: "p-0",
                                         Button {
                                             key: "{entry.definition.id}", variant: ButtonVariant::Ghost,
-                                            class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground {TOUCH_CLS}",
                                             aria_pressed: is_selected,
                                             onclick: move |_| {
                                                 assembly_selection.set(None);
@@ -320,7 +320,7 @@ pub fn ControllerSetupPicker(
                 {
                     let id = entry.definition.id.clone();
                     rsx! { Button {
-                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        class: TOUCH_CLS,
                         disabled: busy || !enabled, onclick: move |_| { choose.call(id.clone()); on_place.call(id.clone()); },
                         if busy { "Preparing controller…" } else { "Place controller" }
                     } }
