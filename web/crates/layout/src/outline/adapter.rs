@@ -79,7 +79,7 @@ fn reviewed_source(snapshot: &AcceptedSnapshot, board_id: &str) -> Option<Vec<Co
 /// otherwise the Generated envelope that owns the field.
 fn settings_target(board_id: &str, active_version: Option<&str>) -> OutlineEditTarget {
     match active_version {
-        Some(version_id) => version_target(&board_id, &version_id),
+        Some(version_id) => version_target(board_id, version_id),
         None => board_target(board_id),
     }
 }
@@ -137,7 +137,7 @@ fn update(
     };
     match edit {
         OutlineSettingEdit::RenameVersion { version_id, name } => Some((
-            version_target(&board_id, &version_id),
+            version_target(board_id, version_id),
             OutlineChange::Rename {
                 name: name.trim().to_owned(),
             },
@@ -263,7 +263,7 @@ pub fn outline_edit(
             None,
         ),
         OutlineActionKind::Delete { version_id, .. } => (
-            version_target(&board_id, &version_id),
+            version_target(&board_id, version_id),
             OutlineChange::Delete,
             None,
         ),
@@ -289,7 +289,7 @@ pub fn outline_edit(
             None,
         ),
         OutlineActionKind::Freeze { version_id, .. } => (
-            version_target(&board_id, &version_id),
+            version_target(&board_id, version_id),
             OutlineChange::Freeze {
                 name: next_edited_outline_name(state),
             },
@@ -311,7 +311,7 @@ pub fn outline_edit(
                     feature_id,
                     ..
                 } => (
-                    version_target(&board_id, &version_id),
+                    version_target(&board_id, version_id),
                     OutlineChange::EditFeaturePerimeter {
                         feature_id: feature_id.clone(),
                         points: points.clone(),
@@ -327,7 +327,7 @@ pub fn outline_edit(
                 TreeContext::OutlineVersion {
                     version_id: Some(version_id),
                     ..
-                } => version_target(&board_id, &version_id),
+                } => version_target(&board_id, version_id),
                 _ => board_target(&board_id),
             };
             (
@@ -415,7 +415,7 @@ pub fn outline_edit(
             feature_id,
             ..
         } => (
-            version_target(&board_id, &version_id),
+            version_target(&board_id, version_id),
             OutlineChange::RemoveFeature {
                 feature_id: feature_id.clone(),
             },
@@ -614,7 +614,7 @@ mod tests {
         let revision = snapshot.document.revision;
         let token = snapshot.token;
         let action = OutlineAction {
-            envelope: super::planner::OutlineActionEnvelope {
+            envelope: super::super::planner::OutlineActionEnvelope {
                 scope: scope.clone(),
                 token,
                 revision,

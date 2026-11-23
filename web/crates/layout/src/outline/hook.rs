@@ -1015,7 +1015,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             .model()
             .accepted
             .as_ref()
-            .and_then(|snapshot| outline_state(snapshot, &board_id))
+            .and_then(|snapshot| outline_state(snapshot, board_id))
             .and_then(|outline| {
                 outline
                     .versions
