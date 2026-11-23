@@ -909,7 +909,7 @@ pub(in crate::presentation) fn use_layout_bundle(
 ) -> LayoutBundle {
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let layout_state = use_context::<LayoutWorkspaceState>();
-    let services = &frame.layout_services;
+    let services = frame.layout_services();
     let mounts = use_layout_mounts();
     let lifetime =
         use_hook(|| Rc::new(super::inspector::LayoutComponentInspectorLifetime::default()));
@@ -920,21 +920,10 @@ pub(in crate::presentation) fn use_layout_bundle(
     let selected_tree_context = canvas.selection.selected_tree_context.clone();
     let bridge = scene::selected_bridge(&frame.snapshot, selected_tree_context.as_ref());
     let focused_half = scene::split_focused_half(&frame.document, layout_state.split_focus());
-    let board = frame
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == frame.model.active_board_id);
-    let board_part_ids: std::collections::HashSet<&str> = board
-        .into_iter()
-        .flat_map(|board| board.part_ids.iter().map(String::as_str))
-        .collect();
-    let visible: Vec<_> = frame
-        .document
-        .parts
-        .iter()
-        .filter(|part| board_part_ids.contains(part.id.as_str()))
-        .collect();
+    let visible: Vec<_> = super::workspace_composition::board_visible_parts(
+        &frame.document,
+        &frame.model.active_board_id,
+    );
     let anchor = (!layout_state.assembly_3d()()).then(|| {
         scene::selection_geometry_anchor(
             &visible,
