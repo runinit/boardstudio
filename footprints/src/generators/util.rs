@@ -154,6 +154,7 @@ pub(crate) fn kicad_model(
     offset: [f64; 3],
     scale: [f64; 3],
     rotation: [f64; 3],
+    tail: &str,
 ) -> String {
     format!(
         r####"
@@ -162,7 +163,7 @@ pub(crate) fn kicad_model(
       (scale (xyz {e4} {e5} {e6}))
       (rotate (xyz {e7} {e8} {e9}))
     )
-    "####,
+{e10}"####,
         e0 = json_string(filename),
         e1 = js_number(offset[0]),
         e2 = js_number(offset[1]),
@@ -172,7 +173,8 @@ pub(crate) fn kicad_model(
         e6 = js_number(scale[2]),
         e7 = js_number(rotation[0]),
         e8 = js_number(rotation[1]),
-        e9 = js_number(rotation[2])
+        e9 = js_number(rotation[2]),
+        e10 = tail
     )
 }
 

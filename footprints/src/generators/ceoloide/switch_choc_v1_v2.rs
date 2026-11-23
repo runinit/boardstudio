@@ -888,26 +888,34 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         switch_rotation,
     );
 
-    let hotswap_3dmodel = display_shared::ceoloide_model(
-        hotswap_filename,
-        hotswap_offset,
-        [
-            p.component("hotswap_3dmodel_xyz_scale", 0),
-            p.component("hotswap_3dmodel_xyz_scale", 1),
-            p.component("hotswap_3dmodel_xyz_scale", 2),
-        ],
-        hotswap_rotation,
+    let hotswap_3dmodel = format!(
+        "{}\t  ",
+        display_shared::ceoloide_model(
+            hotswap_filename,
+            hotswap_offset,
+            [
+                p.component("hotswap_3dmodel_xyz_scale", 0),
+                p.component("hotswap_3dmodel_xyz_scale", 1),
+                p.component("hotswap_3dmodel_xyz_scale", 2),
+            ],
+            hotswap_rotation,
+        )
+        .trim_end_matches(' ')
     );
 
-    let keycap_3dmodel = display_shared::ceoloide_model(
-        keycap_filename,
-        keycap_offset,
-        [
-            p.component("keycap_3dmodel_xyz_scale", 0),
-            p.component("keycap_3dmodel_xyz_scale", 1),
-            p.component("keycap_3dmodel_xyz_scale", 2),
-        ],
-        keycap_rotation,
+    let keycap_3dmodel = format!(
+        "{}\t  ",
+        display_shared::ceoloide_model(
+            keycap_filename,
+            keycap_offset,
+            [
+                p.component("keycap_3dmodel_xyz_scale", 0),
+                p.component("keycap_3dmodel_xyz_scale", 1),
+                p.component("keycap_3dmodel_xyz_scale", 2),
+            ],
+            keycap_rotation,
+        )
+        .trim_end_matches(' ')
     );
 
     const COMMON_BOTTOM: &str = r####"

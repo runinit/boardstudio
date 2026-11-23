@@ -2,6 +2,7 @@
 use super::*;
 mod motion;
 mod placement;
+
 const MAX_SUPPORTS: usize = 64;
 const CLOSURE_SPACING_MM: f64 = 120.;
 const MAX_AUTOMATIC_CLOSURES: usize = 64;
@@ -10,6 +11,7 @@ const TAB_MARGIN: f64 = 0.5;
 const ROOT_OVERLAP: f64 = 0.6;
 // The preparer quantizes both boundaries to 0.001 mm; reserve both roundings.
 const OFFSET_GRID_ALLOWANCE: f64 = 0.002;
+
 fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     let polygon: FloatPath = points.iter().map(|p| [p.x, p.y]).collect();
     crate::geometry::overlay(
@@ -19,6 +21,7 @@ fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     )
     .is_empty()
 }
+
 fn remaining_wall(pocket: &[Vec2], outer: &[Contour]) -> f64 {
     let point_segment = |p: Vec2, a: Vec2, b: Vec2| {
         let dx = b.x - a.x;
@@ -55,6 +58,7 @@ fn remaining_wall(pocket: &[Vec2], outer: &[Contour]) -> f64 {
     }
     minimum
 }
+
 fn validate(
     config: &MechanicalConfiguration,
     settings: &InternalGasketConfiguration,
@@ -173,6 +177,7 @@ fn validate(
     }
     Ok(())
 }
+
 fn candidates(ring: &Contour, margin: f64) -> Vec<Candidate> {
     let lengths: Vec<_> = ring
         .points
@@ -207,6 +212,7 @@ fn candidates(ring: &Contour, margin: f64) -> Vec<Candidate> {
     }
     candidates
 }
+
 fn reflect(candidate: &Candidate, axis: f64) -> Candidate {
     Candidate {
         at: Vec2 {
@@ -224,6 +230,7 @@ fn reflect(candidate: &Candidate, axis: f64) -> Candidate {
         anchor: candidate.anchor,
     }
 }
+
 fn nearest(candidates: &[Candidate], ideal: f64) -> Option<Candidate> {
     let difference = |anchor: f64| {
         let d = (anchor - ideal).abs();
@@ -234,6 +241,7 @@ fn nearest(candidates: &[Candidate], ideal: f64) -> Option<Candidate> {
         .min_by(|a, b| difference(a.anchor).total_cmp(&difference(b.anchor)))
         .cloned()
 }
+
 fn keycap_envelopes(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
@@ -289,6 +297,7 @@ fn keycap_envelopes(
     }
     Ok(caps)
 }
+
 fn required_offset(
     rings: &[Contour],
     envelopes: &[Vec<Vec2>],
@@ -321,6 +330,7 @@ fn required_offset(
     }
     Ok((upper * 1000.).ceil() / 1000.)
 }
+
 pub(super) fn generate(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,

@@ -1,13 +1,16 @@
 //! Profile, mount, opening and dimension validation.
+
 use super::super::change::{MechanicalDimension, MechanicalMountCollection};
 use super::closure_hardware_mut;
 use crate::model::*;
+
 #[derive(Clone, Copy)]
 pub(super) enum ProfileTargetKind {
     Switch,
     Stabilizer,
     ImportedGeometry,
 }
+
 pub(super) fn validate_profile_target(
     document: &ProjectDoc,
     board_id: &str,
@@ -55,6 +58,7 @@ pub(super) fn validate_profile_target(
     }
     Ok(())
 }
+
 pub(super) fn mount_collection_mut(
     configuration: &mut MechanicalConfiguration,
     collection: MechanicalMountCollection,
@@ -103,6 +107,7 @@ pub(super) fn validate_gasket_support_anchors(
     }
     Ok(())
 }
+
 pub(super) fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
     let mut ids = std::collections::HashSet::new();
     for mount in mounts {
@@ -120,6 +125,7 @@ pub(super) fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
     }
     Ok(())
 }
+
 pub(super) fn valid_profile_polygons(polygons: &[Vec<Vec2>]) -> bool {
     polygons.iter().all(|polygon| {
         polygon.len() >= 3
@@ -128,6 +134,7 @@ pub(super) fn valid_profile_polygons(polygons: &[Vec<Vec2>]) -> bool {
                 .all(|point| point.x.is_finite() && point.y.is_finite())
     })
 }
+
 pub(super) fn validate_profile_openings(
     openings: &[CaseOpening],
     label: &str,
@@ -137,9 +144,11 @@ pub(super) fn validate_profile_openings(
     }
     Ok(())
 }
+
 fn coordinate_is_valid(value: f64) -> bool {
     value.is_finite() && value >= -boardstudio_contracts::MAX_COORDINATE_MM
 }
+
 pub(super) fn validate_opening_geometry(
     points: &[Vec2],
     z: f64,
@@ -171,6 +180,7 @@ pub(super) fn validate_opening_geometry(
     }
     Ok(())
 }
+
 pub(super) fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
     for (index, opening) in openings.iter().enumerate() {
         validate_opening_geometry(
@@ -183,6 +193,7 @@ pub(super) fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), St
     }
     Ok(())
 }
+
 pub(super) fn validate_mount_positive(value: f64, label: &str) -> Result<(), String> {
     if value.is_finite() && value > 0.0 {
         Ok(())
@@ -190,6 +201,7 @@ pub(super) fn validate_mount_positive(value: f64, label: &str) -> Result<(), Str
         Err(format!("{label} must be a finite value greater than zero."))
     }
 }
+
 pub(super) fn set_dimension(
     configuration: &mut MechanicalConfiguration,
     field: MechanicalDimension,
@@ -298,6 +310,7 @@ pub(super) fn set_dimension(
     }
     Ok(())
 }
+
 pub(super) fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), String> {
     let valid = match field {
         MechanicalDimension::OpeningAllowance => (-1.0..=1.0).contains(&value),

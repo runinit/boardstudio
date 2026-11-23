@@ -55,6 +55,7 @@ fn remove_item<T>(
     let index = items.iter().position(matches).ok_or(unavailable)?;
     Ok(items.remove(index))
 }
+
 /// Reference defaults for a board that has no stored configuration.
 ///
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
@@ -131,6 +132,7 @@ pub fn default_configuration(
         profiles: Vec::new(),
     })
 }
+
 pub(super) fn apply_change(
     configuration: &mut MechanicalConfiguration,
     change: &MechanicalChange,
@@ -1167,6 +1169,7 @@ pub(super) fn apply_change(
             changed.push(stabilizer.part_id.clone());
         }
     }
+
     let family =
         profile_family(configuration).or_else(|| initial_switch_family(document, board_id));
     let new_plate_thickness = match change {
@@ -1210,6 +1213,7 @@ pub(super) fn apply_change(
     }
     Ok(())
 }
+
 pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
     matches!(
         change,

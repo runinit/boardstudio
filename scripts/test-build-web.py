@@ -164,8 +164,9 @@ class BuildWebTests(unittest.TestCase):
                 BUILD.prepare_runtime_providers(fast=True)
             commands = [call.args[0] for call in run.call_args_list]
             self.assertEqual(len(commands), 5)
-            for call in run.call_args_list[:2]:
-                self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target/wasm-workers"))
+            self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target/wasm-workers"))
+            self.assertEqual(run.call_args_list[1].kwargs["env"]["CARGO_TARGET_DIR"],
+                             str(root / "target/wasm-offline-worker"))
             self.assertNotIn("env", run.call_args_list[2].kwargs)
 
     def test_two_fast_builds_skip_staging_and_packaging_when_unchanged(self):

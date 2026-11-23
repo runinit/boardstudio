@@ -524,6 +524,8 @@ def run_overlapped_steps(group, update_native_baseline, *, keep_going=False):
                 child_env = dict(env, MAKEFLAGS=flags, **{IN_OVERLAP_ENV: "1"})
                 if name == "lint":
                     child_env["CARGO_TARGET_DIR"] = str(ROOT / "target/lint")
+                elif name == "test":
+                    child_env.setdefault("RUST_TEST_THREADS", str(max(2, (os.cpu_count() or 8) // 4)))
                 batch.append([(command, ROOT, child_env)])
             return run_parallel(batch, env)
 

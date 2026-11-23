@@ -193,6 +193,7 @@ fn mx_routes_same_side(p: &RenderContext<'_>) -> String {
         "B",
         from,
     );
+    out.push('\n');
     for ((sx, sy), (ex, ey)) in [
         ((-7.085, -4.415), (-7.085, -2.54)),
         ((-7.75, -5.08), (-7.085, -4.415)),
@@ -524,6 +525,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("switch_3dmodel_xyz_scale", 2),
         ],
         switch_rotation,
+        "    ",
     );
 
     let hotswap_3dmodel = kicad_model(
@@ -535,6 +537,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("hotswap_3dmodel_xyz_scale", 2),
         ],
         hotswap_rotation,
+        "\t  ",
     );
 
     let keycap_3dmodel = kicad_model(
@@ -554,6 +557,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("keycap_3dmodel_xyz_rotation", 1),
             p.component("keycap_3dmodel_xyz_rotation", 2),
         ],
+        "\t  ",
     );
 
     const COMMON_BOTTOM: &str = r####"

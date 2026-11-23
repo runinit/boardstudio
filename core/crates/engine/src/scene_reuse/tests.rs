@@ -159,6 +159,7 @@ fn settled_stagger_matches_cold_wire_and_history() {
         (-0.0f64).to_bits()
     );
 }
+
 #[test]
 fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
     let mut engine = CoreEngine::new();
@@ -183,6 +184,7 @@ fn stagger_uses_full_writeback_to_repair_saved_envelope_membership() {
     };
     assert_eq!(part_ids.last(), Some(&missing));
 }
+
 fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
     CoreRequest::Edit {
         id: "edit".into(),
@@ -195,6 +197,7 @@ fn edit(revision: u64, operation: EditOperation) -> CoreRequest {
         },
     }
 }
+
 fn compare(engine: &mut CoreEngine, cold: &mut CoreEngine, request: CoreRequest) -> CoreReply {
     cold.reusable_scene = None;
     let expected = cold.handle(request.clone());
@@ -259,6 +262,7 @@ fn preview_move(positions: Vec<Position>) -> CoreRequest {
         },
     }
 }
+
 #[test]
 fn plain_move_commit_reuses_only_a_matching_preview() {
     for mismatch in [
@@ -325,9 +329,11 @@ fn plain_move_commit_reuses_only_a_matching_preview() {
         assert!(engine.move_preview.is_none());
     }
 }
+
 #[test]
 fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
     use mirrored_half::{MirrorDestination, MirroredPair};
+
     let mut document = fixture();
     let source = document.boards[0].id.clone();
     document.boards.push(Board {
@@ -410,6 +416,7 @@ fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
         }
     );
 }
+
 fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
     assert_eq!(engine.document, cold.document);
     assert_eq!(
@@ -428,6 +435,7 @@ fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEng
                 && scene.changed_ids.is_empty()
     ));
 }
+
 #[test]
 fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
     let mut document = fixture();
@@ -491,6 +499,7 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         Some(18.0),
     );
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
     // The first position already writes the draft when the second one fails.
     assert!(matches!(
         engine.handle(preview_move(vec![
@@ -500,6 +509,7 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         CoreReply::Error { message, revision: 0, .. } if message == "Unknown part missing"
     ));
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
     // Drag the anchor key: the cutout must follow U1's evaluated pose.
     let positions = vec![Position {
         id: "matrix/matrix/r0c0".into(),
@@ -513,6 +523,7 @@ fn anchored_drag_preview_does_not_rewrite_accepted_spread() {
         transform.id == "main/U1" && transform.pose.at == Vec2 { x: 18.0, y: 37.0 }
     }));
     assert_preview_preserves_snapshot(&mut engine, &mut cold);
+
     let CoreReply::Scene {
         scene: committed,
         document,
@@ -560,6 +571,7 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
         assert_eq!(serde_json::to_vec(&engine.document).unwrap(), before);
         assert_eq!(engine.reusable_scene.as_ref(), Some(&accepted));
         assert!(engine.undo.is_empty() && engine.redo.is_empty());
+
         let cold_projections = cold.independent_board_projections.get();
         let full_projections = engine.full_scene_projections.get();
         assert!(matches!(
@@ -609,6 +621,7 @@ fn matching_part_poses_do_not_reuse_a_different_stagger_draft() {
     assert_eq!(document.parts, initial_poses);
     assert_eq!(document.matrices[0].column_layout[0].stagger, 4.0);
 }
+
 #[test]
 fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     let mut engine = CoreEngine::new();
@@ -662,6 +675,7 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
         &mut cold,
         CoreRequest::Redo { id: "redo".into() },
     );
+
     let position = Position {
         id: "main/U1".into(),
         at: Vec2 { x: 19.0, y: 32.0 },
@@ -697,6 +711,7 @@ fn stagger_preview_commit_and_invalidation_match_cold_projection() {
     };
     assert_eq!(document.revision, 5);
     assert_eq!(document.matrices[0].column_layout[1].stagger, 1.5);
+
     let copy: EditOperation = serde_json::from_value(serde_json::json!({
         "kind": "apply-outline-edit", "edit": {
             "target": {"kind": "board", "boardId": "main"},
@@ -767,6 +782,7 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
         compare(&mut engine, &mut cold, edit(0, rename)),
         CoreReply::Error { revision: 1, .. }
     ));
+
     let stagger = |column| EditOperation::SetMatrixPlacement {
         matrix_id: "matrix".into(),
         change: MatrixPlacementChange::ColumnStagger { column, value: 4.0 },
@@ -793,6 +809,7 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
             .any(|id| id == "matrix/matrix/r0c1")
     );
     assert_ne!(scene.board_contours, initial.board_contours);
+
     // A replacement with a new name can also carry a real geometry change.
     let mut document = *document;
     document.name = "Renamed again".into();
@@ -828,6 +845,7 @@ fn rename_and_stagger_match_full_scene_recomputation_through_history() {
     assert_eq!(engine.document.name, "Renamed");
     assert_eq!(engine.document.revision, 7);
 }
+
 #[test]
 fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
     let accepted = fixture();
@@ -838,9 +856,11 @@ fn replacement_keeps_scene_checks_signed_zero_in_geometry() {
     assert!(!replacement_keeps_scene(&accepted, &mut next));
     assert_eq!(next.name, "Renamed");
 }
+
 fn rename(name: &str) -> EditOperation {
     EditOperation::RenameProject { name: name.into() }
 }
+
 #[test]
 fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     let mut engine = CoreEngine::new();
@@ -872,6 +892,7 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
         ));
     }
     assert_eq!(engine.full_scene_projections.get(), projections);
+
     for request in [
         CoreRequest::Undo { id: "undo".into() },
         snapshot("after undo"),
@@ -893,6 +914,7 @@ fn typed_snapshot_reuses_the_accepted_scene_and_refreshes_its_receipt() {
     ));
     assert!(engine.undo.is_empty() && engine.redo.is_empty());
 }
+
 #[test]
 fn shared_courtyard_findings_keep_part_order_and_follow_staggered_poses() {
     let mut engine = CoreEngine::new();
@@ -989,6 +1011,7 @@ fn typed_rename_matches_legacy_preview_commit_and_history() {
             u64::from(phase == EditPhase::Commit)
         );
     }
+
     for request in [
         edit(
             1,
@@ -1111,6 +1134,7 @@ fn stagger_diagnostics_document(large: bool) -> ProjectDoc {
     doc.boards[0].outline_ids.push("switch-cutout".into());
     doc
 }
+
 #[test]
 fn stagger_diagnostics_match_cold_wire_and_history() {
     for large in [false, true] {

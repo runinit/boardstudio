@@ -870,41 +870,45 @@ fn matrix_tokens(
             }))
         })
     };
+    struct MatrixTokenSpec {
+        label: &'static str,
+        value: String,
+        title: Option<String>,
+        guide: Option<(f64, f64)>,
+        nudge: Option<RailNudge>,
+        disabled: bool,
+        maker: Maker,
+    }
+
     let mut tokens = Vec::new();
     for &tool in tools {
         // One armed token row: the label/value/title chrome plus its guide, nudge,
         // availability and start maker. Every tool below shares this shape.
-        let pair = |label: &str,
-                    value: String,
-                    title: Option<String>,
-                    guide: Option<(f64, f64)>,
-                    nudge: Option<RailNudge>,
-                    disabled: bool,
-                    maker: Option<Maker>| {
+        let make_token = |spec: MatrixTokenSpec| {
             Some((
                 Token {
                     tool,
-                    label: label.to_owned(),
-                    value,
-                    title,
+                    label: spec.label.to_owned(),
+                    value: spec.value,
+                    title: spec.title,
                     glyph_degrees: axis_degrees,
-                    guide,
-                    nudge,
-                    disabled,
+                    guide: spec.guide,
+                    nudge: spec.nudge,
+                    disabled: spec.disabled,
                 },
-                maker,
+                Some(spec.maker),
             ))
         };
         let entry = match tool {
-            T::Stagger if control => pair(
-                "Drag to offset column",
-                value_of(PlacementParameter::ColumnOffset { column }),
-                None,
-                Some((stagger_axis.x, stagger_axis.y)),
-                None,
-                false,
-                Some(placement(PlacementParameter::ColumnOffset { column })),
-            ),
+            T::Stagger if control => make_token(MatrixTokenSpec {
+                label: "Drag to offset column",
+                value: value_of(PlacementParameter::ColumnOffset { column }),
+                title: None,
+                guide: Some((stagger_axis.x, stagger_axis.y)),
+                nudge: None,
+                disabled: false,
+                maker: placement(PlacementParameter::ColumnOffset { column }),
+            }),
             T::Stagger => {
                 let parameter = PlacementParameter::Stagger { column };
                 // Ctrl latched at pointer-down turns the whole drag into a free column offset.
@@ -919,72 +923,72 @@ fn matrix_tokens(
                         normal(accepted, point, ctrl)
                     }
                 });
-                pair(
-                    "Drag to stagger",
-                    value_of(parameter),
-                    None,
-                    Some((stagger_axis.x, stagger_axis.y)),
-                    row.is_none().then_some(RailNudge::Placement(parameter)),
-                    false,
-                    Some(maker),
-                )
+                make_token(MatrixTokenSpec {
+                    label: "Drag to stagger",
+                    value: value_of(parameter),
+                    title: None,
+                    guide: Some((stagger_axis.x, stagger_axis.y)),
+                    nudge: row.is_none().then_some(RailNudge::Placement(parameter)),
+                    disabled: false,
+                    maker,
+                })
             }
             // Column 0 follows the pitch, so it has no Spread step to drag.
             T::Spread if column == 0 && row.is_none() => None,
             T::Spread => {
                 let parameter = PlacementParameter::ColumnSpread { column };
-                pair(
-                    "Drag to spread",
-                    value_of(parameter),
-                    Some(format!("Drag to spread · {}", value_of(parameter))),
-                    Some((1.0, 0.0)),
-                    Some(RailNudge::Placement(parameter)),
-                    false,
-                    Some(placement(parameter)),
-                )
+                make_token(MatrixTokenSpec {
+                    label: "Drag to spread",
+                    value: value_of(parameter),
+                    title: Some(format!("Drag to spread · {}", value_of(parameter))),
+                    guide: Some((1.0, 0.0)),
+                    nudge: Some(RailNudge::Placement(parameter)),
+                    disabled: false,
+                    maker: placement(parameter),
+                })
             }
-            T::Offset => pair(
-                if row.is_some() {
+            T::Offset => make_token(MatrixTokenSpec {
+                label: if row.is_some() {
                     "Drag to offset row"
                 } else {
                     "Drag to offset column"
                 },
-                value_of(offset_parameter),
-                None,
-                Some((stagger_axis.x, stagger_axis.y)),
-                Some(RailNudge::Placement(offset_parameter)),
-                false,
-                Some(placement(offset_parameter)),
-            ),
+                value: value_of(offset_parameter),
+                title: None,
+                guide: Some((stagger_axis.x, stagger_axis.y)),
+                nudge: Some(RailNudge::Placement(offset_parameter)),
+                disabled: false,
+                maker: placement(offset_parameter),
+            }),
             T::Shift => carried(context, false).and_then(|parameter| {
-                pair(
-                    if row.is_some() {
+                make_token(MatrixTokenSpec {
+                    label: if row.is_some() {
                         "Drag to shift row"
                     } else {
                         "Drag to shift key"
                     },
-                    value_of(parameter),
-                    None,
-                    None,
-                    Some(RailNudge::Placement(parameter)),
-                    false,
-                    Some(placement(parameter)),
-                )
+                    value: value_of(parameter),
+                    title: None,
+                    guide: None,
+                    nudge: Some(RailNudge::Placement(parameter)),
+                    disabled: false,
+                    maker: placement(parameter),
+                })
             }),
             T::Bend => carried(context, true).and_then(|parameter| {
-                pair(
-                    if row.is_some() {
+                make_token(MatrixTokenSpec {
+                    label: if row.is_some() {
                         "Drag to bend row"
                     } else {
                         "Drag to bend key"
                     },
-                    value_of(parameter),
-                    None,
-                    None,
-                    Some(RailNudge::Placement(parameter)),
-                    false,
-                    Some(placement(parameter)),
-                )
+                    value: value_of(parameter),
+                    title: None,
+                    guide: None,
+                    nudge: Some(RailNudge::Placement(parameter)),
+                    disabled: false,
+                    maker: placement(parameter),
+                })
             }),
             // Origin stays a point on the canvas (`origin_handle`) and never joins the rail.
             T::Origin => None,
@@ -1004,18 +1008,18 @@ fn matrix_tokens(
                 });
                 let (splay, stagger_rotation) = (basis.splay_angle, basis.rotation);
                 let angle = column_angle(splay, stagger_rotation, affect);
-                pair(
-                    "Drag to splay",
-                    format!("{angle:.1}°"),
-                    Some(format!("Drag to splay · {angle:.0}°")),
-                    None,
-                    Some(RailNudge::SplayAngle {
+                make_token(MatrixTokenSpec {
+                    label: "Drag to splay",
+                    value: format!("{angle:.1}°"),
+                    title: Some(format!("Drag to splay · {angle:.0}°")),
+                    guide: None,
+                    nudge: Some(RailNudge::SplayAngle {
                         column,
                         affect: affect.clone(),
                     }),
-                    false,
-                    Some(maker),
-                )
+                    disabled: false,
+                    maker,
+                })
             }),
             T::Move | T::Rotate => {
                 let (matrix, rotate) = (matrix.clone(), tool == T::Rotate);
@@ -1057,19 +1061,19 @@ fn matrix_tokens(
                 } else {
                     RailNudge::MatrixMove { anchor: None }
                 };
-                pair(
-                    if rotate {
+                make_token(MatrixTokenSpec {
+                    label: if rotate {
                         "Drag to rotate matrix"
                     } else {
                         "Drag to move matrix"
                     },
                     value,
-                    None,
-                    None,
-                    Some(nudge),
-                    rotate && !followed,
-                    Some(maker),
-                )
+                    title: None,
+                    guide: None,
+                    nudge: Some(nudge),
+                    disabled: rotate && !followed,
+                    maker,
+                })
             }
             T::Anchor => None,
         };

@@ -10,7 +10,7 @@ use crate::support::session::{Session, builders::assert_typed_cell, error, wire_
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
-/// A dependant matrix hanging a (0,-19) relative origin below the anchor mean.
+/// A dependent matrix hanging a (0,-19) relative origin below the anchor mean.
 fn thumb_matrix(anchor: MatrixAnchor) -> Matrix {
     Matrix {
         origin: Vec2 { x: 0.0, y: -19.0 },
@@ -171,7 +171,7 @@ fn aggregate_average_follows_part_moves_through_the_mean() {
     );
     // Mean of (0,0) and (38,0) with the (0,-19) relative origin below it.
     assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 19.0, y: -19.0 });
-    // Moving one part key moves the dependant through the new mean:
+    // Moving one part key moves the dependent through the new mean:
     // ((0,0) + (43,7)) / 2 = (21.5,3.5), hanging (0,-19) below.
     let (_, doc) = typed_edit(
         &mut engine,
@@ -200,7 +200,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
         vec![thumb.clone()],
         vec!["main", "thumb"],
     ));
-    // A genuinely different document order end to end: the dependant leads
+    // A genuinely different document order end to end: the dependent leads
     // both the matrix list and the layout member list, as if authored first.
     let reversed = typed_doc(typed_main(vec![]), vec![thumb], vec!["thumb", "main"]);
     let mut doc = reversed;
@@ -221,7 +221,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
     };
     // The premise the old list-only permutation never established:
     // evaluation follows dependency order, not document order, so the
-    // dependant still evaluates after its parts in both documents.
+    // dependent still evaluates after its parts in both documents.
     assert_eq!(order_of(&ordered_scene), vec!["main", "thumb"]);
     assert_eq!(order_of(&reversed_scene), vec!["main", "thumb"]);
     let cells = |scene: &SceneDelta| {
@@ -607,7 +607,7 @@ fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
         .map(|part| (part.id.clone(), part.pose))
         .collect();
     // Column 2 carries part (0,2): removal past any part detaches the whole
-    // dependant, keeping its world frame like the single-key slot removal.
+    // dependent, keeping its world frame like the single-key slot removal.
     let (_, detached) = typed_edit(
         &mut engine,
         &doc,
@@ -661,7 +661,7 @@ fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
         .clone();
     shrunk.columns = 2;
     let (_, detached) = typed_edit(&mut engine, &doc, fixture::set_matrix(shrunk));
-    // Part (0,2) leaves the grid, so the dependant detaches with its frame:
+    // Part (0,2) leaves the grid, so the dependent detaches with its frame:
     // the (19,0) mean with the (0,-19) relative origin below it.
     assert_eq!(anchor_of(&detached, "thumb"), None);
     let thumb = detached
@@ -711,15 +711,19 @@ fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
     let thumb = Matrix {
         origin: Vec2 { x: 0.0, y: -19.0 },
         board_id: Some("board".into()),
-        anchor: Some(serde_json::from_str(saved).unwrap()),
         ..fixture::matrix("thumb", 1, 3)
     };
-    let (mut engine, _, _) = Session::opened(typed_doc(
+    let mut document = serde_json::to_value(typed_doc(
         typed_main(vec![]),
         vec![thumb],
         vec!["main", "thumb"],
-    ));
-    let stored = engine.snapshot();
+    ))
+    .unwrap();
+    document["matrices"][1]["anchor"] = serde_json::from_str(saved).unwrap();
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "legacy-single", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let stored: ProjectDoc = serde_json::from_value(wire_snapshot_doc(&mut engine)).unwrap();
     let stored_anchor = stored
         .matrices
         .iter()

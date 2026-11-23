@@ -89,39 +89,45 @@ pub struct TreeItem {
     pub expandable: bool,
 }
 
-/// One expandable group row. Macros, not helpers: every row below shrinks to its
-/// varying fields.
-macro_rules! group_row {
-    ($id:expr, $label:expr, $detail:expr, $level:expr, $kind:expr, $ctx:expr, $open:expr) => {
+/// Shared fields for every tree row; constructors set group/leaf defaults so
+/// call sites name each field explicitly instead of passing positional arguments.
+struct TreeRow {
+    id: String,
+    label: String,
+    detail: Option<String>,
+    level: usize,
+    kind: TreeKind,
+    context: Option<TreeContext>,
+}
+
+impl TreeRow {
+    fn group(self, open: bool) -> TreeItem {
         TreeItem {
-            id: $id,
-            label: $label,
-            detail: $detail,
-            level: $level,
-            kind: $kind,
-            context: $ctx,
-            expanded: Some($open),
+            id: self.id,
+            label: self.label,
+            detail: self.detail,
+            level: self.level,
+            kind: self.kind,
+            context: self.context,
+            expanded: Some(open),
             primary_id: None,
             expandable: true,
         }
-    };
-}
+    }
 
-/// One leaf row: never expandable.
-macro_rules! leaf_row {
-    ($id:expr, $label:expr, $detail:expr, $level:expr, $kind:expr, $ctx:expr, $primary:expr) => {
+    fn leaf(self, primary_id: Option<String>) -> TreeItem {
         TreeItem {
-            id: $id,
-            label: $label,
-            detail: $detail,
-            level: $level,
-            kind: $kind,
-            context: $ctx,
+            id: self.id,
+            label: self.label,
+            detail: self.detail,
+            level: self.level,
+            kind: self.kind,
+            context: self.context,
             expanded: None,
-            primary_id: $primary,
+            primary_id,
             expandable: false,
         }
-    };
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -254,21 +260,23 @@ pub fn build_pcb_tree(
             boardstudio_model::model::Side::Front => "front",
             boardstudio_model::model::Side::Back => "back",
         };
-        rows.push(leaf_row!(
-            format!("pcb:{}", part.id),
-            part.reference.clone(),
-            Some(format!("{name} · {side}")),
-            1,
-            TreeKind::Component,
-            Some(TreeContext::Component {
-                part_id: Some(part.id.clone()),
-                matrix_id: None,
-                row: None,
-                column: None,
-                assembly_id: None
-            }),
-            Some(part.id.clone())
-        ));
+        rows.push(
+            TreeRow {
+                id: format!("pcb:{}", part.id),
+                label: part.reference.clone(),
+                detail: Some(format!("{name} · {side}")),
+                level: 1,
+                kind: TreeKind::Component,
+                context: Some(TreeContext::Component {
+                    part_id: Some(part.id.clone()),
+                    matrix_id: None,
+                    row: None,
+                    column: None,
+                    assembly_id: None,
+                }),
+            }
+            .leaf(Some(part.id.clone())),
+        );
     }
     rows
 }
@@ -325,17 +333,19 @@ pub fn build_tree(
         .iter()
         .filter(|id| live_parts.contains_key(id.as_str()))
         .count();
-    let mut tree = vec![group_row!(
-        board_key,
-        board.name.clone(),
-        Some(format!("{live_board_count} parts")),
-        0,
-        TreeKind::Board,
-        Some(TreeContext::Board {
-            board_id: board_id.to_owned()
-        }),
-        board_open
-    )];
+    let mut tree = vec![
+        TreeRow {
+            id: board_key,
+            label: board.name.clone(),
+            detail: Some(format!("{live_board_count} parts")),
+            level: 0,
+            kind: TreeKind::Board,
+            context: Some(TreeContext::Board {
+                board_id: board_id.to_owned(),
+            }),
+        }
+        .group(board_open),
+    ];
     if !board_open {
         return tree;
     }
@@ -389,17 +399,19 @@ fn append_outline(
         .map_or("Generated", |version| version.name.as_str());
     let outline_key = format!("outline:{board_id}");
     let outline_open = expanded.contains(&outline_key);
-    tree.push(group_row!(
-        outline_key,
-        "Outline".into(),
-        Some(active_name.into()),
-        1,
-        TreeKind::Outline,
-        Some(TreeContext::Outline {
-            board_id: board_id.into()
-        }),
-        outline_open
-    ));
+    tree.push(
+        TreeRow {
+            id: outline_key,
+            label: "Outline".into(),
+            detail: Some(active_name.into()),
+            level: 1,
+            kind: TreeKind::Outline,
+            context: Some(TreeContext::Outline {
+                board_id: board_id.into(),
+            }),
+        }
+        .group(outline_open),
+    );
     if !outline_open {
         return;
     }
@@ -411,21 +423,23 @@ fn append_outline(
             None => "Follows layout",
             Some(_) => "Fixed",
         };
-        tree.push(leaf_row!(
-            match version_id {
-                Some(id) => format!("outline:{board_id}:version:{id}"),
-                None => format!("outline:{board_id}:generated"),
-            },
-            version.map_or_else(|| "Generated".into(), |version| version.name.clone()),
-            Some(detail.into()),
-            2,
-            TreeKind::OutlineVersion,
-            Some(TreeContext::OutlineVersion {
-                board_id: board_id.into(),
-                version_id: version_id.map(str::to_owned)
-            }),
-            None
-        ));
+        tree.push(
+            TreeRow {
+                id: match version_id {
+                    Some(id) => format!("outline:{board_id}:version:{id}"),
+                    None => format!("outline:{board_id}:generated"),
+                },
+                label: version.map_or_else(|| "Generated".into(), |version| version.name.clone()),
+                detail: Some(detail.into()),
+                level: 2,
+                kind: TreeKind::OutlineVersion,
+                context: Some(TreeContext::OutlineVersion {
+                    board_id: board_id.into(),
+                    version_id: version_id.map(str::to_owned),
+                }),
+            }
+            .leaf(None),
+        );
     }
     if let Some(scene) = outline_scenes
         .iter()
@@ -591,15 +605,17 @@ impl LayoutTree<'_> {
         }
         let id = format!("layout:{}", self.board_id);
         let is_open = self.expanded.contains(&id);
-        tree.push(group_row!(
-            id,
-            "Layout".into(),
-            None,
-            1,
-            TreeKind::Layout,
-            None,
-            is_open
-        ));
+        tree.push(
+            TreeRow {
+                id: id.clone(),
+                label: "Layout".into(),
+                detail: None,
+                level: 1,
+                kind: TreeKind::Layout,
+                context: None,
+            }
+            .group(is_open),
+        );
         if is_open {
             for matrix in unowned {
                 append_matrix(
@@ -643,18 +659,20 @@ impl LayoutTree<'_> {
     ) -> bool {
         let id = format!("half-group:{}:{label}", self.board_id);
         let open = !self.expanded.contains(&id);
-        tree.push(group_row!(
-            id,
-            label.into(),
-            None,
-            1,
-            TreeKind::HalfGroup,
-            Some(TreeContext::LayoutGroup {
-                board_id: self.board_id.to_owned(),
-                layout_ids: layouts.iter().map(|layout| layout.id.clone()).collect()
-            }),
-            open
-        ));
+        tree.push(
+            TreeRow {
+                id,
+                label: label.into(),
+                detail: None,
+                level: 1,
+                kind: TreeKind::HalfGroup,
+                context: Some(TreeContext::LayoutGroup {
+                    board_id: self.board_id.to_owned(),
+                    layout_ids: layouts.iter().map(|layout| layout.id.clone()).collect(),
+                }),
+            }
+            .group(open),
+        );
         if open {
             let parts: Vec<_> = layouts
                 .iter()
@@ -673,15 +691,17 @@ impl LayoutTree<'_> {
         }
         let id = format!("components:{}:{half}", self.board_id);
         let is_open = !self.expanded.contains(&id);
-        tree.push(group_row!(
-            id,
-            "Components".into(),
-            Some(format!("{} parts", parts.len())),
-            2,
-            TreeKind::Components,
-            None,
-            is_open
-        ));
+        tree.push(
+            TreeRow {
+                id,
+                label: "Components".into(),
+                detail: Some(format!("{} parts", parts.len())),
+                level: 2,
+                kind: TreeKind::Components,
+                context: None,
+            }
+            .group(is_open),
+        );
         if is_open {
             for part in parts {
                 append_component(tree, part, &self.definitions, 3);
@@ -701,24 +721,26 @@ impl LayoutTree<'_> {
         let open = self.expanded.contains(&id);
         let level = 1 + usize::from(split);
         let linked = layout_is_linked(self.document, layout, layouts);
-        tree.push(group_row!(
-            id.clone(),
-            layout.name.clone(),
-            Some(if linked { "Linked" } else { "Independent" }.into()),
-            level,
-            TreeKind::Layout,
-            Some(if let [matrix_id] = layout.matrix_ids.as_slice() {
-                TreeContext::Matrix {
-                    matrix_id: matrix_id.clone(),
-                }
-            } else {
-                TreeContext::LayoutGroup {
-                    board_id: self.board_id.to_owned(),
-                    layout_ids: vec![layout.id.clone()],
-                }
-            }),
-            open
-        ));
+        tree.push(
+            TreeRow {
+                id: id.clone(),
+                label: layout.name.clone(),
+                detail: Some(if linked { "Linked" } else { "Independent" }.into()),
+                level,
+                kind: TreeKind::Layout,
+                context: Some(if let [matrix_id] = layout.matrix_ids.as_slice() {
+                    TreeContext::Matrix {
+                        matrix_id: matrix_id.clone(),
+                    }
+                } else {
+                    TreeContext::LayoutGroup {
+                        board_id: self.board_id.to_owned(),
+                        layout_ids: vec![layout.id.clone()],
+                    }
+                }),
+            }
+            .group(open),
+        );
         if !open {
             return;
         }
@@ -755,24 +777,26 @@ fn append_component(
         .get(part.definition_id.as_str())
         .copied()
         .unwrap_or("Part");
-    tree.push(leaf_row!(
-        format!("component:{}", part.id),
-        part.reference.clone(),
-        Some(format!(
-            "{name} · {:.1}, {:.1}",
-            part.pose.at.x, part.pose.at.y
-        )),
-        level,
-        TreeKind::Component,
-        Some(TreeContext::Component {
-            part_id: Some(part.id.clone()),
-            matrix_id: None,
-            row: None,
-            column: None,
-            assembly_id: None
-        }),
-        Some(part.id.clone())
-    ));
+    tree.push(
+        TreeRow {
+            id: format!("component:{}", part.id),
+            label: part.reference.clone(),
+            detail: Some(format!(
+                "{name} · {:.1}, {:.1}",
+                part.pose.at.x, part.pose.at.y
+            )),
+            level,
+            kind: TreeKind::Component,
+            context: Some(TreeContext::Component {
+                part_id: Some(part.id.clone()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            }),
+        }
+        .leaf(Some(part.id.clone())),
+    );
 }
 
 fn matrix_origin_x(matrices: &[&Matrix], id: &str) -> f64 {
@@ -817,34 +841,36 @@ fn append_matrix(
             .filter_map(|cell| cell.member_id.as_deref())
             .filter(|id| layout.live_parts.contains_key(id))
             .count();
-        tree.push(group_row!(
-            item_id,
-            matrix_display_name(layout.document, matrix),
-            Some(if let Some(anchor) = &matrix.anchor {
-                let target = layout
-                    .document
-                    .matrices
-                    .iter()
-                    .find(|matrix| matrix.id == anchor.matrix_id);
-                format!(
-                    "{} keys · Follows {} · row {}, column {}",
-                    primary_count,
-                    target
-                        .and_then(|matrix| matrix.name.as_deref())
-                        .unwrap_or(&anchor.matrix_id),
-                    anchor.row + 1,
-                    anchor.column + 1
-                )
-            } else {
-                format!("{} keys", primary_count)
-            }),
-            level,
-            TreeKind::Matrix,
-            Some(TreeContext::Matrix {
-                matrix_id: matrix.id.clone()
-            }),
-            is_open
-        ));
+        tree.push(
+            TreeRow {
+                id: item_id,
+                label: matrix_display_name(layout.document, matrix),
+                detail: Some(if let Some(anchor) = &matrix.anchor {
+                    let target = layout
+                        .document
+                        .matrices
+                        .iter()
+                        .find(|matrix| matrix.id == anchor.matrix_id);
+                    format!(
+                        "{} keys · Follows {} · row {}, column {}",
+                        primary_count,
+                        target
+                            .and_then(|matrix| matrix.name.as_deref())
+                            .unwrap_or(&anchor.matrix_id),
+                        anchor.row + 1,
+                        anchor.column + 1
+                    )
+                } else {
+                    format!("{} keys", primary_count)
+                }),
+                level,
+                kind: TreeKind::Matrix,
+                context: Some(TreeContext::Matrix {
+                    matrix_id: matrix.id.clone(),
+                }),
+            }
+            .group(is_open),
+        );
     }
     let child_level = level + usize::from(include_header);
     if !is_open {
@@ -899,15 +925,17 @@ fn append_matrix(
                 actual_member(row, column).is_some()
             })
             .count();
-        tree.push(group_row!(
-            id.clone(),
-            label,
-            Some(format!("{key_count_live} keys")),
-            child_level,
-            kind,
-            Some(context),
-            is_open
-        ));
+        tree.push(
+            TreeRow {
+                id: id.clone(),
+                label,
+                detail: Some(format!("{key_count_live} keys")),
+                level: child_level,
+                kind,
+                context: Some(context),
+            }
+            .group(is_open),
+        );
         if !is_open {
             continue;
         }
@@ -962,31 +990,33 @@ fn append_matrix(
                                 .copied()
                         })
                         .unwrap_or("Component");
-                    tree.push(leaf_row!(
-                        format!(
-                            "component:matrix/{}/r{row}c{column}/{}",
-                            matrix.id, assembly.id
-                        ),
-                        definition.into(),
-                        Some(
-                            if assembly.id == "diode" {
-                                "Automatic companion"
-                            } else {
-                                "Cell component"
-                            }
-                            .into()
-                        ),
-                        child_level + 2,
-                        TreeKind::Component,
-                        Some(TreeContext::Component {
-                            part_id: actual.clone(),
-                            matrix_id: Some(matrix.id.clone()),
-                            row: Some(row),
-                            column: Some(column),
-                            assembly_id: Some(assembly.id.clone())
-                        }),
-                        actual
-                    ));
+                    tree.push(
+                        TreeRow {
+                            id: format!(
+                                "component:matrix/{}/r{row}c{column}/{}",
+                                matrix.id, assembly.id
+                            ),
+                            label: definition.into(),
+                            detail: Some(
+                                if assembly.id == "diode" {
+                                    "Automatic companion"
+                                } else {
+                                    "Cell component"
+                                }
+                                .into(),
+                            ),
+                            level: child_level + 2,
+                            kind: TreeKind::Component,
+                            context: Some(TreeContext::Component {
+                                part_id: actual.clone(),
+                                matrix_id: Some(matrix.id.clone()),
+                                row: Some(row),
+                                column: Some(column),
+                                assembly_id: Some(assembly.id.clone()),
+                            }),
+                        }
+                        .leaf(actual),
+                    );
                 }
             }
         }
@@ -1030,18 +1060,18 @@ fn bridge_item(
     level: usize,
     detail: String,
 ) -> TreeItem {
-    leaf_row!(
-        format!("{parent}:bridge:{bridge_id}"),
-        format!("Bridge {number}"),
-        Some(detail),
+    TreeRow {
+        id: format!("{parent}:bridge:{bridge_id}"),
+        label: format!("Bridge {number}"),
+        detail: Some(detail),
         level,
-        TreeKind::Bridge,
-        Some(TreeContext::Bridge {
+        kind: TreeKind::Bridge,
+        context: Some(TreeContext::Bridge {
             board_id: board_id.into(),
-            bridge_id: bridge_id.into()
+            bridge_id: bridge_id.into(),
         }),
-        None
-    )
+    }
+    .leaf(None)
 }
 
 fn matrix_for_board<'a>(

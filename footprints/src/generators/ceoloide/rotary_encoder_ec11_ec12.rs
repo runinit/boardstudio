@@ -233,6 +233,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("encoder_3dmodel_xyz_rotation", 1),
             p.component("encoder_3dmodel_xyz_rotation", 2),
         ],
+        "    ",
     );
 
     const COMMON_BOTTOM: &str = r####"

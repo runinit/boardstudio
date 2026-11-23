@@ -195,6 +195,7 @@ fn outline_key(ring: &Contour) -> String {
         .collect::<Vec<_>>()
         .join(";")
 }
+
 fn on_track(region: &Region, anchor: f64) -> Option<Candidate> {
     let track = region
         .tracks

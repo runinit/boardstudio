@@ -14,7 +14,7 @@ mod boundary;
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
-fn wasm_exports_reproduce_the_native_transcript() {
+fn wasm_entry_points_reproduce_the_native_transcript() {
     let mut engine = CoreEngine::new();
     let transcript = boundary::run(
         &mut |request| engine.request(request),

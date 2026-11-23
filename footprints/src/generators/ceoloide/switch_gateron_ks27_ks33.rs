@@ -512,6 +512,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("switch_3dmodel_xyz_scale", 2),
         ],
         model_rotation,
+        "    ",
     );
 
     let hotswap_3dmodel = kicad_model(
@@ -531,6 +532,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("hotswap_3dmodel_xyz_rotation", 1),
             p.component("hotswap_3dmodel_xyz_rotation", 2),
         ],
+        "\t  ",
     );
 
     let keycap_3dmodel = kicad_model(
@@ -550,6 +552,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             p.component("keycap_3dmodel_xyz_rotation", 1),
             p.component("keycap_3dmodel_xyz_rotation", 2),
         ],
+        "\t  ",
     );
 
     const COMMON_BOTTOM: &str = r####"

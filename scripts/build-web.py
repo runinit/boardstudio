@@ -407,23 +407,26 @@ def prepare_runtime_providers(fast=False):
     commands = provider_commands(fast)
     bindgen = locked_wasm_bindgen() if fast else None
     if bindgen:
-        workers = [("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker"),
-                   ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker")]
-        def build_workers():
-            for name, output, feature in workers:
-                fast_provider(name, output, "boardstudio-web", feature, ROOT / "target/wasm-workers", bindgen)
+        workers = [
+            ("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker", ROOT / "target/wasm-workers"),
+            ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker", ROOT / "target/wasm-offline-worker"),
+        ]
+        def build_worker(worker):
+            name, output, feature, target = worker
+            fast_provider(name, output, "boardstudio-web", feature, target, bindgen)
         def build_renderer():
             fast_provider("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer",
                           None, ROOT / "target", bindgen)
         if check_jobs() > 1:
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                futures = [pool.submit(build_workers), pool.submit(build_renderer)]
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                futures = [*(pool.submit(build_worker, worker) for worker in workers), pool.submit(build_renderer)]
                 for future in futures:
                     future.result()
         else:
-            build_workers()
+            for worker in workers:
+                build_worker(worker)
             build_renderer()
-        handled = {name for name, _, _ in workers} | {"boardstudio_renderer_wasm"}
+        handled = {name for name, _, _, _ in workers} | {"boardstudio_renderer_wasm"}
         commands = [
             command for command in commands
             if not (command[:2] == ["wasm-pack", "build"]
@@ -434,7 +437,8 @@ def prepare_runtime_providers(fast=False):
         if command[:2] == ["wasm-pack", "build"]:
             fast_provider_stamp(command[command.index("--out-name") + 1]).unlink(missing_ok=True)
         if command[:3] == ["wasm-pack", "build", str(WEB)]:
-            run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target/wasm-workers")))
+            target = ROOT / ("target/wasm-offline-worker" if "service-worker" in command else "target/wasm-workers")
+            run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(target)))
         else:
             run(command)
     bake_bundled_step()

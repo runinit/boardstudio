@@ -27,7 +27,7 @@ impl CoreEngine {
         Self::default()
     }
 
-    // Worker transport keeps the Rust and TypeScript protocols identical.
+    // JSON transport keeps the native and wasm32 request protocols identical.
     pub fn request(&mut self, json: &str) -> String {
         self.engine.request(json)
     }
