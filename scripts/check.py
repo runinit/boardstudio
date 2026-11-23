@@ -363,6 +363,16 @@ def run_commands(name, commands, environment, cwd=ROOT, *, state=None, keep_goin
         _, passed = run_parallel(batch, environment)
         serial_passed = [run_serial(cmd, environment, cwd)[1] == 0 for cmd in serial]
         return time.monotonic() - started, passed and all(serial_passed)
+    if (name == "build" and check_jobs() > 1 and commands == STEPS["build"][1]):
+        # The provider/page build and browser prebuilds use disjoint Cargo targets.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            web = pool.submit(run_commands, name, commands[:1], environment.copy(), cwd, state=state)
+            browser = pool.submit(run_commands, name, commands[1:], environment.copy(), cwd, state=state)
+            web_passed, browser_passed = web.result()[1], browser.result()[1]
+            passed = web_passed and browser_passed
+        if passed:
+            environment[TEST_CSS_READY] = "1"
+        return time.monotonic() - started, passed
     if is_browser_step(name):
         return run_browser(commands, environment, cwd, state, keep_going)
     if name == "test" and commands == STEPS["test"][1] and check_jobs() > 1:

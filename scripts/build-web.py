@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import base64
 import hashlib
 import time
@@ -16,7 +17,7 @@ import subprocess
 import sys
 import browser_tools
 import cargo_json
-from tailwind_tools import DX_TOOLS, IN_OVERLAP_ENV, tailwind_cli
+from tailwind_tools import DX_TOOLS, IN_OVERLAP_ENV, check_jobs, tailwind_cli
 import wasm_bindgen_tools
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -182,22 +183,7 @@ def dx_command(route: str, *, release: bool, fast: bool) -> list[str]:
 def locked_wasm_bindgen() -> Path | None:
     """The `wasm-bindgen` CLI at Cargo.lock's version, as `dx build` would select it."""
     version = wasm_bindgen_tools.locked_version(ROOT)
-    candidates = []
-    if directory := os.environ.get(wasm_bindgen_tools.DIRECTORY_ENV):
-        candidates.append(Path(directory) / "wasm-bindgen")
-    if found := shutil.which("wasm-bindgen"):
-        candidates.append(Path(found))
-    candidates.append(DX_TOOLS / f"wasm-bindgen-{version}/wasm-bindgen")
-    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    candidates += sorted(cache.glob(".wasm-pack/wasm-bindgen-*/wasm-bindgen"))
-    for path in candidates:
-        try:
-            result = subprocess.run([str(path), "--version"], capture_output=True, text=True)
-        except OSError:
-            continue
-        if result.stdout.strip() == f"wasm-bindgen {version}":
-            return path
-    return None
+    return wasm_bindgen_tools.find_bindgen(ROOT, [DX_TOOLS / f"wasm-bindgen-{version}/wasm-bindgen"])
 
 
 def matching_dx() -> str | None:
@@ -305,25 +291,156 @@ def plain_page(route: str, tools: tuple[Path, Path, str], public: Path) -> None:
     stamp.write_bytes(key)
 
 
-def package_route(output: Path, public: Path, route: str) -> None:
+def snapshot(paths):
+    result = []
+    for root in paths:
+        if not root.exists():
+            result.append([str(root), None])
+            continue
+        files = sorted(root.rglob("*")) if root.is_dir() else [root]
+        for file in files:
+            if file.is_file():
+                stat = file.stat()
+                # Generated entry files are rewritten even when their bytes are unchanged.
+                identity = hashlib.sha256(file.read_bytes()).hexdigest() if file.name == "entry.js" else stat.st_mtime_ns
+                result.append([str(file), stat.st_size, identity])
+    return result
+
+
+def package_route(output: Path, public: Path, route: str, *, fast=False) -> None:
     site = output / ("site-root" if route == "root" else "site-subpath/boardstudio")
+    stamp = output / f".package-{route}.json"
+
+
+    inputs = [public, WEB / "assets", ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg",
+              WEB / "target/providers/cad-worker", WEB / "target/providers/bundled-step",
+              OFFLINE_WORKER, ROOT / "catalogue/modules/imported-modules.json", Path(__file__)]
+    current = snapshot(inputs) if fast else None
+    if fast and stamp.is_file() and site.is_dir():
+        try:
+            previous = json.loads(stamp.read_text())
+            if previous == {"inputs": current, "site": snapshot([site])}:
+                return
+        except (OSError, ValueError):
+            pass
+    stamp.unlink(missing_ok=True)
     if site.exists():
         shutil.rmtree(site)
     shutil.copytree(public, site)
     _stage_provider_entries(site / "assets", ROOT, include_site_assets=True)
     embed_offline_worker(site)
+    if fast:
+        stamp.write_text(json.dumps({"inputs": current, "site": snapshot([site])}))
+
+
+def fast_provider(name, output, package, feature, target, bindgen):
+    """Build the Rust library every time, but bind only changed WASM bytes."""
+    env = dict(os.environ, CARGO_TARGET_DIR=str(target))
+    cargo = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown",
+             "--profile", "wasm-check", "--lib", "-p", package]
+    if feature:
+        cargo += ["--no-default-features", "--features", feature]
+    run(cargo, env=env)
+    artifact = target / "wasm32-unknown-unknown/wasm-check" / (package.replace("-", "_") + ".wasm")
+    args = ["--target", "web", "--out-dir", str(output), "--out-name", name]
+    digest = hashlib.sha256(artifact.read_bytes())
+    digest.update(bindgen.read_bytes())
+    digest.update(json.dumps(args).encode())
+    stamp = output.parent / ("." + name + ".bindgen.sha256")
+    key = digest.hexdigest()
+    products = (output / (name + ".js"), output / (name + "_bg.wasm"))
+    if stamp.is_file() and stamp.read_text() == key and all(path.is_file() for path in products):
+        return
+    stamp.unlink(missing_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
+    run([str(bindgen), *args, str(artifact)])
+    if not all(path.is_file() for path in products):
+        raise FileNotFoundError(f"wasm-bindgen did not generate {products}")
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(key)
+
+
+def bake_bundled_step():
+    """Skip Node only when all bake inputs and generated sidecars match the last run."""
+    providers = WEB / "target/providers"
+    manifest = providers / "bundled-step/manifest.json"
+    stamp = providers / ".bundled-step.sha256"
+
+    def fingerprint():
+        inventory = json.loads((providers / "ergogen-models.json").read_text())
+        assets = json.loads(manifest.read_text())["assets"]
+        files = [ROOT / "cad/scripts/bake-bundled-step.cjs", ROOT / "cad/wasm/tests/load-provider.cjs",
+                 ROOT / "cad/wasm/pkg/boardstudio_cad_wasm.js",
+                 ROOT / "cad/wasm/pkg/boardstudio_cad_wasm_bg.wasm", providers / "ergogen-models.json", manifest]
+        files += [Path(inventory["destination"]) / Path(entry["emittedPath"]).name
+                  for entry in inventory["entries"] if entry.get("mediaType") == "model/step"]
+        files += [manifest.parent / (value + ".bstep") for value in assets.values()]
+        digest = hashlib.sha256()
+        for file in sorted(set(files)):
+            digest.update(str(file).encode())
+            digest.update(hashlib.sha256(file.read_bytes()).digest())
+        return digest.hexdigest()
+
+    try:
+        if stamp.is_file() and stamp.read_text() == fingerprint():
+            return
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    stamp.unlink(missing_ok=True)
+    run(["node", "cad/scripts/bake-bundled-step.cjs"])
+    stamp.write_text(fingerprint())
 
 
 def prepare_runtime_providers(fast=False):
-    for command in provider_commands(fast):
+    commands = provider_commands(fast)
+    bindgen = locked_wasm_bindgen() if fast else None
+    if bindgen:
+        workers = [("m1_cad_worker", WEB / "target/providers/cad-worker", "cad-worker"),
+                   ("boardstudio_offline_worker", OFFLINE_WORKER, "service-worker")]
+        def build_workers():
+            for name, output, feature in workers:
+                fast_provider(name, output, "boardstudio-web", feature, ROOT / "target/wasm-workers", bindgen)
+        def build_renderer():
+            fast_provider("boardstudio_renderer_wasm", ROOT / "renderer/pkg", "boardstudio-renderer",
+                          None, ROOT / "target", bindgen)
+        if check_jobs() > 1:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(build_workers), pool.submit(build_renderer)]
+                for future in futures:
+                    future.result()
+        else:
+            build_workers()
+            build_renderer()
+        commands = commands[3:]
+    for command in commands:
+        if command[:2] == ["wasm-pack", "build"]:
+            output = Path(command[command.index("--out-dir") + 1])
+            if not output.is_absolute():
+                output = ROOT / command[2] / output
+            name = command[command.index("--out-name") + 1]
+            (output.parent / ("." + name + ".bindgen.sha256")).unlink(missing_ok=True)
         if command[:3] == ["wasm-pack", "build", str(WEB)]:
-            # Both worker variants build boardstudio-web with a different feature set.
             run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(ROOT / "target/wasm-workers")))
         else:
             run(command)
-    run(["node", "cad/scripts/bake-bundled-step.cjs"])
+    bake_bundled_step()
+    inputs = [ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg", WEB / "target/providers/cad-worker",
+              WEB / "target/providers/bundled-step", ROOT / "catalogue/modules/imported-modules.json", Path(__file__)]
+    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "imported-modules.json")]
+    stamp = WEB / "target/providers/.staged-assets.json"
+    current = snapshot(inputs) if fast else None
+    if fast and stamp.is_file():
+        try:
+            if json.loads(stamp.read_text()) == {"inputs": current, "outputs": snapshot(outputs)}:
+                return
+        except (OSError, ValueError):
+            pass
+    stamp.unlink(missing_ok=True)
     _stage_provider_entries(WEB / "assets", ROOT)
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json", WEB / "assets/imported-modules.json")
+    if fast:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(json.dumps({"inputs": current, "outputs": snapshot(outputs)}))
 
 
 def build(output, *, release=True, prepare_providers=True, routes=DEFAULT_ROUTES, fast=False):
@@ -343,7 +460,7 @@ def build(output, *, release=True, prepare_providers=True, routes=DEFAULT_ROUTES
             if public.exists():
                 shutil.rmtree(public)
             run(dx_command(route, release=release, fast=fast), cwd=WEB)
-        package_route(output, public, route)
+        package_route(output, public, route, fast=fast)
     print(output, flush=True)
     return output
 

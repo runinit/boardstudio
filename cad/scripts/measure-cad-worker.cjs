@@ -134,19 +134,17 @@ module.exports = async ({ backend, fixture, operation, sequence, isStartup }) =>
         let metadata = {};
         if (vendor && !contract) {
           metadata = { bounds: reply.bounds };
-          if (backend !== 'cadrum') {
-            const asset = reply.vendorStep, count = fixture === 'V1switch' ? 155 : 529;
-            check(asset.sourceSha256 === vendor.sha256 && asset.sourceFaces.length === count
-              && asset.faceOccurrences.length === count && new Set(asset.triangleFaceOccurrenceIndices).size === count,
-            'incomplete vendor source/occurrence coverage');
-            metadata = { bounds: reply.bounds, precision: asset.precision, accuracy: asset.accuracy,
-              importOptions: asset.importOptions, analysisMesh: asset.analysisMesh,
-              sourceQualification: asset.sourceQualification, faces: asset.sourceFaces.length,
-              occurrences: asset.faceOccurrences.length, lines: asset.lineOccurrences.length };
-            bufferBytes += asset.surfacePositionsMmF64.byteLength + asset.triangleFaceOccurrenceIndices.byteLength
-              + asset.lineSegmentsMmF64.byteLength + asset.segmentLineOccurrenceIndices.byteLength
-              + (asset.lineRenderPositions?.byteLength ?? 0);
-          }
+          const asset = reply.vendorStep, count = fixture === 'V1switch' ? 155 : 529;
+          check(asset.sourceSha256 === vendor.sha256 && asset.sourceFaces.length === count
+            && asset.faceOccurrences.length === count && new Set(asset.triangleFaceOccurrenceIndices).size === count,
+          'incomplete vendor source/occurrence coverage');
+          metadata = { bounds: reply.bounds, precision: asset.precision, accuracy: asset.accuracy,
+            importOptions: asset.importOptions, analysisMesh: asset.analysisMesh,
+            sourceQualification: asset.sourceQualification, faces: asset.sourceFaces.length,
+            occurrences: asset.faceOccurrences.length, lines: asset.lineOccurrences.length };
+          bufferBytes += asset.surfacePositionsMmF64.byteLength + asset.triangleFaceOccurrenceIndices.byteLength
+            + asset.lineSegmentsMmF64.byteLength + asset.segmentLineOccurrenceIndices.byteLength
+            + (asset.lineRenderPositions?.byteLength ?? 0);
         }
         if (contract) {
           check(reply.queryQualification?.binding?.leftAnalysis?.meshIdentity === queryFields.collisionQuery.left.analysisRef.meshIdentity,

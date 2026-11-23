@@ -100,17 +100,27 @@ def _inherited_build_lock() -> int | None:
     return fd
 
 
+def send_isolation_headers(handler, *, resource=True, no_store=True):
+    handler.send_header("Cross-Origin-Opener-Policy", "same-origin")
+    handler.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+    if resource:
+        handler.send_header("Cross-Origin-Resource-Policy", "same-origin")
+    if no_store:
+        handler.send_header("Cache-Control", "no-store")
+
+
 @contextmanager
-def serve(handler):
+def serve(handler=None, *, server=None):
     """Serve on an ephemeral loopback port until the browser check finishes."""
-    with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
-        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
-        thread.start()
-        try:
-            yield f"http://127.0.0.1:{server.server_port}"
-        finally:
-            server.shutdown()
-            thread.join()
+    server = server or ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 def _exit_on_sigterm(signum, _frame):

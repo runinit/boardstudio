@@ -143,10 +143,7 @@ def run(suites=None):
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def end_headers(self):
-            self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
-            self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
-            self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
-            self.send_header('Cache-Control', 'no-store')
+            browser_tools.send_isolation_headers(self)
             super().end_headers()
 
         def do_GET(self):
