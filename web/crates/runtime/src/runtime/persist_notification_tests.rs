@@ -1,6 +1,6 @@
 //! Native persist-completion notification contract (see [`super::persist_report`]).
 //!
-//! `runtime.rs` is `wasm32`-only so no `#[wasm_bindgen_test]` here runs in CI.
+//! `runtime.rs` is `wasm32`-only so no browser-only bindgen test here runs in CI.
 //! This drives the real [`Session`] through Open/rename/persist completions and
 //! dispatches through [`super::persist_report`] + [`super::publish`] exactly as
 //! `Runtime::complete` does, keeping the original assertions: general fires only
