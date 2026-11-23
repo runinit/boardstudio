@@ -1,4 +1,4 @@
-//! Rust and WebAssembly entry points for BoardStudio Core.
+//! Rust entry points for BoardStudio Core.
 
 pub use boardstudio_core_artifact::artifact;
 pub use boardstudio_core_engine::{
@@ -17,22 +17,17 @@ pub use boardstudio_model::{electrical_jumpers, electrical_profiles, model};
 #[cfg(target_arch = "wasm32")]
 use model::ArchiveReply;
 use model::{CoreReply, CoreRequest, ProjectDoc};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct CoreEngine {
     engine: boardstudio_core_engine::CoreEngine,
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl CoreEngine {
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new() -> Self {
         Self::default()
     }
 
-    // Worker transport keeps the Rust and TypeScript protocols identical.
+    // JSON transport keeps the native and wasm32 request protocols identical.
     pub fn request(&mut self, json: &str) -> String {
         self.engine.request(json)
     }
@@ -58,14 +53,12 @@ impl CoreEngine {
 }
 
 /// Handle an artifact request without mutating the stateful document engine.
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)
 }
 
 /// Archive payloads cross WASM as typed buffers, independently of JSON metadata.
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
 pub fn archive_request(metadata: &str, buffers: js_sys::Array) -> js_sys::Array {
     use wasm_bindgen::JsCast;
     let inputs: Result<Vec<Vec<u8>>, _> = buffers
@@ -86,7 +79,7 @@ pub fn archive_request(metadata: &str, buffers: js_sys::Array) -> js_sys::Array 
         ),
     };
     let result = js_sys::Array::new();
-    result.push(&JsValue::from_str(&reply));
+    result.push(&wasm_bindgen::JsValue::from_str(&reply));
     let encoded = js_sys::Array::new();
     for bytes in outputs {
         encoded.push(&js_sys::Uint8Array::from(bytes.as_slice()));

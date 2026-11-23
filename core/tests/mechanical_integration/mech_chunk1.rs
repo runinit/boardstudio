@@ -46,8 +46,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
         "a cross-board pair is accepted"
     );
 
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
     assert_eq!(left.board_id, "left-board");
     assert_eq!(right.board_id, "right-board");
     assert_eq!(
@@ -222,8 +221,7 @@ fn a_reviewed_link_chooses_the_source_geometry_per_feature() {
 
     // The non-source half derives the exact inverse of the source geometry,
     // independently for each feature.
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
     assert_eq!(
         mount_at(&left.configuration, "mount-1"),
         Vec2 { x: -7.0, y: 3.0 }
@@ -353,25 +351,22 @@ fn one_undo_restores_a_paired_disable_completely() {
     use boardstudio_core::model::{CoreRequest, EditOperation};
 
     use crate::support::fixture::document as document_of;
-    fn mechanical_command(base_revision: u64, edit: MechanicalEdit) -> CoreRequest {
-        fixture::commit(
-            "mechanical",
-            "mechanical",
-            base_revision,
-            EditOperation::ApplyMechanicalEdit {
-                edit: Box::new(edit),
-            },
-        )
-    }
 
     let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
     let accepted = document_of(engine.handle(fixture::open(document)));
 
-    let disabled = document_of(engine.handle(mechanical_command(
+    let disabled = document_of(engine.handle(fixture::commit(
+        "mechanical",
+        "mechanical",
         accepted.revision,
-        with_template(instance_target("right"), MechanicalChange::Disable),
+        EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(with_template(
+                instance_target("right"),
+                MechanicalChange::Disable,
+            )),
+        },
     )));
     assert!(disabled.hardware.as_ref().unwrap().pairs.is_empty());
     assert!(stored_instance(&disabled, "right").mechanical.is_none());
@@ -593,23 +588,23 @@ fn legacy_local_fields_stay_per_instance_and_errors_do_not_mutate() {
     boardstudio_core::mechanical::edit::apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::SetBatteryEnabled(true),
-            mounting_hole: None,
-        },
+        &crate::support::session::mechanical_edit(
+            instance_target("left"),
+            MechanicalChange::SetBatteryEnabled(true),
+            false,
+        ),
     )
     .unwrap();
     boardstudio_core::mechanical::edit::apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: instance_target("left"),
-            change: MechanicalChange::AddMount {
+        &crate::support::session::mechanical_edit(
+            instance_target("left"),
+            MechanicalChange::AddMount {
                 collection: MechanicalMountCollection::Suspension,
             },
-            mounting_hole: None,
-        },
+            false,
+        ),
     )
     .unwrap();
 

@@ -28,8 +28,7 @@ fn a_linked_feature_is_read_from_the_single_authored_value_on_both_halves() {
             mount: mount("mount-1", 4.0, 0.0),
         };
 
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
 
     // The author reads the stored value; the other half reads the reflected one.
     assert_eq!(
@@ -719,14 +718,14 @@ fn converting_legacy_members_materializes_the_overlay_and_keeps_the_third_baseli
     boardstudio_core::mechanical::edit::apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: instance_target("a"),
-            change: MechanicalChange::SetDimension {
+        &crate::support::session::mechanical_edit(
+            instance_target("a"),
+            MechanicalChange::SetDimension {
                 field: MechanicalDimension::WallThickness,
                 value: 5.0,
             },
-            mounting_hole: None,
-        },
+            false,
+        ),
     )
     .unwrap();
     let after_edit_c = effective_inputs(&document, &[], &instance_target("c"))
@@ -757,13 +756,13 @@ fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
         "convert",
         accepted.revision,
         EditOperation::ApplyMechanicalEdit {
-            edit: Box::new(MechanicalEdit {
-                target: board_target(),
-                change: MechanicalChange::MaterializeLegacyConstruction {
+            edit: Box::new(crate::support::session::mechanical_edit(
+                board_target(),
+                MechanicalChange::MaterializeLegacyConstruction {
                     instance_ids: vec!["a".into()],
                 },
-                mounting_hole: None,
-            }),
+                false,
+            )),
         },
     )));
     assert_eq!(

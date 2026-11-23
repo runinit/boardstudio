@@ -6,7 +6,7 @@
 //! Author: @ceoloide
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::json_string;
+use crate::generators::util::{json_string, kicad_model, push_route_segment, push_route_via};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, KeycapParameters, License};
@@ -78,6 +78,149 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
     },
     body: crate::registry::Body::Text(body),
 };
+
+fn mx_routes_unplated(p: &RenderContext<'_>) -> String {
+    let mut out = String::new();
+    let width = n(p.number("trace_width"));
+    let locked = if p.flag("locked_traces_vias") {
+        "yes"
+    } else {
+        "no"
+    };
+    let to = p.net("to").index;
+    let from = p.net("from").index;
+    let size = n(p.number("via_size"));
+    let drill = n(p.number("via_drill"));
+    for ((sx, sy), (ex, ey)) in [
+        ((-5.842, -5.08), (-3.963, -6.959)),
+        ((-3.963, -6.959), (0.0, -6.959)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "F",
+            to,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(0.0, -6.959), &size, &drill, locked, to);
+    for ((sx, sy), (ex, ey)) in [
+        ((0.0, -6.959), (3.963, -6.9595)),
+        ((3.963, -6.959), (5.842, -5.08)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "B",
+            to,
+        );
+    }
+    for ((sx, sy), (ex, ey)) in [
+        ((0.0, -5.93), (1.029, -6.959)),
+        ((4.166, -6.959), (7.085, -4.04)),
+        ((7.085, -4.04), (7.085, -2.54)),
+        ((1.029, -6.959), (4.166, -6.959)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "F",
+            from,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(0.0, -5.93), &size, &drill, locked, from);
+    for ((sx, sy), (ex, ey)) in [
+        ((-4.166, -6.959), (-1.029, -6.959)),
+        ((-7.085, -2.54), (-7.085, -4.04)),
+        ((-7.085, -4.04), (-4.166, -6.959)),
+        ((-1.029, -6.959), (0.0, -5.93)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "B",
+            from,
+        );
+    }
+    out.push_str("\n    ");
+    out
+}
+
+fn mx_routes_same_side(p: &RenderContext<'_>) -> String {
+    let mut out = String::new();
+    let width = n(p.number("trace_width"));
+    let locked = if p.flag("locked_traces_vias") {
+        "yes"
+    } else {
+        "no"
+    };
+    let to = p.net("to").index;
+    let from = p.net("from").index;
+    let size = n(p.number("via_size"));
+    let drill = n(p.number("via_drill"));
+    for ((sx, sy), (ex, ey)) in [
+        ((7.085, -4.415), (7.085, -2.54)),
+        ((7.75, -5.08), (7.085, -4.415)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "F",
+            from,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(7.75, -5.08), &size, &drill, locked, from);
+    push_route_segment(
+        &mut out,
+        &p.eaxy(5.842, -5.08),
+        &p.eaxy(7.75, -5.08),
+        &width,
+        locked,
+        "B",
+        from,
+    );
+    out.push('\n');
+    for ((sx, sy), (ex, ey)) in [
+        ((-7.085, -4.415), (-7.085, -2.54)),
+        ((-7.75, -5.08), (-7.085, -4.415)),
+    ] {
+        push_route_segment(
+            &mut out,
+            &p.eaxy(sx, sy),
+            &p.eaxy(ex, ey),
+            &width,
+            locked,
+            "B",
+            to,
+        );
+    }
+    push_route_via(&mut out, &p.eaxy(-7.75, -5.08), &size, &drill, locked, to);
+    push_route_segment(
+        &mut out,
+        &p.eaxy(-5.842, -5.08),
+        &p.eaxy(-7.75, -5.08),
+        &width,
+        locked,
+        "F",
+        to,
+    );
+    out.push_str("\n    ");
+    out
+}
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
     let keycap_xo = 0.5 * p.number("keycap_width");
@@ -200,8 +343,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         },
     );
 
-    let corner_marks = String::from(
-        r####"
+    const CORNER_MARKS: &str = r####"
     (fp_line (start -7 -6) (end -7 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start -7 7) (end -6 7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start -6 -7) (end -7 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
@@ -210,8 +352,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_line (start 7 -7) (end 6 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start 6 7) (end 7 7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
     (fp_line (start 7 -7) (end 7 -6) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
-    "####,
-    );
+    "####;
 
     let keycap_marks = format!(
         r####"
@@ -298,8 +439,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         },
     );
 
-    let hotswap_silkscreen_back = String::from(
-        r####"
+    const HOTSWAP_SILKSCREEN_BACK: &str = r####"
 		(fp_poly
 			(pts
 				(xy -3.6 -6.5) (xy -3.8 -6.5) (xy -4.1 -6.45) (xy -4.4 -6.35) (xy -4.6 -6.25) (xy -4.75 -6.15) (xy -4.95 -6)
@@ -313,11 +453,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 			(fill solid)
 			(layer "B.SilkS")
 		)
-    "####,
-    );
+    "####;
 
-    let hotswap_silkscreen_front = String::from(
-        r####"
+    const HOTSWAP_SILKSCREEN_FRONT: &str = r####"
 		(fp_poly
 			(pts
 				(xy 3.6 -6.5) (xy 3.8 -6.5) (xy 4.1 -6.45) (xy 4.4 -6.35) (xy 4.6 -6.25) (xy 4.75 -6.15) (xy 4.95 -6)
@@ -331,17 +469,14 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 			(fill solid)
 			(layer "F.SilkS")
 		)
-    "####,
-    );
+    "####;
 
-    let hotswap_silkscreen_reversible = String::from(
-        r####"
+    const HOTSWAP_SILKSCREEN_REVERSIBLE: &str = r####"
 		(fp_line (start 1.22 -3.77) (end 0 -2.52) (stroke (width 0.1) (type default)) (layer "B.SilkS"))
 		(fp_line (start 0 -2.52) (end -1.88 -2.52) (stroke (width 0.1) (type default)) (layer "B.SilkS"))
 		(fp_line (start -1.22 -3.77) (end 0 -2.52) (stroke (width 0.1) (type default)) (layer "F.SilkS"))
 		(fp_line (start 0 -2.52) (end 1.88 -2.52) (stroke (width 0.1) (type default)) (layer "F.SilkS"))
-    "####,
-    );
+    "####;
 
     let solder_front = format!(
         r####"
@@ -381,306 +516,58 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e3 = p.net("to"),
     );
 
-    let switch_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("switch_3dmodel_filename")),
-        e1 = n(switch_offset[0]),
-        e2 = n(switch_offset[1]),
-        e3 = n(switch_offset[2]),
-        e4 = n(p.component("switch_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("switch_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("switch_3dmodel_xyz_scale", 2)),
-        e7 = n(switch_rotation[0]),
-        e8 = n(switch_rotation[1]),
-        e9 = n(switch_rotation[2]),
+    let switch_3dmodel = kicad_model(
+        p.text("switch_3dmodel_filename"),
+        switch_offset,
+        [
+            p.component("switch_3dmodel_xyz_scale", 0),
+            p.component("switch_3dmodel_xyz_scale", 1),
+            p.component("switch_3dmodel_xyz_scale", 2),
+        ],
+        switch_rotation,
+        "    ",
     );
 
-    let hotswap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(p.text("hotswap_3dmodel_filename")),
-        e1 = n(hotswap_offset[0]),
-        e2 = n(hotswap_offset[1]),
-        e3 = n(hotswap_offset[2]),
-        e4 = n(p.component("hotswap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("hotswap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("hotswap_3dmodel_xyz_scale", 2)),
-        e7 = n(hotswap_rotation[0]),
-        e8 = n(hotswap_rotation[1]),
-        e9 = n(hotswap_rotation[2]),
+    let hotswap_3dmodel = kicad_model(
+        p.text("hotswap_3dmodel_filename"),
+        hotswap_offset,
+        [
+            p.component("hotswap_3dmodel_xyz_scale", 0),
+            p.component("hotswap_3dmodel_xyz_scale", 1),
+            p.component("hotswap_3dmodel_xyz_scale", 2),
+        ],
+        hotswap_rotation,
+        "\t  ",
     );
 
-    let keycap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(p.text("keycap_3dmodel_filename")),
-        e1 = n(p.component("keycap_3dmodel_xyz_offset", 0)),
-        e2 = n(p.component("keycap_3dmodel_xyz_offset", 1)),
-        e3 = n(p.component("keycap_3dmodel_xyz_offset", 2)),
-        e4 = n(p.component("keycap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("keycap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("keycap_3dmodel_xyz_scale", 2)),
-        e7 = n(p.component("keycap_3dmodel_xyz_rotation", 0)),
-        e8 = n(p.component("keycap_3dmodel_xyz_rotation", 1)),
-        e9 = n(p.component("keycap_3dmodel_xyz_rotation", 2)),
+    let keycap_3dmodel = kicad_model(
+        p.text("keycap_3dmodel_filename"),
+        [
+            p.component("keycap_3dmodel_xyz_offset", 0),
+            p.component("keycap_3dmodel_xyz_offset", 1),
+            p.component("keycap_3dmodel_xyz_offset", 2),
+        ],
+        [
+            p.component("keycap_3dmodel_xyz_scale", 0),
+            p.component("keycap_3dmodel_xyz_scale", 1),
+            p.component("keycap_3dmodel_xyz_scale", 2),
+        ],
+        [
+            p.component("keycap_3dmodel_xyz_rotation", 0),
+            p.component("keycap_3dmodel_xyz_rotation", 1),
+            p.component("keycap_3dmodel_xyz_rotation", 2),
+        ],
+        "\t  ",
     );
 
-    let common_bottom = String::from(
-        r####"
+    const COMMON_BOTTOM: &str = r####"
   )
-    "####,
-    );
-
-    let hotswap_routes_unplated = format!(
-        r####"
-	(segment
-		(start {e0})
-		(end {e1})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e1})
-		(end {e5})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(via
-		(at {e5})
-		(size {e6})
-    (drill {e7})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e4})
-	)
-	(segment
-		(start {e5})
-		(end {e8})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e9})
-		(end {e10})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-  )
-	(segment
-    (start {e11})
-    (end {e12})
-    (width {e2})
-    (locked {e3})
-    (layer "F.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e14})
-    (end {e15})
-    (width {e2})
-    (locked {e3})
-    (layer "F.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e15})
-    (end {e16})
-    (width {e2})
-    (locked {e3})
-    (layer "F.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e12})
-    (end {e14})
-    (width {e2})
-    (locked {e3})
-    (layer "F.Cu")
-    (net {e13})
-  )
-  (via
-    (at {e11})
-		(size {e6})
-    (drill {e7})
-    (layers "F.Cu" "B.Cu")
-    (locked {e3})
-    (net {e13})
-  )
-  (segment
-    (start {e17})
-    (end {e18})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e19})
-    (end {e20})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e20})
-    (end {e17})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e13})
-  )
-  (segment
-    (start {e18})
-    (end {e11})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e13})
-  )
-    "####,
-        e0 = p.eaxy(-5.842, -5.08),
-        e1 = p.eaxy(-3.963, -6.959),
-        e2 = n(p.number("trace_width")),
-        e3 = if p.flag("locked_traces_vias") {
-            "yes".to_string()
-        } else {
-            "no".to_string()
-        },
-        e4 = p.net("to").index,
-        e5 = p.eaxy(0.0, -6.959),
-        e6 = n(p.number("via_size")),
-        e7 = n(p.number("via_drill")),
-        e8 = p.eaxy(3.963, -6.9595),
-        e9 = p.eaxy(3.963, -6.959),
-        e10 = p.eaxy(5.842, -5.08),
-        e11 = p.eaxy(0.0, -5.93),
-        e12 = p.eaxy(1.029, -6.959),
-        e13 = p.net("from").index,
-        e14 = p.eaxy(4.166, -6.959),
-        e15 = p.eaxy(7.085, -4.04),
-        e16 = p.eaxy(7.085, -2.54),
-        e17 = p.eaxy(-4.166, -6.959),
-        e18 = p.eaxy(-1.029, -6.959),
-        e19 = p.eaxy(-7.085, -2.54),
-        e20 = p.eaxy(-7.085, -4.04),
-    );
-
-    let hotswap_routes_same_side = format!(
-        r####"
-	(segment
-		(start {e0})
-		(end {e1})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(segment
-		(start {e5})
-		(end {e0})
-		(width {e2})
-    (locked {e3})
-		(layer "F.Cu")
-		(net {e4})
-	)
-	(via
-		(at {e5})
-		(size {e6})
-    (drill {e7})
-		(layers "F.Cu" "B.Cu")
-    (locked {e3})
-		(net {e4})
-	)
-	(segment
-		(start {e8})
-		(end {e5})
-		(width {e2})
-    (locked {e3})
-		(layer "B.Cu")
-		(net {e4})
-	)
-
-	(segment
-    (start {e9})
-    (end {e10})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e11})
-  )
-  (segment
-    (start {e12})
-    (end {e9})
-    (width {e2})
-    (locked {e3})
-    (layer "B.Cu")
-    (net {e11})
-  )
-  (via
-    (at {e12})
-		(size {e6})
-    (drill {e7})
-    (layers "F.Cu" "B.Cu")
-    (locked {e3})
-    (net {e11})
-  )
-  (segment
-    (start {e13})
-    (end {e12})
-    (width {e2})
-    (locked {e3})
-    (layer "F.Cu")
-    (net {e11})
-  )
-    "####,
-        e0 = p.eaxy(7.085, -4.415),
-        e1 = p.eaxy(7.085, -2.54),
-        e2 = n(p.number("trace_width")),
-        e3 = if p.flag("locked_traces_vias") {
-            "yes".to_string()
-        } else {
-            "no".to_string()
-        },
-        e4 = p.net("from").index,
-        e5 = p.eaxy(7.75, -5.08),
-        e6 = n(p.number("via_size")),
-        e7 = n(p.number("via_drill")),
-        e8 = p.eaxy(5.842, -5.08),
-        e9 = p.eaxy(-7.085, -4.415),
-        e10 = p.eaxy(-7.085, -2.54),
-        e11 = p.net("to").index,
-        e12 = p.eaxy(-7.75, -5.08),
-        e13 = p.eaxy(-5.842, -5.08),
-    );
+    "####;
 
     let (side, reversible, hotswap) = (p.side(), p.flag("reversible"), p.flag("hotswap"));
     let mut out = common_top;
     if p.flag("include_corner_marks") {
-        out += &corner_marks;
+        out += CORNER_MARKS;
     }
     if p.flag("include_keycap") {
         out += &keycap_marks;
@@ -689,20 +576,20 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         if reversible || side == "F" {
             out += &hotswap_front;
             if p.flag("include_silkscreen") && !reversible {
-                out += &hotswap_silkscreen_front;
+                out += HOTSWAP_SILKSCREEN_FRONT;
             }
         }
         if reversible || side == "B" {
             out += &hotswap_back;
             if p.flag("include_silkscreen") && !reversible {
-                out += &hotswap_silkscreen_back;
+                out += HOTSWAP_SILKSCREEN_BACK;
             }
         }
         if !p.text("hotswap_3dmodel_filename").is_empty() {
             out += &hotswap_3dmodel;
         }
         if p.flag("include_silkscreen") && reversible {
-            out += &hotswap_silkscreen_reversible;
+            out += HOTSWAP_SILKSCREEN_REVERSIBLE;
         }
     }
     if p.flag("solder") {
@@ -719,12 +606,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     if !p.text("keycap_3dmodel_filename").is_empty() {
         out += &keycap_3dmodel;
     }
-    out += &common_bottom;
+    out += COMMON_BOTTOM;
     if reversible && hotswap && p.flag("include_traces_vias") && !p.flag("include_plated_holes") {
-        out += if p.flag("hotswap_pads_same_side") {
-            &hotswap_routes_same_side
+        out += &if p.flag("hotswap_pads_same_side") {
+            mx_routes_same_side(p)
         } else {
-            &hotswap_routes_unplated
+            mx_routes_unplated(p)
         };
     }
     Ok(out)

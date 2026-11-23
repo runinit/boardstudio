@@ -9,7 +9,7 @@ use super::{
     shared_viewer::{BodySelection, CaseSelection},
 };
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
+use boardstudio_application::{ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{
     HardwareTopology, HardwareTransport, MechanicalGasketSupport, ProjectDoc,
 };
@@ -542,7 +542,7 @@ fn apply_tree_action(
             instance_id,
         } if root_exists(&snap.document, &board_id, instance_id.as_deref()) => {
             cs.layer.set(None);
-            clear_tree_part_selection(&owner.runtime, &owner.adapter);
+            super::workspace_composition::clear_selection(&owner.runtime, &owner.adapter);
             on_navigate.call((scope, board_id, instance_id));
         }
         TreeAction::NavigateAssembly {
@@ -575,7 +575,7 @@ fn apply_tree_action(
             });
             if ok {
                 cs.select_layer(scope, layer_id);
-                clear_tree_part_selection(&owner.runtime, &owner.adapter);
+                super::workspace_composition::clear_selection(&owner.runtime, &owner.adapter);
             }
         }
         TreeAction::SelectGaskets { scope } => {
@@ -588,12 +588,12 @@ fn apply_tree_action(
                     .is_some_and(|a| !a.gasket_supports.is_empty())
             }) {
                 cs.select_layer(scope, "gaskets".into());
-                clear_tree_part_selection(&owner.runtime, &owner.adapter);
+                super::workspace_composition::clear_selection(&owner.runtime, &owner.adapter);
             }
         }
         TreeAction::SelectPcb { scope } => {
             cs.select_layer(scope, "pcb".into());
-            clear_tree_part_selection(&owner.runtime, &owner.adapter);
+            super::workspace_composition::clear_selection(&owner.runtime, &owner.adapter);
         }
         _ => {}
     }
@@ -621,18 +621,6 @@ fn apply_display_request(request: DisplayRequest, owner: &Admission) {
         DisplayAction::ResetColor => display.set_color(&request.id, ""),
     }
     cs.save_display(&request.target_scope, display);
-}
-
-fn clear_tree_part_selection(runtime: &Rc<Runtime>, adapter: &SelectionAdapter) {
-    let (mut sc, mut as_) = (adapter.selected_context, adapter.anchor_scope);
-    sc.set(None);
-    as_.set(None);
-    runtime.submit(Event::SelectParts {
-        operation_id: runtime.operation(),
-        part_ids: vec![],
-        range_part_ids: vec![],
-        mode: SelectionMode::Replace,
-    });
 }
 
 fn inactive_assembly_navigation(action: &Option<TreeAction>) -> Option<TreeAction> {

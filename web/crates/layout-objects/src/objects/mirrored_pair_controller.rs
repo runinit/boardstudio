@@ -1,5 +1,8 @@
 //! Editor-lifetime owner for mirrored-pair preparation, placement, and exact saved acknowledgement.
-use super::matrix_preparation::{PendingSettlement, matrix_source, prepare_matrix_definitions};
+use super::matrix_preparation::{
+    PendingSettlement, fail_creation, matrix_dimensions_valid, matrix_source, owner_source_matches,
+    prepare_matrix_definitions, reversible_layout_param,
+};
 use super::mirrored_pair::{
     MirroredPairCreated, MirroredPairFormProjection, MirroredPairFormValues, MirroredPairMount,
     MirroredPairOwner, MirroredPairPlacement, MirroredPairRequest,
@@ -290,12 +293,7 @@ pub fn use_mirrored_pair(
             {
                 return;
             }
-            if request.rows == 0
-                || request.columns == 0
-                || request
-                    .rows
-                    .checked_mul(request.columns)
-                    .is_none_or(|cells| cells > 4096)
+            if !matrix_dimensions_valid(request.rows, request.columns)
                 || request.gap_mm < 0.0
                 || !request.gap_mm.is_finite()
                 || request.left_name.trim().is_empty()
@@ -318,20 +316,17 @@ pub fn use_mirrored_pair(
                 ));
                 return;
             };
-            if scope != request.owner.scope
-                || board_id != request.owner.board_id
-                || snapshot.token != request.owner.snapshot_token
-                || snapshot.document.revision != request.owner.revision
-            {
+            if !owner_source_matches(
+                &request.owner.scope,
+                request.owner.snapshot_token,
+                request.owner.revision,
+                &scope,
+                snapshot,
+            ) {
                 error.set(Some("The accepted board changed. Close this setup and reopen it before placing a pair.".into()));
                 return;
             }
-            let reversible = snapshot
-                .document
-                .parameters
-                .get("reversibleLayout")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
+            let reversible = reversible_layout_param(&snapshot.document);
             let left_matrix_id = next_matrix_id(
                 &snapshot.document.matrices,
                 &snapshot.document.definitions,
@@ -368,6 +363,15 @@ pub fn use_mirrored_pair(
                 if !alive.get() {
                     return;
                 }
+                let fail_setup =
+                    |form_state: &mut Signal<PairFormState<MirroredPairFormValues>>,
+                     preparing: &mut Signal<Option<MirroredPairOwner>>,
+                     error: &mut Signal<Option<String>>,
+                     status: &mut Signal<Option<String>>,
+                     message: String| {
+                        form_state.write().stage = PairFormStage::Setup;
+                        fail_creation(preparing, error, status, message);
+                    };
                 let owner_is_current = || {
                     alive.get()
                         && pair_owner_is_current(
@@ -396,9 +400,9 @@ pub fn use_mirrored_pair(
                 let prepared = match prepared {
                     Ok(Some(prepared)) if owner_is_current() => prepared,
                     Err(message) if owner_is_current() => {
-                        fail_preparing(
-                            &mut preparing,
+                        fail_setup(
                             &mut form_state,
+                            &mut preparing,
                             &mut error,
                             &mut status,
                             message,
@@ -446,9 +450,9 @@ pub fn use_mirrored_pair(
                 ) {
                     Ok(pair) => pair,
                     Err(message) => {
-                        fail_preparing(
-                            &mut preparing,
+                        fail_setup(
                             &mut form_state,
+                            &mut preparing,
                             &mut error,
                             &mut status,
                             message,
@@ -468,9 +472,9 @@ pub fn use_mirrored_pair(
                     ) {
                         Ok(gap) => gap,
                         Err(message) => {
-                            fail_preparing(
-                                &mut preparing,
+                            fail_setup(
                                 &mut form_state,
+                                &mut preparing,
                                 &mut error,
                                 &mut status,
                                 message,
@@ -493,9 +497,9 @@ pub fn use_mirrored_pair(
                     ) {
                         Ok(pair) => pair,
                         Err(message) => {
-                            fail_preparing(
-                                &mut preparing,
+                            fail_setup(
                                 &mut form_state,
+                                &mut preparing,
                                 &mut error,
                                 &mut status,
                                 message,
@@ -521,9 +525,9 @@ pub fn use_mirrored_pair(
                                 &open,
                             )
                         {
-                            fail_preparing(
-                                &mut preparing,
+                            fail_setup(
                                 &mut form_state,
+                                &mut preparing,
                                 &mut error,
                                 &mut status,
                                 message,
@@ -557,9 +561,9 @@ pub fn use_mirrored_pair(
                     return;
                 }
                 let [left_scene, right_scene] = preview_scenes.as_slice() else {
-                    fail_preparing(
-                        &mut preparing,
+                    fail_setup(
                         &mut form_state,
+                        &mut preparing,
                         &mut error,
                         &mut status,
                         "Core returned an incomplete mirrored-pair preview.".into(),
@@ -779,15 +783,18 @@ fn pair_owner_is_current(
         return false;
     }
     let model = runtime.model();
-    let Some((snapshot, scope, board_id)) =
+    let Some((snapshot, scope, _)) =
         matrix_source(runtime, &model, runtime.scope().as_ref(), workspace)
     else {
         return false;
     };
-    scope == owner.scope
-        && board_id == owner.board_id
-        && snapshot.token == owner.snapshot_token
-        && snapshot.document.revision == owner.revision
+    owner_source_matches(
+        &owner.scope,
+        owner.snapshot_token,
+        owner.revision,
+        &scope,
+        snapshot,
+    )
 }
 
 fn next_layout_id(layouts: &[Layout], prefix: &str) -> String {
@@ -803,19 +810,6 @@ fn next_layout_id(layouts: &[Layout], prefix: &str) -> String {
         }
         next = next.checked_add(1).expect("layout identity exhausted");
     }
-}
-
-fn fail_preparing(
-    preparing: &mut Signal<Option<MirroredPairOwner>>,
-    form_state: &mut Signal<PairFormState<MirroredPairFormValues>>,
-    error: &mut Signal<Option<String>>,
-    status: &mut Signal<Option<String>>,
-    message: String,
-) {
-    preparing.set(None);
-    form_state.write().stage = PairFormStage::Setup;
-    error.set(Some(message));
-    status.set(None);
 }
 
 fn clear_preparing(

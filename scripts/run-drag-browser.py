@@ -79,12 +79,12 @@ def require(condition, message):
 
 def wait_for(probe, label, timeout=20):
     deadline = time.monotonic() + timeout
-    delay = 0.02
+    delay = 0.01
     while time.monotonic() < deadline:
         if result := probe():
             return result
         time.sleep(delay)
-        delay = 0.05 if delay == 0.02 else 0.1
+        delay = min(delay * 2, 0.04)
     raise RuntimeError(f"timed out waiting for {label}")
 
 
@@ -161,12 +161,11 @@ class Smoke:
             el.focus();
             return document.activeElement === el;
         })()""", selector), f"focus {selector}", 10)
-        while current > target:
-            key(self.browser, ARROW_LEFT, "keyDown", "keyUp")
-            current -= 1
-            wait_for(lambda expected=str(current): self.evaluate(
-                "document.querySelector(arguments[0])?.getAttribute('aria-valuenow') === arguments[1]",
-                selector, expected), f"slider {selector} -> {current}", 10)
+        if current > target:
+            key(self.browser, ARROW_LEFT, *(("keyDown", "keyUp") * (current - target)))
+        wait_for(lambda: self.evaluate(
+            "document.querySelector(arguments[0])?.getAttribute('aria-valuenow') === arguments[1]",
+            selector, str(target)), f"slider {selector} -> {target}", 10)
 
     def onboarding(self, url):
         self.browser.get(url)
@@ -262,7 +261,6 @@ class Smoke:
                         for event in events), f"{name}: trusted Escape was not observed")
 
     def commit_and_undo(self, name, selector, matrix_id, field, *, ctrl=False):
-        self.saved()
         before = self.project()
         scene = self.evaluate(SCENE)
         self.gesture(name, selector, scene, ctrl=ctrl)
@@ -285,7 +283,6 @@ class Smoke:
         matrix_id = part_id.removeprefix("matrix/").rsplit("/", 1)[0]
         self.commit_and_undo("Part drag", HIT_AREA, matrix_id, "cells")
         self.scope("Column")
-        self.saved()
         before = self.project()
         scene = self.evaluate(SCENE)
         self.gesture("Stagger cancel", '[aria-label="Drag to stagger"]', scene, cancel=True)

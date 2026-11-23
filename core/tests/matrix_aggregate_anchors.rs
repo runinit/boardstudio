@@ -6,167 +6,64 @@ use crate::support::fixture::{
     self, key_part as typed_key, part_at as at, scene_and_document as typed_scene,
     wire_open as open,
 };
-use crate::support::query::{arr, empty_project};
-use crate::support::session::{Session, error};
+use crate::support::session::{Session, builders::assert_typed_cell, error, wire_snapshot_doc};
 use boardstudio_core::{CoreEngine, model::*};
-use serde_json::{Value, json};
+use serde_json::json;
 
-fn json_snapshot(engine: &mut CoreEngine) -> Value {
-    fixture::wire_snapshot(engine, "snap")["document"].clone()
-}
-
-fn document() -> Value {
-    let mut document = empty_project("aggregate-anchors", "Aggregate anchors");
-    document["definitions"] = json!([{
-        "id": "def", "name": "Switch", "kind": "switch",
-        "courtyard": [], "pads": []
-    }]);
-    document
-}
-
-fn board(document: &mut Value, part_ids: Value) {
-    document["boards"] = json!([{
-        "id": "board", "name": "Board", "outlineIds": [],
-        "partIds": part_ids, "netIds": [], "thickness": 1.6
-    }]);
-    document["nets"] = json!([]);
-    document["constraints"] = json!([]);
-    document["layouts"] = json!([{
-        "id": "layout", "name": "Layout", "boardId": "board",
-        "matrixIds": ["main", "thumb"], "partIds": []
-    }]);
-}
-
-fn key(document: &mut Value, id: &str, reference: &str, x: f64, y: f64, rotation: f64) {
-    document["parts"].as_array_mut().unwrap().push(json!({
-        "id": id, "definitionId": "def", "reference": reference,
-        "pose": {"at": {"x": x, "y": y}, "rotation": rotation}, "side": "front"
-    }));
-}
-
-fn main_matrix(document: &mut Value, cells: Value) {
-    document["parts"] = json!([]);
-    // Anchor resolution reads these part poses, so they must match the
-    // matrix geometry exactly like materialized production parts do.
-    key(document, "matrix/main/r0c0", "SW1", 0.0, 0.0, 0.0);
-    key(document, "matrix/main/r0c1", "SW2", 19.0, 0.0, 0.0);
-    key(document, "matrix/main/r0c2", "SW3", 38.0, 0.0, 0.0);
-    document["matrices"] = json!([{
-        "id": "main", "rows": 1, "columns": 3,
-        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": 0},
-        "definitionId": "def",
-        "partIds": ["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"],
-        "boardId": "board", "cells": cells
-    }]);
-}
-
-fn thumb(document: &mut Value, aggregate: Value) {
-    // Aggregate-arm documents name only the aggregate arm: the union grammar
-    // refuses a real single key alongside `aggregate`.
-    document["matrices"].as_array_mut().unwrap().push(json!({
-        "id": "thumb", "rows": 1, "columns": 3,
-        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": -19},
-        "definitionId": "def", "partIds": [], "boardId": "board",
-        "anchor": {
-            "follow": ["x", "y", "rotation"],
-            "aggregate": aggregate
-        }
-    }));
-}
-
-fn scene_cell(reply: &Value, matrix: &str, row: u64, column: u64) -> (f64, f64, f64) {
-    let scene = arr(&reply["scene"]["matrixScenes"])
-        .iter()
-        .find(|scene| scene["matrixId"] == matrix)
-        .unwrap_or_else(|| panic!("missing scene {matrix}"));
-    let cell = arr(&scene["cells"])
-        .iter()
-        .find(|cell| cell["row"] == row && cell["column"] == column)
-        .unwrap_or_else(|| panic!("missing cell ({row},{column}) in {scene}"));
-    (
-        cell["pose"]["at"]["x"].as_f64().unwrap(),
-        cell["pose"]["at"]["y"].as_f64().unwrap(),
-        cell["pose"]["rotation"].as_f64().unwrap(),
-    )
-}
-
-fn assert_cell(reply: &Value, matrix: &str, row: u64, column: u64, x: f64, y: f64, rotation: f64) {
-    let (ax, ay, ar) = scene_cell(reply, matrix, row, column);
-    assert!(
-        (ax - x).abs() < 1e-9 && (ay - y).abs() < 1e-9 && (ar - rotation).abs() < 1e-9,
-        "cell {matrix}({row},{column}): expected ({x}, {y}, {rotation}), got ({ax}, {ay}, {ar})"
-    );
+/// A dependent matrix hanging a (0,-19) relative origin below the anchor mean.
+fn thumb_matrix(anchor: MatrixAnchor) -> Matrix {
+    Matrix {
+        origin: Vec2 { x: 0.0, y: -19.0 },
+        board_id: Some("board".into()),
+        anchor: Some(anchor),
+        ..fixture::matrix("thumb", 1, 3)
+    }
 }
 
 #[test]
 fn aggregate_average_anchor_opens_with_the_part_mean_pose() {
-    let mut document = document();
-    main_matrix(&mut document, json!([]));
-    thumb(
-        &mut document,
-        json!({
-            "method": "average",
-            "parts": [
-                {"matrixId": "main", "row": 0, "column": 0},
-                {"matrixId": "main", "row": 0, "column": 2}
-            ]
-        }),
-    );
-    board(
-        &mut document,
-        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
-    );
-    let mut engine = CoreEngine::new();
-    let reply = open(&mut engine, "average", &document);
-    assert_eq!(reply["kind"], "scene", "{reply}");
+    let thumb = thumb_matrix(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]));
+    let (_, scene, _) = Session::opened(typed_doc(
+        typed_main(vec![]),
+        vec![thumb],
+        vec!["main", "thumb"],
+    ));
     // Mean of (0,0) and (38,0) is (19,0); the relative origin hangs (0,-19)
     // below it, so the first thumb key lands on (19,-19) with rotation 0.
-    assert_cell(&reply, "thumb", 0, 0, 19.0, -19.0, 0.0);
-    assert_cell(&reply, "thumb", 0, 2, 57.0, -19.0, 0.0);
+    assert_typed_cell(&scene, "thumb", 0, 0, 19.0, -19.0, 0.0);
+    assert_typed_cell(&scene, "thumb", 0, 2, 57.0, -19.0, 0.0);
 }
 
 #[test]
 fn aggregate_intersect_anchor_opens_with_the_heading_crossing_pose() {
-    let mut document = document();
     // Second key carries key rotation -90 and an offset to (10,10): its
     // heading axis runs horizontal through y=10 while the first key's axis
     // runs vertical through x=0, crossing at (0,10) like upstream's
     // `o`/`ten` intersect vector.
-    main_matrix(
-        &mut document,
-        json!([
-            {"row": 0, "column": 1, "enabled": true,
-             "offset": {"x": -9.0, "y": 10.0}, "rotation": -90.0}
-        ]),
-    );
-    thumb(
-        &mut document,
-        json!({
-            "method": "intersect",
-            "parts": [
-                {"matrixId": "main", "row": 0, "column": 0},
-                {"matrixId": "main", "row": 0, "column": 1}
-            ]
-        }),
-    );
-    board(
-        &mut document,
-        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
-    );
+    let main = typed_main(vec![MatrixCell {
+        offset: Some(Vec2 { x: -9.0, y: 10.0 }),
+        rotation: Some(-90.0),
+        ..fixture::cell(0, 1)
+    }]);
+    let thumb = thumb_matrix(intersect_anchor(vec![
+        part("main", 0, 0),
+        part("main", 0, 1),
+    ]));
+    let mut doc = typed_doc(main, vec![thumb], vec!["main", "thumb"]);
     // The moved key's stored part pose must follow its cell geometry, or
     // resolution would read the stale pose instead of ((10,10),-90).
-    document["parts"]
-        .as_array_mut()
-        .unwrap()
+    doc.parts
         .iter_mut()
-        .find(|part| part["id"] == "matrix/main/r0c1")
-        .unwrap()["pose"] = json!({"at": {"x": 10.0, "y": 10.0}, "rotation": -90.0});
-    let mut engine = CoreEngine::new();
-    let reply = open(&mut engine, "intersect", &document);
-    assert_eq!(reply["kind"], "scene", "{reply}");
+        .find(|part| part.id == "matrix/main/r0c1")
+        .unwrap()
+        .pose = Pose2 {
+        at: Vec2 { x: 10.0, y: 10.0 },
+        rotation: -90.0,
+    };
+    let (_, scene, _) = Session::opened(doc);
     // The heading axes cross at (0,10) with the rotation forced to 0; the
     // relative origin hangs (0,-19) below it.
-    assert_cell(&reply, "thumb", 0, 0, 0.0, -9.0, 0.0);
+    assert_typed_cell(&scene, "thumb", 0, 0, 0.0, -9.0, 0.0);
 }
 
 fn typed_edit(
@@ -274,7 +171,7 @@ fn aggregate_average_follows_part_moves_through_the_mean() {
     );
     // Mean of (0,0) and (38,0) with the (0,-19) relative origin below it.
     assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 19.0, y: -19.0 });
-    // Moving one part key moves the dependant through the new mean:
+    // Moving one part key moves the dependent through the new mean:
     // ((0,0) + (43,7)) / 2 = (21.5,3.5), hanging (0,-19) below.
     let (_, doc) = typed_edit(
         &mut engine,
@@ -303,7 +200,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
         vec![thumb.clone()],
         vec!["main", "thumb"],
     ));
-    // A genuinely different document order end to end: the dependant leads
+    // A genuinely different document order end to end: the dependent leads
     // both the matrix list and the layout member list, as if authored first.
     let reversed = typed_doc(typed_main(vec![]), vec![thumb], vec!["thumb", "main"]);
     let mut doc = reversed;
@@ -324,7 +221,7 @@ fn aggregate_evaluation_ignores_document_list_order() {
     };
     // The premise the old list-only permutation never established:
     // evaluation follows dependency order, not document order, so the
-    // dependant still evaluates after its parts in both documents.
+    // dependent still evaluates after its parts in both documents.
     assert_eq!(order_of(&ordered_scene), vec!["main", "thumb"]);
     assert_eq!(order_of(&reversed_scene), vec!["main", "thumb"]);
     let cells = |scene: &SceneDelta| {
@@ -507,23 +404,17 @@ fn aggregate_follow_filters_the_completed_candidate() {
 
 #[test]
 fn aggregate_unknown_method_is_refused() {
-    let mut document = document();
-    main_matrix(&mut document, json!([]));
-    thumb(
-        &mut document,
-        json!({
-            "method": "average",
-            "parts": [{"matrixId": "main", "row": 0, "column": 0}]
-        }),
-    );
-    board(
-        &mut document,
-        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
-    );
+    let thumb = thumb_matrix(average_anchor(vec![part("main", 0, 0)]));
+    let mut document = serde_json::to_value(typed_doc(
+        typed_main(vec![]),
+        vec![thumb],
+        vec!["main", "thumb"],
+    ))
+    .unwrap();
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "baseline", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let accepted = json_snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     document["matrices"][1]["anchor"]["aggregate"]["method"] = json!("median");
     let reply = open(&mut engine, "median", &document);
     assert_eq!(reply["kind"], "error", "{reply}");
@@ -534,38 +425,31 @@ fn aggregate_unknown_method_is_refused() {
             .contains("unknown variant"),
         "unknown methods must be refused at admission, got {reply}"
     );
-    assert_eq!(json_snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
 fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
     // Upstream throws on ref+aggregate (anchor.js:96-98): a document naming a
     // real single key AND an aggregate arm must be refused at admission.
-    let mut document = document();
-    main_matrix(&mut document, json!([]));
-    thumb(
-        &mut document,
-        json!({
-            "method": "average",
-            "parts": [
-                {"matrixId": "main", "row": 0, "column": 0},
-                {"matrixId": "main", "row": 0, "column": 2}
-            ]
-        }),
-    );
-    board(
-        &mut document,
-        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
-    );
-    // A real single key next to the aggregate arm: both arms are populated,
-    // so the union grammar must refuse the document.
+    let thumb = thumb_matrix(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]));
+    let mut document = serde_json::to_value(typed_doc(
+        typed_main(vec![]),
+        vec![thumb],
+        vec!["main", "thumb"],
+    ))
+    .unwrap();
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "baseline", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let accepted = json_snapshot(&mut engine);
-    document["matrices"][1]["anchor"]["matrixId"] = json!("main");
-    document["matrices"][1]["anchor"]["row"] = json!(0);
-    document["matrices"][1]["anchor"]["column"] = json!(2);
+    let accepted = wire_snapshot_doc(&mut engine);
+    // A real single key next to the aggregate arm: both arms are populated,
+    // so the union grammar must refuse the document at deserialization and
+    // leave the accepted session intact.
+    let anchor = &mut document["matrices"][1]["anchor"];
+    anchor["matrixId"] = json!("main");
+    anchor["row"] = json!(0);
+    anchor["column"] = json!(2);
     let reply = open(&mut engine, "both-arms", &document);
     assert_eq!(reply["kind"], "error", "{reply}");
     assert!(
@@ -575,7 +459,7 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
             .contains("aggregate"),
         "both-arms refusal must name the aggregate arm, got {reply}"
     );
-    assert_eq!(json_snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 fn intersect_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
@@ -723,7 +607,7 @@ fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
         .map(|part| (part.id.clone(), part.pose))
         .collect();
     // Column 2 carries part (0,2): removal past any part detaches the whole
-    // dependant, keeping its world frame like the single-key slot removal.
+    // dependent, keeping its world frame like the single-key slot removal.
     let (_, detached) = typed_edit(
         &mut engine,
         &doc,
@@ -777,7 +661,7 @@ fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
         .clone();
     shrunk.columns = 2;
     let (_, detached) = typed_edit(&mut engine, &doc, fixture::set_matrix(shrunk));
-    // Part (0,2) leaves the grid, so the dependant detaches with its frame:
+    // Part (0,2) leaves the grid, so the dependent detaches with its frame:
     // the (19,0) mean with the (0,-19) relative origin below it.
     assert_eq!(anchor_of(&detached, "thumb"), None);
     let thumb = detached
@@ -824,22 +708,22 @@ fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
 
     // And end to end: a document carrying that saved anchor opens, and the
     // stored anchor still serializes back to the saved bytes.
-    let mut document = document();
-    main_matrix(&mut document, json!([]));
-    document["matrices"].as_array_mut().unwrap().push(json!({
-        "id": "thumb", "rows": 1, "columns": 3,
-        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": -19},
-        "definitionId": "def", "partIds": [], "boardId": "board",
-        "anchor": serde_json::from_str::<Value>(saved).unwrap()
-    }));
-    board(
-        &mut document,
-        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
-    );
+    let thumb = Matrix {
+        origin: Vec2 { x: 0.0, y: -19.0 },
+        board_id: Some("board".into()),
+        ..fixture::matrix("thumb", 1, 3)
+    };
+    let mut document = serde_json::to_value(typed_doc(
+        typed_main(vec![]),
+        vec![thumb],
+        vec!["main", "thumb"],
+    ))
+    .unwrap();
+    document["matrices"][1]["anchor"] = serde_json::from_str(saved).unwrap();
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "legacy-single", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let stored = fixture::outline_snapshot(&mut engine);
+    let stored: ProjectDoc = serde_json::from_value(wire_snapshot_doc(&mut engine)).unwrap();
     let stored_anchor = stored
         .matrices
         .iter()

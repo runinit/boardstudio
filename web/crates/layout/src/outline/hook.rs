@@ -11,8 +11,9 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
 use boardstudio_model::model::{
-    BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature,
-    OutlineGap, OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
+    Board, BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection,
+    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, OutlineVersion, Part,
+    ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
@@ -270,6 +271,92 @@ fn outline_state<'a>(snapshot: &'a AcceptedSnapshot, board_id: &str) -> Option<&
         .find(|state| state.board_id == board_id)
 }
 
+/// The outline state plus its active version, looked up together.
+fn active_outline<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    board_id: &str,
+) -> (Option<&'a BoardOutline>, Option<&'a OutlineVersion>) {
+    let state = outline_state(snapshot, board_id);
+    let version = state
+        .and_then(|state| state.active_version_id.as_deref())
+        .and_then(|id| state?.versions.iter().find(|version| version.id == id));
+    (state, version)
+}
+
+/// The named version of an outline state.
+fn outline_version<'a>(
+    outline: Option<&'a BoardOutline>,
+    version_id: &str,
+) -> Option<&'a OutlineVersion> {
+    outline?
+        .versions
+        .iter()
+        .find(|version| version.id == version_id)
+}
+
+/// The active version's geometry split for the inspector.
+fn version_geometry(
+    outline: Option<&BoardOutline>,
+    active_version_id: Option<&str>,
+    board: &Board,
+    document: &ProjectDoc,
+    generated: Option<&OutlineFeature>,
+) -> (
+    Vec<OutlineFeature>,
+    Vec<OutlineConnection>,
+    Option<OutlineFeature>,
+) {
+    let active = active_version_id.and_then(|id| outline_version(outline, id));
+    let features = active
+        .map(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            board
+                .outline_ids
+                .iter()
+                .filter_map(|id| document.outline.iter().find(|feature| feature.id() == id))
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+                .collect()
+        });
+    let connections = active
+        .and_then(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .find_map(|feature| match feature {
+                    OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
+                    _ => None,
+                })
+        })
+        .or_else(|| {
+            generated.and_then(|feature| match feature {
+                OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
+                _ => None,
+            })
+        })
+        .unwrap_or_default();
+    let connection_feature = active
+        .and_then(|version| {
+            version
+                .geometry
+                .features
+                .iter()
+                .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+        })
+        .or_else(|| generated.cloned());
+    (features, connections, connection_feature)
+}
+
 fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<String> {
     let Some(readiness) = snapshot
         .scene
@@ -328,23 +415,16 @@ pub fn use_outline_lifecycle(
     let selected_connection_id = use_signal(|| None::<String>);
     let draft_owner = selected_context.read().clone();
     let draft_workspace = workspace();
-    let draft_active_version = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .and_then(|snapshot| {
-            let board_id = draft_owner
-                .as_ref()
-                .and_then(|owner| match &owner.context {
-                    crate::objects::TreeContext::Outline { board_id }
-                    | crate::objects::TreeContext::OutlineVersion { board_id, .. } => {
-                        Some(board_id)
-                    }
-                    _ => None,
-                })?;
-            outline_state(snapshot, board_id)
-        })
-        .and_then(|state| state.active_version_id.clone());
+    let draft_active_version = runtime.model().accepted.as_ref().and_then(|snapshot| {
+        let board_id = draft_owner
+            .as_ref()
+            .and_then(|owner| match &owner.context {
+                crate::objects::TreeContext::Outline { board_id }
+                | crate::objects::TreeContext::OutlineVersion { board_id, .. } => Some(board_id),
+                _ => None,
+            })?;
+        outline_state(snapshot, board_id).and_then(|state| state.active_version_id.clone())
+    });
     let draft_scope = runtime.scope();
     use_effect(use_reactive(
         (
@@ -376,16 +456,8 @@ pub fn use_outline_lifecycle(
                     }
                     _ => None,
                 })?;
-            let outline = outline_state(snapshot, owner_board)?;
-            let active = outline.active_version_id.as_ref()?;
-            Some(
-                outline
-                    .versions
-                    .iter()
-                    .find(|version| &version.id == active)?
-                    .name
-                    .clone(),
-            )
+            let (_, active) = active_outline(snapshot, owner_board);
+            Some(active?.name.clone())
         })
         .unwrap_or_default();
     use_effect(use_reactive(
@@ -492,16 +564,11 @@ fn project_inspector(
         .find(|board| board.id == board_id)?
         .name
         .clone();
-    let outline = outline_state(snapshot, &board_id);
-    let active_version_id = outline.and_then(|state| state.active_version_id.clone());
-    let version_name = outline
-        .and_then(|state| {
-            state
-                .versions
-                .iter()
-                .find(|version| Some(&version.id) == active_version_id.as_ref())
-        })
-        .map_or_else(|| "Generated".to_owned(), |version| version.name.clone());
+    let (outline, active) = active_outline(snapshot, &board_id);
+    let active_version_id = active.map(|version| version.id.clone());
+    let version_name = active
+        .map(|version| version.name.clone())
+        .unwrap_or_else(|| "Generated".to_owned());
     let board = snapshot
         .document
         .boards
@@ -545,28 +612,16 @@ fn project_inspector(
             .collect();
     let generated = generated_feature(&snapshot.document, board);
     // The Generated envelope's margin, or the active linked refinement's own copy.
-    let margin = match active_version_id.as_ref() {
+    let margin = match active_version_id.as_deref() {
         None => generated.and_then(envelope_margin),
-        Some(active_id) => outline
-            .and_then(|state| {
-                state
-                    .versions
-                    .iter()
-                    .find(|version| &version.id == active_id)
-            })
+        Some(active_id) => outline_version(outline, active_id)
             .filter(|version| !version.ownership.is_fixed())
             .and_then(|version| version.geometry.features.iter().find_map(envelope_margin)),
     };
-    let settings = outline
-        .and_then(|state| {
-            active_version_id.as_ref().and_then(|active_id| {
-                state
-                    .versions
-                    .iter()
-                    .find(|version| &version.id == active_id)
-                    .map(|version| version.geometry.settings.clone())
-            })
-        })
+    let settings = active_version_id
+        .as_deref()
+        .and_then(|active_id| outline_version(outline, active_id))
+        .map(|version| version.geometry.settings.clone())
         .or_else(|| generated.and_then(generated_settings))
         .unwrap_or_default();
     let repair = settings.repair.clone().unwrap_or_default();
@@ -582,82 +637,13 @@ fn project_inspector(
         .iter()
         .find(|board| board.board_id == board_id)
         .map_or_else(Vec::new, |board| board.contours.clone());
-    let geometry_features = active_version_id
-        .as_deref()
-        .and_then(|version_id| {
-            outline
-                .into_iter()
-                .flat_map(|state| &state.versions)
-                .find(|version| version.id == version_id)
-                .map(|version| {
-                    version
-                        .geometry
-                        .features
-                        .iter()
-                        .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                        .cloned()
-                        .collect::<Vec<_>>()
-                })
-        })
-        .unwrap_or_else(|| {
-            board
-                .outline_ids
-                .iter()
-                .filter_map(|id| {
-                    snapshot
-                        .document
-                        .outline
-                        .iter()
-                        .find(|feature| feature.id() == id)
-                })
-                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                .cloned()
-                .collect()
-        });
-    let connections = active_version_id
-        .as_deref()
-        .and_then(|version_id| {
-            outline
-                .into_iter()
-                .flat_map(|state| &state.versions)
-                .find(|version| version.id == version_id)
-                .and_then(|version| {
-                    version
-                        .geometry
-                        .features
-                        .iter()
-                        .find_map(|feature| match feature {
-                            OutlineFeature::PartEnvelope { connections, .. } => {
-                                Some(connections.clone())
-                            }
-                            _ => None,
-                        })
-                })
-        })
-        .or_else(|| {
-            generated.and_then(|feature| match feature {
-                OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
-                _ => None,
-            })
-        })
-        .unwrap_or_default();
-    let connection_feature = active_version_id
-        .as_deref()
-        .and_then(|version_id| {
-            outline
-                .into_iter()
-                .flat_map(|state| &state.versions)
-                .find(|version| version.id == version_id)
-                .and_then(|version| {
-                    version
-                        .geometry
-                        .features
-                        .iter()
-                        .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                        .cloned()
-                })
-        })
-        .or_else(|| generated.cloned());
+    let (geometry_features, connections, connection_feature) = version_geometry(
+        outline,
+        active_version_id.as_deref(),
+        board,
+        &snapshot.document,
+        generated,
+    );
     let outline_parts = board
         .part_ids
         .iter()
@@ -755,10 +741,7 @@ pub(super) fn editable_perimeter(
     selected_feature_id: Option<&str>,
 ) -> Option<EditablePerimeter> {
     if let Some(version_id) = active_version_id {
-        let feature = outline_state(snapshot, board_id)?
-            .versions
-            .iter()
-            .find(|version| version.id == version_id)?
+        let feature = outline_version(outline_state(snapshot, board_id), version_id)?
             .geometry
             .features
             .iter()
@@ -1003,13 +986,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             .model()
             .accepted
             .as_ref()
-            .and_then(|snapshot| outline_state(snapshot, board_id))
-            .and_then(|outline| {
-                outline
-                    .versions
-                    .iter()
-                    .find(|version| Some(&version.id) == outline.active_version_id.as_ref())
-            })
+            .and_then(|snapshot| active_outline(snapshot, board_id).1)
             .map(|version| version.name.clone())
         {
             version_name_draft.set(name);

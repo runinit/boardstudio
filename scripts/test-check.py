@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Hermetic checks of the release gate's wiring and failure propagation."""
 
+import contextlib
 import importlib
 import json
 import os
@@ -103,6 +104,52 @@ class CheckTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in launch.call_args_list],
                          [check.DRAG_SMOKE, check.CAD_BROWSER, *check.PROVIDER_CHECKS, check.PAGE_SUITE])
 
+    def test_run_browser_lane_schedules(self):
+        runner = importlib.import_module("run-wasm-tests")
+
+        def run_lanes(commands, jobs):
+            recorded = []
+
+            def fake_build(_cmd, _env, _cwd, state):
+                state["crates"] = {"host": Path("/tmp/host.wasm"), "worker-host": Path("/tmp/worker-host.wasm")}
+                return True
+
+            def fake_parallel(lanes, _env):
+                recorded.append(lanes)
+                return 0, True
+
+            with patch.object(check, "build_crate_tests", side_effect=fake_build), \
+                 patch.object(check, "check_jobs", return_value=jobs), \
+                 patch.object(runner, "desktop_webdriver_config",
+                              side_effect=lambda env, _dir: contextlib.nullcontext(dict(env))), \
+                 patch.object(check, "run_parallel", side_effect=fake_parallel):
+                _, passed = check.run_browser(commands, {}, check.ROOT, {"page": "/tmp/page.wasm"}, False)
+                self.assertTrue(passed)
+            self.assertEqual(len(recorded), 1)
+            return recorded[0]
+
+        full6 = run_lanes(check.browser(), 6)
+        self.assertEqual(len(full6), 4)
+        self.assertEqual(full6[0][0][0], [*check.DRAG_SMOKE, "--suite", "drag"])
+        self.assertEqual(full6[1][0][0], [*check.DRAG_SMOKE, "--suite", "collision"])
+        self.assertEqual(len(full6[2]), 1 + len(check.PROVIDER_CHECKS) + 2)
+        self.assertEqual(full6[3][0][0], [*check.PAGE_SUITE, "--test-binary", "/tmp/page.wasm"])
+        self.assertEqual(full6[3][0][2]["BOARDSTUDIO_CHECK_JOBS"], "2")
+
+        pkg4 = run_lanes(check.STEPS["browser-packaged"][1], 4)
+        self.assertEqual(len(pkg4), 4)
+        self.assertEqual(pkg4[2][0][0], check.CAD_BROWSER)
+        self.assertEqual(len(pkg4[2]), 1 + len(check.PROVIDER_CHECKS))
+        self.assertEqual(pkg4[3][0][2]["BOARDSTUDIO_CHECK_JOBS"], "1")
+
+        wasm4 = run_lanes(check.STEPS["browser-wasm"][1], 4)
+        self.assertEqual(len(wasm4), 2)
+
+        full2 = run_lanes(check.browser(), 2)
+        self.assertEqual(len(full2), 3)
+        self.assertEqual(full2[0][0][0], check.DRAG_SMOKE)
+        self.assertEqual(full2[2][0][2]["BOARDSTUDIO_CHECK_JOBS"], "1")
+
     def test_native_baseline_sees_captured_workspace_output(self):
         plan = [("test", check.CARGO_TESTS)]
 
@@ -123,7 +170,9 @@ class CheckTests(unittest.TestCase):
         names = ["repo", "tooling", "build", "lint", "test"]
         group = [(name, check.STEPS[name][1]) for name in names]
         with patch.dict(os.environ, {"MAKEFLAGS": ""}), \
+             patch.object(check.os, "cpu_count", return_value=16), \
              patch.object(check, "run_parallel", return_value=(0, True)) as parallel:
+            os.environ.pop("RUST_TEST_THREADS", None)
             self.assertEqual(check.run_overlapped_steps(group, True), (0, True))
         batch = [lane[0] for lane in parallel.call_args.args[0]]
         self.assertEqual([command[2] for command, _, _ in batch], names)
@@ -132,6 +181,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(len(flags), 1)
         self.assertIn("--jobserver-auth=fifo:", flags.pop())
         self.assertEqual(batch[3][2]["CARGO_TARGET_DIR"], str(check.ROOT / "target/lint"))
+        self.assertEqual(batch[4][2]["RUST_TEST_THREADS"], "4")
 
     def test_overlap_runs_css_first_for_a_contiguous_full_plan(self):
         names = ["repo", "tooling", "build", "lint", "test"]

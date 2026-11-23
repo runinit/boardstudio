@@ -151,6 +151,43 @@ pub(in crate::presentation) struct OnOpenModulePlacementInput {
     pub parts_selection: parts::PartsSelection,
 }
 
+/// Verify whether a mounted module may be admitted into the PCB workspace.
+pub(in crate::presentation) fn can_admit_mounted_module_to_pcb(
+    instance_selection: &InstanceSelection,
+    model: &ReadModel,
+    scope: &Scope,
+    module_id: &str,
+    definition_id: &str,
+    token: boardstudio_application::SnapshotToken,
+    revision: u64,
+) -> bool {
+    if !active_board_scope_matches(model, scope) || !instance_selection.is_current(model) {
+        return false;
+    }
+    let Some(accepted) = model
+        .accepted
+        .as_ref()
+        .filter(|snapshot| snapshot.token == token && snapshot.document.revision == revision)
+    else {
+        return false;
+    };
+    accepted.document.modules.iter().any(|module| {
+        module.id == module_id
+            && module.definition_id == definition_id
+            && module.host_board_id == scope.board_id
+    })
+}
+
+fn open_pcb_inspector(
+    mut workspace: Signal<Workspace>,
+    mut objects_open: Signal<bool>,
+    mut inspect_open: Signal<bool>,
+) {
+    workspace.set(Workspace::Pcb);
+    objects_open.set(false);
+    inspect_open.set(true);
+}
+
 pub(in crate::presentation) fn on_open_module_placement_handler(
     input: OnOpenModulePlacementInput,
 ) -> EventHandler<String> {
@@ -161,9 +198,9 @@ pub(in crate::presentation) fn on_open_module_placement_handler(
         generation,
         token,
         revision,
-        mut workspace,
-        mut objects_open,
-        mut inspect_open,
+        workspace,
+        objects_open,
+        inspect_open,
         instance_selection,
         parts_selection,
     } = input;
@@ -175,9 +212,6 @@ pub(in crate::presentation) fn on_open_module_placement_handler(
             return;
         }
         let model = runtime.model();
-        if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
-            return;
-        }
         let current_context = adapter.selected_context.read().clone();
         let Some(current_context) = current_context.filter(|selected| {
             selected.scope == scope
@@ -192,28 +226,24 @@ pub(in crate::presentation) fn on_open_module_placement_handler(
         if !selection::context_is_current(&model, &scope, &current_context.context) {
             return;
         }
-        let Some(accepted) = model
-            .accepted
-            .as_ref()
-            .filter(|snapshot| snapshot.token == token && snapshot.document.revision == revision)
-        else {
-            return;
-        };
-        let selected_definition = parts_selection().and_then(|(selected_scope, id)| {
+        let Some(definition_id) = parts_selection().and_then(|(selected_scope, id)| {
             (selected_scope == Some(scope.clone()))
                 .then(|| id.strip_prefix("module:").map(str::to_owned))
                 .flatten()
-        });
-        if !accepted.document.modules.iter().any(|module| {
-            module.id == module_id
-                && module.host_board_id == scope.board_id
-                && Some(module.definition_id.clone()) == selected_definition
-        }) {
+        }) else {
             return;
+        };
+        if can_admit_mounted_module_to_pcb(
+            &instance_selection,
+            &model,
+            &scope,
+            &module_id,
+            &definition_id,
+            token,
+            revision,
+        ) {
+            open_pcb_inspector(workspace, objects_open, inspect_open);
         }
-        workspace.set(Workspace::Pcb);
-        objects_open.set(false);
-        inspect_open.set(true);
     })
 }
 
@@ -234,9 +264,9 @@ pub(in crate::presentation) fn on_module_attached_handler(
     let OnModuleAttachedInput {
         runtime,
         mut adapter,
-        mut workspace,
-        mut objects_open,
-        mut inspect_open,
+        workspace,
+        objects_open,
+        inspect_open,
         parts_selection_generation,
         parts_selection,
         instance_selection,
@@ -254,35 +284,27 @@ pub(in crate::presentation) fn on_module_attached_handler(
             return;
         }
         let model = runtime.model();
-        if !active_board_scope_matches(&model, &request.scope)
-            || !instance_selection.is_current(&model)
-        {
-            return;
-        }
-        let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
-            snapshot.token == request.snapshot_token
-                && snapshot.document.revision == request.revision
-        }) else {
-            return;
-        };
-        if !accepted.document.modules.iter().any(|module| {
-            module.id == request.module_id
-                && module.definition_id == request.definition_id
-                && module.host_board_id == request.scope.board_id
-        }) {
-            return;
-        }
         let context = objects::TreeContext::MountedModule {
             board_id: request.scope.board_id.clone(),
-            module_id: request.module_id,
+            module_id: request.module_id.clone(),
         };
-        if !selection::context_is_current(&model, &request.scope, &context) {
+        if !selection::context_is_current(&model, &request.scope, &context)
+            || !can_admit_mounted_module_to_pcb(
+                &instance_selection,
+                &model,
+                &request.scope,
+                &request.module_id,
+                &request.definition_id,
+                request.snapshot_token,
+                request.revision,
+            )
+        {
             return;
         }
         adapter
             .selected_context
             .set(Some(objects::ScopedTreeContext {
-                scope: request.scope,
+                scope: request.scope.clone(),
                 context,
             }));
         adapter.anchor_scope.set(None);
@@ -292,8 +314,6 @@ pub(in crate::presentation) fn on_module_attached_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-        workspace.set(Workspace::Pcb);
-        objects_open.set(false);
-        inspect_open.set(true);
+        open_pcb_inspector(workspace, objects_open, inspect_open);
     })
 }

@@ -10,6 +10,42 @@ use boardstudio_web_ui_model::Workspace;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use dioxus::prelude::*;
+use std::rc::Rc;
+
+/// The accepted board plan matching `identity`; ADR-0005 `Unchanged` stays in `replace_document_resolver`.
+pub(super) fn current_plan_for(
+    resolution: &PcbWiringResolution,
+    identity: &WiringPlanIdentity,
+) -> Option<Rc<ElectricalPlan>> {
+    let PcbWiringResolution::Current {
+        identity: current,
+        plan,
+    } = resolution
+    else {
+        return None;
+    };
+    (current == identity
+        && plan.revision == identity.revision
+        && plan.board_id.as_deref() == Some(identity.scope.board_id.as_str())
+        && plan.instance_id.is_none())
+    .then(|| plan.clone())
+}
+
+/// One electrical preview-then-resolve shared by firmware-position and pin locks.
+pub(super) fn resolve_preview_plan(
+    label: &'static str,
+    document: &ProjectDoc,
+    board_id: &str,
+) -> ElectricalPlan {
+    let boardstudio_model::model::CoreRequest::ResolveElectrical {
+        request: electrical_request,
+        ..
+    } = boardstudio_web_runtime::electrical_preview_request(label, document, board_id)
+    else {
+        unreachable!()
+    };
+    boardstudio_core_mechanical::electrical::resolve(electrical_request)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeIdentity {

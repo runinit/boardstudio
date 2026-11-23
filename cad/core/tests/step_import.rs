@@ -4,6 +4,12 @@ use boardstudio_cad::{
 
 const TETRA: &[u8] = include_bytes!("fixtures/tetra-mm.step");
 
+/// Asserts an imported model's world-space bounds.
+#[track_caller]
+fn assert_imported_bounds(model: &boardstudio_cad::ImportedStep, expected: [[f64; 3]; 2]) {
+    assert_bounds(model.bounds(), expected);
+}
+
 fn assert_bounds(actual: [[f64; 3]; 2], expected: [[f64; 3]; 2]) {
     for (actual, expected) in actual
         .into_iter()
@@ -11,6 +17,56 @@ fn assert_bounds(actual: [[f64; 3]; 2], expected: [[f64; 3]; 2]) {
         .zip(expected.into_iter().flatten())
     {
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
+    }
+}
+
+/// Builds a mutated TETRA source by applying every `(old, new)` replacement in order.
+fn tetra_with(replacements: &[(&str, &str)]) -> Vec<u8> {
+    let mut text = String::from_utf8(TETRA.to_vec()).unwrap();
+    for (old, new) in replacements {
+        text = text.replace(old, new);
+    }
+    text.into_bytes()
+}
+
+/// Imports `source`, expecting failure, and returns the refusal message.
+/// `context` names the refused case for the failure message.
+#[track_caller]
+fn import_error(source: Vec<u8>, context: &str) -> String {
+    import_step(source).err().expect(context)
+}
+
+/// Asserts every face occurrence carries the same source uncertainty.
+#[track_caller]
+fn assert_all_uncertainties(model: &boardstudio_cad::ImportedStep, expected: Option<f64>) {
+    assert!(
+        model
+            .face_occurrences()
+            .iter()
+            .all(|f| f.source_uncertainty_mm == expected)
+    );
+}
+
+/// Asserts a single-fragment refusal, preserving the fail-closed reason string.
+#[track_caller]
+fn assert_import_rejected(source: Vec<u8>, fragment: &str, context: &str) {
+    let error = import_error(source, context);
+    assert!(error.contains(fragment), "wrong refusal: {error}");
+}
+
+/// Builds [`StepImportOptions`] carrying only a preview repair budget.
+fn repair_options(budget: f64) -> StepImportOptions {
+    StepImportOptions {
+        preview_repair_budget_mm: Some(budget),
+        ..Default::default()
+    }
+}
+
+/// Builds [`StepImportOptions`] carrying only a deflection refinement.
+fn deflection_options(deflection: f64) -> StepImportOptions {
+    StepImportOptions {
+        target_deflection_mm: Some(deflection),
+        ..Default::default()
     }
 }
 
@@ -39,19 +95,17 @@ fn independent_tetrahedron_retains_exact_geometry_original_bytes_and_mm_mesh() {
 #[test]
 fn absent_units_mean_mm_and_metre_coordinates_convert_once() {
     let text = String::from_utf8(TETRA.to_vec()).unwrap();
-    let absent = text
-        .replace(
+    let absent = tetra_with(&[
+        (
             "#102=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));",
             "",
-        )
-        .replace("GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))", "");
-    assert_bounds(
-        import_step(absent.into_bytes()).unwrap().bounds(),
-        [[0., 0., 0.], [2., 3., 4.]],
-    );
+        ),
+        ("GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))", ""),
+    ]);
+    assert_imported_bounds(&import_step(absent).unwrap(), [[0., 0., 0.], [2., 3., 4.]]);
     let metre = text.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
-    assert_bounds(
-        import_step(metre.into_bytes()).unwrap().bounds(),
+    assert_imported_bounds(
+        &import_step(metre.into_bytes()).unwrap(),
         [[0., 0., 0.], [2000., 3000., 4000.]],
     );
 }
@@ -163,10 +217,15 @@ fn mixed_child_metre_parent_mm_scales_geometry_without_rescaling_parent_translat
         .replace("#220=SHAPE_REPRESENTATION('',(#200,#201,#202),#103);", "#301=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));#303=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#301)));#220=SHAPE_REPRESENTATION('',(#200,#201,#202),#303);");
     let imported = import_step(text.into_bytes()).unwrap();
     assert_eq!(imported.occurrence_count(), 2);
-    assert_bounds(
-        imported.bounds(),
-        [[-2990., 7., 11.], [1995., 3007., 4030.]],
-    );
+    assert_imported_bounds(&imported, [[-2990., 7., 11.], [1995., 3007., 4030.]]);
+}
+
+/// Radius of the chord midpoint between two mesh vertices, for exact-circle
+/// deflection checks. The fail-closed messages at each call site are unchanged.
+fn chord_midpoint_radius(a: [f32; 3], b: [f32; 3]) -> f64 {
+    ((f64::from(a[0]) + f64::from(b[0])).powi(2) + (f64::from(a[1]) + f64::from(b[1])).powi(2))
+        .sqrt()
+        / 2.
 }
 
 #[test]
@@ -202,10 +261,7 @@ fn curved_source_honors_independent_deflection_and_angular_limits() {
                     angle <= 0.5 + 1e-6,
                     "topology-edge chord angle {angle} exceeds 0.5 radians at radius {radius}"
                 );
-                let chord_midpoint_radius = ((f64::from(a[0]) + f64::from(b[0])).powi(2)
-                    + (f64::from(a[1]) + f64::from(b[1])).powi(2))
-                .sqrt()
-                    / 2.;
+                let chord_midpoint_radius = chord_midpoint_radius(a, b);
                 assert!(
                     (radius - chord_midpoint_radius).abs() <= 0.1 + 1e-6,
                     "exact circle midpoint deflection exceeds 0.1mm at radius {radius}"
@@ -244,12 +300,10 @@ fn oriented_volume_classification_is_stable_at_a_large_finite_placement() {
     );
     // Exact volume remains 4 under translation; the later f32 mesh projection
     // cannot represent this small body at 1e9 mm and must refuse specifically.
-    let error = import_step(source.into_bytes())
-        .err()
-        .expect("unrepresentable mesh must refuse");
-    assert!(
-        error.contains("f32 render precision"),
-        "wrong refusal: {error}"
+    assert_import_rejected(
+        source.into_bytes(),
+        "f32 render precision",
+        "unrepresentable mesh must refuse",
     );
 }
 
@@ -264,10 +318,7 @@ fn moderate_fractional_translation_preserves_positive_volume_and_a_representable
     let model = import_step(source.into_bytes()).unwrap();
     assert!(model.accuracy().mesh_closed_oriented);
     assert_eq!(model.occurrence_count(), 2);
-    assert_bounds(
-        model.bounds(),
-        [[-5., 7., 11.], [1000000.1, 1000002.2, 1000004.3]],
-    );
+    assert_imported_bounds(&model, [[-5., 7., 11.], [1000000.1, 1000002.2, 1000004.3]]);
     assert!(
         model
             .mesh()
@@ -283,24 +334,15 @@ fn moderate_fractional_translation_preserves_positive_volume_and_a_representable
 fn trimmed_cylinder_sector_excludes_the_full_circle_extrema() {
     let model =
         import_step(include_bytes!("fixtures/trimmed-cylinder-sector.step").to_vec()).unwrap();
-    assert_bounds(
-        model.bounds(),
-        [[0., 0., 0.], [75f64.sqrt(), 75f64.sqrt(), 2.]],
-    );
+    assert_imported_bounds(&model, [[0., 0., 0.], [75f64.sqrt(), 75f64.sqrt(), 2.]]);
 }
 
 #[test]
 fn spherical_octant_has_source_bounds_at_both_deflections() {
     let source = include_bytes!("fixtures/unsupported-non-ruled-sphere.step");
     for deflection in [0.1, 0.001] {
-        let model = import_step_with_options(
-            source.to_vec(),
-            StepImportOptions {
-                target_deflection_mm: Some(deflection),
-                ..Default::default()
-            },
-        )
-        .expect("the directed great-circle trims bound the authored octant");
+        let model = import_step_with_options(source.to_vec(), deflection_options(deflection))
+            .expect("the directed great-circle trims bound the authored octant");
         assert_eq!(model.solid_count(), 1);
         assert_eq!(model.occurrence_count(), 1);
         assert_eq!(model.source_faces().len(), 4);
@@ -393,9 +435,10 @@ fn a_source_boundary_off_its_plane_cannot_be_accepted_as_the_same_tetrahedron() 
                 "#300=CARTESIAN_POINT('',(0.,0.,{z}));#57=AXIS2_PLACEMENT_3D('',#300,#55,#56);"
             ),
         );
-        let error = import_step(source.into_bytes())
-            .err()
-            .expect("off-support source boundary must refuse");
+        let error = import_error(
+            source.into_bytes(),
+            "off-support source boundary must refuse",
+        );
         assert!(
             error.contains("source boundary") || error.contains("support incidence"),
             "wrong refusal: {error}"
@@ -405,17 +448,17 @@ fn a_source_boundary_off_its_plane_cannot_be_accepted_as_the_same_tetrahedron() 
 
 #[test]
 fn a_remote_origin_on_the_same_line_keeps_the_plane_only_refusal() {
-    let source = std::str::from_utf8(TETRA)
-        .unwrap()
-        .replace(
+    let source = tetra_with(&[
+        (
             "#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);",
             "#300=CARTESIAN_POINT('',(0.,0.,0.001));#57=AXIS2_PLACEMENT_3D('',#300,#55,#56);",
-        )
-        .replace(
+        ),
+        (
             "#34=LINE('',#2,#33);",
             "#301=CARTESIAN_POINT('',(-1999999998.34,3000000000.51,0.));#34=LINE('',#301,#33);",
-        );
-    assert!(import_step(source.into_bytes()).is_err());
+        ),
+    ]);
+    assert!(import_step(source).is_err());
 }
 
 #[test]
@@ -435,10 +478,7 @@ fn mapped_uniform_scale_keeps_the_absolute_world_mesh_deflection() {
             if (a[2] - b[2]).abs() > 1e-6 {
                 continue;
             }
-            let midpoint_radius = ((f64::from(a[0]) + f64::from(b[0])).powi(2)
-                + (f64::from(a[1]) + f64::from(b[1])).powi(2))
-            .sqrt()
-                / 2.;
+            let midpoint_radius = chord_midpoint_radius(a, b);
             assert!(
                 (20. - midpoint_radius).abs() <= 0.1 + 1e-5,
                 "scaled source chord deflection exceeds 0.1mm"
@@ -453,12 +493,10 @@ fn mapped_uniform_scale_keeps_the_absolute_world_mesh_deflection() {
 fn represented_mapping_outside_the_product_graph_cannot_disappear() {
     let source=std::str::from_utf8(ASSEMBLY).unwrap()
         .replace("ENDSEC;END-ISO-10303-21;","#300=AXIS2_PLACEMENT_3D('',#1,$,$);#310=SHAPE_REPRESENTATION('',(#315),#103);#311=CARTESIAN_POINT('',(100.,0.,0.));#313=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,$,#311,1.,$);#314=REPRESENTATION_MAP(#300,#104);#315=MAPPED_ITEM('',#314,#313);ENDSEC;END-ISO-10303-21;");
-    let error = import_step(source.into_bytes())
-        .err()
-        .expect("untraversed represented mapping must refuse");
-    assert!(
-        error.contains("unreferenced mapped occurrence"),
-        "wrong refusal: {error}"
+    assert_import_rejected(
+        source.into_bytes(),
+        "unreferenced mapped occurrence",
+        "untraversed represented mapping must refuse",
     );
 }
 
@@ -472,22 +510,18 @@ fn native_cylinder_source_support_is_checked_over_the_whole_boundary() {
             "#63=ADVANCED_FACE('',(#62),#30,.F.);",
             "#63=ADVANCED_FACE('',(#62),#30,.T.);",
         );
-    assert_bounds(
-        import_step(native.as_bytes().to_vec())
-            .expect("valid native cylinder")
-            .bounds(),
+    assert_imported_bounds(
+        &import_step(native.as_bytes().to_vec()).expect("valid native cylinder"),
         [[-1., -1., 0.], [1., 1., 1.]],
     );
     let invalid = native.replace(
         "#30=CYLINDRICAL_SURFACE('',#44,1);",
         "#30=CYLINDRICAL_SURFACE('',#44,1.001);",
     );
-    let error = import_step(invalid.into_bytes())
-        .err()
-        .expect("off-support cylinder boundary must refuse");
-    assert!(
-        error.contains("support incidence"),
-        "wrong refusal: {error}"
+    assert_import_rejected(
+        invalid.into_bytes(),
+        "support incidence",
+        "off-support cylinder boundary must refuse",
     );
 }
 
@@ -510,19 +544,15 @@ fn native_cone_support_keeps_valid_trim_and_rejects_a_radius_mismatch() {
             "#50=VECTOR('',#42,1);",
             "#74=DIRECTION('',(1,0,1));#50=VECTOR('',#74,1.4142135623730951);",
         );
-    assert_bounds(
-        import_step(cone.as_bytes().to_vec())
-            .expect("valid native cone")
-            .bounds(),
+    assert_imported_bounds(
+        &import_step(cone.as_bytes().to_vec()).expect("valid native cone"),
         [[-2., -2., 0.], [2., 2., 1.]],
     );
     let mismatch = cone.replace("CONICAL_SURFACE('',#44,1,", "CONICAL_SURFACE('',#44,1.001,");
-    let error = import_step(mismatch.into_bytes())
-        .err()
-        .expect("off-support cone boundary must refuse");
-    assert!(
-        error.contains("support incidence"),
-        "wrong refusal: {error}"
+    assert_import_rejected(
+        mismatch.into_bytes(),
+        "support incidence",
+        "off-support cone boundary must refuse",
     );
 }
 
@@ -580,12 +610,7 @@ fn declared_precision_is_typed_context_owned_and_unit_converted() {
     assert_eq!(precision.uncertainty_mm(), Some(0.01));
     assert_eq!(precision.declarations[0].entity_id, 300);
     assert_eq!(precision.declarations[0].length_unit_id, 301);
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.01))
-    );
+    assert_all_uncertainties(&model, Some(0.01));
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     let unassigned=tetra_with_precision("#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.01),#102,'distance_accuracy_value','test');").replace("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300))","");
     let model = import_step(unassigned.into_bytes()).unwrap();
@@ -638,12 +663,7 @@ fn multiple_or_unrelated_uncertainties_do_not_inflate_a_repair_allowance() {
     let model = import_step(text.into_bytes()).unwrap();
     assert_eq!(model.precision()[0].declarations.len(), 2);
     assert_eq!(model.precision()[0].uncertainty_mm(), None);
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|f| f.source_uncertainty_mm.is_none())
-    );
+    assert_all_uncertainties(&model, None);
     let text=tetra_with_precision("#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#102,'distance_accuracy_value',$);")
         .replace("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300))","GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300,#300))");
     assert!(import_step(text.into_bytes()).is_err());
@@ -667,15 +687,11 @@ fn generic_context_cannot_borrow_an_untraversed_representation_precision() {
     let model = import_step(text.clone().into_bytes())
         .expect("exact generic-context geometry needs no connectivity authority");
     assert_eq!(model.triangle_faces().len(), 4);
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|face| face.source_uncertainty_mm.is_none())
-    );
+    assert_all_uncertainties(&model, None);
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     let outside = text.replace("#22=LINE('',#1,#21);", "#410=CARTESIAN_POINT('',(1.999,0.,0.));#22=B_SPLINE_CURVE_WITH_KNOTS('',1,(#1,#410),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.UNSPECIFIED.);");
-    let error = import_step(outside.into_bytes()).err().expect(
+    let error = import_error(
+        outside.into_bytes(),
         "generic context must not borrow the unrelated0.01 allowance to repair a source endpoint",
     );
     assert!(error.contains("B-spline"), "{error}");
@@ -702,9 +718,10 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
     );
     assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     let unknown = text.replace("GEOMETRIC_REPRESENTATION_CONTEXT(3) ", "");
-    let error = import_step(unknown.into_bytes())
-        .err()
-        .expect("untyped precision cannot authorize support discrepancy");
+    let error = import_error(
+        unknown.into_bytes(),
+        "untyped precision cannot authorize support discrepancy",
+    );
     assert!(error.contains("support incidence"), "{error}");
 }
 
@@ -712,9 +729,10 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
 fn endpoint_support_attachments_do_not_authorize_a_bowed_curve_interior() {
     let text = tetra_with_precision("#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.01),#102,'distance_accuracy_value',$);")
         .replace("#22=LINE('',#1,#21);", "#320=CARTESIAN_POINT('',(1.,0.,0.1));#22=B_SPLINE_CURVE_WITH_KNOTS('',2,(#1,#320,#2),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);");
-    let error = import_step(text.into_bytes())
-        .err()
-        .expect("whole selected curve exceeds its owned support allowance");
+    let error = import_error(
+        text.into_bytes(),
+        "whole selected curve exceeds its owned support allowance",
+    );
     assert!(error.contains("support incidence"), "{error}");
 }
 
@@ -743,12 +761,7 @@ fn owned_support_allowance_uses_actual_unit_and_occurrence_scale() {
         .replace("LENGTH_MEASURE(0.01)", "LENGTH_MEASURE(0.00001)")
         .replace("(0.,0.,0.009)", "(0.,0.,0.000001)");
     let model = import_step(metres.into_bytes()).unwrap();
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.01))
-    );
+    assert_all_uncertainties(&model, Some(0.01));
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
 }
 
@@ -765,7 +778,8 @@ fn source_face_boundary_must_retain_its_authored_oriented_closed_order() {
         ),
     ] {
         let source = std::str::from_utf8(TETRA).unwrap().replace(old, new);
-        let error = import_step(source.into_bytes()).err().expect(
+        let error = import_error(
+            source.into_bytes(),
             "an unordered or open authored boundary cannot become an ordinary tetra preview",
         );
         assert!(
@@ -793,9 +807,10 @@ fn source_curve_sets_never_drop_an_unsupported_or_invalid_member() {
         ),
     ] {
         assert_eq!(source.matches(old).count(), 1);
-        let error = import_step(source.replace(old, new).into_bytes())
-            .err()
-            .expect("every authored curve-set member must be retained or refused");
+        let error = import_error(
+            source.replace(old, new).into_bytes(),
+            "every authored curve-set member must be retained or refused",
+        );
         assert!(
             error.contains("source curve") || error.contains("missing entity"),
             "{error}"
@@ -849,8 +864,8 @@ fn finite_line_occurrences_keep_the_native_trim_frame_through_units_and_mapping(
         "#411=DIRECTION('',(1.,0.,0.));",
         "#411=DIRECTION('',(4.,0.,0.));",
     );
-    assert_bounds(
-        import_step(ratios.into_bytes()).unwrap().bounds(),
+    assert_imported_bounds(
+        &import_step(ratios.into_bytes()).unwrap(),
         [[0., 0., 0.], [6., 10., 4.]],
     );
 }
@@ -1016,19 +1031,15 @@ fn attachment_gap_above_declared_precision_is_accepted_under_the_preview_floor_a
     assert_eq!(model.accuracy().preview_floor_mm, 0.02);
     assert!(model.accuracy().relaxed_beyond_declared_precision);
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.001))
-    );
+    assert_all_uncertainties(&model, Some(0.001));
 }
 
 #[test]
 fn attachment_gap_clearly_above_the_preview_floor_still_refuses() {
-    let error = import_step(tetra_with_plane_gap("0.001", "0.05").into_bytes())
-        .err()
-        .expect("a gap well above the floor is not preview-acceptable");
+    let error = import_error(
+        tetra_with_plane_gap("0.001", "0.05").into_bytes(),
+        "a gap well above the floor is not preview-acceptable",
+    );
     assert!(!error.is_empty());
 }
 
@@ -1043,9 +1054,10 @@ fn gap_just_above_the_declared_precision_imports_under_twice_the_declaration() {
 
 #[test]
 fn gap_above_twice_the_declared_precision_and_the_floor_still_refuses() {
-    let error = import_step(tetra_with_plane_gap("0.01", "0.025").into_bytes())
-        .err()
-        .expect("0.025 mm exceeds max(2 x 0.01, 0.02) mm");
+    let error = import_error(
+        tetra_with_plane_gap("0.01", "0.025").into_bytes(),
+        "0.025 mm exceeds max(2 x 0.01, 0.02) mm",
+    );
     assert!(!error.is_empty());
 }
 
@@ -1108,9 +1120,10 @@ fn boundary_off_its_cylinder_beyond_the_allowance_refuses_with_the_measured_resi
             "#63=ADVANCED_FACE('',(#62),#30,.F.);",
             "#63=ADVANCED_FACE('',(#62),#30,.T.);",
         );
-    let error = import_step(off.into_bytes())
-        .err()
-        .expect("sampling must not accept a boundary off its support");
+    let error = import_error(
+        off.into_bytes(),
+        "sampling must not accept a boundary off its support",
+    );
     assert!(
         error.contains("support incidence"),
         "wrong refusal: {error}"
@@ -1141,24 +1154,11 @@ fn explicit_preview_repair_budget_preserves_source_and_keeps_movement_unknown() 
         "0.025 mm exceeds the default max(2 x 0.001, 0.02) mm allowance"
     );
     assert!(
-        import_step_with_options(
-            source.clone().into_bytes(),
-            StepImportOptions {
-                preview_repair_budget_mm: Some(0.024),
-                target_deflection_mm: None,
-            },
-        )
-        .is_err(),
+        import_step_with_options(source.clone().into_bytes(), repair_options(0.024)).is_err(),
         "over-budget repair must refuse"
     );
-    let model = import_step_with_options(
-        source.clone().into_bytes(),
-        StepImportOptions {
-            preview_repair_budget_mm: Some(0.03),
-            target_deflection_mm: None,
-        },
-    )
-    .expect("0.025 mm gap imports under an explicit 0.03 mm preview repair budget");
+    let model = import_step_with_options(source.clone().into_bytes(), repair_options(0.03))
+        .expect("0.025 mm gap imports under an explicit 0.03 mm preview repair budget");
     assert_eq!(model.original_bytes(), source.as_bytes());
     assert_eq!(model.precision()[0].uncertainty_mm(), Some(0.001));
     assert_eq!(model.accuracy().selected_repair_budget_mm, Some(0.03));
@@ -1169,12 +1169,7 @@ fn explicit_preview_repair_budget_preserves_source_and_keeps_movement_unknown() 
         None,
         "an explicit preview repair allowance is never an analysis error certificate"
     );
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.001))
-    );
+    assert_all_uncertainties(&model, Some(0.001));
 }
 
 #[test]
@@ -1183,14 +1178,8 @@ fn on_demand_deflection_refinement_does_not_certify_a_nominal_tolerance() {
     let default_import = import_step(cylinder.clone()).expect("default cylinder import");
     assert_eq!(default_import.accuracy().analysis_error_bound_mm, None);
 
-    let refined_import = import_step_with_options(
-        cylinder,
-        StepImportOptions {
-            preview_repair_budget_mm: None,
-            target_deflection_mm: Some(0.004),
-        },
-    )
-    .expect("refined cylinder import");
+    let refined_import = import_step_with_options(cylinder, deflection_options(0.004))
+        .expect("refined cylinder import");
     assert_eq!(refined_import.accuracy().analysis_error_bound_mm, None);
     assert_eq!(refined_import.accuracy().preview_deflection_mm, 0.004);
     assert!(
@@ -1211,27 +1200,11 @@ fn import_options_keep_default_behavior_and_reject_invalid_requests() {
         explicit_default.face_occurrences()
     );
     for invalid in [0.0, -0.01, f64::NAN, f64::INFINITY] {
-        for options in [
-            StepImportOptions {
-                preview_repair_budget_mm: Some(invalid),
-                target_deflection_mm: None,
-            },
-            StepImportOptions {
-                preview_repair_budget_mm: None,
-                target_deflection_mm: Some(invalid),
-            },
-        ] {
+        for options in [repair_options(invalid), deflection_options(invalid)] {
             assert!(import_step_with_options(TETRA.to_vec(), options).is_err());
         }
     }
-    let coarser = import_step_with_options(
-        TETRA.to_vec(),
-        StepImportOptions {
-            target_deflection_mm: Some(1.0),
-            ..StepImportOptions::default()
-        },
-    )
-    .unwrap();
+    let coarser = import_step_with_options(TETRA.to_vec(), deflection_options(1.0)).unwrap();
     assert_eq!(coarser.accuracy().preview_deflection_mm, 0.1);
 }
 
@@ -1380,25 +1353,13 @@ fn explicit_preview_repair_budget_is_honored_on_generic_context() {
         .expect("0.03125 mm shifted LINE on generic context refuses at default noise floor");
     assert!(default_err.contains("support incidence"), "{default_err}");
 
-    let tight_err = import_step_with_options(
-        source.to_vec(),
-        StepImportOptions {
-            preview_repair_budget_mm: Some(0.031249999999999997),
-            target_deflection_mm: None,
-        },
-    )
-    .err()
-    .expect("budget just below 0.03125 mm still refuses");
+    let tight_err = import_step_with_options(source.to_vec(), repair_options(0.031249999999999997))
+        .err()
+        .expect("budget just below 0.03125 mm still refuses");
     assert!(tight_err.contains("support incidence"), "{tight_err}");
 
-    let model = import_step_with_options(
-        source.to_vec(),
-        StepImportOptions {
-            preview_repair_budget_mm: Some(0.03125),
-            target_deflection_mm: None,
-        },
-    )
-    .expect("explicit 0.03125 mm preview repair budget is honored on generic context");
+    let model = import_step_with_options(source.to_vec(), repair_options(0.03125))
+        .expect("explicit 0.03125 mm preview repair budget is honored on generic context");
     assert_eq!(model.accuracy().selected_repair_budget_mm, Some(0.03125));
     assert_eq!(model.accuracy().max_repair_displacement_mm, None);
 }

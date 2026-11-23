@@ -147,15 +147,13 @@ fn signed_mesh_volume(mesh: &crate::MeshBuffers) -> f64 {
 }
 
 fn mesh_bounds(mesh: &crate::MeshBuffers) -> [[f64; 3]; 2] {
-    bounds_of(
-        mesh.positions.as_chunks::<3>().0.iter().map(|point| {
-            [
-                f64::from(point[0]),
-                f64::from(point[1]),
-                f64::from(point[2]),
-            ]
-        }),
-    )
+    bounds_of(mesh.positions.as_chunks::<3>().0.iter().map(|point| {
+        [
+            f64::from(point[0]),
+            f64::from(point[1]),
+            f64::from(point[2]),
+        ]
+    }))
 }
 
 #[test]

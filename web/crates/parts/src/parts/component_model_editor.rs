@@ -1,18 +1,19 @@
 //! Definition-level model attachment and alignment in the selected Parts Inspector.
 
 use super::model_transform::{
-    ModelAxis, ModelVec3Fields, ModelVector, new_model, set_model_axis, valid_transform_value,
+    ModelAxis, ModelTransformFieldset, ModelVector, new_model, set_model_axis, upload_model_asset,
+    valid_transform_value,
 };
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::{
     PartsOwnerGuard, replace_document_resolver, upsert_definition,
 };
 use crate::{
-    presentation::{SelectionAdapter, WorkspaceState, model_asset_import::read_model_file},
+    presentation::{SelectionAdapter, WorkspaceState},
     runtime::Runtime,
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Scope};
-use boardstudio_model::model::{Asset, PartDefinition, PartModel, Vec3};
+use boardstudio_model::model::{PartDefinition, PartModel};
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{FilePickerButton, InspectorSection, TOUCH_CLS};
 use boardstudio_web_ui_shared::ui::{
@@ -29,6 +30,12 @@ use wasm_bindgen_futures::spawn_local;
 struct ModelEditorMessage {
     owner: PartsOwnerGuard,
     text: String,
+}
+
+#[derive(Clone, Copy)]
+enum ModelEditIntent {
+    Transform(ModelVector, ModelAxis, f64),
+    Remove,
 }
 
 fn current_snapshot(
@@ -128,6 +135,19 @@ fn submit_model_transform(
         },
     );
     Ok(resolver)
+}
+
+/// Commit one model resolver and settle a commit-time failure onto the
+/// owner-gated error, shared by the upload, transform and remove paths.
+fn settle_model_commit(
+    runtime: &Rc<Runtime>,
+    owner: PartsOwnerGuard,
+    mut error: Signal<Option<ModelEditorMessage>>,
+    resolver: EditResolver,
+) {
+    if let Err(text) = runtime.commit("parts-component-model", resolver) {
+        error.set(Some(ModelEditorMessage { owner, text }));
+    }
 }
 
 fn submit_remove_model(
@@ -292,70 +312,61 @@ pub fn ComponentModelEditor(
                     }
                 }
             };
-            let imported = read_model_file(file).await;
+            let uploaded = upload_model_asset(
+                file,
+                &runtime,
+                &[],
+                is_current.clone(),
+                "The selected component changed while importing the model.",
+            )
+            .await;
             if !alive.get() || request_generation.get() != generation {
                 return;
             }
-            let imported = match imported {
-                Ok(imported) => imported,
+            let (asset, _) = match uploaded {
+                Ok(value) => value,
                 Err(message) => {
                     fail(message);
                     return;
                 }
             };
-            if !is_current() {
-                uploading.set(false);
-                return;
-            }
-            if let Err(message) = imported.store(&runtime.store).await {
-                fail(message);
-                return;
-            }
-            if !alive.get() || request_generation.get() != generation || !is_current() {
-                uploading.set(false);
-                return;
-            }
-            let asset_id = format!("model-asset-{}", runtime.operation().0);
-            let asset = Asset {
-                id: asset_id.clone(),
-                name: imported.filename.clone(),
-                media_type: imported.media_type.clone(),
-                sha256: imported.sha256.clone(),
-                license: None,
-                source: Some("local file".into()),
-            };
             let resolver = model_resolver(
                 original,
                 project_owned_at_start,
                 move |definition, document| {
-                    let mut asset = asset.clone();
-                    let mut suffix = 0_u64;
-                    while document
+                    let asset_id = if let Some(existing) = document
                         .assets
                         .iter()
-                        .any(|existing| existing.id == asset.id)
+                        .find(|existing| existing.sha256 == asset.sha256)
                     {
-                        suffix += 1;
-                        asset.id = format!("{asset_id}-{suffix}");
-                    }
+                        existing.id.clone()
+                    } else {
+                        let mut asset = asset.clone();
+                        // Re-assert uniqueness against the commit-time document.
+                        asset.id = crate::parts_custom_definition::unique_suffixed_id_capped(
+                            &asset.id,
+                            |id| document.assets.iter().any(|existing| existing.id == id),
+                        )
+                        .unwrap_or_else(|| format!("{}-new", asset.id));
+                        let id = asset.id.clone();
+                        document.assets.push(asset);
+                        id
+                    };
                     let mut models = definition.models.clone().unwrap_or_default();
-                    let new_model = new_model(asset.id.clone());
+                    let new_model = new_model(asset_id);
                     if models.is_empty() {
                         models.push(new_model);
                     } else {
                         models[0] = new_model;
                     }
                     definition.models = Some(models);
-                    document.assets.push(asset.clone());
                     Ok(())
                 },
             );
             uploading.set(false);
             error.set(None);
             notice.set(None);
-            if let Err(text) = runtime.commit("parts-component-model", resolver) {
-                error.set(Some(ModelEditorMessage { owner, text }));
-            }
+            settle_model_commit(&runtime, owner, error, resolver);
         });
     };
 
@@ -368,7 +379,9 @@ pub fn ComponentModelEditor(
         }
     };
     let binding = initial_model(&definition);
-    let transform_commit = use_callback({
+    // One owner-admitted submit path for transform commits and removal: builds
+    // the resolver, then commits inline onto the parent owner-gated error.
+    let submit_model_edit = use_callback({
         let runtime = runtime.clone();
         let owner = owner.clone();
         let original = definition.clone();
@@ -376,50 +389,7 @@ pub fn ComponentModelEditor(
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
         let mut error = error;
         let mut notice = notice;
-        move |(field, axis, value): (ModelVector, ModelAxis, f64)| {
-            let asset_id = asset_id.as_deref()?;
-            let live = current_snapshot(
-                &runtime,
-                &owner,
-                &selected,
-                selection_generation(),
-                scope_generation(),
-                &workspace,
-            )
-            .is_some();
-            match submit_model_transform(
-                live,
-                &original,
-                project_owned,
-                asset_id,
-                field,
-                axis,
-                value,
-            ) {
-                Ok(resolver) => {
-                    error.set(None);
-                    notice.set(None);
-                    Some(resolver)
-                }
-                Err(message) => {
-                    error.set(Some(ModelEditorMessage {
-                        owner: owner.clone(),
-                        text: message,
-                    }));
-                    None
-                }
-            }
-        }
-    });
-    let remove_model = {
-        let runtime = runtime.clone();
-        let owner = owner.clone();
-        let original = definition.clone();
-        let selected = selected;
-        let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
-        let mut error = error;
-        let mut notice = notice;
-        move |_| {
+        move |intent: ModelEditIntent| {
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
@@ -432,16 +402,25 @@ pub fn ComponentModelEditor(
                 &workspace,
             )
             .is_some();
-            match submit_remove_model(live, &original, project_owned, asset_id) {
+            let result = match intent {
+                ModelEditIntent::Transform(field, axis, value) => submit_model_transform(
+                    live,
+                    &original,
+                    project_owned,
+                    asset_id,
+                    field,
+                    axis,
+                    value,
+                ),
+                ModelEditIntent::Remove => {
+                    submit_remove_model(live, &original, project_owned, asset_id)
+                }
+            };
+            match result {
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    if let Err(text) = runtime.commit("parts-component-model", resolver) {
-                        error.set(Some(ModelEditorMessage {
-                            owner: owner.clone(),
-                            text,
-                        }));
-                    }
+                    settle_model_commit(&runtime, owner.clone(), error, resolver);
                 }
                 Err(message) => error.set(Some(ModelEditorMessage {
                     owner: owner.clone(),
@@ -449,7 +428,9 @@ pub fn ComponentModelEditor(
                 })),
             }
         }
-    };
+    });
+    let transform_commit = submit_model_edit;
+    let remove_model = move |_| submit_model_edit.call(ModelEditIntent::Remove);
     let current_assets = current_owner
         .as_ref()
         .map(|snapshot| snapshot.document.assets.as_slice())
@@ -473,12 +454,15 @@ pub fn ComponentModelEditor(
                     }
                     fieldset { class: "grid gap-2",
                         legend { "Model alignment" }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", title: "Offset", value: model.offset, unit: "mm", positive: false,
-                            on_commit: move |(axis, value)| transform_commit.call((ModelVector::Offset, axis, value)) } } }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", title: "Rotation", value: model.rotation, unit: "°", positive: false,
-                            on_commit: move |(axis, value)| transform_commit.call((ModelVector::Rotation, axis, value)) } } }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true,
-                            on_commit: move |(axis, value)| transform_commit.call((ModelVector::Scale, axis, value)) } } }
+                        for (title, unit, positive, vector, field) in [("Offset", "mm", false, model.offset, ModelVector::Offset), ("Rotation", "°", false, model.rotation, ModelVector::Rotation), ("Scale", "×", true, model.scale, ModelVector::Scale)] {
+                            ModelTransformFieldset { key: "{owner:?}-{title}", title: format!("{title} · {unit}"), value: vector,
+                                min: positive.then_some(0.001),
+                                aria_labels: Some([format!("{title} X {unit}"), format!("{title} Y {unit}"), format!("{title} Z {unit}")]),
+                                on_commit: move |(axis, number)| {
+                                    transform_commit.call(ModelEditIntent::Transform(field, axis, number));
+                                },
+                            }
+                        }
                     }
                     Button { variant: ButtonVariant::Secondary, class: TOUCH_CLS, onclick: remove_model, "Remove attached model" }
                 } else {
@@ -500,35 +484,6 @@ pub fn ComponentModelEditor(
 
                 if let Some(message) = visible_notice { div { role: "status", Callout { variant: CalloutVariant::Info, "{message}" } } }
                 if let Some(message) = visible_error { Alert { variant: AlertVariant::Destructive, "{message}" } }
-        }
-    }
-}
-
-#[component]
-fn ModelVectorEditor(
-    title: &'static str,
-    value: Vec3,
-    unit: &'static str,
-    positive: bool,
-    on_commit: Callback<(ModelAxis, f64), Option<EditResolver>>,
-) -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let mut error = use_signal(|| None::<String>);
-    rsx! {
-        fieldset { class: "grid gap-2",
-            legend { "{title} · {unit}" }
-            ModelVec3Fields { value, min: positive.then_some(0.001),
-                labels: ["X".into(), "Y".into(), "Z".into()],
-                aria_labels: Some([format!("{title} X {unit}"), format!("{title} Y {unit}"), format!("{title} Z {unit}")]),
-                on_commit: move |(axis, number)| {
-                    if let Some(resolver) = on_commit.call((axis, number)) {
-                        error.set(runtime.commit("parts-component-model", resolver).err());
-                    }
-                },
-            }
-            if let Some(message) = error() {
-                Alert { variant: AlertVariant::Destructive, "{message}" }
-            }
         }
     }
 }

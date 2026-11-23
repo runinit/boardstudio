@@ -3,6 +3,7 @@ pub struct BundledModel {
     pub id: &'static str,
     pub filename: &'static str,
     pub media_type: &'static str,
+    #[cfg(test)]
     pub source_relative_path: &'static str,
     pub url_path: &'static str,
     pub sha256: &'static str,
@@ -247,12 +248,7 @@ mod tests {
             assert!(model.url_path.starts_with("assets/ergogen-models/model-"));
             assert_eq!(model.sha256.len(), 64);
             assert!(model.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
-            assert!(
-                !model
-                    .url_path
-                    .chars()
-                    .any(|ch| matches!(ch, '%' | '#' | '?' | '\\' | ':'))
-            );
+            assert!(!model.url_path.contains(['%', '#', '?', '\\', ':']));
             assert!(
                 !model
                     .url_path

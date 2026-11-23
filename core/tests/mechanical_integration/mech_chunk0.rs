@@ -7,13 +7,11 @@ fn the_evaluator_retires_a_vanished_target_and_errors_on_a_malformed_value() {
     let vanished_instance = evaluate_edit(
         &document,
         &[],
-        &MechanicalEdit {
-            target: MechanicalTarget::Instance {
-                instance_id: "gone".into(),
-            },
-            change: MechanicalChange::Enable,
-            mounting_hole: None,
-        },
+        &crate::support::session::mechanical_edit(
+            instance_target("gone"),
+            MechanicalChange::Enable,
+            false,
+        ),
     );
     assert_eq!(
         vanished_instance.unwrap(),
@@ -23,13 +21,13 @@ fn the_evaluator_retires_a_vanished_target_and_errors_on_a_malformed_value() {
     let vanished_board = evaluate_edit(
         &document,
         &[],
-        &MechanicalEdit {
-            target: MechanicalTarget::Board {
+        &crate::support::session::mechanical_edit(
+            MechanicalTarget::Board {
                 board_id: "other".into(),
             },
-            change: MechanicalChange::Enable,
-            mounting_hole: None,
-        },
+            MechanicalChange::Enable,
+            false,
+        ),
     );
     assert_eq!(vanished_board.unwrap(), MechanicalEditDisposition::Retire);
 
@@ -186,14 +184,14 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     apply(
         &mut document,
         &[],
-        &MechanicalEdit {
-            target: board_target(),
-            change: MechanicalChange::SetMountCollection {
+        &crate::support::session::mechanical_edit(
+            board_target(),
+            MechanicalChange::SetMountCollection {
                 collection: MechanicalMountCollection::Closure,
                 mounts: vec![],
             },
-            mounting_hole: None,
-        },
+            false,
+        ),
     )
     .unwrap();
     assert!(
@@ -571,8 +569,7 @@ fn a_generic_addition_on_a_paired_half_joins_the_pair() {
         },
     )
     .unwrap();
-    let left = instance_inputs(&document, "left");
-    let right = instance_inputs(&document, "right");
+    let (left, right) = both_instance_inputs(&document);
     assert_close(
         mount_at(&right.configuration, &added_id),
         Vec2 { x: 5.0, y: 1.0 },
@@ -753,11 +750,11 @@ fn every_shared_construction_family_lands_in_the_legacy_source() {
         let changed = boardstudio_core::mechanical::edit::apply(
             &mut document,
             &[],
-            &MechanicalEdit {
-                target: instance_target("left"),
-                change: change.clone(),
-                mounting_hole: None,
-            },
+            &crate::support::session::mechanical_edit(
+                instance_target("left"),
+                change.clone(),
+                false,
+            ),
         )
         .unwrap_or_else(|error| panic!("{label}: {error}"));
         assert!(!changed.is_empty(), "{label} is a change: {changed:?}");

@@ -3,8 +3,8 @@
 //! Ported from `kicad/test/export.test.ts` and `kicad/test/source.test.ts`,
 //! which drove the same boundary through a Node subprocess.
 use crate::support::query::{arr, empty_project};
+use crate::support::session::{run_kicad_cli, temp_dir};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use regex::Regex;
 use serde_json::{Value, json};
@@ -139,30 +139,6 @@ fn assert_error(result: Result<impl std::fmt::Debug, String>, pattern: &str) {
     assert_match(&message, pattern);
 }
 
-fn temp_dir(label: &str) -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let directory = std::env::temp_dir().join(format!(
-        "boardstudio-kicad-{label}-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir_all(&directory).unwrap();
-    directory
-}
-
-fn kicad_cli(arguments: &[&str]) {
-    let output = crate::support::kicad_command("kicad-cli")
-        .args(arguments)
-        .output()
-        .expect("kicad-cli (KiCad 10) is required for the KiCad integration checks");
-    assert!(
-        output.status.success(),
-        "kicad-cli {arguments:?}: {}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
 fn path_str(path: &Path) -> &str {
     path.to_str().unwrap()
 }
@@ -172,7 +148,7 @@ fn drc(doc: &Value, contours: &Value) -> Value {
     let board = directory.join("main.kicad_pcb");
     let report = directory.join("drc.json");
     std::fs::write(&board, export_board(doc, "main", contours).unwrap()).unwrap();
-    kicad_cli(&[
+    run_kicad_cli(&[
         "pcb",
         "drc",
         "--format",
@@ -485,7 +461,7 @@ fn kicad_10_parses_the_exported_board() {
     std::fs::write(&board, export_board(&doc, "main", &contours).unwrap()).unwrap();
 
     let stats = directory.join("stats.json");
-    kicad_cli(&[
+    run_kicad_cli(&[
         "pcb",
         "export",
         "stats",
@@ -502,7 +478,7 @@ fn kicad_10_parses_the_exported_board() {
     assert_eq!(parsed["components"]["total"]["front"], 1);
 
     let netlist = directory.join("netlist.d356");
-    kicad_cli(&[
+    run_kicad_cli(&[
         "pcb",
         "export",
         "ipcd356",
@@ -565,7 +541,7 @@ fn kicad_10_plots_the_standalone_footprint() {
     std::fs::create_dir_all(&library).unwrap();
     std::fs::create_dir_all(&output).unwrap();
     std::fs::write(library.join("Switch.kicad_mod"), switch_source()).unwrap();
-    kicad_cli(&[
+    run_kicad_cli(&[
         "fp",
         "export",
         "svg",
@@ -693,7 +669,7 @@ fn plot(board: &str, layers: &str, label: &str) -> (PathBuf, String) {
     let path = directory.join("board.kicad_pcb");
     std::fs::write(&path, board).unwrap();
     let svg = directory.join("board.svg");
-    kicad_cli(&[
+    run_kicad_cli(&[
         "pcb",
         "export",
         "svg",

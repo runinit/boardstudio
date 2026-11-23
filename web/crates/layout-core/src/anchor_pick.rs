@@ -17,8 +17,8 @@
 
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
-    CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, PartAnchor, Pose2, ProjectDoc,
-    Vec2,
+    CoreReply, CoreRequest, EditOperation, Follow, Layout, Matrix, MatrixAnchor, Part, PartAnchor,
+    Pose2, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::core_services::OpenScratchCore;
 use boardstudio_web_ui_model::tree::TreeContext;
@@ -76,6 +76,106 @@ pub const MAJOR_RING_HOVER_PX: f64 = 9.0;
 /// Major hit area edge, in screen px.
 pub const MAJOR_HIT_PX: f64 = 36.0;
 
+fn owner_matrix<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix> {
+    document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+}
+
+fn owner_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
+    document.parts.iter().find(|part| part.id == part_id)
+}
+
+fn layout_for_matrix<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Layout> {
+    document
+        .layouts
+        .iter()
+        .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
+}
+
+fn live_layout_for_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Layout> {
+    document
+        .layouts
+        .iter()
+        .find(|layout| layout.part_ids.iter().any(|id| id == part_id))
+}
+
+/// A matrix retargeted at `target`, keeping its carried Follow subset.
+fn retargeted_matrix_anchor(current: &MatrixAnchor, target: &PickTarget) -> MatrixAnchor {
+    MatrixAnchor {
+        matrix_id: target.matrix_id.clone(),
+        row: target.row,
+        column: target.column,
+        follow: current.follow,
+        aggregate: None,
+    }
+}
+
+/// A fresh part anchor at `target` with full Follow.
+fn fresh_part_anchor(target: &PickTarget, follow: Follow) -> PartAnchor {
+    PartAnchor {
+        matrix_id: target.matrix_id.clone(),
+        row: target.row,
+        column: target.column,
+        follow,
+        spread: 0.0,
+        stagger: 0.0,
+        splay: 0.0,
+        offset: Vec2::default(),
+        rotation: 0.0,
+    }
+}
+
+/// The pick owner's live anchor; every consumer shares this owner-resolution match.
+enum OwnerAnchor<'a> {
+    Matrix {
+        matrix_id: &'a str,
+        anchor: &'a MatrixAnchor,
+    },
+    Part {
+        part_id: &'a str,
+        anchor: Option<&'a PartAnchor>,
+    },
+}
+
+fn owner_anchor<'a>(
+    document: &'a ProjectDoc,
+    selection: &'a TreeContext,
+) -> Option<OwnerAnchor<'a>> {
+    match selection {
+        TreeContext::Matrix { matrix_id } => {
+            let matrix = owner_matrix(document, matrix_id)?;
+            Some(OwnerAnchor::Matrix {
+                matrix_id,
+                anchor: matrix.anchor.as_ref()?,
+            })
+        }
+        TreeContext::Component {
+            part_id: Some(part_id),
+            matrix_id: None,
+            ..
+        } => {
+            let part = owner_part(document, part_id)?;
+            if part.locked == Some(true) {
+                return None;
+            }
+            if document
+                .matrices
+                .iter()
+                .any(|matrix| matrix.part_ids.contains(part_id))
+            {
+                return None;
+            }
+            Some(OwnerAnchor::Part {
+                part_id,
+                anchor: part.anchor.as_ref(),
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Project the pick candidates for `selection`. Returns `None` when the
 /// selection cannot arm pick mode (unanchored matrices, locked or
 /// member/companion parts, unknown owners). Key liveness reads the
@@ -95,19 +195,10 @@ pub fn anchor_pick_candidates(
         },
     }
 
-    // Resolve the owner and its current anchor target(s). Unanchored
-    // matrices, locked parts and matrix members/companions never arm.
-    let (owner, layout_id, anchored) = match selection {
-        TreeContext::Matrix { matrix_id } => {
-            let matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| &matrix.id == matrix_id)?;
-            let anchor = matrix.anchor.as_ref()?;
-            let layout = document
-                .layouts
-                .iter()
-                .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))?;
+    // Resolve the owner and its current anchor target(s) through the shared owner match.
+    let (owner, layout_id) = match owner_anchor(document, selection)? {
+        OwnerAnchor::Matrix { matrix_id, anchor } => {
+            let layout = layout_for_matrix(document, matrix_id)?;
             let current = anchor
                 .targets()
                 .into_iter()
@@ -115,50 +206,26 @@ pub fn anchor_pick_candidates(
                 .collect();
             (
                 Owner::Matrix {
-                    matrix_id: matrix_id.clone(),
+                    matrix_id: matrix_id.to_owned(),
                     current,
                 },
                 layout.id.clone(),
-                true,
             )
         }
-        TreeContext::Component {
-            part_id: Some(part_id),
-            matrix_id: None,
-            ..
-        } => {
-            let part = document.parts.iter().find(|part| &part.id == part_id)?;
-            if part.locked == Some(true) {
-                return None;
-            }
-            if document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.part_ids.contains(part_id))
-            {
-                return None;
-            }
-            let layout = document
-                .layouts
-                .iter()
-                .find(|layout| layout.part_ids.iter().any(|id| id == part_id))?;
-            let current = part
-                .anchor
+        OwnerAnchor::Part { part_id, anchor } => {
+            let layout = live_layout_for_part(document, part_id)?;
+            let current = anchor
                 .as_ref()
                 .map(|anchor| (anchor.matrix_id.clone(), anchor.row, anchor.column));
-            let anchored = current.is_some();
             (
                 Owner::Part {
-                    part_id: part_id.clone(),
+                    part_id: part_id.to_owned(),
                     current,
                 },
                 layout.id.clone(),
-                anchored,
             )
         }
-        _ => return None,
     };
-    let _ = anchored;
 
     let layout = document
         .layouts
@@ -178,11 +245,8 @@ pub fn anchor_pick_candidates(
             if !seen.insert(cursor.clone()) {
                 continue;
             }
-            if let Some(next) = document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == cursor)
-                .and_then(|matrix| matrix.anchor.as_ref())
+            if let Some(next) =
+                owner_matrix(document, &cursor).and_then(|matrix| matrix.anchor.as_ref())
             {
                 stack.extend(next.targets().iter().map(|part| part.matrix_id.clone()));
             }
@@ -198,11 +262,7 @@ pub fn anchor_pick_candidates(
 
     let mut keys = Vec::new();
     for matrix_id in &layout.matrix_ids {
-        let Some(target) = document
-            .matrices
-            .iter()
-            .find(|matrix| &matrix.id == matrix_id)
-        else {
+        let Some(target) = owner_matrix(document, matrix_id) else {
             continue;
         };
         let same_board = target
@@ -362,44 +422,26 @@ pub fn pick_commit(
         return None;
     }
     let new_anchor_label = anchor_key_label(document, &target.matrix_id, target.row, target.column);
-    match selection {
-        TreeContext::Matrix { matrix_id } => {
-            let matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| &matrix.id == matrix_id)?;
-            let current = matrix.anchor.as_ref()?;
+    match owner_anchor(document, selection)? {
+        OwnerAnchor::Matrix { matrix_id, anchor } => {
             let old_anchor_label =
-                anchor_key_label(document, &current.matrix_id, current.row, current.column);
+                anchor_key_label(document, &anchor.matrix_id, anchor.row, anchor.column);
             Some(PickCommit {
                 operation: EditOperation::SetMatrixAnchor {
-                    matrix_id: matrix_id.clone(),
-                    anchor: MatrixAnchor {
-                        matrix_id: target.matrix_id.clone(),
-                        row: target.row,
-                        column: target.column,
-                        follow: current.follow,
-                        aggregate: None,
-                    },
+                    matrix_id: matrix_id.to_owned(),
+                    anchor: retargeted_matrix_anchor(anchor, target),
                 },
                 item_label: matrix_display_name(document, matrix_id),
                 old_anchor_label,
                 new_anchor_label,
             })
         }
-        TreeContext::Component {
-            part_id: Some(part_id),
-            matrix_id: None,
-            ..
-        } => {
-            let part = document.parts.iter().find(|part| &part.id == part_id)?;
-            let follow = part
-                .anchor
+        OwnerAnchor::Part { part_id, anchor } => {
+            let follow = anchor
                 .as_ref()
                 .map(|anchor| anchor.follow)
                 .unwrap_or_else(full_follow);
-            let old_anchor_label = part
-                .anchor
+            let old_anchor_label = anchor
                 .as_ref()
                 .map(|anchor| {
                     anchor_key_label(document, &anchor.matrix_id, anchor.row, anchor.column)
@@ -407,25 +449,14 @@ pub fn pick_commit(
                 .unwrap_or_else(|| "half origin".to_owned());
             Some(PickCommit {
                 operation: EditOperation::SetPartAnchor {
-                    part_id: part_id.clone(),
-                    anchor: PartAnchor {
-                        matrix_id: target.matrix_id.clone(),
-                        row: target.row,
-                        column: target.column,
-                        follow,
-                        spread: 0.0,
-                        stagger: 0.0,
-                        splay: 0.0,
-                        offset: Vec2::default(),
-                        rotation: 0.0,
-                    },
+                    part_id: part_id.to_owned(),
+                    anchor: fresh_part_anchor(target, follow),
                 },
                 item_label: part_display_name(document, part_id),
                 old_anchor_label,
                 new_anchor_label,
             })
         }
-        _ => None,
     }
 }
 
@@ -436,32 +467,21 @@ pub fn anchor_is_target(
     selection: &TreeContext,
     target: &PickTarget,
 ) -> bool {
-    match selection {
-        TreeContext::Matrix { matrix_id } => document
-            .matrices
-            .iter()
-            .find(|matrix| &matrix.id == matrix_id)
-            .and_then(|matrix| matrix.anchor.as_ref())
-            .is_some_and(|anchor| {
-                anchor.aggregate.is_none()
-                    && anchor.matrix_id == target.matrix_id
-                    && anchor.row == target.row
-                    && anchor.column == target.column
-            }),
-        TreeContext::Component {
-            part_id: Some(part_id),
-            matrix_id: None,
+    match owner_anchor(document, selection) {
+        Some(OwnerAnchor::Matrix { anchor, .. }) => {
+            anchor.aggregate.is_none()
+                && anchor.matrix_id == target.matrix_id
+                && anchor.row == target.row
+                && anchor.column == target.column
+        }
+        Some(OwnerAnchor::Part {
+            anchor: Some(anchor),
             ..
-        } => document
-            .parts
-            .iter()
-            .find(|part| &part.id == part_id)
-            .and_then(|part| part.anchor.as_ref())
-            .is_some_and(|anchor| {
-                anchor.matrix_id == target.matrix_id
-                    && anchor.row == target.row
-                    && anchor.column == target.column
-            }),
+        }) => {
+            anchor.matrix_id == target.matrix_id
+                && anchor.row == target.row
+                && anchor.column == target.column
+        }
         _ => false,
     }
 }
@@ -502,13 +522,7 @@ pub fn preview_anchor_poses(
             let Some(current) = matrix.anchor.clone() else {
                 return Vec::new();
             };
-            matrix.anchor = Some(MatrixAnchor {
-                matrix_id: target.matrix_id.clone(),
-                row: target.row,
-                column: target.column,
-                follow: current.follow,
-                aggregate: None,
-            });
+            matrix.anchor = Some(retargeted_matrix_anchor(&current, target));
         }
         TreeContext::Component {
             part_id: Some(part_id),
@@ -525,17 +539,7 @@ pub fn preview_anchor_poses(
                     anchor.column = target.column;
                 }
                 None => {
-                    part.anchor = Some(PartAnchor {
-                        matrix_id: target.matrix_id.clone(),
-                        row: target.row,
-                        column: target.column,
-                        follow: full_follow(),
-                        spread: 0.0,
-                        stagger: 0.0,
-                        splay: 0.0,
-                        offset: Vec2::default(),
-                        rotation: 0.0,
-                    });
+                    part.anchor = Some(fresh_part_anchor(target, full_follow()));
                 }
             }
         }

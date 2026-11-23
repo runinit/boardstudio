@@ -142,14 +142,12 @@ pub fn PartsLibraryPanel(
                 div { role: "status", Callout { "No parts match this search." } }
             }
         }
-    } else if let Some(error) = catalogue.error {
-        rsx! {
-            Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
-        }
     } else {
-        rsx! {
-            div { role: "status", Spinner {} "Loading component catalogue…" }
-        }
+        catalogue_status(
+            catalogue.error,
+            "Component catalogue",
+            "Loading component catalogue…",
+        )
     };
 
     rsx! {

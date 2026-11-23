@@ -9,7 +9,7 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, future::Future, rc::Rc};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::File;
 
@@ -165,6 +165,74 @@ impl BoardReferenceContext {
             &self.owner,
         )
     }
+
+    /// Request context for a user-initiated board/model task.
+    fn for_request(
+        runtime: Rc<Runtime>,
+        workspace: Signal<Workspace>,
+        adapter: &super::SelectionAdapter,
+        owner: &super::LayoutOwnerIdentity,
+        generation: Signal<u64>,
+    ) -> Self {
+        Self::new(
+            runtime,
+            workspace,
+            adapter.clone(),
+            owner.clone(),
+            generation,
+            0,
+        )
+    }
+
+    /// Run `task` under the next request epoch (unless busy) and settle
+    /// busy/error via `on_ok`, keeping the `request_generation` epoch gating.
+    fn spawn_request<T: 'static, Fut: Future<Output = Result<T, String>> + 'static>(
+        mut self,
+        mut busy: Signal<bool>,
+        mut error: Signal<Option<String>>,
+        task: impl FnOnce(Self) -> Fut,
+        on_ok: impl FnOnce(&Self, T) + 'static,
+    ) {
+        if busy() {
+            return;
+        }
+        let epoch = (self.generation)().wrapping_add(1);
+        self.generation.set(epoch);
+        busy.set(true);
+        error.set(None);
+        self.request_generation = epoch;
+        let fut = task(self.clone());
+        spawn(async move {
+            let result = fut.await;
+            if (self.generation)() != epoch {
+                return;
+            }
+            busy.set(false);
+            match result {
+                Ok(value) => on_ok(&self, value),
+                Err(message) if !message.is_empty() => {
+                    error.set(Some(super::board_reference_effect::retryable_error(
+                        message,
+                        self.lineage_is_current(),
+                    )));
+                }
+                Err(_) => {}
+            }
+        });
+    }
+}
+
+/// Push `asset` onto the proposed document, rejecting identity collisions.
+fn push_unique_asset(
+    proposed: &mut boardstudio_model::model::ProjectDoc,
+    asset: Asset,
+    conflict: &str,
+) -> Result<(), String> {
+    if proposed.assets.iter().any(|current| current.id == asset.id) {
+        return Err(conflict.into());
+    }
+    proposed.assets.push(asset);
+    Ok(())
 }
 
 async fn discover_stored_paths(
@@ -267,10 +335,11 @@ async fn import_routed_board(
         .as_ref()
         .ok_or("Active board is unavailable.")?;
     let mut proposed = accepted.document.as_ref().clone();
-    if proposed.assets.iter().any(|current| current.id == asset.id) {
-        return Err("Could not allocate a unique routed-board asset identity.".into());
-    }
-    proposed.assets.push(asset);
+    push_unique_asset(
+        &mut proposed,
+        asset,
+        "Could not allocate a unique routed-board asset identity.",
+    )?;
     if let Some(reference) = reference {
         let existing = proposed
             .board_references
@@ -360,7 +429,9 @@ async fn attach_model_files(
         );
     }
     let mut proposed = accepted.document.as_ref().clone();
-    let mut imported_assets: Vec<(String, Asset)> = Vec::with_capacity(uploads.len());
+    // Staged attachments accumulate in the proposed document, so the helper
+    // rejects collisions with both saved and earlier staged assets.
+    let mut imported_assets: Vec<(String, String)> = Vec::with_capacity(uploads.len());
     for (path, file) in uploads.drain(..) {
         ctx.live_or("The project or board changed while model files were being attached.")?;
         let imported = read_model_file(file).await?;
@@ -370,25 +441,22 @@ async fn attach_model_files(
             .await
             .map_err(|error| format!("Could not store model asset: {error}"))?;
         ctx.live_or("The project or board changed while a model asset was stored.")?;
-        let id = crate::runtime::new_project_id()?;
-        if proposed.assets.iter().any(|asset| asset.id == id)
-            || imported_assets.iter().any(|(_, asset)| asset.id == id)
-        {
-            return Err("Could not allocate a unique model asset identity.".into());
-        }
-        imported_assets.push((
-            path,
-            Asset {
-                id,
-                name: imported.filename,
-                media_type: imported.media_type,
-                sha256: imported.sha256,
-                license: None,
-                source: None,
-            },
-        ));
+        let asset = Asset {
+            id: crate::runtime::new_project_id()?,
+            name: imported.filename,
+            media_type: imported.media_type,
+            sha256: imported.sha256,
+            license: None,
+            source: None,
+        };
+        push_unique_asset(
+            &mut proposed,
+            asset.clone(),
+            "Could not allocate a unique model asset identity.",
+        )?;
+        imported_assets.push((path, asset.id));
     }
-    for (path, asset) in imported_assets {
+    for (path, asset_id) in imported_assets {
         let Some(current) = proposed
             .board_references
             .iter_mut()
@@ -398,8 +466,7 @@ async fn attach_model_files(
                 "The routed-board reference changed before model attachment completed.".into(),
             );
         };
-        current.model_assets.insert(path, asset.id.clone());
-        proposed.assets.push(asset);
+        current.model_assets.insert(path, asset_id);
     }
     super::submit_board_reference_document(
         &ctx.runtime,
@@ -410,47 +477,8 @@ async fn attach_model_files(
     )
 }
 
-fn begin_request(
-    mut request_generation: Signal<u64>,
-    mut busy: Signal<bool>,
-    mut error: Signal<Option<String>>,
-) -> Option<u64> {
-    if busy() {
-        return None;
-    }
-    let next = request_generation().wrapping_add(1);
-    request_generation.set(next);
-    busy.set(true);
-    error.set(None);
-    Some(next)
-}
-
-fn settle_request<T>(
-    ctx: &BoardReferenceContext,
-    epoch: u64,
-    mut busy: Signal<bool>,
-    mut error: Signal<Option<String>>,
-    result: Result<T, String>,
-    on_ok: impl FnOnce(T),
-) {
-    if (ctx.generation)() != epoch {
-        return;
-    }
-    busy.set(false);
-    match result {
-        Ok(value) => on_ok(value),
-        Err(message) if !message.is_empty() => {
-            error.set(Some(super::board_reference_effect::retryable_error(
-                message,
-                ctx.lineage_is_current(),
-            )));
-        }
-        Err(_) => {}
-    }
-}
-
 fn begin_board_import(
-    mut ctx: BoardReferenceContext,
+    ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     file: File,
     busy: Signal<bool>,
@@ -458,28 +486,19 @@ fn begin_board_import(
     mut paths: Signal<Vec<String>>,
     mut paths_asset_id: Signal<Option<String>>,
 ) {
-    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
-        return;
-    };
-    ctx.request_generation = epoch;
-    spawn(async move {
-        let result = import_routed_board(&ctx, reference.as_ref(), file).await;
-        settle_request(
-            &ctx,
-            epoch,
-            busy,
-            error,
-            result,
-            |(asset_id, discovered)| {
-                paths.set(discovered);
-                paths_asset_id.set(Some(asset_id));
-            },
-        );
-    });
+    ctx.spawn_request(
+        busy,
+        error,
+        move |task_ctx| async move { import_routed_board(&task_ctx, reference.as_ref(), file).await },
+        move |_, (asset_id, discovered)| {
+            paths.set(discovered);
+            paths_asset_id.set(Some(asset_id));
+        },
+    );
 }
 
 fn begin_model_attachment(
-    mut ctx: BoardReferenceContext,
+    ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     paths: Vec<String>,
     attachment: ModelAttachment,
@@ -489,14 +508,14 @@ fn begin_model_attachment(
     let Some(reference) = reference else {
         return;
     };
-    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
-        return;
-    };
-    ctx.request_generation = epoch;
-    spawn(async move {
-        let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
-        settle_request(&ctx, epoch, busy, error, result, |()| {});
-    });
+    ctx.spawn_request(
+        busy,
+        error,
+        move |task_ctx| async move {
+            attach_model_files(&task_ctx, &reference, &paths, attachment).await
+        },
+        |_, ()| {},
+    );
 }
 
 #[component]
@@ -524,10 +543,9 @@ pub fn Editor(
         {
             let runtime = runtime.clone();
             let mut attempted_discovery = attempted_discovery;
-            let mut request_generation = request_generation;
-            let mut busy_signal = busy;
-            let mut error = error;
-            let workspace = workspace;
+            let busy_signal = busy;
+            let mut model_paths = model_paths;
+            let mut paths_asset_id = paths_asset_id;
             let adapter = adapter.clone();
             move |(reference, owner, disabled, already_busy, _retry)| {
                 let Some(reference) = reference.clone() else {
@@ -564,42 +582,25 @@ pub fn Editor(
                     return;
                 }
                 attempted_discovery.set(Some(attempt_key));
-                let epoch = request_generation().wrapping_add(1);
-                request_generation.set(epoch);
-                busy_signal.set(true);
-                error.set(None);
-                let ctx = BoardReferenceContext::new(
+                let ctx = BoardReferenceContext::for_request(
                     runtime.clone(),
                     workspace,
-                    adapter.clone(),
-                    owner.clone(),
+                    &adapter,
+                    &owner,
                     request_generation,
-                    epoch,
                 );
                 let source_asset_id = reference.asset_id.clone();
-                let mut busy_signal = busy_signal;
-                let mut error = error;
-                let mut model_paths = model_paths;
-                let mut paths_asset_id = paths_asset_id;
-                spawn(async move {
-                    let result = discover_stored_paths(&ctx, &reference).await;
-                    if (ctx.generation)() == epoch {
-                        busy_signal.set(false);
-                        match result {
-                            Ok(paths) if ctx.lineage_is_current() => {
-                                model_paths.set(paths);
-                                paths_asset_id.set(Some(source_asset_id));
-                            }
-                            Err(message) => {
-                                error.set(Some(super::board_reference_effect::retryable_error(
-                                    message,
-                                    ctx.lineage_is_current(),
-                                )))
-                            }
-                            _ => {}
+                ctx.spawn_request(
+                    busy_signal,
+                    error,
+                    move |task_ctx| async move { discover_stored_paths(&task_ctx, &reference).await },
+                    move |done_ctx, paths| {
+                        if done_ctx.lineage_is_current() {
+                            model_paths.set(paths);
+                            paths_asset_id.set(Some(source_asset_id));
                         }
-                    }
-                });
+                    },
+                );
             }
         },
     ));
@@ -637,13 +638,12 @@ pub fn Editor(
                 return;
             }
             begin_board_import(
-                BoardReferenceContext::new(
+                BoardReferenceContext::for_request(
                     runtime.clone(),
                     workspace,
-                    adapter.clone(),
-                    owner.clone(),
+                    &adapter,
+                    &owner,
                     request_generation,
-                    0,
                 ),
                 reference.clone(),
                 file,
@@ -664,13 +664,12 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                BoardReferenceContext::new(
+                BoardReferenceContext::for_request(
                     runtime.clone(),
                     workspace,
-                    adapter.clone(),
-                    owner.clone(),
+                    &adapter,
+                    &owner,
                     request_generation,
-                    0,
                 ),
                 reference.clone(),
                 model_paths(),
@@ -690,13 +689,12 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                BoardReferenceContext::new(
+                BoardReferenceContext::for_request(
                     runtime.clone(),
                     workspace,
-                    adapter.clone(),
-                    owner.clone(),
+                    &adapter,
+                    &owner,
                     request_generation,
-                    0,
                 ),
                 reference.clone(),
                 model_paths(),

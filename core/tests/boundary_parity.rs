@@ -1,7 +1,7 @@
 //! Records and verifies the golden request/reply transcript that the browser
-//! test (`web/tests/boundary_parity.rs`) must reproduce through the WASM
-//! exports. Set `BOUNDARY_BLESS=1` to rewrite the golden after an intended
-//! protocol change.
+//! test (`web/crates/host/src/boundary_parity.rs`) must reproduce on `wasm32`
+//! through the Rust entry points. Set `BOUNDARY_BLESS=1` to rewrite the golden
+//! after an intended protocol change.
 use std::path::PathBuf;
 
 use serde_json::Value;

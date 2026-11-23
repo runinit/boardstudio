@@ -7,7 +7,7 @@
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::json_string;
+use crate::generators::util::{json_string, kicad_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, KeycapParameters, License};
@@ -160,9 +160,8 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     );
 
-    let corner_marks = format!(
-        r####"
-    {e0}
+    const CORNER_MARKS: &str = r####"
+    
     (fp_line (start -7 -6) (end -7 -7) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
     (fp_line (start -7 7) (end -7 6) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
     (fp_line (start -7 7) (end -6 7) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
@@ -171,16 +170,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_line (start 7 -7) (end 6 -7) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
     (fp_line (start 7 -7) (end 7 -6) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
     (fp_line (start 7 6) (end 7 7) (stroke (width 0.15) (type solid)) (layer "Dwgs.User"))
-    "####,
-        e0 = ""
-    );
-
+    "####;
     let led_outline = format!(
         r####"
-    {e0}
+    
     {e1}
     "####,
-        e0 = "",
         e1 = if p.side() == "B" {
             "\r\n    (fp_rect (start -3.2 -6.3) (end 1.8 -4.05) (stroke (width 0.15) (type solid)) (fill none) (layer \"Dwgs.User\"))\r\n    ".to_string()
         } else {
@@ -188,23 +183,15 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         }
     );
 
-    let stem_outline = format!(
-        r####"
-    {e0}
+    const STEM_OUTLINE: &str = r####"
+    
     (fp_poly (pts (xy -0.525791 -3.207186) (xy -0.869467 -3.131537) (xy -1.202949 -3.019174) (xy -1.522327 -2.871414) (xy -1.823858 -2.689989) (xy -2.104005 -2.477027) (xy -2.359485 -2.235023) (xy -2.389234 -2.2) (xy -4.7 -2.2) (xy -4.7 2.2) (xy -2.389234 2.2) (xy -2.359485 2.235023) (xy -2.104005 2.477027) (xy -1.823858 2.689989) (xy -1.522327 2.871414) (xy -1.202949 3.019174) (xy -0.869467 3.131537) (xy -0.525791 3.207186) (xy -0.175951 3.245234) (xy 0 3.245234) (xy 0 2.845178) (xy -0.165713 2.845178) (xy -0.494897 2.806702) (xy -0.817389 2.73027) (xy -1.128827 2.616916) (xy -1.425 2.468172) (xy -1.701902 2.286051) (xy -1.955789 2.073015) (xy -2.183227 1.831945) (xy -2.38114 1.566101) (xy -2.546853 1.279078) (xy -2.678124 0.974757) (xy -2.773178 0.657255) (xy -2.830729 0.330865) (xy -2.85 0) (xy -2.830729 -0.330865) (xy -2.773178 -0.657255) (xy -2.678124 -0.974757) (xy -2.546853 -1.279078) (xy -2.38114 -1.566101) (xy -2.183227 -1.831945) (xy -1.955789 -2.073015) (xy -1.701902 -2.286051) (xy -1.425 -2.468172) (xy -1.128827 -2.616916) (xy -0.817389 -2.73027) (xy -0.494897 -2.806702) (xy -0.165713 -2.845178) (xy 0 -2.845178) (xy 0 -3.245234) (xy -0.175951 -3.245234)) (stroke (width 0.001) (type solid)) (fill solid) (layer "Dwgs.User"))
     (fp_poly (pts (xy 0.525791 -3.207186) (xy 0.869467 -3.131537) (xy 1.202949 -3.019174) (xy 1.522327 -2.871414) (xy 1.823858 -2.689989) (xy 2.104005 -2.477027) (xy 2.359485 -2.235023) (xy 2.389234 -2.2) (xy 4.7 -2.2) (xy 4.7 2.2) (xy 2.389234 2.2) (xy 2.359485 2.235023) (xy 2.104005 2.477027) (xy 1.823858 2.689989) (xy 1.522327 2.871414) (xy 1.202949 3.019174) (xy 0.869467 3.131537) (xy 0.525791 3.207186) (xy 0.175951 3.245234) (xy 0 3.245234) (xy 0 2.845178) (xy 0.165713 2.845178) (xy 0.494897 2.806702) (xy 0.817389 2.73027) (xy 1.128827 2.616916) (xy 1.425 2.468172) (xy 1.701902 2.286051) (xy 1.955789 2.073015) (xy 2.183227 1.831945) (xy 2.38114 1.566101) (xy 2.546853 1.279078) (xy 2.678124 0.974757) (xy 2.773178 0.657255) (xy 2.830729 0.330865) (xy 2.85 0) (xy 2.830729 -0.330865) (xy 2.773178 -0.657255) (xy 2.678124 -0.974757) (xy 2.546853 -1.279078) (xy 2.38114 -1.566101) (xy 2.183227 -1.831945) (xy 1.955789 -2.073015) (xy 1.701902 -2.286051) (xy 1.425 -2.468172) (xy 1.128827 -2.616916) (xy 0.817389 -2.73027) (xy 0.494897 -2.806702) (xy 0.165713 -2.845178) (xy 0 -2.845178) (xy 0 -3.245234) (xy 0.175951 -3.245234)) (stroke (width 0.001) (type solid)) (fill solid) (layer "Dwgs.User"))
-    "####,
-        e0 = ""
-    );
-
-    let stem_cross_outline = format!(
-        r####"
-    {e0}
+    "####;
+    const STEM_CROSS_OUTLINE: &str = r####"
+    
     (fp_poly (pts (xy -0.55 -0.55) (xy -0.55 -2) (xy 0.55 -2) (xy 0.55 -0.55) (xy 2 -0.55) (xy 2 0.55) (xy 0.55 0.55) (xy 0.55 2) (xy -0.55 2) (xy -0.55 0.55) (xy -2 0.55) (xy -2 -0.55)) (stroke (width 0) (type solid)) (fill solid) (layer "Dwgs.User"))
-    "####,
-        e0 = ""
-    );
-
+    "####;
     let keycap_marks = format!(
         r####"
     (fp_rect (start {e0} {e1}) (end {e2} {e3}) (layer "Dwgs.User") (stroke (width 0.15) (type solid)) (fill none))
@@ -215,8 +202,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e3 = n(-keycap_yo)
     );
 
-    let hotswap_fab_front = String::from(
-        r####"
+    const HOTSWAP_FAB_FRONT: &str = r####"
     (fp_line (start -6.65 6.525) (end -6.65 4.975) (stroke (width 0.001) (type solid)) (layer "F.Fab"))
     (fp_line (start -6.55 4.875) (end -5.025 4.875) (stroke (width 0.001) (type solid)) (layer "F.Fab"))
     (fp_line (start -5.025 4.875) (end -5.025 3.675) (stroke (width 0.001) (type solid)) (layer "F.Fab"))
@@ -257,11 +243,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_arc (start 8.45 5.475) (mid 8.420711 5.545711) (end 8.35 5.575) (stroke (width 0.001) (type solid)) (layer "F.Fab"))
     (fp_circle (center -2.6 5.75) (end -1.1 5.75) (stroke (width 0.001) (type solid)) (fill none) (layer "F.Fab"))
     (fp_circle (center 4.4 4.7) (end 5.9 4.7) (stroke (width 0.001) (type solid)) (fill none) (layer "F.Fab"))
-    "####,
-    );
+    "####;
 
-    let hotswap_fab_back = String::from(
-        r####"
+    const HOTSWAP_FAB_BACK: &str = r####"
     (fp_line (start -8.45 5.475) (end -8.45 3.925) (stroke (width 0.001) (type solid)) (layer "B.Fab"))
     (fp_line (start -8.35 3.825) (end -6.825 3.825) (stroke (width 0.001) (type solid)) (layer "B.Fab"))
     (fp_line (start -6.825 2.625) (end -6.825 3.825) (stroke (width 0.001) (type solid)) (layer "B.Fab"))
@@ -302,8 +286,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_arc (start 6.65 6.525) (mid 6.620711 6.595711) (end 6.55 6.625) (stroke (width 0.001) (type solid)) (layer "B.Fab"))
     (fp_circle (center -4.4 4.7) (end -2.85 4.7) (stroke (width 0.001) (type solid)) (fill none) (layer "B.Fab"))
     (fp_circle (center 2.6 5.75) (end 4.15 5.75) (stroke (width 0.001) (type solid)) (fill none) (layer "B.Fab"))
-    "####,
-    );
+    "####;
 
     let hotswap_silk_front = format!(
         r####"
@@ -520,76 +503,66 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e2 = p.net("to")
     );
 
-    let switch_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("switch_3dmodel_filename")),
-        e1 = n(model_offset[0]),
-        e2 = n(model_offset[1]),
-        e3 = n(model_offset[2]),
-        e4 = n(p.component("switch_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("switch_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("switch_3dmodel_xyz_scale", 2)),
-        e7 = n(model_rotation[0]),
-        e8 = n(model_rotation[1]),
-        e9 = n(model_rotation[2])
+    let switch_3dmodel = kicad_model(
+        p.text("switch_3dmodel_filename"),
+        model_offset,
+        [
+            p.component("switch_3dmodel_xyz_scale", 0),
+            p.component("switch_3dmodel_xyz_scale", 1),
+            p.component("switch_3dmodel_xyz_scale", 2),
+        ],
+        model_rotation,
+        "    ",
     );
 
-    let hotswap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(p.text("hotswap_3dmodel_filename")),
-        e1 = n(p.component("hotswap_3dmodel_xyz_offset", 0)),
-        e2 = n(p.component("hotswap_3dmodel_xyz_offset", 1)),
-        e3 = n(p.component("hotswap_3dmodel_xyz_offset", 2)),
-        e4 = n(p.component("hotswap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("hotswap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("hotswap_3dmodel_xyz_scale", 2)),
-        e7 = n(p.component("hotswap_3dmodel_xyz_rotation", 0)),
-        e8 = n(p.component("hotswap_3dmodel_xyz_rotation", 1)),
-        e9 = n(p.component("hotswap_3dmodel_xyz_rotation", 2))
+    let hotswap_3dmodel = kicad_model(
+        p.text("hotswap_3dmodel_filename"),
+        [
+            p.component("hotswap_3dmodel_xyz_offset", 0),
+            p.component("hotswap_3dmodel_xyz_offset", 1),
+            p.component("hotswap_3dmodel_xyz_offset", 2),
+        ],
+        [
+            p.component("hotswap_3dmodel_xyz_scale", 0),
+            p.component("hotswap_3dmodel_xyz_scale", 1),
+            p.component("hotswap_3dmodel_xyz_scale", 2),
+        ],
+        [
+            p.component("hotswap_3dmodel_xyz_rotation", 0),
+            p.component("hotswap_3dmodel_xyz_rotation", 1),
+            p.component("hotswap_3dmodel_xyz_rotation", 2),
+        ],
+        "\t  ",
     );
 
-    let keycap_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-	  "####,
-        e0 = json_string(p.text("keycap_3dmodel_filename")),
-        e1 = n(p.component("keycap_3dmodel_xyz_offset", 0)),
-        e2 = n(p.component("keycap_3dmodel_xyz_offset", 1)),
-        e3 = n(p.component("keycap_3dmodel_xyz_offset", 2)),
-        e4 = n(p.component("keycap_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("keycap_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("keycap_3dmodel_xyz_scale", 2)),
-        e7 = n(p.component("keycap_3dmodel_xyz_rotation", 0)),
-        e8 = n(p.component("keycap_3dmodel_xyz_rotation", 1)),
-        e9 = n(p.component("keycap_3dmodel_xyz_rotation", 2))
+    let keycap_3dmodel = kicad_model(
+        p.text("keycap_3dmodel_filename"),
+        [
+            p.component("keycap_3dmodel_xyz_offset", 0),
+            p.component("keycap_3dmodel_xyz_offset", 1),
+            p.component("keycap_3dmodel_xyz_offset", 2),
+        ],
+        [
+            p.component("keycap_3dmodel_xyz_scale", 0),
+            p.component("keycap_3dmodel_xyz_scale", 1),
+            p.component("keycap_3dmodel_xyz_scale", 2),
+        ],
+        [
+            p.component("keycap_3dmodel_xyz_rotation", 0),
+            p.component("keycap_3dmodel_xyz_rotation", 1),
+            p.component("keycap_3dmodel_xyz_rotation", 2),
+        ],
+        "\t  ",
     );
 
-    let common_bottom = String::from(
-        r####"
+    const COMMON_BOTTOM: &str = r####"
   )
-    "####,
-    );
+    "####;
 
     let (side, reversible) = (p.side(), p.flag("reversible"));
     let mut out = common_top;
     if p.flag("include_corner_marks") {
-        out += &corner_marks;
+        out += CORNER_MARKS;
     }
     if p.flag("include_keycap") {
         out += &keycap_marks;
@@ -598,8 +571,8 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         out += &led_outline;
     }
     if p.flag("include_stem_outline") {
-        out += &stem_outline;
-        out += &stem_cross_outline;
+        out += STEM_OUTLINE;
+        out += STEM_CROSS_OUTLINE;
     }
     if hotswap {
         if reversible || side == "F" {
@@ -608,7 +581,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
                 out += &hotswap_silk_front;
             }
             if p.flag("include_socket_fabs") {
-                out += &hotswap_fab_front;
+                out += HOTSWAP_FAB_FRONT;
             }
         }
         if reversible || side == "B" {
@@ -617,7 +590,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
                 out += &hotswap_silk_back;
             }
             if p.flag("include_socket_fabs") {
-                out += &hotswap_fab_back;
+                out += HOTSWAP_FAB_BACK;
             }
         }
         if !p.text("hotswap_3dmodel_filename").is_empty() {
@@ -646,6 +619,6 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     if !p.text("keycap_3dmodel_filename").is_empty() {
         out += &keycap_3dmodel;
     }
-    out += &common_bottom;
+    out += COMMON_BOTTOM;
     Ok(out)
 }

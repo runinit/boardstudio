@@ -1,14 +1,11 @@
 use boardstudio_core_kernel::generators;
 use boardstudio_core_kernel::hash::sha256_hex;
-use boardstudio_model::model::ProjectDoc;
-use boardstudio_model::model::{PartDefinition, PartKind};
+use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../catalogue/parts/imported-parts.json"
-));
+const IMPORTED_PARTS_JSON: &str =
+    include_str!(concat!(env!("OUT_DIR"), "/imported-parts.min.json"));
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CatalogueSource {
@@ -116,18 +113,13 @@ pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, Str
         .map(|part| part.definition)
         .collect::<Vec<_>>();
     let generated = generators::catalogue()?;
-    let supported = |definition| {
-        construction_definition_with_support(definition, reversible)
-            .map(|(definition, _)| definition)
+    let supported =
+        |definition| construction_definition_with_support(definition, reversible).map(|(d, _)| d);
+    let collect = |defs: Vec<PartDefinition>| -> Result<Vec<PartDefinition>, String> {
+        defs.into_iter().map(supported).collect()
     };
-    let generated = generated
-        .into_iter()
-        .map(supported)
-        .collect::<Result<Vec<_>, _>>()?;
-    let imported = imported
-        .into_iter()
-        .map(supported)
-        .collect::<Result<Vec<_>, _>>()?;
+    let generated = collect(generated)?;
+    let imported = collect(imported)?;
     let entries = Rc::new(merge_bundled_sources(&generated, &imported));
     BUNDLED_CACHE.with(|cache| {
         cache.borrow_mut().push(CachedCatalogue {
@@ -336,9 +328,9 @@ fn normalize_for_intent(intent: &crate::physical_setup::SetupIntent) -> SetupNor
     use crate::physical_setup::SetupIntent;
     match intent {
         SetupIntent::ReversibleLayout(_) => {
-            |definition, enabled| construction_definition_with_support(definition.clone(), enabled)
+            |d, e| construction_definition_with_support(d.clone(), e)
         }
-        _ => |definition, _| Ok((definition.clone(), false)),
+        _ => |d, _| Ok((d.clone(), false)),
     }
 }
 
@@ -627,7 +619,7 @@ mod tests {
     fn imported_source_hash_matches_the_bundled_source_digest() {
         assert_eq!(
             imported_parts_hash(),
-            "179742117905b66a465c54d454ee5d49b0622e62edcc532c5502ae18aeb459e1"
+            "f1a8cf2360df6683bc8e9a0203924eb94b665edfe6709f8309373c838427432c"
         );
     }
 

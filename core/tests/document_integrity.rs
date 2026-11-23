@@ -2,6 +2,10 @@
 //! exhaustion before any accepted state or history changes.
 use crate::support::fixture::{self, request, wire_open as open};
 use crate::support::query::{arr, empty_project};
+use crate::support::session::{
+    builders::{layout_record, unconstrained},
+    wire_commit_to, wire_snapshot_doc,
+};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
@@ -31,17 +35,15 @@ fn baseline() -> Value {
     document
 }
 
-fn snapshot(engine: &mut CoreEngine) -> Value {
-    fixture::wire_snapshot(engine, "snapshot")["document"].clone()
-}
-
 fn set_wiring(engine: &mut CoreEngine, id: &str, revision: u64, mode: &str) -> Value {
-    request(
+    wire_commit_to(
         engine,
-        json!({"kind":"edit","id":id,"command":{
-            "baseRevision":revision,"transactionId":id,"phase":"commit","targetIds":["board"],
-            "operation":{"kind":"set-wiring-mode","boardId":"board","mode":mode}
-        }}),
+        id,
+        revision,
+        &["board"],
+        json!({
+            "kind":"set-wiring-mode","boardId":"board","mode":mode
+        }),
     )
 }
 
@@ -76,14 +78,11 @@ fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     document["matrices"][0]["rowLayout"] = json!([
         {"shift": {"x": 3.0, "y": 0.0}, "bend": 90.0, "offset": {"x": 1.0, "y": 0.0}}
     ]);
-    document["layouts"] = json!([{
-        "id": "layout", "name": "Layout", "boardId": "board",
-        "matrixIds": ["matrix"], "partIds": []
-    }]);
+    document["layouts"] = json!([layout_record(&["matrix"])]);
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "grouped", &document);
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let saved = snapshot(&mut engine);
+    let saved = wire_snapshot_doc(&mut engine);
     assert_eq!(saved["formatVersion"], 8);
     assert_eq!(
         saved["matrices"][0]["columnLayout"],
@@ -108,20 +107,16 @@ fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     let mut old = document;
     old["formatVersion"] = json!(6);
     assert_error(&open(&mut engine, "old", &old));
-    assert_eq!(snapshot(&mut engine), saved);
+    assert_eq!(wire_snapshot_doc(&mut engine), saved);
 }
 
 #[test]
 fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically() {
-    let mut document = baseline();
-    document["constraints"] = json!([]);
-    document["layouts"] = json!([{
-        "id": "layout", "name": "Layout", "boardId": "board",
-        "matrixIds": ["matrix"], "partIds": []
-    }]);
+    let mut document = unconstrained(baseline());
+    document["layouts"] = json!([layout_record(&["matrix"])]);
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     for (field, value, reason) in [
         (
             "columnLayout",
@@ -157,7 +152,7 @@ fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically
         let mut invalid = document.clone();
         invalid["matrices"][0][field] = value;
         assert_refused(&open(&mut engine, "invalid-layout", &invalid), reason);
-        assert_eq!(snapshot(&mut engine), accepted);
+        assert_eq!(wire_snapshot_doc(&mut engine), accepted);
     }
     let mut empty = document;
     empty["layouts"][0]["matrixIds"] = json!([]);
@@ -165,14 +160,13 @@ fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically
         &open(&mut engine, "empty-layout", &empty),
         "Layout matrix membership must be nonempty",
     );
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
 fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
     for (enabled, deleted) in [(false, false), (true, true), (true, false)] {
-        let mut document = baseline();
-        document["constraints"] = json!([]);
+        let mut document = unconstrained(baseline());
         document["parts"] = json!([{
             "id": "matrix/matrix/r1c0", "definitionId": "def", "reference": "SW1",
             "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"
@@ -191,10 +185,7 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
             "definitionId": "def", "partIds": [],
             "anchor": {"matrixId": "matrix", "row": 0, "column": 0}
         }));
-        document["layouts"] = json!([{
-            "id": "layout", "name": "Layout", "boardId": "board",
-            "matrixIds": ["child", "matrix"], "partIds": []
-        }]);
+        document["layouts"] = json!([layout_record(&["child", "matrix"])]);
         let mut engine = CoreEngine::new();
         let reply = open(&mut engine, "carried", &document);
         assert_eq!(reply["kind"], "scene", "{reply}");
@@ -223,8 +214,7 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
 
 #[test]
 fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() {
-    let mut document = baseline();
-    document["constraints"] = json!([]);
+    let document = unconstrained(baseline());
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "start", &document)["kind"], "scene");
     let mut matrix = document["matrices"][0].clone();
@@ -277,8 +267,7 @@ fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() 
 
 #[test]
 fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records() {
-    let mut document = baseline();
-    document["constraints"] = json!([]);
+    let mut document = unconstrained(baseline());
     document["parameters"]["unrelated"] = json!({"keep": [1, 2, 3]});
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "steps", &document)["kind"], "scene");
@@ -363,7 +352,7 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
             json!({"kind":"set-wiring-mode","boardId":"board","mode":"direct"}),
         );
         assert_eq!(committed["kind"], "scene", "{committed}");
-        let accepted = snapshot(&mut engine);
+        let accepted = wire_snapshot_doc(&mut engine);
         for (version, explanation) in [
             (
                 json!(CURRENT_VERSION - 1),
@@ -392,7 +381,11 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
             assert_error(&reply);
             let message = reply["message"].as_str().unwrap();
             assert!(message.contains(explanation), "{route}: {message}");
-            assert_eq!(snapshot(&mut engine), accepted, "{route} changed state");
+            assert_eq!(
+                wire_snapshot_doc(&mut engine),
+                accepted,
+                "{route} changed state"
+            );
         }
         assert_eq!(
             request(&mut engine, json!({"kind":"undo","id":"undo"}))["kind"],
@@ -412,7 +405,7 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
     for route in ["open", "replace"] {
         let mut engine = CoreEngine::new();
         assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
-        let accepted = snapshot(&mut engine);
+        let accepted = wire_snapshot_doc(&mut engine);
         let mut cases: Vec<(Value, &str)> = Vec::new();
         let mut missing = baseline();
         missing.as_object_mut().unwrap().remove("formatVersion");
@@ -445,7 +438,11 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
                 message.contains(explanation),
                 "{route} {candidate}: {message}"
             );
-            assert_eq!(snapshot(&mut engine), accepted, "{route} changed state");
+            assert_eq!(
+                wire_snapshot_doc(&mut engine),
+                accepted,
+                "{route} changed state"
+            );
         }
     }
 }
@@ -454,11 +451,15 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
 fn malformed_json_text_is_refused_without_changing_accepted_state() {
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     for text in ["{not json", "{\"kind\":\"open\",\"document\":{\"format\":"] {
         let reply: Value = serde_json::from_str(&engine.request(text)).unwrap();
         assert_error(&reply);
-        assert_eq!(snapshot(&mut engine), accepted, "{text} changed state");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine),
+            accepted,
+            "{text} changed state"
+        );
     }
 }
 
@@ -477,10 +478,14 @@ fn duplicate_identity_is_rejected_on_open_and_replacement() {
         let mut engine = CoreEngine::new();
         let reply = open(&mut engine, "duplicate", &candidate);
         assert_refused(&reply, "Duplicate");
-        assert_eq!(snapshot(&mut engine)["revision"], 0, "{collection}");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine)["revision"],
+            0,
+            "{collection}"
+        );
 
         assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
-        let accepted = snapshot(&mut engine);
+        let accepted = wire_snapshot_doc(&mut engine);
         candidate["revision"] = accepted["revision"].clone();
         let reply = fixture::wire_commit(
             &mut engine,
@@ -490,25 +495,28 @@ fn duplicate_identity_is_rejected_on_open_and_replacement() {
             json!({"kind":"replace-document","document":candidate}),
         );
         assert_refused(&reply, "Duplicate");
-        assert_eq!(snapshot(&mut engine), accepted, "{collection} state moved");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine),
+            accepted,
+            "{collection} state moved"
+        );
     }
 }
 
 #[test]
 fn unique_identities_still_open_and_move_parts() {
     let mut engine = CoreEngine::new();
-    let mut document = baseline();
-    document["constraints"] = json!([]);
+    let document = unconstrained(baseline());
     assert_eq!(open(&mut engine, "open", &document)["kind"], "scene");
-    let moved = request(
+    let moved = wire_commit_to(
         &mut engine,
+        "move",
+        0,
+        &["b"],
         json!({
-            "kind":"edit","id":"move","command":{
-                "baseRevision":0,"transactionId":"move","phase":"commit","targetIds":["b"],
-                "operation":{"kind":"move-parts","positions":[
-                    {"id":"a","at":{"x":5,"y":6}},{"id":"b","at":{"x":24,"y":6}}
-                ]}
-            }
+            "kind":"move-parts","positions":[
+                {"id":"a","at":{"x":5,"y":6}},{"id":"b","at":{"x":24,"y":6}}
+            ]
         }),
     );
     assert_eq!(moved["kind"], "scene");
@@ -520,13 +528,13 @@ fn unique_identities_still_open_and_move_parts() {
 fn max_revision_open_is_rejected_without_replacing_the_accepted_document() {
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
 
     let mut exhausted = baseline();
     exhausted["revision"] = json!(u64::MAX);
     let reply = open(&mut engine, "exhausted", &exhausted);
     assert_refused(&reply, "revision is exhausted");
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
@@ -539,12 +547,12 @@ fn max_minus_one_advances_to_max_then_refuses_the_next_advance_atomically() {
     let at_max = set_wiring(&mut engine, "advance", u64::MAX - 1, "direct");
     assert_eq!(at_max["kind"], "scene");
     assert_eq!(at_max["scene"]["revision"], u64::MAX);
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     assert_eq!(accepted["revision"], u64::MAX);
 
     let refused = set_wiring(&mut engine, "refused", u64::MAX, "matrix");
     assert_refused(&refused, "revision is exhausted");
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
@@ -561,13 +569,17 @@ fn max_revision_undo_and_redo_are_refused_with_their_history_intact() {
             committed
         };
         assert_eq!(at_max["scene"]["revision"], u64::MAX);
-        let accepted = snapshot(&mut engine);
+        let accepted = wire_snapshot_doc(&mut engine);
         let reply = request(
             &mut engine,
             json!({"kind":exhausted_operation,"id":exhausted_operation}),
         );
         assert_refused(&reply, "revision is exhausted");
-        assert_eq!(snapshot(&mut engine), accepted, "{exhausted_operation}");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine),
+            accepted,
+            "{exhausted_operation}"
+        );
     }
 }
 
@@ -586,7 +598,7 @@ fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
 
     let committed = set_wiring(&mut engine, "commit", u64::MAX - 1, "direct");
     assert_eq!(committed["scene"]["revision"], u64::MAX);
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     assert_eq!(
         accepted["hardware"]["boards"][0]["protectedHandoff"]["fingerprint"],
         "reviewed-fingerprint"
@@ -600,7 +612,7 @@ fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
         }),
     );
     assert_refused(&refused, "revision is exhausted");
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
@@ -616,7 +628,7 @@ fn refused_open_preserves_nonempty_history() {
     duplicate(&mut duplicate_parts, "parts");
     assert_error(&open(&mut engine, "duplicate", &duplicate_parts));
 
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     assert_eq!(accepted["revision"], 1);
     let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
     assert_eq!(undone["kind"], "scene");
@@ -625,8 +637,7 @@ fn refused_open_preserves_nonempty_history() {
 }
 
 fn two_matrix_document() -> Value {
-    let mut document = baseline();
-    document["constraints"] = json!([]);
+    let mut document = unconstrained(baseline());
     document["parts"].as_array_mut().unwrap().push(json!(
         {"id":"c","definitionId":"def","reference":"SW3","pose":{"at":{"x":0,"y":-19},"rotation":0},"side":"front"}
     ));
@@ -635,10 +646,7 @@ fn two_matrix_document() -> Value {
         "id":"second","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":-19},
         "definitionId":"def","partIds":["c"],"boardId":"board"
     }));
-    document["layouts"] = json!([{
-        "id": "layout", "name": "Layout", "boardId": "board",
-        "matrixIds": ["matrix", "second"], "partIds": []
-    }]);
+    document["layouts"] = json!([layout_record(&["matrix", "second"])]);
     document
 }
 
@@ -651,14 +659,14 @@ fn zero_and_negative_steps_are_accepted_while_axis_zero_steps_are_refused() {
     assert_eq!(open(&mut engine, "negative", &valid)["kind"], "scene");
     valid["matrices"][0]["columnLayout"] = json!([{}, {"spread": 0.0}]);
     assert_eq!(open(&mut engine, "zero", &valid)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let mut axis_zero = valid.clone();
     axis_zero["matrices"][0]["columnLayout"] = json!([{"spread": 3.0}]);
     assert_refused(
         &open(&mut engine, "axis-zero", &axis_zero),
         "no Spread or Padding at axis zero",
     );
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 #[test]
@@ -667,7 +675,7 @@ fn anchors_must_resolve_to_an_in_range_key_in_the_same_layout() {
     let mut valid = two_matrix_document();
     valid["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
     assert_eq!(open(&mut engine, "valid", &valid)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let mut cases = Vec::new();
     let mut out_of_range = valid.clone();
     out_of_range["matrices"][1]["anchor"]["column"] = json!(2);
@@ -707,7 +715,7 @@ fn anchors_must_resolve_to_an_in_range_key_in_the_same_layout() {
     ));
     for (name, case, reason) in cases {
         assert_refused(&open(&mut engine, name, &case), reason);
-        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+        assert_eq!(wire_snapshot_doc(&mut engine), accepted, "{name}");
     }
 }
 
@@ -728,7 +736,7 @@ fn non_finite_evaluated_layouts_and_empty_ownership_are_refused() {
     let mut engine = CoreEngine::new();
     let valid = two_matrix_document();
     assert_eq!(open(&mut engine, "valid", &valid)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let mut overflow = valid.clone();
     overflow["matrices"][0]["columnLayout"] =
         json!([{}, {"offset": {"x": 1e308, "y": 0.0}, "stagger": 1e308}]);
@@ -764,7 +772,7 @@ fn non_finite_evaluated_layouts_and_empty_ownership_are_refused() {
         ),
     ] {
         assert_refused(&open(&mut engine, name, &case), reason);
-        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+        assert_eq!(wire_snapshot_doc(&mut engine), accepted, "{name}");
     }
 }
 
@@ -779,7 +787,7 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
     document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
     let opened = open(&mut engine, "valid", &document);
     assert_eq!(opened["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let laid_out = arr(&opened["scene"]["matrixScenes"])
         .iter()
         .find(|scene| scene["matrixId"] == "second")
@@ -792,7 +800,7 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
     // refusing. The anchor never retargets the new key at the old coordinate.
     let reply = edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":shrunk}));
     assert_eq!(reply["kind"], "scene", "{reply}");
-    let detached = snapshot(&mut engine);
+    let detached = wire_snapshot_doc(&mut engine);
     assert_eq!(detached["matrices"][1]["anchor"], json!(null));
     assert_eq!(
         detached["matrices"][1]["origin"],
@@ -815,7 +823,7 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
         ),
         "anchor target missing is missing",
     );
-    assert_eq!(snapshot(&mut engine), detached);
+    assert_eq!(wire_snapshot_doc(&mut engine), detached);
 }
 
 #[test]
@@ -861,7 +869,7 @@ fn anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused() {
     let mut document = two_matrix_document();
     document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
     assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let mut constrained = document.clone();
     for (old, new) in [
         ("a", "matrix/matrix/r0c0"),
@@ -903,7 +911,7 @@ fn anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused() {
         ),
     ] {
         assert_refused(&open(&mut engine, name, &case), reason);
-        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+        assert_eq!(wire_snapshot_doc(&mut engine), accepted, "{name}");
     }
 }
 
@@ -930,13 +938,17 @@ fn oversized_matrices_are_refused_atomically_on_open_edit_and_draft_projection()
     for (rows, columns) in [(u32::MAX, 2), (1, u32::MAX), (ONE_OVER_PART_LIMIT, 1)] {
         let mut engine = CoreEngine::new();
         assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-        let accepted = snapshot(&mut engine);
+        let accepted = wire_snapshot_doc(&mut engine);
         let oversized = with_dimensions(&document, rows, columns);
         assert_refused(
             &open(&mut engine, "oversized", &oversized),
             DIMENSION_REFUSAL,
         );
-        assert_eq!(snapshot(&mut engine), accepted, "open {rows}x{columns}");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine),
+            accepted,
+            "open {rows}x{columns}"
+        );
 
         let mut matrix = accepted["matrices"][0].clone();
         matrix["rows"] = json!(rows);
@@ -948,7 +960,7 @@ fn oversized_matrices_are_refused_atomically_on_open_edit_and_draft_projection()
         );
         assert_refused(&reply, DIMENSION_REFUSAL);
         assert_eq!(
-            snapshot(&mut engine),
+            wire_snapshot_doc(&mut engine),
             accepted,
             "set-matrix {rows}x{columns}"
         );
@@ -958,7 +970,11 @@ fn oversized_matrices_are_refused_atomically_on_open_edit_and_draft_projection()
         );
         // The golden transcript pins the kernel's wording for draft projections.
         assert_refused(&reply, "invalid matrix dimensions");
-        assert_eq!(snapshot(&mut engine), accepted, "project {rows}x{columns}");
+        assert_eq!(
+            wire_snapshot_doc(&mut engine),
+            accepted,
+            "project {rows}x{columns}"
+        );
     }
 }
 
@@ -968,7 +984,7 @@ fn cells_beyond_the_matrix_dimensions_are_refused_by_set_matrix() {
     let mut engine = CoreEngine::new();
     let document = anchored_document();
     assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
-    let accepted = snapshot(&mut engine);
+    let accepted = wire_snapshot_doc(&mut engine);
     let mut matrix = accepted["matrices"][1].clone();
     matrix["cells"] = json!([
         {"row":0,"column":0,"enabled":true},
@@ -976,5 +992,5 @@ fn cells_beyond_the_matrix_dimensions_are_refused_by_set_matrix() {
     ]);
     let reply = edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":matrix}));
     assert_refused(&reply, "Matrix cells exceed dimensions");
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }

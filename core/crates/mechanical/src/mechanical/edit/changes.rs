@@ -1,10 +1,10 @@
 //! Default configurations and application of one typed mechanical change.
-
 use super::super::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension,
     MechanicalHardwareTextField, MechanicalMountCollection,
 };
 use super::super::inferred_switch_family;
+use super::validation::validate_gasket_anchor_selection;
 use super::{
     IdentityFloor, ProfileTargetKind, closure_hardware_mut, critical_fit_mut,
     family_assignment_changes, hardware_mut, identity_index_for, initial_switch_family,
@@ -16,7 +16,36 @@ use super::{
     validate_profile_target,
 };
 use crate::model::*;
-
+fn upsert_gasket_anchors(
+    configuration: &mut MechanicalConfiguration,
+    support_id: &str,
+    anchors: &[MechanicalGasketAnchor],
+    mutate: impl Fn(&mut MechanicalGasketAnchor),
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    if configuration.mount != MechanicalMount::Gasket {
+        return Err("The current configuration no longer contains gasket supports.".into());
+    }
+    let layout = configuration
+        .gasket_layout
+        .get_or_insert_with(crate::mechanical::default_gasket_layout);
+    for source in anchors {
+        let mut anchor = source.clone();
+        mutate(&mut anchor);
+        anchor.placement = Some(GasketPlacement::User);
+        if let Some(existing) = layout
+            .supports
+            .iter_mut()
+            .find(|entry| entry.id == anchor.id)
+        {
+            *existing = anchor;
+        } else {
+            layout.supports.push(anchor);
+        }
+    }
+    changed.push(support_id.to_owned());
+    Ok(())
+}
 fn remove_item<T>(
     items: Option<&mut Vec<T>>,
     matches: impl FnMut(&T) -> bool,
@@ -862,101 +891,39 @@ pub(super) fn apply_change(
                 return Err("The selected gasket field is unavailable.".into());
             }
             validate_dimension(*field, *value)?;
-            if support_id.is_empty()
-                || anchors.is_empty()
-                || anchors.len() > 2
-                || !anchors.iter().any(|anchor| anchor.id == *support_id)
-            {
-                return Err("The selected gasket support is no longer available.".into());
-            }
-            let mut ids = std::collections::HashSet::new();
-            if anchors
-                .iter()
-                .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
-            {
-                return Err("The linked gasket support selection is invalid.".into());
-            }
-            if configuration.mount != MechanicalMount::Gasket {
-                return Err("The current configuration no longer contains gasket supports.".into());
-            }
-            let layout = configuration
-                .gasket_layout
-                .get_or_insert_with(crate::mechanical::default_gasket_layout);
-            for source in anchors {
-                let mut anchor = source.clone();
-                if *field == MechanicalDimension::GasketSupportLength {
-                    anchor.length = Some(*value);
-                } else {
-                    anchor.width = Some(*value);
-                }
-                anchor.placement = Some(GasketPlacement::User);
-                if let Some(existing) = layout
-                    .supports
-                    .iter_mut()
-                    .find(|entry| entry.id == anchor.id)
-                {
-                    *existing = anchor;
-                } else {
-                    layout.supports.push(anchor);
-                }
-            }
-            changed.push(support_id.clone());
+            validate_gasket_anchor_selection(support_id, anchors, true)?;
+            let is_length = *field == MechanicalDimension::GasketSupportLength;
+            upsert_gasket_anchors(
+                configuration,
+                support_id,
+                anchors,
+                |anchor| {
+                    if is_length {
+                        anchor.length = Some(*value);
+                    } else {
+                        anchor.width = Some(*value);
+                    }
+                },
+                changed,
+            )?;
         }
         MechanicalChange::SetGasketSupportPlacement {
             support_id,
             anchors,
         } => {
-            if support_id.is_empty()
-                || anchors.is_empty()
-                || anchors.len() > 2
-                || !anchors.iter().any(|anchor| anchor.id == *support_id)
-            {
-                return Err("The selected gasket support is no longer available.".into());
-            }
+            validate_gasket_anchor_selection(support_id, anchors, false)?;
             validate_gasket_support_anchors(anchors)?;
-            if configuration.mount != MechanicalMount::Gasket {
-                return Err("The current configuration no longer contains gasket supports.".into());
-            }
-            let layout = configuration
-                .gasket_layout
-                .get_or_insert_with(crate::mechanical::default_gasket_layout);
-            for source in anchors {
-                let mut anchor = source.clone();
-                anchor.placement = Some(GasketPlacement::User);
-                if let Some(existing) = layout
-                    .supports
-                    .iter_mut()
-                    .find(|entry| entry.id == anchor.id)
-                {
-                    *existing = anchor;
-                } else {
-                    layout.supports.push(anchor);
-                }
-            }
-            changed.push(support_id.clone());
+            upsert_gasket_anchors(configuration, support_id, anchors, |_| {}, changed)?;
         }
         MechanicalChange::SetGasketSupportUnlinked {
             support_id,
             pair_id,
             anchors,
         } => {
-            if support_id.is_empty()
-                || anchors.is_empty()
-                || anchors.len() > 2
-                || !anchors.iter().any(|anchor| anchor.id == *support_id)
-            {
-                return Err("The selected gasket support is no longer available.".into());
-            }
-            let mut ids = std::collections::HashSet::new();
-            if anchors
-                .iter()
-                .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
-            {
-                return Err("The linked gasket support selection is invalid.".into());
-            }
+            validate_gasket_anchor_selection(support_id, anchors, true)?;
             let pair_is_present = pair_id
                 .as_ref()
-                .is_some_and(|pair_id| ids.contains(pair_id));
+                .is_some_and(|pair| anchors.iter().any(|anchor| anchor.id == *pair));
             if pair_id.as_deref() == Some(support_id.as_str())
                 || pair_id.is_some() != pair_is_present
                 || anchors.len() != if pair_id.is_some() { 2 } else { 1 }
@@ -970,27 +937,13 @@ pub(super) fn apply_change(
             {
                 return Err("The selected gasket support is already unlinked.".into());
             }
-            if configuration.mount != MechanicalMount::Gasket {
-                return Err("The current configuration no longer contains gasket supports.".into());
-            }
-            let layout = configuration
-                .gasket_layout
-                .get_or_insert_with(crate::mechanical::default_gasket_layout);
-            for source in anchors {
-                let mut anchor = source.clone();
-                anchor.unlinked = true;
-                anchor.placement = Some(GasketPlacement::User);
-                if let Some(existing) = layout
-                    .supports
-                    .iter_mut()
-                    .find(|entry| entry.id == anchor.id)
-                {
-                    *existing = anchor;
-                } else {
-                    layout.supports.push(anchor);
-                }
-            }
-            changed.push(support_id.clone());
+            upsert_gasket_anchors(
+                configuration,
+                support_id,
+                anchors,
+                |anchor| anchor.unlinked = true,
+                changed,
+            )?;
         }
         MechanicalChange::ResetGasketPlacement => {
             if configuration.mount != MechanicalMount::Gasket

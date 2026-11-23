@@ -916,10 +916,9 @@ pub(super) fn generate(
                 };
             let master_support = result.gasket_supports[master].clone();
             let follower_support = result.gasket_supports[follower].clone();
-            let reflected = Vec2 {
-                x: 2. * link.axis_x - master_support.at.x,
-                y: master_support.at.y,
-            };
+            // Internal tabs require a bounded capture fraction and resolve toward
+            // the user-pinned master; outer shells clamp and snap to nearest instead.
+            let reflected = reflect_x(master_support.at, link.axis_x);
             if follower_support.placement == Some(GasketPlacement::User)
                 && distance(reflected, follower_support.at) > 0.001
             {
@@ -939,13 +938,18 @@ pub(super) fn generate(
                 candidates: vec![],
                 tracks,
             };
-            let candidate=region.tracks.iter().filter_map(|track|{
-                let dx=track.end.x-track.start.x;let dy=track.end.y-track.start.y;
-                let fraction=((reflected.x-track.start.x)*dx+(reflected.y-track.start.y)*dy)/(dx*dx+dy*dy);
-                if !(0. ..=1.).contains(&fraction) {return None;}
-                on_track(&region,track.start_anchor+fraction*(track.end_anchor-track.start_anchor))
-                    .filter(|c|distance(c.at,reflected)<0.001)
-            }).next().ok_or_else(||format!("Linked support {} does not fit its reflected capture track; move or unlink it.",follower_support.id))?;
+            let candidate = region
+                .tracks
+                .iter()
+                .filter_map(|track| {
+                    let fraction = track_fraction(track, reflected);
+                    if !(0. ..=1.).contains(&fraction) {
+                        return None;
+                    }
+                    mirrored_candidate(&region, track, reflected, fraction)
+                })
+                .next()
+                .ok_or_else(||format!("Linked support {} does not fit its reflected capture track; move or unlink it.",follower_support.id))?;
             let conflict = !valid_support(&candidate, master_support.length, master_support.width);
             let support = &mut result.gasket_supports[follower];
             support.length = master_support.length;
@@ -955,15 +959,9 @@ pub(super) fn generate(
             } else {
                 master_support.fit_error.clone()
             };
-            support.at = candidate.at;
-            support.anchor = candidate.anchor;
-            support.tangent = candidate.tangent;
-            support.normal = candidate.normal;
+            apply_mirrored_placement(support, &candidate);
             support.placement = master_support.placement.clone();
-            support.pair_id = Some(master_support.id.clone());
-            support.mirror_axis = Some(link.axis_x);
-            result.gasket_supports[master].pair_id = Some(follower_support.id.clone());
-            result.gasket_supports[master].mirror_axis = Some(link.axis_x);
+            link_mirror_pair(&mut result.gasket_supports, master, follower, link.axis_x);
             *chosen
                 .iter_mut()
                 .find(|(id, _, _, _)| *id == follower_support.id)

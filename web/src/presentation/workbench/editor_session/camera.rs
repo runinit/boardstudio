@@ -105,10 +105,10 @@ pub(in crate::presentation) fn session_show_position_inspector(
     selected_tree_context: Option<&objects::ScopedTreeContext>,
 ) -> bool {
     selected_tree_context.is_none_or(|selected| {
-        let resolved = selection::resolve_context(model, &selected.context);
-        resolved.is_some_and(|ids| {
-            ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
-        }) && matches!(&selected.context, objects::TreeContext::Component { .. })
+        super::super::super::workspace_composition::selection_is_single_component(
+            model,
+            &selected.context,
+        )
     })
 }
 
@@ -341,107 +341,75 @@ pub(in crate::presentation) fn footer_bounds(input: FooterBoundsInput<'_>) -> Fo
     }
 }
 
-pub(in crate::presentation) fn on_fit_keymap_board_handler(
-    layout_owner: LayoutOwnerIdentity,
-    runtime: Rc<Runtime>,
-    workspace: Signal<Workspace>,
-    adapter: SelectionAdapter,
-    svg: Rc<RefCell<Option<SvgElement>>>,
-    footer_board_bounds: Option<(f64, f64, f64, f64)>,
-    footer_camera_bounds: (f64, f64, f64, f64),
-) -> EventHandler<()> {
-    let footer_owner = layout_owner.clone();
-    let footer_svg = svg.clone();
-    let footer_runtime = runtime.clone();
-    let footer_workspace = workspace;
-    let footer_adapter = adapter.clone();
-    EventHandler::new(move |_| {
-        if current_layout_owner(&footer_runtime, footer_workspace, &footer_adapter) != footer_owner
-        {
-            return;
-        }
-        let current = footer_runtime.model();
-        let Some(scope) = footer_owner.scope.as_ref() else {
-            return;
-        };
-        if !active_board_scope_matches(&current, scope) {
-            return;
-        }
-        let target_bounds = footer_board_bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0));
-        let svg_ref = footer_svg.borrow();
-        let Some(surface) = svg_ref.as_ref() else {
-            return;
-        };
-        let rect = surface.get_bounding_client_rect();
-        let Some(camera) = keymap::fit_camera(
-            footer_camera_bounds,
-            target_bounds,
-            (rect.width(), rect.height()),
-            keymap_toolbar_height(),
-        ) else {
-            return;
-        };
-        footer_runtime.submit(Event::SetCamera {
-            operation_id: footer_runtime.operation(),
-            center: camera.center,
-            zoom: camera.zoom,
-        });
-    })
+/// Which target a Fit camera action frames: the whole board (falling back to
+/// the default board bounds) or the current selection (skipped when gone).
+pub(in crate::presentation) enum FitKeymapTarget {
+    Board {
+        board_bounds: Option<(f64, f64, f64, f64)>,
+    },
+    Selection {
+        selection_ids: Vec<String>,
+        selection_bounds: Option<(f64, f64, f64, f64)>,
+    },
 }
 
-pub(in crate::presentation) struct OnFitKeymapSelectionInput {
+pub(in crate::presentation) struct FitKeymapCameraInput {
     pub layout_owner: LayoutOwnerIdentity,
     pub runtime: Rc<Runtime>,
     pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub footer_camera_bounds: (f64, f64, f64, f64),
-    pub selection_ids: Vec<String>,
-    pub footer_selection_bounds: Option<(f64, f64, f64, f64)>,
+    pub canvas_bounds: (f64, f64, f64, f64),
+    pub target: FitKeymapTarget,
 }
 
-pub(in crate::presentation) fn on_fit_keymap_selection_handler(
-    input: OnFitKeymapSelectionInput,
+/// Shared Fit-board / Fit-selection camera handler: owner and board currency,
+/// the selection-identity check for the selection target, then one
+/// `keymap::fit_camera` solve.
+pub(in crate::presentation) fn fit_keymap_camera_handler(
+    input: FitKeymapCameraInput,
 ) -> EventHandler<()> {
-    let OnFitKeymapSelectionInput {
+    let FitKeymapCameraInput {
         layout_owner,
         runtime,
         workspace,
         adapter,
         svg,
-        footer_camera_bounds,
-        selection_ids,
-        footer_selection_bounds,
+        canvas_bounds,
+        target,
     } = input;
-    let selection_owner = layout_owner.clone();
-    let selection_runtime = runtime.clone();
-    let selection_workspace = workspace;
-    let selection_adapter = adapter.clone();
-    let selection_svg = svg.clone();
-    let selection_canvas_bounds = Some(footer_camera_bounds);
+    let owner = layout_owner.clone();
+    let camera_runtime = runtime.clone();
     EventHandler::new(move |_| {
-        if current_layout_owner(&selection_runtime, selection_workspace, &selection_adapter)
-            != selection_owner
+        if current_layout_owner(&camera_runtime, workspace, &adapter) != owner {
+            return;
+        }
+        let current = camera_runtime.model();
+        if let FitKeymapTarget::Selection { selection_ids, .. } = &target
+            && current.selected_part_ids != *selection_ids
         {
             return;
         }
-        let current = selection_runtime.model();
-        if current.selected_part_ids != selection_ids {
-            return;
-        }
-        let Some(scope) = selection_owner.scope.as_ref() else {
+        let Some(scope) = owner.scope.as_ref() else {
             return;
         };
         if !active_board_scope_matches(&current, scope) {
             return;
         }
-        let Some(target_bounds) = footer_selection_bounds else {
-            return;
+        let target_bounds = match &target {
+            FitKeymapTarget::Board { board_bounds } => {
+                board_bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0))
+            }
+            FitKeymapTarget::Selection {
+                selection_bounds, ..
+            } => {
+                let Some(bounds) = *selection_bounds else {
+                    return;
+                };
+                bounds
+            }
         };
-        let Some(canvas_bounds) = selection_canvas_bounds else {
-            return;
-        };
-        let svg_ref = selection_svg.borrow();
+        let svg_ref = svg.borrow();
         let Some(surface) = svg_ref.as_ref() else {
             return;
         };
@@ -454,8 +422,8 @@ pub(in crate::presentation) fn on_fit_keymap_selection_handler(
         ) else {
             return;
         };
-        selection_runtime.submit(Event::SetCamera {
-            operation_id: selection_runtime.operation(),
+        camera_runtime.submit(Event::SetCamera {
+            operation_id: camera_runtime.operation(),
             center: camera.center,
             zoom: camera.zoom,
         });
@@ -801,17 +769,17 @@ pub(in crate::presentation) fn use_camera_bundle(
     let actions = if design_canvas_workspace {
         CameraActions::noop()
     } else {
-        camera_actions(
+        camera_actions(CameraActionsInput {
             editor,
             adapter,
             layout_owner,
             render_scope,
             snapshot,
-            &svg,
-            &footer,
-            &scene_bounds,
-            &model.selected_part_ids,
-        )
+            svg: &svg,
+            footer: &footer,
+            bounds: &scene_bounds,
+            selection_ids: &model.selected_part_ids,
+        })
     };
     let PlacementBindings {
         part_placement,
@@ -861,18 +829,31 @@ pub(in crate::presentation) fn use_camera_bundle(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(in crate::presentation) fn camera_actions(
-    editor: EditorContext,
-    adapter: &SelectionAdapter,
-    layout_owner: &LayoutOwnerIdentity,
-    render_scope: &Scope,
-    snapshot: &AcceptedSnapshot,
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    footer: &FooterBounds,
-    bounds: &SceneBounds,
-    selection_ids: &[String],
-) -> CameraActions {
+/// Compact inputs for the shared Fit/zoom camera actions on every 2D canvas.
+pub(in crate::presentation) struct CameraActionsInput<'a> {
+    pub editor: EditorContext,
+    pub adapter: &'a SelectionAdapter,
+    pub layout_owner: &'a LayoutOwnerIdentity,
+    pub render_scope: &'a Scope,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub svg: &'a Rc<RefCell<Option<SvgElement>>>,
+    pub footer: &'a FooterBounds,
+    pub bounds: &'a SceneBounds,
+    pub selection_ids: &'a [String],
+}
+
+pub(in crate::presentation) fn camera_actions(input: CameraActionsInput<'_>) -> CameraActions {
+    let CameraActionsInput {
+        editor,
+        adapter,
+        layout_owner,
+        render_scope,
+        snapshot,
+        svg,
+        footer,
+        bounds,
+        selection_ids,
+    } = input;
     let runtime = editor.runtime();
     let workspace = editor.workspace;
     let FooterBounds {
@@ -881,24 +862,28 @@ pub(in crate::presentation) fn camera_actions(
         footer_selection_bounds,
         ..
     } = *footer;
-    let on_fit_keymap_board = on_fit_keymap_board_handler(
-        layout_owner.clone(),
-        runtime.clone(),
-        workspace,
-        adapter.clone(),
-        svg.clone(),
-        footer_board_bounds,
-        footer_camera_bounds,
-    );
-    let on_fit_keymap_selection = on_fit_keymap_selection_handler(OnFitKeymapSelectionInput {
+    let on_fit_keymap_board = fit_keymap_camera_handler(FitKeymapCameraInput {
         layout_owner: layout_owner.clone(),
         runtime: runtime.clone(),
         workspace,
         adapter: adapter.clone(),
         svg: svg.clone(),
-        footer_camera_bounds,
-        selection_ids: selection_ids.to_vec(),
-        footer_selection_bounds,
+        canvas_bounds: footer_camera_bounds,
+        target: FitKeymapTarget::Board {
+            board_bounds: footer_board_bounds,
+        },
+    });
+    let on_fit_keymap_selection = fit_keymap_camera_handler(FitKeymapCameraInput {
+        layout_owner: layout_owner.clone(),
+        runtime: runtime.clone(),
+        workspace,
+        adapter: adapter.clone(),
+        svg: svg.clone(),
+        canvas_bounds: footer_camera_bounds,
+        target: FitKeymapTarget::Selection {
+            selection_ids: selection_ids.to_vec(),
+            selection_bounds: footer_selection_bounds,
+        },
     });
     let mut zoom_keymap = zoom_keymap_handler(ZoomKeymapInput {
         zoom_runtime: runtime.clone(),

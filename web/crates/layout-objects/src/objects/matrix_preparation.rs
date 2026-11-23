@@ -154,6 +154,110 @@ pub(super) fn matrix_source<'a>(
     Some((snapshot, scope.clone(), scope.board_id))
 }
 
+/// Shared creation budget: positive rows/columns with at most this many cells.
+pub(super) const MAX_MATRIX_CELLS: u32 = 4096;
+
+/// Whether the requested dimensions fit the creation budget.
+pub(super) fn matrix_dimensions_valid(rows: u32, columns: u32) -> bool {
+    rows != 0
+        && columns != 0
+        && rows
+            .checked_mul(columns)
+            .is_some_and(|cells| cells <= MAX_MATRIX_CELLS)
+}
+
+/// The `reversibleLayout` creation parameter (param-only).
+pub(super) fn reversible_layout_param(document: &boardstudio_model::model::ProjectDoc) -> bool {
+    document
+        .parameters
+        .get("reversibleLayout")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+/// Whether the accepted snapshot still names the owner's board source.
+pub(super) fn owner_source_matches(
+    owner_scope: &Scope,
+    owner_token: boardstudio_application::SnapshotToken,
+    owner_revision: u64,
+    scope: &Scope,
+    snapshot: &AcceptedSnapshot,
+) -> bool {
+    scope == owner_scope
+        && snapshot.token == owner_token
+        && snapshot.document.revision == owner_revision
+}
+
+/// Whether the live session still names the owner's scope.
+pub(super) fn session_scope_matches(runtime: &Runtime, scope: &Scope) -> bool {
+    runtime.scope().as_ref() == Some(scope)
+        && runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
+}
+
+/// Whether the runtime still holds the owner's live session on its accepted source.
+pub(super) fn owner_session_current(
+    runtime: &Runtime,
+    scope: &Scope,
+    board_id: &str,
+    snapshot_token: boardstudio_application::SnapshotToken,
+    revision: u64,
+) -> bool {
+    let model = runtime.model();
+    runtime.scope().as_ref() == Some(scope)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
+        && model.lifecycle == Lifecycle::Ready
+        && model.durability == (Durability::Saved { revision })
+        && model.active_board_id == board_id
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.token == snapshot_token && snapshot.document.revision == revision
+        })
+}
+
+/// A creation failure: clear the preparing owner and publish the message.
+pub(super) fn fail_creation<Owner: 'static>(
+    preparing: &mut Signal<Option<Owner>>,
+    error: &mut Signal<Option<String>>,
+    status: &mut Signal<Option<String>>,
+    message: String,
+) {
+    preparing.set(None);
+    error.set(Some(message));
+    status.set(None);
+}
+
+/// The prepared set is usable when the matrix names this board.
+pub(super) fn prepared_definitions_error(
+    current: &AcceptedSnapshot,
+    board_id: &str,
+    matrix_board_id: Option<&str>,
+    definitions: &[boardstudio_model::model::PartDefinition],
+) -> Option<String> {
+    if matrix_board_id != Some(board_id)
+        || definitions.iter().any(|definition| {
+            definition.generator.is_none()
+                || definition.id.is_empty()
+                || current
+                    .document
+                    .definitions
+                    .iter()
+                    .any(|existing| existing.id == definition.id)
+        })
+    {
+        Some(
+            "The prepared matrix definition set is incomplete or conflicts with the accepted document."
+                .into(),
+        )
+    } else {
+        None
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {

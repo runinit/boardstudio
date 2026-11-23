@@ -5,6 +5,7 @@ use boardstudio_core_mechanical::{
     electrical::{ElectricalMode, ElectricalPlan},
     electrical_peripherals::PeripheralRequirement,
 };
+use boardstudio_model::electrical::ElectricalAssignment;
 use boardstudio_model::firmware::{
     FirmwareEncoder, FirmwareHardware, FirmwareKey, FirmwareModuleFinding,
     FirmwareModuleQualification, FirmwarePartQualification, FirmwarePhysicalInstance,
@@ -48,45 +49,15 @@ fn build_request(
     } else {
         FirmwareScanMode::Matrix
     };
-    let rows = if mode == FirmwareScanMode::Matrix {
-        plan.row_pins
-            .iter()
-            .enumerate()
-            .filter_map(|(index, terminal)| {
-                let gpio = plan
-                    .assignments
-                    .iter()
-                    .find(|a| a.row as usize == index)?
-                    .row_firmware_gpio
-                    .as_ref()?;
-                Some(pin(
-                    plan.module_aliases.get(terminal).unwrap_or(terminal),
-                    gpio,
-                ))
-            })
-            .collect()
+    let (rows, columns) = if mode == FirmwareScanMode::Matrix {
+        (
+            scan_pins(plan, &plan.row_pins, |a| (a.row, &a.row_firmware_gpio)),
+            scan_pins(plan, &plan.column_pins, |a| {
+                (a.column, &a.column_firmware_gpio)
+            }),
+        )
     } else {
-        vec![]
-    };
-    let columns = if mode == FirmwareScanMode::Matrix {
-        plan.column_pins
-            .iter()
-            .enumerate()
-            .filter_map(|(index, terminal)| {
-                let gpio = plan
-                    .assignments
-                    .iter()
-                    .find(|a| a.column as usize == index)?
-                    .column_firmware_gpio
-                    .as_ref()?;
-                Some(pin(
-                    plan.module_aliases.get(terminal).unwrap_or(terminal),
-                    gpio,
-                ))
-            })
-            .collect()
-    } else {
-        vec![]
+        Default::default()
     };
     let assignments = &plan.assignments;
     let mut keys = assignments
@@ -331,16 +302,7 @@ fn build_request(
             .collect(),
     });
     let transport_value = split_transport(transport);
-    let uart_tx = if transport == HardwareTransport::Wired {
-        uart_pin(plan, "split-tx")
-    } else {
-        None
-    };
-    let uart_rx = if transport == HardwareTransport::Wired {
-        uart_pin(plan, "split-rx")
-    } else {
-        None
-    };
+    let [uart_tx, uart_rx] = wired_uart_pins(plan, transport, ["split-tx", "split-rx"]);
     let peripheral_request = peripheral_plan
         .map(|other| {
             let mut unibody = document.clone();
@@ -357,16 +319,8 @@ fn build_request(
                     request.peripheral_overlays = legacy.overlays;
                     request.transport = transport_value.clone();
                     request.matrix_row_offset = plan.row_pins.len();
-                    request.uart_tx = if transport == HardwareTransport::Wired {
-                        uart_pin(other, "split-rx")
-                    } else {
-                        None
-                    };
-                    request.uart_rx = if transport == HardwareTransport::Wired {
-                        uart_pin(other, "split-tx")
-                    } else {
-                        None
-                    };
+                    [request.uart_tx, request.uart_rx] =
+                        wired_uart_pins(other, transport, ["split-rx", "split-tx"]);
                     Ok(Box::new(request))
                 },
             )
@@ -515,6 +469,28 @@ fn module_encoders(
         })
         .collect()
 }
+fn scan_pins(
+    plan: &ElectricalPlan,
+    terminals: &[String],
+    axis: impl Fn(&ElectricalAssignment) -> (u32, &Option<String>),
+) -> Vec<ScanPin> {
+    terminals
+        .iter()
+        .enumerate()
+        .filter_map(|(index, terminal)| {
+            let (_, gpio) = plan
+                .assignments
+                .iter()
+                .map(&axis)
+                .find(|(coordinate, _)| *coordinate as usize == index)?;
+            Some(pin(
+                plan.module_aliases.get(terminal).unwrap_or(terminal),
+                gpio.as_deref()?,
+            ))
+        })
+        .collect()
+}
+
 fn pin(terminal: &str, gpio: &str) -> ScanPin {
     ScanPin {
         terminal: terminal.into(),
@@ -538,11 +514,20 @@ fn peripheral_value<'a>(values: &'a BTreeMap<String, String>, name: &str) -> Opt
     })
 }
 
-fn uart_pin(plan: &ElectricalPlan, function: &str) -> Option<ScanPin> {
-    Some(pin(
-        peripheral_value(&plan.peripheral_terminals, function)?,
-        peripheral_value(&plan.peripheral_pins, function)?,
-    ))
+fn wired_uart_pins(
+    plan: &ElectricalPlan,
+    transport: HardwareTransport,
+    functions: [&str; 2],
+) -> [Option<ScanPin>; 2] {
+    if transport != HardwareTransport::Wired {
+        return [None, None];
+    }
+    functions.map(|function| {
+        Some(pin(
+            peripheral_value(&plan.peripheral_terminals, function)?,
+            peripheral_value(&plan.peripheral_pins, function)?,
+        ))
+    })
 }
 fn peripheral_warnings(plan: &ElectricalPlan) -> Vec<String> {
     plan.peripherals
