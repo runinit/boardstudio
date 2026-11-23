@@ -4,6 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::EditOperation;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
@@ -19,7 +20,7 @@ use super::objects::{ScopedTreeContext, TreeContext};
 struct ContextIdentity {
     scope: Option<Scope>,
     selected: Option<ScopedTreeContext>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
 }
 
@@ -88,7 +89,7 @@ impl From<&BoardInspectorOwner> for BoardNameDraftIdentity {
 pub fn use_board_inspector(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> BoardInspectorMount {
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
@@ -156,7 +157,7 @@ pub fn use_board_inspector(
                 scope_generation(),
             );
             if !mounted()
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || context_generation.borrow().value != owner.generation
                 || current_context != owner.context
                 || runtime.scope().as_ref() != Some(&owner.scope)
@@ -233,7 +234,7 @@ pub fn use_board_inspector(
 fn context_identity(
     runtime: &Runtime,
     selected: Option<ScopedTreeContext>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
 ) -> ContextIdentity {
     ContextIdentity {
@@ -250,7 +251,7 @@ fn project_current(
     context: ContextIdentity,
     generation: u64,
 ) -> Option<BoardInspectorProjection> {
-    if context.workspace != "Layout" {
+    if context.workspace != Workspace::Layout {
         return None;
     }
     let model = runtime.model();

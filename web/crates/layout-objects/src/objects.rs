@@ -1,5 +1,6 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{ReadModel, Scope, SelectionMode};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use boardstudio_web_ui_shared::ui::{
@@ -189,8 +190,8 @@ pub fn Objects(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
-    let case_workspace = workspace() == "Case";
-    let pcb_workspace = workspace() == "PCB";
+    let case_workspace = workspace() == Workspace::Case;
+    let pcb_workspace = workspace() == Workspace::Pcb;
     let scope_generation = use_context::<super::SelectionAdapter>().generation;
     let generation = scope_generation();
     let version = use_context::<Signal<u64>>();

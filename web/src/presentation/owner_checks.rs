@@ -1,13 +1,14 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) fn case_setup_context_is_current(
     id: &pcb_physical_setup::OwnerIdentity,
     strict: bool,
-    workspace: &str,
+    workspace: Workspace,
     scope: Option<&Scope>,
 ) -> bool {
     id.context == pcb_physical_setup::OwnerContext::CaseInspector
-        && workspace == "Case"
+        && workspace == Workspace::Case
         && scope.is_some_and(|s| {
             s.session_epoch == id.session_epoch
                 && s.document_id == id.document_id
@@ -38,16 +39,16 @@ pub(crate) fn current_case_layer_ids(
 
 pub(crate) fn pcb_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
-    selection::workspace_owner_is_current(runtime, workspace, adapter, owner, "PCB")
+    selection::workspace_owner_is_current(runtime, workspace, adapter, owner, Workspace::Pcb)
 }
 
 pub(crate) fn pcb_add_layout_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
@@ -75,7 +76,7 @@ pub(crate) fn pcb_add_layout_owner_is_current(
 
 pub(crate) fn pcb_add_layout_open_handler(
     runtime: Rc<Runtime>,
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
     mut assembly_3d: Signal<bool>,
@@ -83,7 +84,7 @@ pub(crate) fn pcb_add_layout_open_handler(
 ) -> EventHandler<()> {
     EventHandler::new(move |_| {
         if pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             assembly_3d.set(false);
             on_open.call(());
         }
@@ -92,7 +93,7 @@ pub(crate) fn pcb_add_layout_open_handler(
 
 pub(crate) fn pcb_add_outline_select_handler(
     runtime: Rc<Runtime>,
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
     mut assembly_3d: Signal<bool>,
@@ -109,7 +110,7 @@ pub(crate) fn pcb_add_outline_select_handler(
             .is_some_and(|s| board_id == &s.board_id && req.scope == *s)
             && pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &owner)
         {
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             assembly_3d.set(false);
             on_select.call(req);
         }
@@ -118,13 +119,13 @@ pub(crate) fn pcb_add_outline_select_handler(
 
 pub(crate) fn canvas_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
     match owner.workspace {
-        "Layout" => layout_owner_is_current(runtime, workspace, adapter, owner),
-        "PCB" => pcb_owner_is_current(runtime, workspace, adapter, owner),
+        Workspace::Layout => layout_owner_is_current(runtime, workspace, adapter, owner),
+        Workspace::Pcb => pcb_owner_is_current(runtime, workspace, adapter, owner),
         _ => false,
     }
 }

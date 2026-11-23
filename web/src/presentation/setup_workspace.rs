@@ -1,14 +1,12 @@
 //! Setup guide and instance-selection state shared by Editor's workspace views.
-use super::{
-    InstanceSelection, PanelSettings, Runtime, WorkspaceState, instance_selection, setup_guide,
-};
+use super::{PanelSettings, Runtime, WorkspaceState, setup_guide};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
 #[derive(Clone, Copy)]
 pub(super) struct SetupWorkspaceState {
     guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
-    instance_preference: Signal<Option<instance_selection::Preference>>,
 }
 
 pub(super) fn use_setup_workspace_state(
@@ -20,17 +18,6 @@ pub(super) fn use_setup_workspace_state(
     inspector_settings: Signal<PanelSettings>,
 ) -> SetupWorkspaceState {
     let mut guide_prefs = use_signal(|| None::<setup_guide::SetupGuidePreferences>);
-    let inst_pref = use_signal(|| {
-        runtime.scope().and_then(|s| {
-            s.instance_id
-                .map(|explicit_id| instance_selection::Preference {
-                    session_epoch: s.session_epoch,
-                    document_id: s.document_id,
-                    explicit_id,
-                })
-        })
-    });
-    use_context_provider(|| InstanceSelection(inst_pref));
     let created = created_req();
     let project_id = runtime
         .model()
@@ -59,7 +46,7 @@ pub(super) fn use_setup_workspace_state(
                     current_stage: stage,
                 }));
                 if req.start_at_project {
-                    workspace.set("Layout");
+                    workspace.set(Workspace::Layout);
                 }
                 setup_guide::reveal_panels(
                     crate::setup_guide_state::GuideReveal::Guide,
@@ -92,16 +79,12 @@ pub(super) fn use_setup_workspace_state(
     ));
     SetupWorkspaceState {
         guide_preferences: guide_prefs,
-        instance_preference: inst_pref,
     }
 }
 
 impl SetupWorkspaceState {
     pub(super) fn guide_preferences(self) -> Signal<Option<setup_guide::SetupGuidePreferences>> {
         self.guide_preferences
-    }
-    pub(super) fn instance_preference(self) -> Signal<Option<instance_selection::Preference>> {
-        self.instance_preference
     }
     pub(super) fn set_guide_preferences(&self, p: Option<setup_guide::SetupGuidePreferences>) {
         let mut s = self.guide_preferences;
@@ -137,9 +120,5 @@ impl SetupWorkspaceState {
         };
         p.open = false;
         self.set_guide_preferences(Some(p));
-    }
-    pub(super) fn set_instance_preference(&self, p: Option<instance_selection::Preference>) {
-        let mut s = self.instance_preference;
-        s.set(p);
     }
 }

@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct OnMountedModuleSelectInput {
     pub runtime: Rc<Runtime>,
@@ -8,7 +9,7 @@ pub(super) struct OnMountedModuleSelectInput {
     pub token: boardstudio_application::SnapshotToken,
     pub revision: u64,
     pub inspect_open: Signal<bool>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub instance_selection: InstanceSelection,
     pub parts_state: parts_workspace::PartsWorkspaceState,
     pub objects_open: Signal<bool>,
@@ -33,7 +34,7 @@ pub(super) fn on_mounted_module_select_handler(
         objects_panel_settings,
     } = input;
     EventHandler::new(move |module_id: String| {
-        if !matches!(workspace(), "PCB" | "Layout")
+        if !matches!(workspace(), Workspace::Pcb | Workspace::Layout)
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -105,7 +106,7 @@ pub(super) struct OnOpenModulePlacementInput {
     pub generation: u64,
     pub token: boardstudio_application::SnapshotToken,
     pub revision: u64,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub instance_selection: InstanceSelection,
@@ -129,7 +130,7 @@ pub(super) fn on_open_module_placement_handler(
         parts_selection,
     } = input;
     EventHandler::new(move |module_id: String| {
-        if workspace() != "Parts"
+        if workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -172,7 +173,7 @@ pub(super) fn on_open_module_placement_handler(
         }) {
             return;
         }
-        workspace.set("PCB");
+        workspace.set(Workspace::Pcb);
         objects_open.set(false);
         inspect_open.set(true);
     })
@@ -181,7 +182,7 @@ pub(super) fn on_open_module_placement_handler(
 pub(super) struct OnModuleAttachedInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub parts_selection_generation: Signal<u64>,
@@ -203,7 +204,7 @@ pub(super) fn on_module_attached_handler(
         instance_selection,
     } = input;
     EventHandler::new(move |request: parts::AttachedModuleNavigation| {
-        if workspace() != "Parts"
+        if workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&request.scope)
             || parts_selection_generation() != request.selection_generation
             || parts_selection()
@@ -253,7 +254,7 @@ pub(super) fn on_module_attached_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-        workspace.set("PCB");
+        workspace.set(Workspace::Pcb);
         objects_open.set(false);
         inspect_open.set(true);
     })
@@ -265,11 +266,11 @@ pub(super) fn on_pcb_wiring_edit_board_handler(
     scope: Scope,
     generation: u64,
     token: boardstudio_application::SnapshotToken,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     instance_selection: InstanceSelection,
 ) -> EventHandler<()> {
     EventHandler::new(move |()| {
-        if workspace() != "PCB"
+        if workspace() != Workspace::Pcb
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -330,11 +331,11 @@ pub(super) fn case_admission(
 pub(super) fn on_case_action_handler(
     admission: case_workspace::Admission,
     navigate: EventHandler<(Scope, String, Option<String>)>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     case_workspace_state: case_workspace::CaseWorkspaceState,
 ) -> EventHandler<case_workspace::TreeAction> {
     EventHandler::new(move |action| {
-        if workspace() != "Case" {
+        if workspace() != Workspace::Case {
             return;
         }
         case_workspace_state.apply_tree_action(action, &admission, navigate);
@@ -343,11 +344,11 @@ pub(super) fn on_case_action_handler(
 
 pub(super) fn on_case_display_handler(
     admission: case_workspace::Admission,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     case_workspace_state: case_workspace::CaseWorkspaceState,
 ) -> EventHandler<case_workspace::DisplayRequest> {
     EventHandler::new(move |request| {
-        if workspace() != "Case" {
+        if workspace() != Workspace::Case {
             return;
         }
         case_workspace_state.apply_display_request(request, &admission);
@@ -359,11 +360,11 @@ pub(super) fn on_keymap_layer_handler(
     adapter: SelectionAdapter,
     scope: Scope,
     generation: u64,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     keymap_state: keymap_workspace::KeymapWorkspaceState,
 ) -> EventHandler<String> {
     EventHandler::new(move |layer_id: String| {
-        if workspace() != "Keymap"
+        if workspace() != Workspace::Keymap
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -397,7 +398,7 @@ pub(super) struct OnKeymapExportInput {
     pub token: boardstudio_application::SnapshotToken,
     pub revision: u64,
     pub generation: u64,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub instance_selection: InstanceSelection,
 }
 
@@ -413,7 +414,7 @@ pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> EventHandl
         instance_selection,
     } = input;
     EventHandler::new(move |_| {
-        if workspace() != "Keymap"
+        if workspace() != Workspace::Keymap
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {

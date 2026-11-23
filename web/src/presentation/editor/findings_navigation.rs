@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) fn navigate_scoped_handler(
     runtime: Rc<Runtime>,
@@ -51,8 +52,7 @@ pub(super) fn navigate_handler(
     adapter: SelectionAdapter,
     mut navigate_scoped: impl FnMut((Scope, String, Option<String>)) + Clone + 'static,
     generation: u64,
-    setup_state: setup_workspace::SetupWorkspaceState,
-    instance_preference: Signal<Option<instance_selection::Preference>>,
+    instance_selection: InstanceSelection,
 ) -> impl FnMut((Scope, String, Option<String>)) + Clone + 'static {
     move |(captured_scope, board_id, requested_instance): (Scope, String, Option<String>)| {
         if runtime.scope().as_ref() != Some(&captured_scope) || (adapter.generation)() != generation
@@ -81,17 +81,13 @@ pub(super) fn navigate_handler(
             if !valid {
                 return;
             }
-            setup_state.set_instance_preference(Some(instance_selection::Preference {
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                explicit_id: id,
-            }));
+            instance_selection.reconcile(snapshot.session_epoch, snapshot.document.id.clone(), id);
         }
         let instance_id = instance_selection::resolve(
             &snapshot.document,
             snapshot.session_epoch,
             &board_id,
-            instance_preference.read().as_ref(),
+            instance_selection.0.read().as_ref(),
         )
         .map(str::to_owned);
         navigate_scoped((captured_scope, board_id, instance_id));
@@ -103,7 +99,7 @@ pub(super) struct OnKeycapsFindingInput {
     pub adapter: SelectionAdapter,
     pub scope: Scope,
     pub generation: u64,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub body_selection: Signal<Option<shared_viewer::BodySelection>>,
@@ -185,7 +181,7 @@ pub(super) fn on_keycaps_finding_handler(
         let focused = keycaps_navigation::focused_finding_for_admitted_route(&request, &admitted);
         let effects = admitted.effects;
         let navigation_owner = admitted.owner;
-        let source_basis = if workspace() == "Keycaps" {
+        let source_basis = if workspace() == Workspace::Keycaps {
             source_surface.borrow().as_ref().and_then(|surface| {
                 let rect = surface.get_bounding_client_rect();
                 keycaps_fit::layout_camera_basis(
@@ -267,7 +263,7 @@ pub(super) struct LayoutFindingCallbacksInput {
     pub inspect_open: Signal<bool>,
     pub objects_open: Signal<bool>,
     pub inspector_panel_settings: Signal<PanelSettings>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub workspace_routing: WorkspaceRoutingSlots,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub keycaps_navigation_alive: Rc<Cell<bool>>,
@@ -422,14 +418,14 @@ pub(super) fn use_layout_finding_callbacks(
             if target_board != scope.board_id {
                 return_target.set(None);
                 pending.set(Some(request));
-                active_workspace.set("Layout");
+                active_workspace.set(Workspace::Layout);
                 navigate.call((scope.clone(), target_board, None));
                 return;
             }
-            if owner.workspace != "Layout" {
+            if owner.workspace != Workspace::Layout {
                 return_target.set(None);
                 pending.set(Some(request));
-                active_workspace.set("Layout");
+                active_workspace.set(Workspace::Layout);
                 return;
             }
             let selected = adapter.selected_context.read().clone().filter(|selected| {
@@ -513,7 +509,7 @@ pub(super) struct LayoutFindingResumeInput {
     pub resume_pending_layout_finding:
         Callback<(layout_findings::Request, LayoutOwnerIdentity), ()>,
     pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub version: Signal<u64>,
     pub runtime: Rc<Runtime>,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
@@ -812,29 +808,28 @@ pub(super) fn use_navigation_bundle(
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
 ) -> (NavNamed, NavigateFn, bool) {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let render_generation = setup_a.render_generation;
-    let setup_state = setup_a.setup_state;
-    let instance_preference = setup_a.instance_preference;
-    let workspace = setup_a.workspace;
-    let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
+    let instance_preference = setup_a.editor.instance_selection.0;
+    let workspace = setup_a.editor.workspace;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let case_selection = setup_a.case_selection;
     let keycaps_navigation_alive = &setup_b.keycaps_navigation_alive;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let keycaps_fit_state = &setup_b.keycaps_fit_state;
     let keycaps_state = &setup_b.keycaps_state;
-    let layout_owner = &setup_a.layout_owner;
-    let layout_findings = setup_a.layout_findings;
-    let version = setup_a.version;
+    let layout_owner = &setup_a.view.layout_owner;
+    let layout_findings = setup_a.view.layout_findings;
+    let version = setup_a.editor.version;
     let physical_setup_mount = &setup_b.physical_setup_mount;
     let observed_version = setup_a.observed_version;
     let observed_interaction_version = cam.placement.observed_interaction_version;
-    let instance_selection = setup_a.instance_selection;
-    let model = &setup_a.model;
+    let instance_selection = setup_a.editor.instance_selection;
+    let model = &setup_a.view.model;
     let space_down = &cam.placement.space_down;
     let navigate_scoped = navigate_scoped_handler(
         runtime.clone(),
@@ -848,8 +843,7 @@ pub(super) fn use_navigation_bundle(
         adapter.clone(),
         navigate_scoped.clone(),
         render_generation,
-        setup_state,
-        instance_preference,
+        instance_selection,
     );
     let on_keycaps_finding = on_keycaps_finding_handler(OnKeycapsFindingInput {
         runtime: runtime.clone(),

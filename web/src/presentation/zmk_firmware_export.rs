@@ -3,6 +3,7 @@ use super::{
     pcb_wiring::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity},
 };
 use crate::runtime::Runtime;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonVariant},
@@ -22,7 +23,7 @@ pub(crate) struct ZmkFirmwareExportPanelInput {
 
 pub(crate) fn use_export_panel_input(
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
@@ -39,7 +40,7 @@ pub(crate) fn use_export_panel_input(
             return;
         };
         let model = runtime.model();
-        let ok = workspace() == "Export"
+        let ok = workspace() == Workspace::Export
             && scope_generation() == src.scope_generation
             && runtime.scope().as_ref() == Some(&src.ui_scope)
             && active_board_scope_matches(&model, &src.ui_scope)

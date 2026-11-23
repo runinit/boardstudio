@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::editor::{EditGuard, EditorContext};
 mod action_handlers;
 mod camera;
 mod canvas_adapter;
@@ -34,16 +35,40 @@ pub(super) fn Editor() -> Element {
 
 #[component]
 fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let inst_pref = use_signal(|| {
+        runtime.scope().and_then(|s| {
+            s.instance_id
+                .map(|explicit_id| instance_selection::Preference {
+                    session_epoch: s.session_epoch,
+                    document_id: s.document_id,
+                    explicit_id,
+                })
+        })
+    });
+    let instance_selection = use_context_provider(|| InstanceSelection(inst_pref));
+    let editor = EditorContext {
+        runtime: use_hook(|| CopyValue::new(runtime)),
+        version: use_context::<Signal<u64>>(),
+        workspace: use_context::<WorkspaceState>().0,
+        scope_generation: use_context::<SelectionAdapter>().generation,
+        instance_selection,
+        panels: use_context::<CompactPanelState>(),
+        layers: use_context::<LayerVisibility>(),
+        return_workspace: use_context::<ExportReturnWorkspace>().0,
+    };
+    use_context_provider(|| editor);
     let render_scope = scope;
     let snapshot = &snapshot;
     let (setup_a, mut workspace_routing, mut matrix_setup, on_parts_select) =
-        setup_bundles::use_editor_setup_shell();
+        setup_bundles::use_editor_setup_shell(editor);
     let (setup_b, layer_actions, binding_actions, macro_actions) =
         setup_bundles::use_setup_workspaces(&setup_a);
     let views = setup_workspaces::derive_views(
-        &setup_a.model,
+        &setup_a.view.model,
         snapshot,
         setup_a
+            .view
             .resolved_document
             .clone()
             .unwrap_or_else(|| snapshot.document.clone()),
@@ -52,7 +77,7 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
         .document
         .boards
         .iter()
-        .find(|b| b.id == setup_a.model.active_board_id);
+        .find(|b| b.id == setup_a.view.model.active_board_id);
     let board_part_ids: HashSet<_> = board
         .into_iter()
         .flat_map(|board| board.part_ids.iter().map(String::as_str))
@@ -65,7 +90,7 @@ fn EditorBody(scope: Scope, snapshot: AcceptedSnapshot) -> Element {
         .collect();
     let matrices = boardstudio_web_ui_model::tree::visible_matrices(
         &views.document,
-        &setup_a.model.active_board_id,
+        &setup_a.view.model.active_board_id,
         &board_part_ids,
     );
     let (h_sel, select_tree) = selection_handlers::build_selection_handlers(

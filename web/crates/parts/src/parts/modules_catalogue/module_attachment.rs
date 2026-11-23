@@ -6,6 +6,7 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -312,9 +313,9 @@ fn attachment_selection_current(
     selection_generation: Signal<u64>,
     expected_selection: &(Option<Scope>, String),
     expected_generation: u64,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> bool {
-    workspace() == "Parts"
+    workspace() == Workspace::Parts
         && runtime.scope().as_ref() == Some(scope)
         && selected() == Some(expected_selection.clone())
         && selection_generation() == expected_generation
@@ -327,7 +328,7 @@ fn attachment_owner_current(
     selection_generation: Signal<u64>,
     expected_selection: &(Option<Scope>, String),
     expected_generation: u64,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
     if !attachment_selection_current(
         runtime,

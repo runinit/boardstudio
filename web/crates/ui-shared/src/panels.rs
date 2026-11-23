@@ -5,6 +5,7 @@ use crate::ui::{
     sidenav::Sidenav,
     tabs::{Tabs, TabsList, TabsTrigger},
 };
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use policy::decode_settings;
 pub use policy::{PanelMode, PanelSettings, PanelSide};
@@ -16,12 +17,12 @@ mod policy;
 
 /// Open the Parts workspace with its browser panel visible.
 pub fn browse_parts_workspace(
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     mut compact_open: Signal<bool>,
     mut settings: Signal<PanelSettings>,
     compact: bool,
 ) {
-    workspace.set("Parts");
+    workspace.set(Workspace::Parts);
     if compact {
         compact_open.set(true);
         return;
@@ -35,11 +36,11 @@ pub fn browse_parts_workspace(
 
 /// Apply ordinary workspace panel defaults without overriding an explicit reveal.
 pub fn use_workspace_panel_defaults(
-    workspace: &'static str,
+    workspace: Workspace,
     mut objects_open: Signal<bool>,
     mut inspector_open: Signal<bool>,
-) -> Signal<Option<&'static str>> {
-    let mut requested_workspace = use_signal(|| None::<&'static str>);
+) -> Signal<Option<Workspace>> {
+    let mut requested_workspace = use_signal(|| None::<Workspace>);
     use_effect(use_reactive((&workspace,), move |_| {
         let requested = *requested_workspace.peek();
         if requested.is_some() {
@@ -48,7 +49,7 @@ pub fn use_workspace_panel_defaults(
         if requested == Some(workspace) {
             return;
         }
-        if workspace == "Keymap" || workspace == "Case" {
+        if workspace == Workspace::Keymap || workspace == Workspace::Case {
             objects_open.set(false);
             inspector_open.set(true);
         }

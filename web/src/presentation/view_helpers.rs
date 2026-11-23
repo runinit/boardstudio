@@ -1,14 +1,15 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) fn design_consumer_view_mode_handler(
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
     mut is_assembly_3d: Signal<bool>,
 ) -> EventHandler<bool> {
     EventHandler::new(move |assembly_3d| {
-        if owner.workspace != "Layout"
+        if owner.workspace != Workspace::Layout
             && current_layout_owner(&runtime, workspace, &adapter) == owner
             && owner.workspace == workspace()
             && owner.scope.as_ref().is_some_and(|s| {

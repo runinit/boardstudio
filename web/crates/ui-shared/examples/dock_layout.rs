@@ -1,6 +1,9 @@
 //! Mounted production dock integration, without application/runtime fixtures.
 #[cfg(target_arch = "wasm32")]
-use boardstudio_web_ui_model::state::{CompactPanelState, WorkspaceState};
+use boardstudio_web_ui_model::{
+    Workspace,
+    state::{CompactPanelState, WorkspaceState},
+};
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_shared::{
     panels::{self, InspectorPanel, ObjectsPanel, PanelSide, use_panel_settings},
@@ -14,7 +17,7 @@ use dioxus::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 fn fixture() -> Element {
-    let mut workspace = use_signal(|| "Layout");
+    let mut workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| WorkspaceState(workspace));
     let mut objects_open = use_signal(|| false);
     let mut inspector_open = use_signal(|| false);
@@ -30,7 +33,7 @@ fn fixture() -> Element {
     rsx! {
         div { class: "flex flex-col w-full h-dvh min-h-0 overflow-hidden",
             header { style: "min-height:56px;display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0",
-                for name in ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"] {
+                for name in Workspace::TABS {
                     Button { onclick: move |_| workspace.set(name), "{name}" }
                 }
                 panels::CompactPanelControls {}

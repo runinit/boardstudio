@@ -5,6 +5,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{Board, EditOperation, Operation, OutlineFeature};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -14,7 +15,7 @@ pub struct BoardCreateOwner {
     token: SnapshotToken,
     revision: u64,
     generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 }
 
 #[derive(Clone, PartialEq)]
@@ -68,7 +69,7 @@ fn add_board_resolver(board_id: String, outline_id: String) -> EditResolver {
 pub fn use_board_setup(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     generation: Signal<u64>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) -> BoardSetupMount {
@@ -157,10 +158,13 @@ pub fn use_board_setup(
 
 fn board_source(
     runtime: &Runtime,
-    workspace: &'static str,
+    workspace: Workspace,
     generation: u64,
 ) -> Option<BoardCreateOwner> {
-    if !matches!(workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") {
+    if !matches!(
+        workspace,
+        Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+    ) {
         return None;
     }
     let model = runtime.model();

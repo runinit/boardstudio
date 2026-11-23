@@ -35,6 +35,7 @@ use boardstudio_model::model::{
     MechanicalMount, Mount, MountKind, PartDefinition, PlateMethod, Severity,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, ToggleField,
 };
@@ -286,7 +287,7 @@ fn project_source(
 /// Keep this alive for the whole Editor so request ids and feedback survive a hidden panel.
 pub fn use_mechanical_settings(
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     instance_selection: InstanceSelection,
     case_selection: CaseSelection,
     on_show_finding: EventHandler<String>,
@@ -316,7 +317,7 @@ pub fn use_mechanical_settings(
                 && scope.instance_id == model.active_instance_id
                 && accepted.scene.revision == accepted.document.revision
         });
-    let in_case = workspace() == "Case";
+    let in_case = workspace() == Workspace::Case;
     let key = current
         .as_ref()
         .filter(|_| in_case)

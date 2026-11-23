@@ -4,6 +4,7 @@ use crate::parts_generator_input::{apply_input, effective_value};
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Asset, PartDefinition};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, TextareaField, ToggleField};
 use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
 use boardstudio_web_ui_shared::ui::{
@@ -84,7 +85,7 @@ pub fn owner_is_current(
     selected: Signal<Option<(Option<Scope>, String)>>,
     scope_generation: u64,
     selection_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> bool {
     if !owner_context_is_current(
         owner,
@@ -118,9 +119,9 @@ fn owner_context_is_current(
     selected: Signal<Option<(Option<Scope>, String)>>,
     scope_generation: u64,
     selection_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> bool {
-    if workspace != "Parts"
+    if workspace != Workspace::Parts
         || runtime.scope() != owner.scope
         || selected() != owner.selection
         || scope_generation != owner.scope_generation

@@ -15,6 +15,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, Layout};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -91,7 +92,7 @@ struct ActivePair {
 pub fn use_mirrored_pair(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     on_created: EventHandler<MirroredPairCreated>,
     canvas_interaction: CanvasInteractionArbiter,
@@ -131,7 +132,7 @@ pub fn use_mirrored_pair(
             let mut waiting = waiting;
             move |(_, workspace, scope_generation)| {
                 let owner_is_live = alive.get()
-                    && workspace == "Layout"
+                    && workspace == Workspace::Layout
                     && waiting.read().as_ref().is_some_and(|(_, follow_up)| {
                         follow_up.owner.editor_instance_id == editor_instance_id
                             && follow_up.owner.scope_generation == scope_generation
@@ -154,7 +155,7 @@ pub fn use_mirrored_pair(
                 let create_pending = waiting.read().is_some();
                 if !create_pending
                     && open.read().as_ref().is_some_and(|owner| {
-                        workspace != "Layout"
+                        workspace != Workspace::Layout
                             || owner.scope_generation != scope_generation
                             || runtime.scope().as_ref() != Some(&owner.scope)
                     })
@@ -284,7 +285,7 @@ pub fn use_mirrored_pair(
                 || placement.read().is_some()
                 || !form_state.read().setup_is_editable()
                 || request.owner.editor_instance_id != editor_instance_id
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || scope_generation() != request.owner.scope_generation
             {
                 return;
@@ -736,7 +737,7 @@ pub fn use_mirrored_pair(
             let owner = request.owner;
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 || waiting.read().is_some()
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || scope_generation() != owner.scope_generation
                 || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
             {
@@ -860,12 +861,12 @@ pub fn use_mirrored_pair(
 fn pair_owner_is_current(
     runtime: &Runtime,
     owner: &MirroredPairOwner,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
     open: &Signal<Option<MirroredPairOwner>>,
 ) -> bool {
     if open.read().as_ref() != Some(owner)
-        || workspace != "Layout"
+        || workspace != Workspace::Layout
         || scope_generation != owner.scope_generation
         || runtime.scope().as_ref() != Some(&owner.scope)
     {
@@ -887,9 +888,9 @@ fn pair_source<'a>(
     runtime: &Runtime,
     model: &'a boardstudio_application::ReadModel,
     scope: Option<&Scope>,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let scope = scope?.clone();
@@ -977,7 +978,7 @@ struct PairSettlement<'a> {
 
 fn settle_pending(
     runtime: &Rc<Runtime>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
     signals: &mut PairSettlement<'_>,
 ) {
@@ -986,7 +987,7 @@ fn settle_pending(
     };
     let model = runtime.model();
     let settlement = ticket.settlement(signals.owner_is_live);
-    let owner_is_visible = workspace == "Layout"
+    let owner_is_visible = workspace == Workspace::Layout
         && scope_generation == follow_up.owner.scope_generation
         && signals.open.read().as_ref() == Some(&follow_up.owner);
     match settlement {

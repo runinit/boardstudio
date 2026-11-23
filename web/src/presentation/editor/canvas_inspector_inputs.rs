@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct CanvasInputArgs<'a> {
     pub mount: EventHandler<MountedEvent>,
@@ -27,8 +28,7 @@ pub(super) struct CanvasInputArgs<'a> {
     pub current_scope: Option<Scope>,
     pub parts_query: parts::PartsQuery,
     pub parts_selection: parts::PartsSelection,
-    pub workspace: Signal<&'static str>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
 }
 
 pub(super) fn canvas_input(
@@ -60,7 +60,6 @@ pub(super) fn canvas_input(
         current_scope,
         parts_query,
         parts_selection,
-        workspace,
         active_workspace,
         pcb_empty_hit,
         pcb_part_hit,
@@ -78,7 +77,7 @@ pub(super) fn canvas_input(
         wheel,
     };
     match active_workspace {
-        "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
+        Workspace::Pcb => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
             pcb_workspace::CanvasInput {
                 snapshot: snapshot.clone(),
                 scope: render_scope.clone(),
@@ -92,7 +91,7 @@ pub(super) fn canvas_input(
                 on_module_select: mounted_module_select,
             },
         ))),
-        "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
+        Workspace::Keymap => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
             Box::new(keymap_workspace::CanvasInput {
                 view: keymap_view.clone(),
                 contours: keymap_contours
@@ -104,7 +103,7 @@ pub(super) fn canvas_input(
                 on_select_key: keymap_select,
             }),
         )),
-        "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
+        Workspace::Keycaps => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
             Box::new(keycaps_workspace::CanvasInput {
                 view: keycaps_view.clone(),
                 contours: keycaps_contours
@@ -116,14 +115,14 @@ pub(super) fn canvas_input(
                 on_select_key: keycaps_select,
             }),
         )),
-        "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
+        Workspace::Case => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
             case_workspace::CanvasInput {
                 generation_ready: mechanical_settings.generation_ready,
                 instance_scope_pending,
                 mechanical_settings: mechanical_settings.props.clone(),
             },
         ))),
-        "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(
+        Workspace::Parts => Some(workspace_composition::WorkspaceCanvasInput::Parts(
             parts_workspace::CanvasInput {
                 controller_back: part_placement.controller_back,
                 snapshot: snapshot.clone(),
@@ -132,14 +131,7 @@ pub(super) fn canvas_input(
                 selected: parts_selection,
             },
         )),
-        "Layout" | "Export" => None,
-        _ => Some(workspace_composition::WorkspaceCanvasInput::Other(
-            workspace_composition::PlaceholderInput {
-                workspace,
-                name: active_workspace,
-                message: "Parts library editing is not available yet in the Rust interface.",
-            },
-        )),
+        Workspace::Layout | Workspace::Export => None,
     }
 }
 
@@ -148,7 +140,7 @@ pub(super) fn on_component_inspector_action_handler(
     adapter: SelectionAdapter,
     layout_owner: LayoutOwnerIdentity,
     lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     inspect_open: Signal<bool>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::LayoutComponentInspectorAction> {
@@ -181,7 +173,7 @@ pub(super) fn on_component_inspector_action_handler(
 pub(super) fn on_companion_placement_action_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> EventHandler<inspector::CompanionPlacementAction> {
     let mut companion_placement_error = layout_state.companion_placement_error();
@@ -573,7 +565,7 @@ pub(super) struct LayoutInspectorArgs<'a> {
     pub board_inspector: board_inspector::BoardInspectorMount,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub findings: Vec<LayoutFinding>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub render_scope: Scope,
     pub snapshot: &'a AcceptedSnapshot,
     pub render_generation: u64,

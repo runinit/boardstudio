@@ -1,3 +1,4 @@
+use crate::Workspace;
 use crate::runtime::Runtime;
 pub use crate::scope_transition::ScopeTransition;
 use crate::tree::{self as objects, ScopedTreeContext, TreeContext};
@@ -470,7 +471,7 @@ pub fn active_board_scope_matches(
 
 pub fn current_layout_owner(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
 ) -> crate::state::LayoutOwnerIdentity {
     let model = runtime.model();
@@ -488,19 +489,19 @@ pub fn current_layout_owner(
 
 pub fn layout_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &crate::state::LayoutOwnerIdentity,
 ) -> bool {
-    workspace_owner_is_current(runtime, workspace, adapter, owner, "Layout")
+    workspace_owner_is_current(runtime, workspace, adapter, owner, Workspace::Layout)
 }
 
 pub fn workspace_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &crate::state::LayoutOwnerIdentity,
-    expected_workspace: &'static str,
+    expected_workspace: Workspace,
 ) -> bool {
     current_layout_owner(runtime, workspace, adapter) == *owner
         && owner.workspace == expected_workspace

@@ -5,6 +5,7 @@ use super::matrix_setup_fields::{
 use crate::matrix_setup_operation::MatrixSetupPreset;
 pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -92,7 +93,7 @@ pub struct MatrixPlacementInput {
     pub version: Signal<u64>,
     pub selected_context: Signal<Option<super::ScopedTreeContext>>,
     pub anchor_scope: Signal<Option<Scope>>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub scope_generation: Signal<u64>,
     pub assembly_orientation: crate::presentation::parts::PartsAssemblyOrientation,
     pub canvas_interaction: crate::presentation::canvas_interaction::CanvasInteractionArbiter,

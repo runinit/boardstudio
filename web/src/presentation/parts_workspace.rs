@@ -2,8 +2,8 @@
 use super::parts::{
     PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace, PartsQuery, PartsSelection,
 };
-use super::workspace_composition::PlaceholderInput;
 use boardstudio_application::{AcceptedSnapshot, Scope};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
@@ -62,7 +62,7 @@ pub(super) struct ObjectsInput {
     pub(super) snapshot: AcceptedSnapshot,
     pub(super) scope: Option<Scope>,
     pub(super) scope_generation: Signal<u64>,
-    pub(super) workspace: Signal<&'static str>,
+    pub(super) workspace: Signal<Workspace>,
     pub(super) query: PartsQuery,
     pub(super) selected: PartsSelection,
     pub(super) on_select: EventHandler<()>,
@@ -99,14 +99,6 @@ pub(super) fn objects(i: ObjectsInput) -> Element {
 }
 pub(super) fn toolbar() -> Element {
     rsx! {}
-}
-pub(super) fn canvas(mut i: PlaceholderInput) -> Element {
-    rsx! {
-        section { class: "box-border w-full max-w-[760px] m-auto p-7 text-foreground",
-            h1 { "{i.name}" } p { class: "max-w-[60ch] text-muted-foreground", "{i.message}" }
-            Button { variant: ButtonVariant::Secondary, onclick: move |_| i.workspace.set("Layout"), "Back to Layout" }
-        }
-    }
 }
 pub(super) fn preview(i: CanvasInput) -> Element {
     rsx! {

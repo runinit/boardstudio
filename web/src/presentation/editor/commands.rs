@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct CommandsInput<'a> {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
@@ -7,7 +8,7 @@ pub(super) struct CommandsInput<'a> {
     pub snapshot: &'a AcceptedSnapshot,
     pub render_scope: Scope,
     pub render_generation: u64,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub model: &'a ReadModel,
     pub workspace_routing: WorkspaceRoutingSlots,
     pub layout_assembly_3d: Signal<bool>,
@@ -78,7 +79,10 @@ pub(super) fn use_commands(
         },
     ));
     let mut palette_commands = object_commands();
-    if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d()
+    if matches!(
+        active_workspace,
+        Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+    ) && !layout_assembly_3d()
     {
         for (label, on_select) in [
             ("Fit board", on_fit_keymap_board),
@@ -94,7 +98,7 @@ pub(super) fn use_commands(
             });
         }
     }
-    if active_workspace == "Layout" {
+    if active_workspace == Workspace::Layout {
         for (label, mode) in [("2D", false), ("3D assembly", true)] {
             palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
                 group: "View",
@@ -153,7 +157,7 @@ pub(super) fn use_commands(
         use_callback(move |()| toggle_panel(objects_open, inspect_open, objects_panel_settings));
     let toggle_inspector =
         use_callback(move |()| toggle_panel(inspect_open, objects_open, inspector_panel_settings));
-    if guide.is_none() && active_workspace != "Export" {
+    if guide.is_none() && active_workspace != Workspace::Export {
         for (label, on_select, available) in [
             ("Show/hide Objects", toggle_objects, true),
             ("Show/hide Inspector", toggle_inspector, has_inspector),
@@ -208,16 +212,16 @@ pub(super) fn use_view_commands(input: CmdInput<'_>) -> Commands {
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
     let render_generation = setup_a.render_generation;
     let active_workspace = setup_a.active_workspace;
-    let model = &setup_a.model;
+    let model = &setup_a.view.model;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let on_layout_view_mode = inp.on_layout_view_mode;
     let toggle_footprints = wir.wiring.toggle_footprints;
     let layout_state = setup_a.layout_state;
-    let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let objects_panel_settings = setup_a.objects_panel_settings;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let has_inspector = setup_a.has_inspector;
+    let has_inspector = setup_a.view.has_inspector;
     let on_fit_keymap_board = cam.on_fit_keymap_board;
     let on_zoom_keymap_out = cam.on_zoom_keymap_out;
     let on_zoom_keymap_in = cam.on_zoom_keymap_in;

@@ -1,4 +1,5 @@
 //! Search and navigation only; commands remain owned by their mounted controls.
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     combobox::{Combobox, ComboboxEmpty, ComboboxOption},
@@ -177,7 +178,7 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
 }
 
 pub(super) fn use_navigation_commands(
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     mut browser: Signal<bool>,
     has_project: bool,
     on_undo: EventHandler<()>,
@@ -185,11 +186,11 @@ pub(super) fn use_navigation_commands(
     on_export: EventHandler<()>,
 ) {
     let no_proj = (!has_project).then(|| "Open a project first.".to_owned());
-    let mut cmds: Vec<_> = ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"]
+    let mut cmds: Vec<_> = Workspace::TABS
         .into_iter()
         .map(|name| Command {
             group: "Go to",
-            label: name.into(),
+            label: name.as_str().into(),
             reason: no_proj.clone(),
             hint: None,
             on_select: EventHandler::new(move |()| {
@@ -200,7 +201,7 @@ pub(super) fn use_navigation_commands(
         .collect();
     cmds.push(Command {
         group: "Go to",
-        label: "Export".into(),
+        label: Workspace::Export.as_str().into(),
         reason: no_proj.clone(),
         hint: None,
         on_select: EventHandler::new(move |()| {
@@ -234,14 +235,21 @@ pub(super) fn use_navigation_commands(
 
 pub(super) fn editor_commands(
     model: &boardstudio_application::ReadModel,
-    workspace: &'static str,
+    workspace: Workspace,
     scope: &boardstudio_application::Scope,
     generation: u64,
     on_select: EventHandler<super::objects::TreeSelectRequest>,
 ) -> Vec<Command> {
     use super::objects::{self, TreeContext, TreeSelectRequest};
     use boardstudio_application::SelectionMode;
-    if !matches!(workspace, "Layout" | "PCB" | "Keycaps" | "Keymap" | "Case") {
+    if !matches!(
+        workspace,
+        Workspace::Layout
+            | Workspace::Pcb
+            | Workspace::Keycaps
+            | Workspace::Keymap
+            | Workspace::Case
+    ) {
         return vec![];
     }
     let Some(snapshot) = &model.accepted else {

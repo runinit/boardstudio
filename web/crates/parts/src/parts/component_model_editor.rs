@@ -8,6 +8,7 @@ use crate::{
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -78,9 +79,9 @@ fn current_snapshot(
     selected: &PartsSelection,
     selection_generation: u64,
     scope_generation: u64,
-    workspace: &Signal<&'static str>,
+    workspace: &Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
-    if workspace() != "Parts"
+    if workspace() != Workspace::Parts
         || owner.scope.is_none()
         || runtime.scope() != owner.scope
         || owner.selection_generation != selection_generation

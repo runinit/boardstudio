@@ -1,14 +1,15 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct GuideStateInput<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub render_scope: Scope,
     pub snapshot: &'a AcceptedSnapshot,
     pub render_generation: u64,
     pub adapter: SelectionAdapter,
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub selected_tree_context: Option<objects::ScopedTreeContext>,
     pub model: &'a ReadModel,
     pub visible: Vec<&'a Part>,
@@ -53,7 +54,8 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
         mirrored_pair,
         resolution,
     } = input;
-    let _board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
+    let _board_reference_editor = if matches!(active_workspace, Workspace::Layout | Workspace::Case)
+    {
         let reference = document
             .board_references
             .iter()
@@ -106,7 +108,7 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
         || part_placement.busy
         || matrix_placement.placement.is_some()
         || matrix_placement.busy
-        || (active_workspace == "Parts"
+        || (active_workspace == Workspace::Parts
             && parts_query().trim() == "controller"
             && guide_preferences()
                 .as_ref()
@@ -115,7 +117,7 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
         preferences.project_id == document.id
             && preferences.open
             // Keep the guide visible while matrix setup overlays the Layout canvas.
-            && !(active_workspace == "Layout"
+            && !(active_workspace == Workspace::Layout
                 && (matrix_placement.placement.is_some()
                     || matrix_placement.busy
                     || mirrored_pair.form.is_some()
@@ -200,7 +202,7 @@ pub(super) struct GuideOverlaysInput<'a> {
     pub part_placement: part_placement::PartPlacementMount,
     pub matrix_placement: objects::MatrixPlacementMount,
     pub setup_wiring_error: Signal<Option<String>>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub visible: Vec<&'a Part>,
     pub matrices: Vec<&'a boardstudio_core::model::Matrix>,
@@ -217,7 +219,7 @@ pub(super) struct GuideOverlaysInput<'a> {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub has_matrix: bool,
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub width: f64,
     pub zoom_surface_size: Signal<(f64, f64)>,
 }
@@ -280,7 +282,7 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
             let project_id = document.id.clone();
             let on_open = matrix_setup.on_open;
             move |(preferences, active_workspace, can_open, matrix_count, placing)| {
-                if active_workspace == "Layout"
+                if active_workspace == Workspace::Layout
                     && can_open
                     && matrix_count == 0
                     && !placing
@@ -339,7 +341,10 @@ pub(super) fn use_guide_overlays(input: GuideOverlaysInput<'_>) -> GuideOverlays
             }
         });
     let show_empty_board = guide.is_none()
-        && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
+        && matches!(
+            active_workspace,
+            Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+        )
         && !layout_assembly_3d()
         && visible.is_empty()
         && matrices.is_empty()
@@ -407,8 +412,8 @@ pub(super) fn guide_name_fields(
 pub(super) struct OnStageChangeArgs {
     pub setup_state_for_stage: setup_workspace::SetupWorkspaceState,
     pub guide_project_id: String,
-    pub guide_workspace_for_stage: Signal<&'static str>,
-    pub requested_workspace_panel: Signal<Option<&'static str>>,
+    pub guide_workspace_for_stage: Signal<Workspace>,
+    pub requested_workspace_panel: Signal<Option<Workspace>>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub objects_panel_settings: Signal<PanelSettings>,
@@ -455,7 +460,7 @@ pub(super) fn on_stage_change_handler(input: OnStageChangeArgs) -> EventHandler<
 }
 
 pub(super) struct OnOpenWorkspaceArgs {
-    pub guide_workspace_for_action: Signal<&'static str>,
+    pub guide_workspace_for_action: Signal<Workspace>,
     pub guide_adapter_for_action: SelectionAdapter,
     pub guide_runtime_for_action: Rc<Runtime>,
     pub settings_project_id: String,
@@ -467,7 +472,7 @@ pub(super) struct OnOpenWorkspaceArgs {
 
 pub(super) fn use_on_open_workspace(
     input: OnOpenWorkspaceArgs,
-) -> (Signal<bool>, EventHandler<&'static str>) {
+) -> (Signal<bool>, EventHandler<Workspace>) {
     let OnOpenWorkspaceArgs {
         mut guide_workspace_for_action,
         mut guide_adapter_for_action,
@@ -479,10 +484,10 @@ pub(super) fn use_on_open_workspace(
         inspector_panel_settings,
     } = input;
     let mut full_case_settings = use_signal(|| false);
-    let on_open_workspace = EventHandler::new(move |target: &'static str| {
-        if target == "Case" {
+    let on_open_workspace = EventHandler::new(move |target: Workspace| {
+        if target == Workspace::Case {
             full_case_settings.set(true);
-            guide_workspace_for_action.set("Case");
+            guide_workspace_for_action.set(Workspace::Case);
             return;
         }
         guide_workspace_for_action.set(target);
@@ -531,10 +536,10 @@ pub(super) fn on_dismiss_guide_handler(
 pub(super) fn on_finish_guide_handler(
     setup_state_for_finish: setup_workspace::SetupWorkspaceState,
     guide_project_id_for_finish: String,
-    mut guide_workspace_for_finish: Signal<&'static str>,
+    mut guide_workspace_for_finish: Signal<Workspace>,
 ) -> EventHandler<()> {
     EventHandler::new(move |_| {
-        guide_workspace_for_finish.set("Layout");
+        guide_workspace_for_finish.set(Workspace::Layout);
         setup_state_for_finish.dismiss_guide(&guide_project_id_for_finish);
     })
 }
@@ -554,7 +559,7 @@ pub(super) struct GuideReadinessInput<'a> {
     pub width: f64,
     pub height: f64,
     pub view_x: f64,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
 }
 
 pub(super) struct GuideReadiness {
@@ -622,7 +627,8 @@ pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadin
         }
         _ => None,
     };
-    let selection_geometry_anchor = (!layout_assembly_3d() && active_workspace == "Layout")
+    let selection_geometry_anchor = (!layout_assembly_3d()
+        && active_workspace == Workspace::Layout)
         .then(|| {
             let points: Vec<_> = visible
                 .iter()
@@ -678,7 +684,7 @@ pub(super) struct GuideNamed<'a> {
     pub inline_controller_picker: Option<Element>,
     pub guide_stage_detail: String,
     pub on_stage_change: EventHandler<SetupGuideStage>,
-    pub on_open_workspace: EventHandler<&'static str>,
+    pub on_open_workspace: EventHandler<Workspace>,
     pub on_dismiss_guide: EventHandler<()>,
     pub on_finish_guide: EventHandler<()>,
 }
@@ -715,33 +721,33 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
     let document = &views.document;
     let render_generation = setup_a.render_generation;
     let adapter = &setup_a.adapter;
-    let runtime = &setup_a.runtime;
-    let workspace = setup_a.workspace;
+    let runtime = &setup_a.editor.runtime();
+    let workspace = setup_a.editor.workspace;
     let selected_tree_context = &canvas.selection.selected_tree_context;
-    let model = &setup_a.model;
+    let model = &setup_a.view.model;
     let scene = &views.scene;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
-    let parts_query = setup_a.parts_query;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
+    let parts_query = setup_a.view.parts_query;
     let guide_preferences = setup_a.guide_preferences;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let resolution = &setup_b.resolution;
-    let current_scope = &setup_a.current_scope;
-    let parts_selection = setup_a.parts_selection;
+    let current_scope = &setup_a.view.current_scope;
+    let parts_selection = setup_a.view.parts_selection;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let layout_owner = &setup_a.layout_owner;
+    let layout_owner = &setup_a.view.layout_owner;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
     let layout_snap_settings = setup_a.layout_snap_settings;
-    let outline_inspector = &setup_a.outline_inspector;
+    let outline_inspector = &setup_a.view.outline_inspector;
     let width = cam.scene_bounds.width;
     let zoom_surface_size = cam.svg_surface.zoom_surface_size;
     let guide_name_draft = setup_a.guide_name_draft;
     let guide_name_edit = &setup_a.guide_name_edit;
     let setup_state = setup_a.setup_state;
     let requested_workspace_panel = setup_a.requested_workspace_panel;
-    let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let objects_panel_settings = setup_a.objects_panel_settings;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let toolbar_input = &inp.toolbar_input;

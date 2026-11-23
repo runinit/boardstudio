@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
@@ -7,7 +8,7 @@ pub fn PartsLibraryPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     scope_generation: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     mut query: PartsQuery,
     mut selected: PartsSelection,
     on_select: EventHandler<()>,

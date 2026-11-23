@@ -10,6 +10,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{Part, ProjectDoc, Vec2};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -47,8 +48,8 @@ struct AlignProjectionIdentity {
     has_preview: bool,
     has_gesture: bool,
     selected: Option<ScopedTreeContext>,
-    workspace: &'static str,
-    owner_workspace: &'static str,
+    workspace: Workspace,
+    owner_workspace: Workspace,
 }
 
 /// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
@@ -56,9 +57,9 @@ pub fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
@@ -294,11 +295,11 @@ pub fn use_canvas_align(
 fn clear_stale_feedback(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
     selected_reference: Signal<Option<String>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) {
     let Some(current_feedback) = feedback.peek().clone() else {
         return;
@@ -326,9 +327,9 @@ fn clear_stale_feedback(
 fn project(
     runtime: &Runtime,
     selected: Option<&ScopedTreeContext>,
-    workspace: &'static str,
+    workspace: Workspace,
     selected_reference: Option<&str>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) -> AlignProjection {
     let model = runtime.model();
     let empty = AlignProjection {

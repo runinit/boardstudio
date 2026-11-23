@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct CanvasSelectionStateInput<'a> {
     pub adapter: SelectionAdapter,
@@ -10,7 +11,7 @@ pub(super) struct CanvasSelectionStateInput<'a> {
     pub snapshot: &'a AcceptedSnapshot,
     pub accepted_canvas_source: layout_canvas::SceneSource,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_assembly_3d: Signal<bool>,
@@ -89,7 +90,7 @@ pub(super) fn use_canvas_selection_state(
         });
     let transform_matrix_id = selected_tree_context
         .as_ref()
-        .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
+        .filter(|selected| selected.scope == render_scope && active_workspace == Workspace::Layout)
         .and_then(|selected| {
             let matrix_id = match &selected.context {
                 objects::TreeContext::Matrix { matrix_id }
@@ -201,7 +202,7 @@ pub(super) fn use_canvas_selection_state(
 
 pub(super) struct InspectorProjectionsInput<'a> {
     pub model: &'a ReadModel,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub selected_tree_context: Option<objects::ScopedTreeContext>,
     pub layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
     pub adapter: SelectionAdapter,
@@ -286,7 +287,7 @@ pub(super) fn use_inspector_projections(
                 scope_generation,
                 workspace,
             ) = identity;
-            if workspace != "Layout" {
+            if workspace != Workspace::Layout {
                 return None;
             }
             let model = runtime.model();
@@ -307,7 +308,7 @@ pub(super) fn use_inspector_projections(
     }))
     .read()
     .clone();
-    let companion_placement = (active_workspace == "Layout")
+    let companion_placement = (active_workspace == Workspace::Layout)
         .then(|| {
             companion_placement_projection(
                 model,
@@ -385,30 +386,30 @@ pub(super) fn use_canvas_bundle(
     render_scope: &Scope,
 ) -> CanvasNamed {
     let adapter = &setup_a.adapter;
-    let model = &setup_a.model;
-    let layer_visibility = setup_a.layer_visibility;
+    let model = &setup_a.view.model;
+    let layer_visibility = setup_a.editor.layers;
     let canvas_source = &cam.scene_bounds.canvas_source;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
     let document = &views.document;
     let active_workspace = setup_a.active_workspace;
     let layout_snap_settings = setup_a.layout_snap_settings;
-    let layout_owner = &setup_a.layout_owner;
+    let layout_owner = &setup_a.view.layout_owner;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let layout_state = setup_a.layout_state;
     let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
-    let accepted_token = setup_a.accepted_token;
-    let current_scope = &setup_a.current_scope;
+    let accepted_token = setup_a.view.accepted_token;
+    let current_scope = &setup_a.view.current_scope;
     let render_generation = setup_a.render_generation;
     let board_inspector = &setup_a.board_inspector;
     let matrix_inspector = &setup_a.matrix_inspector;
     let key_size = &setup_a.key_size;
     let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
-    let outline_inspector = &setup_a.outline_inspector;
+    let outline_inspector = &setup_a.view.outline_inspector;
     let zoom_surface_size = cam.svg_surface.zoom_surface_size;
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let svg = &cam.svg_surface.svg;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
     let spacing_ghost_state = setup_a.spacing_ghost_state;
     let CanvasSelectionState {
         selected_tree_context,

@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) struct PendingSplayOriginPick<'a> {
     pub(crate) pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
@@ -17,7 +18,7 @@ pub(crate) struct PendingAnchorPick<'a> {
 
 fn pick_owner_valid(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     picked: &objects::MatrixTransformInspectorOwner,
@@ -36,7 +37,7 @@ fn pick_owner_valid(
 
 pub(crate) fn apply_pending_splay_origin_pick(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     pick: PendingSplayOriginPick<'_>,
@@ -62,7 +63,7 @@ pub(crate) fn apply_pending_splay_origin_pick(
 
 pub(crate) fn apply_pending_anchor_pick(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     pick: PendingAnchorPick<'_>,

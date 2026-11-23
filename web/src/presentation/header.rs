@@ -1,4 +1,5 @@
 //! Header presentation only. Session, history and workspace ownership stay with App.
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::{
     project_menu::ThemePicker,
     ui::{
@@ -59,7 +60,7 @@ fn HeaderSaveStatus(on_retry_save: EventHandler<()>) -> Element {
 #[component]
 pub(super) fn Header(
     project_menu: Element,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     show_workspaces: bool,
     has_project: bool,
     on_retry_save: EventHandler<()>,
@@ -102,6 +103,7 @@ pub(super) fn Header(
         }
     });
 
+    let export = Workspace::Export.as_str();
     let commands = rsx! {
         div { class: "header-commands",
             if show_workspaces { super::workspace_navigation::WorkspaceObjectNavigation { workspace } }
@@ -116,7 +118,7 @@ pub(super) fn Header(
             }
             {panel_controls}
             ThemePicker { open: settings_open }
-            Button { id: "m1-tab-Export", aria_label: "Export", aria_pressed: workspace() == "Export", onclick: move |_| on_export.call(()), "Export" }
+            Button { id: "m1-tab-{export}", aria_label: export, aria_pressed: workspace() == Workspace::Export, onclick: move |_| on_export.call(()), "{export}" }
         }
     };
     rsx! {

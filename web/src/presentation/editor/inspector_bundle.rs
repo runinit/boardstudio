@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct InspectorInput<'a> {
     pub setup_a: &'a super::setup_bundles::SetupA,
@@ -39,15 +40,15 @@ pub(super) fn inspector_input_for(
         layer_actions,
     } = input;
     let keymap_view = &setup_b.keymap_view;
-    let keymap_layer_id = setup_a.keymap_layer_id;
-    let model = &setup_a.model;
+    let keymap_layer_id = setup_a.view.keymap_layer_id;
+    let model = &setup_a.view.model;
     let keymap_layer = wir.wiring.keymap_layer;
     let keymap_export = wir.wiring.keymap_export;
     let keymap_select = wir.wiring.keymap_select;
     let adapter = &setup_a.adapter;
     let physical_setup_mount = &setup_b.physical_setup_mount;
     let mechanical_settings = &setup_b.mechanical_settings;
-    let current_scope = &setup_a.current_scope;
+    let current_scope = &setup_a.view.current_scope;
     let case_scene = &wir.pcb.case_scene;
     let case_selection = setup_a.case_selection;
     let case_selected_layer_id = &wir.pcb.case_selected_layer_id;
@@ -55,14 +56,14 @@ pub(super) fn inspector_input_for(
     let selected_tree_context = &canvas.selection.selected_tree_context;
     let show_configured_board = wir.wiring.show_configured_board;
     let case_display = wir.wiring.case_display;
-    let parts_query = setup_a.parts_query;
-    let parts_selection = setup_a.parts_selection;
+    let parts_query = setup_a.view.parts_query;
+    let parts_selection = setup_a.view.parts_selection;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
-    let layout_target = setup_a.layout_target;
-    let on_place_matrix_assembly = setup_a.on_place_matrix_assembly;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
+    let layout_target = setup_a.view.layout_target;
+    let on_place_matrix_assembly = setup_a.matrix_pair.on_place_matrix_assembly;
     let layout_selection_kind = setup_a.layout_selection_kind;
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let render_generation = setup_a.render_generation;
     let resolution = &setup_b.resolution;
     let firmware_feedback = &setup_b.firmware_feedback;
@@ -94,9 +95,9 @@ pub(super) fn inspector_input_for(
     let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
     let pending_anchor_pick = setup_a.pending_anchor_pick;
     let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
-    let outline_inspector = &setup_a.outline_inspector;
-    let layout_findings = setup_a.layout_findings;
-    let layout_owner = &setup_a.layout_owner;
+    let outline_inspector = &setup_a.view.outline_inspector;
+    let layout_findings = setup_a.view.layout_findings;
+    let layout_owner = &setup_a.view.layout_owner;
     let board_inspector = &setup_a.board_inspector;
     let findings = &views.findings;
     let active_workspace = setup_a.active_workspace;
@@ -108,7 +109,7 @@ pub(super) fn inspector_input_for(
     let on_open_module_placement = wir.on_open_module_placement;
     let on_module_attached = wir.on_module_attached;
     match active_workspace {
-        "Keymap" => super::canvas_inspector_inputs::keymap_inspector_input(
+        Workspace::Keymap => super::canvas_inspector_inputs::keymap_inspector_input(
             super::canvas_inspector_inputs::KeymapInspectorArgs {
                 keymap_view: keymap_view.clone(),
                 render_scope: render_scope.clone(),
@@ -124,7 +125,7 @@ pub(super) fn inspector_input_for(
                 layer_actions,
             },
         ),
-        "Case" => super::canvas_inspector_inputs::case_inspector_input(
+        Workspace::Case => super::canvas_inspector_inputs::case_inspector_input(
             super::canvas_inspector_inputs::CaseInspectorArgs {
                 physical_setup_mount: physical_setup_mount.clone(),
                 mechanical_settings: mechanical_settings.clone(),
@@ -140,7 +141,7 @@ pub(super) fn inspector_input_for(
                 case_display,
             },
         ),
-        "Parts" => super::canvas_inspector_inputs::parts_inspector_input(
+        Workspace::Parts => super::canvas_inspector_inputs::parts_inspector_input(
             super::canvas_inspector_inputs::PartsInspectorArgs {
                 snapshot,
                 current_scope: current_scope.clone(),
@@ -156,7 +157,7 @@ pub(super) fn inspector_input_for(
                 layout_selection_kind,
             },
         ),
-        "PCB" => super::canvas_inspector_inputs::pcb_inspector_input(
+        Workspace::Pcb => super::canvas_inspector_inputs::pcb_inspector_input(
             super::canvas_inspector_inputs::PcbInspectorArgs {
                 selected_tree_context: selected_tree_context.clone(),
                 render_scope: render_scope.clone(),
@@ -180,7 +181,7 @@ pub(super) fn inspector_input_for(
                 on_resolve,
             },
         ),
-        "Keycaps" => super::canvas_inspector_inputs::keycaps_inspector_input(
+        Workspace::Keycaps => super::canvas_inspector_inputs::keycaps_inspector_input(
             super::canvas_inspector_inputs::KeycapsInspectorArgs {
                 model,
                 current_scope: current_scope.clone(),

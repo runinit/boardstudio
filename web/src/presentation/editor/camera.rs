@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct SvgSurface {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
@@ -7,7 +8,7 @@ pub(super) struct SvgSurface {
 
 pub(super) fn use_svg_surface(
     canvas_navigation: &CanvasNavigationState,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> SvgSurface {
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let zoom_surface_size = canvas_navigation.surface_size();
@@ -66,7 +67,7 @@ pub(super) struct SceneBoundsInput<'a> {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
     pub render_scope: Scope,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub keymap_view: Option<Rc<keymap::KeymapView>>,
     pub keymap_contours: Option<Rc<[Contour]>>,
     pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
@@ -140,14 +141,14 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
         },
     ))();
     let workspace_rect_bounds = match active_workspace {
-        "PCB" => pcb_bounds(snapshot, &render_scope),
-        "Keymap" => keymap_view
+        Workspace::Pcb => pcb_bounds(snapshot, &render_scope),
+        Workspace::Keymap => keymap_view
             .as_deref()
             .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[]))),
-        "Keycaps" => keycaps_view
+        Workspace::Keycaps => keycaps_view
             .as_deref()
             .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
-        "Layout" => accepted_layout_bounds,
+        Workspace::Layout => accepted_layout_bounds,
         _ => None,
     };
     let bounds = workspace_rect_bounds.or_else(|| {
@@ -166,7 +167,7 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
         ))
     });
     let bounds = bounds.unwrap_or((-50.0, 50.0, -50.0, 50.0));
-    let bounds = if active_workspace == "Layout" {
+    let bounds = if active_workspace == Workspace::Layout {
         let surface = svg
             .borrow()
             .as_ref()
@@ -184,7 +185,7 @@ pub(super) fn use_scene_bounds(input: SceneBoundsInput<'_>) -> SceneBounds {
     let keymap_surface = zoom_surface_size();
     // React normalizes its zoom against the physical getBounds basis; Keymap's existing camera
     // uses its key/contour basis. Convert only the displayed/effective scale between those bases.
-    let keymap_scale_ratio = if active_workspace == "Keymap" && !layout_assembly_3d() {
+    let keymap_scale_ratio = if active_workspace == Workspace::Keymap && !layout_assembly_3d() {
         displayed_layout_bounds
             .map(|reference| {
                 let reference = keycaps_fit::aspect_bounds(reference, keymap_surface);
@@ -237,7 +238,7 @@ pub(super) struct FooterBoundsInput<'a> {
     pub max_y: f64,
     pub workspace_rect_bounds: Option<(f64, f64, f64, f64)>,
     pub displayed_layout_bounds: Option<(f64, f64, f64, f64)>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub keymap_view: Option<Rc<keymap::KeymapView>>,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
@@ -268,7 +269,7 @@ pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
         model,
     } = input;
     let footer_selected_ids = model.selected_part_ids.clone();
-    let footer_camera_bounds = if active_workspace == "Layout" {
+    let footer_camera_bounds = if active_workspace == Workspace::Layout {
         // Layout's current camera basis already includes its 12 mm geometry margin and
         // aspect expansion; keymap::fit_camera adds 40 mm to its input to reconstruct
         // the mounted canvas base, so remove that symmetric padding here.
@@ -276,14 +277,14 @@ pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
     } else {
         workspace_rect_bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0))
     };
-    let footer_board_bounds = if active_workspace == "Keymap" {
+    let footer_board_bounds = if active_workspace == Workspace::Keymap {
         workspace_rect_bounds
     } else {
         displayed_layout_bounds.map(|(min_x, max_x, min_y, max_y)| {
             (min_x + 12.0, max_x - 12.0, min_y + 12.0, max_y - 12.0)
         })
     };
-    let footer_selection_bounds = if active_workspace == "Keymap" {
+    let footer_selection_bounds = if active_workspace == Workspace::Keymap {
         keymap_view.as_deref().and_then(|view| {
             keymap::selected_bounds(view, &footer_selected_ids.iter().cloned().collect())
         })
@@ -302,7 +303,7 @@ pub(super) fn footer_bounds(input: FooterBoundsInput<'_>) -> FooterBounds {
 pub(super) fn on_fit_keymap_board_handler(
     layout_owner: LayoutOwnerIdentity,
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: SelectionAdapter,
     svg: Rc<RefCell<Option<SvgElement>>>,
     footer_board_bounds: Option<(f64, f64, f64, f64)>,
@@ -350,7 +351,7 @@ pub(super) fn on_fit_keymap_board_handler(
 pub(super) struct OnFitKeymapSelectionInput {
     pub layout_owner: LayoutOwnerIdentity,
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub footer_camera_bounds: (f64, f64, f64, f64),
@@ -422,7 +423,7 @@ pub(super) fn on_fit_keymap_selection_handler(
 
 pub(super) struct ZoomKeymapInput {
     pub zoom_runtime: Rc<Runtime>,
-    pub zoom_workspace: Signal<&'static str>,
+    pub zoom_workspace: Signal<Workspace>,
     pub zoom_scope: Scope,
     pub zoom_owner: LayoutOwnerIdentity,
     pub zoom_adapter: SelectionAdapter,
@@ -520,7 +521,7 @@ pub(super) struct PlacementBindingsInput<'a> {
     pub max_y: f64,
     pub camera_center: Vec2,
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub version: Signal<u64>,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
@@ -648,11 +649,11 @@ pub(super) fn use_camera_bundle(
     visible: Vec<&Part>,
     matrix_setup: &mut objects::MatrixSetupMount,
 ) -> CamNamed {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
-    let workspace = setup_a.workspace;
-    let layout_owner = &setup_a.layout_owner;
-    let model = &setup_a.model;
+    let workspace = setup_a.editor.workspace;
+    let layout_owner = &setup_a.view.layout_owner;
+    let model = &setup_a.view.model;
     let document = &views.document;
     let scene = &views.scene;
     let active_workspace = setup_a.active_workspace;
@@ -661,17 +662,17 @@ pub(super) fn use_camera_bundle(
     let keycaps_view = &setup_b.keycaps_view;
     let keycaps_contours = &setup_b.keycaps_contours;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let version = setup_a.version;
+    let version = setup_a.editor.version;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let guide_preferences = setup_a.guide_preferences;
-    let parts_query = setup_a.parts_query;
-    let parts_selection = setup_a.parts_selection;
+    let parts_query = setup_a.view.parts_query;
+    let parts_selection = setup_a.view.parts_selection;
     let layout_snap_settings = setup_a.layout_snap_settings;
-    let layout_target = setup_a.layout_target;
-    let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
+    let layout_target = setup_a.view.layout_target;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let canvas_interaction = &setup_a.canvas_interaction;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let canvas_navigation = &setup_a.canvas_navigation;
     let render_generation = setup_a.render_generation;
     let SvgSurface {

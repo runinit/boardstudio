@@ -8,6 +8,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::*;
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -19,7 +20,7 @@ struct Probe {
     runtime: Rc<Runtime>,
     version: Rc<RefCell<Option<Signal<u64>>>>,
     adapter: Rc<RefCell<Option<SelectionAdapter>>>,
-    workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+    workspace: Rc<RefCell<Option<Signal<Workspace>>>>,
 }
 #[component]
 fn host() -> Element {
@@ -30,7 +31,7 @@ fn host() -> Element {
         *probe.version.borrow_mut() = Some(version);
     }
     use_context_provider(|| version);
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     if probe.workspace.borrow().is_none() {
         *probe.workspace.borrow_mut() = Some(workspace);
     }
@@ -277,7 +278,7 @@ async fn mixed_primary_and_companion_selection_never_filters_into_bulk_keys() {
 fn editor_host() -> Element {
     let probe = use_context::<Probe>();
     use_context_provider(|| probe.runtime.clone());
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     if probe.workspace.borrow().is_none() {
         *probe.workspace.borrow_mut() = Some(workspace);
     }
@@ -495,9 +496,9 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
     support::run_pending(&probe.runtime).await;
     refresh(&probe, &root).await;
     let mut workspace = probe.workspace.borrow().unwrap();
-    workspace.set("Parts");
+    workspace.set(Workspace::Parts);
     refresh(&probe, &root).await;
-    workspace.set("Layout");
+    workspace.set(Workspace::Layout);
     refresh(&probe, &root).await;
     assert!(
         root.query_selector("button[aria-label='Enable selected keys']")

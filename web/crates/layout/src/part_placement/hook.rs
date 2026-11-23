@@ -19,6 +19,7 @@ use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
 use boardstudio_application::{Durability, Event, Lifecycle, SelectionMode};
 use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::Settlement;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use dioxus::prelude::*;
 use std::{
@@ -48,7 +49,7 @@ pub struct PartPlacementMount {
 pub struct PartPlacementHost {
     pub runtime: Rc<Runtime>,
     pub load_definition: DefinitionLoader,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub generation: Signal<u64>,
     pub version: Signal<u64>,
     pub adapter: SelectionAdapter,
@@ -147,7 +148,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             }) else {
                 return;
             };
-            if !guided && owner.workspace != "PCB" {
+            if !guided && owner.workspace != Workspace::Pcb {
                 return;
             }
             chooser.set((!guided).then(|| ControllerChooserOwner {
@@ -155,7 +156,11 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 scope: owner.scope.clone(),
                 generation: owner.generation,
             }));
-            workspace.set(if guided { "Layout" } else { "Parts" });
+            workspace.set(if guided {
+                Workspace::Layout
+            } else {
+                Workspace::Parts
+            });
             query.set("controller".into());
             selected.set(None);
             selected_context.set(None);
@@ -195,13 +200,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     });
                 if match workflow {
                     PlacementWorkflow::WiringController => {
-                        source_workspace != "Parts"
-                            && !(source_workspace == "Layout" && guided_wiring)
+                        source_workspace != Workspace::Parts
+                            && !(source_workspace == Workspace::Layout && guided_wiring)
                     }
-                    PlacementWorkflow::PcbController => source_workspace != "Parts",
-                    PlacementWorkflow::GeneralComponent => {
-                        !matches!(source_workspace, "Parts" | "Layout" | "PCB")
-                    }
+                    PlacementWorkflow::PcbController => source_workspace != Workspace::Parts,
+                    PlacementWorkflow::GeneralComponent => !matches!(
+                        source_workspace,
+                        Workspace::Parts | Workspace::Layout | Workspace::Pcb
+                    ),
                 } {
                     return;
                 }
@@ -210,7 +216,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     &runtime,
                     generation(),
                     workspace(),
-                    "Layout",
+                    Workspace::Layout,
                     guide_preferences(),
                 );
                 if active.read().as_ref().is_some_and(|placement| {
@@ -226,7 +232,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     preparing
                         .read()
                         .as_ref()
-                        .map_or("Parts", |owner| owner.source_workspace),
+                        .map_or(Workspace::Parts, |owner| owner.source_workspace),
                     guide_preferences(),
                 );
                 if preparing
@@ -536,7 +542,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     if workflow.is_controller() {
                         query.set("controller".into());
                     }
-                    workspace.set("Layout");
+                    workspace.set(Workspace::Layout);
                     adapter.selected_context.set(None);
                     adapter.anchor_scope.set(None);
                     runtime.submit(Event::SelectParts {
@@ -580,7 +586,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         generation(),
                         workspace(),
                         selected_context(),
-                        "Parts",
+                        Workspace::Parts,
                     )
                 })
             {
@@ -608,7 +614,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 }) && canvas_interaction.current().is_none()
                 {
                     chooser.set(None);
-                    workspace.set("PCB");
+                    workspace.set(Workspace::Pcb);
                 }
             })
         });
@@ -621,15 +627,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 ComponentPlacementAction::AddObject { .. }
                 | ComponentPlacementAction::AddMirrorOnlyObject { .. }
                 | ComponentPlacementAction::AddSourceObject { .. } => {
-                    let Some(owner) = action_owner
-                        .as_ref()
-                        .filter(|owner| matches!(owner.workspace, "Layout" | "PCB"))
-                    else {
+                    let Some(owner) = action_owner.as_ref().filter(|owner| {
+                        matches!(owner.workspace, Workspace::Layout | Workspace::Pcb)
+                    }) else {
                         return;
                     };
                     owner.workspace
                 }
-                ComponentPlacementAction::PartsInspector { .. } => "Parts",
+                ComponentPlacementAction::PartsInspector { .. } => Workspace::Parts,
             };
             if !action_owner.as_ref().is_some_and(|owner| {
                 owner.is_current(
@@ -718,7 +723,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     &cleanup_runtime,
                     observed_generation,
                     observed_workspace,
-                    "Layout",
+                    Workspace::Layout,
                     observed_guide.clone(),
                 )
                 .admits(&placement.owner, &cleanup_runtime, &model)
@@ -782,7 +787,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 &runtime,
                 generation(),
                 workspace(),
-                "Layout",
+                Workspace::Layout,
                 guide_preferences(),
             )
             .admits(&placement.owner, &runtime, &model)
@@ -847,11 +852,11 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     adapter.selected_context.set(next_context);
                     adapter.anchor_scope.set(None);
                     workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
-                        "Layout"
+                        Workspace::Layout
                     } else if owner.workflow.is_controller() {
-                        "PCB"
+                        Workspace::Pcb
                     } else {
-                        "Layout"
+                        Workspace::Layout
                     });
                     if owner.workflow == PlacementWorkflow::GeneralComponent {
                         layout_selection_kind.set(objects::LayoutSelectionKind::Part);
@@ -896,7 +901,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             let owner_and_workspace = active
                 .read()
                 .as_ref()
-                .map(|placement| (placement.owner.clone(), "Layout"))
+                .map(|placement| (placement.owner.clone(), Workspace::Layout))
                 .or_else(|| {
                     preparing
                         .read()
@@ -924,9 +929,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 selected_context.set(None);
                 anchor_scope.set(None);
                 workspace.set(if owner.workflow == PlacementWorkflow::PcbController {
-                    "PCB"
+                    Workspace::Pcb
                 } else {
-                    "Layout"
+                    Workspace::Layout
                 });
                 runtime.submit(Event::SelectParts {
                     operation_id: runtime.operation(),
@@ -945,7 +950,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             &runtime,
             generation(),
             workspace(),
-            "Layout",
+            Workspace::Layout,
             guide_preferences(),
         )
         .admits(&placement.owner, &runtime, &model)
@@ -983,7 +988,7 @@ fn placement_route_is_current(
     model: &boardstudio_application::ReadModel,
     owner: &PlacementOwner,
     generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
     preferences: Option<SetupGuidePreferences>,
 ) -> bool {
     model.accepted.as_ref().is_some_and(|accepted| {
@@ -993,7 +998,7 @@ fn placement_route_is_current(
             && model.active_instance_id == owner.scope.instance_id
             && runtime.scope().as_ref() == Some(&owner.scope)
             && generation == owner.generation
-            && workspace == "Layout"
+            && workspace == Workspace::Layout
     }) && (owner.workflow != PlacementWorkflow::WiringController
         || preferences.as_ref().is_some_and(|preferences| {
             preferences.open

@@ -5,6 +5,7 @@ pub use super::layout_align_geometry::{
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::tree::TreeContext;
 use boardstudio_application::Scope;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
@@ -31,7 +32,7 @@ pub struct AlignFeedback {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AlignAction {
-    pub workspace: &'static str,
+    pub workspace: Workspace,
     pub scope: Scope,
     pub scope_generation: u64,
     pub context: TreeContext,

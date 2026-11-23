@@ -7,6 +7,7 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{GenerationStatus, ReadModel, SelectionMode};
 use boardstudio_core::model::OutlineExportFormat;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::ToggleField;
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
@@ -22,8 +23,8 @@ use wasm_bindgen::{JsCast, closure::Closure};
 #[component]
 pub(super) fn ExportWorkspace(
     zmk_firmware: Option<ZmkFirmwareExportPanelInput>,
-    workspace: Signal<&'static str>,
-    return_workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
+    return_workspace: Signal<Workspace>,
     mut inspect_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
 ) -> Element {
@@ -65,7 +66,7 @@ pub(super) fn ExportWorkspace(
             let mut ws = workspace;
             let cb = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
                 move |e: web_sys::KeyboardEvent| {
-                    if e.key() == "Escape" && ws() == "Export" {
+                    if e.key() == "Escape" && ws() == Workspace::Export {
                         e.prevent_default();
                         ws.set(return_workspace());
                     }
@@ -123,9 +124,9 @@ pub(super) fn ExportWorkspace(
                     if !m.selected_part_ids.is_empty() || m.selection_anchor_id.is_some() {
                         rt_w.submit(boardstudio_application::Event::SelectParts { operation_id: rt_w.operation(), part_ids: vec![], range_part_ids: vec![], mode: SelectionMode::Replace });
                     }
-                    pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set("PCB");
+                    pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set(Workspace::Pcb);
                 }, "Review wiring" }
-                Button { variant: ButtonVariant::Secondary, onclick: move |_| { pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set("Case"); }, "Review case" }
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| { pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set(Workspace::Case); }, "Review case" }
             }
             RuntimeReportBanner {}
         }

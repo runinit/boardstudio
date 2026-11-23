@@ -10,18 +10,18 @@ pub(super) fn use_pointer_bundle(
     impl FnMut(PointerEvent) + Clone + 'static,
 ) {
     let canvas_navigation = &setup_a.canvas_navigation;
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let svg = &cam.svg_surface.svg;
     let drag = &cam.placement.drag;
     let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.layout_owner;
+    let layout_owner = &setup_a.view.layout_owner;
     let layout_snap_settings = setup_a.layout_snap_settings;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
     let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let canvas_interaction = &setup_a.canvas_interaction;
-    let workspace = setup_a.workspace;
+    let workspace = setup_a.editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
@@ -108,7 +108,7 @@ pub(super) fn build_canvas_pointer(
     views: &super::setup_workspaces::Views,
     render_scope: &Scope,
 ) -> PtrNamed {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
     let svg = &cam.svg_surface.svg;
     let space_down = &cam.placement.space_down;
@@ -118,14 +118,14 @@ pub(super) fn build_canvas_pointer(
     let render_generation = setup_a.render_generation;
     let visible_ids = &views.visible_ids;
     let layout_selection_kind = setup_a.layout_selection_kind;
-    let layout_owner = &setup_a.layout_owner;
+    let layout_owner = &setup_a.view.layout_owner;
     let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
     let pending_anchor_pick = setup_a.pending_anchor_pick;
     let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
     let split_focus = setup_a.split_focus;
-    let workspace = setup_a.workspace;
+    let workspace = setup_a.editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;

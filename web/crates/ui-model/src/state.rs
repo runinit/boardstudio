@@ -1,5 +1,6 @@
 //! Workspace, view and layout state that the page shell provides as Dioxus context and
 //! feature crates read.
+use crate::Workspace;
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use crate::instance_selection;
 use boardstudio_application::{Scope, SnapshotToken};
@@ -29,7 +30,7 @@ pub struct LayoutOwnerIdentity {
     pub token: Option<SnapshotToken>,
     pub revision: Option<u64>,
     pub generation: u64,
-    pub workspace: &'static str,
+    pub workspace: Workspace,
 }
 
 /// Transient amber at-rest preview for one Inspector number field (ticket
@@ -131,7 +132,7 @@ impl RelationHighlight {
 }
 
 #[derive(Clone, Copy)]
-pub struct WorkspaceState(pub Signal<&'static str>);
+pub struct WorkspaceState(pub Signal<Workspace>);
 #[derive(Clone, Copy)]
 pub struct CompactPanelState {
     pub objects_open: Signal<bool>,

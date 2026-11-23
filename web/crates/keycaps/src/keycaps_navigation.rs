@@ -2,6 +2,7 @@
 use super::{keycaps_fit, objects};
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_model::model::{ProjectDoc, Vec2};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
@@ -57,7 +58,7 @@ pub fn focused_finding_for_admitted_route(
 }
 
 pub struct NavigationAdmission<'a> {
-    pub current_workspace: &'a str,
+    pub current_workspace: Workspace,
     pub owner: OwnerIdentity<'a>,
     pub live_scope: Option<&'a Scope>,
     pub live_generation: u64,
@@ -69,7 +70,7 @@ pub struct NavigationAdmission<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NavigationOwner {
-    pub workspace: &'static str,
+    pub workspace: Workspace,
     pub scope: Scope,
     pub generation: u64,
     pub token: SnapshotToken,
@@ -79,7 +80,7 @@ pub struct NavigationOwner {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiveNavigationOwner {
-    pub workspace: &'static str,
+    pub workspace: Workspace,
     pub scope: Option<Scope>,
     pub generation: u64,
     pub token: Option<SnapshotToken>,
@@ -143,8 +144,8 @@ pub fn owner_for_request(
     generation: u64,
 ) -> NavigationOwner {
     let workspace = match &destination {
-        Destination::Layout(_) => "Layout",
-        Destination::CaseLayer(_) | Destination::CaseBody(_) => "Case",
+        Destination::Layout(_) => Workspace::Layout,
+        Destination::CaseLayer(_) | Destination::CaseBody(_) => Workspace::Case,
     };
     NavigationOwner {
         workspace,
@@ -201,7 +202,7 @@ pub fn queue_owner_focus(
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RouteAction {
-    SetWorkspace(&'static str),
+    SetWorkspace(Workspace),
     SelectTree {
         scope: Scope,
         context: objects::TreeContext,
@@ -229,13 +230,13 @@ pub struct OwnerIdentity<'a> {
 }
 
 pub fn request_owner_is_current(
-    workspace: &str,
+    workspace: Workspace,
     owner: OwnerIdentity<'_>,
     live_scope: Option<&Scope>,
     live_generation: u64,
     request_scope: &Scope,
 ) -> bool {
-    workspace == "Keycaps"
+    workspace == Workspace::Keycaps
         && live_scope == Some(owner.scope)
         && live_generation == owner.generation
         && request_scope == owner.scope
@@ -383,7 +384,7 @@ pub fn dispatch_route_with_camera_basis(
     let generation = effects.generation;
     match effects.destination {
         Destination::Layout(context) => {
-            perform(RouteAction::SetWorkspace("Layout"));
+            perform(RouteAction::SetWorkspace(Workspace::Layout));
             perform(RouteAction::SelectTree {
                 scope: effects.scope.clone(),
                 context: context.clone(),
@@ -397,14 +398,14 @@ pub fn dispatch_route_with_camera_basis(
             }
         }
         Destination::CaseLayer(layer_id) => {
-            perform(RouteAction::SetWorkspace("Case"));
+            perform(RouteAction::SetWorkspace(Workspace::Case));
             perform(RouteAction::SelectCaseLayer {
                 scope: effects.scope.clone(),
                 layer_id,
             });
         }
         Destination::CaseBody(body_id) => {
-            perform(RouteAction::SetWorkspace("Case"));
+            perform(RouteAction::SetWorkspace(Workspace::Case));
             perform(RouteAction::SelectCaseBody {
                 scope: effects.scope.clone(),
                 body_id,
@@ -500,7 +501,7 @@ mod tests {
             board_id: "b".into(),
         });
         let expected = NavigationOwner {
-            workspace: "Layout",
+            workspace: Workspace::Layout,
             scope: scope.clone(),
             generation: 1,
             token: SnapshotToken(2),
@@ -508,7 +509,7 @@ mod tests {
             destination: dest.clone(),
         };
         let live = LiveNavigationOwner {
-            workspace: "Layout",
+            workspace: Workspace::Layout,
             scope: Some(scope),
             generation: 1,
             token: Some(SnapshotToken(2)),

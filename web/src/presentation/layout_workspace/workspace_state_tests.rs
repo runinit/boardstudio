@@ -1,5 +1,6 @@
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -9,7 +10,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 #[component]
 fn state_host() -> Element {
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
-    let mut workspace = use_signal(|| "Layout");
+    let mut workspace = use_signal(|| Workspace::Layout);
     let state = use_layout_workspace_state(selected_context, workspace);
     let mut inspector_tab = state.inspector_tab();
     let selection_kind = state.selection_kind();
@@ -89,7 +90,7 @@ fn state_host() -> Element {
                 Button {
                     variant: ButtonVariant::Secondary,
                     id: "layout-state-switch",
-                    onclick: move |_| workspace.set("Keycaps"),
+                    onclick: move |_| workspace.set(Workspace::Keycaps),
                     "Switch workspace"
                 }
                 output { id: "layout-state-tab", "{inspector_tab_label}" }

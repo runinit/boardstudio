@@ -1,6 +1,7 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::split_focus::SplitHalf;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
@@ -20,7 +21,7 @@ type TransformToolOwner = (
     Option<boardstudio_application::Scope>,
     u64,
     Option<String>,
-    &'static str,
+    Workspace,
     bool,
 );
 type InspectorFieldFailures = (
@@ -147,7 +148,7 @@ pub(super) struct LayoutWorkspaceState {
 
 pub(super) fn use_layout_workspace_state(
     selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> LayoutWorkspaceState {
     let mut state = LayoutWorkspaceState {
         selection_kind: use_signal(objects::LayoutSelectionKind::default),
@@ -176,7 +177,7 @@ pub(super) fn use_layout_workspace_state(
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
     use_effect(use_reactive!(|observed_workspace| {
-        if observed_workspace != "Layout" {
+        if observed_workspace != Workspace::Layout {
             state.transform_tool.set(None);
         }
     }));

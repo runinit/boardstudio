@@ -1,8 +1,9 @@
 use boardstudio_model::model::{EditOperation, ProjectDoc, Vec2};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::tree::TreeContext;
 
-pub(super) fn workspace_route_matches(current: &str, owner: &str) -> bool {
-    matches!(owner, "Layout" | "PCB") && current == owner
+pub(super) fn workspace_route_matches(current: Workspace, owner: Workspace) -> bool {
+    matches!(owner, Workspace::Layout | Workspace::Pcb) && current == owner
 }
 
 pub(super) fn make_edit(
@@ -81,12 +82,12 @@ pub(crate) mod tests {
     fn align_route_is_exactly_scoped_to_its_workspace_owner() {
         // (workspace, owner, admitted): admission is exactly scoped to the owning workspace.
         for (workspace, owner, admitted) in [
-            ("Layout", "Layout", true),
-            ("PCB", "PCB", true),
-            ("PCB", "Layout", false),
-            ("Layout", "PCB", false),
-            ("Parts", "Parts", false),
-            ("Layout", "Parts", false),
+            (Workspace::Layout, Workspace::Layout, true),
+            (Workspace::Pcb, Workspace::Pcb, true),
+            (Workspace::Pcb, Workspace::Layout, false),
+            (Workspace::Layout, Workspace::Pcb, false),
+            (Workspace::Parts, Workspace::Parts, false),
+            (Workspace::Layout, Workspace::Parts, false),
         ] {
             assert_eq!(
                 workspace_route_matches(workspace, owner),

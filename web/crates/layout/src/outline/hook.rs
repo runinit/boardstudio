@@ -14,6 +14,7 @@ use boardstudio_model::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -30,7 +31,7 @@ struct ActionState {
     selected_feature_id: Signal<Option<String>>,
     selected_connection_id: Signal<Option<String>>,
     selected_context: Signal<Option<crate::objects::ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     captured_generation: u64,
 }
@@ -320,7 +321,7 @@ pub fn outline_action_is_current(
 pub fn use_outline_lifecycle(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<crate::objects::ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> (
     Option<OutlineInspectorProjection>,
@@ -482,7 +483,7 @@ fn project_inspector(
     } = state;
     let model = runtime.model();
     let scope = runtime.scope()?;
-    if workspace() != "Layout" || scope_generation() != captured_generation {
+    if workspace() != Workspace::Layout || scope_generation() != captured_generation {
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
@@ -858,7 +859,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     let workspace = state.workspace;
     let scope_generation = state.scope_generation;
     let captured_generation = state.captured_generation;
-    if workspace() != "Layout" || scope_generation() != captured_generation {
+    if workspace() != Workspace::Layout || scope_generation() != captured_generation {
         return;
     }
     if !outline_action_is_current(&action, runtime, captured_generation) {

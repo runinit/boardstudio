@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct SelectTreeInput {
     pub runtime: Rc<Runtime>,
@@ -6,7 +7,7 @@ pub(super) struct SelectTreeInput {
     pub owner: LayoutOwnerIdentity,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub generation: u64,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub inspector_settings: Signal<PanelSettings>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
@@ -76,11 +77,11 @@ pub(super) fn select_tree_handler(
             return;
         }
         if let Some(action) = activation {
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             outline_activation.call(action);
         }
         if outline_route {
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             fit_selected_bridge(&runtime, bridge_id.as_deref());
             pin_inspector_on_desktop(inspector_settings);
         }
@@ -101,13 +102,13 @@ pub(super) struct SelectionKindInput {
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub inspector_panel_settings: Signal<PanelSettings>,
 }
 
 pub(super) fn on_selection_kind_handler(
     input: SelectionKindInput,
-    expected_workspace: &'static str,
+    expected_workspace: Workspace,
 ) -> EventHandler<objects::LayoutSelectionKind> {
     let SelectionKindInput {
         runtime,
@@ -189,8 +190,8 @@ pub(super) fn on_snap_intent_handler(
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
     mut snap_settings: Signal<objects::LayoutSnapSettings>,
-    workspace: Signal<&'static str>,
-    expected_workspace: &'static str,
+    workspace: Signal<Workspace>,
+    expected_workspace: Workspace,
 ) -> EventHandler<objects::LayoutSnapIntent> {
     EventHandler::new(move |intent: objects::LayoutSnapIntent| {
         if !selection::workspace_owner_is_current(
@@ -231,7 +232,7 @@ pub(super) struct OnKeymapSelectInput {
     pub generation: u64,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub keymap_layer_id: Signal<String>,
 }
 
@@ -247,7 +248,7 @@ pub(super) fn on_keymap_select_handler(input: OnKeymapSelectInput) -> EventHandl
         keymap_layer_id,
     } = input;
     EventHandler::new(move |key_id: String| {
-        if workspace() != "Keymap"
+        if workspace() != Workspace::Keymap
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -334,7 +335,7 @@ pub(super) struct OnKeycapsSelectInput {
     pub generation: u64,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub instance_selection: InstanceSelection,
 }
 
@@ -350,7 +351,7 @@ pub(super) fn on_keycaps_select_handler(input: OnKeycapsSelectInput) -> EventHan
         instance_selection,
     } = input;
     EventHandler::new(move |key_id: String| {
-        if workspace() != "Keycaps"
+        if workspace() != Workspace::Keycaps
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -434,7 +435,7 @@ pub(super) struct OnPcbPartHitInput {
     pub token: boardstudio_application::SnapshotToken,
     pub owner: LayoutOwnerIdentity,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub instance_selection: InstanceSelection,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
 }
@@ -455,7 +456,7 @@ pub(super) fn on_pcb_part_hit_handler(
         layout_selection_kind,
     } = input;
     EventHandler::new(move |request: pcb_scene::PcbPartHit| {
-        if workspace() != "PCB"
+        if workspace() != Workspace::Pcb
             || request.scope != scope
             || request.token != token
             || request.generation != generation
@@ -557,27 +558,27 @@ pub(super) fn build_selection_handlers(
     SelHandlers,
     impl FnMut(objects::TreeSelectRequest) + 'static,
 ) {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
-    let workspace = setup_a.workspace;
+    let workspace = setup_a.editor.workspace;
     let render_generation = setup_a.render_generation;
-    let inspect_open = setup_a.inspect_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let objects_open = setup_a.objects_open;
-    let instance_selection = setup_a.instance_selection;
-    let layout_owner = &setup_a.layout_owner;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let instance_selection = setup_a.editor.instance_selection;
+    let layout_owner = &setup_a.view.layout_owner;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let parts_selection = setup_a.parts_selection;
+    let parts_selection = setup_a.view.parts_selection;
     let layout_state = setup_a.layout_state;
-    let keymap_layer_id = setup_a.keymap_layer_id;
-    let outline_activation = setup_a.outline_activation;
+    let keymap_layer_id = setup_a.view.keymap_layer_id;
+    let outline_activation = setup_a.view.outline_activation;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let layout_snap_settings = setup_a.layout_snap_settings;
     let objects_panel_settings = setup_a.objects_panel_settings;
-    let parts_selection_generation = setup_a.parts_selection_generation;
+    let parts_selection_generation = setup_a.view.parts_selection_generation;
     let parts_state = setup_a.parts_state;
     let case_workspace_state = setup_a.case_workspace_state;
-    let keymap_state = setup_a.keymap_state;
+    let keymap_state = setup_a.view.keymap_state;
     let select_tree = select_tree_handler(SelectTreeInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
@@ -617,10 +618,10 @@ pub(super) fn build_selection_handlers(
             expected_workspace,
         )
     };
-    let on_layout_selection_kind = selection_kind_handler("Layout");
-    let on_layout_snap_intent = snap_intent_handler("Layout");
-    let on_pcb_selection_kind = selection_kind_handler("PCB");
-    let on_pcb_snap_intent = snap_intent_handler("PCB");
+    let on_layout_selection_kind = selection_kind_handler(Workspace::Layout);
+    let on_layout_snap_intent = snap_intent_handler(Workspace::Layout);
+    let on_pcb_selection_kind = selection_kind_handler(Workspace::Pcb);
+    let on_pcb_snap_intent = snap_intent_handler(Workspace::Pcb);
     let on_keymap_select = on_keymap_select_handler(OnKeymapSelectInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),

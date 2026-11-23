@@ -5,6 +5,7 @@ use super::test_support::*;
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch};
 use boardstudio_model::model::{EditCommand, EditOperation, EditPhase, MatrixCell, PartKind, Vec2};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 
 #[test]
@@ -120,7 +121,7 @@ fn captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage() {
             kind: PartKind::Controller,
             workflow: PlacementWorkflow::WiringController,
             intent: PlacementIntent::Existing,
-            source_workspace: "Parts",
+            source_workspace: Workspace::Parts,
             layout_id: None,
             at: Vec2 { x: 3.0, y: 9.0 },
         },

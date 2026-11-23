@@ -4,6 +4,7 @@ use crate::LayoutOwnerIdentity;
 use crate::presentation::SelectionAdapter;
 use crate::runtime::Runtime;
 use boardstudio_application::ReadModel;
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -22,7 +23,7 @@ pub struct LayoutFindingsState {
 
 pub fn use_layout_findings_state(
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: SelectionAdapter,
     owner: LayoutOwnerIdentity,
 ) -> LayoutFindingsState {
@@ -70,7 +71,7 @@ pub fn use_layout_findings_state(
             let Some(request) = request else {
                 return;
             };
-            if current_workspace != "Layout" {
+            if current_workspace != Workspace::Layout {
                 if current_workspace != request.source.workspace {
                     pending.set(None);
                 }
@@ -91,7 +92,7 @@ pub fn use_layout_findings_state(
                 }
                 return;
             }
-            if request.source.workspace == "Layout"
+            if request.source.workspace == Workspace::Layout
                 && scope.board_id == request.source.scope.board_id
             {
                 return;
@@ -121,7 +122,7 @@ pub fn source_matches_layout_owner(
 ) -> bool {
     owner.workspace
         == if allow_board_hop {
-            "Layout"
+            Workspace::Layout
         } else {
             source.workspace
         }

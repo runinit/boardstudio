@@ -1,6 +1,7 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
+use boardstudio_web_ui_model::Workspace;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
     CanvasNavigationState, use_canvas_navigation_state,
@@ -187,7 +188,7 @@ use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
 
 #[derive(Clone, Copy)]
-pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
+pub(super) struct ExportReturnWorkspace(pub(super) Signal<Workspace>);
 
 #[allow(non_snake_case)]
 pub fn App() -> Element {
@@ -291,7 +292,7 @@ fn WorkbenchApp() -> Element {
                 on_redo,
                 on_export,
                 panel_controls: rsx! {
-                    if has_project && workspace() != "Export" { panels::CompactPanelControls {} }
+                    if has_project && workspace() != Workspace::Export { panels::CompactPanelControls {} }
                 },
             }
             command_palette::CommandPalette { state: palette }

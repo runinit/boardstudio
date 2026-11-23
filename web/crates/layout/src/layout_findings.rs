@@ -3,6 +3,7 @@ pub use super::keycaps_fit::target_has_live_layout_destination;
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{Finding, ProjectDoc, Severity};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -17,7 +18,7 @@ use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Source {
-    pub workspace: &'static str,
+    pub workspace: Workspace,
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,

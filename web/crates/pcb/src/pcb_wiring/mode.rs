@@ -4,10 +4,12 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core_mechanical::electrical::ElectricalMode;
+use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::EditOperation;
+use boardstudio_web_ui_model::Workspace;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use dioxus::prelude::*;
-use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeIdentity {
@@ -84,56 +86,39 @@ pub struct BoardWiringModeActions {
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
+#[cfg(target_arch = "wasm32")]
 pub fn use_board_wiring_mode_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
+    guard: EditGuard,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let _ = version();
     let failure = use_signal(|| None::<BoardWiringFailure>);
     let mode = source.as_ref().map_or(ElectricalMode::Matrix, |source| {
         board_mode(&source.document, &source.ui_scope.board_id)
     });
-    let on_change = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        let mut failure = failure;
-        move |request: BoardWiringModeEditRequest| {
-            let Some(_snapshot) = current_edit_snapshot(
-                &runtime,
+    let mut feedback = failure;
+    let on_change = use_guarded_edit(
+        guard,
+        move |runtime, request: BoardWiringModeEditRequest| {
+            let Some((_snapshot, _plan)) = current_wiring_edit(
+                runtime,
                 &request.identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
+                (guard.editor.scope_generation)(),
+                &resolution.read(),
             ) else {
-                return;
-            };
-            let PcbWiringResolution::Current {
-                identity,
-                plan: _plan,
-            } = &*resolution.read()
-            else {
-                return;
-            };
-            if identity != &request.identity.plan {
                 return;
             };
             let target = request.identity.feedback_target();
             let result = runtime.commit("pcb-wiring-mode", mode_resolver(request));
-            failure.set(
+            feedback.set(
                 result
                     .err()
                     .map(|message| BoardWiringFailure { target, message }),
             );
-        }
-    });
+        },
+    );
     let identity = source.as_ref().map(mode_identity);
-    let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
-        && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let editable = wiring_editable(guard, identity.as_ref(), resolution);
     let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
@@ -229,15 +214,59 @@ pub(super) fn pcb_source(
 pub(super) fn current_edit_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
-    workspace: &str,
+    workspace: Workspace,
     scope_generation: u64,
     instance_is_current: bool,
 ) -> Option<AcceptedSnapshot> {
-    if workspace != "PCB" || !instance_is_current {
+    if workspace != Workspace::Pcb || !instance_is_current {
         return None;
     }
-    let (snapshot, source) = pcb_source(runtime, scope_generation)?;
+    matching_mode_snapshot(runtime, identity, scope_generation)
+}
+
+fn matching_mode_snapshot(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    generation: u64,
+) -> Option<AcceptedSnapshot> {
+    let (snapshot, source) = pcb_source(runtime, generation)?;
     (*identity == mode_identity(&source)).then_some(snapshot)
+}
+
+pub(super) fn current_wiring_edit<'a>(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    generation: u64,
+    resolution: &'a PcbWiringResolution,
+) -> Option<(AcceptedSnapshot, &'a ElectricalPlan)> {
+    let snapshot = matching_mode_snapshot(runtime, identity, generation)?;
+    match resolution {
+        PcbWiringResolution::Current {
+            identity: current,
+            plan,
+        } if current == &identity.plan => Some((snapshot, plan)),
+        _ => None,
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) fn wiring_editable(
+    guard: EditGuard,
+    identity: Option<&BoardWiringModeIdentity>,
+    resolution: Signal<PcbWiringResolution>,
+) -> bool {
+    identity.is_some_and(|identity| {
+        let runtime = guard.editor.runtime();
+        guard.workspace_is_current()
+            && guard.instance_is_current(&runtime)
+            && current_wiring_edit(
+                &runtime,
+                identity,
+                (guard.editor.scope_generation)(),
+                &resolution.read(),
+            )
+            .is_some()
+    })
 }
 
 #[cfg(test)]

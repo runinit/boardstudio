@@ -10,6 +10,7 @@ use crate::macro_edit::{MacroEditAction, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_model::model::{EditCommand, EditOperation, KeyBinding, KeymapChange, KeymapMacro};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -30,12 +31,12 @@ pub fn use_layer_operations(
     runtime: Rc<Runtime>,
     source: Option<LayerSource>,
     mut active_layer: Signal<String>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     _scope_generation: Signal<u64>,
     admission_current: Rc<dyn Fn() -> bool>,
 ) -> LayerActions {
     let mut feedback = use_signal(|| None::<KeymapLayerFeedback>);
-    let enabled = workspace() == "Keymap" && admission_current() && source.is_some();
+    let enabled = workspace() == Workspace::Keymap && admission_current() && source.is_some();
     let on_operation = EventHandler::new(move |op: KeymapLayerOperation| {
         let Some(src) = source.as_ref() else {
             return;
@@ -150,13 +151,14 @@ pub fn use_binding_operations(
     runtime: Rc<Runtime>,
     sources: BindingProjectionSources,
     active_layer: Signal<String>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     _scope_generation: Signal<u64>,
     admission_current: Rc<dyn Fn() -> bool>,
 ) -> BindingActions {
     let mut error = use_signal(|| None::<String>);
     let model = runtime.model();
-    let enabled = workspace() == "Keymap" && admission_current() && sources.source.is_some();
+    let enabled =
+        workspace() == Workspace::Keymap && admission_current() && sources.source.is_some();
     let (projection, encoder_projection) = if let (Some(src), Some(snap), Some(view)) = (
         sources.source.as_ref(),
         model.accepted.as_ref(),
@@ -317,12 +319,12 @@ pub struct MacroActions {
 pub fn use_macro_operations(
     runtime: Rc<Runtime>,
     source: Option<LayerSource>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     _scope_generation: Signal<u64>,
     admission_current: Rc<dyn Fn() -> bool>,
 ) -> MacroActions {
     let mut error = use_signal(|| None::<String>);
-    let enabled = workspace() == "Keymap" && admission_current() && source.is_some();
+    let enabled = workspace() == Workspace::Keymap && admission_current() && source.is_some();
     let macros: Rc<[KeymapMacro]> = runtime
         .model()
         .accepted

@@ -10,6 +10,7 @@ mod ui {
     use super::{created_definition, new_component_resolver};
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
+    use boardstudio_web_ui_model::Workspace;
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -26,7 +27,7 @@ mod ui {
         scope: Option<Scope>,
         view_generation: Signal<u64>,
         scope_generation: Signal<u64>,
-        workspace: Signal<&'static str>,
+        workspace: Signal<Workspace>,
         mut query: Signal<String>,
         mut selected: Signal<Option<(Option<Scope>, String)>>,
         on_select: EventHandler<()>,
@@ -36,7 +37,7 @@ mod ui {
         let create = {
             let runtime = runtime.clone();
             move |_| {
-                if workspace() != "Parts" || runtime.scope() != scope {
+                if workspace() != Workspace::Parts || runtime.scope() != scope {
                     return;
                 }
                 let Some(current_scope) = scope.clone() else {
@@ -85,7 +86,7 @@ mod ui {
                 onclick: create,
                 "New custom component"
             }
-            if let Some((_, _, _, message)) = error().filter(|(owner, view, generation, _)| runtime.scope().as_ref() == Some(owner) && workspace() == "Parts" && view_generation() == *view && scope_generation() == *generation) {
+            if let Some((_, _, _, message)) = error().filter(|(owner, view, generation, _)| runtime.scope().as_ref() == Some(owner) && workspace() == Workspace::Parts && view_generation() == *view && scope_generation() == *generation) {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
         }

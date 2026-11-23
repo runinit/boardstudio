@@ -11,6 +11,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode,
 };
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -24,7 +25,7 @@ pub fn use_matrix_setup(
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
     anchor_scope: Signal<Option<Scope>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> MatrixSetupMount {
     let editor_instance_id = use_hook({
@@ -72,7 +73,7 @@ pub fn use_matrix_setup(
                 );
                 if waiting.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
-                        workspace != "Layout"
+                        workspace != Workspace::Layout
                             || owner.scope_generation != scope_generation
                             || runtime.scope().as_ref() != Some(&owner.scope)
                     })
@@ -152,7 +153,7 @@ pub fn use_matrix_setup(
                 || waiting.read().is_some()
                 || preparing.read().is_some()
                 || request.owner.editor_instance_id != editor_instance_id
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || scope_generation() != request.owner.scope_generation
             {
                 return;
@@ -268,7 +269,7 @@ pub fn use_matrix_setup(
                     status.set(None);
                     return;
                 };
-                if current_workspace != "Layout"
+                if current_workspace != Workspace::Layout
                     || current_generation != owner.scope_generation
                     || scope != owner.scope
                     || current_board != owner.board_id
@@ -354,10 +355,10 @@ pub fn use_matrix_setup(
 fn setup_owner_live(
     runtime: &Runtime,
     owner: &MatrixSetupOwner,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
 ) -> bool {
-    if workspace != "Layout" || owner.scope_generation != scope_generation {
+    if workspace != Workspace::Layout || owner.scope_generation != scope_generation {
         return false;
     }
     let model = runtime.model();
@@ -375,9 +376,9 @@ fn setup_source<'a>(
     runtime: &Runtime,
     model: &'a boardstudio_application::ReadModel,
     scope: Option<&Scope>,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> Option<(&'a AcceptedSnapshot, Scope, String)> {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let scope = scope?.clone();
@@ -427,7 +428,7 @@ struct SetupSettlement<'a> {
 
 fn settle_pending(
     runtime: &Rc<Runtime>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
     signals: &mut SetupSettlement<'_>,
 ) {
@@ -436,7 +437,7 @@ fn settle_pending(
     };
     let model = runtime.model();
     // A hidden or departed owner cannot reconcile selection or publish feedback.
-    let owner_is_live = workspace == "Layout"
+    let owner_is_live = workspace == Workspace::Layout
         && scope_generation == owner.scope_generation
         && runtime.scope().as_ref() == Some(&owner.scope)
         && model.accepted.as_ref().is_some_and(|snapshot| {

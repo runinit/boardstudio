@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct MovePointerInput {
     pub navigation: CanvasNavigationState,
@@ -14,7 +15,7 @@ pub(super) struct MovePointerInput {
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub mirrored_pair: objects::MirroredPairMount,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -57,7 +58,7 @@ pub(super) fn move_pointer_handler(
                 return;
             };
             let owner = active.owner.clone();
-            if workspace() != "Layout"
+            if workspace() != Workspace::Layout
                 || runtime.scope().as_ref() != Some(&owner.scope)
                 || (adapter.generation)() != owner.scope_generation
             {
@@ -78,7 +79,7 @@ pub(super) fn move_pointer_handler(
                 return;
             };
             let pair_owner = placement.owner.clone();
-            if workspace() != "Layout"
+            if workspace() != Workspace::Layout
                 || runtime.scope().as_ref() != Some(&pair_owner.scope)
                 || (adapter.generation)() != pair_owner.scope_generation
             {
@@ -233,7 +234,7 @@ fn live_drag(
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     render_scope: &Scope,
     generation: u64,
     pointer: i32,
@@ -266,7 +267,7 @@ pub(super) struct EndPointerInput {
     pub snap_settings: Signal<objects::LayoutSnapSettings>,
     pub render_scope: Scope,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -309,7 +310,7 @@ pub(super) fn end_pointer_handler(
                 && let Some(active) = matrix_placement.placement.as_ref()
             {
                 let owner = active.owner.clone();
-                if workspace() != "Layout"
+                if workspace() != Workspace::Layout
                     || runtime.scope().as_ref() != Some(&owner.scope)
                     || (adapter.generation)() != owner.scope_generation
                 {
@@ -467,7 +468,7 @@ pub(super) fn cancel_pointer_handler(
 }
 
 pub(super) fn use_pointer_workspace_effect(
-    active_workspace: &'static str,
+    active_workspace: Workspace,
     runtime: Rc<Runtime>,
     drag: Rc<RefCell<Option<Drag>>>,
     svg: Rc<RefCell<Option<SvgElement>>>,

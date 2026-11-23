@@ -1,5 +1,6 @@
 //! Shared 3D viewport for immutable scene projections from each workspace.
 
+use boardstudio_web_ui_model::Workspace;
 mod canvas;
 mod case;
 pub use case::{
@@ -55,7 +56,7 @@ use super::case_display::preference_ids;
 pub struct DesignViewToolbarProps {
     #[props(default)]
     pub contextual_tools: Option<Element>,
-    pub label: String,
+    pub workspace: Workspace,
     pub detail: String,
     pub assembly_3d: bool,
     pub footprints_visible: bool,
@@ -65,7 +66,7 @@ pub struct DesignViewToolbarProps {
 
 #[component]
 pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
-    let label = props.label;
+    let label = props.workspace.as_str();
     let detail = props.detail;
     let assembly_3d = props.assembly_3d;
     let footprints_visible = props.footprints_visible;
@@ -85,7 +86,7 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
                     stroke_linecap: "round",
                     stroke_linejoin: "round",
                     "aria-hidden": "true",
-                    if label == "Keymap" { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
+                    if props.workspace == Workspace::Keymap { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
                     else { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
                 }
                 strong { "{label}" }
@@ -435,8 +436,8 @@ pub fn Viewport3D(
     let current_workspace = use_context::<super::WorkspaceState>().0;
     let canvas_context = match &source {
         ViewerSource::Layout(_) => match current_workspace() {
-            "Keymap" => ViewerCanvasContext::Keymap,
-            "Keycaps" => ViewerCanvasContext::Keycaps,
+            Workspace::Keymap => ViewerCanvasContext::Keymap,
+            Workspace::Keycaps => ViewerCanvasContext::Keycaps,
             _ => ViewerCanvasContext::Layout,
         },
         ViewerSource::Cad(_) | ViewerSource::Native(_) => ViewerCanvasContext::Case,

@@ -14,6 +14,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -119,7 +120,7 @@ pub fn use_matrix_placement(
                 let observation = waiting.read().clone();
                 if let Some((ticket, follow_up)) = observation {
                     let owner_is_live = same_session_scope(&runtime, &follow_up.owner);
-                    let visible = current_workspace == "Layout"
+                    let visible = current_workspace == Workspace::Layout
                         && current_generation == follow_up.owner.scope_generation
                         && runtime.model().selected_part_ids == follow_up.selected_part_ids
                         && selected_context.peek().as_ref() == follow_up.selected_context.as_ref();
@@ -175,7 +176,7 @@ pub fn use_matrix_placement(
                     .or_else(|| placement.read().as_ref().map(|active| active.owner.clone()));
                 if waiting.read().is_none()
                     && let Some(owner) = active_owner
-                    && (current_workspace != "Layout"
+                    && (current_workspace != Workspace::Layout
                         || current_generation != owner.scope_generation
                         || !same_session_scope(&runtime, &owner)
                         || !same_accepted_source(&runtime, &owner))
@@ -350,7 +351,7 @@ pub fn use_matrix_placement(
                 if preparing.read().as_ref() != Some(&owner) {
                     return;
                 }
-                if workspace() != "Layout"
+                if workspace() != Workspace::Layout
                     || scope_generation() != owner.scope_generation
                     || !same_session_scope(&runtime, &owner)
                     || !same_accepted_source(&runtime, &owner)
@@ -385,7 +386,7 @@ pub fn use_matrix_placement(
         let mut placement = placement;
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()
@@ -436,7 +437,7 @@ pub fn use_matrix_placement(
         move |movement: MatrixPlacementMove| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement)
                 || waiting.read().is_some()
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
                 || scope_generation() != movement.owner.scope_generation
                 || !movement.center.x.is_finite()
                 || !movement.center.y.is_finite()

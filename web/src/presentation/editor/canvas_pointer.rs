@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct MatrixPointerDownInput {
     pub runtime: Rc<Runtime>,
@@ -17,7 +18,7 @@ pub(super) struct MatrixPointerDownInput {
     pub canvas_interaction: CanvasInteractionArbiter,
     pub mirrored_pair: objects::MirroredPairMount,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -218,7 +219,7 @@ pub(super) struct PartPointerDownInput {
     pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub transform_inspector: objects::MatrixTransformInspectorMount,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,

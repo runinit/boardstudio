@@ -6,6 +6,7 @@ use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, TextCommitField, TextField,
 };
@@ -75,13 +76,14 @@ impl KeycapsSettingsActions {
 pub fn use_keycaps_settings_actions(
     runtime: Rc<Runtime>,
     source: Option<KeycapsEditSource>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     _scope_generation: Signal<u64>,
 ) -> Option<KeycapsSettingsActions> {
     let error = use_signal(|| None::<String>);
     let current_scope = runtime.scope();
-    let source =
-        source.filter(|s| workspace() == "Keycaps" && current_scope.as_ref() == Some(&s.scope))?;
+    let source = source.filter(|s| {
+        workspace() == Workspace::Keycaps && current_scope.as_ref() == Some(&s.scope)
+    })?;
     Some(KeycapsSettingsActions {
         runtime,
         scope: source.scope,

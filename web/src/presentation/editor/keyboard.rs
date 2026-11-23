@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct KeyboardInput {
     pub runtime: Rc<Runtime>,
@@ -248,7 +249,7 @@ pub(super) struct StartPanInput {
     pub pending_splay_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub transform_inspector: objects::MatrixTransformInspectorMount,
     pub layout_owner_for_pick: LayoutOwnerIdentity,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -305,7 +306,7 @@ pub(super) fn start_pan_handler(
                     && pointer.button() == 0
                 {
                     let owner = placement.owner.clone();
-                    if workspace() != "Layout"
+                    if workspace() != Workspace::Layout
                         || runtime.scope().as_ref() != Some(&owner.scope)
                         || (adapter.generation)() != owner.scope_generation
                     {
@@ -328,7 +329,7 @@ pub(super) fn start_pan_handler(
                     return;
                 }
                 if pointer.button() == 0
-                    && workspace() == "Layout"
+                    && workspace() == Workspace::Layout
                     && pending_splay_pick.peek().is_some()
                     && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
                 {
@@ -366,7 +367,7 @@ pub(super) struct OnPcbPartPointerDownInput {
     pub space_down: Rc<Cell<bool>>,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -581,7 +582,7 @@ pub(super) struct OnPcbEmptyHitInput {
     pub space_down: Rc<Cell<bool>>,
     pub drag: Rc<RefCell<Option<Drag>>>,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub instance_selection: InstanceSelection,
 }
 
@@ -606,7 +607,7 @@ pub(super) fn on_pcb_empty_hit_handler(input: OnPcbEmptyHitInput) -> EventHandle
             || space_down.get()
             || drag.borrow().is_some()
             || canvas_interaction.current().is_some()
-            || workspace() != "PCB"
+            || workspace() != Workspace::Pcb
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
         {
@@ -789,13 +790,13 @@ pub(super) fn build_keyboard_bundle(
     impl FnMut(KeyboardEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
 ) {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let space_down = &cam.placement.space_down;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
     let canvas_interaction = &setup_a.canvas_interaction;
     let layout_snap_settings = setup_a.layout_snap_settings;
     let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
@@ -804,8 +805,8 @@ pub(super) fn build_keyboard_bundle(
     let interaction_version = cam.placement.interaction_version;
     let canvas_navigation = &setup_a.canvas_navigation;
     let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.layout_owner;
-    let workspace = setup_a.workspace;
+    let layout_owner = &setup_a.view.layout_owner;
+    let workspace = setup_a.editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
@@ -855,21 +856,21 @@ pub(super) fn build_keyboard_rest(
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
 ) -> (PkNamed, impl FnMut(WheelEvent) + Clone + 'static) {
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let space_down = &cam.placement.space_down;
     let canvas_interaction = &setup_a.canvas_interaction;
     let canvas_navigation = &setup_a.canvas_navigation;
     let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.layout_owner;
-    let workspace = setup_a.workspace;
+    let layout_owner = &setup_a.view.layout_owner;
+    let workspace = setup_a.editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
     let render_generation = setup_a.render_generation;
-    let instance_selection = setup_a.instance_selection;
+    let instance_selection = setup_a.editor.instance_selection;
     let layout_selection_kind = setup_a.layout_selection_kind;
     let keymap_scale_ratio = cam.scene_bounds.keymap_scale_ratio;
     let min_x = cam.scene_bounds.min_x;

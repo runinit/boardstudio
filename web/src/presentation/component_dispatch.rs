@@ -1,11 +1,12 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) fn layout_component_inspector_owner_key(
     model: &ReadModel,
-    workspace: &'static str,
+    workspace: Workspace,
     selected: Option<&objects::ScopedTreeContext>,
 ) -> Option<inspector::LayoutComponentInspectorOwnerKey> {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let selected = selected?;
@@ -35,7 +36,7 @@ pub(crate) fn layout_component_inspector_owner_key(
 
 pub(crate) fn layout_component_inspector_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
@@ -70,14 +71,14 @@ pub(crate) fn layout_component_inspector_owner_is_current(
 
 pub(crate) fn companion_placement_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &inspector::CompanionPlacementOwner,
     pair_id: &str,
     submitted_targets: &[CompanionPlacementTarget],
 ) -> bool {
     let cur = current_layout_owner(runtime, workspace, adapter);
-    if cur.workspace != "Layout"
+    if cur.workspace != Workspace::Layout
         || cur.scope.as_ref() != Some(&owner.scope)
         || cur.token != Some(owner.snapshot_token)
         || cur.revision != Some(owner.revision)
@@ -130,7 +131,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
-    (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
+    (mut workspace, mut inspect_open): (Signal<Workspace>, Signal<bool>),
     views: layout_component_edits::ComponentEditViews,
     action: inspector::LayoutComponentInspectorAction,
 ) {
@@ -303,7 +304,7 @@ pub(super) fn dispatch_layout_component_inspector_action(
             edits::remove_constraint_resolver(owner.part_id, constraint_id),
         ),
         A::NavigateElectrical { .. } => {
-            workspace.set("PCB");
+            workspace.set(Workspace::Pcb);
             inspect_open.set(true);
         }
         A::SetMirroredHalfState {

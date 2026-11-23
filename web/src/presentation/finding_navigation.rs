@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) fn layout_findings_for_display(
     accepted: &[LayoutFinding],
@@ -34,12 +35,12 @@ pub(crate) fn layout_finding_context(
 
 pub(crate) fn findings_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
     let model = runtime.model();
-    owner.workspace != "Export"
+    owner.workspace != Workspace::Export
         && current_layout_owner(runtime, workspace, adapter) == *owner
         && owner
             .scope
@@ -51,7 +52,7 @@ pub(crate) struct LayoutFindingNavigationContext {
     pub(crate) runtime: Rc<Runtime>,
     pub(crate) adapter: SelectionAdapter,
     pub(crate) owner: LayoutOwnerIdentity,
-    pub(crate) workspace: Signal<&'static str>,
+    pub(crate) workspace: Signal<Workspace>,
     pub(crate) objects_open: Signal<bool>,
     pub(crate) inspect_open: Signal<bool>,
     pub(crate) findings_open: Signal<bool>,
@@ -97,7 +98,7 @@ pub(crate) fn perform_layout_finding_navigation(
     let Some(rs) = rm.accepted.as_ref() else {
         return;
     };
-    if (ctx.workspace)() != "Layout"
+    if (ctx.workspace)() != Workspace::Layout
         || ctx.runtime.scope().as_ref() != Some(scope)
         || rs.token != req.source.token
         || rs.document.revision != req.source.revision
@@ -106,7 +107,7 @@ pub(crate) fn perform_layout_finding_navigation(
     }
     let generation = (ctx.adapter.generation)();
     let nav_owner = keycaps_navigation::NavigationOwner {
-        workspace: "Layout",
+        workspace: Workspace::Layout,
         scope: scope.clone(),
         generation,
         token: req.source.token,
@@ -126,7 +127,7 @@ pub(crate) fn perform_layout_finding_navigation(
             ),
         ) {
             let live = keycaps_navigation::LiveNavigationOwner {
-                workspace: "Layout",
+                workspace: Workspace::Layout,
                 scope: Some(scope.clone()),
                 generation,
                 token: Some(req.source.token),
@@ -167,7 +168,7 @@ pub(crate) fn perform_layout_finding_navigation(
 }
 
 pub(crate) fn current_keycaps_navigation_owner(
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
     body_selection: Signal<Option<shared_viewer::BodySelection>>,
@@ -179,14 +180,14 @@ pub(crate) fn current_keycaps_navigation_owner(
         .as_ref()
         .map_or((None, None), |s| (Some(s.token), Some(s.document.revision)));
     let destinations = match (workspace(), scope.as_ref()) {
-        ("Layout", Some(sc)) => adapter
+        (Workspace::Layout, Some(sc)) => adapter
             .selected_context
             .read()
             .as_ref()
             .filter(|s| &s.scope == sc)
             .map(|s| vec![keycaps_navigation::Destination::Layout(s.context.clone())])
             .unwrap_or_default(),
-        ("Case", Some(sc)) => {
+        (Workspace::Case, Some(sc)) => {
             let lid = case_selection.layer_id(sc);
             let bid = body_selection
                 .read()

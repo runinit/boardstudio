@@ -1,10 +1,11 @@
 //! Workspace-transition invalidation for the mounted Parts create action.
 
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 
 #[component]
 pub fn PartsViewGenerationOwner(
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     view_generation: Signal<u64>,
 ) -> Element {
     use_effect(use_reactive((&workspace(),), move |_| {
@@ -20,12 +21,13 @@ pub fn PartsViewGenerationOwner(
 #[cfg(test)]
 mod tests {
     use super::PartsViewGenerationOwner;
+    use boardstudio_web_ui_model::Workspace;
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc, time::Duration};
 
     #[derive(Clone)]
     struct Probe {
-        workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+        workspace: Rc<RefCell<Option<Signal<Workspace>>>>,
         generation: Rc<RefCell<Option<Signal<u64>>>>,
     }
 
@@ -40,7 +42,7 @@ mod tests {
 
     fn host() -> Element {
         let probe = use_context::<Probe>();
-        let workspace = use_signal(|| "Parts");
+        let workspace = use_signal(|| Workspace::Parts);
         let generation = use_signal(|| 0_u64);
         *probe.workspace.borrow_mut() = Some(workspace);
         *probe.generation.borrow_mut() = Some(generation);
@@ -86,7 +88,7 @@ mod tests {
             "generation writes do not rerun the effect"
         );
 
-        workspace.set("Layout");
+        workspace.set(Workspace::Layout);
         settle(&mut dom).await;
         assert_eq!(
             *generation.peek(),
@@ -100,7 +102,7 @@ mod tests {
             "settled workspace does not advance again"
         );
 
-        workspace.set("Parts");
+        workspace.set(Workspace::Parts);
         settle(&mut dom).await;
         assert_eq!(
             *generation.peek(),

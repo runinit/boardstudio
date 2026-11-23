@@ -2,6 +2,7 @@
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_model::model::{CompiledFootprint, EditOperation};
+use boardstudio_web_ui_model::Workspace;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportCapture {
@@ -22,7 +23,7 @@ struct ImportOwner {
     document_id: String,
     view_generation: u64,
     scope_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 }
 
 impl ImportOwner {
@@ -32,7 +33,7 @@ impl ImportOwner {
         selection: Option<(Option<Scope>, String)>,
         view_generation: u64,
         scope_generation: u64,
-        workspace: &'static str,
+        workspace: Workspace,
     ) -> Self {
         Self {
             scope,
@@ -76,7 +77,7 @@ fn owner_matches(capture: &ImportCapture, owner: &ImportOwner) -> bool {
         && capture.scope.session_epoch == capture.session_epoch
         && owner.view_generation == capture.view_generation
         && owner.scope_generation == capture.scope_generation
-        && owner.workspace == "Parts"
+        && owner.workspace == Workspace::Parts
 }
 
 fn import_resolver(capture: ImportCapture, imported: CompiledFootprint) -> EditResolver {
@@ -123,6 +124,7 @@ fn import_resolver(capture: ImportCapture, imported: CompiledFootprint) -> EditR
 mod tests {
     use super::{ImportCapture, ImportOwner, owner_matches};
     use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_web_ui_model::Workspace;
 
     #[test]
     fn import_feedback_is_limited_to_the_captured_owner_but_survives_revision_advance() {
@@ -148,7 +150,7 @@ mod tests {
             document_id: "project-1".into(),
             view_generation: 3,
             scope_generation: 5,
-            workspace: "Parts",
+            workspace: Workspace::Parts,
         };
 
         // Persistence may advance the accepted revision before its failure is reported.
@@ -184,7 +186,7 @@ mod ui {
         scope: Option<Scope>,
         view_generation: Signal<u64>,
         scope_generation: Signal<u64>,
-        workspace: Signal<&'static str>,
+        workspace: Signal<Workspace>,
         mut selected: Signal<Option<(Option<Scope>, String)>>,
         mut query: Signal<String>,
         on_select: EventHandler<()>,
@@ -230,7 +232,7 @@ mod ui {
                 else {
                     return;
                 };
-                if pending.peek().is_some() || owner.workspace != "Parts" {
+                if pending.peek().is_some() || owner.workspace != Workspace::Parts {
                     return;
                 }
                 let filename = file.name();

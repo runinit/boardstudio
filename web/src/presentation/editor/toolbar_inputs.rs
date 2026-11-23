@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) fn use_toolbar_selection_availability(
     tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
@@ -7,7 +8,7 @@ pub(super) fn use_toolbar_selection_availability(
     snapshot: &AcceptedSnapshot,
     model: &ReadModel,
     selected_tree_context: Option<objects::ScopedTreeContext>,
-    active_workspace: &'static str,
+    active_workspace: Workspace,
 ) -> (bool, bool) {
     let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
     use_memo(use_reactive(
@@ -21,7 +22,7 @@ pub(super) fn use_toolbar_selection_availability(
             &active_workspace,
         ),
         |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
-            if !matches!(workspace, "Layout" | "PCB") {
+            if !matches!(workspace, Workspace::Layout | Workspace::Pcb) {
                 return (false, false);
             }
             let model = ReadModel {
@@ -60,7 +61,7 @@ pub(super) struct LayoutToolbarArgs<'a> {
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub inspector_panel_settings: Signal<PanelSettings>,
@@ -235,7 +236,7 @@ pub(super) struct PcbToolbarArgs {
     pub show_position_inspector: bool,
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub inspector_panel_settings: Signal<PanelSettings>,
@@ -327,7 +328,7 @@ pub(super) fn pcb_toolbar_input(
 
 pub(super) struct KeymapToolbarArgs {
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_assembly_3d: Signal<bool>,
@@ -364,7 +365,7 @@ pub(super) fn keymap_toolbar_input(
             generation: adapter.generation, actions: vec![("Assign", "[aria-label='Keymap editors'] [aria-label='Keys']", true), ("Macros", "[aria-label='Keymap editors'] [aria-label='Macros']", true), ("Encoders", "[aria-label='Keymap editors'] [aria-label='Encoders']", true)],
             disabled: false,
         } }),
-        label: "Keymap".into(),
+        workspace: Workspace::Keymap,
         detail: "Layers & key behaviors".into(),
         assembly_3d: layout_assembly_3d(),
         footprints_visible: (layer_visibility.footprints)()
@@ -376,7 +377,7 @@ pub(super) fn keymap_toolbar_input(
 
 pub(super) struct KeycapsToolbarArgs<'a> {
     pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_assembly_3d: Signal<bool>,
@@ -415,7 +416,7 @@ pub(super) fn keycaps_toolbar_input(
             generation: adapter.generation, actions: vec![("Profile", "[aria-label^='Keycap overrides for '] [data-slot='select-trigger'][aria-label^='Profile override for ']", false), ("Legend", "[aria-label^='Keycap overrides for '] [aria-label^='Legend for ']", false), ("Color", "[aria-label^='Keycap overrides for '] [aria-label^='Keycap color for ']", false)],
             disabled: model.selected_part_ids.is_empty(),
         } }),
-        label: "Keycaps".into(),
+        workspace: Workspace::Keycaps,
         detail: "Profiles, legends & fit".into(),
         assembly_3d: layout_assembly_3d(),
         footprints_visible: (layer_visibility.footprints)()
@@ -426,14 +427,14 @@ pub(super) fn keycaps_toolbar_input(
 }
 
 pub(super) struct ToolbarInputArgs<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub toolbar_selection_availability: (bool, bool),
     pub selected_tree_context: Option<objects::ScopedTreeContext>,
     pub show_position_inspector: bool,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
     pub inspector_panel_settings: Signal<PanelSettings>,
@@ -498,7 +499,7 @@ pub(super) fn toolbar_input(
         pcb_align,
     } = input;
     match active_workspace {
-        "Layout" => layout_toolbar_input(LayoutToolbarArgs {
+        Workspace::Layout => layout_toolbar_input(LayoutToolbarArgs {
             selected_tree_context,
             show_position_inspector,
             matrix_transform_inspector,
@@ -525,7 +526,7 @@ pub(super) fn toolbar_input(
             layout_align,
             layout_snap_intent,
         }),
-        "PCB" => pcb_toolbar_input(PcbToolbarArgs {
+        Workspace::Pcb => pcb_toolbar_input(PcbToolbarArgs {
             selected_tree_context,
             show_position_inspector,
             runtime,
@@ -543,7 +544,7 @@ pub(super) fn toolbar_input(
             pcb_snap_intent,
             pcb_align,
         }),
-        "Keymap" => keymap_toolbar_input(KeymapToolbarArgs {
+        Workspace::Keymap => keymap_toolbar_input(KeymapToolbarArgs {
             runtime,
             workspace,
             adapter,
@@ -554,7 +555,7 @@ pub(super) fn toolbar_input(
             inspector_panel_settings,
             layer_visibility,
         }),
-        "Keycaps" => keycaps_toolbar_input(KeycapsToolbarArgs {
+        Workspace::Keycaps => keycaps_toolbar_input(KeycapsToolbarArgs {
             runtime,
             workspace,
             adapter,
@@ -566,10 +567,9 @@ pub(super) fn toolbar_input(
             layer_visibility,
             model,
         }),
-        "Case" => workspace_composition::WorkspaceToolbarInput::Case,
-        "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
-        "Export" => workspace_composition::WorkspaceToolbarInput::Export,
-        _ => workspace_composition::WorkspaceToolbarInput::Other,
+        Workspace::Case => workspace_composition::WorkspaceToolbarInput::Case,
+        Workspace::Parts => workspace_composition::WorkspaceToolbarInput::Parts,
+        Workspace::Export => workspace_composition::WorkspaceToolbarInput::Export,
     }
 }
 
@@ -612,32 +612,32 @@ pub(super) fn use_workspace_inputs(
         matrix_setup,
         instance_scope_pending,
     } = input;
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.layout_owner;
-    let workspace = setup_a.workspace;
+    let layout_owner = &setup_a.view.layout_owner;
+    let workspace = setup_a.editor.workspace;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let layout_state = setup_a.layout_state;
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let interaction_version = cam.placement.interaction_version;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_placement;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
     let canvas_interaction = &setup_a.canvas_interaction;
-    let mirrored_pair = &setup_a.mirrored_pair;
+    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
     let tree_cell_anchor = &setup_a.tree_cell_anchor;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let model = &setup_a.model;
+    let model = &setup_a.view.model;
     let selected_tree_context = &canvas.selection.selected_tree_context;
     let active_workspace = setup_a.active_workspace;
     let show_position_inspector = canvas.inspector.show_position_inspector;
     let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
-    let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
+    let objects_open = setup_a.editor.panels.objects_open;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let inspector_panel_settings = setup_a.inspector_panel_settings;
     let layout_transform_tool = setup_a.layout_transform_tool;
     let on_layout_selection_kind_handler = wir.wiring.on_layout_selection_kind_handler;
-    let layer_visibility = setup_a.layer_visibility;
+    let layer_visibility = setup_a.editor.layers;
     let layout_snap_settings = setup_a.layout_snap_settings;
     let layout_command_menu = setup_a.layout_command_menu;
     let toggle_footprints = wir.wiring.toggle_footprints;
@@ -663,9 +663,9 @@ pub(super) fn use_workspace_inputs(
     let keymap_select = wir.wiring.keymap_select;
     let keycaps_select = wir.wiring.keycaps_select;
     let mechanical_settings = &setup_b.mechanical_settings;
-    let current_scope = &setup_a.current_scope;
-    let parts_query = setup_a.parts_query;
-    let parts_selection = setup_a.parts_selection;
+    let current_scope = &setup_a.view.current_scope;
+    let parts_query = setup_a.view.parts_query;
+    let parts_selection = setup_a.view.parts_selection;
     let pcb_empty_hit = wir.wiring.pcb_empty_hit;
     let pcb_part_hit = wir.wiring.pcb_part_hit;
     let pcb_part_pointer_down = wir.wiring.pcb_part_pointer_down;
@@ -756,7 +756,6 @@ pub(super) fn use_workspace_inputs(
             current_scope: current_scope.clone(),
             parts_query,
             parts_selection,
-            workspace,
             active_workspace,
             pcb_empty_hit,
             pcb_part_hit,
@@ -797,7 +796,7 @@ pub(super) struct OnLayoutViewModeArgs {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub layout_owner: LayoutOwnerIdentity,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub layout_assembly_3d: Signal<bool>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub drag: Rc<RefCell<Option<Drag>>>,

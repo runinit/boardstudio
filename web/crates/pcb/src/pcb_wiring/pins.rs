@@ -1,13 +1,16 @@
 //! Accepted selected-board assignment pin and lock edits.
+#[cfg(target_arch = "wasm32")]
+use super::PcbWiringResolution;
+use super::PcbWiringSource;
 use super::mode::BoardWiringModeIdentity;
-use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
-use super::{PcbWiringResolution, PcbWiringSource};
-use crate::runtime::Runtime;
+#[cfg(target_arch = "wasm32")]
+use super::mode::{BoardWiringFailure, current_wiring_edit, mode_identity, wiring_editable};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
+#[cfg(target_arch = "wasm32")]
+use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use dioxus::prelude::*;
-use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PcbWiringPinAssignment {
@@ -57,62 +60,43 @@ pub struct PcbWiringPinActions {
     pub on_change: EventHandler<PcbWiringPinEditRequest>,
 }
 
+#[cfg(target_arch = "wasm32")]
 pub fn use_pcb_wiring_pin_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
+    guard: EditGuard,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> PcbWiringPinActions {
-    let _ = version();
     let failure = use_signal(|| None::<BoardWiringFailure>);
-    let on_change = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        let mut failure = failure;
-        move |request: PcbWiringPinEditRequest| {
-            let Some(snapshot) = current_edit_snapshot(
-                &runtime,
-                &request.identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-            ) else {
-                return;
-            };
-            let PcbWiringResolution::Current {
-                identity,
-                plan: _plan,
-            } = &*resolution.read()
-            else {
-                return;
-            };
-            if identity != &request.identity.plan {
-                return;
-            }
-            if !pin_edit_is_available(
-                &snapshot.document,
-                _plan,
-                &request.identity.plan.scope.board_id,
-                &request.assignment_id,
-                request.pin.as_deref(),
-            ) {
-                return;
-            }
-            let target = request.identity.feedback_target();
-            let result = runtime.commit("pcb-wiring-pins", pins_resolver(request));
-            failure.set(
-                result
-                    .err()
-                    .map(|message| BoardWiringFailure { target, message }),
-            );
+    let mut feedback = failure;
+    let on_change = use_guarded_edit(guard, move |runtime, request: PcbWiringPinEditRequest| {
+        let resolution = resolution.read();
+        let Some((snapshot, plan)) = current_wiring_edit(
+            runtime,
+            &request.identity,
+            (guard.editor.scope_generation)(),
+            &resolution,
+        ) else {
+            return;
+        };
+        if !pin_edit_is_available(
+            &snapshot.document,
+            plan,
+            &request.identity.plan.scope.board_id,
+            &request.assignment_id,
+            request.pin.as_deref(),
+        ) {
+            return;
         }
+        let target = request.identity.feedback_target();
+        let result = runtime.commit("pcb-wiring-pins", pins_resolver(request));
+        feedback.set(
+            result
+                .err()
+                .map(|message| BoardWiringFailure { target, message }),
+        );
     });
     let identity = source.as_ref().map(mode_identity);
-    let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
-        && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let editable = wiring_editable(guard, identity.as_ref(), resolution);
     let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);

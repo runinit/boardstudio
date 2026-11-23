@@ -1,10 +1,11 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct ObjectsPanelInput<'a, 'x> {
     pub guide_none: bool,
     pub objects_open: Signal<bool>,
     pub objects_panel_settings: Signal<PanelSettings>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub objects_input: workspace_composition::WorkspaceObjectsInput<'x>,
     pub layout_assembly_3d: Signal<bool>,
@@ -33,14 +34,14 @@ pub(super) fn objects_panel(input: ObjectsPanelInput<'_, '_>) -> Option<Element>
     if guide_none {
         Some(rsx! {
             ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                header_action: if active_workspace == "Layout" {
+                header_action: if active_workspace == Workspace::Layout {
                     Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                 } else { None },
                 div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
                 {workspace_composition::objects(objects_input)}
                 }
                 div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
-                    if active_workspace == "Layout" && !layout_assembly_3d() {
+                    if active_workspace == Workspace::Layout && !layout_assembly_3d() {
                         CanvasLayers {
                             initially_open: false,
                             trigger_label: "Canvas visibility".to_owned(),
@@ -49,12 +50,12 @@ pub(super) fn objects_panel(input: ObjectsPanelInput<'_, '_>) -> Option<Element>
                             groups: canvas_layers::layout_groups(),
                         }
                     }
-                    if active_workspace == "PCB" {
+                    if active_workspace == Workspace::Pcb {
                         pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
                     }
                     boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
                 }
-                if active_workspace == "Layout" && !layout_assembly_3d() {
+                if active_workspace == Workspace::Layout && !layout_assembly_3d() {
                     objects::LayoutSnapDock {
                         settings: layout_snap_settings.read().clone(),
                         open_menu: layout_command_menu,
@@ -75,7 +76,7 @@ pub(super) struct InspectorPanelInput<'a> {
     pub has_inspector: bool,
     pub inspect_open: Signal<bool>,
     pub inspector_panel_settings: Signal<PanelSettings>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub findings: &'a Vec<LayoutFinding>,
@@ -107,7 +108,7 @@ pub(super) fn inspector_panel(input: InspectorPanelInput<'_>) -> Option<Element>
     if has_inspector && guide_none {
         Some(rsx! {
             InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                if active_workspace != "Layout" && (layout_findings.open)() {
+                if active_workspace != Workspace::Layout && (layout_findings.open)() {
                     layout_findings::LayoutFindingsInspector {
                         open: true,
                         document: Rc::new(document.as_ref().clone()),
@@ -136,7 +137,7 @@ pub(super) fn inspector_panel(input: InspectorPanelInput<'_>) -> Option<Element>
 pub(super) struct GuidePanelInput<'a> {
     pub guide: &'a Option<setup_guide::SetupGuidePreferences>,
     pub full_case_settings: Signal<bool>,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub mechanical_settings: &'a mechanical_settings::MechanicalSettingsState,
     pub guide_name_failure: Signal<Option<String>>,
     pub guide_stage_readiness: [bool; 5],
@@ -156,7 +157,7 @@ pub(super) struct GuidePanelInput<'a> {
 pub(super) fn guide_panel(
     input: GuidePanelInput<'_>,
     on_stage_change: EventHandler<setup_guide::SetupGuideStage>,
-    on_open_workspace: EventHandler<&'static str>,
+    on_open_workspace: EventHandler<Workspace>,
     on_dismiss: EventHandler<()>,
     on_finish: EventHandler<()>,
 ) -> Element {
@@ -182,7 +183,7 @@ pub(super) fn guide_panel(
     rsx! {
         if guide.is_some() {
             section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup",
-            if full_case_settings() && active_workspace == "Case" {
+            if full_case_settings() && active_workspace == Workspace::Case {
                 aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
                     header {
                         Button { variant: ButtonVariant::Secondary,
@@ -240,7 +241,7 @@ pub(super) fn guide_panel(
 pub(super) fn canvas_focus_handler(
     objects_open: Signal<bool>,
     inspect_open: Signal<bool>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> impl FnMut(FocusEvent) + Clone + 'static {
     let mut objects_open = objects_open;
     let mut inspect_open = inspect_open;
@@ -248,7 +249,7 @@ pub(super) fn canvas_focus_handler(
         let compact = web_sys::window()
             .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
             .is_some_and(|query| query.matches());
-        if workspace() == "Case" && compact {
+        if workspace() == Workspace::Case && compact {
             if objects_open() {
                 objects_open.set(false);
             }
@@ -261,10 +262,10 @@ pub(super) fn canvas_focus_handler(
 
 pub(super) struct CanvasSectionInput<'a> {
     pub setup_guide_active: bool,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub objects_open: Signal<bool>,
     pub inspect_open: Signal<bool>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub matrix_setup: objects::MatrixSetupMount,
     pub mirrored_pair: objects::MirroredPairMount,
     pub guide_none: bool,
@@ -277,7 +278,7 @@ pub(super) struct CanvasSectionInput<'a> {
     pub keycaps_fit_state: keycaps_fit::KeycapsFitActions,
     pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
     pub zmk_firmware_export_panel: zmk_firmware_export::ZmkFirmwareExportPanelInput,
-    pub return_workspace: Signal<&'static str>,
+    pub return_workspace: Signal<Workspace>,
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub canvas_input: Option<workspace_composition::WorkspaceCanvasInput>,
     pub snapshot: &'a AcceptedSnapshot,
@@ -341,9 +342,9 @@ where
         svg,
     } = input;
     rsx! {
-        section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
+        section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == Workspace::Export { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
             onfocusin: canvas_focus_handler(objects_open, inspect_open, workspace),
-            if active_workspace == "Layout" {
+            if active_workspace == Workspace::Layout {
                 objects::AddMatrixSurface {
                     matrix_setup,
                     mirrored_pair,
@@ -356,26 +357,26 @@ where
                     split: hardware_split,
                     wired: hardware_wired,
                 }
-            } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
+            } else if matches!(active_workspace, Workspace::Layout | Workspace::Keymap | Workspace::Keycaps)
                 && layout_assembly_3d()
             {
                 layout_viewer::LayoutCanonicalViewer {
-                    on_mounted_module_pick: (active_workspace == "Layout")
+                    on_mounted_module_pick: (active_workspace == Workspace::Layout)
                         .then_some(mounted_module_select),
-                    keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
+                    keycaps_fit: if matches!(active_workspace, Workspace::Keymap | Workspace::Keycaps) {
                         keycaps_fit_state.state.clone()
                     } else {
                         None
                     },
-                    focused_finding: if active_workspace == "Layout" {
+                    focused_finding: if active_workspace == Workspace::Layout {
                         focused_keycaps_finding()
                     } else {
                         None
                     },
                 }
-            } else if active_workspace == "Layout" {
+            } else if active_workspace == Workspace::Layout {
                 {super::view_scene::layout_svg(svg, nav, key, wheel)}
-            } else if active_workspace == "Export" {
+            } else if active_workspace == Workspace::Export {
                 export_workspace::ExportWorkspace {
                     zmk_firmware: Some(zmk_firmware_export_panel),
                     workspace,
@@ -395,7 +396,7 @@ where
                     on_parts: on_browse_parts,
                 }
             }
-            if active_workspace == "Layout"
+            if active_workspace == Workspace::Layout
                 && let Some(placement) = part_placement.projection.as_ref()
             {
                 div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
@@ -409,19 +410,19 @@ where
                     " · Click or Enter to place · Esc cancels"
                 }
             }
-            if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
+            if active_workspace == Workspace::Layout && pending_splay_origin_pick().is_some() {
                 div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
                     "Pick splay origin · Click the canvas · Esc cancels"
                 }
             }
-            if active_workspace == "Layout" && pending_anchor_pick().is_some() {
+            if active_workspace == Workspace::Layout && pending_anchor_pick().is_some() {
                 div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] text-muted-foreground shadow-sm", role: "status",
                     "Pick anchor key · Click a key · Esc cancels"
                 }
             }
             // Ticket 16: the at-rest field preview names the keys the
             // hovered or focused Inspector number field would move.
-            if active_workspace == "Layout"
+            if active_workspace == Workspace::Layout
                 && let Some(state) = field_preview() {
                 div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] font-semibold text-warning shadow-sm", role: "status", "data-field-preview-hint": "",
                     "{state.hint}"
@@ -431,7 +432,7 @@ where
             // D) names what the selection is placed from at the
             // canvas's bottom left. It shares the canvas ring's badge
             // projection and clears with the selection.
-            if active_workspace == "Layout"
+            if active_workspace == Workspace::Layout
                 && !layout_assembly_3d()
                 && let Some(badge) = canvas_anchor_badge.as_ref()
             {
@@ -444,7 +445,7 @@ where
 }
 
 pub(super) struct FooterInput<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub undo: Rc<Runtime>,
     pub redo: Rc<Runtime>,
@@ -482,16 +483,16 @@ pub(super) fn view_footer(input: FooterInput<'_>, on_fit_selection: EventHandler
         model,
     } = input;
     rsx! {
-        footer { class: "shell-footer", hidden: active_workspace == "Export", aria_label: "Canvas status",
+        footer { class: "shell-footer", hidden: active_workspace == Workspace::Export, aria_label: "Canvas status",
             boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
                 boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
                 boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
             }
-            if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d() {
+            if matches!(active_workspace, Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps) && !layout_assembly_3d() {
                 canvas_status_footer::CanvasStatusFooter {
                     snap_settings: layout_snap_settings.read().clone(),
                     active_part_position,
-                    snap_menu_available: matches!(active_workspace, "Layout" | "PCB"),
+                    snap_menu_available: matches!(active_workspace, Workspace::Layout | Workspace::Pcb),
                     open_menu: layout_command_menu,
                     board_available: true,
                     selection_available: footer_selection_available,
@@ -512,8 +513,8 @@ pub(super) fn view_footer(input: FooterInput<'_>, on_fit_selection: EventHandler
             } else {
                 span { "{model.camera.zoom * 100.0:.0}%" }
             }
-            if active_workspace != "Export"
-                && !(matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
+            if active_workspace != Workspace::Export
+                && !(matches!(active_workspace, Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps)
                     && !layout_assembly_3d())
             {
                 canvas_status_footer::FindingsButton {
@@ -563,7 +564,7 @@ where
 {
     let guide_state = &input.guide.state;
     let scene: &boardstudio_core::model::SceneDelta = &input.views.scene;
-    let model = &input.setup_a.model;
+    let model = &input.setup_a.view.model;
     let super::view_scene::SvgNavHandlers {
         start_pan,
         move_pointer,
@@ -581,11 +582,11 @@ where
     } = input.inp;
     rsx! {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
-            div { class: if input.setup_a.active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
+            div { class: if input.setup_a.active_workspace == Workspace::Export { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
                 DockLayout {
                     objects: objects_panel(ObjectsPanelInput {
                         guide_none: guide_state.guide.is_none(),
-                        objects_open: input.setup_a.objects_open,
+                        objects_open: input.setup_a.editor.panels.objects_open,
                         objects_panel_settings: input.setup_a.objects_panel_settings,
                         active_workspace: input.setup_a.active_workspace,
                         layout_state: input.setup_a.layout_state,
@@ -599,11 +600,11 @@ where
                     }),
                     inspector: inspector_panel(InspectorPanelInput {
                         guide_none: guide_state.guide.is_none(),
-                        has_inspector: input.setup_a.has_inspector,
-                        inspect_open: input.setup_a.inspect_open,
+                        has_inspector: input.setup_a.view.has_inspector,
+                        inspect_open: input.setup_a.editor.panels.inspector_open,
                         inspector_panel_settings: input.setup_a.inspector_panel_settings,
                         active_workspace: input.setup_a.active_workspace,
-                        layout_findings: input.setup_a.layout_findings,
+                        layout_findings: input.setup_a.view.layout_findings,
                         document: input.views.document.clone(),
                         findings: &input.views.findings,
                         render_scope: input.render_scope.clone(),
@@ -643,11 +644,11 @@ where
                     CanvasSectionInput {
                         setup_guide_active: guide_state.setup_guide_active,
                         active_workspace: input.setup_a.active_workspace,
-                        objects_open: input.setup_a.objects_open,
-                        inspect_open: input.setup_a.inspect_open,
-                        workspace: input.setup_a.workspace,
+                        objects_open: input.setup_a.editor.panels.objects_open,
+                        inspect_open: input.setup_a.editor.panels.inspector_open,
+                        workspace: input.setup_a.editor.workspace,
                         matrix_setup: input.matrix_setup,
-                        mirrored_pair: input.setup_a.mirrored_pair.clone(),
+                        mirrored_pair: input.setup_a.matrix_pair.mirrored_pair.clone(),
                         guide_none: guide_state.guide.is_none(),
                         toolbar_input,
                         guide_project_stage: guide_state.guide.as_ref().is_some_and(|guide| {
@@ -662,7 +663,7 @@ where
                         keycaps_fit_state: input.setup_b.keycaps_fit_state.clone(),
                         focused_keycaps_finding: input.setup_b.focused_keycaps_finding,
                         zmk_firmware_export_panel: input.wir.pcb.zmk_firmware_export_panel.clone(),
-                        return_workspace: input.setup_a.return_workspace,
+                        return_workspace: input.setup_a.editor.return_workspace,
                         inspector_panel_settings: input.setup_a.inspector_panel_settings,
                         canvas_input,
                         snapshot: input.snapshot,
@@ -673,7 +674,7 @@ where
                         document: input.views.document.clone(),
                         pending_splay_origin_pick: input.setup_a.pending_splay_origin_pick,
                         pending_anchor_pick: input.setup_a.pending_anchor_pick,
-                        field_preview: input.setup_a.field_preview,
+                        field_preview: input.setup_a.view.field_preview,
                         canvas_anchor_badge: &input.canvas.selection.canvas_anchor_badge,
                         svg: super::view_scene::LayoutSvgInput {
                             view_box: input.cam.scene_bounds.view_box,
@@ -684,20 +685,20 @@ where
                             view_y: input.cam.scene_bounds.view_y,
                             width: input.cam.scene_bounds.width,
                             height: input.cam.scene_bounds.height,
-                            layer_visibility: &input.setup_a.layer_visibility,
+                            layer_visibility: &input.setup_a.editor.layers,
                             scene,
                             model,
-                            outline_inspector: &input.setup_a.outline_inspector,
+                            outline_inspector: &input.setup_a.view.outline_inspector,
                             outline_overlay_key: &input.guide.outline_overlay_key,
-                            runtime: input.setup_a.runtime.clone(),
+                            runtime: input.setup_a.editor.runtime(),
                             canvas_interaction: input.setup_a.canvas_interaction.clone(),
                             svg: input.cam.svg_surface.svg.clone(),
                             outline_snap_settings: &input.guide.outline_snap_settings,
                             outline_pitch: input.guide.outline_pitch,
                             outline_snap_origins: &input.guide.outline_snap_origins,
                             selected_bridge: guide_state.selected_bridge,
-                            matrix_placement: &input.setup_a.matrix_placement,
-                            mirrored_pair: &input.setup_a.mirrored_pair,
+                            matrix_placement: &input.setup_a.matrix_pair.matrix_placement,
+                            mirrored_pair: &input.setup_a.matrix_pair.mirrored_pair,
                             canvas_source: input.cam.scene_bounds.canvas_source,
                             split_focused_half: input.cmds.split_focused_half,
                             spacing_ghost_prop: &input.canvas.selection.spacing_ghost_prop,
@@ -709,11 +710,11 @@ where
                             selection_geometry_anchor: input.guide.selection_geometry_anchor,
                             canvas_transform_menu: input.guide.canvas_transform_menu,
                             matrix_transform_inspector: input.setup_a.matrix_transform_inspector.clone(),
-                            layout_owner: input.setup_a.layout_owner.clone(),
+                            layout_owner: input.setup_a.view.layout_owner.clone(),
                             adapter: input.setup_a.adapter.clone(),
                             drag: input.cam.placement.drag.clone(),
                             render_scope: input.render_scope.clone(),
-                            workspace: input.setup_a.workspace,
+                            workspace: input.setup_a.editor.workspace,
                             layout_state: input.setup_a.layout_state,
                             layout_transform_tool: input.setup_a.layout_transform_tool,
                             layout_snap_settings: input.setup_a.layout_snap_settings,

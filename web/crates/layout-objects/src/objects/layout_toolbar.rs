@@ -1,4 +1,5 @@
 //! Private Layout selection and snap controls plus their shared value adapters.
+use boardstudio_web_ui_model::Workspace;
 // Pure value adapters live in `layout_toolbar_logic` so they run under `cargo test`.
 // The toolbar delegates to that production module (no duplicate predicates).
 pub(super) use super::layout_toolbar_logic::SNAP_STEPS;
@@ -173,7 +174,7 @@ pub fn LayoutCommandPill(
     let geometry_snap_enabled = snap_settings.geometry_snap;
     let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
     let mut commands = Vec::new();
-    if workspace.is_some_and(|w| w.0() == "Layout") {
+    if workspace.is_some_and(|w| w.0() == Workspace::Layout) {
         use boardstudio_web_ui_shared::ui::command::Command;
         for kind in LayoutSelectionKind::ALL {
             commands.push(Command {

@@ -26,3 +26,9 @@ pub mod canvas_interaction;
 pub mod selection;
 #[cfg(target_arch = "wasm32")]
 pub mod svg_coordinates;
+
+mod workspace;
+pub use workspace::Workspace;
+
+#[cfg(target_arch = "wasm32")]
+pub mod editor;

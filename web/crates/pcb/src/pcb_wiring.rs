@@ -2,6 +2,7 @@
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, Net, PartDefinition, PartKind, ProjectDoc};
+use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField, TextField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -987,21 +988,16 @@ pub struct FirmwarePositionActions {
 
 /// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
 pub fn use_firmware_position_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
+    guard: EditGuard,
     resolution: Signal<PcbWiringResolution>,
 ) -> FirmwarePositionActions {
-    let _ = version();
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
-    let on_edit = use_callback({
-        let runtime = runtime.clone();
-        let mut feedback = feedback;
-        let instance_is_current = instance_is_current.clone();
-        move |request: FirmwarePositionEditRequest| {
-            let Some((snapshot, source)) = pcb_source(&runtime, scope_generation()) else {
+    let generation = guard.editor.scope_generation;
+    let mut latest = feedback;
+    let on_edit = use_guarded_edit(
+        guard,
+        move |runtime, request: FirmwarePositionEditRequest| {
+            let Some((snapshot, source)) = pcb_source(runtime, generation()) else {
                 return;
             };
             let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
@@ -1018,9 +1014,7 @@ pub fn use_firmware_position_edits(
                 &request.identity,
                 &request.key_id,
                 FirmwarePositionAdmission {
-                    workspace: workspace(),
-                    current_generation: scope_generation(),
-                    instance_is_current: instance_is_current(),
+                    current_generation: generation(),
                     runtime_scope: Some(&source.ui_scope),
                     accepted: &snapshot,
                     current_plan: Some(identity),
@@ -1031,16 +1025,17 @@ pub fn use_firmware_position_edits(
             }
             let target = firmware_key_target(&request.identity, &request.key_id);
             let result = runtime.commit("firmware-position", firmware_position_resolver(request));
-            feedback.set(result.err().map(|message| FirmwarePositionFeedback {
+            latest.set(result.err().map(|message| FirmwarePositionFeedback {
                 target,
                 state: FirmwarePositionFeedbackState::Failed(message),
             }));
-        }
-    });
+        },
+    );
 
-    let editable = workspace() == "PCB"
-        && instance_is_current()
-        && pcb_source(&runtime, scope_generation()).is_some_and(|(snapshot, source)| {
+    let runtime = guard.editor.runtime();
+    let editable = guard.workspace_is_current()
+        && guard.instance_is_current(&runtime)
+        && pcb_source(&runtime, generation()).is_some_and(|(snapshot, source)| {
             let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
                 return false;
             };
@@ -1112,107 +1107,88 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
     })
 }
 
-pub fn use_pcb_part_net_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
-) -> PartNetActions {
-    let _ = version();
+pub fn use_pcb_part_net_edits(guard: EditGuard) -> PartNetActions {
     let feedback = use_signal(|| None::<PartNetFeedback>);
     let preparing_create = use_signal(|| false);
-    let generation = scope_generation();
-    let on_edit = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        move |request: PartNetEditRequest| {
-            if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
-                return;
-            }
-            let Some(current) =
-                current_part_net_identity(&runtime, generation, instance_is_current())
-            else {
-                return;
-            };
-            if !request_matches_current_part(&request.identity, &current) {
-                return;
-            }
-            let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
-            if create && *preparing_create.peek() {
-                return;
-            }
-            let accepted = runtime.model().accepted.unwrap();
-            let part = accepted
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == request.identity.part_id)
-                .unwrap();
-            let definition = accepted
-                .document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id)
-                .unwrap();
-            let definition_id = definition.id.clone();
-            let source = definition
-                .generator
-                .as_ref()
-                .map(|generator| generator.source.clone());
-            let mut feedback = feedback;
-            let target = PartNetTarget::of(&request.identity);
-            let seed = runtime.operation().0;
-            if source.is_none() {
-                let resolver = part_net_resolver(request, definition_id, None, false, seed);
-                feedback.set(
-                    runtime
-                        .commit("pcb-part-net", resolver)
-                        .err()
-                        .map(|failure| PartNetFeedback { target, failure }),
-                );
-                return;
-            }
-
-            let mut preparing_create = preparing_create;
-            if create {
-                preparing_create.set(true);
-            }
-            let runtime = runtime.clone();
-            let instance_is_current = instance_is_current.clone();
-            spawn(async move {
-                let classified =
-                    crate::presentation::parts::is_generator_source(source.clone().unwrap()).await;
-                if create {
-                    preparing_create.set(false);
-                }
-                if !admit_classified_part_net_edit(
-                    workspace() == "PCB" && scope_generation() == generation,
-                    &request.identity,
-                    || current_part_net_identity(&runtime, generation, instance_is_current()),
-                ) {
-                    return;
-                }
-                let result = classified.and_then(|is_generator_source| {
-                    let resolver = part_net_resolver(
-                        request,
-                        definition_id,
-                        source,
-                        is_generator_source,
-                        seed,
-                    );
-                    runtime.commit("pcb-part-net", resolver)
-                });
-                feedback.set(
-                    result
-                        .err()
-                        .map(|failure| PartNetFeedback { target, failure }),
-                );
-            });
+    let generation = (guard.editor.scope_generation)();
+    let on_edit = use_guarded_edit(guard, move |runtime, request: PartNetEditRequest| {
+        if !guard.route_is_current(generation) {
+            return;
         }
+        let Some(current) = current_part_net_identity(runtime, generation) else {
+            return;
+        };
+        if !request_matches_current_part(&request.identity, &current) {
+            return;
+        }
+        let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
+        if create && *preparing_create.peek() {
+            return;
+        }
+        let accepted = runtime.model().accepted.unwrap();
+        let part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == request.identity.part_id)
+            .unwrap();
+        let definition = accepted
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+            .unwrap();
+        let definition_id = definition.id.clone();
+        let source = definition
+            .generator
+            .as_ref()
+            .map(|generator| generator.source.clone());
+        let mut feedback = feedback;
+        let target = PartNetTarget::of(&request.identity);
+        let seed = runtime.operation().0;
+        if source.is_none() {
+            let resolver = part_net_resolver(request, definition_id, None, false, seed);
+            feedback.set(
+                runtime
+                    .commit("pcb-part-net", resolver)
+                    .err()
+                    .map(|failure| PartNetFeedback { target, failure }),
+            );
+            return;
+        }
+
+        let mut preparing_create = preparing_create;
+        if create {
+            preparing_create.set(true);
+        }
+        let runtime = runtime.clone();
+        spawn(async move {
+            let classified =
+                crate::presentation::parts::is_generator_source(source.clone().unwrap()).await;
+            if create {
+                preparing_create.set(false);
+            }
+            if !admit_classified_part_net_edit(
+                guard.route_is_current(generation),
+                &request.identity,
+                || live_part_net_identity(guard, &runtime, generation),
+            ) {
+                return;
+            }
+            let result = classified.and_then(|is_generator_source| {
+                let resolver =
+                    part_net_resolver(request, definition_id, source, is_generator_source, seed);
+                runtime.commit("pcb-part-net", resolver)
+            });
+            feedback.set(
+                result
+                    .err()
+                    .map(|failure| PartNetFeedback { target, failure }),
+            );
+        });
     });
-    let identity = current_part_net_identity(&runtime, generation, instance_is_current());
-    let editable = identity.is_some() && workspace() == "PCB";
+    let identity = live_part_net_identity(guard, &guard.editor.runtime(), generation);
+    let editable = identity.is_some() && guard.workspace_is_current();
     let create_pending = preparing_create();
     let visible_feedback = feedback().filter(|feedback| {
         identity
@@ -1293,14 +1269,18 @@ fn part_net_resolver(
     })
 }
 
-fn current_part_net_identity(
+fn live_part_net_identity(
+    guard: EditGuard,
     runtime: &Runtime,
     generation: u64,
-    instance_is_current: bool,
 ) -> Option<PartNetEditIdentity> {
-    if !instance_is_current {
+    if !guard.instance_is_current(runtime) {
         return None;
     }
+    current_part_net_identity(runtime, generation)
+}
+
+fn current_part_net_identity(runtime: &Runtime, generation: u64) -> Option<PartNetEditIdentity> {
     let (accepted, source) = pcb_source(runtime, generation)?;
     let scope = source.ui_scope;
     let model = runtime.model();

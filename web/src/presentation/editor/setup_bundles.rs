@@ -1,9 +1,9 @@
 use super::super::*;
+use super::EditorContext;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct SetupA {
-    pub runtime: Rc<Runtime>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
+    pub editor: EditorContext,
     pub objects_panel_settings: Signal<PanelSettings>,
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub setup_state: setup_workspace::SetupWorkspaceState,
@@ -13,19 +13,14 @@ pub(super) struct SetupA {
     pub guide_name_edit: SetupProjectNameEdit,
     pub adapter: SelectionAdapter,
     pub layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
-    pub version: Signal<u64>,
     pub observed_version: u64,
-    pub instance_preference: Signal<Option<instance_selection::Preference>>,
-    pub instance_selection: InstanceSelection,
     pub case_workspace_state: case_workspace::CaseWorkspaceState,
     pub case_selection: shared_viewer::CaseSelection,
     pub case_tree_expanded: Signal<std::collections::BTreeSet<String>>,
-    pub workspace: Signal<&'static str>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub canvas_navigation: CanvasNavigationState,
-    pub return_workspace: Signal<&'static str>,
-    pub active_workspace: &'static str,
-    pub requested_workspace_panel: Signal<Option<&'static str>>,
+    pub active_workspace: Workspace,
+    pub requested_workspace_panel: Signal<Option<Workspace>>,
     pub render_generation: u64,
     pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
@@ -46,27 +41,8 @@ pub(super) struct SetupA {
     pub pcb_align: objects::LayoutAlignMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
     pub canvas_interaction: CanvasInteractionArbiter,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub on_place_matrix_assembly: EventHandler<objects::MatrixPlacementSource>,
-    pub pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_activation: EventHandler<outline_lifecycle::OutlineAction>,
-    pub layer_visibility: LayerVisibility,
-    pub parts_query: parts::PartsQuery,
-    pub parts_selection: parts::PartsSelection,
-    pub parts_selection_generation: Signal<u64>,
-    pub layout_target: Signal<Option<String>>,
-    pub keymap_state: keymap_workspace::KeymapWorkspaceState,
-    pub keymap_layer_id: Signal<String>,
-    pub has_inspector: bool,
-    pub model: ReadModel,
-    pub current_scope: Option<Scope>,
-    pub accepted_token: Option<boardstudio_application::SnapshotToken>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
-    pub field_preview: Signal<Option<FieldPreviewState>>,
-    pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
+    pub matrix_pair: super::setup_shell::MatrixPairWiring,
+    pub view: super::setup_shell::EditorContexts,
 }
 
 pub(super) struct SetupB {
@@ -91,43 +67,58 @@ pub(super) struct SetupB {
     pub mechanical_settings: mechanical_settings::MechanicalSettingsState,
 }
 
-pub(super) fn use_editor_setup_shell() -> (
+pub(super) fn use_editor_setup_shell(
+    editor: EditorContext,
+) -> (
     SetupA,
     WorkspaceRoutingSlots,
     objects::MatrixSetupMount,
     EventHandler<()>,
 ) {
-    let super::setup_shell::WorkspaceShell {
-        workspace_routing,
-        runtime,
+    boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
+    parts::use_assembly_action_provider();
+    let workspace_routing = use_hook(|| WorkspaceRoutingSlots {
+        select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
+        navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
+    });
+    let runtime = editor.runtime();
+    let CompactPanelState {
+        objects_open,
+        inspector_open: inspect_open,
+    } = editor.panels;
+    let preference_warning = use_context::<PreferenceStorageWarning>().0;
+    let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
+    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
+    let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
+    let setup_state = setup_workspace::use_setup_workspace_state(
+        runtime.clone(),
+        created_request_signal,
         objects_open,
         inspect_open,
         objects_panel_settings,
         inspector_panel_settings,
-        setup_state,
-        guide_preferences,
-        guide_name_draft,
-        guide_name_failure,
-        guide_name_edit,
-        adapter,
-        layout_component_inspector_lifetime,
-        version,
-        observed_version,
-        instance_preference,
-        instance_selection,
-        case_workspace_state,
-        case_selection,
-        case_tree_expanded,
-        workspace,
-        layout_state,
-        canvas_navigation,
-        return_workspace,
-        active_workspace,
-        requested_workspace_panel,
-        render_generation,
-        layout_selection_kind,
-        split_focus,
-    } = super::setup_shell::use_workspace_shell();
+    );
+    let guide_preferences = setup_state.guide_preferences();
+    let guide_name_edit = use_setup_project_name(runtime.clone());
+    let guide_name_draft = guide_name_edit.draft;
+    let guide_name_failure = guide_name_edit.failure;
+    let adapter = use_context::<SelectionAdapter>();
+    let layout_component_inspector_lifetime =
+        use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
+    let observed_version = (editor.version)();
+    let case_workspace_state = case_workspace::use_case_workspace_state();
+    let case_selection = case_workspace_state.selection();
+    let case_tree_expanded = case_workspace_state.tree_expanded();
+    let workspace = editor.workspace;
+    let layout_state =
+        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
+    let canvas_navigation = use_canvas_navigation_state(workspace);
+    let active_workspace = workspace();
+    let requested_workspace_panel =
+        panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
+    let render_generation = (editor.scope_generation)();
+    let layout_selection_kind = layout_state.selection_kind();
+    let split_focus = layout_state.split_focus();
     let super::setup_shell::LayoutViewState {
         spacing_ghost_state,
         layout_snap_settings,
@@ -148,69 +139,29 @@ pub(super) fn use_editor_setup_shell() -> (
         parts_state,
         parts_assembly_orientation,
         canvas_interaction,
-    } = super::setup_shell::use_layout_view_state(
-        runtime.clone(),
-        adapter.clone(),
-        version,
-        workspace,
-        layout_state,
-    );
-    let super::setup_shell::MatrixPairWiring {
-        matrix_placement,
-        on_place_matrix_assembly,
-        pair_created_selection,
-        mirrored_pair,
-    } = super::setup_shell::use_matrix_pair_wiring(super::setup_shell::MatrixPairWiringInput {
-        runtime: runtime.clone(),
-        version,
-        workspace,
-        adapter: adapter.clone(),
-        layout_assembly_3d,
-        objects_open,
-        inspect_open,
-        canvas_interaction: canvas_interaction.clone(),
-        layout_state,
-        inspector_panel_settings,
-        parts_assembly_orientation,
-        matrix_setup: &mut matrix_setup,
-    });
-    let (
-        super::setup_shell::EditorContexts {
-            outline_inspector,
-            outline_activation,
-            layer_visibility,
-            parts_query,
-            parts_selection,
-            parts_selection_generation,
-            layout_target,
-            keymap_state,
-            keymap_layer_id,
-            has_inspector,
-            model,
-            current_scope,
-            accepted_token,
-            layout_owner,
-            layout_findings,
-            field_preview,
-            resolved_document,
-        },
-        on_parts_select,
-    ) = super::setup_shell::use_editor_contexts(super::setup_shell::EditorContextsInput {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        workspace,
+    } = super::setup_shell::use_layout_view_state(editor, &adapter, layout_state);
+    let matrix_pair =
+        super::setup_shell::use_matrix_pair_wiring(super::setup_shell::MatrixPairWiringInput {
+            editor,
+            adapter: adapter.clone(),
+            layout_assembly_3d,
+            canvas_interaction: canvas_interaction.clone(),
+            layout_state,
+            inspector_panel_settings,
+            parts_assembly_orientation,
+            matrix_setup: &mut matrix_setup,
+        });
+    let (view, on_parts_select) = super::setup_shell::use_editor_contexts(
+        editor,
+        &adapter,
         parts_state,
-        objects_open,
-        inspect_open,
-        tree_cell_anchor: tree_cell_anchor.clone(),
+        &tree_cell_anchor,
         render_generation,
         active_workspace,
-    });
+    );
     (
         SetupA {
-            runtime,
-            objects_open,
-            inspect_open,
+            editor,
             objects_panel_settings,
             inspector_panel_settings,
             setup_state,
@@ -220,17 +171,12 @@ pub(super) fn use_editor_setup_shell() -> (
             guide_name_edit,
             adapter,
             layout_component_inspector_lifetime,
-            version,
             observed_version,
-            instance_preference,
-            instance_selection,
             case_workspace_state,
             case_selection,
             case_tree_expanded,
-            workspace,
             layout_state,
             canvas_navigation,
-            return_workspace,
             active_workspace,
             requested_workspace_panel,
             render_generation,
@@ -253,27 +199,8 @@ pub(super) fn use_editor_setup_shell() -> (
             pcb_align,
             parts_state,
             canvas_interaction,
-            matrix_placement,
-            on_place_matrix_assembly,
-            pair_created_selection,
-            mirrored_pair,
-            outline_inspector,
-            outline_activation,
-            layer_visibility,
-            parts_query,
-            parts_selection,
-            parts_selection_generation,
-            layout_target,
-            keymap_state,
-            keymap_layer_id,
-            has_inspector,
-            model,
-            current_scope,
-            accepted_token,
-            layout_owner,
-            layout_findings,
-            field_preview,
-            resolved_document,
+            matrix_pair,
+            view,
         },
         workspace_routing,
         matrix_setup,
@@ -289,18 +216,18 @@ pub(super) fn use_setup_workspaces(
     keymap::BindingActions,
     keymap::MacroActions,
 ) {
-    let model = &setup_a.model;
-    let current_scope = &setup_a.current_scope;
-    let runtime = &setup_a.runtime;
-    let workspace = setup_a.workspace;
-    let version = setup_a.version;
+    let model = &setup_a.view.model;
+    let current_scope = &setup_a.view.current_scope;
+    let runtime = &setup_a.editor.runtime();
+    let workspace = setup_a.editor.workspace;
+    let version = setup_a.editor.version;
     let adapter = &setup_a.adapter;
-    let instance_selection = setup_a.instance_selection;
-    let layout_owner = &setup_a.layout_owner;
+    let instance_selection = setup_a.editor.instance_selection;
+    let layout_owner = &setup_a.view.layout_owner;
     let guide_preferences = setup_a.guide_preferences;
-    let keymap_layer_id = setup_a.keymap_layer_id;
-    let accepted_token = setup_a.accepted_token;
-    let inspect_open = setup_a.inspect_open;
+    let keymap_layer_id = setup_a.view.keymap_layer_id;
+    let accepted_token = setup_a.view.accepted_token;
+    let inspect_open = setup_a.editor.panels.inspector_open;
     let case_selection = setup_a.case_selection;
     let super::setup_workspaces::KeycapsPcbState {
         active_board_id,
@@ -319,13 +246,9 @@ pub(super) fn use_setup_workspaces(
         part_net_actions,
         part_input_actions,
     } = super::setup_workspaces::use_keycaps_pcb_state(super::setup_workspaces::KeycapsPcbInput {
+        editor: setup_a.editor,
         model,
         current_scope: current_scope.clone(),
-        runtime: runtime.clone(),
-        workspace,
-        version,
-        generation: adapter.generation,
-        instance_selection,
         layout_owner: layout_owner.clone(),
     });
     let physical_setup_mount = super::setup_workspaces::use_physical_setup(

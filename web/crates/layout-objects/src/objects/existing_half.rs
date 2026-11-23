@@ -6,6 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -103,7 +104,7 @@ fn mirror_existing_half_resolver(
 pub fn use_existing_half(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> ExistingHalfMount {
     let editor_instance_id = use_hook({
@@ -134,7 +135,7 @@ pub fn use_existing_half(
                 );
                 if waiting.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
-                        current_workspace != "Layout"
+                        current_workspace != Workspace::Layout
                             || owner.scope_generation != current_generation
                             || runtime.scope().as_ref() != Some(&owner.scope)
                     })
@@ -324,7 +325,7 @@ pub fn use_existing_half(
 
     ExistingHalfMount {
         projection,
-        visible: workspace() == "Layout",
+        visible: workspace() == Workspace::Layout,
         can_open,
         on_open,
         on_cancel,
@@ -431,9 +432,9 @@ fn default_axis_x(snapshot: &AcceptedSnapshot, board_id: &str) -> f64 {
 
 fn existing_half_source(
     runtime: &Runtime,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> Option<(AcceptedSnapshot, Scope)> {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let model = runtime.model();
@@ -467,10 +468,10 @@ fn existing_half_source(
 fn owner_is_current(
     runtime: &Runtime,
     owner: &ExistingHalfOwner,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
 ) -> bool {
-    if workspace != "Layout"
+    if workspace != Workspace::Layout
         || owner.scope_generation != scope_generation
         || runtime.scope().as_ref() != Some(&owner.scope)
     {
@@ -498,7 +499,7 @@ fn owner_is_current(
 
 fn settle_pending(
     runtime: &Rc<Runtime>,
-    (workspace, scope_generation, editor_instance_id): (&'static str, u64, u64),
+    (workspace, scope_generation, editor_instance_id): (Workspace, u64, u64),
     waiting: &mut Signal<Option<(EditOutcome, ExistingHalfOwner)>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
@@ -508,7 +509,7 @@ fn settle_pending(
     };
     let model = runtime.model();
     let owner_is_live = owner.editor_instance_id == editor_instance_id
-        && workspace == "Layout"
+        && workspace == Workspace::Layout
         && scope_generation == owner.scope_generation;
     match ticket.settlement(owner_is_live) {
         Settlement::Retired => {
@@ -520,7 +521,7 @@ fn settle_pending(
         }
         Settlement::Landed { .. } => {
             waiting.set(None);
-            let current_owner = workspace == "Layout"
+            let current_owner = workspace == Workspace::Layout
                 && scope_generation == owner.scope_generation
                 && model.active_board_id == owner.scope.board_id
                 && model.active_instance_id == owner.scope.instance_id;

@@ -1,9 +1,10 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn begin_place_assembly_on_board(
     runtime: Rc<crate::runtime::Runtime>,
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     scope: Option<Scope>,
     source: AcceptedSnapshot,
     definitions: Vec<PartDefinition>,
@@ -18,7 +19,7 @@ pub(super) fn begin_place_assembly_on_board(
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || workspace() != "Parts" {
+    if preparing() || workspace() != Workspace::Parts {
         return;
     }
     let Some(scope) = scope else {
@@ -105,7 +106,7 @@ pub(super) fn begin_place_assembly_on_board(
         }
         .await;
         if editor_generation() != view_generation
-            || workspace() != "Parts"
+            || workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&scope)
         {
             preparing.set(false);
@@ -122,7 +123,7 @@ pub(super) fn begin_place_assembly_on_board(
             feedback.set(Some("The accepted project is unavailable.".into()));
             return;
         };
-        if workspace() != "Parts"
+        if workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&scope)
             || latest.document.id != project_id
             || latest.session_epoch != session_epoch
@@ -157,7 +158,7 @@ pub(super) fn begin_place_assembly_on_board(
                     );
                     editing.set(None);
                     on_board_placed.call(());
-                    workspace.set("Layout");
+                    workspace.set(Workspace::Layout);
                     runtime.submit(Event::SelectParts {
                         operation_id: runtime.operation(),
                         part_ids,
@@ -174,7 +175,7 @@ pub(super) fn begin_place_assembly_on_board(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn begin_apply_assembly_to_matrix(
     runtime: Rc<crate::runtime::Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope: Option<Scope>,
     source: AcceptedSnapshot,
     selected_context: Signal<Option<super::super::super::objects::ScopedTreeContext>>,
@@ -185,7 +186,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing() || workspace() != "Parts" {
+    if preparing() || workspace() != Workspace::Parts {
         return;
     }
     let Some(scope) = scope else {
@@ -258,7 +259,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
         }
         .await;
         if editor_generation() != view_generation
-            || workspace() != "Parts"
+            || workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&scope)
         {
             preparing.set(false);
@@ -274,7 +275,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
         };
         let current_model = runtime.model();
         let still_selected = selected_context.peek().as_ref() == Some(&selected);
-        if workspace() != "Parts"
+        if workspace() != Workspace::Parts
             || runtime.scope().as_ref() != Some(&scope)
             || !still_selected
             || !current_model.accepted.as_ref().is_some_and(|current| {

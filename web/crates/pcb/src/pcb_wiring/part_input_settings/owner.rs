@@ -3,6 +3,7 @@ use crate::pcb_wiring::mode::pcb_source;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_model::model::{EditOperation, PressScanMode};
+use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::{
@@ -71,46 +72,28 @@ pub struct PartInputActions {
     pub on_edit: EventHandler<PartInputEditRequest>,
 }
 
-pub fn use_part_input_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
-) -> PartInputActions {
-    let _ = version();
+pub fn use_part_input_edits(guard: EditGuard) -> PartInputActions {
     let failure = use_signal(|| None::<PartInputFailure>);
-    let on_edit = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        move |request: PartInputEditRequest| {
-            if current_snapshot(
-                &runtime,
-                &request.identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-            )
-            .is_none()
-            {
-                return;
-            }
-            let identity = request.identity.clone();
-            let result = runtime.commit("pcb-part-settings", input_resolver(request));
-            let mut failure = failure;
-            failure.set(
-                result
-                    .err()
-                    .map(|message| PartInputFailure::of(&identity, message)),
-            );
+    let generation = guard.editor.scope_generation;
+    let on_edit = use_guarded_edit(guard, move |runtime, request: PartInputEditRequest| {
+        if current_snapshot(runtime, &request.identity, generation()).is_none() {
+            return;
         }
+        let identity = request.identity.clone();
+        let result = runtime.commit("pcb-part-settings", input_resolver(request));
+        let mut failure = failure;
+        failure.set(
+            result
+                .err()
+                .map(|message| PartInputFailure::of(&identity, message)),
+        );
     });
-    let editable = workspace() == "PCB"
-        && instance_is_current()
-        && pcb_source(&runtime, scope_generation()).is_some();
+    let runtime = guard.editor.runtime();
+    let editable = guard.workspace_is_current()
+        && guard.instance_is_current(&runtime)
+        && pcb_source(&runtime, generation()).is_some();
     let live_target = |ui_scope: &Scope, generation: u64, part_id: &str| {
-        workspace() == "PCB"
-            && generation == scope_generation()
+        guard.route_is_current(generation)
             && runtime.scope().as_ref() == Some(ui_scope)
             && runtime.model().selected_part_ids.as_slice() == [part_id]
     };
@@ -131,11 +114,9 @@ pub fn use_part_input_edits(
 fn current_snapshot(
     runtime: &Runtime,
     identity: &PartInputIdentity,
-    workspace: &'static str,
     generation: u64,
-    instance_is_current: bool,
 ) -> Option<AcceptedSnapshot> {
-    if workspace != "PCB" || !instance_is_current || generation != identity.scope_generation {
+    if generation != identity.scope_generation {
         return None;
     }
     let (snapshot, source) = pcb_source(runtime, generation)?;

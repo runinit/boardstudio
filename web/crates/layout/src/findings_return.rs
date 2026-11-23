@@ -1,4 +1,5 @@
 use boardstudio_application::ReadModel;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::{state::LayoutOwnerIdentity, tree as objects};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,7 +15,7 @@ pub fn layout_finding_return_is_current(
     current_selection: Option<&objects::ScopedTreeContext>,
     target: &ReturnTarget,
 ) -> bool {
-    if owner != &target.owner || owner.workspace != "Layout" {
+    if owner != &target.owner || owner.workspace != Workspace::Layout {
         return false;
     }
     let Some(scope) = owner.scope.as_ref() else {
@@ -151,7 +152,7 @@ mod tests {
             token: Some(SnapshotToken(13)),
             revision: Some(9),
             generation: 2,
-            workspace: "Layout",
+            workspace: Workspace::Layout,
         };
         let destination = objects::TreeContext::Outline {
             board_id: scope.board_id.clone(),
@@ -173,7 +174,7 @@ mod tests {
             &target,
         ));
         let mut non_layout_owner = owner.clone();
-        non_layout_owner.workspace = "PCB";
+        non_layout_owner.workspace = Workspace::Pcb;
         let non_layout_target = ReturnTarget {
             owner: non_layout_owner.clone(),
             ..target.clone()

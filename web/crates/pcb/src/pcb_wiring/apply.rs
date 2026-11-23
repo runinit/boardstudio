@@ -7,6 +7,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -24,7 +25,7 @@ pub struct BoardWiringApplyActions {
 pub fn use_board_wiring_apply(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
     source: Option<PcbWiringSource>,

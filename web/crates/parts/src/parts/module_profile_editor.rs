@@ -7,6 +7,7 @@ use boardstudio_model::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, TextCommitField, ToggleField,
 };
@@ -137,9 +138,9 @@ fn module_profile_owner_is_current(
     owner: &ModuleProfileOwner,
     selected: &PartsSelection,
     selection_generation: u64,
-    workspace: &Signal<&'static str>,
+    workspace: &Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
-    if workspace() != "Parts"
+    if workspace() != Workspace::Parts
         || owner.scope != runtime.scope()
         || owner.selection_generation != selection_generation
         || selected()

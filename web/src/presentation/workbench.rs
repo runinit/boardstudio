@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) struct RuntimeBundle {
     pub(crate) version: Signal<u64>,
@@ -189,9 +190,9 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
 }
 
 pub(crate) struct PanelsBundle {
-    pub(crate) workspace: Signal<&'static str>,
+    pub(crate) workspace: Signal<Workspace>,
     pub(crate) project_browser: Signal<bool>,
-    pub(crate) return_workspace: Signal<&'static str>,
+    pub(crate) return_workspace: Signal<Workspace>,
 }
 
 pub(crate) fn use_workbench_panels(
@@ -209,7 +210,7 @@ pub(crate) fn use_workbench_panels(
     use_context_provider(|| pending_new_keyboard);
     use_context_provider(|| new_keyboard_error);
     use_context_provider(|| adapter);
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| WorkspaceState(workspace));
     let project_browser = use_signal(|| false);
     use_context_provider(|| library::ProjectBrowserState(project_browser));
@@ -218,11 +219,11 @@ pub(crate) fn use_workbench_panels(
         objects_open: obj_open,
         inspector_open: insp_open,
     });
-    let mut return_workspace = use_signal(|| "Layout");
+    let mut return_workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| ExportReturnWorkspace(return_workspace));
     use_effect(move || {
         let active = workspace();
-        if active != "Export" {
+        if active != Workspace::Export {
             return_workspace.set(active);
         } else {
             obj_open.set(false);
@@ -382,8 +383,8 @@ pub(crate) struct HeaderBundle {
 
 pub(crate) fn use_workbench_header(
     runtime: Rc<Runtime>,
-    mut workspace: Signal<&'static str>,
-    return_workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
+    return_workspace: Signal<Workspace>,
     project_browser: Signal<bool>,
 ) -> HeaderBundle {
     let (project_name, has_accepted) = runtime.with_model(|model| {
@@ -411,10 +412,10 @@ pub(crate) fn use_workbench_header(
         })
     });
     let on_export = EventHandler::new(move |()| {
-        workspace.set(if workspace() == "Export" {
+        workspace.set(if workspace() == Workspace::Export {
             return_workspace()
         } else {
-            "Export"
+            Workspace::Export
         })
     });
     command_palette::use_navigation_commands(

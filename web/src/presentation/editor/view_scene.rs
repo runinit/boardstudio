@@ -1,4 +1,5 @@
 use super::super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) fn polygon_points(points: &[Vec2]) -> String {
     points
@@ -46,7 +47,7 @@ pub(super) struct LayoutSvgInput<'a> {
     pub adapter: SelectionAdapter,
     pub drag: Rc<RefCell<Option<Drag>>>,
     pub render_scope: Scope,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
@@ -63,7 +64,7 @@ pub(super) struct LayoutSvgInput<'a> {
     pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
     pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
     pub snapshot: &'a AcceptedSnapshot,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
 }
 
@@ -419,7 +420,7 @@ pub(super) struct SelectionAnchorInput<'a> {
     pub adapter: SelectionAdapter,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub render_scope: Scope,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub view_x: f64,
     pub view_y: f64,
     pub width: f64,
@@ -501,7 +502,7 @@ pub(super) fn selection_anchor(input: SelectionAnchorInput<'_>) -> Element {
 }
 
 pub(super) struct TransformOverlaysInput<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub layout_transform_target: Option<(
         std::rc::Rc<boardstudio_core::model::Matrix>,
@@ -543,7 +544,7 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
         height,
     } = input;
     rsx! {
-        if active_workspace == "Layout"
+        if active_workspace == Workspace::Layout
             && !layout_assembly_3d()
             && let Some((matrix, projection, context)) = layout_transform_target.clone()
         {
@@ -587,7 +588,7 @@ pub(super) fn transform_overlays(input: TransformOverlaysInput<'_>) -> Element {
 }
 
 pub(super) struct PartRailInput<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub layout_assembly_3d: Signal<bool>,
     pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
     pub selected_tree_context: &'a Option<objects::ScopedTreeContext>,
@@ -629,7 +630,7 @@ pub(super) fn part_rail(input: PartRailInput<'_>) -> Element {
     rsx! {
         // The independent part's own rail: Move and Rotate edit the local Offset and Rotation (or
         // the pose, while detached); Spread and Stagger edit the values carried from the anchor key.
-        if active_workspace == "Layout"
+        if active_workspace == Workspace::Layout
             && !layout_assembly_3d()
             && let Some((part_id, facts)) = part_rail_selection.clone()
             && let Some(selected) = selected_tree_context.clone()
@@ -728,7 +729,7 @@ pub(super) fn placement_preview(
 }
 
 pub(super) struct MarkerDraftInput<'a> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub render_scope: Scope,
     pub snapshot: &'a AcceptedSnapshot,
     pub model: &'a ReadModel,
@@ -769,7 +770,7 @@ pub(super) fn finding_marker_draft(input: MarkerDraftInput<'_>) -> Element {
     } = input;
     rsx! {
         keycaps_finding_marker::FocusedFindingMarker {
-            workspace: active_workspace.to_owned(),
+            workspace: active_workspace,
             scope: Some(render_scope.clone()),
             token: Some(snapshot.token),
             revision: Some(snapshot.document.revision),

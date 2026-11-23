@@ -10,6 +10,7 @@ use boardstudio_web_layout::component_offset::{
     default_axes_for_source, offset_axes_from_value, offset_axes_value, offset_drafts,
     offset_values,
 };
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -43,7 +44,7 @@ type InspectorOwnerIdentity = (
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutComponentInspectorOwnerKey {
     pub scope: Option<Scope>,
-    pub workspace: &'static str,
+    pub workspace: Workspace,
     pub part_id: Option<String>,
     pub selected_part_ids: Vec<String>,
 }

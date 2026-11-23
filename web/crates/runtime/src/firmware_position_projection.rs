@@ -66,10 +66,9 @@ pub struct FirmwarePositionProjection {
     pub bindings: Rc<BTreeMap<String, String>>,
 }
 
+/// Snapshot and plan admission after the presentation checks the workspace and instance.
 pub struct FirmwarePositionAdmission<'a> {
-    pub workspace: &'a str,
     pub current_generation: u64,
-    pub instance_is_current: bool,
     pub runtime_scope: Option<&'a Scope>,
     pub accepted: &'a AcceptedSnapshot,
     pub current_plan: Option<&'a FirmwarePlanIdentity>,
@@ -85,9 +84,7 @@ pub fn admits_edit(
         instance_id: None,
         ..identity.ui_scope.clone()
     };
-    admission.workspace == "PCB"
-        && admission.instance_is_current
-        && admission.current_generation == identity.scope_generation
+    admission.current_generation == identity.scope_generation
         && admission.runtime_scope == Some(&identity.ui_scope)
         && admission.accepted.session_epoch == identity.ui_scope.session_epoch
         && admission.accepted.document.id == identity.ui_scope.document_id

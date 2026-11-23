@@ -6,6 +6,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, TerminalOutcome};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -40,7 +41,7 @@ pub struct ProtectedRemapActions {
 pub fn use_protected_remap_review(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
     source: Option<PcbWiringSource>,
@@ -98,7 +99,7 @@ pub fn use_protected_remap_review(
             expected_fingerprint: handoff.fingerprint.clone(),
         });
     let editable = identity.as_ref().is_some_and(|identity| {
-        workspace() == "PCB"
+        workspace() == Workspace::Pcb
             && current_edit_snapshot(
                 &runtime,
                 &identity.wiring,

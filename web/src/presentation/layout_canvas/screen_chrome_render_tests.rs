@@ -7,6 +7,7 @@ use super::*;
 use boardstudio_application::{Event, Session};
 use boardstudio_core::CoreEngine;
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use serde_json::json;
 use std::cell::RefCell;
@@ -345,7 +346,7 @@ impl ChromeProbe {
 
 fn chrome_host() -> Element {
     let probe = use_context::<ChromeProbe>();
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| WorkspaceState(workspace));
     use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);

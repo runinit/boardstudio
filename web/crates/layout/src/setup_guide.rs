@@ -1,5 +1,6 @@
 use boardstudio_core_mechanical::electrical::ElectricalPlan;
 use boardstudio_model::model::{PartKind, ProjectDoc, SceneDelta, Severity};
+use boardstudio_web_ui_model::Workspace;
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
@@ -280,7 +281,7 @@ pub fn ProjectSetupGuide(
     on_name_change: EventHandler<String>,
     on_name_commit: EventHandler<()>,
     on_stage_change: EventHandler<SetupGuideStage>,
-    on_open_workspace: EventHandler<&'static str>,
+    on_open_workspace: EventHandler<Workspace>,
     on_open_matrix_setup: Option<EventHandler<()>>,
     #[props(default)] matrix_setup: Option<Element>,
     #[props(default)] case_basics: Option<Element>,
@@ -466,7 +467,7 @@ pub fn ProjectSetupGuide(
                                     }
                                     Button {
                                         variant: ButtonVariant::Secondary,
-                                        onclick: move |_| on_open_workspace.call("Case"),
+                                        onclick: move |_| on_open_workspace.call(Workspace::Case),
                                         "Open full case settings"
                                     }
                                 } else {
@@ -607,18 +608,18 @@ pub fn write_preferences(preferences: &SetupGuidePreferences) {
 /// Keep stage navigation and its panel reveal in one production transition.
 pub fn activate_stage(
     stage: SetupGuideStage,
-    mut workspace: Signal<&'static str>,
-    mut requested_workspace: Signal<Option<&'static str>>,
+    mut workspace: Signal<Workspace>,
+    mut requested_workspace: Signal<Option<Workspace>>,
     objects_open: Signal<bool>,
     inspector_open: Signal<bool>,
     objects_settings: Signal<super::panels::PanelSettings>,
     inspector_settings: Signal<super::panels::PanelSettings>,
 ) {
     let target = match stage {
-        SetupGuideStage::Project | SetupGuideStage::Layout => "Layout",
-        SetupGuideStage::Wiring => "Layout",
-        SetupGuideStage::Case => "Case",
-        SetupGuideStage::Review => "Export",
+        SetupGuideStage::Project | SetupGuideStage::Layout => Workspace::Layout,
+        SetupGuideStage::Wiring => Workspace::Layout,
+        SetupGuideStage::Case => Workspace::Case,
+        SetupGuideStage::Review => Workspace::Export,
     };
     if *workspace.peek() != target {
         requested_workspace.set(Some(target));
@@ -659,8 +660,8 @@ pub fn reveal_panels(
     }
 }
 
-pub fn focus_settings(workspace: &str) {
-    let selector = if workspace == "Export" {
+pub fn focus_settings(workspace: Workspace) {
+    let selector = if workspace == Workspace::Export {
         "#m1-workspace-panel :is(input, select, button):not(:disabled)"
     } else {
         "#m1-inspector-panel-content :is(input, select, button):not(:disabled)"

@@ -2,6 +2,7 @@
 
 use boardstudio_application::Scope;
 use boardstudio_model::model::Vec2;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::{state::Drag, svg_coordinates::PointerLocation};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -34,7 +35,7 @@ pub struct PanStart {
     pub camera: Vec2,
 }
 
-pub fn use_canvas_navigation_state(workspace: Signal<&'static str>) -> CanvasNavigationState {
+pub fn use_canvas_navigation_state(workspace: Signal<Workspace>) -> CanvasNavigationState {
     let state = CanvasNavigationState {
         surface_size: use_signal(|| (1.0, 1.0)),
         drag: use_hook(|| Rc::new(RefCell::new(None))),
@@ -45,7 +46,8 @@ pub fn use_canvas_navigation_state(workspace: Signal<&'static str>) -> CanvasNav
         let space_down = state.space_down.clone();
         let listener = use_hook({
             move || {
-                let is_layout: Rc<dyn Fn() -> bool> = Rc::new(move || workspace() == "Layout");
+                let is_layout: Rc<dyn Fn() -> bool> =
+                    Rc::new(move || workspace() == Workspace::Layout);
                 boardstudio_web_ui_model::canvas_interaction::LayoutSpacePanWindowListener::install(
                     is_layout, space_down,
                 )

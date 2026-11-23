@@ -2,6 +2,7 @@
 use crate::pcb_controls::PcbFile;
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, NumericField, SelectField, ToggleField,
 };
@@ -101,7 +102,7 @@ fn preview_paths(models: &[boardstudio_model::model::PcbModel]) -> Vec<String> {
 #[derive(Clone)]
 struct BoardReferenceContext {
     runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: super::SelectionAdapter,
     owner: super::LayoutOwnerIdentity,
     generation: Signal<u64>,
@@ -499,7 +500,7 @@ pub fn Editor(
     assets: Vec<Asset>,
     disabled: bool,
     runtime: BoardReferenceRuntimeHandle,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: BoardReferenceAdapterHandle,
     owner: super::LayoutOwnerIdentity,
 ) -> Element {

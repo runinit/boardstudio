@@ -11,6 +11,7 @@ use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::{keycaps_finding_marker, keycaps_navigation};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::InspectorSection;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -45,7 +46,7 @@ pub(super) struct KeycapsWorkspaceState {
 }
 
 pub(super) fn use_keycaps_workspace_state(
-    workspace: &'static str,
+    workspace: Workspace,
     scope: Option<Scope>,
     token: Option<SnapshotToken>,
     revision: Option<u64>,
@@ -175,7 +176,7 @@ pub(super) fn objects(input: NavigationInput) -> Element {
 pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
     rsx! {
         super::shared_viewer::DesignViewToolbar {
-            contextual_tools: input.contextual_tools, label: input.label, detail: input.detail,
+            contextual_tools: input.contextual_tools, workspace: input.workspace, detail: input.detail,
             assembly_3d: input.assembly_3d, footprints_visible: input.footprints_visible,
             on_view_mode: input.on_view_mode, on_toggle_footprints: input.on_toggle_footprints,
         }

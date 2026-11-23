@@ -8,6 +8,7 @@ use boardstudio_model::model::{
     EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile, MechanicalSwitchFamily,
     PartDefinition,
 };
+use boardstudio_web_ui_model::Workspace;
 
 use crate::parts_custom_definition::replacement_commit;
 
@@ -43,12 +44,12 @@ pub fn standard_profile_controls(
 }
 
 fn profile_editor_is_current(
-    workspace: &str,
+    workspace: Workspace,
     captured_generation: (u64, u64),
     current_generation: impl FnOnce() -> (u64, u64),
     owner_matches: impl FnOnce() -> bool,
 ) -> bool {
-    workspace == "Parts" && captured_generation == current_generation() && owner_matches()
+    workspace == Workspace::Parts && captured_generation == current_generation() && owner_matches()
 }
 
 pub fn merge_standard_profile(
@@ -532,18 +533,22 @@ mod tests {
     fn delayed_geometry_requires_the_same_live_profile_editor() {
         let generation = (2, 3);
         assert!(profile_editor_is_current(
-            "Parts",
+            Workspace::Parts,
             generation,
             || generation,
             || true
         ));
         assert!(!profile_editor_is_current(
-            "Parts",
+            Workspace::Parts,
             generation,
             || generation,
             || false
         ));
-        for (workspace, active) in [("Layout", generation), ("Parts", (3, 3)), ("Parts", (2, 4))] {
+        for (workspace, active) in [
+            (Workspace::Layout, generation),
+            (Workspace::Parts, (3, 3)),
+            (Workspace::Parts, (2, 4)),
+        ] {
             assert!(!profile_editor_is_current(
                 workspace,
                 generation,

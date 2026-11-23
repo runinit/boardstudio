@@ -108,7 +108,7 @@ pub(super) fn objects(input: NavigationInput) -> Element {
 pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
     rsx! {
         super::shared_viewer::DesignViewToolbar {
-            contextual_tools: input.contextual_tools, label: input.label, detail: input.detail,
+            contextual_tools: input.contextual_tools, workspace: input.workspace, detail: input.detail,
             assembly_3d: input.assembly_3d, footprints_visible: input.footprints_visible,
             on_view_mode: input.on_view_mode, on_toggle_footprints: input.on_toggle_footprints,
         }

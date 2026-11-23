@@ -1,13 +1,11 @@
 use super::super::*;
+use super::{EditGuard, EditorContext};
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct KeycapsPcbInput<'a> {
+    pub editor: EditorContext,
     pub model: &'a ReadModel,
     pub current_scope: Option<Scope>,
-    pub runtime: Rc<Runtime>,
-    pub workspace: Signal<&'static str>,
-    pub version: Signal<u64>,
-    pub generation: Signal<u64>,
-    pub instance_selection: InstanceSelection,
     pub layout_owner: LayoutOwnerIdentity,
 }
 
@@ -31,15 +29,19 @@ pub(super) struct KeycapsPcbState {
 
 pub(super) fn use_keycaps_pcb_state(input: KeycapsPcbInput<'_>) -> KeycapsPcbState {
     let KeycapsPcbInput {
+        editor,
         model,
         current_scope,
-        runtime,
-        workspace,
-        version,
-        generation,
-        instance_selection,
         layout_owner,
     } = input;
+    let runtime = editor.runtime();
+    let EditorContext {
+        workspace,
+        version,
+        scope_generation: generation,
+        instance_selection,
+        ..
+    } = editor;
     let active_board_id = model.active_board_id.clone();
     let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
         layout_owner.workspace,
@@ -101,27 +103,14 @@ pub(super) fn use_keycaps_pcb_state(input: KeycapsPcbInput<'_>) -> KeycapsPcbSta
         generation,
     );
     let pcb_wiring_mount = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), version);
-    let pcb_part_net_actions =
-        pcb_wiring::use_pcb_part_net_edits(runtime.clone(), version, workspace, generation, {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        });
-    let firmware_position_actions = pcb_wiring::use_firmware_position_edits(
-        runtime.clone(),
-        version,
-        workspace,
-        generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_mount.resolution_signal,
-    );
-    let part_input_actions =
-        pcb_wiring::use_part_input_edits(runtime.clone(), version, workspace, generation, {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        });
+    let guard = EditGuard {
+        editor,
+        workspace: Workspace::Pcb,
+    };
+    let pcb_part_net_actions = pcb_wiring::use_pcb_part_net_edits(guard);
+    let firmware_position_actions =
+        pcb_wiring::use_firmware_position_edits(guard, pcb_wiring_mount.resolution_signal);
+    let part_input_actions = pcb_wiring::use_part_input_edits(guard);
     KeycapsPcbState {
         active_board_id,
         keycaps_state,
@@ -147,7 +136,7 @@ pub(super) fn use_physical_setup(
     version: Signal<u64>,
     adapter: SelectionAdapter,
     instance_selection: InstanceSelection,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> pcb_physical_setup::PhysicalSetupMount {
     // Read guide state at every admission: an async operation may outlive the rendered guide
     // stage or switch to a different accepted project.
@@ -237,7 +226,7 @@ pub(super) struct KeymapProjectionsInput {
     pub runtime: Rc<Runtime>,
     pub layer_source: Option<keymap::LayerSource>,
     pub keymap_layer_id: Signal<String>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub generation: Signal<u64>,
     pub accepted_token: Option<boardstudio_application::SnapshotToken>,
     pub current_scope: Option<Scope>,
@@ -339,7 +328,7 @@ pub(super) struct OnShowMechanicalFindingArgs<'a> {
     pub current_scope: Option<Scope>,
     pub model: &'a ReadModel,
     pub adapter_generation: Signal<u64>,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub inspect_open: Signal<bool>,
     pub case_selection: shared_viewer::CaseSelection,
     pub instance_selection: InstanceSelection,
@@ -422,7 +411,7 @@ pub(super) fn on_show_mechanical_finding_handler(
                 })
         }) {
             case_selection.focus_layer(scope.clone(), token, revision, layer.id.clone());
-            workspace.set("Case");
+            workspace.set(Workspace::Case);
         } else if let Some(body) = captured_document
             .case_bodies
             .iter()
@@ -433,7 +422,7 @@ pub(super) fn on_show_mechanical_finding_handler(
                 scope: scope.clone(),
                 body_id: body.id.clone(),
             }));
-            workspace.set("Case");
+            workspace.set(Workspace::Case);
         } else {
             let Some(board) = captured_document
                 .boards
@@ -455,7 +444,7 @@ pub(super) fn on_show_mechanical_finding_handler(
                     range_part_ids: Vec::new(),
                     mode: SelectionMode::Replace,
                 });
-                workspace.set("Layout");
+                workspace.set(Workspace::Layout);
             }
         }
         inspect_open.set(true);

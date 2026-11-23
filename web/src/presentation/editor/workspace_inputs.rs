@@ -1,12 +1,6 @@
 use super::super::*;
-
-pub(super) struct WorkspaceEventWiringInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
-    pub layer_visibility: LayerVisibility,
-    pub version: Signal<u64>,
-}
+use super::{EditGuard, EditorContext};
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct WorkspaceEventWiring {
     pub undo: Rc<Runtime>,
@@ -63,7 +57,8 @@ pub(super) struct WiringHandlers {
 }
 
 pub(super) fn use_workspace_event_wiring(
-    input: WorkspaceEventWiringInput,
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
     workspace_routing: &mut WorkspaceRoutingSlots,
     select_tree: impl FnMut(objects::TreeSelectRequest) + 'static,
     navigate: super::findings_navigation::NavigateFn,
@@ -72,13 +67,7 @@ pub(super) fn use_workspace_event_wiring(
     WorkspaceEventWiring,
     workspace_composition::SharedObjectsInput,
 ) {
-    let WorkspaceEventWiringInput {
-        runtime,
-        adapter,
-        workspace,
-        layer_visibility,
-        version,
-    } = input;
+    let runtime = editor.runtime();
     let undo = runtime.clone();
     let redo = runtime.clone();
     workspace_routing.select_tree.replace(Box::new(select_tree));
@@ -109,7 +98,7 @@ pub(super) fn use_workspace_event_wiring(
         wheel,
     } = handlers;
     let toggle_footprints = EventHandler::new(move |_| {
-        let mut footprints = layer_visibility.footprints;
+        let mut footprints = editor.layers.footprints;
         footprints.set(!footprints());
     });
     let canvas_end_pointer = end_pointer;
@@ -118,9 +107,9 @@ pub(super) fn use_workspace_event_wiring(
     let canvas_wheel = wheel;
     let board_setup = objects::use_board_setup(
         runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
+        editor.version,
+        editor.workspace,
+        editor.scope_generation,
         workspace_routing.navigate,
     );
     let shared_objects = workspace_composition::SharedObjectsInput {
@@ -163,21 +152,17 @@ pub(super) fn use_workspace_event_wiring(
 }
 
 pub(super) struct PcbWiringBindingsInput<'a> {
-    pub runtime: Rc<Runtime>,
+    pub editor: EditorContext,
     pub current_scope: Option<Scope>,
     pub model: &'a ReadModel,
-    pub instance_selection: InstanceSelection,
     pub snapshot: &'a AcceptedSnapshot,
     pub adapter: SelectionAdapter,
-    pub version: Signal<u64>,
-    pub workspace: Signal<&'static str>,
     pub matrix_setup: objects::MatrixSetupMount,
     pub layout_assembly_3d: Signal<bool>,
     pub render_scope: Scope,
     pub render_generation: u64,
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub case_selection: shared_viewer::CaseSelection,
-    pub objects_open: Signal<bool>,
     pub objects_panel_settings: Signal<PanelSettings>,
     pub resolution_signal: Signal<pcb_wiring::PcbWiringResolution>,
 }
@@ -199,24 +184,29 @@ pub(super) struct PcbWiringBindings {
 
 pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbWiringBindings {
     let PcbWiringBindingsInput {
-        runtime,
+        editor,
         current_scope,
         model,
-        instance_selection,
         snapshot,
         adapter,
-        version,
-        workspace,
         matrix_setup,
         layout_assembly_3d,
         render_scope,
         render_generation,
         active_workspace,
         case_selection,
-        objects_open,
         objects_panel_settings,
         resolution_signal,
     } = input;
+    let runtime = editor.runtime();
+    let EditorContext {
+        workspace,
+        version,
+        instance_selection,
+        scope_generation,
+        panels,
+        ..
+    } = editor;
     let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
     let pcb_wiring_source = current_scope
         .as_ref()
@@ -231,38 +221,25 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
                 &board_scope,
                 scope,
                 model.selected_part_ids.first().map(String::as_str),
-                (adapter.generation)(),
+                (scope_generation)(),
             )
         });
+    let guard = EditGuard {
+        editor,
+        workspace: Workspace::Pcb,
+    };
     let pcb_wiring_mode_actions = pcb_wiring::use_board_wiring_mode_edits(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
+        guard,
         pcb_wiring_source.clone(),
         resolution_signal,
     );
-    let pcb_wiring_pin_actions = pcb_wiring::use_pcb_wiring_pin_edits(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-        resolution_signal,
-    );
+    let pcb_wiring_pin_actions =
+        pcb_wiring::use_pcb_wiring_pin_edits(guard, pcb_wiring_source.clone(), resolution_signal);
     let pcb_wiring_protected_remap_actions = pcb_wiring::use_protected_remap_review(
         runtime.clone(),
         version,
         workspace,
-        adapter.generation,
+        scope_generation,
         {
             let runtime = runtime.clone();
             Rc::new(move || instance_selection.is_current(&runtime.model()))
@@ -273,7 +250,7 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
         runtime.clone(),
         version,
         workspace,
-        adapter.generation,
+        scope_generation,
         {
             let runtime = runtime.clone();
             Rc::new(move || instance_selection.is_current(&runtime.model()))
@@ -284,7 +261,7 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
     let zmk_firmware_export_panel = use_export_panel_input(
         runtime.clone(),
         workspace,
-        adapter.generation,
+        scope_generation,
         pcb_wiring_source.clone(),
         resolution_signal,
         instance_selection,
@@ -304,7 +281,7 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
     let on_browse_parts = EventHandler::new(move |_| {
         browse_parts_workspace(
             workspace,
-            objects_open,
+            panels.objects_open,
             objects_panel_settings,
             is_compact_viewport(),
         );
@@ -314,7 +291,7 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
         let owner_scope = render_scope.clone();
         let owner_token = snapshot.token;
         let owner_revision = snapshot.document.revision;
-        let generation = adapter.generation;
+        let generation = scope_generation;
         let mut workspace = workspace;
         let on_open = matrix_setup.on_open;
         move |_| {
@@ -335,7 +312,7 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
             {
                 return;
             }
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             let mut layout_assembly_3d = layout_assembly_3d;
             layout_assembly_3d.set(false);
             on_open.call(());
@@ -358,13 +335,13 @@ pub(super) fn use_pcb_wiring_bindings(input: PcbWiringBindingsInput<'_>) -> PcbW
 }
 
 pub(super) struct ObjectsInputArgs<'a, 'b> {
-    pub active_workspace: &'static str,
+    pub active_workspace: Workspace,
     pub runtime: Rc<Runtime>,
     pub render_generation: u64,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub render_scope: Scope,
     pub snapshot: &'a AcceptedSnapshot,
-    pub workspace: Signal<&'static str>,
+    pub workspace: Signal<Workspace>,
     pub adapter: SelectionAdapter,
     pub layout_assembly_3d: Signal<bool>,
     pub shared_objects: workspace_composition::SharedObjectsInput,
@@ -444,13 +421,13 @@ pub(super) fn objects_input<'a>(
         matrix_inspector,
     } = input;
     match active_workspace {
-        "PCB" => {
+        Workspace::Pcb => {
             let pcb_add_owner = LayoutOwnerIdentity {
                 scope: Some(render_scope.clone()),
                 token: Some(snapshot.token),
                 revision: Some(snapshot.document.revision),
                 generation: render_generation,
-                workspace: "PCB",
+                workspace: Workspace::Pcb,
             };
             let pcb_add_is_current =
                 pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &pcb_add_owner);
@@ -490,7 +467,7 @@ pub(super) fn objects_input<'a>(
                 },
             ))
         }
-        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(
+        Workspace::Keymap => workspace_composition::WorkspaceObjectsInput::Keymap(
             keymap_workspace::NavigationInput {
                 view: keymap_view.clone(),
                 scope: render_scope.clone(),
@@ -505,14 +482,14 @@ pub(super) fn objects_input<'a>(
                 on_select_key: keymap_select,
             },
         ),
-        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(
+        Workspace::Keycaps => workspace_composition::WorkspaceObjectsInput::Keycaps(
             keycaps_workspace::NavigationInput {
                 shared: shared_objects,
                 view: keycaps_view.clone(),
                 settings_actions: keycaps_settings_actions.clone(),
             },
         ),
-        "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
+        Workspace::Case => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
             case_workspace::ObjectsInput {
                 model,
                 scope: current_scope.clone(),
@@ -528,7 +505,7 @@ pub(super) fn objects_input<'a>(
                 on_display: case_display,
             },
         )),
-        "Parts" => {
+        Workspace::Parts => {
             workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
                 snapshot: snapshot.clone(),
                 scope: current_scope.clone(),
@@ -653,15 +630,11 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
         keyboard: EventHandler::new(keyboard.clone()),
         wheel: EventHandler::new(wheel.clone()),
     };
-    let runtime = &setup_a.runtime;
+    let runtime = &setup_a.editor.runtime();
     let adapter = &setup_a.adapter;
-    let workspace = setup_a.workspace;
-    let objects_open = setup_a.objects_open;
-    let layer_visibility = setup_a.layer_visibility;
-    let version = setup_a.version;
-    let current_scope = &setup_a.current_scope;
-    let model = &setup_a.model;
-    let instance_selection = setup_a.instance_selection;
+    let workspace = setup_a.editor.workspace;
+    let current_scope = &setup_a.view.current_scope;
+    let model = &setup_a.view.model;
     let layout_assembly_3d = setup_a.layout_assembly_3d;
     let render_generation = setup_a.render_generation;
     let active_workspace = setup_a.active_workspace;
@@ -670,17 +643,17 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
     let resolution_signal = setup_b.resolution_signal;
     let canvas_interaction = &setup_a.canvas_interaction;
     let part_placement = &cam.placement.part_placement;
-    let layout_target = setup_a.layout_target;
-    let parts_query = setup_a.parts_query;
-    let matrix_placement = &setup_a.matrix_placement;
+    let layout_target = setup_a.view.layout_target;
+    let parts_query = setup_a.view.parts_query;
+    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
     let keymap_view = &setup_b.keymap_view;
-    let keymap_layer_id = setup_a.keymap_layer_id;
+    let keymap_layer_id = setup_a.view.keymap_layer_id;
     let keycaps_view = &setup_b.keycaps_view;
     let keycaps_settings_actions = &setup_b.keycaps_settings_actions;
     let case_tree_expanded = setup_a.case_tree_expanded;
-    let pair_created_selection = setup_a.pair_created_selection;
+    let pair_created_selection = setup_a.matrix_pair.pair_created_selection;
     let layout_state = setup_a.layout_state;
-    let parts_selection = setup_a.parts_selection;
+    let parts_selection = setup_a.view.parts_selection;
     let matrix_inspector = &setup_a.matrix_inspector;
     let (
         WorkspaceEventWiring {
@@ -712,13 +685,8 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
         },
         shared_objects,
     ) = use_workspace_event_wiring(
-        WorkspaceEventWiringInput {
-            runtime: runtime.clone(),
-            adapter: adapter.clone(),
-            workspace,
-            layer_visibility,
-            version,
-        },
+        setup_a.editor,
+        adapter,
         &mut *workspace_routing,
         select_tree,
         navigate,
@@ -738,21 +706,17 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
         on_browse_parts,
         on_empty_board_matrix,
     } = use_pcb_wiring_bindings(PcbWiringBindingsInput {
-        runtime: runtime.clone(),
+        editor: setup_a.editor,
         current_scope: current_scope.clone(),
         model,
-        instance_selection,
         snapshot,
         adapter: adapter.clone(),
-        version,
-        workspace,
         matrix_setup: matrix_setup.clone(),
         layout_assembly_3d,
         render_scope: render_scope.clone(),
         render_generation,
         active_workspace,
         case_selection,
-        objects_open,
         objects_panel_settings,
         resolution_signal,
     });

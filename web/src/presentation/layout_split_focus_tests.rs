@@ -4,6 +4,7 @@
 use super::*;
 use boardstudio_core::model::{Board, Layout, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -74,7 +75,7 @@ fn split_document() -> ProjectDoc {
 }
 
 fn host() -> Element {
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| WorkspaceState(workspace));
     use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
@@ -117,8 +118,8 @@ fn host() -> Element {
     // signal; these buttons drive the identical switch for the test.
     let mut workspace_switch = workspace;
     rsx! {
-        button { id: "split-focus-go-pcb", onclick: move |_| workspace_switch.set("PCB"), "Go PCB" }
-        button { id: "split-focus-go-layout", onclick: move |_| workspace_switch.set("Layout"), "Go Layout" }
+        button { id: "split-focus-go-pcb", onclick: move |_| workspace_switch.set(Workspace::Pcb), "Go PCB" }
+        button { id: "split-focus-go-layout", onclick: move |_| workspace_switch.set(Workspace::Layout), "Go Layout" }
         boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} }
     }
 }

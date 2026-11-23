@@ -1,6 +1,7 @@
 //! Projection of the focused Keycaps fit finding onto its accepted Layout scene.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{FindingMarker, Vec2};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -19,7 +20,7 @@ pub fn next_navigation_id(current: Option<&FocusedFinding>) -> u64 {
 
 pub fn use_retire_stale_finding(
     mut finding: Signal<Option<FocusedFinding>>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope: Option<Scope>,
     token: Option<SnapshotToken>,
     revision: Option<u64>,
@@ -46,7 +47,7 @@ pub fn use_retire_stale_finding(
 
 #[component]
 pub fn FocusedFindingMarker(
-    workspace: String,
+    workspace: Workspace,
     scope: Option<Scope>,
     token: Option<SnapshotToken>,
     revision: Option<u64>,
@@ -57,7 +58,7 @@ pub fn FocusedFindingMarker(
     let marker = finding.as_ref().and_then(|f| {
         is_current_finding(
             f,
-            &workspace,
+            workspace,
             scope.as_ref(),
             token,
             revision,
@@ -85,13 +86,13 @@ pub fn FocusedFindingMarker(
 
 pub fn is_current_finding(
     finding: &FocusedFinding,
-    workspace: &str,
+    workspace: Workspace,
     scope: Option<&Scope>,
     token: Option<SnapshotToken>,
     revision: Option<u64>,
     active_board_id: &str,
 ) -> bool {
-    workspace == "Layout"
+    workspace == Workspace::Layout
         && scope == Some(&finding.scope)
         && token == Some(finding.token)
         && revision == Some(finding.revision)
@@ -130,7 +131,7 @@ mod tests {
         assert_eq!(next_navigation_id(Some(&f)), 1);
         assert!(is_current_finding(
             &f,
-            "Layout",
+            Workspace::Layout,
             Some(&scope),
             Some(SnapshotToken(3)),
             Some(5),
@@ -138,7 +139,7 @@ mod tests {
         ));
         assert!(!is_current_finding(
             &f,
-            "Keycaps",
+            Workspace::Keycaps,
             Some(&scope),
             Some(SnapshotToken(3)),
             Some(5),
@@ -146,7 +147,7 @@ mod tests {
         ));
         assert!(!is_current_finding(
             &f,
-            "Layout",
+            Workspace::Layout,
             Some(&scope),
             Some(SnapshotToken(4)),
             Some(5),

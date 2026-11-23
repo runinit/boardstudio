@@ -28,7 +28,6 @@ pub(super) enum WorkspaceToolbarInput {
     Case,
     Parts,
     Export,
-    Other,
 }
 
 pub(super) struct CanvasEventHandlers {
@@ -42,19 +41,12 @@ pub(super) struct CanvasEventHandlers {
     pub(super) wheel: EventHandler<WheelEvent>,
 }
 
-pub(super) struct PlaceholderInput {
-    pub(super) workspace: Signal<&'static str>,
-    pub(super) name: &'static str,
-    pub(super) message: &'static str,
-}
-
 pub(super) enum WorkspaceCanvasInput {
     Pcb(Box<super::pcb_workspace::CanvasInput>),
     Keymap(Box<super::keymap_workspace::CanvasInput>),
     Keycaps(Box<super::keycaps_workspace::CanvasInput>),
     Case(Box<super::case_workspace::CanvasInput>),
     Parts(super::parts_workspace::CanvasInput),
-    Other(PlaceholderInput),
 }
 
 pub(super) enum WorkspaceInspectorInput {
@@ -86,7 +78,7 @@ pub(super) fn toolbar(i: WorkspaceToolbarInput) -> Element {
         WorkspaceToolbarInput::Keycaps(i) => super::keycaps_workspace::toolbar(i),
         WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
         WorkspaceToolbarInput::Parts => super::parts_workspace::toolbar(),
-        WorkspaceToolbarInput::Export | WorkspaceToolbarInput::Other => rsx! {},
+        WorkspaceToolbarInput::Export => rsx! {},
     }
 }
 
@@ -97,7 +89,6 @@ pub(super) fn canvas(i: WorkspaceCanvasInput) -> Element {
         WorkspaceCanvasInput::Keycaps(i) => super::keycaps_workspace::canvas(*i),
         WorkspaceCanvasInput::Case(i) => super::case_workspace::canvas(*i),
         WorkspaceCanvasInput::Parts(i) => super::parts_workspace::preview(i),
-        WorkspaceCanvasInput::Other(i) => super::parts_workspace::canvas(i),
     }
 }
 

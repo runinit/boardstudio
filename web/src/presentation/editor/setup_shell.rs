@@ -1,117 +1,6 @@
 use super::super::*;
-
-pub(super) struct WorkspaceShell {
-    pub workspace_routing: WorkspaceRoutingSlots,
-    pub runtime: Rc<Runtime>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub objects_panel_settings: Signal<PanelSettings>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub setup_state: setup_workspace::SetupWorkspaceState,
-    pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
-    pub guide_name_draft: Signal<Option<(String, String)>>,
-    pub guide_name_failure: Signal<Option<String>>,
-    pub guide_name_edit: SetupProjectNameEdit,
-    pub adapter: SelectionAdapter,
-    pub layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
-    pub version: Signal<u64>,
-    pub observed_version: u64,
-    pub instance_preference: Signal<Option<instance_selection::Preference>>,
-    pub instance_selection: InstanceSelection,
-    pub case_workspace_state: case_workspace::CaseWorkspaceState,
-    pub case_selection: shared_viewer::CaseSelection,
-    pub case_tree_expanded: Signal<std::collections::BTreeSet<String>>,
-    pub workspace: Signal<&'static str>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub canvas_navigation: CanvasNavigationState,
-    pub return_workspace: Signal<&'static str>,
-    pub active_workspace: &'static str,
-    pub requested_workspace_panel: Signal<Option<&'static str>>,
-    pub render_generation: u64,
-    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
-}
-
-pub(super) fn use_workspace_shell() -> WorkspaceShell {
-    boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
-    parts::use_assembly_action_provider();
-    let workspace_routing = use_hook(|| WorkspaceRoutingSlots {
-        select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
-        navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
-    });
-    let runtime = use_context::<Rc<Runtime>>();
-    let compact_panel_state = use_context::<CompactPanelState>();
-    let objects_open = compact_panel_state.objects_open;
-    let inspect_open = compact_panel_state.inspector_open;
-    let preference_warning = use_context::<PreferenceStorageWarning>().0;
-    let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
-    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
-    let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
-    let setup_state = setup_workspace::use_setup_workspace_state(
-        runtime.clone(),
-        created_request_signal,
-        objects_open,
-        inspect_open,
-        objects_panel_settings,
-        inspector_panel_settings,
-    );
-    let guide_preferences = setup_state.guide_preferences();
-    let guide_name_edit = use_setup_project_name(runtime.clone());
-    let guide_name_draft = guide_name_edit.draft;
-    let guide_name_failure = guide_name_edit.failure;
-    let adapter = use_context::<SelectionAdapter>();
-    let layout_component_inspector_lifetime =
-        use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
-    let version = use_context::<Signal<u64>>();
-    let observed_version = version();
-    let instance_preference = setup_state.instance_preference();
-    let instance_selection = InstanceSelection(instance_preference);
-    let case_workspace_state = case_workspace::use_case_workspace_state();
-    let case_selection = case_workspace_state.selection();
-    let case_tree_expanded = case_workspace_state.tree_expanded();
-    let workspace = use_context::<WorkspaceState>().0;
-    let layout_state =
-        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
-    let canvas_navigation = use_canvas_navigation_state(workspace);
-    let return_workspace = use_context::<ExportReturnWorkspace>().0;
-    let active_workspace = workspace();
-    let requested_workspace_panel =
-        panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
-    let render_generation = (adapter.generation)();
-    let layout_selection_kind = layout_state.selection_kind();
-    let split_focus = layout_state.split_focus();
-    WorkspaceShell {
-        workspace_routing,
-        runtime,
-        objects_open,
-        inspect_open,
-        objects_panel_settings,
-        inspector_panel_settings,
-        setup_state,
-        guide_preferences,
-        guide_name_draft,
-        guide_name_failure,
-        guide_name_edit,
-        adapter,
-        layout_component_inspector_lifetime,
-        version,
-        observed_version,
-        instance_preference,
-        instance_selection,
-        case_workspace_state,
-        case_selection,
-        case_tree_expanded,
-        workspace,
-        layout_state,
-        canvas_navigation,
-        return_workspace,
-        active_workspace,
-        requested_workspace_panel,
-        render_generation,
-        layout_selection_kind,
-        split_focus,
-    }
-}
+use super::EditorContext;
+use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct LayoutViewState {
     pub spacing_ghost_state: Signal<Option<spacing_ghost::SpacingGhostState>>,
@@ -136,12 +25,14 @@ pub(super) struct LayoutViewState {
 }
 
 pub(super) fn use_layout_view_state(
-    runtime: Rc<Runtime>,
-    adapter: SelectionAdapter,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
     layout_state: layout_workspace::LayoutWorkspaceState,
 ) -> LayoutViewState {
+    let runtime = editor.runtime();
+    let EditorContext {
+        version, workspace, ..
+    } = editor;
     // A spacing commit shows the previous accepted scene until another edit,
     // undo/redo, or selection change. The tracker only writes view state.
     let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
@@ -216,7 +107,7 @@ pub(super) fn use_layout_view_state(
         adapter.selected_context,
         workspace,
         adapter.generation,
-        "Layout",
+        Workspace::Layout,
     );
     let pcb_align = objects::use_canvas_align(
         runtime.clone(),
@@ -224,7 +115,7 @@ pub(super) fn use_layout_view_state(
         adapter.selected_context,
         workspace,
         adapter.generation,
-        "PCB",
+        Workspace::Pcb,
     );
     let matrix_setup = objects::use_matrix_setup(
         runtime.clone(),
@@ -261,13 +152,9 @@ pub(super) fn use_layout_view_state(
 }
 
 pub(super) struct MatrixPairWiringInput<'a> {
-    pub runtime: Rc<Runtime>,
-    pub version: Signal<u64>,
-    pub workspace: Signal<&'static str>,
+    pub editor: EditorContext,
     pub adapter: SelectionAdapter,
     pub layout_assembly_3d: Signal<bool>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
     pub canvas_interaction: CanvasInteractionArbiter,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
     pub inspector_panel_settings: Signal<PanelSettings>,
@@ -284,19 +171,26 @@ pub(super) struct MatrixPairWiring {
 
 pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> MatrixPairWiring {
     let MatrixPairWiringInput {
-        runtime,
-        version,
-        workspace,
+        editor,
         adapter,
         layout_assembly_3d,
-        objects_open,
-        inspect_open,
         canvas_interaction,
         layout_state,
         inspector_panel_settings,
         parts_assembly_orientation,
         matrix_setup,
     } = input;
+    let runtime = editor.runtime();
+    let EditorContext {
+        version,
+        workspace,
+        panels,
+        ..
+    } = editor;
+    let CompactPanelState {
+        objects_open,
+        inspector_open: inspect_open,
+    } = panels;
     let matrix_placement = objects::use_matrix_placement(
         runtime.clone(),
         objects::MatrixPlacementInput {
@@ -320,11 +214,11 @@ pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> Matrix
         let mut inspect_open = inspect_open;
         let canvas_interaction = canvas_interaction.clone();
         EventHandler::new(move |source: objects::MatrixPlacementSource| {
-            if workspace() != "Parts" || canvas_interaction.current().is_some() {
+            if workspace() != Workspace::Parts || canvas_interaction.current().is_some() {
                 return;
             }
             on_place.call(source);
-            workspace.set("Layout");
+            workspace.set(Workspace::Layout);
             layout_assembly_3d.set(false);
             selected_context.set(None);
             anchor_scope.set(None);
@@ -347,7 +241,7 @@ pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> Matrix
         let mut inspect_open = inspect_open;
         move |created: objects::MirroredPairCreated| {
             let current_scope = runtime.scope();
-            if workspace() != "Layout"
+            if workspace() != Workspace::Layout
                 || (adapter.generation)() != created.owner.scope_generation
                 || current_scope.as_ref() != Some(&created.owner.scope)
                 || created.scope != created.owner.scope
@@ -447,7 +341,6 @@ pub(super) fn use_matrix_pair_wiring(input: MatrixPairWiringInput<'_>) -> Matrix
 pub(super) struct EditorContexts {
     pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
     pub outline_activation: EventHandler<outline_lifecycle::OutlineAction>,
-    pub layer_visibility: LayerVisibility,
     pub parts_query: parts::PartsQuery,
     pub parts_selection: parts::PartsSelection,
     pub parts_selection_generation: Signal<u64>,
@@ -464,52 +357,34 @@ pub(super) struct EditorContexts {
     pub resolved_document: Option<std::sync::Arc<boardstudio_core::model::ProjectDoc>>,
 }
 
-pub(super) struct EditorContextsInput {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub workspace: Signal<&'static str>,
-    pub parts_state: parts_workspace::PartsWorkspaceState,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    pub render_generation: u64,
-    pub active_workspace: &'static str,
-}
-
 pub(super) fn use_editor_contexts(
-    input: EditorContextsInput,
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
+    parts_state: parts_workspace::PartsWorkspaceState,
+    tree_cell_anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    render_generation: u64,
+    active_workspace: Workspace,
 ) -> (EditorContexts, EventHandler<()>) {
-    let EditorContextsInput {
-        runtime,
-        adapter,
-        workspace,
-        parts_state,
-        objects_open,
-        inspect_open,
-        tree_cell_anchor,
-        render_generation,
-        active_workspace,
-    } = input;
+    let runtime = editor.runtime();
+    let workspace = editor.workspace;
     let (outline_inspector, outline_activation) = outline_lifecycle::use_outline_lifecycle(
         runtime.clone(),
         adapter.selected_context,
         workspace,
         adapter.generation,
     );
-    let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = parts_state.query();
     let parts_selection: PartsSelection = parts_state.selected();
     let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
     let keymap_state = keymap_workspace::use_keymap_workspace_state();
     let keymap_layer_id = keymap_state.active_layer_id();
-    let has_inspector = matches!(
-        active_workspace,
-        "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
-    );
+    let has_inspector = active_workspace != Workspace::Export;
     let on_parts_select = EventHandler::new({
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
+        let CompactPanelState {
+            mut objects_open,
+            inspector_open: mut inspect_open,
+        } = editor.panels;
         move |_| {
             objects_open.set(false);
             inspect_open.set(true);
@@ -611,7 +486,6 @@ pub(super) fn use_editor_contexts(
         EditorContexts {
             outline_inspector,
             outline_activation,
-            layer_visibility,
             parts_query,
             parts_selection,
             parts_selection_generation,

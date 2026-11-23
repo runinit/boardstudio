@@ -1,4 +1,5 @@
 //! Header workspace navigation; document trees keep their own selection and visibility owners.
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     toolbar::{Toolbar, ToolbarButton},
@@ -7,10 +8,10 @@ use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
 
 #[component]
-pub(super) fn WorkspaceObjectNavigation(mut workspace: Signal<&'static str>) -> Element {
+pub(super) fn WorkspaceObjectNavigation(mut workspace: Signal<Workspace>) -> Element {
     rsx! {
         nav { class: "header-workspaces", aria_label: "Workspaces",
-            for name in ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"] {
+            for name in Workspace::TABS {
                 Button {
                     key: "{name}", id: "m1-workspace-{name}", variant: ButtonVariant::Ghost,
                     aria_label: "Open {name} workspace",
@@ -25,7 +26,7 @@ pub(super) fn WorkspaceObjectNavigation(mut workspace: Signal<&'static str>) -> 
 #[component]
 pub(super) fn InspectorActions(
     label: String,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     mut inspect_open: Signal<bool>,
     inspector_settings: Signal<super::PanelSettings>,
     generation: Signal<u64>,

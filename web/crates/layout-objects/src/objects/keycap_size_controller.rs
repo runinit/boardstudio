@@ -6,6 +6,7 @@ use super::{ScopedTreeContext, TreeContext, keycap_resize::ResizeAxis};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Lifecycle, Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -77,7 +78,7 @@ pub struct KeySizeMount {
 #[derive(Default)]
 struct ContextTracker {
     initialized: bool,
-    identity: Option<(Scope, TreeContext, &'static str, u64)>,
+    identity: Option<(Scope, TreeContext, Workspace, u64)>,
     generation: u64,
 }
 
@@ -96,14 +97,14 @@ struct KeySizeProjectionIdentity {
     editor_instance_id: u64,
     context_generation: u64,
     scope_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 }
 
 pub fn use_key_size(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> KeySizeMount {
     let editor_instance_id = use_hook({
@@ -190,7 +191,7 @@ pub fn use_key_size(
                 || request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != current_generation
                 || request.owner.scope_generation != scope_generation()
-                || workspace() != "Layout"
+                || workspace() != Workspace::Layout
             {
                 return;
             }
@@ -259,9 +260,9 @@ fn project(
     editor: u64,
     generation: u64,
     scope_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> (Option<KeySizeProjection>, bool) {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return (None, false);
     }
     let model = runtime.model();
@@ -287,7 +288,7 @@ struct ProjectionContext {
     editor: u64,
     generation: u64,
     scope_generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 }
 
 fn project_for(
@@ -314,7 +315,7 @@ fn project_for_scope(
         scope_generation,
         workspace,
     } = context;
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let scope = live_scope?;

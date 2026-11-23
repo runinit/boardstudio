@@ -9,6 +9,7 @@ use boardstudio_model::model::{
     MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, PartModel, PartOutline, Pose2,
     ProjectDoc, Side, Vec2, Vec3,
 };
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextCommitField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -349,7 +350,7 @@ pub fn SavedAssembliesEditor(
         let snapshot = snapshot.clone();
         let scope = scope.clone();
         move |_| {
-            if workspace() != "Parts" {
+            if workspace() != Workspace::Parts {
                 return;
             }
             let Some(preset) = assembly_selection.peek().as_ref().copied() else {
@@ -494,7 +495,7 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         let definitions = definitions.clone();
         move |_| {
-            if workspace() != "Parts" {
+            if workspace() != Workspace::Parts {
                 return;
             }
             let Some(draft) = editing.read().clone() else {
@@ -919,9 +920,9 @@ fn assembly_preview_recipe(
 fn assembly_owner_current(
     runtime: &crate::runtime::Runtime,
     draft: &AssemblyDraft,
-    workspace: &'static str,
+    workspace: Workspace,
 ) -> bool {
-    if workspace != "Parts" || runtime.scope() != draft.scope {
+    if workspace != Workspace::Parts || runtime.scope() != draft.scope {
         return false;
     }
     let model = runtime.model();
