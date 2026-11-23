@@ -1,6 +1,6 @@
 //! Private routing for the six independently owned workspace surfaces.
-use super::editor::commands::camera_commands;
-use super::editor::{camera, keyboard};
+use super::workbench::editor_session::commands::camera_commands;
+use super::workbench::editor_session::{camera, keyboard};
 use super::*;
 use boardstudio_web_ui_model::editor::EditorContext;
 
@@ -13,19 +13,6 @@ pub(super) struct SharedObjectsInput {
     pub(super) board_setup: objects::BoardSetupMount,
 }
 
-pub(super) enum WorkspaceObjectsInput<'a> {
-    Layout(Box<super::layout_workspace::ObjectsInput>),
-    Case(Box<super::case_workspace::ObjectsInput<'a>>),
-    Parts(super::parts_workspace::ObjectsInput),
-}
-
-pub(super) enum WorkspaceToolbarInput {
-    Layout(Box<super::layout_workspace::ToolbarInput>),
-    Case,
-    Parts,
-    Export,
-}
-
 #[derive(Clone)]
 pub(super) struct CanvasEventHandlers {
     pub(super) mount: EventHandler<MountedEvent>,
@@ -36,51 +23,6 @@ pub(super) struct CanvasEventHandlers {
     pub(super) keyboard: EventHandler<KeyboardEvent>,
     pub(super) key_up: EventHandler<KeyboardEvent>,
     pub(super) wheel: EventHandler<WheelEvent>,
-}
-
-pub(super) enum WorkspaceCanvasInput {
-    Case(Box<super::case_workspace::CanvasInput>),
-    Parts(super::parts_workspace::CanvasInput),
-}
-
-pub(super) enum WorkspaceInspectorInput {
-    Layout(Box<super::layout_workspace::InspectorInput>),
-    Case(Box<super::case_workspace::InspectorInput>),
-    Parts(Box<super::parts_workspace::InspectorInput>),
-}
-
-pub(super) fn objects(i: WorkspaceObjectsInput<'_>) -> Element {
-    match i {
-        WorkspaceObjectsInput::Layout(i) => super::layout_workspace::objects(*i),
-        WorkspaceObjectsInput::Case(i) => super::case_workspace::objects(*i),
-        WorkspaceObjectsInput::Parts(i) => super::parts_workspace::objects(i),
-    }
-}
-
-pub(super) fn toolbar(i: WorkspaceToolbarInput) -> Element {
-    match i {
-        WorkspaceToolbarInput::Layout(i) => super::layout_workspace::toolbar(*i),
-        WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
-        WorkspaceToolbarInput::Parts => super::parts_workspace::toolbar(),
-        WorkspaceToolbarInput::Export => rsx! {},
-    }
-}
-
-pub(super) fn canvas(i: WorkspaceCanvasInput) -> Element {
-    match i {
-        WorkspaceCanvasInput::Case(i) => super::case_workspace::canvas(*i),
-        WorkspaceCanvasInput::Parts(i) => super::parts_workspace::preview(i),
-    }
-}
-
-pub(super) fn inspector(i: WorkspaceInspectorInput) -> Element {
-    match i {
-        WorkspaceInspectorInput::Layout(i) => rsx! {
-            super::layout_workspace::LayoutInspector { input: *i }
-        },
-        WorkspaceInspectorInput::Case(i) => super::case_workspace::inspector(*i),
-        WorkspaceInspectorInput::Parts(i) => super::parts_workspace::inspector(*i),
-    }
 }
 
 // The editor owns the frame and the resources that survive workspace changes.
@@ -98,6 +40,7 @@ pub(super) struct WorkspaceFrame {
     pub snapshot: AcceptedSnapshot,
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
+    pub model: Rc<ReadModel>,
     pub visible_positions: Option<(f64, f64, f64, f64)>,
     pub owner: LayoutOwnerIdentity,
     pub objects: SharedObjectsInput,
@@ -115,6 +58,9 @@ pub(super) struct WorkspaceFrame {
     pub show_position_inspector: bool,
     pub camera: camera::SceneBounds,
     pub status: StatusFooter,
+    pub case: Option<case_workspace::CaseFrame>,
+    pub parts: Option<parts_workspace::PartsFrame>,
+    pub layout: Option<layout_workspace::LayoutFrame>,
 }
 
 #[derive(Clone)]
@@ -136,6 +82,9 @@ impl PartialEq for Frame {
 pub(super) fn RoutedWorkspace(workspace: Workspace, frame: ReadSignal<Frame>) -> Element {
     use_context_provider(|| frame);
     match workspace {
+        Workspace::Case => rsx! { case_workspace::CaseWorkspace {} },
+        Workspace::Parts => rsx! { parts_workspace::PartsWorkspace {} },
+        Workspace::Layout => rsx! { layout_workspace::LayoutWorkspace {} },
         Workspace::Pcb => rsx! { pcb_workspace::PcbWorkspace {} },
         Workspace::Keymap => rsx! { keymap_workspace::KeymapWorkspace {} },
         Workspace::Keycaps => rsx! { keycaps_workspace::KeycapsWorkspace {} },
@@ -197,13 +146,6 @@ pub(super) fn WorkspaceOutlet(workspace: Workspace, surface: Surface) -> Element
     }
 }
 
-pub(super) fn owns_surfaces(workspace: Workspace) -> bool {
-    matches!(
-        workspace,
-        Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
-    )
-}
-
 pub(super) fn toggle_footprints(layers: LayerVisibility) -> EventHandler<()> {
     let mut footprints = layers.footprints;
     EventHandler::new(move |()| footprints.set(!footprints()))
@@ -219,7 +161,7 @@ pub(super) fn design_toolbar(
     let assembly = frame.status.layout.assembly_3d();
     let layers = editor.layers;
     rsx! {
-        shared_viewer::DesignViewToolbar {
+        boardstudio_web_ui_shared::design_view_toolbar::DesignViewToolbar {
             contextual_tools: Some(contextual_tools),
             workspace: frame.owner.workspace,
             detail: detail.to_owned(),

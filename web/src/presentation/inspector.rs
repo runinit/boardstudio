@@ -18,7 +18,7 @@ pub(super) use companion_placement::{
 pub(super) use layout_component_inspector::{
     ComponentPositionAxis, LayoutComponentInspector, LayoutComponentInspectorAction,
     LayoutComponentInspectorLifetime, LayoutComponentInspectorOwner,
-    LayoutComponentInspectorOwnerKey, LayoutComponentInspectorProjection, LayoutConstraintValues,
+    LayoutComponentInspectorOwnerKey, LayoutComponentInspectorProjection,
 };
 
 fn parse_axis(raw: &str, label: &str) -> Result<f64, String> {

@@ -2,27 +2,27 @@ use super::super::*;
 use boardstudio_web_ui_model::Workspace;
 use workspace_composition::{Surface, WorkspaceOutlet};
 
-pub(super) struct ObjectsPanelInput<'x> {
+pub(super) struct ObjectsPanelInput {
     pub guide_none: bool,
     pub objects_open: Signal<bool>,
     pub objects_panel_settings: Signal<PanelSettings>,
     pub active_workspace: Workspace,
     pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub objects_input: Option<workspace_composition::WorkspaceObjectsInput<'x>>,
+    pub export_objects: Option<layout_workspace::ObjectsInput>,
     pub layout_assembly_3d: Signal<bool>,
     pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
     pub layout_command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     pub layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
 
-pub(super) fn objects_panel(input: ObjectsPanelInput<'_>) -> Option<Element> {
+pub(super) fn objects_panel(input: ObjectsPanelInput) -> Option<Element> {
     let ObjectsPanelInput {
         guide_none,
         objects_open,
         objects_panel_settings,
         active_workspace,
         layout_state,
-        objects_input,
+        export_objects,
         layout_assembly_3d,
         layout_snap_settings,
         layout_command_menu,
@@ -35,10 +35,10 @@ pub(super) fn objects_panel(input: ObjectsPanelInput<'_>) -> Option<Element> {
                     Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                 } else { None },
                 div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
-                if workspace_composition::owns_surfaces(active_workspace) {
+                if active_workspace != Workspace::Export {
                     WorkspaceOutlet { workspace: active_workspace, surface: Surface::Objects }
-                } else if let Some(objects_input) = objects_input {
-                    {workspace_composition::objects(objects_input)}
+                } else if let Some(input) = export_objects {
+                    {layout_workspace::objects(input)}
                 }
                 }
                 div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
@@ -86,7 +86,6 @@ pub(super) struct InspectorPanelInput<'a> {
     pub render_generation: u64,
     pub on_close_layout_findings: Callback<(), ()>,
     pub on_layout_finding: Callback<layout_findings::Request, ()>,
-    pub inspector_input: Option<workspace_composition::WorkspaceInspectorInput>,
 }
 
 pub(super) fn inspector_panel(input: InspectorPanelInput<'_>) -> Option<Element> {
@@ -104,7 +103,6 @@ pub(super) fn inspector_panel(input: InspectorPanelInput<'_>) -> Option<Element>
         render_generation,
         on_close_layout_findings,
         on_layout_finding,
-        inspector_input,
     } = input;
     if has_inspector && guide_none {
         Some(rsx! {
@@ -124,10 +122,8 @@ pub(super) fn inspector_panel(input: InspectorPanelInput<'_>) -> Option<Element>
                         on_close: on_close_layout_findings,
                         on_navigate: on_layout_finding,
                     }
-                } else if workspace_composition::owns_surfaces(active_workspace) {
+                } else {
                     WorkspaceOutlet { workspace: active_workspace, surface: Surface::Inspector }
-                } else if let Some(inspector_input) = inspector_input {
-                    {workspace_composition::inspector(inspector_input)}
                 }
 
             }
@@ -272,16 +268,12 @@ pub(super) struct CanvasSectionInput<'a> {
     pub matrix_setup: objects::MatrixSetupMount,
     pub mirrored_pair: objects::MirroredPairMount,
     pub guide_none: bool,
-    pub toolbar_input: workspace_composition::WorkspaceToolbarInput,
     pub guide_project_stage: bool,
     pub hardware_split: bool,
     pub hardware_wired: bool,
     pub layout_assembly_3d: Signal<bool>,
-    pub mounted_module_select: EventHandler<String>,
-    pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
     pub return_workspace: Signal<Workspace>,
     pub inspector_panel_settings: Signal<PanelSettings>,
-    pub canvas_input: Option<workspace_composition::WorkspaceCanvasInput>,
     pub snapshot: &'a AcceptedSnapshot,
     pub on_empty_board_matrix: Callback<(), ()>,
     pub on_browse_parts: EventHandler<()>,
@@ -292,23 +284,9 @@ pub(super) struct CanvasSectionInput<'a> {
     pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub field_preview: Signal<Option<FieldPreviewState>>,
     pub canvas_anchor_badge: &'a Option<anchor_badge::AnchorBadge>,
-    pub svg: super::view_scene::LayoutSvgInput<'a>,
 }
 
-pub(super) fn canvas_section<S, M, E, C, K, U>(
-    input: CanvasSectionInput<'_>,
-    nav: super::view_scene::SvgNavHandlers<S, M, E>,
-    key: super::view_scene::SvgKeyHandlers<C, K, U>,
-    wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> Element
-where
-    S: FnMut(PointerEvent) + Clone + 'static,
-    M: FnMut(PointerEvent) + Clone + 'static,
-    E: FnMut(PointerEvent) + Clone + 'static,
-    C: FnMut(PointerEvent) + Clone + 'static,
-    K: FnMut(KeyboardEvent) + Clone + 'static,
-    U: FnMut(KeyboardEvent) + Clone + 'static,
-{
+pub(super) fn canvas_section(input: CanvasSectionInput<'_>) -> Element {
     let CanvasSectionInput {
         setup_guide_active,
         active_workspace,
@@ -318,16 +296,12 @@ where
         matrix_setup,
         mirrored_pair,
         guide_none,
-        toolbar_input,
         guide_project_stage,
         hardware_split,
         hardware_wired,
         layout_assembly_3d,
-        mounted_module_select,
-        focused_keycaps_finding,
         return_workspace,
         inspector_panel_settings,
-        canvas_input,
         snapshot,
         on_empty_board_matrix,
         on_browse_parts,
@@ -338,7 +312,6 @@ where
         pending_anchor_pick,
         field_preview,
         canvas_anchor_badge,
-        svg,
     } = input;
     rsx! {
         section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == Workspace::Export { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
@@ -350,25 +323,16 @@ where
                     guide_covering_single: !guide_none,
                 }
             }
-            if workspace_composition::owns_surfaces(active_workspace) {
+            if active_workspace != Workspace::Export {
                 WorkspaceOutlet { workspace: active_workspace, surface: Surface::Toolbar }
-            } else {
-                {workspace_composition::toolbar(toolbar_input)}
             }
             if guide_project_stage {
                 setup_guide::SetupHardwarePreview {
                     split: hardware_split,
                     wired: hardware_wired,
                 }
-            } else if workspace_composition::owns_surfaces(active_workspace) {
+            } else if active_workspace != Workspace::Export {
                 WorkspaceOutlet { workspace: active_workspace, surface: Surface::Canvas }
-            } else if active_workspace == Workspace::Layout && layout_assembly_3d() {
-                layout_viewer::LayoutCanonicalViewer {
-                    on_mounted_module_pick: Some(mounted_module_select),
-                    focused_finding: focused_keycaps_finding(),
-                }
-            } else if active_workspace == Workspace::Layout {
-                {super::view_scene::layout_svg(svg, nav, key, wheel)}
             } else if active_workspace == Workspace::Export {
                 zmk_firmware_export::ExportWithWiring {
                     workspace,
@@ -376,10 +340,6 @@ where
                     inspect_open,
                     inspector_settings: inspector_panel_settings,
                 }
-            } else if let Some(input) = canvas_input {
-                {workspace_composition::canvas(input)}
-            } else {
-                span {}
             }
             if show_empty_board {
                 empty_board_canvas::EmptyBoardCanvas {
@@ -436,7 +396,7 @@ where
     }
 }
 
-fn view_footer(
+pub(super) fn view_footer(
     workspace: Workspace,
     layout_assembly_3d: Signal<bool>,
     runtime: Rc<Runtime>,
@@ -461,282 +421,6 @@ fn view_footer(
             } else {
                 {status.summary(model.camera.zoom)}
             }
-        }
-    }
-}
-
-pub(super) struct ViewRootInput<'a> {
-    pub setup_a: &'a super::setup_bundles::SetupA,
-    pub setup_b: &'a super::setup_bundles::SharedSetup,
-    pub views: &'a super::setup_workspaces::Views,
-    pub cam: super::camera::CamNamed,
-    pub nav: &'a super::findings_navigation::NavNamed,
-    pub canvas: &'a super::canvas_state::CanvasNamed,
-    pub wir: &'a super::workspace_inputs::WsWiring,
-    pub inp: super::toolbar_inputs::WsInputs,
-    pub guide: super::setup_guide_state::GuideNamed<'a>,
-    pub ptr: super::pointer_bundles::PtrNamed,
-    pub cmds: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
-    pub visible_positions: Option<(f64, f64, f64, f64)>,
-    pub objects_input: Option<workspace_composition::WorkspaceObjectsInput<'a>>,
-    pub inspector_input: Option<workspace_composition::WorkspaceInspectorInput>,
-    pub matrix_setup: objects::MatrixSetupMount,
-    pub render_scope: Scope,
-    pub snapshot: &'a AcceptedSnapshot,
-}
-
-pub(super) fn view_root<S, M, E, C, K, U>(
-    input: ViewRootInput<'_>,
-    nav_h: super::view_scene::SvgNavHandlers<S, M, E>,
-    key_h: super::view_scene::SvgKeyHandlers<C, K, U>,
-    wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> Element
-where
-    S: FnMut(PointerEvent) + Clone + 'static,
-    M: FnMut(PointerEvent) + Clone + 'static,
-    E: FnMut(PointerEvent) + Clone + 'static,
-    C: FnMut(PointerEvent) + Clone + 'static,
-    K: FnMut(KeyboardEvent) + Clone + 'static,
-    U: FnMut(KeyboardEvent) + Clone + 'static,
-{
-    let guide_state = &input.guide.state;
-    let scene: &boardstudio_core::model::SceneDelta = &input.views.scene;
-    let model = &input.setup_a.view.model;
-    let super::view_scene::SvgNavHandlers {
-        start_pan,
-        move_pointer,
-        end_pointer,
-    } = nav_h;
-    let super::view_scene::SvgKeyHandlers {
-        cancel_pointer,
-        keyboard,
-        key_up,
-    } = key_h;
-    let super::toolbar_inputs::WsInputs {
-        toolbar_input,
-        canvas_input,
-        ..
-    } = input.inp;
-    let setup = input.setup_a;
-    let workspace = setup.active_workspace;
-    let status = workspace_composition::StatusFooter {
-        count: keycaps_fit::presented_findings(&input.views.findings, &input.snapshot.document)
-            .len(),
-        toggle_findings: input.nav.callbacks.on_toggle_layout_findings,
-        layout: setup.layout_state,
-        part_position: guide_state.active_part_position,
-    };
-    let footer = view_footer(
-        workspace,
-        setup.layout_assembly_3d,
-        setup.editor.runtime(),
-        &status,
-        model,
-        &input.cam,
-    );
-    let frame = workspace_composition::owns_surfaces(workspace).then(|| {
-        workspace_composition::Frame::new(workspace_composition::WorkspaceFrame {
-            scope: input.render_scope.clone(),
-            snapshot: input.snapshot.clone(),
-            document: input.views.document.clone(),
-            scene: input.views.scene.clone(),
-            visible_positions: input.visible_positions,
-            owner: setup.view.layout_owner.clone(),
-            objects: input.wir.shared_objects.clone(),
-            handlers: workspace_composition::CanvasEventHandlers {
-                mount: input.canvas.inspector.mount,
-                start_pan: EventHandler::new(start_pan.clone()),
-                move_pointer: EventHandler::new(move_pointer.clone()),
-                end_pointer: EventHandler::new(end_pointer.clone()),
-                cancel_pointer: EventHandler::new(cancel_pointer.clone()),
-                keyboard: EventHandler::new(keyboard.clone()),
-                key_up: EventHandler::new(key_up.clone()),
-                wheel: EventHandler::new(wheel.clone()),
-            },
-            svg: input.cam.svg_surface.svg.clone(),
-            surface_size: input.cam.svg_surface.zoom_surface_size,
-            matrix_setup: input.matrix_setup.clone(),
-            part_placement: input.cam.placement.part_placement.clone(),
-            placement_error: setup
-                .matrix_pair
-                .matrix_placement
-                .error
-                .clone()
-                .or_else(|| input.cam.placement.part_placement.error.clone()),
-            layout_target: setup.view.layout_target,
-            parts_query: setup.view.parts_query,
-            browse_parts: input.wir.on_browse_parts,
-            select_module: input.wir.mounted_module_select,
-            show_position_inspector: input.canvas.inspector.show_position_inspector,
-            camera: input.cam.scene_bounds.clone(),
-            status,
-        })
-    });
-    rsx! {
-        if let Some(frame) = frame {
-            workspace_composition::RoutedWorkspace { workspace, frame }
-        }
-        section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
-            div { class: if input.setup_a.active_workspace == Workspace::Export { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
-                DockLayout {
-                    objects: objects_panel(ObjectsPanelInput {
-                        guide_none: guide_state.guide.is_none(),
-                        objects_open: input.setup_a.editor.panels.objects_open,
-                        objects_panel_settings: input.setup_a.objects_panel_settings,
-                        active_workspace: input.setup_a.active_workspace,
-                        layout_state: input.setup_a.layout_state,
-                        objects_input: input.objects_input,
-                        layout_assembly_3d: input.setup_a.layout_assembly_3d,
-                        layout_snap_settings: input.setup_a.layout_snap_settings,
-                        layout_command_menu: input.setup_a.layout_command_menu,
-                        layout_snap_intent: input.wir.layout_snap_intent,
-                    }),
-                    inspector: inspector_panel(InspectorPanelInput {
-                        guide_none: guide_state.guide.is_none(),
-                        has_inspector: input.setup_a.view.has_inspector,
-                        inspect_open: input.setup_a.editor.panels.inspector_open,
-                        inspector_panel_settings: input.setup_a.inspector_panel_settings,
-                        active_workspace: input.setup_a.active_workspace,
-                        layout_findings: input.setup_a.view.layout_findings,
-                        document: input.views.document.clone(),
-                        findings: &input.views.findings,
-                        render_scope: input.render_scope.clone(),
-                        snapshot: input.snapshot,
-                        render_generation: input.setup_a.render_generation,
-                        on_close_layout_findings: input.nav.callbacks.on_close_layout_findings,
-                        on_layout_finding: input.nav.callbacks.on_layout_finding,
-                        inspector_input: input.inspector_input,
-                    }),
-                }
-                {guide_panel(
-                    GuidePanelInput {
-                        guide: &guide_state.guide,
-                        full_case_settings: input.guide.full_case_settings,
-                        active_workspace: input.setup_a.active_workspace,
-                        mechanical_settings: &input.setup_b.mechanical_settings,
-                        guide_name_failure: input.setup_a.guide_name_failure,
-                        guide_stage_readiness: input.guide.guide_stage_readiness,
-                        guide_stage_detail: input.guide.guide_stage_detail,
-                        name_value: input.guide.name_value,
-                        on_name_change: input.guide.on_name_change,
-                        on_name_commit: input.guide.on_name_commit,
-                        matrix_setup_on_open: input.matrix_setup.on_open,
-                        inline_matrix_setup: input.guide.inline_matrix_setup,
-                        inline_case_basics: input.guide.inline_case_basics,
-                        inline_controller_picker: input.guide.inline_controller_picker,
-                        has_matrix: guide_state.has_matrix,
-                        on_choose_controller: input.cam.placement.part_placement.on_choose_controller,
-                        physical_setup_mount: &input.setup_b.physical_setup_mount,
-                    },
-                    input.guide.on_stage_change,
-                    input.guide.on_open_workspace,
-                    input.guide.on_dismiss_guide,
-                    input.guide.on_finish_guide,
-                )}
-                {canvas_section(
-                    CanvasSectionInput {
-                        setup_guide_active: guide_state.setup_guide_active,
-                        active_workspace: input.setup_a.active_workspace,
-                        objects_open: input.setup_a.editor.panels.objects_open,
-                        inspect_open: input.setup_a.editor.panels.inspector_open,
-                        workspace: input.setup_a.editor.workspace,
-                        matrix_setup: input.matrix_setup,
-                        mirrored_pair: input.setup_a.matrix_pair.mirrored_pair.clone(),
-                        guide_none: guide_state.guide.is_none(),
-                        toolbar_input,
-                        guide_project_stage: guide_state.guide.as_ref().is_some_and(|guide| {
-                            guide.current_stage == SetupGuideStage::Project
-                        }),
-                        hardware_split: input.setup_b.physical_setup_mount.projection.topology
-                            == boardstudio_core::model::HardwareTopology::Split,
-                        hardware_wired: input.setup_b.physical_setup_mount.projection.transport
-                            == boardstudio_core::model::HardwareTransport::Wired,
-                        layout_assembly_3d: input.setup_a.layout_assembly_3d,
-                        mounted_module_select: input.wir.mounted_module_select,
-                        focused_keycaps_finding: input.keycaps_state.focused_finding(),
-                        return_workspace: input.setup_a.editor.return_workspace,
-                        inspector_panel_settings: input.setup_a.inspector_panel_settings,
-                        canvas_input,
-                        snapshot: input.snapshot,
-                        on_empty_board_matrix: input.wir.on_empty_board_matrix,
-                        on_browse_parts: input.wir.on_browse_parts,
-                        show_empty_board: input.guide.show_empty_board,
-                        part_placement: &input.cam.placement.part_placement,
-                        document: input.views.document.clone(),
-                        pending_splay_origin_pick: input.setup_a.pending_splay_origin_pick,
-                        pending_anchor_pick: input.setup_a.pending_anchor_pick,
-                        field_preview: input.setup_a.view.field_preview,
-                        canvas_anchor_badge: &input.canvas.selection.canvas_anchor_badge,
-                        svg: super::view_scene::LayoutSvgInput {
-                            view_box: input.cam.scene_bounds.view_box,
-                            canvas_aria_label: input.canvas.inspector.canvas_aria_label,
-                            mount: input.canvas.inspector.mount,
-                            canvas_grid: &input.guide.canvas_grid,
-                            view_x: input.cam.scene_bounds.view_x,
-                            view_y: input.cam.scene_bounds.view_y,
-                            width: input.cam.scene_bounds.width,
-                            height: input.cam.scene_bounds.height,
-                            layer_visibility: &input.setup_a.editor.layers,
-                            scene,
-                            model,
-                            outline_inspector: &input.setup_a.view.outline_inspector,
-                            outline_overlay_key: &input.guide.outline_overlay_key,
-                            runtime: input.setup_a.editor.runtime(),
-                            canvas_interaction: input.setup_a.canvas_interaction.clone(),
-                            svg: input.cam.svg_surface.svg.clone(),
-                            outline_snap_settings: &input.guide.outline_snap_settings,
-                            outline_pitch: input.guide.outline_pitch,
-                            outline_snap_origins: &input.guide.outline_snap_origins,
-                            selected_bridge: guide_state.selected_bridge,
-                            matrix_placement: &input.setup_a.matrix_pair.matrix_placement,
-                            mirrored_pair: &input.setup_a.matrix_pair.mirrored_pair,
-                            canvas_source: input.cam.scene_bounds.canvas_source,
-                            split_focused_half: input.cmds,
-                            spacing_ghost_prop: &input.canvas.selection.spacing_ghost_prop,
-                            selected_tree_context: &input.canvas.selection.selected_tree_context,
-                            zoom_surface_size: input.cam.svg_surface.zoom_surface_size,
-                            canvas_anchor_badge: &input.canvas.selection.canvas_anchor_badge,
-                            matrix_pointer_down: input.ptr.matrix_pointer_down,
-                            part_pointer_down: input.ptr.part_pointer_down,
-                            selection_geometry_anchor: input.guide.selection_geometry_anchor,
-                            canvas_transform_menu: input.guide.canvas_transform_menu,
-                            matrix_transform_inspector: input.setup_a.matrix_transform_inspector.clone(),
-                            layout_owner: input.setup_a.view.layout_owner.clone(),
-                            adapter: input.setup_a.adapter.clone(),
-                            drag: input.cam.placement.drag.clone(),
-                            render_scope: input.render_scope.clone(),
-                            workspace: input.setup_a.editor.workspace,
-                            layout_state: input.setup_a.layout_state,
-                            layout_transform_tool: input.setup_a.layout_transform_tool,
-                            layout_snap_settings: input.setup_a.layout_snap_settings,
-                            layout_transform_target: input.canvas.selection.layout_transform_target.clone(),
-                            matrix_splay_affect: input.setup_a.matrix_splay_affect,
-                            part_rail_selection: input.canvas.selection.part_rail_selection.clone(),
-                            part_rail_snap: input.canvas.selection.part_rail_snap,
-                            part_placement: &input.cam.placement.part_placement,
-                            document: input.views.document.clone(),
-                            split_focus: input.setup_a.split_focus,
-                            focused_keycaps_finding: input.keycaps_state.focused_finding(),
-                            snapshot: input.snapshot,
-                            active_workspace: input.setup_a.active_workspace,
-                            layout_assembly_3d: input.setup_a.layout_assembly_3d,
-                        },
-                    },
-                    super::view_scene::SvgNavHandlers {
-                        start_pan,
-                        move_pointer,
-                        end_pointer,
-                    },
-                    super::view_scene::SvgKeyHandlers {
-                        cancel_pointer,
-                        keyboard,
-                        key_up,
-                    },
-                    wheel,
-                )}
-            }
-            {footer}
         }
     }
 }

@@ -2,7 +2,7 @@
 use super::parts::{
     PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace, PartsQuery, PartsSelection,
 };
-use boardstudio_application::{AcceptedSnapshot, Scope};
+use boardstudio_application::Scope;
 use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
@@ -58,62 +58,77 @@ impl PartsWorkspaceState {
     }
 }
 
-pub(super) struct ObjectsInput {
-    pub(super) snapshot: AcceptedSnapshot,
-    pub(super) scope: Option<Scope>,
-    pub(super) scope_generation: Signal<u64>,
-    pub(super) workspace: Signal<Workspace>,
-    pub(super) query: PartsQuery,
-    pub(super) selected: PartsSelection,
-    pub(super) on_select: EventHandler<()>,
+pub(super) struct PartsFrame {
+    pub(crate) matrix_placement_busy: bool,
+    pub(crate) on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
+    pub(crate) on_open_module_placement: EventHandler<String>,
+    pub(crate) on_module_attached: EventHandler<super::parts::AttachedModuleNavigation>,
 }
 
-pub(super) struct InspectorInput {
-    pub(super) snapshot: AcceptedSnapshot,
-    pub(super) scope: Option<Scope>,
-    pub(super) query: PartsQuery,
-    pub(super) selected: PartsSelection,
-    pub(super) selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    pub(super) on_place_controller: EventHandler<String>,
-    pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
-    pub(super) controller_placement_enabled: bool,
-    pub(super) placement_busy: bool,
-    pub(super) placement_error: Option<String>,
-    pub(super) layout_target: Signal<Option<String>>,
-    pub(super) on_place_assembly: EventHandler<super::objects::MatrixPlacementSource>,
-    pub(super) on_board_placed: EventHandler<()>,
-    pub(super) on_open_module_placement: EventHandler<String>,
-    pub(super) on_module_attached: EventHandler<super::parts::AttachedModuleNavigation>,
-}
+#[component]
+pub(super) fn PartsWorkspace() -> Element {
+    use super::workspace_composition::{WorkspaceSurfaces, publish_surfaces, use_frame};
+    use boardstudio_web_ui_model::editor::EditorContext;
 
-pub(super) struct CanvasInput {
-    pub(super) controller_back: Option<EventHandler<()>>,
-    pub(super) snapshot: AcceptedSnapshot,
-    pub(super) scope: Option<Scope>,
-    pub(super) query: PartsQuery,
-    pub(super) selected: PartsSelection,
-}
-
-pub(super) fn objects(i: ObjectsInput) -> Element {
-    rsx! { PartsLibraryPanel { snapshot: i.snapshot, scope: i.scope, scope_generation: i.scope_generation, workspace: i.workspace, query: i.query, selected: i.selected, on_select: i.on_select } }
-}
-pub(super) fn toolbar() -> Element {
-    rsx! {}
-}
-pub(super) fn preview(i: CanvasInput) -> Element {
-    rsx! {
-        if let Some(on_back) = i.controller_back { Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" } }
-        PartsPreviewWorkspace { snapshot: i.snapshot, scope: i.scope, query: i.query, selected: i.selected }
-    }
-}
-pub(super) fn inspector(i: InspectorInput) -> Element {
-    rsx! {
-        PartsInspectorPanel {
-            snapshot: i.snapshot, scope: i.scope, query: i.query, selected: i.selected, selected_context: i.selected_context,
-            on_place_controller: i.on_place_controller, on_place_component: i.on_place_component,
-            controller_placement_enabled: i.controller_placement_enabled, placement_busy: i.placement_busy,
-            placement_error: i.placement_error, layout_target: i.layout_target, on_place_assembly: i.on_place_assembly,
-            on_board_placed: i.on_board_placed, on_open_module_placement: i.on_open_module_placement, on_module_attached: i.on_module_attached,
+    let frame = use_frame();
+    let parts = frame.parts.as_ref().expect("Parts workspace frame");
+    let editor = use_context::<EditorContext>();
+    let state = use_context::<PartsWorkspaceState>();
+    let layout = frame.status.layout;
+    let placement = &frame.part_placement;
+    let scope = frame.owner.scope.clone();
+    let snapshot = &frame.snapshot;
+    let objects = rsx! {
+        PartsLibraryPanel {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            scope_generation: editor.scope_generation,
+            workspace: editor.workspace,
+            query: state.query(),
+            selected: state.selected(),
+            on_select: move |_| {
+                let mut panels = editor.panels;
+                panels.objects_open.set(false);
+                panels.inspector_open.set(true);
+            },
         }
-    }
+    };
+    let inspector = rsx! {
+        PartsInspectorPanel {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            query: state.query(),
+            selected: state.selected(),
+            selected_context: frame.objects.selected_context,
+            on_place_controller: placement.on_place_controller,
+            on_place_component: placement.on_place_component,
+            controller_placement_enabled: placement.controller_placement_enabled,
+            placement_busy: placement.busy || parts.matrix_placement_busy,
+            placement_error: frame.placement_error.clone(),
+            layout_target: frame.layout_target,
+            on_place_assembly: parts.on_place_assembly,
+            on_board_placed: move |_| layout.selection_kind().set(super::objects::LayoutSelectionKind::Part),
+            on_open_module_placement: parts.on_open_module_placement,
+            on_module_attached: parts.on_module_attached,
+        }
+    };
+    let canvas = rsx! {
+        if let Some(on_back) = placement.controller_back {
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
+        }
+        PartsPreviewWorkspace { snapshot: snapshot.clone(), scope, query: state.query(), selected: state.selected() }
+    };
+    publish_surfaces(
+        use_context(),
+        Workspace::Parts,
+        WorkspaceSurfaces {
+            objects,
+            inspector,
+            canvas,
+            toolbar: rsx! {},
+            status: rsx! {},
+            layers: rsx! {},
+        },
+    );
+    rsx! {}
 }

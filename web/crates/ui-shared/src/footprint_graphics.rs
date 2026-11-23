@@ -1,5 +1,6 @@
 //! KiCad S-expression footprint projection (native + wasm) and SVG graphics rendering (wasm).
 use boardstudio_core_kernel::generators::Expr;
+#[cfg(target_arch = "wasm32")]
 use boardstudio_model::model::Side;
 #[cfg(target_arch = "wasm32")]
 use {

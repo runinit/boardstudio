@@ -173,47 +173,31 @@ pub(in crate::presentation) fn camera_commands(
     )
 }
 
-pub(super) struct CmdInput<'a> {
-    pub setup_a: &'a super::setup_bundles::SetupA,
-    pub views: &'a super::setup_workspaces::Views,
-    pub cam: &'a super::camera::CamNamed,
-    pub wir: &'a super::workspace_inputs::WsWiring,
-    pub inp: &'a super::toolbar_inputs::WsInputs,
-    pub guide: &'a super::setup_guide_state::GuideNamed<'a>,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: &'a Scope,
-    pub workspace_routing: WorkspaceRoutingSlots,
-}
-
 pub(super) fn use_view_commands(
-    input: CmdInput<'_>,
+    state: &super::session_state::SessionState,
+    cam: &super::camera::CamNamed,
+    on_layout_view_mode: EventHandler<bool>,
+    toggle_footprints: EventHandler<()>,
+    guide: Option<setup_guide::SetupGuidePreferences>,
+    workspace_routing: WorkspaceRoutingSlots,
 ) -> Option<boardstudio_web_ui_model::split_focus::SplitHalf> {
-    let CmdInput {
-        setup_a,
-        views,
-        cam,
-        wir,
-        inp,
-        guide,
-        snapshot,
-        render_scope,
-        workspace_routing,
-    } = input;
+    let views = &state.views;
+    let snapshot = state.snapshot;
+    let render_scope = state.render_scope;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
     let document = &views.document;
-    let split_focus = setup_a.split_focus;
+    let split_focus = state.layout_state.split_focus();
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let render_generation = setup_a.render_generation;
-    let active_workspace = setup_a.active_workspace;
-    let model = &setup_a.view.model;
-    let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let on_layout_view_mode = inp.on_layout_view_mode;
-    let toggle_footprints = wir.toggle_footprints;
-    let layout_state = setup_a.layout_state;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let objects_panel_settings = setup_a.objects_panel_settings;
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let has_inspector = setup_a.view.has_inspector;
+    let render_generation = state.render_generation;
+    let active_workspace = state.active_workspace;
+    let model = &state.view.model;
+    let layout_assembly_3d = state.layout_state.assembly_3d();
+    let layout_state = state.layout_state;
+    let objects_open = editor.panels.objects_open;
+    let inspect_open = editor.panels.inspector_open;
+    let objects_panel_settings = state.objects_panel_settings;
+    let inspector_panel_settings = state.inspector_panel_settings;
+    let has_inspector = state.view.has_inspector;
     // Only a linked Layout split has an unfocused half.
     use_commands(
         CommandsInput {
@@ -234,7 +218,7 @@ pub(super) fn use_view_commands(
             inspect_open,
             objects_panel_settings,
             inspector_panel_settings,
-            guide: guide.state.guide.clone(),
+            guide,
             has_inspector,
         },
         cam.actions,

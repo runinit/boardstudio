@@ -1,3 +1,5 @@
+pub mod layout_component_edits;
+
 use super::companion_placement::{layout_relationship_summary, part_anchor_summary};
 use super::inspector_types as inspector;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, ReadModel, Resolution};

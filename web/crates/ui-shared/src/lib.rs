@@ -4,20 +4,6 @@
 //!
 //! Browser-only modules are `wasm32`-only; the rest also compile natively so their
 //! unit tests run under `cargo test`.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
-
-// Modules address shared types as the page bin does: `super::WorkspaceState`,
-// `crate::presentation::model_delivery`, `crate::runtime`.
-#[allow(unused_imports)]
-pub(crate) use crate as presentation;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::model_delivery;
-#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::runtime;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::state::*;
-
 #[derive(Clone, Copy)]
 pub struct DurabilityVersion(pub dioxus::prelude::Signal<u64>);
 
@@ -27,6 +13,7 @@ pub mod board_reference_effect;
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
+pub mod design_view_toolbar;
 pub mod footprint_graphics;
 #[cfg(any(test, target_arch = "wasm32"))]
 mod generator_preview_defaults;
@@ -42,6 +29,8 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
+// Vendored components include hooks that are active only in browser builds.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 pub mod ui;
 
 // Bounded waits for browser tests (test-support only).

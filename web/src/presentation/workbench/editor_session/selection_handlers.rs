@@ -229,41 +229,38 @@ pub(super) struct SelHandlers {
     pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     pub on_mounted_module_select: EventHandler<String>,
-    pub on_case_action: EventHandler<case_workspace::TreeAction>,
-    pub on_case_display: EventHandler<case_workspace::DisplayRequest>,
     pub nudge_tree: EventHandler<objects::TreeNudgeRequest>,
     pub on_open_module_placement: EventHandler<String>,
     pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
 }
 
 pub(super) fn build_selection_handlers(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
-    workspace_routing: WorkspaceRoutingSlots,
 ) -> (
     SelHandlers,
     impl FnMut(objects::TreeSelectRequest) + 'static,
 ) {
-    let runtime = &setup_a.editor.runtime();
-    let adapter = &setup_a.adapter;
-    let workspace = setup_a.editor.workspace;
-    let render_generation = setup_a.render_generation;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let instance_selection = setup_a.editor.instance_selection;
-    let layout_owner = &setup_a.view.layout_owner;
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let parts_selection = setup_a.view.parts_selection;
-    let layout_state = setup_a.layout_state;
-    let outline_activation = setup_a.view.outline_activation;
-    let layout_selection_kind = setup_a.layout_selection_kind;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let objects_panel_settings = setup_a.objects_panel_settings;
-    let parts_selection_generation = setup_a.view.parts_selection_generation;
-    let parts_state = setup_a.parts_state;
-    let case_workspace_state = setup_a.case_workspace_state;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
+    let adapter = &state.adapter;
+    let workspace = editor.workspace;
+    let render_generation = state.render_generation;
+    let inspect_open = editor.panels.inspector_open;
+    let tree_cell_anchor = &state.tree_cell_anchor;
+    let objects_open = editor.panels.objects_open;
+    let instance_selection = editor.instance_selection;
+    let layout_owner = &state.view.layout_owner;
+    let inspector_panel_settings = state.inspector_panel_settings;
+    let parts_selection = state.view.parts_selection;
+    let layout_state = state.layout_state;
+    let outline_activation = state.view.outline_activation;
+    let layout_selection_kind = state.layout_state.selection_kind();
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let objects_panel_settings = state.objects_panel_settings;
+    let parts_selection_generation = state.view.parts_selection_generation;
+    let parts_state = state.parts_state;
     let select_tree = select_tree_handler(SelectTreeInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
@@ -348,26 +345,6 @@ pub(super) fn build_selection_handlers(
             instance_selection,
         },
     );
-    let case_admission = super::action_handlers::case_admission(
-        runtime.clone(),
-        adapter.clone(),
-        case_workspace_state,
-        instance_selection,
-        render_scope.clone(),
-        snapshot.token,
-        render_generation,
-    );
-    let on_case_action = super::action_handlers::on_case_action_handler(
-        case_admission.clone(),
-        workspace_routing.navigate,
-        workspace,
-        case_workspace_state,
-    );
-    let on_case_display = super::action_handlers::on_case_display_handler(
-        case_admission,
-        workspace,
-        case_workspace_state,
-    );
     let nudge_tree = super::action_handlers::nudge_tree_handler(
         runtime.clone(),
         adapter.clone(),
@@ -379,8 +356,6 @@ pub(super) fn build_selection_handlers(
             on_layout_selection_kind,
             on_layout_snap_intent,
             on_mounted_module_select,
-            on_case_action,
-            on_case_display,
             nudge_tree,
             on_open_module_placement,
             on_module_attached,

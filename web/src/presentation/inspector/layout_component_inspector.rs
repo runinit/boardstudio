@@ -74,11 +74,7 @@ pub use boardstudio_web_layout::inspector_types::{
     LayoutComponentInspectorOwner, LayoutComponentInspectorProjection,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ComponentPositionAxis {
-    X,
-    Y,
-}
+pub use boardstudio_web_layout::component_inspector::layout_component_edits::ComponentPositionAxis;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutComponentInspectorAction {
@@ -181,8 +177,11 @@ fn position_unavailable(projection: &LayoutComponentInspectorProjection) -> bool
     projection.locked || projection.active_constraint.is_some()
 }
 
-mod sections;
-use sections::render_inspector;
+mod anchor;
+mod constraint;
+mod mirror;
+mod outline;
+mod properties;
 
 #[component]
 pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element {
@@ -207,164 +206,19 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let owner = owner.clone();
         move |_| latest_capture.set(owner.clone())
     }));
-    let tab = props.inspector_tab;
-    let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
+    let mut tab = props.inspector_tab;
     let mut x = props.x;
     let mut y = props.y;
     let mut margin = props.margin;
     let x_failure = props.x_failure;
     let y_failure = props.y_failure;
     let margin_failure = props.margin_failure;
-    let mut constraint_kind = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-        Some(Constraint::Framed {
-            relation: ConstraintRelation::MirrorLine { .. },
-            ..
-        }) => ConstraintKind::MirrorLine,
-        _ => ConstraintKind::Offset,
-    });
-    let drafts = offset_drafts(
-        projection.active_constraint.as_ref(),
-        &projection.board_parts,
-        &owner.part_id,
-    );
-    let mut source_part_id = use_signal(|| drafts.source_part_id.clone());
-    let mut offset_axes = use_signal(|| drafts.axes);
-    let mut offset_x = use_signal(|| drafts.offset_x.clone());
-    let mut offset_y = use_signal(|| drafts.offset_y.clone());
-    let mut rotation = use_signal(|| drafts.rotation.clone());
-    let mut mirror_axis = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Mirror { axis, .. }) => axis.clone(),
-        _ => MirrorAxis::Vertical,
-    });
-    let mut mirror_coordinate = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Mirror { coordinate, .. }) => coordinate.to_string(),
-        _ => "0".to_owned(),
-    });
-    let mut mirror_line_x = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Framed {
-            relation: ConstraintRelation::MirrorLine { at, .. },
-            ..
-        }) => at.x.to_string(),
-        _ => "0".to_owned(),
-    });
-    let mut mirror_line_y = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Framed {
-            relation: ConstraintRelation::MirrorLine { at, .. },
-            ..
-        }) => at.y.to_string(),
-        _ => "0".to_owned(),
-    });
-    let mut mirror_line_angle = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Framed {
-            relation: ConstraintRelation::MirrorLine { angle, .. },
-            ..
-        }) => angle.to_string(),
-        _ => "90".to_owned(),
-    });
     let layout_choice = use_memo(use_reactive((&projection.layout_id,), |(layout,)| {
         Some(layout.unwrap_or_default())
     }));
-    let kind_choice = use_memo(move || {
-        Some(
-            match constraint_kind() {
-                ConstraintKind::Offset => "offset",
-                ConstraintKind::Mirror => "mirror",
-                ConstraintKind::MirrorLine => "mirror-line",
-            }
-            .to_owned(),
-        )
-    });
-    let source_choice = use_memo(move || Some(source_part_id()));
-    let axes_choice = use_memo(move || Some(offset_axes_value(offset_axes()).to_owned()));
-    let axis_choice = use_memo(move || {
-        Some(
-            if mirror_axis() == MirrorAxis::Vertical {
-                "vertical"
-            } else {
-                "horizontal"
-            }
-            .to_owned(),
-        )
-    });
-    let mut error = props.error;
-    let pick_matrix = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| anchor.matrix_id.clone())
-            .or_else(|| {
-                projection
-                    .anchor_choices
-                    .first()
-                    .map(|choice| choice.matrix_id.clone())
-            })
-            .unwrap_or_default()
-    });
-    let pick_matrix_choice = use_memo(move || Some(pick_matrix()));
-    let pick_row = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| (anchor.row + 1).to_string())
-            .unwrap_or_else(|| "1".to_owned())
-    });
-    let pick_column = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| (anchor.column + 1).to_string())
-            .unwrap_or_else(|| "1".to_owned())
-    });
-    let pick_follow_x = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| anchor.follow.x)
-            .unwrap_or(true)
-    });
-    let pick_follow_y = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| anchor.follow.y)
-            .unwrap_or(true)
-    });
-    let pick_follow_rotation = use_signal(|| {
-        projection
-            .anchor
-            .as_ref()
-            .map(|anchor| anchor.follow.rotation)
-            .unwrap_or(true)
-    });
-    let mirrored_half_action = |state| {
-        let mirrored_half = projection.mirrored_half.clone();
-        let owner = latest_capture;
-        let action = props.on_action;
-        move |_| {
-            if let Some(mirrored_half) = mirrored_half.as_ref() {
-                action.call(LayoutComponentInspectorAction::SetMirroredHalfState {
-                    owner: owner(),
-                    pair_id: mirrored_half.pair_id.clone(),
-                    mirror_id: mirrored_half.mirror_id.clone(),
-                    state,
-                });
-            }
-        }
-    };
-
+    let error = props.error;
     let initial_position = projection.position;
     let initial_outline = projection.outline.clone();
-    let initial_constraint = projection.active_constraint.clone();
-    let has_initial_constraint = initial_constraint.is_some();
-    let board_parts = projection.board_parts.clone();
-    let part_id = owner.part_id.clone();
-    use_effect(use_reactive((&identity,), {
-        move |_| {
-            constraint_open.set(has_initial_constraint);
-            error.set(None);
-        }
-    }));
     let mut previous_x = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_x = (identity.clone(), initial_position.x);
     let identity_x = identity.clone();
@@ -408,126 +262,14 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }
         previous_margin.set(Some((identity_margin.clone(), value)));
     }));
-    let accepted_constraint = (identity.clone(), initial_constraint.clone());
-    use_effect(use_reactive((&accepted_constraint,), {
-        move |((_, constraint),)| {
-            constraint_open.set(constraint.is_some());
-            constraint_kind.set(match constraint.as_ref() {
-                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { .. },
-                    ..
-                }) => ConstraintKind::MirrorLine,
-                _ => ConstraintKind::Offset,
-            });
-            let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
-            source_part_id.set(drafts.source_part_id);
-            offset_axes.set(drafts.axes);
-            offset_x.set(drafts.offset_x);
-            offset_y.set(drafts.offset_y);
-            rotation.set(drafts.rotation);
-            match constraint {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
-                }
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { at, angle },
-                    ..
-                }) => {
-                    mirror_line_x.set(at.x.to_string());
-                    mirror_line_y.set(at.y.to_string());
-                    mirror_line_angle.set(angle.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                    mirror_line_x.set("0".to_owned());
-                    mirror_line_y.set("0".to_owned());
-                    mirror_line_angle.set("90".to_owned());
-                }
-            }
-            error.set(None);
-        }
-    }));
-    let reset_properties_drafts = {
-        let mut x = x;
-        let mut y = y;
-        let mut margin = margin;
-        let mut constraint_open = constraint_open;
-        let mut constraint_kind = constraint_kind;
-        let mut source_part_id = source_part_id;
-        let mut offset_axes = offset_axes;
-        let mut offset_x = offset_x;
-        let mut offset_y = offset_y;
-        let mut rotation = rotation;
-        let mut mirror_axis = mirror_axis;
-        let mut mirror_coordinate = mirror_coordinate;
-        let mut mirror_line_x = mirror_line_x;
-        let mut mirror_line_y = mirror_line_y;
-        let mut mirror_line_angle = mirror_line_angle;
-        let mut error = error;
-        let initial_margin = initial_outline.margin;
-        let initial_constraint = initial_constraint.clone();
-        let initial_drafts = drafts.clone();
-        move || {
-            x.set(format!("{:.2}", initial_position.x));
-            y.set(format!("{:.2}", initial_position.y));
-            margin.set(
-                initial_margin
-                    .map(|value| value.to_string())
-                    .unwrap_or_default(),
-            );
-            constraint_open.set(initial_constraint.is_some());
-            constraint_kind.set(match initial_constraint.as_ref() {
-                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { .. },
-                    ..
-                }) => ConstraintKind::MirrorLine,
-                _ => ConstraintKind::Offset,
-            });
-            let drafts = initial_drafts.clone();
-            source_part_id.set(drafts.source_part_id);
-            offset_axes.set(drafts.axes);
-            offset_x.set(drafts.offset_x);
-            offset_y.set(drafts.offset_y);
-            rotation.set(drafts.rotation);
-            match initial_constraint.as_ref() {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
-                }
-                Some(Constraint::Framed {
-                    relation: ConstraintRelation::MirrorLine { at, angle },
-                    ..
-                }) => {
-                    mirror_line_x.set(at.x.to_string());
-                    mirror_line_y.set(at.y.to_string());
-                    mirror_line_angle.set(angle.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                    mirror_line_x.set("0".to_owned());
-                    mirror_line_y.set("0".to_owned());
-                    mirror_line_angle.set("90".to_owned());
-                }
-            }
-            error.set(None);
-        }
-    };
+    let mut position_error = error;
     let commit_position = move |axis, value: f64| {
         let draft = value.to_string();
         match axis {
             ComponentPositionAxis::X => x.set(draft.clone()),
             ComponentPositionAxis::Y => y.set(draft.clone()),
         }
-        error.set(None);
+        position_error.set(None);
         props
             .on_action
             .call(LayoutComponentInspectorAction::SetPosition {
@@ -537,339 +279,161 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 submitted_draft: draft,
             });
     };
-    let set_outline: Rc<dyn Fn(PartOutline)> = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        Rc::new(move |outline| {
-            action.call(LayoutComponentInspectorAction::SetOutline {
-                owner: latest_capture(),
-                outline,
-                submitted_draft: margin(),
-            })
-        })
-    };
-    // Ticket 13: column-vocabulary commits. Number fields parse on Enter or
-    // blur; Follow, Pick and Detach submit immediately.
-    let commit_anchor_value: Rc<dyn Fn(PartAnchorValueChange)> = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        Rc::new(move |change| {
-            action.call(LayoutComponentInspectorAction::SetPartAnchorValue {
-                owner: latest_capture(),
-                change,
-            })
-        })
-    };
-    let commit_anchor_follow: Rc<dyn Fn(Follow)> = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        Rc::new(move |follow| {
-            action.call(LayoutComponentInspectorAction::SetPartAnchorFollow {
-                owner: latest_capture(),
-                follow,
-            })
-        })
-    };
-    let commit_anchor_pick: Rc<dyn Fn(String, u32, u32, Follow)> = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        Rc::new(move |matrix_id, row, column, follow| {
-            action.call(LayoutComponentInspectorAction::SetPartAnchor {
-                owner: latest_capture(),
-                matrix_id,
-                row,
-                column,
-                follow,
-            })
-        })
-    };
-    let commit_anchor_detach: Rc<dyn Fn()> = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        Rc::new(move || {
-            action.call(LayoutComponentInspectorAction::DetachPartAnchor {
-                owner: latest_capture(),
-            })
-        })
-    };
-    let anchor_follow = projection.anchor.as_ref().map(|anchor| anchor.follow);
-    let anchor_follow_text = projection.anchor.as_ref().map(|anchor| {
-        let mut parts = Vec::new();
-        if anchor.follow.x {
-            parts.push("X");
-        }
-        if anchor.follow.y {
-            parts.push("Y");
-        }
-        if anchor.follow.rotation {
-            parts.push("rotation");
-        }
-        if parts.is_empty() {
-            "none".to_owned()
-        } else {
-            parts.join(", ")
-        }
-    });
-    let anchor_locked = position_unavailable(&projection);
-    // Ticket 13: cloned before the render so Pick closures borrow the list,
-    // not the projection the anchor sections also read.
-    let anchor_choices = projection.anchor_choices.clone();
-    let anchor_number_field =
-        move |label: &'static str,
-              aria: &'static str,
-              field: &'static str,
-              current: f64,
-              change: Rc<dyn Fn(f64) -> PartAnchorValueChange>| {
-            let commit = commit_anchor_value.clone();
-            let value = format!("{current:.2}").parse::<f64>().unwrap_or(current);
-            rsx! {
-                NumericField {
-                    id: format!("part-anchor-{field}"), label, aria_label: aria,
-                    value, precision: 2,
-                    disabled_reason: anchor_locked.then(|| "Position is unavailable".to_owned()),
-                    on_commit: move |value| commit(change(value)),
-                }
-            }
-        };
-    let has_active_constraint = projection.active_constraint.is_some();
-    // A choice on a saved offset converts it at once; a new one only sets the default.
-    let choose_offset_axes = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        let saved_offset_id = projection
-            .active_constraint
-            .as_ref()
-            .filter(|constraint| constraint.offset_axes().is_some())
-            .map(|constraint| constraint.id().to_owned());
-        let mut offset_axes = offset_axes;
-        move |to: OffsetAxes| {
-            offset_axes.set(to);
-            if let Some(constraint_id) = saved_offset_id.as_ref() {
-                action.call(LayoutComponentInspectorAction::ConvertOffsetAxes {
-                    owner: latest_capture(),
-                    constraint_id: constraint_id.clone(),
-                    to,
-                });
-            }
-        }
-    };
-    let save_constraint = {
-        let latest_capture = latest_capture;
-        let offset_axes = offset_axes;
-        let mirror_line_x = mirror_line_x;
-        let mirror_line_y = mirror_line_y;
-        let mirror_line_angle = mirror_line_angle;
-        let retain_legacy_form = projection
-            .active_constraint
-            .as_ref()
-            .is_some_and(|constraint| !matches!(constraint, Constraint::Framed { .. }));
-        let action = props.on_action;
-        let mut error = error;
-        move |_| {
-            let source = source_part_id();
-            let owner = latest_capture();
-            if source.is_empty() || source == owner.part_id {
-                error.set(Some("Choose another part on this board.".to_owned()));
-                return;
-            }
-            let values = match constraint_kind() {
-                ConstraintKind::Offset => {
-                    let (Ok(x), Ok(y), Ok(rotation)) = (
-                        offset_x().parse::<f64>(),
-                        offset_y().parse::<f64>(),
-                        rotation().parse::<f64>(),
-                    ) else {
-                        error.set(Some("Enter finite constraint values.".to_owned()));
-                        return;
-                    };
-                    if !x.is_finite() || !y.is_finite() || !rotation.is_finite() {
-                        error.set(Some("Enter finite constraint values.".to_owned()));
-                        return;
-                    }
-                    let offset = Vec2 { x, y };
-                    if retain_legacy_form {
-                        offset_values(offset_axes(), offset, rotation)
-                    } else {
-                        LayoutConstraintValues::Framed {
-                            relation: match offset_axes() {
-                                OffsetAxes::Board => {
-                                    ConstraintRelation::Offset { offset, rotation }
-                                }
-                                OffsetAxes::Part => {
-                                    ConstraintRelation::PartOffset { offset, rotation }
-                                }
-                            },
-                        }
-                    }
-                }
-                ConstraintKind::Mirror => {
-                    let Ok(coordinate) = mirror_coordinate().parse::<f64>() else {
-                        error.set(Some("Enter a finite axis coordinate.".to_owned()));
-                        return;
-                    };
-                    if !coordinate.is_finite() {
-                        error.set(Some("Enter a finite axis coordinate.".to_owned()));
-                        return;
-                    }
-                    if retain_legacy_form {
-                        LayoutConstraintValues::Mirror {
-                            axis: mirror_axis(),
-                            coordinate,
-                        }
-                    } else {
-                        let axis = mirror_axis();
-                        let at = match axis {
-                            MirrorAxis::Vertical => Vec2 {
-                                x: coordinate,
-                                y: 0.0,
-                            },
-                            MirrorAxis::Horizontal => Vec2 {
-                                x: 0.0,
-                                y: coordinate,
-                            },
-                        };
-                        LayoutConstraintValues::Framed {
-                            relation: ConstraintRelation::MirrorLine {
-                                at,
-                                angle: if axis == MirrorAxis::Vertical {
-                                    90.0
-                                } else {
-                                    0.0
-                                },
-                            },
-                        }
-                    }
-                }
-                ConstraintKind::MirrorLine => {
-                    let (Ok(x), Ok(y), Ok(angle)) = (
-                        mirror_line_x().parse::<f64>(),
-                        mirror_line_y().parse::<f64>(),
-                        mirror_line_angle().parse::<f64>(),
-                    ) else {
-                        error.set(Some("Enter finite mirror line values.".to_owned()));
-                        return;
-                    };
-                    if !x.is_finite() || !y.is_finite() || !angle.is_finite() {
-                        error.set(Some("Enter finite mirror line values.".to_owned()));
-                        return;
-                    }
-                    LayoutConstraintValues::Framed {
-                        relation: ConstraintRelation::MirrorLine {
-                            at: Vec2 { x, y },
-                            angle,
-                        },
-                    }
-                }
-            };
-            error.set(None);
-            action.call(LayoutComponentInspectorAction::SetConstraint {
-                owner: owner.clone(),
-                source_part_id: source,
-                values,
-            });
-        }
-    };
-    let active_constraint_id = projection
-        .active_constraint
-        .as_ref()
-        .map(|constraint| constraint.id().to_owned());
-    let remove_constraint = {
-        let latest_capture = latest_capture;
-        let action = props.on_action;
-        move |_| {
-            if let Some(constraint_id) = active_constraint_id.as_ref() {
-                action.call(LayoutComponentInspectorAction::RemoveConstraint {
-                    owner: latest_capture(),
-                    constraint_id: constraint_id.clone(),
-                });
-            }
-        }
-    };
-    let position = projection.position;
     let group_selection = projection.selection_count > 1;
-    let outline = projection.outline.clone();
-    let active_constraint = projection.active_constraint.clone();
-    let board_parts = projection.board_parts.clone();
-    let constraint_source_reference = active_constraint
-        .as_ref()
-        .and_then(|constraint| {
-            board_parts
-                .iter()
-                .find(|part| part.id == constraint.source())
-                .map(|part| part.reference.clone())
-                .or_else(|| Some(constraint.source().to_owned()))
-        })
-        .unwrap_or_else(|| "A part".to_owned());
-    let constraint_target_reference = active_constraint
-        .as_ref()
-        .and_then(|constraint| {
-            board_parts
-                .iter()
-                .find(|part| part.id == constraint.target())
-                .map(|part| part.reference.clone())
-                .or_else(|| Some(constraint.target().to_owned()))
-        })
-        .unwrap_or_else(|| projection.reference.clone());
-
-    render_inspector!(
-        props,
-        mirror_section_open,
-        outline_section_open,
-        projection,
-        owner,
+    let mirrors = mirror::mirror_controls(
+        &projection,
         latest_capture,
-        tab,
-        constraint_open,
+        props.on_action,
+        mirror_section_open,
+    );
+    let anchors = anchor::use_anchor_controls(&projection, latest_capture, props.on_action, error);
+    let outline = outline::outline_controls(
+        &projection,
+        latest_capture,
+        props.on_action,
+        outline_section_open,
         margin,
-        x_failure,
-        y_failure,
-        margin_failure,
-        constraint_kind,
-        source_part_id,
-        offset_axes,
-        offset_x,
-        offset_y,
-        rotation,
-        mirror_axis,
-        mirror_coordinate,
-        mirror_line_x,
-        mirror_line_y,
-        mirror_line_angle,
-        layout_choice,
-        kind_choice,
-        source_choice,
-        axes_choice,
-        axis_choice,
         error,
-        pick_matrix,
-        pick_matrix_choice,
-        pick_row,
-        pick_column,
-        pick_follow_x,
-        pick_follow_y,
-        pick_follow_rotation,
-        mirrored_half_action,
-        board_parts,
-        reset_properties_drafts,
-        commit_position,
-        set_outline,
-        commit_anchor_follow,
-        commit_anchor_pick,
-        commit_anchor_detach,
-        anchor_follow,
-        anchor_follow_text,
-        anchor_locked,
-        anchor_choices,
-        anchor_number_field,
-        has_active_constraint,
-        choose_offset_axes,
-        save_constraint,
-        remove_constraint,
-        position,
-        group_selection,
-        outline,
-        active_constraint,
-        constraint_source_reference,
-        constraint_target_reference
-    )
+    );
+    let (constraint, mut reset_constraint) = constraint::use_constraint_controls(
+        &projection,
+        &identity,
+        latest_capture,
+        props.on_action,
+        error,
+    );
+    let reset_properties_drafts = move || {
+        x.set(format!("{:.2}", initial_position.x));
+        y.set(format!("{:.2}", initial_position.y));
+        margin.set(
+            initial_outline
+                .margin
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+        );
+        reset_constraint();
+    };
+    rsx! {
+        section {
+            class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_fieldset_small]:text-[11px] [&_fieldset_small]:leading-[1.45] [&_fieldset_small]:text-muted-foreground",
+            aria_label: "Component inspector",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
+            header { class: "flex items-start justify-between gap-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:[overflow-wrap:anywhere]",
+                h2 { "{projection.reference}" }
+                if projection.locked {
+                    span { class: "flex-none rounded-[9px] border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground",
+                        "Locked"
+                    }
+                }
+            }
+            Tabs {
+                horizontal: true,
+                value: Some(
+                    if tab() == LayoutInspectorTab::Properties {
+                        "properties".to_owned()
+                    } else {
+                        "relations".to_owned()
+                    },
+                ),
+                on_value_change: {
+                    let mut reset = reset_properties_drafts;
+                    move |value: String| {
+                        let next = if value == "relations" {
+                            LayoutInspectorTab::Relations
+                        } else {
+                            LayoutInspectorTab::Properties
+                        };
+                        if next == LayoutInspectorTab::Properties && *tab.peek() != next {
+                            reset();
+                        }
+                        tab.set(next);
+                    }
+                },
+                TabsList {
+                    aria_label: "Inspector details",
+                    class: "layout-inspector-tabs",
+                    TabsTrigger { index: 0usize, value: "properties", "Properties" }
+                    TabsTrigger { index: 1usize, value: "relations", "Relations" }
+                }
+                TabsContent { index: 0usize, value: "properties",
+                    if group_selection {
+                        p {
+                            "{projection.selection_count} parts selected. Position edits apply to the selection."
+                        }
+                    } else {
+                        p { class: "grid min-w-0 grid-cols-[1fr_auto] items-baseline gap-[5px] text-[13px] text-foreground [&_span]:text-xs [&_span]:leading-[1.45] [&_span]:text-muted-foreground",
+                            "{projection.definition_name}"
+                            span { "{projection.definition_kind}" }
+                        }
+                        if let Some(notice) = projection.envelope_notice.as_ref() {
+                            Callout {
+                                class: "text-xs leading-[1.45] text-muted-foreground",
+                                variant: CalloutVariant::Info,
+                                "{notice}"
+                            }
+                        }
+                    }
+                    {mirrors}
+                    if !group_selection && !projection.layouts.is_empty() {
+                        {
+                            properties::layout_assignment(
+                                &projection,
+                                layout_choice,
+                                latest_capture,
+                                props.on_action,
+                            )
+                        }
+                    }
+                    {anchors}
+                    {properties::position_fields(&projection, commit_position)}
+                    if !group_selection {
+                        {outline}
+                        {constraint}
+                    }
+                    if let Some(message) = x_failure()
+                        .or_else(&*y_failure)
+                        .or_else(&*margin_failure)
+                        .or_else(&*error)
+                    {
+                        FieldError { "{message}" }
+                    }
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "min-h-[34px] justify-self-start text-left",
+                        button_type: "button",
+                        onclick: {
+                            let action = props.on_action;
+                            move |_| {
+                                action
+                                    .call(LayoutComponentInspectorAction::NavigateElectrical {
+                                        owner: latest_capture(),
+                                    })
+                            }
+                        },
+                        "Edit electrical connections"
+                    }
+                }
+                TabsContent { index: 1usize, value: "relations",
+                    h2 { "Relationships" }
+                    p { class: "text-xs leading-normal", "{projection.relationship_summary}" }
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        onclick: move |_| tab.set(LayoutInspectorTab::Properties),
+                        "Go to Properties"
+                    }
+                    p { class: "text-xs leading-[1.45] text-muted-foreground",
+                        "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties."
+                    }
+                }
+            }
+        }
+    }
 }

@@ -379,38 +379,39 @@ pub(super) struct CanvasNamed {
 }
 
 pub(super) fn use_canvas_bundle(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     views: &super::setup_workspaces::Views,
     cam: &super::camera::CamNamed,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
 ) -> CanvasNamed {
-    let adapter = &setup_a.adapter;
-    let model = &setup_a.view.model;
-    let layer_visibility = setup_a.editor.layers;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let adapter = &state.adapter;
+    let model = &state.view.model;
+    let layer_visibility = editor.layers;
     let canvas_source = &cam.scene_bounds.canvas_source;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
     let document = &views.document;
-    let active_workspace = setup_a.active_workspace;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let layout_owner = &setup_a.view.layout_owner;
-    let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let layout_state = setup_a.layout_state;
-    let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
-    let accepted_token = setup_a.view.layout_owner.token;
-    let current_scope = &setup_a.view.current_scope;
-    let render_generation = setup_a.render_generation;
-    let board_inspector = &setup_a.board_inspector;
-    let matrix_inspector = &setup_a.matrix_inspector;
-    let key_size = &setup_a.key_size;
-    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
-    let outline_inspector = &setup_a.view.outline_inspector;
+    let active_workspace = state.active_workspace;
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let layout_owner = &state.view.layout_owner;
+    let layout_assembly_3d = state.layout_state.assembly_3d();
+    let layout_state = state.layout_state;
+    let layout_component_inspector_lifetime = &state.layout_component_inspector_lifetime;
+    let accepted_token = state.view.layout_owner.token;
+    let current_scope = &state.view.current_scope;
+    let render_generation = state.render_generation;
+    let board_inspector = &state.board_inspector;
+    let matrix_inspector = &state.matrix_inspector;
+    let key_size = &state.key_size;
+    let matrix_transform_inspector = &state.matrix_transform_inspector;
+    let outline_inspector = &state.view.outline_inspector;
     let zoom_surface_size = cam.svg_surface.zoom_surface_size;
-    let runtime = &setup_a.editor.runtime();
+    let runtime = &editor.runtime();
     let svg = &cam.svg_surface.svg;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
-    let spacing_ghost_state = setup_a.spacing_ghost_state;
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let spacing_ghost_state = state.spacing_ghost_state;
     let CanvasSelectionState {
         selected_tree_context,
         canvas_anchor_badge,

@@ -9,158 +9,116 @@ pub(super) fn polygon_points(points: &[Vec2]) -> String {
         .join(" ")
 }
 
-pub(super) struct LayoutSvgInput<'a> {
-    pub view_box: String,
+pub(in crate::presentation) struct LayoutScene {
     pub canvas_aria_label: &'static str,
-    pub mount: EventHandler<MountedEvent>,
-    pub canvas_grid: &'a objects::LayoutCanvasGridStyle,
-    pub view_x: f64,
-    pub view_y: f64,
-    pub width: f64,
-    pub height: f64,
-    pub layer_visibility: &'a LayerVisibility,
-    pub scene: &'a boardstudio_core::model::SceneDelta,
-    pub model: &'a ReadModel,
-    pub outline_inspector: &'a Option<outline_lifecycle::OutlineInspectorProjection>,
-    pub outline_overlay_key: &'a Option<String>,
-    pub runtime: Rc<Runtime>,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub outline_snap_settings: &'a objects::LayoutSnapSettings,
+    pub canvas_grid: objects::LayoutCanvasGridStyle,
+    pub outline_inspector: Option<outline_lifecycle::OutlineInspectorProjection>,
+    pub outline_overlay_key: Option<String>,
+    pub outline_snap_settings: objects::LayoutSnapSettings,
     pub outline_pitch: Vec2,
-    pub outline_snap_origins: &'a Rc<Vec<outline_snapping::Origin>>,
-    pub selected_bridge: Option<&'a boardstudio_core::model::OutlineBridge>,
-    pub matrix_placement: &'a objects::MatrixPlacementMount,
-    pub mirrored_pair: &'a objects::MirroredPairMount,
-    pub canvas_source: layout_canvas::SceneSource,
+    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
+    pub selected_bridge: Option<boardstudio_core::model::OutlineBridge>,
+    pub matrix_placement: objects::MatrixPlacementMount,
+    pub mirrored_pair: objects::MirroredPairMount,
     pub split_focused_half: Option<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub spacing_ghost_prop: &'a Option<layout_canvas::SpacingGhost>,
-    pub selected_tree_context: &'a Option<objects::ScopedTreeContext>,
-    pub zoom_surface_size: Signal<(f64, f64)>,
-    pub canvas_anchor_badge: &'a Option<anchor_badge::AnchorBadge>,
+    pub spacing_ghost_prop: Option<layout_canvas::SpacingGhost>,
+    pub selected_tree_context: Option<objects::ScopedTreeContext>,
+    pub canvas_anchor_badge: Option<anchor_badge::AnchorBadge>,
     pub matrix_pointer_down: EventHandler<layout_canvas::MatrixPointerDown>,
     pub part_pointer_down: EventHandler<layout_canvas::PartPointerDown>,
     pub selection_geometry_anchor: Option<(f64, f64, f64)>,
     pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub adapter: SelectionAdapter,
     pub drag: Rc<RefCell<Option<Drag>>>,
-    pub render_scope: Scope,
-    pub workspace: Signal<Workspace>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
     pub layout_transform_target: Option<(
         std::rc::Rc<boardstudio_core::model::Matrix>,
         std::rc::Rc<boardstudio_core::model::MatrixScene>,
         objects::TreeContext,
     )>,
-    pub matrix_splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pub part_rail_selection: Option<(String, boardstudio_web_layout::part_rail::PartRailFacts)>,
     pub part_rail_snap: Option<objects::GestureSnapInputs>,
-    pub part_placement: &'a part_placement::PartPlacementMount,
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub split_focus: Signal<boardstudio_web_ui_model::split_focus::SplitHalf>,
-    pub focused_keycaps_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub active_workspace: Workspace,
-    pub layout_assembly_3d: Signal<bool>,
 }
 
-pub(super) struct SvgNavHandlers<S, M, E> {
-    pub start_pan: S,
-    pub move_pointer: M,
-    pub end_pointer: E,
-}
-
-pub(super) struct SvgKeyHandlers<C, K, U> {
-    pub cancel_pointer: C,
-    pub keyboard: K,
-    pub key_up: U,
-}
-
-pub(super) fn layout_svg<S, M, E, C, K, U>(
-    input: LayoutSvgInput<'_>,
-    nav: SvgNavHandlers<S, M, E>,
-    key: SvgKeyHandlers<C, K, U>,
-    wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> Element
-where
-    S: FnMut(PointerEvent) + Clone + 'static,
-    M: FnMut(PointerEvent) + Clone + 'static,
-    E: FnMut(PointerEvent) + Clone + 'static,
-    C: FnMut(PointerEvent) + Clone + 'static,
-    K: FnMut(KeyboardEvent) + Clone + 'static,
-    U: FnMut(KeyboardEvent) + Clone + 'static,
-{
-    let LayoutSvgInput {
-        view_box,
+pub(super) fn use_layout_canvas(
+    frame: &workspace_composition::WorkspaceFrame,
+    input: &LayoutScene,
+) -> Element {
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
+    let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
+    let keycaps = use_context::<keycaps_workspace::KeycapsWorkspaceState>();
+    let adapter = use_context::<SelectionAdapter>();
+    let layout_assembly_3d = layout_state.assembly_3d();
+    let focused_keycaps_finding = keycaps.focused_finding();
+    if layout_assembly_3d() {
+        return rsx! {
+            layout_viewer::LayoutCanonicalViewer {
+                on_mounted_module_pick: Some(frame.select_module),
+                focused_finding: focused_keycaps_finding(),
+            }
+        };
+    }
+    let LayoutScene {
         canvas_aria_label,
-        mount,
         canvas_grid,
-        view_x,
-        view_y,
-        width,
-        height,
-        layer_visibility,
-        scene,
-        model,
         outline_inspector,
         outline_overlay_key,
-        runtime,
-        canvas_interaction,
-        svg,
         outline_snap_settings,
         outline_pitch,
         outline_snap_origins,
         selected_bridge,
         matrix_placement,
         mirrored_pair,
-        canvas_source,
         split_focused_half,
         spacing_ghost_prop,
         selected_tree_context,
-        zoom_surface_size,
         canvas_anchor_badge,
         matrix_pointer_down,
         part_pointer_down,
         selection_geometry_anchor,
         canvas_transform_menu,
         matrix_transform_inspector,
-        layout_owner,
-        adapter,
         drag,
-        render_scope,
-        workspace,
-        layout_state,
-        layout_transform_tool,
-        layout_snap_settings,
         layout_transform_target,
-        matrix_splay_affect,
         part_rail_selection,
         part_rail_snap,
-        part_placement,
-        document,
-        split_focus,
-        focused_keycaps_finding,
-        snapshot,
-        active_workspace,
-        layout_assembly_3d,
     } = input;
-    let SvgNavHandlers {
+    let workspace_composition::CanvasEventHandlers {
+        mount,
         start_pan,
         move_pointer,
         end_pointer,
-    } = nav;
-    let SvgKeyHandlers {
         cancel_pointer,
         keyboard,
         key_up,
-    } = key;
+        wheel,
+    } = frame.handlers;
+    let camera = &frame.camera;
+    let view_box = &camera.view_box;
+    let (view_x, view_y, width, height) =
+        (camera.view_x, camera.view_y, camera.width, camera.height);
+    let layer_visibility = &editor.layers;
+    let scene = frame.scene.as_ref();
+    let model = frame.model.as_ref();
+    let runtime = editor.runtime();
+    let canvas_interaction = interaction.arbiter;
+    let svg = &frame.svg;
+    let canvas_source = camera.canvas_source.clone();
+    let zoom_surface_size = frame.surface_size;
+    let layout_owner = &frame.owner;
+    let render_scope = &frame.scope;
+    let workspace = editor.workspace;
+    let layout_transform_tool = layout_state.transform_tool();
+    let layout_snap_settings = layout_state.snap_settings();
+    let matrix_splay_affect = layout_state.splay_affect();
+    let part_placement = &frame.part_placement;
+    let document = &frame.document;
+    let split_focus = layout_state.split_focus();
+    let snapshot = &frame.snapshot;
+    let active_workspace = Workspace::Layout;
     rsx! {
         svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
-        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
+        onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
         defs {
             pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
                 circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
@@ -182,14 +140,14 @@ where
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch,
+                outline_pitch: *outline_pitch,
                 outline_snap_origins,
-                selected_bridge,
+                selected_bridge: selected_bridge.as_ref(),
             })}
             {scene_placement_previews(layer_visibility, matrix_placement, mirrored_pair)}
             layout_canvas::Scene {
                 source: canvas_source,
-                focused_half: split_focused_half,
+                focused_half: *split_focused_half,
                 preview_active: model.display_preview.is_some(),
                 accepted_scene: model
                     .display_preview
@@ -206,17 +164,17 @@ where
                 keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
                 footprints_visible: (layer_visibility.footprints)()
                     && !(layer_visibility.hidden)().contains("Footprints"),
-                on_matrix_pointer_down: matrix_pointer_down,
-                on_part_pointer_down: part_pointer_down,
+                on_matrix_pointer_down: *matrix_pointer_down,
+                on_part_pointer_down: *part_pointer_down,
             }
             {selection_anchor(SelectionAnchorInput {
-                selection_geometry_anchor,
-                canvas_transform_menu,
-                matrix_transform_inspector,
+                selection_geometry_anchor: *selection_geometry_anchor,
+                canvas_transform_menu: canvas_transform_menu.clone(),
+                matrix_transform_inspector: matrix_transform_inspector.clone(),
                 selected_tree_context,
                 runtime: runtime.clone(),
                 svg: svg.clone(),
-                drag,
+                drag: drag.clone(),
                 layout_owner: layout_owner.clone(),
                 adapter: adapter.clone(),
                 canvas_interaction: canvas_interaction.clone(),
@@ -230,7 +188,7 @@ where
             {transform_overlays(TransformOverlaysInput {
                 active_workspace,
                 layout_assembly_3d,
-                layout_transform_target,
+                layout_transform_target: layout_transform_target.clone(),
                 layout_transform_tool,
                 layout_state,
                 runtime: runtime.clone(),
@@ -248,16 +206,16 @@ where
             {part_rail(PartRailInput {
                 active_workspace,
                 layout_assembly_3d,
-                part_rail_selection,
+                part_rail_selection: part_rail_selection.clone(),
                 selected_tree_context,
-                part_rail_snap,
+                part_rail_snap: *part_rail_snap,
                 layout_transform_tool,
                 layout_state,
                 runtime: runtime.clone(),
                 svg: svg.clone(),
                 canvas_interaction: canvas_interaction.clone(),
                 zoom_surface_size,
-                document,
+                document: document.clone(),
                 split_focus,
                 view_x,
                 view_y,
@@ -281,7 +239,7 @@ where
                 width,
                 height,
                 outline_snap_settings,
-                outline_pitch,
+                outline_pitch: *outline_pitch,
                 outline_snap_origins,
             })}
         }

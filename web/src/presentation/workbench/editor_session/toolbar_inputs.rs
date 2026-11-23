@@ -87,9 +87,7 @@ pub(super) struct LayoutToolbarArgs<'a> {
     pub layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
 
-pub(super) fn layout_toolbar_input(
-    input: LayoutToolbarArgs<'_>,
-) -> workspace_composition::WorkspaceToolbarInput {
+pub(super) fn layout_toolbar_input(input: LayoutToolbarArgs<'_>) -> layout_workspace::ToolbarInput {
     let LayoutToolbarArgs {
         selected_tree_context,
         show_position_inspector,
@@ -208,7 +206,7 @@ pub(super) fn layout_toolbar_input(
     };
     let footprints_pressed =
         (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
-    workspace_composition::WorkspaceToolbarInput::Layout(Box::new(layout_workspace::ToolbarInput {
+    layout_workspace::ToolbarInput {
         footprints_pressed,
         on_toggle_footprints: toggle_footprints,
         assembly_3d: layout_assembly_3d(),
@@ -228,180 +226,62 @@ pub(super) fn layout_toolbar_input(
         on_show_relationships: EventHandler::new(move |()| {
             inspect_open.set(true);
         }),
-    }))
-}
-
-pub(super) struct ToolbarInputArgs<'a> {
-    pub active_workspace: Workspace,
-    pub toolbar_selection_availability: (bool, bool),
-    pub selected_tree_context: Option<objects::ScopedTreeContext>,
-    pub show_position_inspector: bool,
-    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub workspace: Signal<Workspace>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    pub on_layout_selection_kind_handler: EventHandler<objects::LayoutSelectionKind>,
-    pub matrices: Vec<&'a boardstudio_core::model::Matrix>,
-    pub layer_visibility: LayerVisibility,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub layout_command_menu: Signal<Option<objects::LayoutCommandMenu>>,
-    pub layout_assembly_3d: Signal<bool>,
-    pub on_layout_view_mode: EventHandler<bool>,
-    pub toggle_footprints: EventHandler<()>,
-    pub layout_selection_kind: Signal<objects::LayoutSelectionKind>,
-    pub component_inspector: Option<inspector::LayoutComponentInspectorProjection>,
-    pub layout_transform_target: Option<(
-        std::rc::Rc<boardstudio_core::model::Matrix>,
-        std::rc::Rc<boardstudio_core::model::MatrixScene>,
-        objects::TreeContext,
-    )>,
-    pub layout_align: objects::LayoutAlignMount,
-    pub layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-}
-
-pub(super) fn toolbar_input(
-    input: ToolbarInputArgs<'_>,
-) -> workspace_composition::WorkspaceToolbarInput {
-    let ToolbarInputArgs {
-        active_workspace,
-        toolbar_selection_availability,
-        selected_tree_context,
-        show_position_inspector,
-        matrix_transform_inspector,
-        runtime,
-        adapter,
-        workspace,
-        objects_open,
-        inspect_open,
-        inspector_panel_settings,
-        layout_owner,
-        layout_transform_tool,
-        on_layout_selection_kind_handler,
-        matrices,
-        layer_visibility,
-        layout_snap_settings,
-        layout_command_menu,
-        layout_assembly_3d,
-        on_layout_view_mode,
-        toggle_footprints,
-        layout_selection_kind,
-        component_inspector,
-        layout_transform_target,
-        layout_align,
-        layout_snap_intent,
-    } = input;
-    match active_workspace {
-        Workspace::Layout => layout_toolbar_input(LayoutToolbarArgs {
-            selected_tree_context,
-            show_position_inspector,
-            matrix_transform_inspector,
-            runtime,
-            adapter,
-            workspace,
-            objects_open,
-            inspect_open,
-            inspector_panel_settings,
-            layout_owner,
-            layout_transform_tool,
-            on_selection_kind: on_layout_selection_kind_handler,
-            matrices,
-            toolbar_selection_availability,
-            layer_visibility,
-            layout_snap_settings,
-            layout_command_menu,
-            layout_assembly_3d,
-            on_layout_view_mode,
-            toggle_footprints,
-            layout_selection_kind,
-            component_inspector,
-            layout_transform_target,
-            layout_align,
-            layout_snap_intent,
-        }),
-        Workspace::Case => workspace_composition::WorkspaceToolbarInput::Case,
-        Workspace::Parts => workspace_composition::WorkspaceToolbarInput::Parts,
-        _ => workspace_composition::WorkspaceToolbarInput::Export,
     }
 }
 
 pub(super) struct WsInputs {
     pub on_layout_view_mode: EventHandler<bool>,
-    pub toolbar_input: workspace_composition::WorkspaceToolbarInput,
-    pub canvas_input: Option<workspace_composition::WorkspaceCanvasInput>,
+    pub toolbar_input: Option<layout_workspace::ToolbarInput>,
     pub on_component_inspector_action: EventHandler<inspector::LayoutComponentInspectorAction>,
     pub on_companion_placement_action: EventHandler<inspector::CompanionPlacementAction>,
 }
 
-pub(super) struct WsInputsInput<'a> {
-    pub setup_a: &'a super::setup_bundles::SetupA,
-    pub setup_b: &'a super::setup_bundles::SharedSetup,
-    pub cam: &'a super::camera::CamNamed,
-    pub canvas: &'a super::canvas_state::CanvasNamed,
-    pub wir: &'a super::workspace_inputs::WsWiring,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: &'a Scope,
-    pub matrices: &'a Vec<&'a boardstudio_core::model::Matrix>,
-    pub matrix_setup: &'a objects::MatrixSetupMount,
-    pub instance_scope_pending: bool,
-}
-
-pub(super) fn use_workspace_inputs(input: WsInputsInput<'_>) -> WsInputs {
-    let WsInputsInput {
-        setup_a,
-        setup_b,
-        cam,
-        canvas,
-        wir,
-        snapshot,
-        render_scope,
-        matrices,
-        matrix_setup,
-        instance_scope_pending,
-    } = input;
-    let runtime = &setup_a.editor.runtime();
-    let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.view.layout_owner;
-    let workspace = setup_a.editor.workspace;
-    let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let layout_state = setup_a.layout_state;
+pub(super) fn use_layout_toolbar(
+    state: &super::session_state::SessionState,
+    cam: &super::camera::CamNamed,
+    canvas: &super::canvas_state::CanvasNamed,
+    wir: &super::workspace_inputs::WsWiring,
+    matrices: Vec<&boardstudio_core::model::Matrix>,
+    matrix_setup: &objects::MatrixSetupMount,
+) -> WsInputs {
+    let snapshot = state.snapshot;
+    let render_scope = state.render_scope;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
+    let adapter = &state.adapter;
+    let layout_owner = &state.view.layout_owner;
+    let workspace = editor.workspace;
+    let layout_assembly_3d = state.layout_state.assembly_3d();
+    let layout_state = state.layout_state;
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let interaction_version = cam.placement.interaction_version;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let canvas_interaction = &state.canvas_interaction;
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
+    let tree_cell_anchor = &state.tree_cell_anchor;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let model = &setup_a.view.model;
+    let model = &state.view.model;
     let selected_tree_context = &canvas.selection.selected_tree_context;
-    let active_workspace = setup_a.active_workspace;
+    let active_workspace = state.active_workspace;
     let show_position_inspector = canvas.inspector.show_position_inspector;
-    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let layout_transform_tool = setup_a.layout_transform_tool;
+    let matrix_transform_inspector = &state.matrix_transform_inspector;
+    let objects_open = editor.panels.objects_open;
+    let inspect_open = editor.panels.inspector_open;
+    let inspector_panel_settings = state.inspector_panel_settings;
+    let layout_transform_tool = state.layout_state.transform_tool();
     let on_layout_selection_kind_handler = wir.on_layout_selection_kind_handler;
-    let layer_visibility = setup_a.editor.layers;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let layout_command_menu = setup_a.layout_command_menu;
+    let layer_visibility = editor.layers;
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let layout_command_menu = state.layout_state.command_menu();
     let toggle_footprints = wir.toggle_footprints;
-    let layout_selection_kind = setup_a.layout_selection_kind;
+    let layout_selection_kind = state.layout_state.selection_kind();
     let component_inspector = &canvas.inspector.component_inspector;
     let layout_transform_target = &canvas.selection.layout_transform_target;
-    let layout_align = &setup_a.layout_align;
+    let layout_align = &state.layout_align;
     let layout_snap_intent = wir.layout_snap_intent;
-    let mechanical_settings = &setup_b.mechanical_settings;
-    let current_scope = &setup_a.view.current_scope;
-    let parts_query = setup_a.view.parts_query;
-    let parts_selection = setup_a.view.parts_selection;
-    let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
+    let layout_component_inspector_lifetime = &state.layout_component_inspector_lifetime;
     let on_layout_view_mode = on_layout_view_mode(OnLayoutViewModeArgs {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
@@ -431,46 +311,35 @@ pub(super) fn use_workspace_inputs(input: WsInputsInput<'_>) -> WsInputs {
         selected_tree_context.clone(),
         (active_workspace == Workspace::Layout).then_some(active_workspace),
     );
-    let toolbar_input = toolbar_input(ToolbarInputArgs {
-        active_workspace,
-        toolbar_selection_availability,
-        selected_tree_context: selected_tree_context.clone(),
-        show_position_inspector,
-        matrix_transform_inspector: matrix_transform_inspector.clone(),
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        workspace,
-        objects_open,
-        inspect_open,
-        inspector_panel_settings,
-        layout_owner: layout_owner.clone(),
-        layout_transform_tool,
-        on_layout_selection_kind_handler,
-        matrices: matrices.clone(),
-        layer_visibility,
-        layout_snap_settings,
-        layout_command_menu,
-        layout_assembly_3d,
-        on_layout_view_mode,
-        toggle_footprints,
-        layout_selection_kind,
-        component_inspector: component_inspector.clone(),
-        layout_transform_target: layout_transform_target.clone(),
-        layout_align: layout_align.clone(),
-        layout_snap_intent,
+    let toolbar_input = (active_workspace == Workspace::Layout).then(|| {
+        layout_toolbar_input(LayoutToolbarArgs {
+            toolbar_selection_availability,
+            selected_tree_context: selected_tree_context.clone(),
+            show_position_inspector,
+            matrix_transform_inspector: matrix_transform_inspector.clone(),
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            workspace,
+            objects_open,
+            inspect_open,
+            inspector_panel_settings,
+            layout_owner: layout_owner.clone(),
+            layout_transform_tool,
+            on_selection_kind: on_layout_selection_kind_handler,
+            matrices,
+            layer_visibility,
+            layout_snap_settings,
+            layout_command_menu,
+            layout_assembly_3d,
+            on_layout_view_mode,
+            toggle_footprints,
+            layout_selection_kind,
+            component_inspector: component_inspector.clone(),
+            layout_transform_target: layout_transform_target.clone(),
+            layout_align: layout_align.clone(),
+            layout_snap_intent,
+        })
     });
-    let canvas_input = super::canvas_inspector_inputs::canvas_input(
-        super::canvas_inspector_inputs::CanvasInputArgs {
-            snapshot,
-            mechanical_settings: mechanical_settings.clone(),
-            instance_scope_pending,
-            part_placement: part_placement.clone(),
-            current_scope: current_scope.clone(),
-            parts_query,
-            parts_selection,
-            active_workspace,
-        },
-    );
     let on_component_inspector_action =
         super::canvas_inspector_inputs::on_component_inspector_action_handler(
             runtime.clone(),
@@ -491,7 +360,6 @@ pub(super) fn use_workspace_inputs(input: WsInputsInput<'_>) -> WsInputs {
     WsInputs {
         on_layout_view_mode,
         toolbar_input,
-        canvas_input,
         on_component_inspector_action,
         on_companion_placement_action,
     }

@@ -799,7 +799,7 @@ pub(super) struct NavNamed {
 }
 
 pub(super) fn use_navigation_bundle(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     physical_setup_mount: &pcb_physical_setup::PhysicalSetupMount,
     keycaps_state: &keycaps_workspace::KeycapsWorkspaceState,
     cam: &super::camera::CamNamed,
@@ -807,25 +807,26 @@ pub(super) fn use_navigation_bundle(
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
 ) -> (NavNamed, NavigateFn, bool) {
-    let runtime = &setup_a.editor.runtime();
-    let adapter = &setup_a.adapter;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
+    let adapter = &state.adapter;
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
-    let render_generation = setup_a.render_generation;
-    let instance_preference = setup_a.editor.instance_selection.0;
-    let workspace = setup_a.editor.workspace;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let case_selection = setup_a.case_selection;
+    let render_generation = state.render_generation;
+    let instance_preference = editor.instance_selection.0;
+    let workspace = editor.workspace;
+    let objects_open = editor.panels.objects_open;
+    let inspect_open = editor.panels.inspector_open;
+    let case_selection = state.case_selection;
     let keycaps_navigation_alive = keycaps_state.navigation_alive();
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let layout_owner = &setup_a.view.layout_owner;
-    let layout_findings = setup_a.view.layout_findings;
-    let version = setup_a.editor.version;
-    let observed_version = setup_a.observed_version;
+    let inspector_panel_settings = state.inspector_panel_settings;
+    let layout_owner = &state.view.layout_owner;
+    let layout_findings = state.view.layout_findings;
+    let version = editor.version;
+    let observed_version = state.observed_version;
     let observed_interaction_version = cam.placement.observed_interaction_version;
-    let instance_selection = setup_a.editor.instance_selection;
-    let model = &setup_a.view.model;
+    let instance_selection = editor.instance_selection;
+    let model = &state.view.model;
     let space_down = &cam.placement.space_down;
     let navigate_scoped = navigate_scoped_handler(
         runtime.clone(),

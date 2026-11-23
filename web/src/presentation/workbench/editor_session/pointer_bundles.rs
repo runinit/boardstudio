@@ -1,7 +1,7 @@
 use super::super::*;
 
 pub(super) fn use_pointer_bundle(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     cam: &super::camera::CamNamed,
     render_scope: &Scope,
 ) -> (
@@ -9,26 +9,27 @@ pub(super) fn use_pointer_bundle(
     impl FnMut(PointerEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
 ) {
-    let canvas_navigation = &setup_a.canvas_navigation;
-    let runtime = &setup_a.editor.runtime();
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let canvas_navigation = &state.canvas_navigation;
+    let runtime = &editor.runtime();
     let svg = &cam.svg_surface.svg;
     let drag = &cam.placement.drag;
-    let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.view.layout_owner;
-    let layout_snap_settings = setup_a.layout_snap_settings;
+    let adapter = &state.adapter;
+    let layout_owner = &state.view.layout_owner;
+    let layout_snap_settings = state.layout_state.snap_settings();
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let workspace = setup_a.editor.workspace;
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let tree_cell_anchor = &state.tree_cell_anchor;
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
+    let canvas_interaction = &state.canvas_interaction;
+    let workspace = editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
-    let render_generation = setup_a.render_generation;
+    let render_generation = state.render_generation;
     let interaction_version = cam.placement.interaction_version;
-    let active_workspace = setup_a.active_workspace;
+    let active_workspace = state.active_workspace;
     let space_down = &cam.placement.space_down;
     let move_pointer =
         super::canvas_adapter::move_pointer_handler(super::canvas_adapter::MovePointerInput {
@@ -103,29 +104,30 @@ pub(super) struct PtrNamed {
 }
 
 pub(super) fn build_canvas_pointer(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     cam: &super::camera::CamNamed,
     views: &super::setup_workspaces::Views,
     render_scope: &Scope,
 ) -> PtrNamed {
-    let runtime = &setup_a.editor.runtime();
-    let adapter = &setup_a.adapter;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
+    let adapter = &state.adapter;
     let svg = &cam.svg_surface.svg;
     let space_down = &cam.placement.space_down;
     let drag = &cam.placement.drag;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let canvas_navigation = &setup_a.canvas_navigation;
-    let render_generation = setup_a.render_generation;
+    let canvas_interaction = &state.canvas_interaction;
+    let canvas_navigation = &state.canvas_navigation;
+    let render_generation = state.render_generation;
     let visible_ids = &views.visible_ids;
-    let layout_selection_kind = setup_a.layout_selection_kind;
-    let layout_owner = &setup_a.view.layout_owner;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
-    let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
-    let pending_anchor_pick = setup_a.pending_anchor_pick;
-    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
-    let split_focus = setup_a.split_focus;
-    let workspace = setup_a.editor.workspace;
+    let layout_selection_kind = state.layout_state.selection_kind();
+    let layout_owner = &state.view.layout_owner;
+    let tree_cell_anchor = &state.tree_cell_anchor;
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
+    let pending_splay_origin_pick = state.layout_state.pending_splay_origin_pick();
+    let pending_anchor_pick = state.layout_state.pending_anchor_pick();
+    let matrix_transform_inspector = &state.matrix_transform_inspector;
+    let split_focus = state.layout_state.split_focus();
+    let workspace = editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;

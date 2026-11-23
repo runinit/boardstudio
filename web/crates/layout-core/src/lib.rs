@@ -3,13 +3,11 @@
 //! picking, outline planning and snapping. Everything here compiles natively so
 //! its unit tests run under `cargo test`.
 
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::state::*;
-
 pub mod anchor_badge;
 pub mod anchor_pick;
 pub mod companion_placement;
 pub mod component_inspector;
+pub use component_inspector::layout_component_edits;
 pub mod component_offset;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_fixture;

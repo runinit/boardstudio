@@ -636,34 +636,35 @@ pub(super) struct CamNamed {
 }
 
 pub(super) fn use_camera_bundle(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     views: &super::setup_workspaces::Views,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
     visible_positions: Option<(f64, f64, f64, f64)>,
     matrix_setup: &mut objects::MatrixSetupMount,
 ) -> CamNamed {
-    let runtime = &setup_a.editor.runtime();
-    let adapter = &setup_a.adapter;
-    let workspace = setup_a.editor.workspace;
-    let layout_owner = &setup_a.view.layout_owner;
-    let model = &setup_a.view.model;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
+    let adapter = &state.adapter;
+    let workspace = editor.workspace;
+    let layout_owner = &state.view.layout_owner;
+    let model = &state.view.model;
     let document = &views.document;
     let scene = &views.scene;
-    let active_workspace = setup_a.active_workspace;
-    let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let version = setup_a.editor.version;
-    let layout_selection_kind = setup_a.layout_selection_kind;
-    let guide_preferences = setup_a.guide_preferences;
-    let parts_query = setup_a.view.parts_query;
-    let parts_selection = setup_a.view.parts_selection;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let layout_target = setup_a.view.layout_target;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
-    let canvas_navigation = &setup_a.canvas_navigation;
+    let active_workspace = state.active_workspace;
+    let layout_assembly_3d = state.layout_state.assembly_3d();
+    let version = editor.version;
+    let layout_selection_kind = state.layout_state.selection_kind();
+    let guide_preferences = state.setup_state.guide_preferences();
+    let parts_query = state.view.parts_query;
+    let parts_selection = state.view.parts_selection;
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let layout_target = state.view.layout_target;
+    let objects_open = editor.panels.objects_open;
+    let inspect_open = editor.panels.inspector_open;
+    let canvas_interaction = &state.canvas_interaction;
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
+    let canvas_navigation = &state.canvas_navigation;
     let SvgSurface {
         svg,
         zoom_surface_size,
@@ -699,7 +700,7 @@ pub(super) fn use_camera_bundle(
         model,
     });
     let actions = camera_actions(
-        setup_a.editor,
+        editor,
         adapter,
         layout_owner,
         render_scope,

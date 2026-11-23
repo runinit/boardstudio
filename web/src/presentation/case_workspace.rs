@@ -13,7 +13,7 @@ use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotTo
 use boardstudio_core::model::{
     HardwareTopology, HardwareTransport, MechanicalGasketSupport, ProjectDoc,
 };
-pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
+use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
 use boardstudio_web_ui_shared::inspector_fields::{
     InspectorSection, SelectField, TextField, ToggleField,
 };
@@ -56,17 +56,6 @@ impl CaseWorkspaceState {
     }
     pub(super) fn tree_expanded(self) -> Signal<BTreeSet<String>> {
         self.tree_expanded
-    }
-    pub(super) fn apply_tree_action(
-        self,
-        action: TreeAction,
-        owner: &Admission,
-        on_navigate: EventHandler<(Scope, String, Option<String>)>,
-    ) {
-        apply_tree_action(action, owner, on_navigate);
-    }
-    pub(super) fn apply_display_request(self, request: DisplayRequest, owner: &Admission) {
-        apply_display_request(request, owner);
     }
 }
 
@@ -113,7 +102,7 @@ pub(super) enum DisplayAction {
 }
 
 #[derive(Clone)]
-pub(super) struct Admission {
+struct Admission {
     pub(super) runtime: Rc<Runtime>,
     pub(super) adapter: SelectionAdapter,
     pub(super) case_state: CaseWorkspaceState,
@@ -123,7 +112,7 @@ pub(super) struct Admission {
     pub(super) owner_generation: u64,
 }
 
-pub(super) struct ObjectsInput<'a> {
+struct ObjectsInput<'a> {
     pub(super) model: &'a ReadModel,
     pub(super) scope: Option<Scope>,
     pub(super) instance_scope_pending: bool,
@@ -138,13 +127,13 @@ pub(super) struct ObjectsInput<'a> {
     pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
-pub(super) struct CanvasInput {
+struct CanvasInput {
     pub(super) generation_ready: bool,
     pub(super) instance_scope_pending: bool,
     pub(super) mechanical_settings: Option<MechanicalSettingsProps>,
 }
 
-pub(super) struct InspectorInput {
+struct InspectorInput {
     pub(super) physical_setup: super::pcb_physical_setup::PhysicalSetupMount,
     pub(super) mechanical_settings: MechanicalSettingsState,
     pub(super) instance_scope_pending: bool,
@@ -158,10 +147,7 @@ pub(super) struct InspectorInput {
     pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
-pub(super) fn workspace_display_scene(
-    scene: Option<Rc<CadScene>>,
-    scope: &Scope,
-) -> Option<Rc<CadScene>> {
+fn workspace_display_scene(scene: Option<Rc<CadScene>>, scope: &Scope) -> Option<Rc<CadScene>> {
     scene.filter(|s| {
         crate::case_generation_lifecycle::same_owner_completed_scene_for_display(
             s.exact, &s.scope, scope,
@@ -184,7 +170,7 @@ struct Row {
     visible: bool,
 }
 
-pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
+fn objects(input: ObjectsInput<'_>) -> Element {
     if input.instance_scope_pending {
         return rsx! { p { role: "status", "Selecting physical assembly…" } };
     }
@@ -529,7 +515,7 @@ fn root_exists(doc: &ProjectDoc, board_id: &str, instance_id: Option<&str>) -> b
     }
 }
 
-pub(super) fn apply_tree_action(
+fn apply_tree_action(
     action: TreeAction,
     owner: &Admission,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
@@ -613,7 +599,7 @@ pub(super) fn apply_tree_action(
     }
 }
 
-pub(super) fn apply_display_request(request: DisplayRequest, owner: &Admission) {
+fn apply_display_request(request: DisplayRequest, owner: &Admission) {
     let Some(snap) = validate_owner(owner) else {
         return;
     };
@@ -667,11 +653,11 @@ fn inactive_assembly_navigation(action: &Option<TreeAction>) -> Option<TreeActio
     })
 }
 
-pub(super) fn toolbar() -> Element {
+fn toolbar() -> Element {
     rsx! {}
 }
 
-pub(super) fn canvas(input: CanvasInput) -> Element {
+fn canvas(input: CanvasInput) -> Element {
     if input.instance_scope_pending {
         rsx! { p { role: "status", "Selecting physical assembly…" } }
     } else {
@@ -679,7 +665,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
     }
 }
 
-pub(super) fn inspector(input: InspectorInput) -> Element {
+fn inspector(input: InspectorInput) -> Element {
     let generated = input
         .mechanical_settings
         .props
@@ -895,4 +881,110 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     if !s.remove(id) {
         s.insert(id.to_owned());
     }
+}
+
+pub(super) struct CaseFrame {
+    pub(crate) instance_scope_pending: bool,
+    pub(crate) mechanical_settings: MechanicalSettingsState,
+    pub(crate) physical_setup: super::pcb_physical_setup::PhysicalSetupMount,
+    pub(crate) on_show_configured_board: EventHandler<String>,
+}
+
+#[component]
+pub(super) fn CaseWorkspace() -> Element {
+    use super::workspace_composition::{WorkspaceSurfaces, publish_surfaces, use_frame};
+    use boardstudio_web_ui_model::{Workspace, editor::EditorContext};
+
+    let frame = use_frame();
+    let case = frame.case.as_ref().expect("Case workspace frame");
+    let editor = use_context::<EditorContext>();
+    let adapter = use_context::<SelectionAdapter>();
+    let case_state = use_context::<CaseWorkspaceState>();
+    let selection = case_state.selection();
+    let runtime = editor.runtime();
+    let model = frame.model.as_ref();
+    let scope = frame.owner.scope.clone();
+    let scene = workspace_display_scene(runtime.cad_scene(), &frame.scope);
+    let body = selection
+        .body
+        .read()
+        .as_ref()
+        .filter(|selection| selection.scope == frame.scope)
+        .map(|selection| selection.body_id.clone());
+    let layer = selection.layer_id(&frame.scope);
+    let context = adapter
+        .selected_context
+        .read()
+        .clone()
+        .filter(|selected| selected.scope == frame.scope);
+    let selected_part = context
+        .as_ref()
+        .filter(|selected| {
+            super::selection::context_is_current(model, &selected.scope, &selected.context)
+        })
+        .and_then(|selected| selected_part_summary(model, Some(selected)));
+    let admission = Admission {
+        runtime,
+        adapter: adapter.clone(),
+        case_state,
+        instance_selection: editor.instance_selection,
+        owner_scope: frame.scope.clone(),
+        owner_token: frame.snapshot.token,
+        owner_generation: frame.owner.generation,
+    };
+    let workspace = editor.workspace;
+    let navigate = frame.objects.on_navigate;
+    let action_admission = admission.clone();
+    let on_action = EventHandler::new(move |action| {
+        if workspace() == Workspace::Case {
+            apply_tree_action(action, &action_admission, navigate);
+        }
+    });
+    let on_display = EventHandler::new(move |request| {
+        if workspace() == Workspace::Case {
+            apply_display_request(request, &admission);
+        }
+    });
+    publish_surfaces(
+        use_context(),
+        Workspace::Case,
+        WorkspaceSurfaces {
+            objects: objects(ObjectsInput {
+                model,
+                scope: scope.clone(),
+                instance_scope_pending: case.instance_scope_pending,
+                scene: scene.clone(),
+                selected_context: adapter.selected_context,
+                selected_body_id: body,
+                selected_layer_id: layer.clone(),
+                case_selection: selection,
+                expanded: case_state.tree_expanded(),
+                on_action,
+                on_select: frame.objects.on_select,
+                on_display,
+            }),
+            inspector: inspector(InspectorInput {
+                physical_setup: case.physical_setup.clone(),
+                mechanical_settings: case.mechanical_settings.clone(),
+                instance_scope_pending: case.instance_scope_pending,
+                scope,
+                scene,
+                case_selection: selection,
+                selected_layer_id: layer,
+                selected_context: context,
+                selected_part_summary: selected_part,
+                on_show_configured_board: case.on_show_configured_board,
+                on_display,
+            }),
+            toolbar: toolbar(),
+            canvas: canvas(CanvasInput {
+                generation_ready: case.mechanical_settings.generation_ready,
+                instance_scope_pending: case.instance_scope_pending,
+                mechanical_settings: case.mechanical_settings.props.clone(),
+            }),
+            status: rsx! {},
+            layers: rsx! {},
+        },
+    );
+    rsx! {}
 }

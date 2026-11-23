@@ -17,6 +17,8 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 
+pub(super) mod scene;
+
 type TransformToolOwner = (
     Option<boardstudio_application::Scope>,
     u64,
@@ -30,6 +32,7 @@ type InspectorFieldFailures = (
     Signal<Option<String>>,
 );
 
+#[derive(Clone)]
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
     pub(super) matrix_setup: objects::MatrixSetupMount,
@@ -43,6 +46,7 @@ pub(super) struct ObjectsInput {
     pub(super) add_object_menu_open: Signal<bool>,
 }
 
+#[derive(Clone)]
 pub(super) struct ToolbarInput {
     pub(super) footprints_pressed: bool,
     pub(super) on_toggle_footprints: EventHandler<()>,
@@ -1183,4 +1187,34 @@ mod relation_escape_regression_tests {
         );
         root.remove();
     }
+}
+
+pub(super) struct LayoutFrame {
+    pub(crate) objects: ObjectsInput,
+    pub(crate) inspector: InspectorInput,
+    pub(crate) toolbar: ToolbarInput,
+    pub(crate) scene: scene::LayoutScene,
+}
+
+#[component]
+pub(super) fn LayoutWorkspace() -> Element {
+    use super::workspace_composition::{WorkspaceSurfaces, publish_surfaces, use_frame};
+
+    let frame = use_frame();
+    let layout = frame.layout.as_ref().expect("Layout workspace frame");
+    let input = layout.inspector.clone();
+    let canvas = scene::use_layout_canvas(&frame, &layout.scene);
+    publish_surfaces(
+        use_context(),
+        Workspace::Layout,
+        WorkspaceSurfaces {
+            objects: objects(layout.objects.clone()),
+            inspector: rsx! { LayoutInspector { input } },
+            toolbar: toolbar(layout.toolbar.clone()),
+            canvas,
+            status: rsx! {},
+            layers: rsx! {},
+        },
+    );
+    rsx! {}
 }

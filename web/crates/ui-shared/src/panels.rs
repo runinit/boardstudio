@@ -5,7 +5,7 @@ use crate::ui::{
     sidenav::Sidenav,
     tabs::{Tabs, TabsList, TabsTrigger},
 };
-use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_model::{Workspace, state::CompactPanelState};
 use dioxus::prelude::*;
 use policy::decode_settings;
 pub use policy::{PanelMode, PanelSettings, PanelSide};
@@ -60,7 +60,7 @@ pub fn use_workspace_panel_defaults(
 /// Header controls use the App-owned compact panel signals.
 #[component]
 pub fn CompactPanelControls() -> Element {
-    let state = use_context::<super::CompactPanelState>();
+    let state = use_context::<CompactPanelState>();
     let compact = use_compact_viewport();
     rsx! {
         if compact() {
@@ -126,7 +126,7 @@ fn focus_target_available(target: &HtmlElement) -> bool {
             .is_some_and(|v| v == "visible")
 }
 
-fn toggle_compact_panel(state: super::CompactPanelState, side: PanelSide) {
+fn toggle_compact_panel(state: CompactPanelState, side: PanelSide) {
     let was_open = match side {
         PanelSide::Objects => (state.objects_open)(),
         PanelSide::Inspector => (state.inspector_open)(),
@@ -145,7 +145,7 @@ pub fn DockLayout(
     inspector: Option<Element>,
     children: Element,
 ) -> Element {
-    let state = use_context::<super::CompactPanelState>();
+    let state = use_context::<CompactPanelState>();
     let compact = use_compact_viewport();
     let mut sheet_open = use_signal(|| false);
     let requested_before = use_hook(|| Rc::new(std::cell::Cell::new(false)));

@@ -24,32 +24,10 @@ pub(crate) fn keymap_bounds(
     view: &keymap::KeymapView,
     contours: &[Contour],
 ) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    for key in &view.keys {
-        let angle = key.pose.rotation.to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for (local_x, local_y) in [
-            (-key.size.x / 2.0, -key.size.y / 2.0),
-            (-key.size.x / 2.0, key.size.y / 2.0),
-            (key.size.x / 2.0, -key.size.y / 2.0),
-            (key.size.x / 2.0, key.size.y / 2.0),
-        ] {
-            let x = key.pose.at.x + local_x * cos - local_y * sin;
-            let y = key.pose.at.y + local_x * sin + local_y * cos;
-            include(x, y);
-        }
-    }
-    for contour in contours {
-        for point in &contour.points {
-            include(point.x, point.y);
-        }
-    }
-    bounds
+    layout_camera::key_and_contour_bounds(
+        view.keys.iter().map(|key| (key.pose, key.size)),
+        contours,
+    )
 }
 
 pub(crate) fn keymap_toolbar_height() -> f64 {
@@ -70,33 +48,10 @@ pub(crate) fn keycaps_bounds(
     view: &keycaps_scene::KeycapsView,
     contours: &[Contour],
 ) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    for key in &view.keys {
-        let angle = key.pose.rotation.to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for (local_x, local_y) in [
-            (-key.size.x / 2.0, -key.size.y / 2.0),
-            (-key.size.x / 2.0, key.size.y / 2.0),
-            (key.size.x / 2.0, -key.size.y / 2.0),
-            (key.size.x / 2.0, key.size.y / 2.0),
-        ] {
-            include(
-                key.pose.at.x + local_x * cos - local_y * sin,
-                key.pose.at.y + local_x * sin + local_y * cos,
-            );
-        }
-    }
-    for contour in contours {
-        for point in &contour.points {
-            include(point.x, point.y);
-        }
-    }
-    bounds
+    layout_camera::key_and_contour_bounds(
+        view.keys.iter().map(|key| (key.pose, key.size)),
+        contours,
+    )
 }
 
 pub(crate) fn pcb_bounds(

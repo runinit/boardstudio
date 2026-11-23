@@ -550,7 +550,7 @@ pub(super) struct GuideReadinessInput<'a> {
     pub model: &'a ReadModel,
     pub snapshot: &'a AcceptedSnapshot,
     pub resolution: &'a pcb_wiring::PcbWiringResolution,
-    pub toolbar_input: &'a workspace_composition::WorkspaceToolbarInput,
+    pub toolbar_input: Option<&'a layout_workspace::ToolbarInput>,
     pub layout_assembly_3d: Signal<bool>,
     pub visible: Vec<&'a Part>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
@@ -621,12 +621,7 @@ pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadin
             )
         })
         .unwrap_or_default();
-    let canvas_transform_menu = match toolbar_input {
-        workspace_composition::WorkspaceToolbarInput::Layout(input) => {
-            Some(input.transform.clone())
-        }
-        _ => None,
-    };
+    let canvas_transform_menu = toolbar_input.map(|input| input.transform.clone());
     let selection_geometry_anchor = (!layout_assembly_3d()
         && active_workspace == Workspace::Layout)
         .then(|| {
@@ -689,78 +684,57 @@ pub(super) struct GuideNamed<'a> {
     pub on_finish_guide: EventHandler<()>,
 }
 
-pub(super) struct GuideInput<'a, 'b> {
-    pub setup_a: &'a super::setup_bundles::SetupA,
-    pub setup_b: &'a super::setup_bundles::SharedSetup,
-    pub views: &'b super::setup_workspaces::Views,
-    pub cam: &'b super::camera::CamNamed,
-    pub canvas: &'b super::canvas_state::CanvasNamed,
-    pub inp: &'b super::toolbar_inputs::WsInputs,
-    pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: &'b Scope,
-    pub visible: &'b Vec<&'a Part>,
-    pub matrices: &'b Vec<&'a boardstudio_core::model::Matrix>,
-    pub matrix_setup: &'b objects::MatrixSetupMount,
-}
-
-pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<'a> {
-    let GuideInput {
-        setup_a,
-        setup_b,
-        views,
-        cam,
-        canvas,
-        inp,
-        snapshot,
-        render_scope,
-        visible,
-        matrices,
-        matrix_setup,
-    } = input;
-    let active_workspace = setup_a.active_workspace;
+pub(super) fn use_setup_guide<'a>(
+    state: &'a super::session_state::SessionState<'a>,
+    mechanical_settings: &mechanical_settings::MechanicalSettingsState,
+    cam: &super::camera::CamNamed,
+    selected_tree_context: &Option<objects::ScopedTreeContext>,
+    toolbar_input: Option<&layout_workspace::ToolbarInput>,
+    (visible, matrices): (&[&'a Part], &[&'a boardstudio_core::model::Matrix]),
+    matrix_setup: &objects::MatrixSetupMount,
+) -> GuideNamed<'a> {
+    let views = &state.views;
+    let snapshot = state.snapshot;
+    let render_scope = state.render_scope;
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let active_workspace = state.active_workspace;
     let document = &views.document;
-    let render_generation = setup_a.render_generation;
-    let adapter = &setup_a.adapter;
-    let runtime = &setup_a.editor.runtime();
-    let workspace = setup_a.editor.workspace;
-    let selected_tree_context = &canvas.selection.selected_tree_context;
-    let model = &setup_a.view.model;
+    let render_generation = state.render_generation;
+    let adapter = &state.adapter;
+    let runtime = &editor.runtime();
+    let workspace = editor.workspace;
+    let model = &state.view.model;
     let scene = &views.scene;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
-    let parts_query = setup_a.view.parts_query;
-    let guide_preferences = setup_a.guide_preferences;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let parts_query = state.view.parts_query;
+    let guide_preferences = state.setup_state.guide_preferences();
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
     let guide_wiring_active = guide_preferences().as_ref().is_some_and(|guide| guide.open);
-    let wiring = pcb_wiring::use_pcb_wiring_preview(
-        setup_a.editor.runtime(),
-        setup_a.editor.version,
-        guide_wiring_active,
-    );
+    let wiring =
+        pcb_wiring::use_pcb_wiring_preview(editor.runtime(), editor.version, guide_wiring_active);
     let resolution = &wiring.resolution;
-    let current_scope = &setup_a.view.current_scope;
-    let parts_selection = setup_a.view.parts_selection;
-    let layout_assembly_3d = setup_a.layout_assembly_3d;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
-    let layout_owner = &setup_a.view.layout_owner;
+    let current_scope = &state.view.current_scope;
+    let parts_selection = state.view.parts_selection;
+    let layout_assembly_3d = state.layout_state.assembly_3d();
+    let tree_cell_anchor = &state.tree_cell_anchor;
+    let layout_owner = &state.view.layout_owner;
     let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let outline_inspector = &setup_a.view.outline_inspector;
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let outline_inspector = &state.view.outline_inspector;
     let width = cam.scene_bounds.width;
     let zoom_surface_size = cam.svg_surface.zoom_surface_size;
-    let guide_name_draft = setup_a.guide_name_draft;
-    let guide_name_edit = &setup_a.guide_name_edit;
-    let setup_state = setup_a.setup_state;
-    let requested_workspace_panel = setup_a.requested_workspace_panel;
-    let objects_open = setup_a.editor.panels.objects_open;
-    let inspect_open = setup_a.editor.panels.inspector_open;
-    let objects_panel_settings = setup_a.objects_panel_settings;
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let toolbar_input = &inp.toolbar_input;
+    let guide_name_draft = state.guide_name_edit.draft;
+    let guide_name_edit = &state.guide_name_edit;
+    let setup_state = state.setup_state;
+    let requested_workspace_panel = state.requested_workspace_panel;
+    let objects_open = editor.panels.objects_open;
+    let inspect_open = editor.panels.inspector_open;
+    let objects_panel_settings = state.objects_panel_settings;
+    let inspector_panel_settings = state.inspector_panel_settings;
     let svg = &cam.svg_surface.svg;
     let height = cam.scene_bounds.height;
     let view_x = cam.scene_bounds.view_x;
-    let mechanical_settings = &setup_b.mechanical_settings;
     let GuideState {
         selected_bridge,
         active_part_position,
@@ -779,13 +753,13 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
         workspace,
         selected_tree_context: selected_tree_context.clone(),
         model,
-        visible: visible.clone(),
+        visible: visible.to_vec(),
         scene: scene.clone(),
         part_placement: part_placement.clone(),
         matrix_placement: matrix_placement.clone(),
         parts_query,
         guide_preferences,
-        matrices: matrices.clone(),
+        matrices: matrices.to_vec(),
         mirrored_pair: mirrored_pair.clone(),
         resolution: resolution.clone(),
     });
@@ -811,8 +785,8 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
         setup_wiring_error,
         active_workspace,
         layout_assembly_3d,
-        visible: visible.clone(),
-        matrices: matrices.clone(),
+        visible: visible.to_vec(),
+        matrices: matrices.to_vec(),
         scene: scene.clone(),
         model,
         mirrored_pair: mirrored_pair.clone(),
@@ -873,7 +847,7 @@ pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<
         resolution,
         toolbar_input,
         layout_assembly_3d,
-        visible: visible.clone(),
+        visible: visible.to_vec(),
         scene: scene.clone(),
         svg: svg.clone(),
         zoom_surface_size,

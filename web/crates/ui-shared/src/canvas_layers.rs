@@ -1,11 +1,11 @@
 //! Shared layer control presentation backed by the editor-owned visibility state.
-use super::LayerVisibility;
 use crate::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     item::{Item, ItemSize},
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
+use boardstudio_web_ui_model::state::LayerVisibility;
 use dioxus::prelude::*;
 use std::collections::HashSet;
 

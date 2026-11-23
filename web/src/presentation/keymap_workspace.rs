@@ -1,5 +1,5 @@
 //! Keymap-owned canvas and Inspector composition.
-use super::editor::action_handlers;
+use super::workbench::editor_session::action_handlers;
 use super::workspace_composition::CanvasEventHandlers;
 use super::workspace_composition::{
     WorkspaceInteraction, WorkspaceOutputs, WorkspaceSurfaces, design_toolbar, publish_surfaces,

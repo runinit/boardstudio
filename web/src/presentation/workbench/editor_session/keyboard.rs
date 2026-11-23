@@ -486,7 +486,7 @@ pub(super) fn wheel_handler(input: WheelInput) -> impl FnMut(WheelEvent) + Clone
 }
 
 pub(super) fn build_keyboard_bundle(
-    setup_a: &super::setup_bundles::SetupA,
+    state: &super::session_state::SessionState,
     cam: &super::camera::CamNamed,
     render_scope: &Scope,
 ) -> (
@@ -494,28 +494,29 @@ pub(super) fn build_keyboard_bundle(
     impl FnMut(KeyboardEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
 ) {
-    let runtime = &setup_a.editor.runtime();
+    let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();
+    let runtime = &editor.runtime();
     let drag = &cam.placement.drag;
     let svg = &cam.svg_surface.svg;
     let space_down = &cam.placement.space_down;
-    let mirrored_pair = &setup_a.matrix_pair.mirrored_pair;
+    let mirrored_pair = &state.matrix_pair.mirrored_pair;
     let part_placement = &cam.placement.part_placement;
-    let matrix_placement = &setup_a.matrix_pair.matrix_placement;
-    let canvas_interaction = &setup_a.canvas_interaction;
-    let layout_snap_settings = setup_a.layout_snap_settings;
-    let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
-    let pending_anchor_pick = setup_a.pending_anchor_pick;
-    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
+    let matrix_placement = &state.matrix_pair.matrix_placement;
+    let canvas_interaction = &state.canvas_interaction;
+    let layout_snap_settings = state.layout_state.snap_settings();
+    let pending_splay_origin_pick = state.layout_state.pending_splay_origin_pick();
+    let pending_anchor_pick = state.layout_state.pending_anchor_pick();
+    let matrix_transform_inspector = &state.matrix_transform_inspector;
     let interaction_version = cam.placement.interaction_version;
-    let canvas_navigation = &setup_a.canvas_navigation;
-    let adapter = &setup_a.adapter;
-    let layout_owner = &setup_a.view.layout_owner;
-    let workspace = setup_a.editor.workspace;
+    let canvas_navigation = &state.canvas_navigation;
+    let adapter = &state.adapter;
+    let layout_owner = &state.view.layout_owner;
+    let workspace = editor.workspace;
     let view_x = cam.scene_bounds.view_x;
     let view_y = cam.scene_bounds.view_y;
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
-    let render_generation = setup_a.render_generation;
+    let render_generation = state.render_generation;
     let keyboard = keyboard_handler(KeyboardInput {
         runtime: runtime.clone(),
         drag: drag.clone(),

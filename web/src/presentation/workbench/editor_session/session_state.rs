@@ -4,18 +4,11 @@ use boardstudio_web_ui_model::Workspace;
 
 pub(super) struct LayoutViewState {
     pub spacing_ghost_state: Signal<Option<spacing_ghost::SpacingGhostState>>,
-    pub layout_snap_settings: Signal<objects::LayoutSnapSettings>,
-    pub layout_command_menu: Signal<Option<objects::LayoutCommandMenu>>,
-    pub layout_transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    pub layout_assembly_3d: Signal<bool>,
     pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     pub matrix_inspector: objects::MatrixInspectorMount,
     pub board_inspector: board_inspector::BoardInspectorMount,
     pub key_size: objects::KeySizeMount,
-    pub matrix_splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
-    pub pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    pub pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pub layout_align: objects::LayoutAlignMount,
     pub matrix_setup: objects::MatrixSetupMount,
     pub parts_state: parts_workspace::PartsWorkspaceState,
@@ -73,10 +66,6 @@ pub(super) fn use_layout_view_state(
             }
         }
     });
-    let layout_snap_settings = layout_state.snap_settings();
-    let layout_command_menu = layout_state.command_menu();
-    let layout_transform_tool = layout_state.transform_tool();
-    let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(runtime.clone(), adapter.selected_context);
     let board_inspector = board_inspector::use_board_inspector(
@@ -92,14 +81,11 @@ pub(super) fn use_layout_view_state(
         workspace,
         adapter.generation,
     );
-    let matrix_splay_affect = layout_state.splay_affect();
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         adapter.selected_context,
-        matrix_splay_affect,
+        layout_state.splay_affect(),
     );
-    let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
-    let pending_anchor_pick = layout_state.pending_anchor_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -117,28 +103,221 @@ pub(super) fn use_layout_view_state(
         adapter.generation,
     );
     let parts_state = parts_workspace::use_parts_workspace_state();
+    use_context_provider(|| parts_state);
     let parts_assembly_orientation = parts_state.assembly_orientation();
     let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
     LayoutViewState {
         spacing_ghost_state,
-        layout_snap_settings,
-        layout_command_menu,
-        layout_transform_tool,
-        layout_assembly_3d,
         tree_cell_anchor,
         matrix_inspector,
         board_inspector,
         key_size,
-        matrix_splay_affect,
         matrix_transform_inspector,
-        pending_splay_origin_pick,
-        pending_anchor_pick,
         layout_align,
         matrix_setup,
         parts_state,
         parts_assembly_orientation,
         canvas_interaction,
     }
+}
+
+pub(super) struct SessionState<'a> {
+    pub snapshot: &'a AcceptedSnapshot,
+    pub render_scope: &'a Scope,
+    pub views: super::setup_workspaces::Views,
+    pub objects_panel_settings: Signal<PanelSettings>,
+    pub inspector_panel_settings: Signal<PanelSettings>,
+    pub setup_state: setup_workspace::SetupWorkspaceState,
+    pub guide_name_edit: SetupProjectNameEdit,
+    pub adapter: SelectionAdapter,
+    pub layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
+    pub observed_version: u64,
+    pub case_selection: shared_viewer::CaseSelection,
+    pub layout_state: layout_workspace::LayoutWorkspaceState,
+    pub canvas_navigation: CanvasNavigationState,
+    pub active_workspace: Workspace,
+    pub requested_workspace_panel: Signal<Option<Workspace>>,
+    pub render_generation: u64,
+    pub spacing_ghost_state: Signal<Option<spacing_ghost::SpacingGhostState>>,
+    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    pub matrix_inspector: objects::MatrixInspectorMount,
+    pub board_inspector: board_inspector::BoardInspectorMount,
+    pub key_size: objects::KeySizeMount,
+    pub matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub layout_align: objects::LayoutAlignMount,
+    pub parts_state: parts_workspace::PartsWorkspaceState,
+    pub canvas_interaction: CanvasInteractionArbiter,
+    pub matrix_pair: MatrixPairWiring,
+    pub view: EditorContexts,
+}
+
+pub(super) fn use_session_state<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    render_scope: &'a Scope,
+) -> (
+    SessionState<'a>,
+    WorkspaceRoutingSlots,
+    objects::MatrixSetupMount,
+) {
+    let editor = use_context::<EditorContext>();
+    boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
+    parts::use_assembly_action_provider();
+    let workspace_routing = use_hook(|| WorkspaceRoutingSlots {
+        select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
+        navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
+    });
+    let runtime = editor.runtime();
+    let CompactPanelState {
+        objects_open,
+        inspector_open: inspect_open,
+    } = editor.panels;
+    let preference_warning = use_context::<PreferenceStorageWarning>().0;
+    let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
+    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
+    let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
+    let setup_state = setup_workspace::use_setup_workspace_state(
+        runtime.clone(),
+        created_request_signal,
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+    );
+    let guide_name_edit = use_setup_project_name(runtime.clone());
+    let adapter = use_context::<SelectionAdapter>();
+    let layout_component_inspector_lifetime =
+        use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
+    let observed_version = (editor.version)();
+    let case_workspace_state = case_workspace::use_case_workspace_state();
+    use_context_provider(|| case_workspace_state);
+    let case_selection = case_workspace_state.selection();
+    let workspace = editor.workspace;
+    let layout_state =
+        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
+    use_context_provider(|| layout_state);
+    let canvas_navigation = use_canvas_navigation_state(workspace);
+    let active_workspace = workspace();
+    let requested_workspace_panel =
+        panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
+    let render_generation = (editor.scope_generation)();
+    let LayoutViewState {
+        spacing_ghost_state,
+        tree_cell_anchor,
+        matrix_inspector,
+        board_inspector,
+        key_size,
+        matrix_transform_inspector,
+        layout_align,
+        mut matrix_setup,
+        parts_state,
+        parts_assembly_orientation,
+        canvas_interaction,
+    } = use_layout_view_state(editor, &adapter, layout_state);
+    let matrix_pair = use_matrix_pair_wiring(MatrixPairWiringInput {
+        editor,
+        adapter: adapter.clone(),
+        layout_assembly_3d: layout_state.assembly_3d(),
+        canvas_interaction: canvas_interaction.clone(),
+        layout_state,
+        inspector_panel_settings,
+        parts_assembly_orientation,
+        matrix_setup: &mut matrix_setup,
+    });
+    let view = use_editor_contexts(
+        editor,
+        &adapter,
+        parts_state,
+        &tree_cell_anchor,
+        render_generation,
+        active_workspace,
+    );
+    let views = super::setup_workspaces::derive_views(
+        &view.model,
+        snapshot,
+        view.resolved_document
+            .clone()
+            .unwrap_or_else(|| snapshot.document.clone()),
+    );
+    (
+        SessionState {
+            snapshot,
+            render_scope,
+            views,
+            objects_panel_settings,
+            inspector_panel_settings,
+            setup_state,
+            guide_name_edit,
+            adapter,
+            layout_component_inspector_lifetime,
+            observed_version,
+            case_selection,
+            layout_state,
+            canvas_navigation,
+            active_workspace,
+            requested_workspace_panel,
+            render_generation,
+            spacing_ghost_state,
+            tree_cell_anchor,
+            matrix_inspector,
+            board_inspector,
+            key_size,
+            matrix_transform_inspector,
+            layout_align,
+            parts_state,
+            canvas_interaction,
+            matrix_pair,
+            view,
+        },
+        workspace_routing,
+        matrix_setup,
+    )
+}
+
+pub(super) fn use_case_and_project_setup(
+    state: &SessionState,
+) -> (
+    pcb_physical_setup::PhysicalSetupMount,
+    mechanical_settings::MechanicalSettingsState,
+) {
+    let editor = use_context::<EditorContext>();
+    let runtime = editor.runtime();
+    let workspace = editor.workspace;
+    let version = editor.version;
+    let adapter = &state.adapter;
+    let instance_selection = editor.instance_selection;
+    let guide_preferences = state.setup_state.guide_preferences();
+    let inspect_open = editor.panels.inspector_open;
+    let case_selection = state.case_selection;
+    let model = &state.view.model;
+    let current_scope = &state.view.current_scope;
+    let physical_setup_mount = super::setup_workspaces::use_physical_setup(
+        runtime.clone(),
+        guide_preferences,
+        version,
+        adapter.clone(),
+        instance_selection,
+        workspace,
+    );
+    let on_show_mechanical_finding = super::setup_workspaces::on_show_mechanical_finding_handler(
+        super::setup_workspaces::OnShowMechanicalFindingArgs {
+            runtime: runtime.clone(),
+            current_scope: current_scope.clone(),
+            model,
+            adapter_generation: adapter.generation,
+            workspace,
+            inspect_open,
+            case_selection,
+            instance_selection,
+        },
+    );
+    let mechanical_settings = mechanical_settings::use_mechanical_settings(
+        runtime.clone(),
+        workspace,
+        instance_selection,
+        case_selection,
+        on_show_mechanical_finding,
+    );
+    (physical_setup_mount, mechanical_settings)
 }
 
 pub(super) struct MatrixPairWiringInput<'a> {
@@ -336,7 +515,7 @@ pub(super) struct EditorContexts {
     pub parts_selection_generation: Signal<u64>,
     pub layout_target: Signal<Option<String>>,
     pub has_inspector: bool,
-    pub model: ReadModel,
+    pub model: Rc<ReadModel>,
     pub current_scope: Option<Scope>,
     pub layout_owner: LayoutOwnerIdentity,
     pub layout_findings: boardstudio_web_layout::layout_findings_state::LayoutFindingsState,
@@ -351,7 +530,7 @@ pub(super) fn use_editor_contexts(
     tree_cell_anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     render_generation: u64,
     active_workspace: Workspace,
-) -> (EditorContexts, EventHandler<()>) {
+) -> EditorContexts {
     let runtime = editor.runtime();
     let workspace = editor.workspace;
     let (outline_inspector, outline_activation) = outline_lifecycle::use_outline_lifecycle(
@@ -365,17 +544,7 @@ pub(super) fn use_editor_contexts(
     let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
     let has_inspector = active_workspace != Workspace::Export;
-    let on_parts_select = EventHandler::new({
-        let CompactPanelState {
-            mut objects_open,
-            inspector_open: mut inspect_open,
-        } = editor.panels;
-        move |_| {
-            objects_open.set(false);
-            inspect_open.set(true);
-        }
-    });
-    let model = runtime.model();
+    let model = Rc::new(runtime.model());
     let resolved_doc_cache = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(
@@ -467,22 +636,19 @@ pub(super) fn use_editor_contexts(
     use_effect(use_reactive((&field_preview_context,), move |(_,)| {
         FieldPreview(field_preview).clear();
     }));
-    (
-        EditorContexts {
-            outline_inspector,
-            outline_activation,
-            parts_query,
-            parts_selection,
-            parts_selection_generation,
-            layout_target,
-            has_inspector,
-            model,
-            current_scope,
-            layout_owner,
-            layout_findings,
-            field_preview,
-            resolved_document,
-        },
-        on_parts_select,
-    )
+    EditorContexts {
+        outline_inspector,
+        outline_activation,
+        parts_query,
+        parts_selection,
+        parts_selection_generation,
+        layout_target,
+        has_inspector,
+        model,
+        current_scope,
+        layout_owner,
+        layout_findings,
+        field_preview,
+        resolved_document,
+    }
 }

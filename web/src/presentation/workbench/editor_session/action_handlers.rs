@@ -308,53 +308,6 @@ pub(in crate::presentation) fn on_pcb_wiring_edit_board_handler(
     })
 }
 
-pub(super) fn case_admission(
-    runtime: Rc<Runtime>,
-    adapter: SelectionAdapter,
-    case_state: case_workspace::CaseWorkspaceState,
-    instance_selection: InstanceSelection,
-    owner_scope: Scope,
-    owner_token: boardstudio_application::SnapshotToken,
-    owner_generation: u64,
-) -> case_workspace::Admission {
-    case_workspace::Admission {
-        runtime,
-        adapter,
-        case_state,
-        instance_selection,
-        owner_scope,
-        owner_token,
-        owner_generation,
-    }
-}
-
-pub(super) fn on_case_action_handler(
-    admission: case_workspace::Admission,
-    navigate: EventHandler<(Scope, String, Option<String>)>,
-    workspace: Signal<Workspace>,
-    case_workspace_state: case_workspace::CaseWorkspaceState,
-) -> EventHandler<case_workspace::TreeAction> {
-    EventHandler::new(move |action| {
-        if workspace() != Workspace::Case {
-            return;
-        }
-        case_workspace_state.apply_tree_action(action, &admission, navigate);
-    })
-}
-
-pub(super) fn on_case_display_handler(
-    admission: case_workspace::Admission,
-    workspace: Signal<Workspace>,
-    case_workspace_state: case_workspace::CaseWorkspaceState,
-) -> EventHandler<case_workspace::DisplayRequest> {
-    EventHandler::new(move |request| {
-        if workspace() != Workspace::Case {
-            return;
-        }
-        case_workspace_state.apply_display_request(request, &admission);
-    })
-}
-
 pub(in crate::presentation) fn on_keymap_layer_handler(
     runtime: Rc<Runtime>,
     adapter: SelectionAdapter,

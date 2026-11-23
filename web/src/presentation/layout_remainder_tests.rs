@@ -1,16 +1,16 @@
 //! The Layout actions outside the Component Inspector land through resolution: keyboard
 //! nudges, the old position Inspector's commit, and constraint set/remove. Every test runs
 //! against the real Session and Core with the first Core reply gated, so edits queue.
-use super::inspector::LayoutConstraintValues;
-use super::layout_component_edits::{
-    constraint_resolver, offset_axes_resolver, remove_constraint_resolver,
-};
 use crate::operation_outcomes::{EditOutcome, Settlement};
 use crate::runtime::Runtime;
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
     Side, Vec2,
 };
+use boardstudio_web_layout::component_inspector::layout_component_edits::{
+    constraint_resolver, offset_axes_resolver, remove_constraint_resolver,
+};
+use boardstudio_web_layout::component_offset::LayoutConstraintValues;
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
 use std::rc::Rc;

@@ -1,5 +1,4 @@
 //! Keycaps-owned workspace surface composition.
-use super::editor::findings_navigation;
 use super::keycaps_fit::{FindingNavigationRequest, KeycapsFitInspector, KeycapsFitState};
 use super::keycaps_scene::{KeycapsCanvas, KeycapsKeyList, KeycapsView};
 use super::keycaps_settings::{
@@ -7,6 +6,7 @@ use super::keycaps_settings::{
     KeycapsSettingsEditor, SelectedKeySettings,
 };
 use super::objects;
+use super::workbench::editor_session::findings_navigation;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::workspace_composition::{
     WorkspaceInteraction, WorkspaceOutputs, WorkspaceSurfaces, design_toolbar, publish_surfaces,
