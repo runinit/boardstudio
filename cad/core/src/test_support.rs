@@ -1,7 +1,9 @@
 //! Fixtures that build prepared cases the way Core hands them to the kernel, so kernel
 //! tests exercise `build_case` and not a second builder.
 use crate::{ExactModel, build_case};
-use boardstudio_contracts::{CaseBody, CaseKind, PreparedCaseIR, PreparedCaseRegion, Vec2};
+use boardstudio_contracts::{
+    CaseBody, CaseFeature, CaseKind, PreparedCaseIR, PreparedCaseRegion, Vec2,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProfileKind {
@@ -77,6 +79,51 @@ pub fn bounds_of(points: impl IntoIterator<Item = [f64; 3]>) -> [[f64; 3]; 2] {
         }
     }
     bounds
+}
+
+/// A cylindrical `RoundSeat` cutout at `(x, y)` spanning `z..z + height`.
+pub fn round_seat(id: &str, x: f64, y: f64, z: f64, height: f64, diameter: f64) -> CaseFeature {
+    CaseFeature::RoundSeat {
+        id: id.into(),
+        at: Vec2 { x, y },
+        z,
+        height,
+        diameter,
+    }
+}
+
+/// A conical `ConicalSeat` cutout at `(x, y)` spanning `z..z + height`.
+pub fn conical_seat(
+    id: &str,
+    x: f64,
+    y: f64,
+    z: f64,
+    height: f64,
+    diameter: f64,
+    end_diameter: f64,
+) -> CaseFeature {
+    CaseFeature::ConicalSeat {
+        id: id.into(),
+        at: Vec2 { x, y },
+        z,
+        height,
+        diameter,
+        end_diameter,
+    }
+}
+
+/// Asserts a builder rejects its input with an error containing every fragment.
+/// `context` names the rejected case for the failure message.
+#[track_caller]
+pub fn assert_rejected_all<T>(result: Result<T, String>, fragments: &[&str], context: &str) {
+    match result {
+        Ok(_) => panic!("{context}"),
+        Err(error) => {
+            for fragment in fragments {
+                assert!(error.contains(fragment), "{error}");
+            }
+        }
+    }
 }
 
 /// Asserts a builder rejects its input with an error containing `fragment`.

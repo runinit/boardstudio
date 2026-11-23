@@ -1,6 +1,7 @@
 pub(super) use super::brep::{Point3, Vector3};
 use super::*;
 use crate::export_tests::{StepRecords, assert_step_round_trip, id, list, num, step_text};
+use crate::test_support::{assert_rejected, assert_rejected_all, conical_seat, round_seat};
 use boardstudio_contracts::*;
 pub(super) use cgmath::prelude::*;
 pub(super) use oracle::*;
@@ -149,17 +150,67 @@ fn plate() -> PreparedCaseIR {
             holes: vec![],
             cavities: vec![],
             gaskets: vec![],
-            mounts: vec![Mount {
-                id: "through-hole".into(),
-                at: Vec2 { x: 10., y: 8. },
-                kind: MountKind::Hole,
-                hole_diameter: 2.,
-                boss_diameter: None,
-                height: None,
-            }],
+            mounts: vec![hole_mount("through-hole", 10., 8., 2.)],
         }],
     }
 }
+fn tray_input() -> PreparedCaseIR {
+    let mut input = plate();
+    make_tray(&mut input);
+    input
+}
+
+fn make_tray(input: &mut PreparedCaseIR) {
+    input.body.kind = CaseKind::Tray;
+    input.body.thickness = 2.;
+    input.body.wall_height = Some(4.);
+    input.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
+}
+
+fn set_boss(input: &mut PreparedCaseIR, boss_diameter: f64) {
+    let mount = &mut input.regions[0].mounts[0];
+    mount.kind = MountKind::Boss;
+    mount.hole_diameter = 1.;
+    mount.boss_diameter = Some(boss_diameter);
+    mount.height = Some(3.);
+}
+
+fn wall_opening(x: f64, y: f64, w: f64, h: f64, z: f64, height: f64) -> CaseOpening {
+    CaseOpening {
+        points: rectangle(x, y, w, h),
+        z,
+        height,
+    }
+}
+
+fn hole_mount(id: &str, x: f64, y: f64, diameter: f64) -> Mount {
+    Mount {
+        id: id.into(),
+        at: Vec2 { x, y },
+        kind: MountKind::Hole,
+        hole_diameter: diameter,
+        boss_diameter: None,
+        height: None,
+    }
+}
+
+fn boss_mount_at(id: &str, x: f64, y: f64, hole: f64, boss: f64, height: f64) -> Mount {
+    Mount {
+        id: id.into(),
+        at: Vec2 { x, y },
+        kind: MountKind::Boss,
+        hole_diameter: hole,
+        boss_diameter: Some(boss),
+        height: Some(height),
+    }
+}
+
+macro_rules! prepared_input {
+    ($path:literal) => {
+        serde_json::from_str(include_str!($path)).unwrap()
+    };
+}
+
 #[test]
 fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
     let model = build_layered_case(&plate()).expect("layered through-hole");
@@ -195,12 +246,8 @@ fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
 
 #[test]
 fn original_round_seat_chain_matches_independent_volume_and_material() {
-    let mut input = plate();
-    input.body.kind = CaseKind::Tray;
-    input.body.thickness = 2.;
-    input.body.wall_height = Some(4.);
+    let mut input = tray_input();
     input.regions[0].mounts.clear();
-    input.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
     input.regions[0].holes = vec![rectangle(8., 6., 4., 4.)];
     input.body.features = Some(vec![
         CaseFeature::SupportPrism {
@@ -209,13 +256,7 @@ fn original_round_seat_chain_matches_independent_volume_and_material() {
             z: 1.,
             height: 4.,
         },
-        CaseFeature::RoundSeat {
-            id: "round".into(),
-            at: Vec2 { x: 4.5, y: 4.5 },
-            z: 3.,
-            height: 4.,
-            diameter: 1.4,
-        },
+        round_seat("round", 4.5, 4.5, 3., 4., 1.4),
     ]);
     verify(
         &input,
@@ -326,16 +367,8 @@ fn verify(
 }
 #[test]
 fn boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss() {
-    let mut input = plate();
-    input.body.kind = CaseKind::Tray;
-    input.body.thickness = 2.;
-    input.body.wall_height = Some(4.);
-    input.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
-    let mount = &mut input.regions[0].mounts[0];
-    mount.kind = MountKind::Boss;
-    mount.hole_diameter = 1.;
-    mount.boss_diameter = Some(4.);
-    mount.height = Some(3.);
+    let mut input = tray_input();
+    set_boss(&mut input, 4.);
     verify(
         &input,
         1152. + 10.75 * std::f64::consts::PI,
@@ -353,26 +386,11 @@ fn boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss() {
 }
 #[test]
 fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
-    let mut boss = plate();
-    boss.body.kind = CaseKind::Tray;
-    boss.body.thickness = 2.;
-    boss.body.wall_height = Some(4.);
-    boss.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
-    let mount = &mut boss.regions[0].mounts[0];
-    mount.kind = MountKind::Boss;
-    mount.hole_diameter = 1.;
-    mount.boss_diameter = Some(4.);
-    mount.height = Some(3.);
+    let mut boss = tray_input();
+    set_boss(&mut boss, 4.);
     let mut cone = plate();
     cone.regions[0].mounts.clear();
-    cone.body.features = Some(vec![CaseFeature::ConicalSeat {
-        id: "countersink".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: 2.,
-        height: 2.,
-        diameter: 4.,
-        end_diameter: 2.,
-    }]);
+    cone.body.features = Some(vec![conical_seat("countersink", 10., 8., 2., 2., 4., 2.)]);
     let is_cone = |input: &PreparedCaseIR| input.body.kind == CaseKind::Plate;
     for (input, exact_volume, test_points) in [
         (
@@ -455,16 +473,8 @@ fn direct_band_walls_follow_independent_boss_hole_and_cone_sections() {
 #[test]
 fn opening_subdivides_a_boss_arc_and_its_horizontal_caps() {
     let mut input = plate();
-    let mount = &mut input.regions[0].mounts[0];
-    mount.kind = MountKind::Boss;
-    mount.hole_diameter = 1.;
-    mount.boss_diameter = Some(6.);
-    mount.height = Some(3.);
-    input.body.openings = Some(vec![CaseOpening {
-        points: rectangle(11., 4., 4., 8.),
-        z: 5.,
-        height: 1.,
-    }]);
+    set_boss(&mut input, 6.);
+    input.body.openings = Some(vec![wall_opening(11., 4., 4., 8., 5., 1.)]);
 
     let model = crate::build_case(&input).expect("opening clips the circular wall in one band");
     let solids = direct_analysis(&model, Some(0.0005));
@@ -502,7 +512,7 @@ fn boss_no_wider_than_its_hole_is_rejected() {
     mount.kind = MountKind::Boss;
     mount.boss_diameter = Some(mount.hole_diameter);
     mount.height = Some(3.);
-    crate::test_support::assert_rejected(
+    assert_rejected(
         build_layered_case(&input),
         "wider than its hole",
         "boss without a wall was built",
@@ -525,7 +535,7 @@ fn far_near_collinear_hole_is_an_error_not_a_panic() {
         v(hole_x, lower_y),
         v(hole_x, upper_y),
     ]];
-    crate::test_support::assert_rejected(
+    assert_rejected(
         build_layered_case(&input),
         "'plate'",
         "out-of-range ring was built",
@@ -548,7 +558,7 @@ fn out_of_range_hole_point_is_rejected() {
         },
         Vec2 { x: 1., y: 2. },
     ]];
-    crate::test_support::assert_rejected(
+    assert_rejected(
         build_layered_case(&input),
         "'plate'",
         "out-of-range hole was built",
@@ -559,7 +569,7 @@ fn invalid_mount_positions_are_rejected() {
     for (x, y) in [(f64::NAN, 8.), (10., 2_000_000.)] {
         let mut input = plate();
         input.regions[0].mounts[0].at = Vec2 { x, y };
-        crate::test_support::assert_rejected(
+        assert_rejected(
             build_layered_case(&input),
             "'plate'",
             &format!("invalid mount was built: {x:?}, {y:?}"),
@@ -587,13 +597,7 @@ fn ring_vertex_exactly_at_the_limit_builds() {
 fn round_seat_touching_plate_top_preserves_material_without_boolean() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.features = Some(vec![CaseFeature::RoundSeat {
-        id: "flush-top".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: 4.,
-        height: 2.,
-        diameter: 2.,
-    }]);
+    input.body.features = Some(vec![round_seat("flush-top", 10., 8., 4., 2., 2.)]);
     verify(
         &input,
         1280.,
@@ -607,14 +611,7 @@ fn round_seat_touching_plate_top_preserves_material_without_boolean() {
 fn countersink_uses_exact_cone_and_independent_frustum_integral() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.features = Some(vec![CaseFeature::ConicalSeat {
-        id: "countersink".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: 2.,
-        height: 2.,
-        diameter: 4.,
-        end_diameter: 2.,
-    }]);
+    input.body.features = Some(vec![conical_seat("countersink", 10., 8., 2., 2., 4., 2.)]);
     let (_, step) = verify(
         &input,
         1280. - 14. * std::f64::consts::PI / 3.,
@@ -653,17 +650,9 @@ fn countersink_uses_exact_cone_and_independent_frustum_integral() {
 }
 #[test]
 fn cavity_and_wall_opening_keep_exact_horizontal_profile_differences() {
-    let mut input = plate();
-    input.body.kind = CaseKind::Tray;
-    input.body.thickness = 2.;
-    input.body.wall_height = Some(4.);
+    let mut input = tray_input();
     input.regions[0].mounts.clear();
-    input.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
-    input.body.openings = Some(vec![CaseOpening {
-        points: rectangle(-1., 6., 4., 4.),
-        z: 3.,
-        height: 2.,
-    }]);
+    input.body.openings = Some(vec![wall_opening(-1., 6., 4., 4., 3., 2.)]);
     verify(
         &input,
         1136.,
@@ -684,45 +673,39 @@ fn cavity_and_wall_opening_keep_exact_horizontal_profile_differences() {
 fn cone_crossing_vertical_wall_is_rejected_with_feature_identity() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.features = Some(vec![CaseFeature::ConicalSeat {
-        id: "wall-crossing-seat".into(),
-        at: Vec2 { x: 0.5, y: 8. },
-        z: 2.,
-        height: 2.,
-        diameter: 4.,
-        end_diameter: 2.,
-    }]);
-    let error = build_layered_case(&input)
-        .err()
-        .expect("cross-wall cone is unsupported");
-    assert!(
-        error.contains("wall-crossing-seat") && error.contains("vertical wall"),
-        "{error}"
+    input.body.features = Some(vec![conical_seat(
+        "wall-crossing-seat",
+        0.5,
+        8.,
+        2.,
+        2.,
+        4.,
+        2.,
+    )]);
+    assert_rejected_all(
+        build_layered_case(&input),
+        &["wall-crossing-seat", "vertical wall"],
+        "cross-wall cone is unsupported",
     );
 }
 
 #[test]
 fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
-    let input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/cone-clipped-height.json"
-    ))
-    .unwrap();
+    let input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/cone-clipped-height.json");
     let model = crate::build_case(&input).expect("height-clipped exact cone");
     assert_eq!(model.test_solids().len(), 1);
     let solid = &model.test_solids()[0];
     assert_eq!(solid.boundaries().len(), 1);
-    Solid::try_new(solid.boundaries()).expect("closed consistently oriented native topology");
-    assert!(solid.is_geometric_consistent());
+    check_solid(solid);
     let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!((mesh.volume() - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.065);
 }
 
 #[test]
 fn adoption_overlapping_openings_preserve_collinear_authored_segments() {
-    let input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/overlapping-openings-lineage.json"
-    ))
-    .unwrap();
+    let input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/overlapping-openings-lineage.json");
     verify(
         &input,
         1208.,
@@ -740,10 +723,8 @@ fn adoption_overlapping_openings_preserve_collinear_authored_segments() {
 
 #[test]
 fn adoption_ring_island_blind_cut_preserves_connected_floor() {
-    let input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/opening-ring-island.json"
-    ))
-    .unwrap();
+    let input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/opening-ring-island.json");
     verify(
         &input,
         1116., // Existing independent oracle: 1280 - (48 + 42 - 8) * 2.
@@ -798,10 +779,8 @@ fn adoption_ring_island_product_removes_only_the_authored_blind_union() {
 
 #[test]
 fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
-    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/opening-ring-island.json"
-    ))
-    .unwrap();
+    let mut input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/opening-ring-island.json");
     for opening in input.body.openings.as_mut().unwrap() {
         opening.z = 0.;
         opening.height = 4.;
@@ -815,8 +794,7 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
     let mut volumes = Vec::new();
     for solid in model.test_solids() {
         assert_eq!(solid.boundaries().len(), 1);
-        Solid::try_new(solid.boundaries()).unwrap();
-        assert!(solid.is_geometric_consistent());
+        check_solid(solid);
         volumes.push(
             shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
                 .unwrap()
@@ -844,18 +822,11 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
 
 #[test]
 fn adoption_ring_island_retains_disjoint_through_holes_in_either_opening_order() {
-    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/opening-ring-island.json"
-    ))
-    .unwrap();
-    input.regions[0].mounts.push(Mount {
-        id: "disjoint-round-through-hole".into(),
-        at: Vec2 { x: 18., y: 8. },
-        kind: MountKind::Hole,
-        hole_diameter: 1.,
-        boss_diameter: None,
-        height: None,
-    });
+    let mut input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/opening-ring-island.json");
+    input.regions[0]
+        .mounts
+        .push(hole_mount("disjoint-round-through-hole", 18., 8., 1.));
     let rectangle = CaseOpening {
         points: rectangle(1., 1., 1., 1.),
         z: 0.,
@@ -892,10 +863,8 @@ fn adoption_ring_island_retains_disjoint_through_holes_in_either_opening_order()
 
 #[test]
 fn adoption_ring_island_retains_another_owned_cut_in_either_authoring_order() {
-    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../tests/fixtures/adoption/opening-ring-island.json"
-    ))
-    .unwrap();
+    let mut input: PreparedCaseIR =
+        prepared_input!("../../tests/fixtures/adoption/opening-ring-island.json");
     input.body.openings.as_mut().unwrap().push(CaseOpening {
         points: rectangle(8., 7., 4., 2.),
         z: 2.,
@@ -1025,13 +994,7 @@ fn authored_close_height_boundaries_are_retained_exactly() {
     let mut input = plate();
     input.regions[0].mounts.clear();
     let low = 4. - 0.0001;
-    input.body.features = Some(vec![CaseFeature::RoundSeat {
-        id: "thin-depth".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: low,
-        height: 0.0001,
-        diameter: 2.,
-    }]);
+    input.body.features = Some(vec![round_seat("thin-depth", 10., 8., low, 0.0001, 2.)]);
     let model = build_layered_case(&input).expect("authored thin cut");
     let vertices: Vec<_> = model.test_solids()[0]
         .boundaries()
@@ -1048,17 +1011,12 @@ fn authored_close_height_boundaries_are_retained_exactly() {
 fn enclosed_void_is_refused_instead_of_emitting_a_second_body() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.features = Some(vec![CaseFeature::RoundSeat {
-        id: "sealed-seat".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: 1.,
-        height: 1.,
-        diameter: 2.,
-    }]);
-    let error = build_layered_case(&input)
-        .err()
-        .expect("sealed void ownership is outside this prototype");
-    assert!(error.contains("disconnected"), "{error}");
+    input.body.features = Some(vec![round_seat("sealed-seat", 10., 8., 1., 1., 2.)]);
+    assert_rejected(
+        build_layered_case(&input),
+        "disconnected",
+        "sealed void ownership is outside this prototype",
+    );
 }
 
 fn cylinder_senses(text: &str) -> Vec<(f64, bool)> {
@@ -1082,32 +1040,33 @@ fn cylinder_senses(text: &str) -> Vec<(f64, bool)> {
     result.sort_by(|a, b| a.0.total_cmp(&b.0));
     result
 }
+/// Asserts the exact merged-cylinder senses of a built case's STEP text.
+#[track_caller]
+fn assert_cylinder_senses(model: &crate::ExactModel, expected: &[(f64, bool)], context: &str) {
+    assert_eq!(
+        cylinder_senses(&step_text(model)),
+        expected.to_vec(),
+        "{context}"
+    );
+}
+
 #[test]
 fn exact_step_cylinder_face_senses_match_holes_and_boss_material() {
     let input = plate();
     let model = build_layered_case(&input).unwrap();
-    let step = step_text(&model);
-    assert_eq!(
-        cylinder_senses(&step),
-        vec![(1., false)],
-        "through-hole cylinder must point into its void"
+    assert_cylinder_senses(
+        &model,
+        &[(1., false)],
+        "through-hole cylinder must point into its void",
     );
     let mut input = input;
-    input.body.kind = CaseKind::Tray;
-    input.body.thickness = 2.;
-    input.body.wall_height = Some(4.);
-    input.regions[0].cavities = vec![rectangle(2., 2., 16., 12.)];
-    let mount = &mut input.regions[0].mounts[0];
-    mount.kind = MountKind::Boss;
-    mount.hole_diameter = 1.;
-    mount.boss_diameter = Some(4.);
-    mount.height = Some(3.);
+    make_tray(&mut input);
+    set_boss(&mut input, 4.);
     let model = build_layered_case(&input).unwrap();
-    let step = step_text(&model);
-    assert_eq!(
-        cylinder_senses(&step),
-        vec![(0.5, false), (2., true)],
-        "hole inward, boss exterior outward"
+    assert_cylinder_senses(
+        &model,
+        &[(0.5, false), (2., true)],
+        "hole inward, boss exterior outward",
     );
 }
 
@@ -1115,22 +1074,8 @@ fn exact_step_cylinder_face_senses_match_holes_and_boss_material() {
 fn reviewed_authored_mount_order_preserves_later_boss_hole() {
     let mut input = plate();
     input.regions[0].mounts = vec![
-        Mount {
-            id: "first-hole".into(),
-            at: Vec2 { x: 10., y: 8. },
-            kind: MountKind::Hole,
-            hole_diameter: 3.,
-            boss_diameter: None,
-            height: None,
-        },
-        Mount {
-            id: "later-boss".into(),
-            at: Vec2 { x: 10., y: 8. },
-            kind: MountKind::Boss,
-            hole_diameter: 1.,
-            boss_diameter: Some(4.),
-            height: Some(2.),
-        },
+        hole_mount("first-hole", 10., 8., 3.),
+        boss_mount_at("later-boss", 10., 8., 1., 4., 2.),
     ];
     let model = build_layered_case(&input).expect("authored mixed mount sequence");
     let solid = &model.test_solids()[0];
@@ -1140,57 +1085,35 @@ fn reviewed_authored_mount_order_preserves_later_boss_hole() {
         "authored order volume {}",
         mesh.volume()
     );
-    let step = step_text(&model);
-    assert_eq!(
-        cylinder_senses(&step),
-        vec![(0.5, false), (1.5, false), (2., true)]
-    );
+    assert_cylinder_senses(&model, &[(0.5, false), (1.5, false), (2., true)], "");
 }
 #[test]
 fn reviewed_sealed_opening_is_refused_with_opening_context() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.openings = Some(vec![CaseOpening {
-        points: rectangle(8., 6., 4., 4.),
-        z: 1.,
-        height: 1.,
-    }]);
-    let error = build_layered_case(&input)
-        .err()
-        .expect("sealed void must never become a material body");
-    assert!(
-        error.contains("opening-0") && error.contains("sealed"),
-        "{error}"
+    input.body.openings = Some(vec![wall_opening(8., 6., 4., 4., 1., 1.)]);
+    assert_rejected_all(
+        build_layered_case(&input),
+        &["opening-0", "sealed"],
+        "sealed void must never become a material body",
     );
 }
 #[test]
 fn reviewed_unrepresentable_positive_span_is_refused_with_feature_context() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.features = Some(vec![CaseFeature::RoundSeat {
-        id: "collapsed-depth".into(),
-        at: Vec2 { x: 10., y: 8. },
-        z: 1.,
-        height: 1e-17,
-        diameter: 2.,
-    }]);
-    let error = build_layered_case(&input)
-        .err()
-        .expect("positive authored height cannot disappear");
-    assert!(
-        error.contains("collapsed-depth") && error.contains("height"),
-        "{error}"
+    input.body.features = Some(vec![round_seat("collapsed-depth", 10., 8., 1., 1e-17, 2.)]);
+    assert_rejected_all(
+        build_layered_case(&input),
+        &["collapsed-depth", "height"],
+        "positive authored height cannot disappear",
     );
 }
 #[test]
 fn outward_material_split_by_opening_remains_two_valid_solids() {
     let mut input = plate();
     input.regions[0].mounts.clear();
-    input.body.openings = Some(vec![CaseOpening {
-        points: rectangle(8., -1., 4., 18.),
-        z: 0.,
-        height: 4.,
-    }]);
+    input.body.openings = Some(vec![wall_opening(8., -1., 4., 18., 0., 4.)]);
     let model = build_layered_case(&input).expect("valid outward split bodies");
     let direct = direct_analysis(&model, None);
     assert_eq!(direct.len(), 2);
@@ -1201,7 +1124,7 @@ fn outward_material_split_by_opening_remains_two_valid_solids() {
     }
     assert_eq!(model.test_solids().len(), 2);
     for solid in model.test_solids() {
-        Solid::try_new(solid.boundaries()).unwrap();
+        check_solid(solid);
         let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 512.).abs() < 1e-8);
     }

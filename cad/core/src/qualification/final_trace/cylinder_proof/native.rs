@@ -339,6 +339,7 @@ fn plane(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::round_seat;
     use crate::{
         layered::brep::EdgeUse,
         mesh_profile_for_analysis,
@@ -372,6 +373,39 @@ mod tests {
             height: None,
         }]);
         input
+    }
+
+    fn mutated(
+        mesh: &GeneratedAnalysisMesh,
+        apply: impl FnOnce(&mut GeneratedAnalysisMesh),
+    ) -> GeneratedAnalysisMesh {
+        let mut bad = mesh.clone();
+        apply(&mut bad);
+        bad
+    }
+
+    fn duplicate_triangle(mesh: &GeneratedAnalysisMesh, face: usize) -> GeneratedAnalysisMesh {
+        mutated(mesh, |bad| {
+            let tag = bad.triangle_face_occurrence_indices[face];
+            bad.triangle_face_occurrence_indices.push(tag);
+            bad.positions_mm_f64
+                .extend_from_within(face * 9..(face + 1) * 9);
+            bad.mesh
+                .positions
+                .extend_from_within(face * 9..(face + 1) * 9);
+            bad.mesh
+                .normals
+                .extend_from_within(face * 9..(face + 1) * 9);
+        })
+    }
+
+    fn remove_triangle(mesh: &GeneratedAnalysisMesh, face: usize) -> GeneratedAnalysisMesh {
+        mutated(mesh, |bad| {
+            bad.triangle_face_occurrence_indices.remove(face);
+            bad.positions_mm_f64.drain(face * 9..(face + 1) * 9);
+            bad.mesh.positions.drain(face * 9..(face + 1) * 9);
+            bad.mesh.normals.drain(face * 9..(face + 1) * 9);
+        })
     }
 
     fn drilled_plate() -> PreparedCaseIR {
@@ -432,26 +466,19 @@ mod tests {
             // final surface points. The unit cylinder is the nearest source
             // face there (caps are 1 mm away and the rectangle is farther).
             let mut observed = 0.0_f64;
-            for (positions, &tag) in mesh
-                .positions_mm_f64
-                .as_chunks::<9>()
-                .0
-                .iter()
-                .zip(&mesh.triangle_face_occurrence_indices)
-            {
-                if mesh.source_faces[tag].support_kind != "REVOLUTION_SURFACE" {
+            for (face, source) in mesh.source_faces.iter().enumerate() {
+                if source.support_kind != "REVOLUTION_SURFACE" {
                     continue;
                 }
-                let [a, b, c] = std::array::from_fn(|i| {
-                    let i = i * 3;
-                    [positions[i], positions[i + 1], positions[i + 2]]
-                });
-                for (a, b) in [(a, b), (b, c), (c, a)] {
-                    if a[2] == b[2] {
-                        continue;
+                for tri in face_triangles(&mesh, face) {
+                    let [a, b, c] = *tri;
+                    for (a, b) in [(a, b), (b, c), (c, a)] {
+                        if a[2] == b[2] {
+                            continue;
+                        }
+                        let r = ((a[0] + b[0]) / 2. - 10.).hypot((a[1] + b[1]) / 2. - 8.);
+                        observed = observed.max((1. - r).abs());
                     }
-                    let r = ((a[0] + b[0]) / 2. - 10.).hypot((a[1] + b[1]) / 2. - 8.);
-                    observed = observed.max((1. - r).abs());
                 }
             }
             assert!(observed > 0. && bound >= observed, "{bound} < {observed}");
@@ -499,39 +526,41 @@ mod tests {
             ));
         };
 
-        let mut bad = mesh.clone();
-        bad.source_faces[1].face_index = 0;
-        assert_unknown(bad);
-        let mut bad = mesh.clone();
-        bad.triangle_face_occurrence_indices[0] = bad.source_faces.len();
-        assert_unknown(bad);
-        let mut bad = mesh.clone();
-        bad.mesh.positions[0] = bad.mesh.positions[0].next_up();
-        assert_unknown(bad);
-        let mut bad = mesh.clone();
-        let i = bad
+        assert_unknown(mutated(&mesh, |bad| {
+            bad.source_faces[1].face_index = 0;
+        }));
+        assert_unknown(mutated(&mesh, |bad| {
+            bad.triangle_face_occurrence_indices[0] = bad.source_faces.len();
+        }));
+        assert_unknown(mutated(&mesh, |bad| {
+            bad.mesh.positions[0] = bad.mesh.positions[0].next_up();
+        }));
+        let i = mesh
             .triangle_face_occurrence_indices
             .iter()
-            .position(|&tag| bad.source_faces[tag].support_kind == "REVOLUTION_SURFACE")
+            .position(|&tag| mesh.source_faces[tag].support_kind == "REVOLUTION_SURFACE")
             .unwrap();
         let z = (i * 9..(i + 1) * 9)
             .skip(2)
             .step_by(3)
-            .find(|&j| bad.positions_mm_f64[j] == 2.)
+            .find(|&j| mesh.positions_mm_f64[j] == 2.)
             .expect("cylinder triangle reaches the top");
-        bad.positions_mm_f64[z] = bad.positions_mm_f64[z].next_up();
+        let bad = mutated(&mesh, |bad| {
+            bad.positions_mm_f64[z] = bad.positions_mm_f64[z].next_up();
+        });
         assert_eq!(bad.positions_mm_f64[z] as f32, bad.mesh.positions[z]);
         assert_unknown(bad);
 
         // Move every occurrence of the top elevation, so the mutated shell
         // still closes exactly and all rendered positions are byte-identical.
         // The plane evidence must detect the new f64 surface.
-        let mut bad = mesh.clone();
-        for z in bad.positions_mm_f64.iter_mut().skip(2).step_by(3) {
-            if *z == 2. {
-                *z = z.next_up();
+        let bad = mutated(&mesh, |bad| {
+            for z in bad.positions_mm_f64.iter_mut().skip(2).step_by(3) {
+                if *z == 2. {
+                    *z = z.next_up();
+                }
             }
-        }
+        });
         let tris = bad
             .positions_mm_f64
             .as_chunks::<9>()
@@ -553,19 +582,8 @@ mod tests {
             Err("final triangles leave their native plane" | "uncovered rectangular cap")
         ));
 
-        let mut bad = mesh.clone();
-        let tag = bad.triangle_face_occurrence_indices[i];
-        bad.triangle_face_occurrence_indices.push(tag);
-        bad.positions_mm_f64.extend_from_within(i * 9..(i + 1) * 9);
-        bad.mesh.positions.extend_from_within(i * 9..(i + 1) * 9);
-        bad.mesh.normals.extend_from_within(i * 9..(i + 1) * 9);
-        assert_unknown(bad);
-        let mut bad = mesh;
-        bad.triangle_face_occurrence_indices.remove(i);
-        bad.positions_mm_f64.drain(i * 9..(i + 1) * 9);
-        bad.mesh.positions.drain(i * 9..(i + 1) * 9);
-        bad.mesh.normals.drain(i * 9..(i + 1) * 9);
-        assert_unknown(bad);
+        assert_unknown(duplicate_triangle(&mesh, i));
+        assert_unknown(remove_triangle(&mesh, i));
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -577,13 +595,7 @@ mod tests {
         let top = 2.0_f64;
         let breaks = [top.next_down(), top.next_down().next_down()];
         assert!(breaks.iter().all(|&z| z < top && z as f32 == top as f32));
-        let cut = |x, z| CaseFeature::RoundSeat {
-            id: format!("sub-ulp-seat-{z}"),
-            at: Vec2 { x, y: 5. },
-            z,
-            height: top - z,
-            diameter: 2.,
-        };
+        let cut = |x, z| round_seat(&format!("sub-ulp-seat-{z}"), x, 5., z, top - z, 2.);
         // Two outside cutters introduce consecutive collapsed strips without
         // changing material. Both rectangle walls and the bore traverse them.
         input.body.features = Some(breaks.map(|z| cut(40., z)).into());
@@ -638,13 +650,14 @@ mod tests {
         mount.boss_diameter = Some(4.);
         mount.height = Some(5.);
         mount.hole_diameter = 1.;
-        input.body.features = Some(vec![CaseFeature::RoundSeat {
-            id: "counterbore".into(),
-            at: mount.at,
-            z: 5.,
-            height: 2.,
-            diameter: 2.,
-        }]);
+        input.body.features = Some(vec![round_seat(
+            "counterbore",
+            mount.at.x,
+            mount.at.y,
+            5.,
+            2.,
+            2.,
+        )]);
         let model = crate::build_case(&input).unwrap();
         let (topology, faces) = model.shells().next().unwrap();
         let prepared = prepare_generated_analysis(&model, Some(0.01)).unwrap();
@@ -811,13 +824,7 @@ mod tests {
         input.regions[0].mounts.clear();
         input.body.features = Some(
             [5., 15.]
-                .map(|x| CaseFeature::RoundSeat {
-                    id: format!("seat-{x}"),
-                    at: Vec2 { x, y: 8. },
-                    z: 1.,
-                    height: 1.,
-                    diameter: 2.,
-                })
+                .map(|x| round_seat(&format!("seat-{x}"), x, 8., 1., 1., 2.))
                 .into(),
         );
         let model = crate::build_case(&input).unwrap();
