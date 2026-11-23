@@ -318,9 +318,9 @@ fn construction_definition_with_support(
 
 /// The generator normalizer for an intent: reversible layouts re-normalize
 /// through the generators, everything else passes definitions through.
-fn normalize_for_intent(
-    intent: &crate::physical_setup::SetupIntent,
-) -> fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String> {
+type SetupNormalize = fn(&PartDefinition, bool) -> Result<(PartDefinition, bool), String>;
+
+fn normalize_for_intent(intent: &crate::physical_setup::SetupIntent) -> SetupNormalize {
     use crate::physical_setup::SetupIntent;
     match intent {
         SetupIntent::ReversibleLayout(_) => {
