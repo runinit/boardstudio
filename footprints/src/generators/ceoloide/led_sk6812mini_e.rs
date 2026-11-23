@@ -11,6 +11,7 @@ use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
 use crate::types::PartKind;
+use std::fmt::Write as _;
 
 static PARAMS: [ParamSpec; 20] = [
     ParamSpec::SIDE,
@@ -51,6 +52,139 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
     },
     body: crate::registry::Body::Text(body),
 };
+
+fn push_led_segment(out: &mut String, start: &str, end: &str, width: &str, layer: &str, net: u32) {
+    let _ = write!(
+        out,
+        "\n  (segment (start {start}) (end {end}) (width {width}) (layer \"{layer}.Cu\") (net {net}))"
+    );
+}
+
+fn push_led_via(out: &mut String, at: &str, size: &str, drill: &str, net: u32) {
+    let _ = write!(
+        out,
+        "\n  (via (at {at}) (size {size}) (drill {drill}) (layers \"F.Cu\" \"B.Cu\") (net {net}))"
+    );
+}
+
+fn led_traces(p: &RenderContext<'_>, reverse_mount: bool) -> String {
+    let (top, bottom) = if reverse_mount {
+        ("F", "B")
+    } else {
+        ("B", "F")
+    };
+    let vcc = n(p.number("vcc_trace_width"));
+    let signal = n(p.number("signal_trace_width"));
+    let gnd = n(p.number("gnd_trace_width"));
+    let size = n(p.number("via_size"));
+    let drill = n(p.number("via_drill"));
+    let (p1, p2, p3, p4) = (
+        p.net("P1").index,
+        p.net("P2").index,
+        p.net("P3").index,
+        p.net("P4").index,
+    );
+    let mut out = String::from("\n  \n");
+    for (s, e) in [
+        ((3.4, -0.7), (4.06, -0.105916)),
+        ((4.06, -0.105916), (4.06, 0.7)),
+        ((2.7, -0.7), (3.4, -0.7)),
+    ] {
+        push_led_segment(
+            &mut out,
+            &p.eaxy(s.0, s.1),
+            &p.eaxy(e.0, e.1),
+            &vcc,
+            top,
+            p1,
+        );
+    }
+    push_led_via(&mut out, &p.eaxy(4.06, 0.7), &size, &drill, p1);
+    push_led_segment(
+        &mut out,
+        &p.eaxy(2.7, 0.7),
+        &p.eaxy(4.06, 0.7),
+        &vcc,
+        bottom,
+        p1,
+    );
+    out.push_str("\n  \n");
+    push_led_segment(
+        &mut out,
+        &p.eaxy(4.95, -0.7),
+        &p.eaxy(2.7, -0.7),
+        &signal,
+        bottom,
+        p2,
+    );
+    push_led_via(&mut out, &p.eaxy(4.95, -0.7), &size, &drill, p2);
+    for (s, e) in [
+        ((2.7, 0.7), (3.481, 1.485)),
+        ((3.481, 1.485), (4.529, 1.485)),
+        ((4.95, 1.06), (4.95, -0.7)),
+        ((4.529, 1.485), (4.95, 1.06)),
+    ] {
+        push_led_segment(
+            &mut out,
+            &p.eaxy(s.0, s.1),
+            &p.eaxy(e.0, e.1),
+            &signal,
+            top,
+            p2,
+        );
+    }
+    out.push_str("\n  \n");
+    for (s, e) in [
+        ((-3.4, -0.7), (-4.06, -0.105916)),
+        ((-4.06, -0.105916), (-4.06, 0.7)),
+        ((-2.7, -0.7), (-3.4, -0.7)),
+    ] {
+        push_led_segment(
+            &mut out,
+            &p.eaxy(s.0, s.1),
+            &p.eaxy(e.0, e.1),
+            &gnd,
+            bottom,
+            p3,
+        );
+    }
+    push_led_via(&mut out, &p.eaxy(-4.06, 0.7), &size, &drill, p3);
+    push_led_segment(
+        &mut out,
+        &p.eaxy(-2.7, 0.7),
+        &p.eaxy(-4.06, 0.7),
+        &gnd,
+        top,
+        p3,
+    );
+    out.push_str("\n  \n");
+    push_led_segment(
+        &mut out,
+        &p.eaxy(-4.95, -0.7),
+        &p.eaxy(-2.7, -0.7),
+        &signal,
+        top,
+        p4,
+    );
+    push_led_via(&mut out, &p.eaxy(-4.95, -0.7), &size, &drill, p4);
+    for (s, e) in [
+        ((-2.7, 0.7), (-3.481, 1.485)),
+        ((-3.481, 1.485), (-4.529, 1.485)),
+        ((-4.95, 1.06), (-4.95, -0.7)),
+        ((-4.529, 1.485), (-4.95, 1.06)),
+    ] {
+        push_led_segment(
+            &mut out,
+            &p.eaxy(s.0, s.1),
+            &p.eaxy(e.0, e.1),
+            &signal,
+            bottom,
+            p4,
+        );
+    }
+    out.push_str("\n    ");
+    out
+}
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
     // Default orientation follows the mounting variant; an explicit rotation wins.
@@ -110,20 +244,16 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e6 = p.ref_hide(),
     );
 
-    let marks_reversed = String::from(
-        r####"
+    const MARKS_REVERSED: &str = r####"
     (fp_line (start -0.8 -1.4) (end -0.8 1.4) (layer "Dwgs.User") (stroke (width 0.12) (type solid)))
     (fp_line (start 0.8 -1.4) (end 0.8 1.4) (layer "Dwgs.User") (stroke (width 0.12) (type solid)))
     (fp_line (start -1 -1.4) (end -1 1.4) (layer "Dwgs.User") (stroke (width 0.12) (type solid)))
     (fp_line (start 1 -1.4) (end 1 1.4) (layer "Dwgs.User") (stroke (width 0.12) (type solid)))
-    "####,
-    );
+    "####;
 
-    let marks_straight = String::from(
-        r####"
+    const MARKS_STRAIGHT: &str = r####"
     (fp_line (start -1.6 -0.7) (end -0.8 -1.4) (layer "Dwgs.User") (stroke (width 0.12) (type solid)))
-    "####,
-    );
+    "####;
 
     let front_reversed = format!(
         r####"
@@ -189,139 +319,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e4 = p.net("P4"),
     );
 
-    let standard_closing = String::from(
-        r####"
+    const STANDARD_CLOSING: &str = r####"
     (fp_rect (start -1.8 -1.55) (end 1.8 1.55) (layer "Edge.Cuts") (stroke (width 0.12) (type solid)) (fill none))
   )
-    "####,
-    );
+    "####;
 
-    let traces_vias_reversed = format!(
-        r####"
-  {e0}
-  (segment (start {e1}) (end {e2}) (width {e3}) (layer "F.Cu") (net {e4}))
-  (segment (start {e2}) (end {e5}) (width {e3}) (layer "F.Cu") (net {e4}))
-  (segment (start {e6}) (end {e1}) (width {e3}) (layer "F.Cu") (net {e4}))
-  (via (at {e5}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e4}))
-  (segment (start {e9}) (end {e5}) (width {e3}) (layer "B.Cu") (net {e4}))
-  {e10}
-  (segment (start {e11}) (end {e6}) (width {e12}) (layer "B.Cu") (net {e13}))
-  (via (at {e11}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e13}))
-  (segment (start {e9}) (end {e14}) (width {e12}) (layer "F.Cu") (net {e13}))
-  (segment (start {e14}) (end {e15}) (width {e12}) (layer "F.Cu") (net {e13}))
-  (segment (start {e16}) (end {e11}) (width {e12}) (layer "F.Cu") (net {e13}))
-  (segment (start {e15}) (end {e16}) (width {e12}) (layer "F.Cu") (net {e13}))
-  {e17}
-  (segment (start {e18}) (end {e19}) (width {e20}) (layer "B.Cu") (net {e21}))
-  (segment (start {e19}) (end {e22}) (width {e20}) (layer "B.Cu") (net {e21}))
-  (segment (start {e23}) (end {e18}) (width {e20}) (layer "B.Cu") (net {e21}))
-  (via (at {e22}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e21}))
-  (segment (start {e24}) (end {e22}) (width {e20}) (layer "F.Cu") (net {e21}))
-  {e25}
-  (segment (start {e26}) (end {e23}) (width {e12}) (layer "F.Cu") (net {e27}))
-  (via (at {e26}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e27}))
-  (segment (start {e24}) (end {e28}) (width {e12}) (layer "B.Cu") (net {e27}))
-  (segment (start {e28}) (end {e29}) (width {e12}) (layer "B.Cu") (net {e27}))
-  (segment (start {e30}) (end {e26}) (width {e12}) (layer "B.Cu") (net {e27}))
-  (segment (start {e29}) (end {e30}) (width {e12}) (layer "B.Cu") (net {e27}))
-    "####,
-        e0 = "",
-        e1 = p.eaxy(3.4, -0.7),
-        e2 = p.eaxy(4.06, -0.105916),
-        e3 = n(p.number("vcc_trace_width")),
-        e4 = p.net("P1").index,
-        e5 = p.eaxy(4.06, 0.7),
-        e6 = p.eaxy(2.7, -0.7),
-        e7 = n(p.number("via_size")),
-        e8 = n(p.number("via_drill")),
-        e9 = p.eaxy(2.7, 0.7),
-        e10 = "",
-        e11 = p.eaxy(4.95, -0.7),
-        e12 = n(p.number("signal_trace_width")),
-        e13 = p.net("P2").index,
-        e14 = p.eaxy(3.481, 1.485),
-        e15 = p.eaxy(4.529, 1.485),
-        e16 = p.eaxy(4.95, 1.06),
-        e17 = "",
-        e18 = p.eaxy(-3.4, -0.7),
-        e19 = p.eaxy(-4.06, -0.105916),
-        e20 = n(p.number("gnd_trace_width")),
-        e21 = p.net("P3").index,
-        e22 = p.eaxy(-4.06, 0.7),
-        e23 = p.eaxy(-2.7, -0.7),
-        e24 = p.eaxy(-2.7, 0.7),
-        e25 = "",
-        e26 = p.eaxy(-4.95, -0.7),
-        e27 = p.net("P4").index,
-        e28 = p.eaxy(-3.481, 1.485),
-        e29 = p.eaxy(-4.529, 1.485),
-        e30 = p.eaxy(-4.95, 1.06),
-    );
-
-    let traces_vias_straight = format!(
-        r####"
-  {e0}
-  (segment (start {e1}) (end {e2}) (width {e3}) (layer "B.Cu") (net {e4}))
-  (segment (start {e2}) (end {e5}) (width {e3}) (layer "B.Cu") (net {e4}))
-  (segment (start {e6}) (end {e1}) (width {e3}) (layer "B.Cu") (net {e4}))
-  (via (at {e5}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e4}))
-  (segment (start {e9}) (end {e5}) (width {e3}) (layer "F.Cu") (net {e4}))
-  {e10}
-  (segment (start {e11}) (end {e6}) (width {e12}) (layer "F.Cu") (net {e13}))
-  (via (at {e11}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e13}))
-  (segment (start {e9}) (end {e14}) (width {e12}) (layer "B.Cu") (net {e13}))
-  (segment (start {e14}) (end {e15}) (width {e12}) (layer "B.Cu") (net {e13}))
-  (segment (start {e16}) (end {e11}) (width {e12}) (layer "B.Cu") (net {e13}))
-  (segment (start {e15}) (end {e16}) (width {e12}) (layer "B.Cu") (net {e13}))
-  {e17}
-  (segment (start {e18}) (end {e19}) (width {e20}) (layer "F.Cu") (net {e21}))
-  (segment (start {e19}) (end {e22}) (width {e20}) (layer "F.Cu") (net {e21}))
-  (segment (start {e23}) (end {e18}) (width {e20}) (layer "F.Cu") (net {e21}))
-  (via (at {e22}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e21}))
-  (segment (start {e24}) (end {e22}) (width {e20}) (layer "B.Cu") (net {e21}))
-  {e25}
-  (segment (start {e26}) (end {e23}) (width {e12}) (layer "B.Cu") (net {e27}))
-  (via (at {e26}) (size {e7}) (drill {e8}) (layers "F.Cu" "B.Cu") (net {e27}))
-  (segment (start {e24}) (end {e28}) (width {e12}) (layer "F.Cu") (net {e27}))
-  (segment (start {e28}) (end {e29}) (width {e12}) (layer "F.Cu") (net {e27}))
-  (segment (start {e30}) (end {e26}) (width {e12}) (layer "F.Cu") (net {e27}))
-  (segment (start {e29}) (end {e30}) (width {e12}) (layer "F.Cu") (net {e27}))
-    "####,
-        e0 = "",
-        e1 = p.eaxy(3.4, -0.7),
-        e2 = p.eaxy(4.06, -0.105916),
-        e3 = n(p.number("vcc_trace_width")),
-        e4 = p.net("P1").index,
-        e5 = p.eaxy(4.06, 0.7),
-        e6 = p.eaxy(2.7, -0.7),
-        e7 = n(p.number("via_size")),
-        e8 = n(p.number("via_drill")),
-        e9 = p.eaxy(2.7, 0.7),
-        e10 = "",
-        e11 = p.eaxy(4.95, -0.7),
-        e12 = n(p.number("signal_trace_width")),
-        e13 = p.net("P2").index,
-        e14 = p.eaxy(3.481, 1.485),
-        e15 = p.eaxy(4.529, 1.485),
-        e16 = p.eaxy(4.95, 1.06),
-        e17 = "",
-        e18 = p.eaxy(-3.4, -0.7),
-        e19 = p.eaxy(-4.06, -0.105916),
-        e20 = n(p.number("gnd_trace_width")),
-        e21 = p.net("P3").index,
-        e22 = p.eaxy(-4.06, 0.7),
-        e23 = p.eaxy(-2.7, -0.7),
-        e24 = p.eaxy(-2.7, 0.7),
-        e25 = "",
-        e26 = p.eaxy(-4.95, -0.7),
-        e27 = p.net("P4").index,
-        e28 = p.eaxy(-3.481, 1.485),
-        e29 = p.eaxy(-4.529, 1.485),
-        e30 = p.eaxy(-4.95, 1.06),
-    );
-
-    let courtyard_front = String::from(
-        r####"
+    const COURTYARD: &str = r####"
     (fp_poly
       (pts
         (xy 1.6 -1.05)
@@ -351,42 +354,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 			)
       (layer "B.CrtYd")
     )
-    "####,
-    );
-
-    let courtyard_back = String::from(
-        r####"
-    (fp_poly
-      (pts
-        (xy 1.6 -1.05)
-        (xy 2.94 -1.05)
-        (xy 2.94 -0.37)
-        (xy 1.6 -0.37)
-        (xy 1.6 0.35)
-        (xy 2.94 0.35)
-        (xy 2.94 1.03)
-        (xy 1.6 1.03)
-        (xy 1.6 1.4)
-        (xy -1.6 1.4)
-        (xy -1.6 1.03)
-        (xy -2.94 1.03)
-        (xy -2.94 0.35)
-        (xy -1.6 0.35)
-        (xy -1.6 -0.37)
-        (xy -2.94 -0.37)
-        (xy -2.94 -1.05)
-        (xy -1.6 -1.05)
-        (xy -1.6 -1.4)
-        (xy 1.6 -1.4)
-      )
-			(stroke
-				(width 0.1)
-				(type solid)
-			)
-      (layer "B.CrtYd")
-    )
-    "####,
-    );
+    "####;
 
     let keepout = format!(
         r####"
@@ -450,41 +418,37 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     let mut out = standard_opening;
     if side == "F" || reversible {
         if reverse_mount {
-            out += &marks_reversed;
+            out += MARKS_REVERSED;
             out += &front_reversed;
         } else {
-            out += &marks_straight;
+            out += MARKS_STRAIGHT;
             out += &front;
         }
         if p.flag("include_courtyard") {
-            out += &courtyard_front;
+            out += COURTYARD;
         }
     }
     if side == "B" || reversible {
         if reverse_mount {
             out += &back_reversed;
-            out += &marks_reversed;
+            out += MARKS_REVERSED;
         } else {
-            out += &marks_straight;
+            out += MARKS_STRAIGHT;
             out += &back;
         }
         if p.flag("include_courtyard") {
-            out += &courtyard_back;
+            out += COURTYARD;
         }
     }
     if !p.text("led_3dmodel_filename").is_empty() {
         out += &led_3dmodel;
     }
-    out += &standard_closing;
+    out += STANDARD_CLOSING;
     if p.flag("include_keepout") {
         out += &keepout;
     }
     if reversible && p.flag("include_traces_vias") {
-        out += if reverse_mount {
-            &traces_vias_reversed
-        } else {
-            &traces_vias_straight
-        };
+        out += &led_traces(p, reverse_mount);
     }
     Ok(out)
 }

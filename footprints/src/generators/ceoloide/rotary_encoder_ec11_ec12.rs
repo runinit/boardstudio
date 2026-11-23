@@ -7,7 +7,7 @@
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::json_string;
+use crate::generators::util::{json_string, kicad_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -212,37 +212,32 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e3 = n(p.number("mounting_holes_width"))
     );
 
-    let plate_hole = String::from(
-        r####"
+    const PLATE_HOLE: &str = r####"
     (fp_rect (start -5.9 -6) (end 5.9 6) (layer "Dwgs.User") (stroke (width 0.15) (type solid)) (fill none))
-    "####,
+    "####;
+
+    let encoder_3dmodel = kicad_model(
+        p.text("encoder_3dmodel_filename"),
+        [
+            p.component("encoder_3dmodel_xyz_offset", 0),
+            p.component("encoder_3dmodel_xyz_offset", 1),
+            p.component("encoder_3dmodel_xyz_offset", 2),
+        ],
+        [
+            p.component("encoder_3dmodel_xyz_scale", 0),
+            p.component("encoder_3dmodel_xyz_scale", 1),
+            p.component("encoder_3dmodel_xyz_scale", 2),
+        ],
+        [
+            p.component("encoder_3dmodel_xyz_rotation", 0),
+            p.component("encoder_3dmodel_xyz_rotation", 1),
+            p.component("encoder_3dmodel_xyz_rotation", 2),
+        ],
     );
 
-    let encoder_3dmodel = format!(
-        r####"
-    (model {e0}
-      (offset (xyz {e1} {e2} {e3}))
-      (scale (xyz {e4} {e5} {e6}))
-      (rotate (xyz {e7} {e8} {e9}))
-    )
-    "####,
-        e0 = json_string(p.text("encoder_3dmodel_filename")),
-        e1 = n(p.component("encoder_3dmodel_xyz_offset", 0)),
-        e2 = n(p.component("encoder_3dmodel_xyz_offset", 1)),
-        e3 = n(p.component("encoder_3dmodel_xyz_offset", 2)),
-        e4 = n(p.component("encoder_3dmodel_xyz_scale", 0)),
-        e5 = n(p.component("encoder_3dmodel_xyz_scale", 1)),
-        e6 = n(p.component("encoder_3dmodel_xyz_scale", 2)),
-        e7 = n(p.component("encoder_3dmodel_xyz_rotation", 0)),
-        e8 = n(p.component("encoder_3dmodel_xyz_rotation", 1)),
-        e9 = n(p.component("encoder_3dmodel_xyz_rotation", 2))
-    );
-
-    let common_bottom = String::from(
-        r####"
+    const COMMON_BOTTOM: &str = r####"
   )
-    "####,
-    );
+    "####;
 
     let mut out = common_top;
     if p.flag("include_momentary_switch_pads") {
@@ -254,11 +249,11 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         &npth_mp
     };
     if p.flag("include_plate_hole_marking") {
-        out += &plate_hole;
+        out += PLATE_HOLE;
     }
     if !p.text("encoder_3dmodel_filename").is_empty() {
         out += &encoder_3dmodel;
     }
-    out += &common_bottom;
+    out += COMMON_BOTTOM;
     Ok(out)
 }

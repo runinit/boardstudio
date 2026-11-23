@@ -93,8 +93,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e3 = p.ref_hide()
     );
 
-    let front = String::from(
-        r####"
+    const FRONT: &str = r####"
         (fp_circle (center 0 -9.75) (end -2.15 -9.75) (layer F.CrtYd) (width 0.05))
         (fp_circle (center 0 -9.75) (end -1.9 -9.75) (layer Cmts.User) (width 0.15))
         (fp_circle (center 0 9.75) (end -2.15 9.75) (layer F.CrtYd) (width 0.05))
@@ -105,20 +104,16 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_text user %R (at 0 0 180) (layer F.Fab)
           (effects (font (size 1 1) (thickness 0.15)))
         )
-    "####,
-    );
+    "####;
 
-    let back = String::from(
-        r####"
+    const BACK: &str = r####"
         (fp_circle (center 0 0) (end -3.95 0) (layer B.CrtYd) (width 0.05))
         (fp_circle (center 0 0) (end -3.7 0) (layer Cmts.User) (width 0.15))
         (fp_circle (center 0 9.75) (end -2.15 9.75) (layer B.CrtYd) (width 0.05))
         (fp_circle (center 0 -9.75) (end -2.15 -9.75) (layer B.CrtYd) (width 0.05))
-    "####,
-    );
+    "####;
 
-    let outline_t430_front = String::from(
-        r####"
+    const OUTLINE_T430_FRONT: &str = r####"
         (fp_line (start -4.5 -12.75) (end -9.5 -7.25) (layer F.Fab) (width 0.2))
         (fp_line (start -9.5 7.25) (end -4.5 12.75) (layer F.Fab) (width 0.2))
         (fp_line (start 6.5 8) (end 6.5 -8) (layer F.Fab) (width 0.2))
@@ -132,11 +127,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 8.5 5.5) (end 8.5 -5.5) (layer F.Fab) (width 0.2))
         (fp_line (start 8.5 -5.5) (end 6.5 -5.5) (layer F.Fab) (width 0.2))
         (fp_line (start 8.5 5.5) (end 6.5 5.5) (layer F.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_t430_back = String::from(
-        r####"
+    const OUTLINE_T430_BACK: &str = r####"
         (fp_line (start -4.5 12.75) (end -9.5 7.25) (layer B.Fab) (width 0.2))
         (fp_line (start 9.5 -8) (end 9.5 -12.75) (layer B.Fab) (width 0.12))
         (fp_line (start 9.5 8) (end 9.5 12.75) (layer B.Fab) (width 0.2))
@@ -150,11 +143,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 8.5 -5.5) (end 8.5 5.5) (layer B.Fab) (width 0.2))
         (fp_line (start 8.5 -5.5) (end 6.5 -5.5) (layer B.Fab) (width 0.2))
         (fp_line (start 8.5 5.5) (end 6.5 5.5) (layer B.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_x240_front = String::from(
-        r####"
+    const OUTLINE_X240_FRONT: &str = r####"
         (fp_line (start 12.25 -6.5) (end 6.75 -6.5) (layer F.Fab) (width 0.2))
         (fp_line (start 12.25 6.5) (end 6.75 6.5) (layer F.Fab) (width 0.2))
         (fp_line (start 12.25 6.5) (end 12.25 -6.5) (layer F.Fab) (width 0.2))
@@ -162,11 +153,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 6.75 -11.5) (end -6.75 -11.5) (layer F.Fab) (width 0.2))
         (fp_line (start -6.75 11.5) (end -6.75 -11.5) (layer F.Fab) (width 0.2))
         (fp_line (start 6.75 11.5) (end 6.75 -11.5) (layer F.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_x240_back = String::from(
-        r####"
+    const OUTLINE_X240_BACK: &str = r####"
         (fp_line (start 12.25 -6.5) (end 6.75 -6.5) (layer B.Fab) (width 0.2))
         (fp_line (start 12.25 -6.5) (end 12.25 6.5) (layer B.Fab) (width 0.2))
         (fp_line (start 6.75 -11.5) (end -6.75 -11.5) (layer B.Fab) (width 0.2))
@@ -174,11 +163,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start -6.75 -11.5) (end -6.75 11.5) (layer B.Fab) (width 0.2))
         (fp_line (start 6.75 -11.5) (end 6.75 11.5) (layer B.Fab) (width 0.2))
         (fp_line (start 12.25 6.5) (end 6.75 6.5) (layer B.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_x240_board = String::from(
-        r####"
+    const OUTLINE_X240_BOARD: &str = r####"
         (fp_line (start 39.25 12) (end 23.25 12) (layer Dwgs.User) (width 0.2))
         (fp_line (start 23.25 5.5) (end 23.25 12) (layer Dwgs.User) (width 0.2))
         (fp_line (start 23.25 -5.5) (end 23.25 5.5) (layer Dwgs.User) (width 0.2))
@@ -188,11 +175,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 39.25 -22) (end 23.25 -22) (layer Dwgs.User) (width 0.2))
         (fp_line (start 23.25 -22) (end 23.25 -5.5) (layer Dwgs.User) (width 0.2))
         (fp_line (start 12.25 -5.5) (end 12.25 5.5) (layer Dwgs.User) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_t460s_front = String::from(
-        r####"
+    const OUTLINE_T460S_FRONT: &str = r####"
         (fp_line (start 2.75 6.5) (end 6.25 3) (layer F.Fab) (width 0.2))
         (fp_line (start 2.75 11.5) (end -2.75 11.5) (layer F.Fab) (width 0.2))
         (fp_line (start -6.25 3) (end -6.25 -3) (layer F.Fab) (width 0.2))
@@ -205,11 +190,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start -2.75 6.5) (end -6.25 3) (layer F.Fab) (width 0.2))
         (fp_line (start 6.25 -3) (end 2.75 -6.5) (layer F.Fab) (width 0.2))
         (fp_line (start -6.25 -3) (end -2.75 -6.5) (layer F.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_t460s_back = String::from(
-        r####"
+    const OUTLINE_T460S_BACK: &str = r####"
         (fp_line (start -6.25 -3) (end -2.75 -6.5) (layer B.Fab) (width 0.2))
         (fp_line (start 6.25 -3) (end 2.75 -6.5) (layer B.Fab) (width 0.2))
 
@@ -224,11 +207,9 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 2.75 6.5) (end 2.75 11.5) (layer B.Fab) (width 0.2))
         (fp_line (start -2.75 -11.5) (end -2.75 -6.5) (layer B.Fab) (width 0.2))
         (fp_line (start 2.75 -11.5) (end 2.75 -6.5) (layer B.Fab) (width 0.2))
-    "####,
-    );
+    "####;
 
-    let outline_t460s_board = String::from(
-        r####"
+    const OUTLINE_T460S_BOARD: &str = r####"
         (fp_line (start 38.25 12.25) (end 22.25 12.25) (layer Dwgs.User) (width 0.2))
         (fp_line (start 22.25 2.75) (end 22.25 12.25) (layer Dwgs.User) (width 0.2))
         (fp_line (start 22.25 -2.75) (end 22.25 2.75) (layer Dwgs.User) (width 0.2))
@@ -238,8 +219,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (fp_line (start 38.25 -22.25) (end 22.25 -22.25) (layer Dwgs.User) (width 0.2))
         (fp_line (start 22.25 -22.25) (end 22.25 -2.75) (layer Dwgs.User) (width 0.2))
         (fp_line (start 6.25 -2.75) (end 6.25 2.75) (layer Dwgs.User) (width 0.2))
-    "####,
-    );
+    "####;
 
     let bottom = format!(
         r####"
@@ -321,35 +301,35 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     );
     let mut out = top;
     if side == "F" || reverse {
-        out += &front;
+        out += FRONT;
         if t430 {
-            out += &outline_t430_front;
+            out += OUTLINE_T430_FRONT;
         }
         if x240 {
-            out += &outline_x240_front;
+            out += OUTLINE_X240_FRONT;
         }
         if t460s {
-            out += &outline_t460s_front;
+            out += OUTLINE_T460S_FRONT;
         }
     }
     if side == "B" || reverse {
-        out += &back;
+        out += BACK;
         if t430 {
-            out += &outline_t430_back;
+            out += OUTLINE_T430_BACK;
         }
         if x240 {
-            out += &outline_x240_back;
+            out += OUTLINE_X240_BACK;
         }
         if t460s {
-            out += &outline_t460s_back;
+            out += OUTLINE_T460S_BACK;
         }
     }
     if p.flag("show_board") {
         if x240 {
-            out += &outline_x240_board;
+            out += OUTLINE_X240_BOARD;
         }
         if t460s {
-            out += &outline_t460s_board;
+            out += OUTLINE_T460S_BOARD;
         }
     }
     out += &final_add0;

@@ -513,6 +513,29 @@ impl Renderer {
         Ok(())
     }
 
+    fn projected_bounds(&self, predicate: impl Fn(&RenderObject) -> bool) -> (Vec3, Vec3) {
+        bounds_of(
+            self.objects
+                .iter()
+                .filter(|object| predicate(object))
+                .flat_map(|object| {
+                    let offset = exploded_view_offset(
+                        &self.state.view,
+                        object.explode,
+                        self.state.explode_amount,
+                    );
+                    object
+                        .triangles
+                        .iter()
+                        .flatten()
+                        .chain(&object.line_points)
+                        .map(move |point| {
+                            (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset)
+                        })
+                }),
+        )
+    }
+
     /// Focus the accepted geometry objects associated with a current finding.
     /// Focused objects remain visible while their saved display layer is hidden.
     #[wasm_bindgen(js_name = focusObjects)]
@@ -541,26 +564,7 @@ impl Renderer {
         if focused_ids.is_empty() {
             return Ok(false);
         }
-        let (low, high) = bounds_of(
-            self.objects
-                .iter()
-                .filter(|object| focused_ids.contains(&object.id))
-                .flat_map(|object| {
-                    let offset = exploded_view_offset(
-                        &self.state.view,
-                        object.explode,
-                        self.state.explode_amount,
-                    );
-                    object
-                        .triangles
-                        .iter()
-                        .flatten()
-                        .chain(&object.line_points)
-                        .map(move |point| {
-                            (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset)
-                        })
-                }),
-        );
+        let (low, high) = self.projected_bounds(|object| focused_ids.contains(&object.id));
         if !low.x.is_finite() {
             return Ok(false);
         }
@@ -645,26 +649,7 @@ impl Renderer {
         self.apply_state();
         // Hidden case bodies must not keep a small imported PCB off-centre.
         // Derive fit bounds on demand without rebuilding any geometry.
-        let (low, high) = bounds_of(
-            self.objects
-                .iter()
-                .filter(|item| item.visible && item.id != "pcb-selection")
-                .flat_map(|object| {
-                    let offset = exploded_view_offset(
-                        &self.state.view,
-                        object.explode,
-                        self.state.explode_amount,
-                    );
-                    object
-                        .triangles
-                        .iter()
-                        .flatten()
-                        .chain(&object.line_points)
-                        .map(move |point| {
-                            (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset)
-                        })
-                }),
-        );
+        let (low, high) = self.projected_bounds(|item| item.visible && item.id != "pcb-selection");
         if low.x.is_finite() {
             self.bounds_center = (low + high) / 2.;
             self.bounds_radius = ((high - low).magnitude() / 2.).max(0.1);
