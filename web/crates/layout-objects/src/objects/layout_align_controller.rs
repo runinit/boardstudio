@@ -402,15 +402,15 @@ fn project(
     let moving_matrix = super::matrix_id_for_context(&selected.context)
         .map(str::to_owned)
         .or_else(|| {
-        moving_ids.iter().find_map(|id| {
-            snapshot
-                .document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.part_ids.contains(id))
-                .map(|matrix| matrix.id.clone())
-        })
-    });
+            moving_ids.iter().find_map(|id| {
+                snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.part_ids.contains(id))
+                    .map(|matrix| matrix.id.clone())
+            })
+        });
     let linked_partner_parts = moving_matrix
         .as_deref()
         .and_then(|matrix_id| linked_partner(&snapshot.document, &scope, matrix_id))

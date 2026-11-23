@@ -111,7 +111,6 @@ pub(super) struct OutlineActionContext {
 }
 
 impl OutlineActionContext {
-
     pub(super) fn action(&self, edit: OutlineEdit) -> OutlineAction {
         OutlineAction {
             envelope: self.envelope.clone(),

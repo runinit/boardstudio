@@ -187,7 +187,9 @@ pub(super) fn start_placement(
         // Ticket 22: the initial placement grid follows the selected matrix
         // pitch (19.05 mm only when the selection names no matrix).
         let pitch = (adapter_for_async.selected_context)()
-            .and_then(|selected| crate::objects::matrix_id_for_context(&selected.context).map(str::to_owned))
+            .and_then(|selected| {
+                crate::objects::matrix_id_for_context(&selected.context).map(str::to_owned)
+            })
             .and_then(|matrix_id| {
                 snapshot
                     .document

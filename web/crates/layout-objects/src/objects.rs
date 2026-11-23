@@ -494,10 +494,6 @@ pub fn Objects(
                                         let disclosure_id = format!("{tree_item_id}-disclosure");
                                         let tooltip_label = disclosure_label.clone();
                                         let is_expanded = item.expanded == Some(true);
-                                        let select_on_click = on_select;
-                                        let navigate_on_click = on_navigate;
-                                        let select_on_key = on_select;
-                                        let navigate_on_key = on_navigate;
                                         let nudge_on_key = on_nudge;
                                         let click_scope = active_scope.clone();
                                         let key_scope = active_scope.clone();
@@ -552,43 +548,13 @@ pub fn Objects(
     id: "{tree_item_id}",
     class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selected px-[5px] text-left text-selected-foreground [&_span]:text-selected-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
     onclick: move |_| {
-                                                    if let Some(context) = select_item.context.clone() {
-                                                        if let Some(scope) = click_scope.clone() {
-                                                            if let TreeContext::Board { board_id } = &context
-                                                                && *board_id != scope.board_id
-                                                            {
-                                                                navigate_on_click.call((scope, board_id.clone(), None));
-                                                                return;
-                                                            }
-                                                            select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
-                                                        }
-                                                        if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
-                                                            toggle_tree(expanded, &select_item.id);
-                                                        }
-                                                    } else if select_item.expandable {
-                                                        toggle_tree(expanded, &select_item.id);
-                                                    }
+                                                    activate_tree_row(&select_item, click_scope.clone(), click_outline_action.clone(), on_select, on_navigate, expanded);
                                                 },
     onkeydown: move |event: KeyboardEvent| {
                                                     let key = event.data().key().to_string();
                                                     if key == "Enter" || key == " " {
                                                         event.prevent_default();
-                                                        if let Some(context) = keyboard_item.context.clone() {
-                                                            if let Some(scope) = key_scope.clone() {
-                                                                if let TreeContext::Board { board_id } = &context
-                                                                    && *board_id != scope.board_id
-                                                                {
-                                                                    navigate_on_key.call((scope, board_id.clone(), None));
-                                                                    return;
-                                                                }
-                                                                select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
-                                                            }
-                                                            if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
-                                                                toggle_tree(expanded, &keyboard_item.id);
-                                                            }
-                                                        } else if keyboard_item.expandable {
-                                                            toggle_tree(expanded, &keyboard_item.id);
-                                                        }
+                                                        activate_tree_row(&keyboard_item, key_scope.clone(), key_outline_action.clone(), on_select, on_navigate, expanded);
                                                     } else if let Some((dx, dy)) = match key.as_str() {
                                                         "ArrowLeft" => Some((-1, 0)),
                                                         "ArrowRight" => Some((1, 0)),
@@ -935,6 +901,39 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
         state.insert(id.to_owned());
+    }
+}
+
+/// Activate a tree row from click or keyboard: navigate to a foreign board,
+/// otherwise select, then expand a collapsed board row.
+fn activate_tree_row(
+    item: &tree::TreeItem,
+    scope: Option<Scope>,
+    outline_action: Option<super::outline_lifecycle::OutlineAction>,
+    on_select: EventHandler<TreeSelectRequest>,
+    on_navigate: EventHandler<(Scope, String, Option<String>)>,
+    expanded: Signal<BTreeSet<String>>,
+) {
+    if let Some(context) = item.context.clone() {
+        if let Some(scope) = scope {
+            if let TreeContext::Board { board_id } = &context
+                && *board_id != scope.board_id
+            {
+                on_navigate.call((scope, board_id.clone(), None));
+                return;
+            }
+            on_select.call(TreeSelectRequest {
+                scope,
+                context,
+                mode: SelectionMode::Replace,
+                outline_action,
+            });
+        }
+        if item.kind == TreeKind::Board && item.expanded != Some(true) {
+            toggle_tree(expanded, &item.id);
+        }
+    } else if item.expandable {
+        toggle_tree(expanded, &item.id);
     }
 }
 
