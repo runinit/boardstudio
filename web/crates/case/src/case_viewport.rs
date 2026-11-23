@@ -6,7 +6,10 @@ use crate::case_handles::{
     gasket_handles, mechanical_mounts, mount_constraints, mount_handles, project_handles,
 };
 use crate::case_preview::NativePreviewSnapshot;
-use crate::mechanical_settings::{self, MechanicalSettingsPatchExt};
+use crate::mechanical_settings::{
+    self, MechanicalSettingsPatchExt, gasket_anchor, gasket_group, is_gasket_layer,
+    submit_settings_patch,
+};
 use crate::runtime::{CadScene, Runtime};
 use crate::shared_viewer::{
     CaseDisplay, CaseMountTarget, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
@@ -17,8 +20,7 @@ use crate::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::{case_bodies::CaseBodyEdit, viewport_camera::Drag};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{
-    GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport, MechanicalGasketTrack, Mount,
-    ProjectDoc, Vec2,
+    MechanicalGasketAnchor, MechanicalGasketSupport, MechanicalGasketTrack, Mount, ProjectDoc, Vec2,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_shared::ui::{
@@ -584,25 +586,32 @@ fn source_is_current(
             .is_some_and(|current| Rc::ptr_eq(current, expected))
 }
 
+pub(super) fn selectable_layers(scene: Option<&CadScene>) -> Vec<String> {
+    let mut layers = vec!["pcb".to_owned()];
+    let Some(scene) = scene else { return layers };
+    if let Some(assembly) = &scene.mechanical {
+        layers.extend(assembly.stack.iter().map(|layer| layer.id.clone()));
+        layers.extend(gasket_group(&assembly.gasket_supports).map(str::to_owned));
+    }
+    layers.extend(
+        scene
+            .result
+            .bodies
+            .iter()
+            .filter(|body| body.id.starts_with("gasket:"))
+            .map(|body| body.id.clone()),
+    );
+    layers
+}
+
 fn is_layer(scene: &CadScene, id: &str) -> bool {
     id == "pcb"
         || scene.result.bodies.iter().any(|body| body.id == id)
         || scene.mechanical.as_ref().is_some_and(|assembly| {
+            let supports = &assembly.gasket_supports;
             assembly.stack.iter().any(|layer| layer.id == id)
-                || (id == "gaskets" && !assembly.gasket_supports.is_empty())
+                || is_gasket_layer(id, supports, |support| &support.id)
         })
-        || id
-            .strip_prefix("gasket:")
-            .and_then(|id| id.rsplit_once(':'))
-            .is_some_and(|(support_id, side)| {
-                matches!(side, "lower" | "upper")
-                    && scene.mechanical.as_ref().is_some_and(|assembly| {
-                        assembly
-                            .gasket_supports
-                            .iter()
-                            .any(|support| support.id == support_id)
-                    })
-            })
 }
 
 fn read_display(key: &str) -> CaseDisplay {
@@ -1016,47 +1025,10 @@ fn direct_gesture_message(
     }
 }
 
-pub(super) fn submit_settings_patch(
-    settings: &mechanical_settings::MechanicalSettingsProps,
-    patch: mechanical_settings::MechanicalSettingsPatch,
-) -> bool {
-    if !settings.editable {
-        return false;
-    }
-    let mut sequence = settings.request_sequence;
-    let Some(request_id) = sequence().checked_add(1) else {
-        return false;
-    };
-    sequence.set(request_id);
-    let field_id = patch.field_id();
-    settings
-        .on_request
-        .call(mechanical_settings::MechanicalSettingsRequest {
-            identity: settings.identity.clone(),
-            request_id,
-            field_id,
-            edit: mechanical_settings::MechanicalSettingsEdit::Change(patch),
-        });
-    true
-}
-
 fn world_xy(point: [f32; 3]) -> Vec2 {
     Vec2 {
         x: f64::from(point[0]),
         y: f64::from(point[1]),
-    }
-}
-
-fn gasket_anchor(support: &MechanicalGasketSupport) -> MechanicalGasketAnchor {
-    MechanicalGasketAnchor {
-        id: support.id.clone(),
-        region_id: support.region_id.clone(),
-        outline_key: support.outline_key.clone(),
-        anchor: support.anchor,
-        length: Some(support.length),
-        width: Some(support.width),
-        placement: Some(GasketPlacement::User),
-        unlinked: support.unlinked,
     }
 }
 

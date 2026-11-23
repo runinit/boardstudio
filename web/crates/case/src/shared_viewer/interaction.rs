@@ -29,7 +29,7 @@ impl ViewportInteraction {
     }
 
     pub(super) fn current(&self) -> bool {
-        owner_is_current(&self.owner, &self.identity)
+        self.owner.is_current(&self.identity)
     }
 
     pub(super) fn can_select(&self) -> bool {
@@ -37,7 +37,7 @@ impl ViewportInteraction {
     }
 
     pub(super) fn emit(&self, kind: ViewerSignalKind) {
-        emit_signal(&self.owner, self.on_signal, &self.identity, kind);
+        self.owner.emit(self.on_signal, &self.identity, kind, ());
     }
 
     pub(super) fn fail(&self, error: String) {
@@ -81,8 +81,7 @@ impl ViewportInteraction {
             None
         };
         let pointer_id = event.pointer_id();
-        let identity = self.identity.clone();
-        let active = if let Some(handle) = picked
+        let gesture = if let Some(handle) = picked
             .as_ref()
             .and_then(|id| self.handles.iter().find(|handle| &handle.id == id))
         {
@@ -93,24 +92,24 @@ impl ViewportInteraction {
                     return;
                 }
             }
-            PointerOwner::Handle {
-                identity,
+            PointerGesture::Handle {
                 projection: self.handle_projection.clone(),
-                pointer_id,
                 z: handle.z,
                 id: handle.id.clone(),
             }
         } else {
-            PointerOwner::Orbit {
-                identity,
-                pointer_id,
+            PointerGesture::Orbit {
                 last: (x, y),
                 start: (x, y),
                 moved: false,
                 picked,
             }
         };
-        *self.pointer.borrow_mut() = Some(active);
+        *self.pointer.borrow_mut() = Some(PointerOwner {
+            identity: self.identity.clone(),
+            pointer_id,
+            gesture,
+        });
         if let Some(canvas) = self.canvas.borrow().as_ref()
             && let Err(error) = canvas.set_pointer_capture(pointer_id)
         {
@@ -131,8 +130,8 @@ impl ViewportInteraction {
             return;
         };
         let point = pointer_point(event);
-        match &mut active {
-            PointerOwner::Orbit {
+        match &mut active.gesture {
+            PointerGesture::Orbit {
                 last, start, moved, ..
             } => {
                 *moved |= crossed_drag_threshold(*start, point);
@@ -141,7 +140,7 @@ impl ViewportInteraction {
                 }
                 *last = point;
             }
-            PointerOwner::Handle { id, z, .. } => {
+            PointerGesture::Handle { id, z, .. } => {
                 if !self.can_select() {
                     release_pointer_capture(&self.canvas, event.pointer_id());
                     return;
@@ -164,13 +163,13 @@ impl ViewportInteraction {
         else {
             return;
         };
-        release_pointer_capture(&self.canvas, active.pointer_id());
+        release_pointer_capture(&self.canvas, active.pointer_id);
         if !self.can_select() {
             return;
         }
         let host = self.host.borrow().clone();
-        match active {
-            PointerOwner::Orbit {
+        match active.gesture {
+            PointerGesture::Orbit {
                 moved: false,
                 picked: Some(id),
                 ..
@@ -180,7 +179,7 @@ impl ViewportInteraction {
                 }
                 self.emit(ViewerSignalKind::Picked(id));
             }
-            PointerOwner::Handle { id, z, .. } => {
+            PointerGesture::Handle { id, z, .. } => {
                 let (x, y) = pointer_point(event);
                 let result = host
                     .map(|host| host.point_on_plane_at_client(x, y, z))
@@ -201,18 +200,17 @@ impl ViewportInteraction {
         if event.key() != "Escape" || !self.current() || !(self.source.0)() {
             return;
         }
-        let mut pointer = self.pointer.borrow_mut();
-        if !matches!(pointer.as_ref(), Some(PointerOwner::Handle { identity, .. }) if identity == &self.identity)
-        {
+        let is_handle = self.pointer.borrow().as_ref().is_some_and(|active| {
+            active.identity == self.identity
+                && matches!(active.gesture, PointerGesture::Handle { .. })
+        });
+        if !is_handle {
             return;
         }
-        let Some(PointerOwner::Handle { id, pointer_id, .. }) = pointer.take() else {
-            return;
-        };
-        drop(pointer);
         event.prevent_default();
-        release_pointer_capture(&self.canvas, pointer_id);
-        self.handle_event(HandleGesturePhase::Cancel, id, None);
+        if let Some((_, id)) = cancel_handle_capture(&self.pointer, &self.canvas) {
+            self.handle_event(HandleGesturePhase::Cancel, id, None);
+        }
     }
 
     pub fn wheel(&self, event: &web_sys::WheelEvent) {
@@ -226,4 +224,109 @@ impl ViewportInteraction {
             self.fail(error);
         }
     }
+}
+
+pub(super) struct PointerOwner {
+    identity: ViewerIdentity,
+    pointer_id: i32,
+    gesture: PointerGesture,
+}
+
+enum PointerGesture {
+    Orbit {
+        last: (f64, f64),
+        start: (f64, f64),
+        moved: bool,
+        picked: Option<String>,
+    },
+    Handle {
+        projection: Option<CaseHandleProjection>,
+        z: f32,
+        id: String,
+    },
+}
+
+fn take_pointer_for_event(
+    pointer: &RefCell<Option<PointerOwner>>,
+    pointer_id: i32,
+    identity: &ViewerIdentity,
+) -> Option<PointerOwner> {
+    let mut active = pointer.borrow_mut();
+    active.take_if(|active| active.pointer_id == pointer_id && &active.identity == identity)
+}
+
+pub(super) fn cancel_superseded_pointer(
+    pointer: &RefCell<Option<PointerOwner>>,
+    canvas: &RefCell<Option<HtmlCanvasElement>>,
+    owner: &ViewerOwner,
+    handle_projection: Option<&CaseHandleProjection>,
+    source_current: bool,
+) {
+    let stale_pointer = {
+        let mut active = pointer.borrow_mut();
+        let current_identity = owner.identity.borrow();
+        if owner.active.get()
+            && source_current
+            && let Some(current) = current_identity.as_ref()
+            && let Some(PointerOwner {
+                identity,
+                gesture:
+                    PointerGesture::Handle {
+                        projection: Some(previous),
+                        ..
+                    },
+                ..
+            }) = active.as_mut()
+            && let Some(next) = handle_projection
+            && identity.scope == current.scope
+            && identity.snapshot_token == current.snapshot_token
+            && identity.revision == current.revision
+            && previous.continues_preview(next)
+        {
+            // Transfer this gesture to the new render; event admission remains
+            // full-identity checked, so callbacks from the old render stay stale.
+            *identity = current.clone();
+            *previous = next.clone();
+        }
+        active.take_if(|active| {
+            !owner.active.get()
+                || (matches!(active.gesture, PointerGesture::Handle { .. }) && !source_current)
+                || current_identity.as_ref() != Some(&active.identity)
+        })
+    };
+    if let Some(active) = stale_pointer {
+        release_pointer_capture(canvas, active.pointer_id);
+    }
+}
+
+pub(super) fn cancel_handle_capture(
+    pointer: &RefCell<Option<PointerOwner>>,
+    canvas: &RefCell<Option<HtmlCanvasElement>>,
+) -> Option<(ViewerIdentity, String)> {
+    let active = release_capture(pointer, canvas)?;
+    match active.gesture {
+        PointerGesture::Handle { id, .. } => Some((active.identity, id)),
+        PointerGesture::Orbit { .. } => None,
+    }
+}
+
+fn release_capture(
+    pointer: &RefCell<Option<PointerOwner>>,
+    canvas: &RefCell<Option<HtmlCanvasElement>>,
+) -> Option<PointerOwner> {
+    let captured = pointer.borrow_mut().take();
+    if let Some(captured) = &captured {
+        release_pointer_capture(canvas, captured.pointer_id);
+    }
+    captured
+}
+
+fn release_pointer_capture(canvas: &RefCell<Option<HtmlCanvasElement>>, pointer_id: i32) {
+    if let Some(canvas) = canvas.borrow().as_ref() {
+        let _ = canvas.release_pointer_capture(pointer_id);
+    }
+}
+
+fn pointer_point(event: &PointerEvent) -> (f64, f64) {
+    (f64::from(event.client_x()), f64::from(event.client_y()))
 }
