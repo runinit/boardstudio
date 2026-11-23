@@ -393,25 +393,24 @@ pub fn use_mirrored_pair(
                 if !alive.get() {
                     return;
                 }
-                if !owner_is_current() {
-                    clear_preparing(
-                        &mut preparing,
-                        &mut form_state,
-                        &owner,
-                        &open,
-                        &mut error,
-                        &mut status,
-                    );
-                    return;
-                }
                 let prepared = match prepared {
-                    Ok(Some(prepared)) => prepared,
-                    Ok(None) => return,
-                    Err(message) => {
+                    Ok(Some(prepared)) if owner_is_current() => prepared,
+                    Err(message) if owner_is_current() => {
                         preparing.set(None);
                         form_state.write().stage = PairFormStage::Setup;
                         error.set(Some(message));
                         status.set(None);
+                        return;
+                    }
+                    _ => {
+                        clear_preparing(
+                            &mut preparing,
+                            &mut form_state,
+                            &owner,
+                            &open,
+                            &mut error,
+                            &mut status,
+                        );
                         return;
                     }
                 };
