@@ -16,7 +16,7 @@ impl CoreEngine {
         Self::prepare_open(document).map(|_| ())
     }
 
-    fn prepare_open(document: &ProjectDoc) -> Result<(ProjectDoc, Vec<Finding>), String> {
+    fn prepare_open(document: &ProjectDoc) -> Result<ProjectDoc, String> {
         if document.format != "boardstudio/v2" {
             return Err("Unsupported document format".into());
         }
@@ -47,7 +47,7 @@ impl CoreEngine {
         if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
             return Err(message);
         }
-        Ok((canonical, vec![]))
+        Ok(canonical)
     }
 
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
@@ -94,7 +94,7 @@ impl CoreEngine {
             },
             CoreRequest::Open { id, document } => {
                 self.move_preview = None;
-                let (document, repaired_findings) = match Self::prepare_open(&document) {
+                let document = match Self::prepare_open(&document) {
                     Ok(prepared) => prepared,
                     Err(message) => return self.error(id, &message),
                 };
@@ -106,9 +106,8 @@ impl CoreEngine {
                 self.undo.clear();
                 self.redo.clear();
                 self.recompute();
-                let cacheable = repaired_findings.is_empty();
-                self.findings.extend(repaired_findings);
-                self.project_committed_scene(id, "open", vec![], cacheable, None)
+                // Open publishes the recomputed projection unchanged, so it is cacheable.
+                self.project_committed_scene(id, "open", vec![], true, None)
             }
             CoreRequest::Edit { id, command } => self.edit(id, command),
             CoreRequest::Undo { id } => self.history(id, History::Undo),
@@ -283,15 +282,7 @@ impl CoreEngine {
                 self.refresh_resolved();
                 self.scene(
                     id,
-                    SceneInput {
-                        transaction: "review-remap",
-                        changed: vec![],
-                        document: self.resolved.geometry(),
-                        contours: &self.contours,
-                        geom_findings: &self.findings,
-                        cache: &self.outline_cache,
-                        kind: SceneKind::Committed,
-                    },
+                    self.accepted_scene_input("review-remap", vec![], SceneKind::Committed),
                 )
             }
             CoreRequest::ProtectElectricalHandoff {
@@ -348,15 +339,7 @@ impl CoreEngine {
                 self.refresh_resolved();
                 self.scene(
                     id,
-                    SceneInput {
-                        transaction: "protect-handoff",
-                        changed: vec![],
-                        document: self.resolved.geometry(),
-                        contours: &self.contours,
-                        geom_findings: &self.findings,
-                        cache: &self.outline_cache,
-                        kind: SceneKind::Committed,
-                    },
+                    self.accepted_scene_input("protect-handoff", vec![], SceneKind::Committed),
                 )
             }
         }
@@ -430,69 +413,11 @@ impl CoreEngine {
         {
             return self.preview_edit(id, command);
         }
-        let (mut next, mut changed, layout_settled) = {
-            let mut raw_next = self.document.clone();
-            // Mechanical edits resolve against the accepted outline projection the user
-            // sees, not a stale or re-derived one, so the accepted cache supplies it.
-            let accepted_contours;
-            let board_contours: &[BoardContours] =
-                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
-                    accepted_contours =
-                        geometry::board_contours(&self.document, &self.outline_cache).0;
-                    &accepted_contours
-                } else {
-                    &[]
-                };
-            let (mut raw_changed, settled) =
-                match self.apply_layout_edit(&mut raw_next, board_contours, &command.operation) {
-                    Ok(applied) => applied,
-                    Err(message) => return self.error(id, &message),
-                };
-            let layout_settled = settled;
-            if let Some(map) = &raw_next.keymap
-                && let Err(message) = keymap::validate(map)
-            {
-                return self.error(id, &message);
-            }
-            electrical::preserve_handoff(&self.document, &mut raw_next);
-            if !layout_settled {
-                if let Err(message) = layout::resolve(&mut raw_next) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = settle_layout_dependents(
-                    &mut raw_next,
-                    &command.operation,
-                    &mut raw_changed,
-                    self.reusable_scene.is_some(),
-                ) {
-                    return self.error(id, &message);
-                }
-                // The settled stagger path preserves part identities.
-                outline_controls::detach_removed(&self.document.parts, &mut raw_next);
-                raw_changed.extend(outline_versions::prune_removed_components(
-                    &self.document.parts,
-                    &mut raw_next,
-                ));
-            }
-            raw_changed.sort();
-            raw_changed.dedup();
-            // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
-            if !layout_settled
-                && !matches!(command.operation, EditOperation::ReplaceDocument { .. })
-                && let Err(message) = generators::introduced_error(
-                    &generators::parameter_problems(&self.document),
-                    &raw_next,
-                )
-            {
-                return self.error(id, &message);
-            }
-            (raw_next, raw_changed, layout_settled)
-        };
-        if let Err(message) =
-            matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
-        {
-            return self.error(id, &message);
-        }
+        let (mut next, mut changed, layout_settled) =
+            match self.settle_edit_draft(&command.operation, false) {
+                Ok(prepared) => prepared,
+                Err(message) => return self.error(id, &message),
+            };
         // Ticket 10: every committed edit that changed the document re-runs the
         // adaptive spacing pass. It runs after resolve so the minimum sees the
         // final geometry, and before the no-op check so a genuine edit that
@@ -530,15 +455,7 @@ impl CoreEngine {
         {
             return self.scene(
                 id,
-                SceneInput {
-                    transaction: &command.transaction_id,
-                    changed,
-                    document: self.resolved.geometry(),
-                    contours: &self.contours,
-                    geom_findings: &self.findings,
-                    cache: &self.outline_cache,
-                    kind: SceneKind::Committed,
-                },
+                self.accepted_scene_input(&command.transaction_id, changed, SceneKind::Committed),
             );
         }
         let reuse_scene = command.phase == EditPhase::Commit
@@ -548,19 +465,10 @@ impl CoreEngine {
         if let Err(message) = mirrored_half::validate_pairs(&next) {
             return self.error(id, &message);
         }
-        let resolved = mirrored_half::project_document(&next);
-        let affected: Vec<_> = self
-            .resolved
-            .affected_targets(&changed)
-            .chain(resolved.affected_targets(&changed))
-            .cloned()
-            .collect();
-        changed.extend(affected);
-        changed.sort();
-        changed.dedup();
-        if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
-            return self.error(id, &message);
-        }
+        let resolved = match self.project_settled_draft(&next, &mut changed) {
+            Ok(resolved) => resolved,
+            Err(message) => return self.error(id, &message),
+        };
         let move_preview = move_preview.filter(|_| {
             !spacing_changed
                 && self.document.mirrored_pairs.is_empty()
@@ -654,6 +562,23 @@ impl CoreEngine {
         self.scene_with_unchanged_geometry(id, &transaction, changed, kind)
     }
 
+    fn accepted_scene_input<'a>(
+        &'a self,
+        transaction: &'a str,
+        changed: Vec<String>,
+        kind: SceneKind,
+    ) -> SceneInput<'a> {
+        SceneInput {
+            transaction,
+            changed,
+            document: self.resolved.geometry(),
+            contours: &self.contours,
+            geom_findings: &self.findings,
+            cache: &self.outline_cache,
+            kind,
+        }
+    }
+
     fn scene_with_unchanged_geometry(
         &self,
         id: String,
@@ -674,18 +599,7 @@ impl CoreEngine {
                 },
             };
         }
-        self.scene(
-            id,
-            SceneInput {
-                transaction,
-                changed,
-                document: self.resolved.geometry(),
-                contours: &self.contours,
-                geom_findings: &self.findings,
-                cache: &self.outline_cache,
-                kind,
-            },
-        )
+        self.scene(id, self.accepted_scene_input(transaction, changed, kind))
     }
 
     fn record_undo(&mut self, previous: ProjectDoc) {
@@ -792,62 +706,103 @@ impl CoreEngine {
             .map(|changed| (changed, false))
     }
 
-    fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
-        let accepted = generators::parameter_problems(&self.document);
-        // Layout and constraint settlement may rewrite anchors, change
-        // membership, and prune outline versions, even for a single drag.
+    /// Apply an operation to a fresh draft and settle layout dependents.
+    ///
+    /// Both commit (`edit`) and drag-preview (`preview_edit`) settlement flow
+    /// through here. Previews skip keymap validation since they never publish,
+    /// and preserve the electrical handoff only for part moves (other previews
+    /// must materialize the same dependant poses the commit path publishes
+    /// without carrying handoff state). Generator checks run on every preview,
+    /// even settled ones, while commits skip them for settled or wholesale
+    /// replacements (`ReplaceDocument` is judged by its own arm in `apply`,
+    /// which allows warnings).
+    fn settle_edit_draft(
+        &self,
+        operation: &EditOperation,
+        preview: bool,
+    ) -> Result<(ProjectDoc, Vec<String>, bool), String> {
         let mut draft = self.document.clone();
-        let result = self
-            .apply_layout_edit(&mut draft, &[], &command.operation)
-            .and_then(|(mut changed, layout_settled)| {
-                // Preview must materialize the same dependant poses the commit
-                // path publishes: anchored matrices follow from the anchor key's
-                // edited pose, and `resolve` (which starts with `validate`)
-                // refreshes every dependant exactly as commit does.
-                if matches!(command.operation, EditOperation::MoveParts { .. }) {
-                    electrical::preserve_handoff(&self.document, &mut draft);
-                }
-                if !layout_settled {
-                    layout::resolve(&mut draft)?;
-                    settle_layout_dependents(
-                        &mut draft,
-                        &command.operation,
-                        &mut changed,
-                        self.reusable_scene.is_some(),
-                    )?;
-                    outline_controls::detach_removed(&self.document.parts, &mut draft);
-                    changed.extend(outline_versions::prune_removed_components(
-                        &self.document.parts,
-                        &mut draft,
-                    ));
-                }
-                changed.sort();
-                changed.dedup();
-                generators::introduced_error(&accepted, &draft)?;
-                matrix::placement::validate_translation(
-                    &self.document.parts,
-                    &draft,
-                    &command.operation,
-                )?;
-                Ok((changed, layout_settled))
-            });
-        let (mut changed, layout_settled) = match result {
-            Ok(applied) => applied,
-            Err(message) => return self.error(id, &message),
-        };
-        let resolved_draft = mirrored_half::project_document(&draft);
-        if let Some(message) = validate::duplicate_top_level_identity(resolved_draft.geometry()) {
-            return self.error(id, &message);
+        // Mechanical edits resolve against the accepted outline projection the user
+        // sees, not a stale or re-derived one, so the accepted cache supplies it.
+        let accepted_contours;
+        let board_contours: &[BoardContours] =
+            if matches!(operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+                &accepted_contours
+            } else {
+                &[]
+            };
+        let (mut changed, layout_settled) =
+            self.apply_layout_edit(&mut draft, board_contours, operation)?;
+        if !preview
+            && let Some(map) = &draft.keymap
+            && let Err(message) = keymap::validate(map)
+        {
+            return Err(message);
         }
+        if !preview || matches!(operation, EditOperation::MoveParts { .. }) {
+            electrical::preserve_handoff(&self.document, &mut draft);
+        }
+        if !layout_settled {
+            layout::resolve(&mut draft)?;
+            settle_layout_dependents(
+                &mut draft,
+                operation,
+                &mut changed,
+                self.reusable_scene.is_some(),
+            )?;
+            // The settled stagger path preserves part identities.
+            outline_controls::detach_removed(&self.document.parts, &mut draft);
+            changed.extend(outline_versions::prune_removed_components(
+                &self.document.parts,
+                &mut draft,
+            ));
+        }
+        changed.sort();
+        changed.dedup();
+        if preview
+            || (!layout_settled && !matches!(operation, EditOperation::ReplaceDocument { .. }))
+        {
+            generators::introduced_error(&generators::parameter_problems(&self.document), &draft)?;
+        }
+        matrix::placement::validate_translation(&self.document.parts, &draft, operation)?;
+        Ok((draft, changed, layout_settled))
+    }
+
+    /// Project a settled draft and extend the change list with affected mirror targets.
+    fn project_settled_draft(
+        &self,
+        draft: &ProjectDoc,
+        changed: &mut Vec<String>,
+    ) -> Result<mirrored_half::ResolvedDoc, String> {
+        let resolved = mirrored_half::project_document(draft);
         let affected: Vec<_> = self
             .resolved
-            .affected_targets(&changed)
-            .chain(resolved_draft.affected_targets(&changed))
+            .affected_targets(changed)
+            .chain(resolved.affected_targets(changed))
             .cloned()
             .collect();
         changed.extend(affected);
         changed.sort();
         changed.dedup();
+        if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
+            return Err(message);
+        }
+        Ok(resolved)
+    }
+
+    fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
+        // Layout and constraint settlement may rewrite anchors, change
+        // membership, and prune outline versions, even for a single drag.
+        let (draft, mut changed, layout_settled) =
+            match self.settle_edit_draft(&command.operation, true) {
+                Ok(prepared) => prepared,
+                Err(message) => return self.error(id, &message),
+            };
+        let resolved_draft = match self.project_settled_draft(&draft, &mut changed) {
+            Ok(resolved) => resolved,
+            Err(message) => return self.error(id, &message),
+        };
         let ((cache, contours, mut findings), board_geometry) =
             self.edited_outlines(resolved_draft.geometry(), &command, layout_settled);
         if !draft.mirrored_pairs.is_empty() {
@@ -993,15 +948,7 @@ impl CoreEngine {
     ) -> CoreReply {
         let reply = self.scene_with_board_geometry(
             id,
-            SceneInput {
-                transaction,
-                changed,
-                document: self.resolved.geometry(),
-                contours: &self.contours,
-                geom_findings: &self.findings,
-                cache: &self.outline_cache,
-                kind: SceneKind::Committed,
-            },
+            self.accepted_scene_input(transaction, changed, SceneKind::Committed),
             board_geometry,
         );
         // Recovery and linked alternatives can select snapshots that differ from
@@ -1144,106 +1091,8 @@ impl CoreEngine {
                 });
             }
         }
-        // A finding attributed to a linked alternative the board has not selected is
-        // visible but never blocks the selected outline or another board (ADR-0001/0002).
-        let active =
-            |finding: &Finding| !outline_versions::is_inactive_version_finding(doc, &finding.id);
-        let layout = !findings
-            .iter()
-            .filter(|finding| active(finding))
-            .any(|f| matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error));
-        let outline = !contours.is_empty()
-            && !findings.iter().filter(|finding| active(finding)).any(|f| {
-                matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error)
-            });
-        let pcb = layout
-            && !doc.boards.is_empty()
-            && !findings
-                .iter()
-                .filter(|finding| active(finding))
-                .any(|f| matches!(f.scope, Scope::Pcb) && matches!(f.severity, Severity::Error));
-        let board_readiness: Vec<BoardReadiness> = board_contours
-            .iter()
-            .map(|board| {
-                let owner = doc
-                    .boards
-                    .iter()
-                    .find(|item| item.id == board.board_id)
-                    .unwrap();
-                let relevant = |finding: &Finding| {
-                    finding.target_ids.is_empty()
-                        || finding.target_ids.iter().any(|id| {
-                            id == &board.board_id
-                                || owner.outline_ids.contains(id)
-                                || owner.part_ids.contains(id)
-                                || owner.net_ids.contains(id)
-                        })
-                };
-                let invalid_pcb =
-                    findings
-                        .iter()
-                        .filter(|finding| active(finding))
-                        .any(|finding| {
-                            matches!(finding.severity, Severity::Error)
-                                && matches!(finding.scope, Scope::Pcb)
-                                && relevant(finding)
-                        });
-                let invalid_outline =
-                    findings
-                        .iter()
-                        .filter(|finding| active(finding))
-                        .any(|finding| {
-                            matches!(finding.severity, Severity::Error)
-                                && matches!(finding.scope, Scope::Pcb)
-                                && finding
-                                    .id
-                                    .starts_with(&format!("board:{}:", board.board_id))
-                                && (finding.id.contains(":outline")
-                                    || finding.id.contains(":feature:")
-                                    || finding.id.ends_with(":empty-outline"))
-                        });
-                let outline = !board.contours.is_empty() && !invalid_outline;
-                let valid_layout =
-                    !findings
-                        .iter()
-                        .filter(|finding| active(finding))
-                        .any(|finding| {
-                            finding.severity == Severity::Error
-                                && finding.scope == Scope::Layout
-                                && relevant(finding)
-                        });
-                let pcb = valid_layout && outline && !invalid_pcb;
-                let bodies: Vec<_> = doc
-                    .case_bodies
-                    .iter()
-                    .filter(|body| body.board_id == board.board_id)
-                    .collect();
-                let invalid_case = findings.iter().any(|finding| {
-                    matches!(finding.severity, Severity::Error)
-                        && matches!(finding.scope, Scope::Case)
-                        && (finding.target_ids.is_empty()
-                            || finding.target_ids.contains(&board.board_id)
-                            || bodies
-                                .iter()
-                                .any(|body| finding.target_ids.contains(&body.id)))
-                });
-                BoardReadiness {
-                    board_id: board.board_id.clone(),
-                    outline,
-                    pcb,
-                    case_ready: pcb && !bodies.is_empty() && !invalid_case,
-                }
-            })
-            .collect();
-        let case_ready = !doc.case_bodies.is_empty()
-            && doc.case_bodies.iter().all(|body| {
-                board_readiness
-                    .iter()
-                    .any(|board: &BoardReadiness| board.board_id == body.board_id && board.pcb)
-            })
-            && !findings
-                .iter()
-                .any(|f| matches!(f.scope, Scope::Case) && matches!(f.severity, Severity::Error));
+        let (readiness, board_readiness) =
+            compute_readiness(doc, contours, &board_contours, &findings);
         let scene = SceneDelta {
             module_scenes,
             revision: doc.revision,
@@ -1269,12 +1118,7 @@ impl CoreEngine {
             board_outline_scenes,
             finding_markers,
             findings,
-            readiness: Readiness {
-                layout,
-                outline,
-                pcb,
-                case_ready,
-            },
+            readiness,
         };
         match kind {
             SceneKind::Preview => CoreReply::Preview { id, scene },
@@ -1293,6 +1137,123 @@ impl CoreEngine {
             revision: self.document.revision,
         }
     }
+}
+
+/// Pure export-readiness projection over the assembled scene findings.
+fn compute_readiness(
+    doc: &ProjectDoc,
+    contours: &[Contour],
+    board_contours: &[BoardContours],
+    findings: &[Finding],
+) -> (Readiness, Vec<BoardReadiness>) {
+    // A finding attributed to a linked alternative the board has not selected is
+    // visible but never blocks the selected outline or another board (ADR-0001/0002).
+    let active =
+        |finding: &Finding| !outline_versions::is_inactive_version_finding(doc, &finding.id);
+    let layout = !findings
+        .iter()
+        .filter(|finding| active(finding))
+        .any(|f| matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error));
+    let outline = !contours.is_empty()
+        && !findings
+            .iter()
+            .filter(|finding| active(finding))
+            .any(|f| matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error));
+    let pcb = layout
+        && !doc.boards.is_empty()
+        && !findings
+            .iter()
+            .filter(|finding| active(finding))
+            .any(|f| matches!(f.scope, Scope::Pcb) && matches!(f.severity, Severity::Error));
+    let board_readiness: Vec<BoardReadiness> = board_contours
+        .iter()
+        .map(|board| {
+            let owner = doc
+                .boards
+                .iter()
+                .find(|item| item.id == board.board_id)
+                .unwrap();
+            let relevant = |finding: &Finding| {
+                finding.target_ids.is_empty()
+                    || finding.target_ids.iter().any(|id| {
+                        id == &board.board_id
+                            || owner.outline_ids.contains(id)
+                            || owner.part_ids.contains(id)
+                            || owner.net_ids.contains(id)
+                    })
+            };
+            let invalid_pcb = findings
+                .iter()
+                .filter(|finding| active(finding))
+                .any(|finding| {
+                    matches!(finding.severity, Severity::Error)
+                        && matches!(finding.scope, Scope::Pcb)
+                        && relevant(finding)
+                });
+            let invalid_outline =
+                findings
+                    .iter()
+                    .filter(|finding| active(finding))
+                    .any(|finding| {
+                        matches!(finding.severity, Severity::Error)
+                            && matches!(finding.scope, Scope::Pcb)
+                            && finding
+                                .id
+                                .starts_with(&format!("board:{}:", board.board_id))
+                            && (finding.id.contains(":outline")
+                                || finding.id.contains(":feature:")
+                                || finding.id.ends_with(":empty-outline"))
+                    });
+            let outline = !board.contours.is_empty() && !invalid_outline;
+            let valid_layout = !findings
+                .iter()
+                .filter(|finding| active(finding))
+                .any(|finding| {
+                    finding.severity == Severity::Error
+                        && finding.scope == Scope::Layout
+                        && relevant(finding)
+                });
+            let pcb = valid_layout && outline && !invalid_pcb;
+            let bodies: Vec<_> = doc
+                .case_bodies
+                .iter()
+                .filter(|body| body.board_id == board.board_id)
+                .collect();
+            let invalid_case = findings.iter().any(|finding| {
+                matches!(finding.severity, Severity::Error)
+                    && matches!(finding.scope, Scope::Case)
+                    && (finding.target_ids.is_empty()
+                        || finding.target_ids.contains(&board.board_id)
+                        || bodies
+                            .iter()
+                            .any(|body| finding.target_ids.contains(&body.id)))
+            });
+            BoardReadiness {
+                board_id: board.board_id.clone(),
+                outline,
+                pcb,
+                case_ready: pcb && !bodies.is_empty() && !invalid_case,
+            }
+        })
+        .collect();
+    let case_ready = !doc.case_bodies.is_empty()
+        && doc.case_bodies.iter().all(|body| {
+            board_readiness
+                .iter()
+                .any(|board: &BoardReadiness| board.board_id == body.board_id && board.pcb)
+        })
+        && !findings
+            .iter()
+            .any(|f| matches!(f.scope, Scope::Case) && matches!(f.severity, Severity::Error));
+    (
+        Readiness {
+            layout,
+            outline,
+            pcb,
+            case_ready,
+        },
+        board_readiness,
+    )
 }
 
 fn settle_layout_dependents(

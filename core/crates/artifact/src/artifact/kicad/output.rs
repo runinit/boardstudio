@@ -173,7 +173,7 @@ fn validate_generated_forms(
         }
         .to_canonical_string();
         let form = escape_quoted_controls(canonical.trim_end())?;
-        let kind = list_head(node).unwrap_or("");
+        let kind = sexpr::head(node).unwrap_or("");
         if !matches!(
             kind,
             "footprint"
@@ -272,10 +272,10 @@ fn validate_net_refs(
     match node {
         Node::Atom { .. } => Ok(()),
         Node::List { items, .. } => {
-            if list_head(node) == Some("net") {
+            if sexpr::head(node) == Some("net") {
                 let index = items
                     .get(1)
-                    .and_then(node_atom)
+                    .and_then(sexpr::atom)
                     .and_then(|text| text.parse::<u32>().ok())
                     .ok_or_else(|| validation("Malformed generated net reference"))?;
                 if index != 0 {
@@ -290,7 +290,7 @@ fn validate_net_refs(
                                 atom: Atom::Quoted(_),
                                 span,
                             } => sexpr::kicad_quoted(source_text, *span),
-                            _ => node_atom(label_node).map(str::to_owned),
+                            _ => sexpr::atom(label_node).map(str::to_owned),
                         };
                         if let Some(label) = label
                             && label != *name
@@ -307,23 +307,6 @@ fn validate_net_refs(
             }
             Ok(())
         }
-    }
-}
-
-fn list_head(node: &Node) -> Option<&str> {
-    match node {
-        Node::List { items, .. } => items.first().and_then(node_atom),
-        Node::Atom { .. } => None,
-    }
-}
-
-fn node_atom(node: &Node) -> Option<&str> {
-    match node {
-        Node::Atom {
-            atom: Atom::Symbol(value) | Atom::Quoted(value),
-            ..
-        } => Some(value),
-        Node::List { .. } => None,
     }
 }
 

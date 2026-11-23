@@ -2,7 +2,11 @@
 //!
 //! The CST is deliberately kept private to the artifact implementation. Source
 //! spans, rather than a pretty-printer, are the authority for all edits.
+//!
+//! This module also hosts the shared arc-support and loop-chaining math used
+//! by the footprint, board, and mechanical projections so they cannot drift.
 
+use crate::model::Vec2;
 use kiutils_sexpr::{Atom, Node, Span};
 
 pub fn items(node: &Node) -> Option<&[Node]> {
@@ -43,6 +47,13 @@ pub fn span(node: &Node) -> Span {
     match node {
         Node::List { span, .. } | Node::Atom { span, .. } => *span,
     }
+}
+
+/// Decode a text atom from the raw source span, falling back to the CST text
+/// for unquoted atoms. Quoted values must be re-decoded from source because
+/// the generic CST decoder drops the slash from unknown escapes.
+pub fn decoded_text(source: &str, node: &Node) -> Option<String> {
+    kicad_quoted(source, span(node)).or_else(|| atom(node).map(str::to_owned))
 }
 
 /// Decode the C-style escapes accepted by KiCad's DSN lexer. This deliberately
@@ -173,6 +184,72 @@ pub fn replace_spans(source: &str, mut replacements: Vec<(Span, String)>) -> Opt
     }
     output.push_str(source.get(cursor..)?);
     Some(output)
+}
+
+/// Circumcenter and radius of the circle through three points.
+///
+/// Returns `None` when the doubled signed area falls below `degenerate_below`;
+/// near-collinear inputs have no usable circular support.
+pub fn circumcenter(a: Vec2, b: Vec2, c: Vec2, degenerate_below: f64) -> Option<(Vec2, f64)> {
+    let d = 2.0 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+    if d.abs() < degenerate_below {
+        return None;
+    }
+    let aa = a.x * a.x + a.y * a.y;
+    let bb = b.x * b.x + b.y * b.y;
+    let cc = c.x * c.x + c.y * c.y;
+    let center = Vec2 {
+        x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
+        y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
+    };
+    Some((center, (a.x - center.x).hypot(a.y - center.y)))
+}
+
+/// Start angle and signed sweep of the arc from `start` to `end` around
+/// `center` passing through `mid`.
+pub fn arc_sweep_through_mid(center: Vec2, start: Vec2, mid: Vec2, end: Vec2) -> (f64, f64) {
+    let angle = |point: Vec2| (point.y - center.y).atan2(point.x - center.x);
+    let first = angle(start);
+    let middle = angle(mid);
+    let last = angle(end);
+    let ccw = (middle - first).rem_euclid(std::f64::consts::TAU)
+        <= (last - first).rem_euclid(std::f64::consts::TAU);
+    let sweep = if ccw {
+        (last - first).rem_euclid(std::f64::consts::TAU)
+    } else {
+        -((first - last).rem_euclid(std::f64::consts::TAU))
+    };
+    (first, sweep)
+}
+
+/// Extend `chain` with adjoining edges until it closes, consuming them from
+/// `edges`. Edges may be shuffled or reversed; endpoints within `tolerance`
+/// join. Returns `None` when an open chain has no adjoining edge left.
+pub fn chain_loop_from(
+    mut chain: Vec<Vec2>,
+    edges: &mut Vec<Vec<Vec2>>,
+    tolerance: f64,
+) -> Option<Vec<Vec2>> {
+    let first = *chain.first()?;
+    while !within(*chain.last()?, first, tolerance) {
+        let current = *chain.last()?;
+        let index = edges.iter().position(|edge| {
+            let (Some(a), Some(b)) = (edge.first(), edge.last()) else {
+                return false;
+            };
+            within(*a, current, tolerance) || within(*b, current, tolerance)
+        })?;
+        let mut edge = edges.remove(index);
+        if within(*edge.last()?, current, tolerance) {
+            edge.reverse();
+        }
+        chain.extend(edge.into_iter().skip(1));
+    }
+    Some(chain)
+}
+
+fn within(a: Vec2, b: Vec2, tolerance: f64) -> bool {
+    (a.x - b.x).hypot(a.y - b.y) <= tolerance
 }
 
 #[cfg(test)]

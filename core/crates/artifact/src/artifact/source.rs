@@ -38,15 +38,14 @@ pub(super) fn import_footprint(source: &str, id: &str) -> Result<CompiledFootpri
     let name_node = root_items
         .get(1)
         .ok_or_else(|| parse_error("Footprint needs a name".into()))?;
-    let name = sexpr::kicad_quoted(source, sexpr::span(name_node))
-        .or_else(|| sexpr::atom(name_node).map(str::to_owned))
+    let name = sexpr::decoded_text(source, name_node)
         .ok_or_else(|| parse_error("Footprint needs a name".into()))?;
 
     let mut diagnostics = Vec::new();
     for model in sexpr::children(root, "model") {
         let model_name = sexpr::items(model)
             .and_then(|parts| parts.get(1))
-            .and_then(|node| sexpr::kicad_quoted(source, sexpr::span(node)))
+            .and_then(|node| sexpr::decoded_text(source, node))
             .unwrap_or_else(|| "external 3D model".into());
         diagnostics.push(ArtifactDiagnostic {
             kind: ArtifactDiagnosticKind::UnavailableModel,
@@ -130,11 +129,7 @@ pub(super) fn patch_footprint(
         .nodes
         .first()
         .ok_or_else(|| ArtifactError::new(ArtifactErrorCode::ParseError, "Expected footprint"))?;
-    let source_back = sexpr::child(root, "layer")
-        .and_then(|layer| sexpr::items(layer))
-        .and_then(|items| items.get(1))
-        .and_then(sexpr::atom)
-        .is_some_and(|layer| layer.starts_with("B."));
+    let source_back = source_is_back(root);
     let target_back = matches!(patch.side, Side::Back);
     let normalized = if patch.placement.is_some() || source_back != target_back {
         upgrade_legacy_arcs(source)?
@@ -290,11 +285,7 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
     if !matches!(sexpr::head(root), Some("footprint" | "module")) {
         return Err(SourceError("Expected footprint".into()));
     }
-    let source_back = sexpr::child(root, "layer")
-        .and_then(|layer| sexpr::items(layer))
-        .and_then(|items| items.get(1))
-        .and_then(sexpr::atom)
-        .is_some_and(|layer| layer.starts_with("B."));
+    let source_back = source_is_back(root);
     let target_back = matches!(patch.side, Side::Back);
     let needs_side_flip = source_back != target_back;
     let source_rotation = sexpr::child(root, "at")
@@ -355,8 +346,7 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
         let p = sexpr::items(prop).unwrap_or_default();
         let key_node = p.get(1);
         let key = key_node
-            .and_then(|node| sexpr::kicad_quoted(source, sexpr::span(node)))
-            .or_else(|| key_node.and_then(sexpr::atom).map(str::to_owned))
+            .and_then(|node| sexpr::decoded_text(source, node))
             .unwrap_or_default();
         let (replacement, patched) = match key.as_str() {
             "Reference" | "reference" => (patch.reference.as_deref(), &mut patched_reference),
@@ -384,8 +374,7 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
         ids.insert(id.clone(), true);
         let number_node = sexpr::items(pad).and_then(|items| items.get(1));
         let number = number_node
-            .and_then(|node| sexpr::kicad_quoted(source, sexpr::span(node)))
-            .or_else(|| number_node.and_then(sexpr::atom).map(str::to_owned))
+            .and_then(|node| sexpr::decoded_text(source, node))
             .unwrap_or_default();
         let net = patch.pad_nets.get(&id).cloned();
         if let Some(previous) = numbers.insert(number.clone(), net.clone())
@@ -465,6 +454,14 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
     Ok(patched)
 }
 
+fn source_is_back(root: &Node) -> bool {
+    sexpr::child(root, "layer")
+        .and_then(|layer| sexpr::items(layer))
+        .and_then(|items| items.get(1))
+        .and_then(sexpr::atom)
+        .is_some_and(|layer| layer.starts_with("B."))
+}
+
 fn num(value: f64) -> String {
     if value == 0.0 {
         return "0".into();
@@ -539,19 +536,14 @@ fn reject_unknown_spatial(root: &Node) -> Result<(), SourceError> {
         "xyz",
         "scale",
         "rotate",
-        "offset",
         "net",
         "pinfunction",
         "pintype",
-        "solder_paste_margin",
         "zone_connect",
         "thermal_width",
-        "thermal_gap",
         "remove_unused_layers",
         "keep_end_layers",
-        "roundrect_rratio",
         "chamfer",
-        "property",
         "ki_locked",
     ];
     fn visit(node: &Node, known: &[&str]) -> Result<(), SourceError> {
@@ -682,6 +674,42 @@ fn patch_layers(root: &Node, edits: &mut Vec<(Span, String)>) {
     visit(root, edits);
 }
 
+/// Rewrite an absolute `(at x y angle)` placement for the target side and
+/// rotation, appending the angle when the source omits it.
+fn patch_at_angle(
+    parts: &[Node],
+    theta: f64,
+    source_rotation: f64,
+    source_back: bool,
+    target_back: bool,
+    edits: &mut Vec<(Span, String)>,
+) {
+    let source_absolute = parts
+        .get(3)
+        .and_then(sexpr::atom)
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let relative = source_absolute - source_rotation;
+    let local = if source_back { -relative } else { relative };
+    let absolute = if target_back {
+        theta + 180.0 - local
+    } else {
+        theta + local
+    };
+    if let Some(angle) = parts.get(3) {
+        edits.push((sexpr::span(angle), num(absolute)));
+    } else if let Some(y) = parts.get(2) {
+        let span = sexpr::span(y);
+        edits.push((
+            Span {
+                start: span.end,
+                end: span.end,
+            },
+            format!(" {}", num(absolute)),
+        ));
+    }
+}
+
 fn patch_backside_geometry(
     root: &Node,
     theta: f64,
@@ -706,30 +734,14 @@ fn patch_backside_geometry(
             edits.push((sexpr::span(&parts[2]), num(-y)));
         }
         if let Some((theta, source_rotation, source_back, target_back)) = angle_context {
-            let source_absolute = parts
-                .get(3)
-                .and_then(sexpr::atom)
-                .and_then(|value| value.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let relative = source_absolute - source_rotation;
-            let local = if source_back { -relative } else { relative };
-            let absolute = if target_back {
-                theta + 180.0 - local
-            } else {
-                theta + local
-            };
-            if let Some(angle) = parts.get(3) {
-                edits.push((sexpr::span(angle), num(absolute)));
-            } else if let Some(y) = parts.get(2) {
-                let span = sexpr::span(y);
-                edits.push((
-                    Span {
-                        start: span.end,
-                        end: span.end,
-                    },
-                    format!(" {}", num(absolute)),
-                ));
-            }
+            patch_at_angle(
+                parts,
+                theta,
+                source_rotation,
+                source_back,
+                target_back,
+                edits,
+            );
         }
     }
     fn visit(
@@ -849,30 +861,14 @@ fn patch_absolute_angles(
             && let Some(at) = sexpr::child(node, "at")
             && let Some(parts) = sexpr::items(at)
         {
-            let source_absolute = parts
-                .get(3)
-                .and_then(sexpr::atom)
-                .and_then(|value| value.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let relative = source_absolute - source_rotation;
-            let local = if source_back { -relative } else { relative };
-            let absolute = if target_back {
-                theta + 180.0 - local
-            } else {
-                theta + local
-            };
-            if let Some(angle) = parts.get(3) {
-                edits.push((sexpr::span(angle), num(absolute)));
-            } else if let Some(y) = parts.get(2) {
-                let span = sexpr::span(y);
-                edits.push((
-                    Span {
-                        start: span.end,
-                        end: span.end,
-                    },
-                    format!(" {}", num(absolute)),
-                ));
-            }
+            patch_at_angle(
+                parts,
+                theta,
+                source_rotation,
+                source_back,
+                target_back,
+                edits,
+            );
         }
         for child in items {
             visit(

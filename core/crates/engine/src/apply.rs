@@ -8,6 +8,13 @@ pub(super) fn validate_project_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn require_board<'a>(doc: &'a ProjectDoc, board_id: &str) -> Result<&'a Board, String> {
+    doc.boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .ok_or_else(|| format!("Unknown board {board_id}"))
+}
+
 pub(crate) fn affects_outline(op: &EditOperation) -> bool {
     if let EditOperation::ApplyMechanicalEdit { edit } = op {
         return crate::mechanical::edit::affects_outline(&edit.change);
@@ -272,9 +279,7 @@ pub(crate) fn apply_with_ledger(
             inputs::set_scan_mode(doc, part_id, *mode)
         }
         EditOperation::SetWiringMode { board_id, mode } => {
-            if !doc.boards.iter().any(|board| board.id == *board_id) {
-                return Err(format!("Unknown board {board_id}"));
-            }
+            require_board(doc, board_id)?;
             if doc
                 .hardware
                 .as_ref()
@@ -467,33 +472,30 @@ pub(crate) fn apply_with_ledger(
             }
             Ok(changed)
         }
-        EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. } => match op {
-            EditOperation::AddPart {
-                part,
-                board_id,
-                definition,
-                layout_id,
-            } => add_part_placement(
-                doc,
-                part,
-                board_id.as_deref(),
-                definition.as_ref(),
-                layout_id.as_deref(),
-            ),
-            EditOperation::AddMirrorOnlyPart {
-                part,
-                board_id,
-                definition,
-                layout_id,
-            } => add_part_placement(
-                doc,
-                part,
-                Some(board_id),
-                definition.as_ref(),
-                layout_id.as_deref(),
-            ),
-            _ => unreachable!("the placement arm matches both Part addition operations"),
-        },
+        EditOperation::AddPart {
+            part,
+            board_id,
+            definition,
+            layout_id,
+        } => add_part_placement(
+            doc,
+            part,
+            board_id.as_deref(),
+            definition.as_ref(),
+            layout_id.as_deref(),
+        ),
+        EditOperation::AddMirrorOnlyPart {
+            part,
+            board_id,
+            definition,
+            layout_id,
+        } => add_part_placement(
+            doc,
+            part,
+            Some(board_id),
+            definition.as_ref(),
+            layout_id.as_deref(),
+        ),
         EditOperation::SetMirroredPart { .. } => {
             Err("Use a mirror exception to change derived part ownership".into())
         }
