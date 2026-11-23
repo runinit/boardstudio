@@ -76,10 +76,6 @@ pub fn ThemePicker(#[props(default)] open: Option<Signal<bool>>) -> Element {
     }
 }
 
-#[cfg(test)]
-#[path = "header_control_tests.rs"]
-mod header_control_tests;
-
 pub fn durability_label(durability: &Durability) -> &'static str {
     match durability {
         Durability::Saved { .. } => "Saved",

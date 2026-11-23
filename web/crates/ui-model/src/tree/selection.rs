@@ -6,7 +6,8 @@ pub fn resolve_selection(
     context: &TreeContext,
 ) -> Option<Vec<String>> {
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     let board = document
         .boards
         .iter()
@@ -271,16 +272,15 @@ pub(crate) fn context_is_resolvable(
     let Some(snapshot) = model.accepted.as_ref() else {
         return false;
     };
-    let Some(board) = snapshot
-        .document
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)
     else {
         return false;
     };
-    let Some((matrix, _)) = matrix_for_board(&snapshot.document, &snapshot.scene, board, matrix_id)
-    else {
+    let Some((matrix, _)) = matrix_for_board(&document, &snapshot.scene, board, matrix_id) else {
         return false;
     };
     row.is_none_or(|row| row < matrix.rows) && column.is_none_or(|column| column < matrix.columns)
@@ -293,7 +293,8 @@ pub fn context_for_part(
     #[cfg(test)]
     CONTEXT_LOOKUPS.set(CONTEXT_LOOKUPS.get() + 1);
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     let board = document
         .boards
         .iter()
@@ -374,15 +375,15 @@ pub(crate) fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> V
     let Some(snapshot) = model.accepted.as_ref() else {
         return Vec::new();
     };
-    let Some(board) = snapshot
-        .document
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)
     else {
         return Vec::new();
     };
-    let document = &snapshot.document;
     let board_parts = board.part_ids.iter().map(String::as_str).collect();
     let live: HashSet<_> = document.parts.iter().map(|part| part.id.as_str()).collect();
     let matrices = visible_matrices(document, &board.id, &board_parts);
@@ -470,7 +471,8 @@ pub fn context_for_cell(
     column: u32,
 ) -> Option<TreeContext> {
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     let board = document
         .boards
         .iter()
@@ -509,7 +511,8 @@ pub fn context_label(
     context: &TreeContext,
 ) -> Option<String> {
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     match context {
         TreeContext::Outline { .. } | TreeContext::OutlineVersion { .. } => {
             Some("Board outline".into())

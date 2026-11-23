@@ -3,13 +3,12 @@
 //! reads "Moves N keys (n per half)". The preview clears on leave, blur or
 //! selection change and never writes the document.
 use super::*;
+use crate::presentation::test_mount_helpers::{
+    self, EditorProbe, MountedRoot, matrix_part_definition, mount_editor,
+};
 use boardstudio_core::model::ProjectDoc;
-use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use serde_json::json;
-use std::cell::RefCell;
-use std::collections::BTreeSet;
-use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -18,58 +17,22 @@ wasm_bindgen_test_configure!(run_in_browser);
 const ROWS: u32 = 2;
 const COLUMNS: u32 = 4;
 
-#[derive(Clone)]
-struct Probe {
-    runtime: Rc<crate::runtime::Runtime>,
-    root_id: &'static str,
-    adapter: Rc<RefCell<Option<SelectionAdapter>>>,
-    version: Rc<RefCell<Option<Signal<u64>>>>,
-    hidden: Rc<RefCell<Option<Signal<BTreeSet<String>>>>>,
-}
-
-impl Probe {
-    fn select(&self, context: objects::TreeContext) {
-        let adapter = self.adapter.borrow().clone().expect("mounted adapter");
-        selection::submit_context(
-            &self.runtime,
-            &adapter,
-            selection::ContextRequest {
-                scope: self.runtime.scope().expect("opened project scope"),
-                context,
-                mode: boardstudio_application::SelectionMode::Replace,
-            },
-        );
-    }
-
-    fn revision(&self) -> u64 {
-        self.runtime
-            .model()
-            .accepted
-            .expect("accepted document")
-            .document
-            .revision
-    }
-
-    fn element(&self, selector: &str) -> web_sys::Element {
-        query(self.root_id, selector).unwrap_or_else(|| panic!("no element for {selector}"))
-    }
-}
-
 /// A mirrored pair opened directly, following the ticket-14 split-document
 /// pattern: the pair link (not an edit) is what the preview reads for the
 /// mirrored half. The right origin is the reflection of the left (-20)
 /// about the pair axis (10).
 fn mirrored_document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("field-preview", "Field preview");
-    document
-        .definitions
-        .push(serde_json::from_value(definition("switch", "switch")).unwrap());
+    let courtyard = [[-7.0, -7.0], [7.0, 7.0], [7.0, -7.0], [-7.0, 7.0]];
+    document.definitions.push(
+        serde_json::from_value(matrix_part_definition("switch", "switch", courtyard)).unwrap(),
+    );
     // Materialized key parts with canonical member ids, following the
     // ticket-14 split-document pattern: scenes resolve members against
     // these, so the preview names both halves.
     let mut board_parts = Vec::new();
     let mut matrices = Vec::new();
-    for (id, origin_x, prefix) in [("left-matrix", -20.0, "L"), ("right-matrix", 40.0, "R")] {
+    for (id, origin_x, prefix) in [("left-matrix", -20.0, "L")] {
         let mut part_ids = Vec::new();
         let mut cells = Vec::new();
         for row in 0..ROWS {
@@ -122,30 +85,19 @@ fn mirrored_document() -> ProjectDoc {
     document.layouts.push(
         serde_json::from_value(json!({
             "id": "paired-layout", "name": "Right half", "boardId": "board",
-            "matrixIds": ["right-matrix"], "partIds": [],
-            "mirrorLink": {
-                "sourceId": "source-layout", "axisX": 10.0,
-                "correspondences": [
-                    {"kind": "matrix", "sourceId": "left-matrix", "mirrorId": "right-matrix"}
-                ],
-                "exceptions": []
-            }
+            "matrixIds": [], "partIds": []
         }))
         .unwrap(),
     );
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair",
+        "source": {"kind": "sameBoardLayout", "id": "source-layout"},
+        "destination": {"kind": "sameBoardLayout", "id": "paired-layout"},
+        "mapping": {"at": {"x": 20.0, "y": 0.0}, "rotation": 0.0},
+        "overrides": []
+    }]))
+    .unwrap();
     document
-}
-
-fn definition(id: &str, kind: &str) -> serde_json::Value {
-    json!({
-        "id": id, "name": id, "kind": kind,
-        "courtyard": [
-            { "x": -7.0, "y": -7.0 }, { "x": 7.0, "y": 7.0 },
-            { "x": 7.0, "y": -7.0 }, { "x": -7.0, "y": 7.0 }
-        ],
-        "pads": [{ "id": "p0", "number": "1", "at": { "x": 0.0, "y": 0.0 },
-                   "size": { "x": 2.0, "y": 2.0 }, "shape": "rect" }],
-    })
 }
 
 fn query(root_id: &str, selector: &str) -> Option<web_sys::Element> {
@@ -169,80 +121,25 @@ fn count(root_id: &str, selector: &str) -> u32 {
 
 fn dispatch(element: &web_sys::Element, kind: &str) {
     let event = web_sys::PointerEvent::new(kind).unwrap();
-    element.dispatch_event(event.as_ref()).unwrap();
-}
-
-fn host() -> Element {
-    let probe = use_context::<Probe>();
-    let workspace = use_signal(|| "Layout");
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
-    let version = use_signal(|| 0u64);
-    *probe.version.borrow_mut() = Some(version);
-    use_context_provider(|| version);
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
-    let selected = use_signal(|| None);
-    let anchor = use_signal(|| None);
-    let generation = use_signal(|| 0u64);
-    let adapter = SelectionAdapter::new(selected, anchor, generation);
-    *probe.adapter.borrow_mut() = Some(adapter.clone());
-    use_context_provider(|| adapter);
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    *probe.hidden.borrow_mut() = Some(hidden);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} } }
+    element
+        .closest("[data-transform-number]")
+        .unwrap()
+        .unwrap()
+        .dispatch_event(event.as_ref())
+        .unwrap();
 }
 
 /// Open the mirrored pair through the Session and Core and mount the real
 /// Layout editor, without waiting: the tests below wait for their own state.
 /// Column 2 of the left half is selected: Spread carries columns 2-4 on both
 /// halves, 12 keys, "Moves 12 keys (6 per half)".
-async fn mount_bare(root_id: &'static str) -> Probe {
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, mirrored_document()).await;
-    let probe = Probe {
-        runtime: runtime.clone(),
-        root_id,
-        adapter: Rc::default(),
-        version: Rc::default(),
-        hidden: Rc::default(),
-    };
-    let dom_document = web_sys::window().unwrap().document().unwrap();
-    let root = dom_document.create_element("div").unwrap();
-    root.set_id(root_id);
-    dom_document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(host);
-    dom.provide_root_context(runtime.clone());
-    dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    probe
+async fn mount_bare(root_id: &'static str) -> (EditorProbe, MountedRoot) {
+    let runtime = test_mount_helpers::open_document(mirrored_document()).await;
+    mount_editor(root_id, runtime)
 }
 
-async fn mount(root_id: &'static str) -> Probe {
-    let probe = mount_bare(root_id).await;
+async fn mount(root_id: &'static str) -> (EditorProbe, MountedRoot) {
+    let (probe, root) = mount_bare(root_id).await;
     wait_until("the Layout canvas draws the mirrored keys", || {
         count(root_id, "[data-matrix-id][data-row][data-column]") == ROWS * COLUMNS * 2
     })
@@ -255,12 +152,12 @@ async fn mount(root_id: &'static str) -> Probe {
         query(root_id, "input[aria-label='Spread']").is_some()
     })
     .await;
-    probe
+    (probe, root)
 }
 
-fn spread_field(probe: &Probe) -> web_sys::HtmlElement {
-    probe
-        .element("input[aria-label='Spread']")
+fn spread_field(root_id: &str) -> web_sys::HtmlElement {
+    query(root_id, "input[aria-label='Spread']")
+        .expect("column Spread field")
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
 }
@@ -299,9 +196,9 @@ fn hint_text(root_id: &str) -> Option<String> {
 #[wasm_bindgen_test]
 async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
     let root_id = "field-preview-hover";
-    let probe = mount(root_id).await;
+    let (probe, _root) = mount(root_id).await;
     let before = probe.revision();
-    let field = spread_field(&probe);
+    let field = spread_field(root_id);
     dispatch(&field, "pointerenter");
     wait_until(
         "hovering Spread previews columns 2-4 on both halves",
@@ -328,15 +225,15 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
             == 6
             && previewed
                 .iter()
-                .filter(|(matrix, _, _)| matrix == "right-matrix")
+                .filter(|(matrix, _, _)| matrix == "mirror_70616972_left-matrix")
                 .count()
                 == 6,
         "both halves move: {previewed:?}"
     );
     assert!(
-        previewed
-            .iter()
-            .all(|(matrix, _, _)| matrix == "left-matrix" || matrix == "right-matrix"),
+        previewed.iter().all(
+            |(matrix, _, _)| matrix == "left-matrix" || matrix == "mirror_70616972_left-matrix"
+        ),
         "no other matrix moves: {previewed:?}"
     );
     assert_eq!(
@@ -384,8 +281,8 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
 #[wasm_bindgen_test]
 async fn keyboard_focus_previews_and_blur_clears() {
     let root_id = "field-preview-focus";
-    let probe = mount(root_id).await;
-    let field = spread_field(&probe);
+    let (_probe, _root) = mount(root_id).await;
+    let field = spread_field(root_id);
     field.focus().unwrap();
     wait_until("keyboard focus previews the same keys as hover", || {
         previewed_keys(root_id).len() == 12
@@ -407,8 +304,8 @@ async fn keyboard_focus_previews_and_blur_clears() {
 #[wasm_bindgen_test]
 async fn changing_the_selection_clears_the_field_preview() {
     let root_id = "field-preview-selection";
-    let probe = mount(root_id).await;
-    dispatch(&spread_field(&probe), "pointerenter");
+    let (probe, _root) = mount(root_id).await;
+    dispatch(&spread_field(root_id), "pointerenter");
     wait_until("hovering the field previews every carried key", || {
         previewed_keys(root_id).len() == 12
     })

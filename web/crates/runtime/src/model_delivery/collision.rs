@@ -1,5 +1,6 @@
 //! CAD collision subjects, findings and assessment of collision observations.
 use super::*;
+use boardstudio_model::model::Side;
 
 pub const TIGHT_COLLISION_ACCURACY_MM: f64 = 0.01;
 pub const IDENTITY_ROW_TRANSFORM_F64: [f64; 16] = [
@@ -463,26 +464,6 @@ pub fn resolve_face_provenance(
     })
 }
 
-pub fn resolve_physical_model_row_transform(
-    delivered: &DeliveredModel,
-    explicit_pcb_row_transform: Option<[f64; 16]>,
-) -> Result<[f64; 16], String> {
-    if let Some(matrix) = delivered.matrix {
-        boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-            .map_err(|error| error.to_string())?;
-        return Ok(matrix);
-    }
-    let matrix = explicit_pcb_row_transform.ok_or_else(|| {
-        format!(
-            "PCB model row {} has matrix: None and no explicit physical assembly transform was supplied",
-            delivered.id
-        )
-    })?;
-    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-        .map_err(|error| error.to_string())?;
-    Ok(matrix)
-}
-
 pub fn resolve_subject_face_provenance(
     subject: &CadCollisionSubject,
     provenance: &boardstudio_web_host::cad_jobs::CadTriangleProvenance,
@@ -674,33 +655,4 @@ pub fn assess_subject_collision_observation(
         source_interval_mm,
         query_qualification: report,
     }
-}
-
-pub fn assess_collision_observation(
-    left_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
-    right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
-    clearance_threshold_mm: f64,
-    requested_accuracy_mm: Option<f64>,
-    observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
-) -> CadCollisionResult {
-    let left = CadCollisionSubject::VendorModel {
-        id: "left".into(),
-        reference: "left".into(),
-        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
-        vendor_step: Some(Rc::new(left_asset.clone())),
-    };
-    let right = CadCollisionSubject::VendorModel {
-        id: "right".into(),
-        reference: "right".into(),
-        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
-        vendor_step: Some(Rc::new(right_asset.clone())),
-    };
-    assess_subject_collision_observation(
-        &left,
-        &right,
-        clearance_threshold_mm,
-        requested_accuracy_mm,
-        None,
-        observation,
-    )
 }

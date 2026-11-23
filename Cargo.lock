@@ -239,6 +239,7 @@ name = "boardstudio-core-kernel"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-core-mirrored-half",
  "boardstudio-footprints",
  "boardstudio-model",
  "i_overlay",
@@ -273,11 +274,7 @@ dependencies = [
 name = "boardstudio-core-mirrored-half"
 version = "0.1.0"
 dependencies = [
- "boardstudio-core-kernel",
- "boardstudio-core-mechanical",
  "boardstudio-model",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -373,28 +370,21 @@ name = "boardstudio-web-case"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
- "boardstudio-core-artifact",
  "boardstudio-core-mechanical",
  "boardstudio-model",
  "boardstudio-web-catalogue",
  "boardstudio-web-host",
- "boardstudio-web-keycaps",
  "boardstudio-web-runtime",
  "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio_core",
  "dioxus",
  "dioxus-web",
- "futures-channel",
- "gloo-timers",
  "js-sys",
  "serde",
  "serde_json",
- "sha2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -440,16 +430,11 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-model",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "dioxus",
  "dioxus-web",
- "gloo-timers",
  "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -466,10 +451,7 @@ dependencies = [
  "boardstudio-web-ui-shared",
  "dioxus",
  "dioxus-web",
- "gloo-timers",
  "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -491,17 +473,13 @@ dependencies = [
  "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio_core",
  "dioxus",
- "dioxus-primitives",
  "dioxus-web",
- "futures-channel",
  "gloo-timers",
  "js-sys",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -526,27 +504,20 @@ dependencies = [
  "boardstudio-application",
  "boardstudio-core-kernel",
  "boardstudio-model",
- "boardstudio-web-case",
  "boardstudio-web-catalogue",
- "boardstudio-web-keycaps",
- "boardstudio-web-layout",
  "boardstudio-web-layout-core",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
- "boardstudio-web-test-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
  "dioxus-primitives",
  "dioxus-web",
- "futures-channel",
  "gloo-timers",
- "js-sys",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -570,7 +541,6 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -598,7 +568,6 @@ dependencies = [
  "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -626,7 +595,6 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 
@@ -662,9 +630,6 @@ dependencies = [
  "boardstudio-web-runtime",
  "boardstudio_core",
  "futures-channel",
- "js-sys",
- "serde_json",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -702,7 +667,6 @@ dependencies = [
  "tw_merge",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-bindgen-test",
  "web-sys",
 ]
 

@@ -2,15 +2,13 @@
 //!
 //! Each module is a former `tests/<name>.rs` test crate, included in place so its
 //! relative `include_str!` fixtures and `#[path]` helpers keep resolving.
-//! `performance` and `matrix_performance` stay separate binaries: they time work
-//! and should not share the test thread pool with everything else.
 //!
 //! This root holds the core engine, document integrity, contracts, schema, firmware,
 //! keymap, keycap and outline suites; the matrix, mechanical and module suites live in
 //! `integration_matrix.rs`, `integration_mechanical.rs` and `integration_modules.rs`.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "constraint_depth.rs"]

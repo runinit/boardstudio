@@ -3,11 +3,10 @@ use super::{SelectionAdapter, WorkspaceState, objects};
 use crate::runtime::Runtime;
 use boardstudio_application::{EditResolver, Event, ReadModel, Resolution, Scope, SelectionMode};
 use boardstudio_core::model::EditOperation;
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
@@ -35,18 +34,12 @@ enum Action {
     Delete,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Field {
-    Enabled,
-    Delete,
-}
-
 fn owner(
     runtime: &Runtime,
     adapter: &SelectionAdapter,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> Option<Owner> {
-    if workspace() != "Layout" {
+    if workspace() != Workspace::Layout {
         return None;
     }
     let scope = runtime.scope()?;
@@ -163,103 +156,17 @@ pub(super) fn SelectedKeysActions() -> Element {
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let retained = use_hook(|| Rc::new(RefCell::new(None::<(Owner, Targets)>)));
-    let selection_lifetime = use_signal(|| 0u64);
-    let pending_owner = use_hook(|| Rc::new(RefCell::new(None::<(Owner, u64, Targets)>)));
-    let edits = use_hook(DraftEdits::<Field>::default);
-    let delete_pending = use_signal(|| false);
-    let mut enabled_failure = use_signal(|| None::<String>);
     let mut failure = use_signal(|| None::<String>);
     use_effect({
         let retained = retained.clone();
-        let mut selection_lifetime = selection_lifetime;
         let selected_context = adapter.selected_context;
         move || {
             let _selection = selected_context.read();
             retained.borrow_mut().take();
             failure.set(None);
-            enabled_failure.set(None);
-            let next = (*selection_lifetime.peek()).saturating_add(1);
-            selection_lifetime.set(next);
         }
     });
-    let observed_selection_lifetime = selection_lifetime();
     let current_owner = owner(&runtime, &adapter, workspace);
-    let observation_live =
-        pending_owner
-            .borrow()
-            .as_ref()
-            .is_some_and(|(captured, lifetime, _)| {
-                current_owner.as_ref() == Some(captured) && observed_selection_lifetime == *lifetime
-            });
-    for result in edits.settle(observation_live, |_| String::new()) {
-        match result {
-            PendingEditResult::Failed {
-                key: Field::Delete,
-                message,
-            } => failure.set(Some(message)),
-            PendingEditResult::Failed {
-                key: Field::Enabled,
-                message,
-            } => enabled_failure.set(Some(message)),
-            PendingEditResult::Landed {
-                key: Field::Delete, ..
-            } => {
-                if let Some((_, _, captured)) = pending_owner.borrow().as_ref()
-                    && runtime
-                        .model()
-                        .selected_part_ids
-                        .iter()
-                        .all(|id| captured.ids.contains(id))
-                {
-                    let mut selected_context = adapter.selected_context;
-                    selected_context.set(None);
-                    runtime.submit(Event::SelectParts {
-                        operation_id: runtime.operation(),
-                        part_ids: vec![],
-                        range_part_ids: vec![],
-                        mode: SelectionMode::Replace,
-                    });
-                }
-                retained.borrow_mut().take();
-                failure.set(None);
-            }
-            PendingEditResult::Landed {
-                key: Field::Enabled,
-                ..
-            } => {
-                enabled_failure.set(None);
-                if let Some((_, _, captured)) = pending_owner.borrow().as_ref() {
-                    let model = runtime.model();
-                    let live = captured
-                        .ids
-                        .iter()
-                        .filter(|id| {
-                            model.accepted.as_ref().is_some_and(|accepted| {
-                                accepted.scene.matrix_scenes.iter().any(|scene| {
-                                    scene.cells.iter().any(|cell| {
-                                        cell.enabled && cell.member_id.as_ref() == Some(*id)
-                                    })
-                                })
-                            })
-                        })
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    if !live.is_empty() && model.selected_part_ids != live {
-                        runtime.submit(Event::SelectParts {
-                            operation_id: runtime.operation(),
-                            part_ids: live,
-                            range_part_ids: vec![],
-                            mode: SelectionMode::Replace,
-                        });
-                    }
-                }
-            }
-            PendingEditResult::Retired { key: Field::Delete } => failure.set(None),
-            PendingEditResult::Retired {
-                key: Field::Enabled,
-            } => enabled_failure.set(None),
-        }
-    }
     let model = runtime.model();
     if retained
         .borrow()
@@ -288,86 +195,86 @@ pub(super) fn SelectedKeysActions() -> Element {
     };
     let count = projected.cells.values().map(Vec::len).sum::<usize>();
     let matrix_count = projected.cells.len();
-    let on_action =
-        EventHandler::new(move |action: Action| {
-            if (action == Action::Delete && delete_pending())
-                || owner(&runtime, &adapter, workspace).as_ref() != Some(&current_owner)
-            {
-                return;
+    let on_action = EventHandler::new(move |action: Action| {
+        if owner(&runtime, &adapter, workspace).as_ref() != Some(&current_owner) {
+            return;
+        }
+        let captured = projected.clone();
+        let model = runtime.model();
+        let current_targets = retained
+            .borrow()
+            .as_ref()
+            .filter(|(held_owner, held)| {
+                held_owner == &current_owner && retained_is_current(&model, held)
+            })
+            .map(|(_, held)| held.clone())
+            .or_else(|| targets(&model, &model.selected_part_ids));
+        if !topology_is_current(&model, &captured)
+            || current_targets.is_none_or(|current| current.cells != captured.cells)
+        {
+            return;
+        }
+        *retained.borrow_mut() = Some((current_owner.clone(), captured.clone()));
+        let selected_ids = captured.ids.clone();
+        let board_id = current_owner.scope.board_id.clone();
+        let resolver = EditResolver::new("selected-keys-action", move |accepted| {
+            let accepted_model = ReadModel {
+                accepted: Some(accepted.clone()),
+                active_board_id: board_id.clone(),
+                ..ReadModel::default()
+            };
+            if !topology_is_current(&accepted_model, &captured) {
+                return Resolution::Retire(
+                    "The selected matrix structure changed before this edit ran.".into(),
+                );
             }
-            let lifetime = *selection_lifetime.peek();
-            let captured = projected.clone();
-            let model = runtime.model();
-            let current_targets = retained
-                .borrow()
-                .as_ref()
-                .filter(|(held_owner, held)| {
-                    held_owner == &current_owner && retained_is_current(&model, held)
-                })
-                .map(|(_, held)| held.clone())
-                .or_else(|| targets(&model, &model.selected_part_ids));
-            if !topology_is_current(&model, &captured)
-                || current_targets.is_none_or(|current| current.cells != captured.cells)
-            {
-                return;
-            }
-            if pending_owner.borrow().as_ref().is_some_and(
-                |(previous_owner, previous_lifetime, _)| {
-                    previous_owner != &current_owner || *previous_lifetime != lifetime
+            let operation = match action {
+                Action::Enable | Action::Disable => EditOperation::SetMatrixCellsEnabled {
+                    cells: captured.cells.clone(),
+                    enabled: action == Action::Enable,
                 },
-            ) {
-                // Changing the observation owner never cancels Session's committed intent.
-                // Retire its UI observation before the new owner starts another edit.
-                edits.settle(false, |_| String::new());
-                enabled_failure.set(None);
-            }
-            *retained.borrow_mut() = Some((current_owner.clone(), captured.clone()));
-            *pending_owner.borrow_mut() = Some((current_owner.clone(), lifetime, captured.clone()));
-            match action {
-                Action::Delete => failure.set(None),
-                Action::Enable | Action::Disable => enabled_failure.set(None),
-            }
-            let board_id = current_owner.scope.board_id.clone();
-            let resolver = EditResolver::new("selected-keys-action", move |accepted| {
-                let accepted_model = ReadModel {
-                    accepted: Some(accepted.clone()),
-                    active_board_id: board_id.clone(),
-                    ..ReadModel::default()
-                };
-                if !topology_is_current(&accepted_model, &captured) {
-                    return Resolution::Retire(
-                        "The selected matrix structure changed before this edit ran.".into(),
-                    );
-                }
-                let operation = match action {
-                    Action::Enable | Action::Disable => EditOperation::SetMatrixCellsEnabled {
-                        cells: captured.cells.clone(),
-                        enabled: action == Action::Enable,
-                    },
-                    Action::Delete => EditOperation::RemoveSelectedMatrixCells {
-                        cells: captured.cells.clone(),
-                    },
-                };
-                Resolution::submit(captured.cells.keys().cloned().collect(), operation)
-            });
-            match action {
-                Action::Enable | Action::Disable => edits.begin(
-                    &runtime,
-                    Field::Enabled,
-                    "selected-keys-enabled",
-                    Some("layout".into()),
-                    resolver,
-                ),
-                Action::Delete => edits.submit(
-                    &runtime,
-                    Field::Delete,
-                    "selected-keys-delete",
-                    Some("layout".into()),
-                    resolver,
-                    EditDisplay::default().disabling(delete_pending),
-                ),
-            }
+                Action::Delete => EditOperation::RemoveSelectedMatrixCells {
+                    cells: captured.cells.clone(),
+                },
+            };
+            Resolution::submit(captured.cells.keys().cloned().collect(), operation)
         });
+        let accepted = match runtime.commit("selected-keys-action", resolver) {
+            Ok(accepted) => accepted,
+            Err(message) => {
+                failure.set(Some(message));
+                return;
+            }
+        };
+        failure.set(None);
+        let ids = match action {
+            Action::Delete => {
+                retained.borrow_mut().take();
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(None);
+                Vec::new()
+            }
+            Action::Enable | Action::Disable => selected_ids
+                .into_iter()
+                .filter(|id| {
+                    accepted.scene.matrix_scenes.iter().any(|scene| {
+                        scene
+                            .cells
+                            .iter()
+                            .any(|cell| cell.enabled && cell.member_id.as_ref() == Some(id))
+                    })
+                })
+                .collect(),
+        };
+        if runtime.model().selected_part_ids != ids {
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: ids,
+                range_part_ids: vec![],
+                mode: SelectionMode::Replace,
+            });
+        }
+    });
     rsx! {
         section {
             class: "grid content-start gap-3 min-w-0 px-4 pt-3 pb-5 text-foreground",
@@ -400,12 +307,11 @@ pub(super) fn SelectedKeysActions() -> Element {
                     variant: ButtonVariant::Secondary,
                     button_type: "button",
                     aria_label: "Delete selected keys",
-                    disabled: delete_pending(),
                     onclick: move |_| on_action.call(Action::Delete),
                     "Delete keys"
                 }
             }
-            if let Some(message) = enabled_failure().or_else(&*failure) {
+            if let Some(message) = failure() {
                 Alert { variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }
         }

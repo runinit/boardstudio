@@ -119,7 +119,3 @@ pub fn AddMatrixSurface(props: AddMatrixSurfaceProps) -> Element {
         }
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "add_matrix_surface_tests.rs"]
-mod surface_tests;

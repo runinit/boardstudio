@@ -14,69 +14,15 @@ use boardstudio_model::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
-use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum OutlinePendingKey {
-    OneShot,
-    VersionName,
-    Setting(OutlineSettingKey),
-    Perimeter(OutlinePointTarget),
-    Feature {
-        feature_id: String,
-        field: OutlineFeatureField,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct OutlineOwner {
-    scope: Scope,
-    context: crate::objects::TreeContext,
-    active_version_id: Option<String>,
-    generation: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum OutlineSettingKey {
-    Corners,
-    Size,
-    Margin,
-    BridgeWidth,
-    RepairEnabled,
-    MaximumGapSpan,
-    MinimumConnectionWidth,
-    EdgeClearance,
-    ProtectedGap(String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum OutlineFeatureField {
-    Whole,
-    RectCenterX,
-    RectCenterY,
-    RectWidth,
-    RectHeight,
-    RectRadius,
-    RectRotation,
-    Connections,
-    ConnectionWidth(String),
-    ConnectionPoints(String),
-    ConnectionPointX(String, usize),
-    ConnectionPointY(String, usize),
-    ConnectionPointAttachment(String, usize),
-}
-
 #[derive(Clone)]
 struct ActionState {
-    pending: DraftEdits<OutlinePendingKey>,
     feedback: Signal<Option<OutlineFeedback>>,
-    one_shot_pending: Signal<bool>,
     version_name_draft: Signal<String>,
     version_name_failure: Signal<Option<String>>,
-    pending_owner: Signal<Option<OutlineOwner>>,
     inspector_mounted: Signal<bool>,
     selected_point: Signal<usize>,
     editing_points: Signal<bool>,
@@ -85,7 +31,7 @@ struct ActionState {
     selected_feature_id: Signal<Option<String>>,
     selected_connection_id: Signal<Option<String>>,
     selected_context: Signal<Option<crate::objects::ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     captured_generation: u64,
 }
@@ -132,9 +78,6 @@ pub struct OutlineInspectorProjection {
     pub gaps: Vec<OutlineGap>,
     pub(super) action_context: Rc<OutlineActionContext>,
     pub enabled: bool,
-    /// A one-shot action (activate, copy, delete, add, remove) is pending. Field edits
-    /// never read this.
-    pub one_shot_pending: bool,
     pub(super) version_name_draft: Signal<String>,
     pub(super) version_name_failure: Signal<Option<String>>,
     pub(super) inspector_mounted: Signal<bool>,
@@ -367,43 +310,18 @@ pub fn outline_action_is_current(
     runtime: &Runtime,
     generation: u64,
 ) -> bool {
-    let (scope, token, revision, captured_generation, board_id) = action.envelope();
-    let model = runtime.model();
-    let perimeter_edit = matches!(
+    adapter::outline_action_matches_saved_owner(
         action,
-        OutlineAction::EditPerimeter {
-            phase: EditPhase::Preview | EditPhase::Commit,
-            ..
-        }
-    );
-    let lifecycle_current = model.lifecycle == Lifecycle::Ready
-        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
-    generation == captured_generation
-        && runtime.scope().as_ref() == Some(scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.token == *token
-                && snapshot.document.revision == revision
-                && snapshot.document.id == scope.document_id
-                && snapshot.session_epoch == scope.session_epoch
-        })
-        && scope.board_id == *board_id
-        && lifecycle_current
-        && model.durability == (Durability::Saved { revision })
-        && (model.display_preview.is_none()
-            || matches!(
-                action,
-                OutlineAction::EditPerimeter {
-                    phase: EditPhase::Preview | EditPhase::Commit,
-                    ..
-                }
-            ))
-        && model.gesture.is_none()
+        &runtime.model(),
+        runtime.scope().as_ref(),
+        generation,
+    )
 }
 
 pub fn use_outline_lifecycle(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<crate::objects::ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
 ) -> (
     Option<OutlineInspectorProjection>,
@@ -411,12 +329,9 @@ pub fn use_outline_lifecycle(
 ) {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
-    let pending = use_hook(DraftEdits::<OutlinePendingKey>::default);
     let feedback = use_signal(|| None::<OutlineFeedback>);
-    let one_shot_pending = use_signal(|| false);
     let version_name_draft = use_signal(String::new);
     let version_name_failure = use_signal(|| None::<String>);
-    let pending_owner = use_signal(|| None::<OutlineOwner>);
     let inspector_mounted = use_signal(|| false);
     let selected_point = use_signal(|| 0usize);
     let editing_points = use_signal(|| false);
@@ -516,12 +431,9 @@ pub fn use_outline_lifecycle(
         },
     ));
     let action_state = ActionState {
-        pending: pending.clone(),
         feedback,
-        one_shot_pending,
         version_name_draft,
         version_name_failure,
-        pending_owner,
         inspector_mounted,
         selected_point,
         editing_points,
@@ -542,89 +454,6 @@ pub fn use_outline_lifecycle(
         }
     });
 
-    let live_owner = outline_owner(
-        &runtime,
-        selected_context.read().clone(),
-        scope_generation(),
-    );
-    let observation_owner = pending_owner();
-    use_effect(use_reactive(
-        (
-            &version,
-            &workspace(),
-            &scope_generation(),
-            &live_owner,
-            &observation_owner,
-            &inspector_mounted(),
-        ),
-        {
-            let runtime = runtime.clone();
-            let pending = pending.clone();
-            let mut feedback = feedback;
-            let mut version_name_failure = version_name_failure;
-            move |(
-                _,
-                current_workspace,
-                current_generation,
-                current_owner,
-                submitted_owner,
-                mounted,
-            )| {
-                let owner_is_live = mounted
-                    && current_workspace == "Layout"
-                    && current_generation == captured_generation
-                    && submitted_owner
-                        .as_ref()
-                        .is_some_and(|owner| Some(owner) == current_owner.as_ref());
-                let live_scope = runtime.scope();
-                let accepted_name = runtime
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .and_then(|snapshot| {
-                        snapshot.document.board_outlines.iter().find(|outline| {
-                            runtime
-                                .scope()
-                                .as_ref()
-                                .is_some_and(|scope| outline.board_id == scope.board_id)
-                        })
-                    })
-                    .and_then(|outline| {
-                        outline.active_version_id.as_ref().and_then(|id| {
-                            outline.versions.iter().find(|version| &version.id == id)
-                        })
-                    })
-                    .map(|version| version.name.clone())
-                    .unwrap_or_default();
-                let results = pending.settle(owner_is_live, |key| match key {
-                    OutlinePendingKey::VersionName => accepted_name.clone(),
-                    _ => String::new(),
-                });
-                for result in results {
-                    match result {
-                        PendingEditResult::Failed { key, message, .. } => {
-                            if key == OutlinePendingKey::VersionName {
-                                version_name_failure.set(Some(message));
-                                continue;
-                            }
-                            if let Some(scope) = live_scope.as_ref() {
-                                feedback.set(Some(OutlineFeedback {
-                                    scope: scope.clone(),
-                                    generation: captured_generation,
-                                    board_id: scope.board_id.clone(),
-                                    message: Some(message),
-                                }));
-                            }
-                        }
-                        PendingEditResult::Landed { .. } | PendingEditResult::Retired { .. } => {
-                            // Accepted state is the success confirmation; retirement is silent.
-                        }
-                    }
-                }
-            }
-        },
-    ));
-
     (
         project_inspector(&runtime, action_state, on_action),
         on_action,
@@ -637,12 +466,9 @@ fn project_inspector(
     on_action: EventHandler<OutlineAction>,
 ) -> Option<OutlineInspectorProjection> {
     let ActionState {
-        pending: _,
         feedback,
-        one_shot_pending,
         version_name_draft,
         version_name_failure,
-        pending_owner: _,
         inspector_mounted,
         selected_point,
         editing_points,
@@ -657,7 +483,7 @@ fn project_inspector(
     } = state;
     let model = runtime.model();
     let scope = runtime.scope()?;
-    if workspace() != "Layout" || scope_generation() != captured_generation {
+    if workspace() != Workspace::Layout || scope_generation() != captured_generation {
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
@@ -887,12 +713,9 @@ fn project_inspector(
     let editable = matches!(
         model.durability,
         Durability::Saved { .. } | Durability::Saving { .. }
-    ) && matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && model.display_preview.is_none()
+    ) && model.lifecycle == Lifecycle::Ready
+        && model.display_preview.is_none()
         && model.gesture.is_none();
-    let one_shot_pending = one_shot_pending();
     let visible_feedback = feedback
         .read()
         .as_ref()
@@ -935,7 +758,6 @@ fn project_inspector(
             selection_context: selected.context,
         }),
         enabled: editable,
-        one_shot_pending,
         version_name_draft,
         version_name_failure,
         inspector_mounted,
@@ -946,48 +768,6 @@ fn project_inspector(
         token: snapshot.token,
         revision: snapshot.document.revision,
         generation: captured_generation,
-    })
-}
-
-fn outline_owner(
-    runtime: &Runtime,
-    selected: Option<crate::objects::ScopedTreeContext>,
-    generation: u64,
-) -> Option<OutlineOwner> {
-    let scope = runtime.scope()?;
-    let selected = selected?;
-    if selected.scope != scope
-        || !matches!(
-            &selected.context,
-            crate::objects::TreeContext::Outline { .. }
-                | crate::objects::TreeContext::OutlineVersion { .. }
-        )
-        || !crate::selection::context_is_current(&runtime.model(), &scope, &selected.context)
-    {
-        return None;
-    }
-    let board_id = match &selected.context {
-        crate::objects::TreeContext::Outline { board_id }
-        | crate::objects::TreeContext::OutlineVersion { board_id, .. } => board_id,
-        _ => return None,
-    };
-    let active_version_id = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .and_then(|snapshot| {
-            snapshot
-                .document
-                .board_outlines
-                .iter()
-                .find(|outline| &outline.board_id == board_id)
-        })
-        .and_then(|outline| outline.active_version_id.clone());
-    Some(OutlineOwner {
-        scope,
-        context: selected.context,
-        active_version_id,
-        generation,
     })
 }
 
@@ -1071,18 +851,15 @@ pub(super) fn editable_perimeter(
 }
 
 fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineAction) {
-    let pending = state.pending.clone();
-    let mut pending_owner = state.pending_owner;
     let selected_context = state.selected_context;
     let mut feedback = state.feedback;
-    let one_shot_pending = state.one_shot_pending;
-    let version_name_draft = state.version_name_draft;
+    let mut version_name_draft = state.version_name_draft;
     let mut version_name_failure = state.version_name_failure;
     let mut selected_context = selected_context;
     let workspace = state.workspace;
     let scope_generation = state.scope_generation;
     let captured_generation = state.captured_generation;
-    if workspace() != "Layout" || scope_generation() != captured_generation {
+    if workspace() != Workspace::Layout || scope_generation() != captured_generation {
         return;
     }
     if !outline_action_is_current(&action, runtime, captured_generation) {
@@ -1183,8 +960,13 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     // Admission at dispatch: an action the panel's snapshot cannot support is ignored early,
     // exactly as before. The typed edit is captured here with the shape the user reviewed,
     // and the resolver re-evaluates it against whatever is accepted at execution.
-    let pending_key = action_pending_key(&action);
-    let is_version_name = matches!(&pending_key, OutlinePendingKey::VersionName);
+    let is_version_name = matches!(
+        &action,
+        OutlineAction::Update {
+            edit: OutlineEdit::RenameVersion { .. },
+            ..
+        }
+    );
     let Some(edit) = adapter::outline_edit(snapshot, &action, seed) else {
         return;
     };
@@ -1212,10 +994,6 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                 message: Some(message),
             }));
         }
-        return;
-    }
-    let one_shot = matches!(&pending_key, OutlinePendingKey::OneShot);
-    if one_shot && one_shot_pending() {
         return;
     }
     if let OutlineAction::Delete { .. } = &action {
@@ -1247,166 +1025,38 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         _ => String::new(),
     };
     let resolver = action_resolver(edit, action.clone(), transaction_id);
-    feedback.set(None);
-    pending_owner.set(outline_owner(
-        runtime,
-        selected_context.read().clone(),
-        captured_generation,
-    ));
-    let display = if one_shot {
-        EditDisplay::default().disabling(one_shot_pending)
-    } else if is_version_name {
-        FieldView::new(version_name_draft, version_name_failure)
-            .submitted(version_name_draft.peek().clone())
+    let result = runtime.commit("layout-outline", resolver);
+    if is_version_name {
+        if let Some(name) = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .and_then(|snapshot| {
+                snapshot
+                    .document
+                    .board_outlines
+                    .iter()
+                    .find(|outline| &outline.board_id == board_id)
+            })
+            .and_then(|outline| {
+                outline
+                    .versions
+                    .iter()
+                    .find(|version| Some(&version.id) == outline.active_version_id.as_ref())
+            })
+            .map(|version| version.name.clone())
+        {
+            version_name_draft.set(name);
+        }
+        version_name_failure.set(result.err());
     } else {
-        EditDisplay::default()
-    };
-    pending.submit(
-        runtime,
-        pending_key,
-        "layout-outline",
-        Some("outline".into()),
-        resolver,
-        display,
-    );
-}
-
-fn action_pending_key(action: &OutlineAction) -> OutlinePendingKey {
-    match action {
-        OutlineAction::Update { edit, .. } => match edit {
-            OutlineEdit::RenameVersion { .. } => OutlinePendingKey::VersionName,
-            OutlineEdit::CreateAutomatic | OutlineEdit::RemoveProtectedGap { .. } => {
-                OutlinePendingKey::OneShot
-            }
-            OutlineEdit::SetMargin(_) => OutlinePendingKey::Setting(OutlineSettingKey::Margin),
-            OutlineEdit::SetCorners(_) => OutlinePendingKey::Setting(OutlineSettingKey::Corners),
-            OutlineEdit::SetSize(_) => OutlinePendingKey::Setting(OutlineSettingKey::Size),
-            OutlineEdit::SetBridgeWidth(_) => {
-                OutlinePendingKey::Setting(OutlineSettingKey::BridgeWidth)
-            }
-            OutlineEdit::SetRepairEnabled(_) => {
-                OutlinePendingKey::Setting(OutlineSettingKey::RepairEnabled)
-            }
-            OutlineEdit::SetMaximumGapSpan(_) => {
-                OutlinePendingKey::Setting(OutlineSettingKey::MaximumGapSpan)
-            }
-            OutlineEdit::SetMinimumConnectionWidth(_) => {
-                OutlinePendingKey::Setting(OutlineSettingKey::MinimumConnectionWidth)
-            }
-            OutlineEdit::SetEdgeClearance(_) => {
-                OutlinePendingKey::Setting(OutlineSettingKey::EdgeClearance)
-            }
-            OutlineEdit::SetProtectedGap { gap_id, .. } => {
-                OutlinePendingKey::Setting(OutlineSettingKey::ProtectedGap(gap_id.clone()))
-            }
-        },
-        OutlineAction::EditPerimeter { target, .. } => OutlinePendingKey::Perimeter(target.clone()),
-        OutlineAction::SetFeature { before, after, .. } => {
-            let field = feature_edit_field(before, after);
-            if matches!(
-                &field,
-                OutlineFeatureField::Connections | OutlineFeatureField::ConnectionPoints(_)
-            ) {
-                OutlinePendingKey::OneShot
-            } else {
-                OutlinePendingKey::Feature {
-                    feature_id: before.id().to_owned(),
-                    field,
-                }
-            }
-        }
-        OutlineAction::Activate { .. }
-        | OutlineAction::Copy { .. }
-        | OutlineAction::Refine { .. }
-        | OutlineAction::Freeze { .. }
-        | OutlineAction::Delete { .. }
-        | OutlineAction::AddFeature { .. }
-        | OutlineAction::AddConnection { .. }
-        | OutlineAction::RemoveFeature { .. }
-        | OutlineAction::FocusGap { .. } => OutlinePendingKey::OneShot,
+        feedback.set(result.err().map(|message| OutlineFeedback {
+            scope: action_scope.clone(),
+            generation: captured_generation,
+            board_id: board_id.clone(),
+            message: Some(message),
+        }));
     }
-}
-
-fn feature_edit_field(before: &OutlineFeature, after: &OutlineFeature) -> OutlineFeatureField {
-    match (before, after) {
-        (
-            OutlineFeature::Rect {
-                center: old_center,
-                size: old_size,
-                radius: old_radius,
-                rotation: old_rotation,
-                ..
-            },
-            OutlineFeature::Rect {
-                center: new_center,
-                size: new_size,
-                radius: new_radius,
-                rotation: new_rotation,
-                ..
-            },
-        ) => {
-            if old_center.x != new_center.x {
-                OutlineFeatureField::RectCenterX
-            } else if old_center.y != new_center.y {
-                OutlineFeatureField::RectCenterY
-            } else if old_size.x != new_size.x {
-                OutlineFeatureField::RectWidth
-            } else if old_size.y != new_size.y {
-                OutlineFeatureField::RectHeight
-            } else if old_radius != new_radius {
-                OutlineFeatureField::RectRadius
-            } else if old_rotation != new_rotation {
-                OutlineFeatureField::RectRotation
-            } else {
-                OutlineFeatureField::Whole
-            }
-        }
-        (
-            OutlineFeature::PartEnvelope {
-                connections: old_connections,
-                ..
-            },
-            OutlineFeature::PartEnvelope {
-                connections: new_connections,
-                ..
-            },
-        ) => connection_edit_field(old_connections, new_connections),
-        _ => OutlineFeatureField::Whole,
-    }
-}
-
-fn connection_edit_field(
-    before: &[OutlineConnection],
-    after: &[OutlineConnection],
-) -> OutlineFeatureField {
-    if before.len() != after.len()
-        || before
-            .iter()
-            .map(|item| &item.id)
-            .ne(after.iter().map(|item| &item.id))
-    {
-        return OutlineFeatureField::Connections;
-    }
-    for (old, new) in before.iter().zip(after) {
-        if old.width != new.width {
-            return OutlineFeatureField::ConnectionWidth(old.id.clone());
-        }
-        if old.points.len() != new.points.len() {
-            return OutlineFeatureField::ConnectionPoints(old.id.clone());
-        }
-        for (index, (old_point, new_point)) in old.points.iter().zip(&new.points).enumerate() {
-            if old_point.at.x != new_point.at.x {
-                return OutlineFeatureField::ConnectionPointX(old.id.clone(), index);
-            }
-            if old_point.at.y != new_point.at.y {
-                return OutlineFeatureField::ConnectionPointY(old.id.clone(), index);
-            }
-            if old_point.part_id != new_point.part_id {
-                return OutlineFeatureField::ConnectionPointAttachment(old.id.clone(), index);
-            }
-        }
-    }
-    OutlineFeatureField::Whole
 }
 
 /// Resolve one captured typed outline edit against the accepted document at execution.
@@ -1471,7 +1121,3 @@ impl OutlineInspectorProjection {
         })
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "hook_tests.rs"]
-mod hook_tests;

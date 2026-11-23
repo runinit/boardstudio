@@ -5,7 +5,7 @@
 use boardstudio_web_runtime::{
     archive_export, bundled_models, case_generation_lifecycle, case_model_lifecycle, case_preview,
     firmware_position_projection, layout_viewer_source, model_delivery, operation_outcomes,
-    parts_preview, pcb_wiring_mode_operation, portable_archive, runtime,
+    parts_preview, portable_archive, runtime,
 };
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
@@ -19,13 +19,8 @@ pub(crate) use boardstudio_web_layout::setup_guide_state;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 
-// Application-boundary browser regression for the packaged renderer decoder.
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
-mod model_decode_boundary_tests;
-
-// Real-browser window-listener regression for the ui-model Layout Space-pan listener.
-#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
-mod layout_space_pan_listener_tests;
+mod page_suite_tests;
 
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]

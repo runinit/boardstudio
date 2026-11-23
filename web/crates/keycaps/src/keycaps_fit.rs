@@ -3,22 +3,23 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{
-    Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
+    Contour, Finding, KeycapResolution, Matrix, Part, PartKind, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
-use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
-use boardstudio_web_ui_shared::ui::badge::{Badge, BadgeVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::collapsible::{
-    Collapsible, CollapsibleContent, CollapsibleTrigger,
+use boardstudio_web_ui_shared::inspector_fields::InspectorSection;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    item::{Item, ItemContent, ItemSize},
+    spinner::Spinner,
 };
-use boardstudio_web_ui_shared::ui::item::{Item, ItemContent, ItemSize};
-use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::spawn_local;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    rc::Rc,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeycapsFitSource {
@@ -82,13 +83,9 @@ pub struct KeycapsFitActions {
 impl KeycapsFitState {
     fn begin(source: KeycapsFitSource, previous: Option<&Self>) -> Self {
         let accepted = previous
-            .filter(|previous| {
-                previous
-                    .accepted
-                    .as_ref()
-                    .is_some_and(|accepted| accepted.source.same_board(&source))
-            })
-            .and_then(|previous| previous.accepted.clone());
+            .and_then(|p| p.accepted.as_ref())
+            .filter(|a| a.source.same_board(&source))
+            .cloned();
         Self {
             source,
             accepted,
@@ -122,7 +119,7 @@ impl KeycapsFitState {
             && self
                 .accepted
                 .as_ref()
-                .is_some_and(|accepted| accepted.source == self.source)
+                .is_some_and(|a| a.source == self.source)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -134,7 +131,7 @@ impl KeycapsFitState {
                 .result
                 .findings
                 .iter()
-                .any(|finding| finding.severity == Severity::Error)
+                .any(|f| f.severity == Severity::Error)
             && !accepted.result.specs.is_empty())
         .then(|| crate::runtime::KeycapsPreviewInput {
             scope: self.source.scope.clone(),
@@ -150,11 +147,11 @@ impl KeycapsFitState {
         document: &ProjectDoc,
     ) -> bool {
         self.is_current()
-            && self.accepted.as_ref().is_some_and(|accepted| {
-                accepted.source == request.source
-                    && presented_findings(&accepted.result.findings, document)
+            && self.accepted.as_ref().is_some_and(|a| {
+                a.source == request.source
+                    && presented_findings(&a.result.findings, document)
                         .iter()
-                        .any(|finding| finding == &request.finding)
+                        .any(|f| f == &request.finding)
             })
     }
 
@@ -166,13 +163,13 @@ impl KeycapsFitState {
             return Some(format!("Keycap preview unavailable: {error}"));
         }
         let accepted = self.accepted.as_ref()?;
-        if let Some(error) = accepted
+        if let Some(err) = accepted
             .result
             .findings
             .iter()
-            .find(|finding| finding.severity == Severity::Error)
+            .find(|f| f.severity == Severity::Error)
         {
-            return Some(format!("Keycap preview unavailable: {}", error.message));
+            return Some(format!("Keycap preview unavailable: {}", err.message));
         }
         accepted
             .result
@@ -182,63 +179,34 @@ impl KeycapsFitState {
     }
 }
 
-/// Keep one accepted result per active board while a newer immutable snapshot is being checked.
-/// The root calls this unconditionally so Keymap-originated legend edits also refresh the result.
 #[cfg(target_arch = "wasm32")]
 pub fn use_keycaps_fit(
     runtime: Rc<Runtime>,
     source: Option<KeycapsFitSource>,
 ) -> KeycapsFitActions {
-    let mut state = use_signal(|| None::<KeycapsFitState>);
-    let mut sequence = use_signal(|| 0_u64);
-    let mut retry_generation = use_signal(|| 0_u64);
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
-    use_drop({
-        let alive = alive.clone();
-        move || alive.set(false)
-    });
+    let state = use_signal(|| None);
+    use_keycaps_fit_with_state(runtime, source, state)
+}
 
-    use_effect(use_reactive((&source, &retry_generation()), {
-        let runtime = runtime.clone();
-        let alive = alive.clone();
-        move |(source, _retry_generation)| {
-            // Bookkeeping must not subscribe this effect to the signals it updates.
-            let current = (*sequence.peek()).saturating_add(1);
-            sequence.set(current);
-            let Some(source) = source else {
-                state.set(None);
-                return;
-            };
-            let previous = state.peek().clone();
-            state.set(Some(KeycapsFitState::begin(
-                source.clone(),
-                previous.as_ref(),
-            )));
-            let mut state = state;
-            let runtime = runtime.clone();
-            let alive = alive.clone();
-            spawn_local(async move {
-                let result = runtime
-                    .resolve_keycaps_preview(source.scope.clone(), source.token, source.revision)
-                    .await;
-                // Browser-local tasks outlive this component's scope. Check the mount guard
-                // before touching any signal after await; stale scopes must never be read/written.
-                if !alive.get() || *sequence.peek() != current {
-                    return;
-                }
-                let mut current = state.write();
-                if let Some(current_state) = current.as_mut()
-                    && current_state.source == source
-                {
-                    current_state.finish(result);
-                }
-            });
-        }
+#[cfg(target_arch = "wasm32")]
+pub fn use_keycaps_fit_with_state(
+    runtime: Rc<Runtime>,
+    source: Option<KeycapsFitSource>,
+    mut state: Signal<Option<KeycapsFitState>>,
+) -> KeycapsFitActions {
+    let mut retry_gen = use_signal(|| 0_u64);
+    use_effect(use_reactive((&source, &retry_gen()), move |(source, _)| {
+        let Some(source) = source else {
+            state.set(None);
+            return;
+        };
+        let res =
+            runtime.resolve_keycaps_preview(source.scope.clone(), source.token, source.revision);
+        let mut next = KeycapsFitState::begin(source, state.peek().as_ref());
+        next.finish(res);
+        state.set(Some(next));
     }));
-
-    let on_retry = use_callback(move |()| {
-        retry_generation.set(retry_generation().saturating_add(1));
-    });
+    let on_retry = use_callback(move |()| retry_gen.set(retry_gen().saturating_add(1)));
     KeycapsFitActions {
         state: state.read().clone(),
         on_retry,
@@ -255,151 +223,73 @@ pub fn KeycapsFitInspector(
 ) -> Element {
     let current_case = state
         .as_ref()
-        .is_some_and(|state| state.source.case_preview_current);
-    let accepted = state.as_ref().and_then(|state| state.accepted.as_ref());
+        .is_some_and(|s| s.source.case_preview_current);
+    let accepted = state.as_ref().and_then(|s| s.accepted.as_ref());
     let current = state.as_ref().is_some_and(KeycapsFitState::is_current);
-    let findings = accepted.map_or(&[][..], |accepted| accepted.result.findings.as_slice());
+    let findings = accepted.map_or(&[][..], |a| a.result.findings.as_slice());
     let groups = grouped_findings(findings, &document);
-    let visible_finding_count: usize = groups.iter().map(|group| group.findings.len()).sum();
-    let title_detail = visible_finding_count.to_string();
-    let default_open = visible_finding_count > 0;
-    let mut findings_open = use_signal(|| default_open);
-    let mut findings_open_chosen = use_signal(|| false);
-    use_effect(use_reactive!(|default_open| {
-        if !findings_open_chosen() {
-            findings_open.set(default_open);
-        }
-    }));
-
+    let count: usize = groups.iter().map(|g| g.findings.len()).sum();
     rsx! {
-        Collapsible { class: "min-w-0", open: findings_open(), keep_mounted: true,
-            on_open_change: move |open| {
-                    findings_open_chosen.set(true);
-                    findings_open.set(open);
-            },
-            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                span { "Clearance findings " }
-                small { "{title_detail}" }
-            }
-            CollapsibleContent { hidden: !findings_open(), inert: (!findings_open()).then_some(""),
-            section { class: "mt-3 grid min-w-0 gap-2 px-4 pb-4 pt-3 text-foreground [&_p]:m-0 [&_p]:leading-[1.55]", "aria-label": "Clearance findings details",
-            if let Some(state) = state.as_ref() {
-                if state.refreshing {
-                    p { class: "text-sm text-muted-foreground", role: "status",
-                        Spinner {}
-                        if accepted.is_some() { "Refreshing; the shown assessment is from an earlier revision." }
-                        else { "Checking keycap fit…" }
+        InspectorSection { title: "Clearance findings", badge: count.to_string(), default_open: count > 0,
+            section { class: "grid min-w-0 gap-2 p-3 text-foreground [&_p]:m-0", "aria-label": "Clearance findings details",
+                if let Some(st) = state.as_ref() {
+                    if st.refreshing {
+                        p { class: "text-sm text-muted-foreground", role: "status", Spinner {} if accepted.is_some() { "Refreshing…" } else { "Checking keycap fit…" } }
                     }
-                }
-                if let Some(error) = state.error.as_ref() {
-                    Alert { variant: AlertVariant::Destructive,
-                        p { "{error}" }
-                        if accepted.is_some() {
-                            p { "The last accepted assessment is retained and marked stale until a current result arrives." }
-                        } else {
-                            p { "No current assessment was accepted. Retry after checking the active board and worker." }
+                    if let Some(error) = st.error.as_ref() {
+                        Alert { variant: AlertVariant::Destructive, p { "{error}" }
+                            Button { variant: ButtonVariant::Secondary, onclick: move |_| on_retry.call(()), "Retry assessment" }
                         }
-                        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_retry.call(()), "Retry assessment" }
                     }
+                } else {
+                    p { class: "text-sm text-muted-foreground", role: "status", "Waiting for an accepted board snapshot." }
                 }
-            } else {
-                p { class: "text-sm text-muted-foreground", role: "status", "Waiting for an accepted board snapshot." }
-            }
-            if !current && accepted.is_some() {
-                Callout { variant: CalloutVariant::Info, "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
-            }
-            if !current_case {
-                Callout { variant: CalloutVariant::Warning,
-                    "Current Case walls and solids have not been checked. Generate or update the Case preview for this revision."
+                if !current && let Some(acc) = accepted {
+                    Callout { variant: CalloutVariant::Info, "Earlier accepted findings · revision {acc.source.revision}" }
                 }
-            }
-            if findings.is_empty() {
-                if accepted.is_some() && accepted.unwrap().result.specs.is_empty() {
-                    p { "No generated keycaps are configured for this board." }
-                } else if accepted.is_some() {
-                    p { class: "text-sm text-success-dark",
-                        if current { "No active findings for the conservative full switch-travel envelope check." }
-                        else { "The earlier assessment had no active findings for the conservative full switch-travel envelope check." }
+                if !current_case {
+                    Callout { variant: CalloutVariant::Warning, "Current Case walls and solids have not been checked. Generate or update the Case preview for this revision." }
+                }
+                if findings.is_empty() {
+                    if let Some(acc) = accepted {
+                        if acc.result.specs.is_empty() { p { "No generated keycaps are configured for this board." } }
+                        else { p { class: "text-sm text-success-dark", "No active findings for the conservative full switch-travel envelope check." } }
                     }
-                } else if !state.as_ref().is_some_and(|state| state.refreshing) {
-                    p { "No fit assessment is available yet." }
-                }
-            } else {
-                div { class: "wb-finding-groups",
-                    for group in groups {
-                        section { "aria-label": "{group.label}",
-                            h3 { "{group.label}" }
-                            ul { class: "wb-findings",
-                                for finding in group.findings {
-                                    KeycapsFitFinding {
-                                        finding,
-                                        document: document.clone(),
-                                        source: accepted.unwrap().source.clone(),
-                                        mechanical_layer_ids: mechanical_layer_ids.clone(),
-                                        on_navigate,
+                } else {
+                    div { class: "wb-finding-groups",
+                        for group in groups {
+                            section { "aria-label": "{group.label}", h3 { "{group.label}" }
+                                ul { class: "wb-findings",
+                                    for finding in group.findings {
+                                        {
+                                            let (sev, var) = match &finding.severity {
+                                                Severity::Error => ("Error", BadgeVariant::Destructive),
+                                                Severity::Warning => ("Warning", BadgeVariant::Warning),
+                                                Severity::Info => ("Information", BadgeVariant::Info),
+                                            };
+                                            let src = accepted.unwrap().source.clone();
+                                            let nav = finding_navigation_target_with_layers(&finding, &document, &src.scope.board_id, &mechanical_layer_ids)
+                                                .filter(|t| target_board_id(t) == src.scope.board_id)
+                                                .map(|target| (
+                                                    if matches!(target, FindingNavigationTarget::Outline { .. }) { "Show outline" } else { "Select affected geometry" },
+                                                    FindingNavigationRequest { source: src, finding: finding.clone(), target },
+                                                ));
+                                            rsx! {
+                                                li { Item { size: ItemSize::Sm, ItemContent {
+                                                    Badge { variant: var, "{sev}" }
+                                                    p { "{finding.message}" }
+                                                    if let Some((label, req)) = nav {
+                                                        Button { variant: ButtonVariant::Secondary, onclick: move |_| on_navigate.call(req.clone()), "{label}" }
+                                                    }
+                                                } } }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-            Callout { variant: CalloutVariant::Info, "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
-            }
-            }
-        }
-    }
-}
-
-#[component]
-fn KeycapsFitFinding(
-    finding: Finding,
-    document: Rc<ProjectDoc>,
-    source: KeycapsFitSource,
-    mechanical_layer_ids: Rc<[String]>,
-    on_navigate: EventHandler<FindingNavigationRequest>,
-) -> Element {
-    let (severity, severity_variant) = match &finding.severity {
-        Severity::Error => ("Error", BadgeVariant::Destructive),
-        Severity::Warning => ("Warning", BadgeVariant::Warning),
-        Severity::Info => ("Information", BadgeVariant::Info),
-    };
-    let fitted = finding.id.ends_with("outline:corners:fitted");
-    let navigation_target = finding_navigation_target_with_layers(
-        &finding,
-        &document,
-        &source.scope.board_id,
-        &mechanical_layer_ids,
-    );
-    let action_label = finding_action_label(
-        &finding,
-        &document,
-        &source.scope.board_id,
-        &mechanical_layer_ids,
-    );
-    let request = navigation_target.map(|target| FindingNavigationRequest {
-        source,
-        finding: finding.clone(),
-        target,
-    });
-    rsx! {
-        li {
-            Item { size: ItemSize::Sm,
-            ItemContent {
-                Badge { variant: severity_variant, "{severity}" }
-                p { "{finding.message}" }
-                if fitted {
-                    p { "The resulting outline has smaller corners than requested. Review the corner size and nearby spacing." }
-                }
-                if let (Some(action_label), Some(request)) = (action_label, request) {
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                        onclick: move |_| on_navigate.call(request.clone()),
-                        "{action_label}"
-                    }
-                }
-            }
             }
         }
     }
@@ -411,20 +301,17 @@ pub struct FindingGroup {
     pub findings: Vec<Finding>,
 }
 
-/// Mirror the established React FindingList oracle: collapse duplicate feature wrappers,
-/// severity-sort the stable result, and group by the first resolved target label.
 pub fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
-    let findings = presented_findings(findings, document);
     let mut groups: Vec<FindingGroup> = Vec::new();
-    for finding in findings {
-        let label = finding_target_label(&finding, document)
-            .unwrap_or_else(|| format!("{} review", scope_title(&finding.scope)));
-        if let Some(group) = groups.iter_mut().find(|group| group.label == label) {
-            group.findings.push(finding);
+    for f in presented_findings(findings, document) {
+        let label = finding_target_label(&f, document)
+            .unwrap_or_else(|| format!("{} review", scope_title(&f.scope)));
+        if let Some(g) = groups.iter_mut().find(|g| g.label == label) {
+            g.findings.push(f);
         } else {
             groups.push(FindingGroup {
                 label,
-                findings: vec![finding],
+                findings: vec![f],
             });
         }
     }
@@ -432,64 +319,50 @@ pub fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Find
 }
 
 pub fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
-    let board_ids: std::collections::HashSet<&str> = document
-        .boards
-        .iter()
-        .map(|board| board.id.as_str())
-        .collect();
+    let board_ids: HashSet<&str> = document.boards.iter().map(|b| b.id.as_str()).collect();
     let mut result: Vec<Finding> = Vec::new();
-    let mut indices = std::collections::HashMap::<String, usize>::new();
-    for finding in findings {
-        let source = finding
-            .id
-            .find(":feature:")
-            .map_or(finding.id.as_str(), |index| {
-                &finding.id[index + ":feature:".len()..]
-            });
-        let mut geometry: Vec<&str> = finding
+    let mut indices = HashMap::<String, usize>::new();
+    for f in findings {
+        let source =
+            f.id.find(":feature:")
+                .map_or(f.id.as_str(), |i| &f.id[i + 9..]);
+        let mut geom: Vec<&str> = f
             .target_ids
             .iter()
             .map(String::as_str)
             .filter(|id| !board_ids.contains(id))
             .collect();
-        if geometry.is_empty() {
-            geometry = finding.target_ids.iter().map(String::as_str).collect();
+        if geom.is_empty() {
+            geom = f.target_ids.iter().map(String::as_str).collect();
         }
-        geometry.sort_unstable();
-        let key = serde_json::to_string(&(
-            source,
-            severity_rank(&finding.severity),
-            &finding.message,
-            geometry,
-        ))
-        .expect("finding deduplication key is serializable");
-        if let Some(index) = indices.get(&key).copied() {
-            let existing = &mut result[index];
-            for target_id in &finding.target_ids {
-                if !existing.target_ids.contains(target_id) {
-                    existing.target_ids.push(target_id.clone());
+        geom.sort_unstable();
+        let key = serde_json::to_string(&(source, severity_rank(&f.severity), &f.message, geom))
+            .expect("finding key serializable");
+        if let Some(&idx) = indices.get(&key) {
+            for tid in &f.target_ids {
+                if !result[idx].target_ids.contains(tid) {
+                    result[idx].target_ids.push(tid.clone());
                 }
             }
         } else {
             indices.insert(key, result.len());
-            result.push(finding.clone());
+            result.push(f.clone());
         }
     }
-    // Vec::sort_by_key is stable, matching JS Array.sort's stable ordering for equal severity.
-    result.sort_by_key(|finding| severity_rank(&finding.severity));
+    result.sort_by_key(|f| severity_rank(&f.severity));
     result
 }
 
-fn severity_rank(severity: &Severity) -> u8 {
-    match severity {
+fn severity_rank(s: &Severity) -> u8 {
+    match s {
         Severity::Error => 0,
         Severity::Warning => 1,
         Severity::Info => 2,
     }
 }
 
-fn scope_title(scope: &FindingScope) -> &'static str {
-    match scope {
+fn scope_title(s: &FindingScope) -> &'static str {
+    match s {
         FindingScope::Layout => "Layout",
         FindingScope::Outline => "Outline",
         FindingScope::Pcb => "Pcb",
@@ -497,205 +370,155 @@ fn scope_title(scope: &FindingScope) -> &'static str {
     }
 }
 
-pub fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
-    let active_outline = document.board_outlines.iter().find_map(|owner| {
-        owner
-            .versions
+fn find_outline_hit<'a>(finding: &Finding, doc: &'a ProjectDoc) -> (Option<&'a str>, bool) {
+    let active = doc.board_outlines.iter().find_map(|o| {
+        o.versions
             .iter()
-            .find(|version| {
-                Some(&version.id) == owner.active_version_id.as_ref()
-                    && version
-                        .geometry
+            .find(|v| {
+                Some(&v.id) == o.active_version_id.as_ref()
+                    && v.geometry
                         .features
                         .iter()
-                        .any(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+                        .any(|f| finding.target_ids.iter().any(|id| id == f.id()))
             })
-            .map(|version| (owner, version))
+            .map(|_| o.board_id.as_str())
     });
-    let outline = document
+    if active.is_some() {
+        return (active, true);
+    }
+    let feat = doc
         .outline
         .iter()
-        .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
-        .or_else(|| {
-            active_outline.and_then(|(_, version)| {
-                version
-                    .geometry
-                    .features
-                    .iter()
-                    .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
-            })
-        });
-    let owner = active_outline.map(|(owner, _)| owner);
-    let board = document.boards.iter().find(|board| {
-        finding.target_ids.iter().any(|id| id == &board.id)
-            || owner.is_some_and(|owner| owner.board_id == board.id)
-            || outline.is_some_and(|feature| board.outline_ids.iter().any(|id| id == feature.id()))
+        .find(|f| finding.target_ids.iter().any(|id| id == f.id()));
+    let board = feat.and_then(|f| {
+        doc.boards
+            .iter()
+            .find(|b| b.outline_ids.iter().any(|id| id == f.id()))
+            .map(|b| b.id.as_str())
     });
-    let part = document
-        .parts
-        .iter()
-        .find(|part| finding.target_ids.iter().any(|id| id == &part.id));
-    let matrix = document
-        .matrices
-        .iter()
-        .find(|matrix| finding.target_ids.iter().any(|id| id == &matrix.id));
-    let body = document
-        .case_bodies
-        .iter()
-        .find(|body| finding.target_ids.iter().any(|id| id == &body.id));
-    if outline.is_some() {
+    (board, feat.is_some())
+}
+
+pub fn finding_target_label(finding: &Finding, doc: &ProjectDoc) -> Option<String> {
+    let (outline_board, has_outline) = find_outline_hit(finding, doc);
+    let board = doc.boards.iter().find(|b| {
+        finding.target_ids.iter().any(|id| id == &b.id) || outline_board == Some(b.id.as_str())
+    });
+    if has_outline {
         return Some(format!(
             "{} · Outline",
-            board.map_or("Project", |board| board.name.as_str())
+            board.map_or("Project", |b| b.name.as_str())
         ));
     }
-    if let Some(part) = part {
-        let name = document
+    if let Some(part) = doc
+        .parts
+        .iter()
+        .find(|p| finding.target_ids.iter().any(|id| id == &p.id))
+    {
+        let name = doc
             .definitions
             .iter()
-            .find(|definition| definition.id == part.definition_id)
-            .map_or("Component", |definition| definition.name.as_str());
-        return Some(format!("{} · {}", part.reference, name));
+            .find(|d| d.id == part.definition_id)
+            .map_or("Component", |d| d.name.as_str());
+        return Some(format!("{} · {name}", part.reference));
     }
-    matrix
-        .and_then(|matrix| matrix.name.clone())
-        .or_else(|| body.map(|body| body.name.clone()))
-        .or_else(|| board.map(|board| board.name.clone()))
+    doc.matrices
+        .iter()
+        .find(|m| finding.target_ids.iter().any(|id| id == &m.id))
+        .and_then(|m| m.name.clone())
+        .or_else(|| {
+            doc.case_bodies
+                .iter()
+                .find(|b| finding.target_ids.iter().any(|id| id == &b.id))
+                .map(|b| b.name.clone())
+        })
+        .or_else(|| board.map(|b| b.name.clone()))
 }
 
 pub fn finding_navigation_target(
     finding: &Finding,
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
 ) -> Option<FindingNavigationTarget> {
-    // Keep the same precedence as React's findingTarget: outline, part, matrix, body, board.
-    let active_outline = document.board_outlines.iter().find_map(|owner| {
-        owner
-            .versions
-            .iter()
-            .find(|version| {
-                Some(&version.id) == owner.active_version_id.as_ref()
-                    && version
-                        .geometry
-                        .features
-                        .iter()
-                        .any(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
-            })
-            .map(|version| (owner, version))
-    });
-    let outline = document
-        .outline
-        .iter()
-        .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
-        .or_else(|| {
-            active_outline.and_then(|(_, version)| {
-                version
-                    .geometry
-                    .features
-                    .iter()
-                    .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
-            })
-        });
-    let outline_board = active_outline
-        .map(|(owner, _)| owner.board_id.as_str())
-        .or_else(|| {
-            outline.and_then(|feature| {
-                document.boards.iter().find_map(|board| {
-                    board
-                        .outline_ids
-                        .iter()
-                        .any(|outline_id| outline_id == feature.id())
-                        .then_some(board.id.as_str())
-                })
-            })
-        });
-    if let Some(board_id) = outline_board {
+    if let (Some(board_id), true) = find_outline_hit(finding, doc) {
         return Some(FindingNavigationTarget::Outline {
             board_id: board_id.to_owned(),
         });
     }
-    if let Some(part) = document
+    if let Some(part) = doc
         .parts
         .iter()
-        .find(|part| finding.target_ids.iter().any(|id| id == &part.id))
+        .find(|p| finding.target_ids.iter().any(|id| id == &p.id))
     {
-        let board_id = document
-            .boards
-            .iter()
-            .find(|board| board.part_ids.contains(&part.id))?;
+        let b = doc.boards.iter().find(|b| b.part_ids.contains(&part.id))?;
         return Some(FindingNavigationTarget::Part {
-            board_id: board_id.id.clone(),
+            board_id: b.id.clone(),
             part_id: part.id.clone(),
         });
     }
-    if let Some(matrix) = document
+    if let Some(m) = doc
         .matrices
         .iter()
-        .find(|matrix| finding.target_ids.iter().any(|id| id == &matrix.id))
+        .find(|m| finding.target_ids.iter().any(|id| id == &m.id))
     {
-        let board_id = matrix.board_id.as_ref().or_else(|| {
-            document
-                .boards
+        let bid = m.board_id.as_ref().or_else(|| {
+            doc.boards
                 .iter()
-                .find(|board| matrix.part_ids.iter().any(|id| board.part_ids.contains(id)))
-                .map(|board| &board.id)
+                .find(|b| m.part_ids.iter().any(|id| b.part_ids.contains(id)))
+                .map(|b| &b.id)
         })?;
         return Some(FindingNavigationTarget::Matrix {
-            board_id: board_id.clone(),
-            matrix_id: matrix.id.clone(),
+            board_id: bid.clone(),
+            matrix_id: m.id.clone(),
         });
     }
-    if let Some(body) = document
+    if let Some(body) = doc
         .case_bodies
         .iter()
-        .find(|body| finding.target_ids.iter().any(|id| id == &body.id))
+        .find(|b| finding.target_ids.iter().any(|id| id == &b.id))
     {
         return Some(FindingNavigationTarget::Body {
             board_id: body.board_id.clone(),
             body_id: body.id.clone(),
         });
     }
-    document
-        .boards
+    doc.boards
         .iter()
-        .find(|board| finding.target_ids.iter().any(|id| id == &board.id))
-        .map(|board| FindingNavigationTarget::Board {
-            board_id: board.id.clone(),
+        .find(|b| finding.target_ids.iter().any(|id| id == &b.id))
+        .map(|b| FindingNavigationTarget::Board {
+            board_id: b.id.clone(),
         })
 }
 
-/// Match the pinned workbench's current mechanical-layer precedence before the
-/// document target resolver. The assembly is supplied only by the root after
-/// its accepted scope/token/revision check.
 pub fn finding_navigation_target_with_layers(
     finding: &Finding,
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     board_id: &str,
     mechanical_layer_ids: &[String],
 ) -> Option<FindingNavigationTarget> {
     if let Some(layer_id) = mechanical_layer_ids
         .iter()
-        .find(|layer_id| finding.target_ids.contains(layer_id))
+        .find(|l| finding.target_ids.contains(l))
     {
         return Some(FindingNavigationTarget::MechanicalLayer {
             board_id: board_id.to_owned(),
             layer_id: layer_id.clone(),
         });
     }
-    finding_navigation_target(finding, document)
+    finding_navigation_target(finding, doc)
 }
 
 pub fn accepted_navigation_target(
     state: &KeycapsFitState,
     request: &FindingNavigationRequest,
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     mechanical_layer_ids: &[String],
 ) -> Option<FindingNavigationTarget> {
-    if !state.accepts_navigation(request, document) {
+    if !state.accepts_navigation(request, doc) {
         return None;
     }
     let target = finding_navigation_target_with_layers(
         &request.finding,
-        document,
+        doc,
         &request.source.scope.board_id,
         mechanical_layer_ids,
     )?;
@@ -703,52 +526,51 @@ pub fn accepted_navigation_target(
 }
 
 pub fn layout_navigation_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     target: &FindingNavigationTarget,
 ) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut bounds = None;
     match target {
         FindingNavigationTarget::Part { part_id, board_id } => {
-            let board = document.boards.iter().find(|board| board.id == *board_id)?;
-            if !board.part_ids.contains(part_id) {
+            let b = doc.boards.iter().find(|b| b.id == *board_id)?;
+            if !b.part_ids.contains(part_id) {
                 return None;
             }
-            let part = document.parts.iter().find(|part| part.id == *part_id)?;
-            include_layout_part_bounds(document, scene, part, &mut bounds);
+            let p = doc.parts.iter().find(|p| p.id == *part_id)?;
+            include_layout_part_bounds(doc, scene, p, &mut bounds);
         }
         FindingNavigationTarget::Matrix {
             matrix_id,
             board_id,
         } => {
-            let board = document.boards.iter().find(|board| board.id == *board_id)?;
-            let matrix = document.matrices.iter().find(|matrix| {
-                matrix.id == *matrix_id
-                    && matrix.part_ids.iter().any(|id| board.part_ids.contains(id))
+            let b = doc.boards.iter().find(|b| b.id == *board_id)?;
+            let m = doc.matrices.iter().find(|m| {
+                m.id == *matrix_id && m.part_ids.iter().any(|id| b.part_ids.contains(id))
             })?;
-            for part in document.parts.iter().filter(|part| {
-                board.part_ids.contains(&part.id) && matrix.part_ids.contains(&part.id)
-            }) {
-                include_layout_part_bounds(document, scene, part, &mut bounds);
+            for p in doc
+                .parts
+                .iter()
+                .filter(|p| b.part_ids.contains(&p.id) && m.part_ids.contains(&p.id))
+            {
+                include_layout_part_bounds(doc, scene, p, &mut bounds);
             }
-            include_matrix_cell_bounds(document, scene, matrix, &mut bounds);
+            include_matrix_cell_bounds(doc, scene, m, &mut bounds);
         }
         FindingNavigationTarget::Outline { board_id }
         | FindingNavigationTarget::Board { board_id } => {
-            include_board_contours(document, scene, board_id, &mut bounds);
+            include_board_contours(doc, scene, board_id, &mut bounds);
         }
         FindingNavigationTarget::MechanicalLayer { .. } | FindingNavigationTarget::Body { .. } => {
             return None;
         }
     }
-    let (min_x, max_x, min_y, max_y) = bounds?;
-    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+    let (x0, x1, y0, y1) = bounds?;
+    Some((x0 - 12.0, x1 + 12.0, y0 - 12.0, y1 + 12.0))
 }
 
-/// Bounds the selected board parts with the same accepted transform, courtyard and keycap
-/// geometry used by the shared Layout viewer. Camera fit adds its viewport padding separately.
 pub fn selected_part_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
     selected_ids: &[String],
@@ -756,226 +578,145 @@ pub fn selected_part_bounds(
     if selected_ids.is_empty() {
         return None;
     }
-    let board = document.boards.iter().find(|board| board.id == board_id)?;
+    let b = doc.boards.iter().find(|b| b.id == board_id)?;
     let mut bounds = None;
-    for part in document.parts.iter().filter(|part| {
-        selected_ids.iter().any(|id| id == &part.id) && board.part_ids.contains(&part.id)
-    }) {
-        include_layout_part_bounds(document, scene, part, &mut bounds);
+    for p in doc
+        .parts
+        .iter()
+        .filter(|p| selected_ids.contains(&p.id) && b.part_ids.contains(&p.id))
+    {
+        include_layout_part_bounds(doc, scene, p, &mut bounds);
     }
     bounds
 }
 
-/// React fits a finding's complete Core marker contours after fitting the primary
-/// target. Reuse the accepted scene projection rather than reconstructing finding
-/// geometry from its target IDs or message.
 pub fn finding_marker_bounds(
     scene: &SceneDelta,
     finding_id: &str,
     board_id: &str,
 ) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    for point in scene
+    let mut bounds = None;
+    for pt in scene
         .finding_markers
         .iter()
-        .filter(|marker| marker.finding_id == finding_id && marker.board_id == board_id)
-        .flat_map(|marker| marker.contours.iter())
-        .flat_map(|contour| contour.points.iter())
-        .filter(|point| point.x.is_finite() && point.y.is_finite())
+        .filter(|m| m.finding_id == finding_id && m.board_id == board_id)
+        .flat_map(|m| m.contours.iter())
+        .flat_map(|c| c.points.iter())
+        .filter(|p| p.x.is_finite() && p.y.is_finite())
     {
-        bounds = Some(match bounds {
-            Some((min_x, max_x, min_y, max_y)) => (
-                min_x.min(point.x),
-                max_x.max(point.x),
-                min_y.min(point.y),
-                max_y.max(point.y),
-            ),
-            None => (point.x, point.x, point.y, point.y),
-        });
+        include_point(&mut bounds, *pt);
     }
-    let (min_x, max_x, min_y, max_y) = bounds?;
-    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+    let (x0, x1, y0, y1) = bounds?;
+    Some((x0 - 12.0, x1 + 12.0, y0 - 12.0, y1 + 12.0))
 }
 
 pub fn finding_navigation_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     finding_id: &str,
     target: &FindingNavigationTarget,
 ) -> Option<(f64, f64, f64, f64)> {
     finding_marker_bounds(scene, finding_id, target_board_id(target))
-        .or_else(|| layout_navigation_bounds(document, scene, target))
+        .or_else(|| layout_navigation_bounds(doc, scene, target))
 }
 
-/// React's `getBounds` canvas basis for Design/Keycaps: visible board outlines, visible part
-/// selection outlines, and enabled empty matrix cells, with twelve millimetres of breathing room.
-/// This is presentation geometry for camera behavior; Core remains authoritative for CAD bounds.
 pub fn layout_canvas_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
 ) -> Option<(f64, f64, f64, f64)> {
-    let board = document.boards.iter().find(|board| board.id == board_id)?;
+    let board = doc.boards.iter().find(|b| b.id == board_id)?;
     let mut bounds = None;
-    include_board_contours(document, scene, board_id, &mut bounds);
-
-    let visible_part_ids: std::collections::BTreeSet<&str> =
-        board.part_ids.iter().map(String::as_str).collect();
-    let mut parts = std::collections::BTreeMap::new();
-    for part in &document.parts {
-        parts.entry(part.id.as_str()).or_insert(part);
-    }
-    let mut definitions = std::collections::BTreeMap::new();
-    for definition in &document.definitions {
-        definitions
-            .entry(definition.id.as_str())
-            .or_insert(definition);
-    }
-    let mut transforms = std::collections::BTreeMap::new();
-    for transform in &scene.transforms {
-        transforms
-            .entry(transform.id.as_str())
-            .or_insert(transform.pose);
-    }
-    let visible_matrices: Vec<_> = document
+    include_board_contours(doc, scene, board_id, &mut bounds);
+    let visible: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
+    let parts: BTreeMap<_, _> = doc.parts.iter().map(|p| (p.id.as_str(), p)).collect();
+    let defs: BTreeMap<_, _> = doc.definitions.iter().map(|d| (d.id.as_str(), d)).collect();
+    let xforms: BTreeMap<_, _> = scene
+        .transforms
+        .iter()
+        .map(|t| (t.id.as_str(), t.pose))
+        .collect();
+    let matrices: Vec<_> = doc
         .matrices
         .iter()
-        .filter(|matrix| {
-            matrix
-                .board_id
-                .as_deref()
-                .is_none_or(|owner| owner == board_id)
-                || matrix
-                    .part_ids
-                    .iter()
-                    .any(|part_id| visible_part_ids.contains(part_id.as_str()))
+        .filter(|m| {
+            m.board_id.as_deref().is_none_or(|o| o == board_id)
+                || m.part_ids.iter().any(|id| visible.contains(id.as_str()))
         })
         .collect();
-    let mut matrix_keycaps = std::collections::BTreeMap::new();
-    for matrix in &visible_matrices {
-        let Some(projection) = scene
-            .matrix_scenes
-            .iter()
-            .find(|projection| projection.matrix_id == matrix.id)
-        else {
+    let mut matrix_caps = BTreeMap::new();
+    for m in &matrices {
+        let Some(proj) = scene.matrix_scenes.iter().find(|p| p.matrix_id == m.id) else {
             continue;
         };
-        for cell in projection.cells.iter().filter(|cell| cell.enabled) {
-            let Some(member_id) = cell
-                .member_id
-                .as_deref()
-                .filter(|member_id| visible_part_ids.contains(member_id))
-            else {
-                continue;
-            };
-            let part = parts.get(member_id).copied();
-            let definition = part
-                .and_then(|part| definitions.get(part.definition_id.as_str()).copied())
-                .or_else(|| definitions.get(matrix.definition_id.as_str()).copied());
-            let size = part
-                .and_then(|part| part.keycap)
-                .or_else(|| definition.and_then(|definition| definition.keycap))
-                .unwrap_or(Vec2 {
-                    x: (matrix.pitch.x - matrix.edge_gap.map_or(1.0, |gap| gap.x)).max(1.0),
-                    y: (matrix.pitch.y - matrix.edge_gap.map_or(1.0, |gap| gap.y)).max(1.0),
-                });
-            matrix_keycaps.insert(member_id, size);
-        }
-    }
-
-    for part in document
-        .parts
-        .iter()
-        .filter(|part| visible_part_ids.contains(part.id.as_str()))
-    {
-        let pose = transforms
-            .get(part.id.as_str())
-            .copied()
-            .unwrap_or(part.pose);
-        include_point(&mut bounds, pose.at);
-        let definition = definitions.get(part.definition_id.as_str()).copied();
-        let keycap = (definition.is_some_and(|definition| {
-            matches!(&definition.kind, boardstudio_model::model::PartKind::Switch)
-        }))
-        .then(|| {
-            matrix_keycaps
-                .get(part.id.as_str())
-                .copied()
-                .or(part.keycap)
-                .or_else(|| definition.and_then(|definition| definition.keycap))
-        })
-        .flatten();
-        if let Some(size) = keycap {
-            include_rotated_rect(&mut bounds, pose, size);
-        } else if let Some(definition) = definition {
-            for point in &definition.courtyard {
-                include_local_point(&mut bounds, pose, false, *point);
+        for c in proj.cells.iter().filter(|c| c.enabled) {
+            if let Some(mid) = c.member_id.as_deref().filter(|id| visible.contains(id)) {
+                let part = parts.get(mid).copied();
+                let def = part
+                    .and_then(|p| defs.get(p.definition_id.as_str()).copied())
+                    .or_else(|| defs.get(m.definition_id.as_str()).copied());
+                let size = part
+                    .and_then(|p| p.keycap)
+                    .or_else(|| def.and_then(|d| d.keycap))
+                    .unwrap_or(Vec2 {
+                        x: (m.pitch.x - m.edge_gap.map_or(1.0, |g| g.x)).max(1.0),
+                        y: (m.pitch.y - m.edge_gap.map_or(1.0, |g| g.y)).max(1.0),
+                    });
+                matrix_caps.insert(mid, size);
+            } else {
+                include_rotated_rect(&mut bounds, c.pose, m.pitch);
             }
         }
     }
-
-    for matrix in visible_matrices {
-        let Some(projection) = scene
-            .matrix_scenes
-            .iter()
-            .find(|projection| projection.matrix_id == matrix.id)
-        else {
-            continue;
-        };
-        for cell in projection.cells.iter().filter(|cell| {
-            cell.enabled
-                && cell
-                    .member_id
-                    .as_deref()
-                    .is_none_or(|member| !visible_part_ids.contains(member))
-        }) {
-            // The React canvas uses half-pitch as each matrix cell's local half-size.
-            include_rotated_rect(
-                &mut bounds,
-                cell.pose,
-                Vec2 {
-                    x: matrix.pitch.x,
-                    y: matrix.pitch.y,
-                },
-            );
+    for p in doc.parts.iter().filter(|p| visible.contains(p.id.as_str())) {
+        let pose = xforms.get(p.id.as_str()).copied().unwrap_or(p.pose);
+        include_point(&mut bounds, pose.at);
+        let def = defs.get(p.definition_id.as_str()).copied();
+        let cap = def
+            .is_some_and(|d| matches!(d.kind, PartKind::Switch))
+            .then(|| {
+                matrix_caps
+                    .get(p.id.as_str())
+                    .copied()
+                    .or(p.keycap)
+                    .or_else(|| def.and_then(|d| d.keycap))
+            })
+            .flatten();
+        if let Some(size) = cap {
+            include_rotated_rect(&mut bounds, pose, size);
+        } else if let Some(d) = def {
+            for pt in &d.courtyard {
+                include_local_point(&mut bounds, pose, false, *pt);
+            }
         }
     }
-
-    let (min_x, max_x, min_y, max_y) = bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0));
-    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+    let (x0, x1, y0, y1) = bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0));
+    Some((x0 - 12.0, x1 + 12.0, y0 - 12.0, y1 + 12.0))
 }
 
-/// Match React `aspectBounds`: expand, never crop, the camera basis to the current SVG ratio.
 pub fn aspect_bounds(bounds: (f64, f64, f64, f64), surface: (f64, f64)) -> (f64, f64, f64, f64) {
-    let (min_x, max_x, min_y, max_y) = bounds;
-    let (width, height) = surface;
-    let ratio = width.max(1.0) / height.max(1.0);
-    let next_width = (max_x - min_x).max((max_y - min_y) * ratio);
-    let next_height = (max_y - min_y).max((max_x - min_x) / ratio);
-    let center_x = (min_x + max_x) * 0.5;
-    let center_y = (min_y + max_y) * 0.5;
-    (
-        center_x - next_width * 0.5,
-        center_x + next_width * 0.5,
-        center_y - next_height * 0.5,
-        center_y + next_height * 0.5,
-    )
+    let (x0, x1, y0, y1) = bounds;
+    let ratio = surface.0.max(1.0) / surface.1.max(1.0);
+    let w = (x1 - x0).max((y1 - y0) * ratio);
+    let h = (y1 - y0).max((x1 - x0) / ratio);
+    let (cx, cy) = ((x0 + x1) * 0.5, (y0 + y1) * 0.5);
+    (cx - w * 0.5, cx + w * 0.5, cy - h * 0.5, cy + h * 0.5)
 }
 
 pub fn layout_camera_basis(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
     surface: (f64, f64),
 ) -> Option<CameraBasis> {
     Some(CameraBasis {
-        bounds: aspect_bounds(layout_canvas_bounds(document, scene, board_id)?, surface),
+        bounds: aspect_bounds(layout_canvas_bounds(doc, scene, board_id)?, surface),
         surface,
     })
 }
 
 fn include_layout_part_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     part: &Part,
     bounds: &mut Option<(f64, f64, f64, f64)>,
@@ -983,114 +724,75 @@ fn include_layout_part_bounds(
     let pose = scene
         .transforms
         .iter()
-        .find(|transform| transform.id == part.id)
-        .map_or(part.pose, |transform| transform.pose);
-    let definition = document
-        .definitions
-        .iter()
-        .find(|definition| definition.id == part.definition_id);
-    if let Some(definition) = definition.filter(|definition| !definition.courtyard.is_empty()) {
-        for point in &definition.courtyard {
-            include_local_point(bounds, pose, matches!(part.side, Side::Back), *point);
+        .find(|t| t.id == part.id)
+        .map_or(part.pose, |t| t.pose);
+    let def = doc.definitions.iter().find(|d| d.id == part.definition_id);
+    if let Some(d) = def.filter(|d| !d.courtyard.is_empty()) {
+        for pt in &d.courtyard {
+            include_local_point(bounds, pose, matches!(part.side, Side::Back), *pt);
         }
     } else {
         include_point(bounds, pose.at);
     }
-    if let Some(size) = part
-        .keycap
-        .or_else(|| definition.and_then(|definition| definition.keycap))
-    {
+    if let Some(size) = part.keycap.or_else(|| def.and_then(|d| d.keycap)) {
         include_rotated_rect(bounds, pose, size);
     }
 }
 
 fn include_matrix_cell_bounds(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
-    matrix: &Matrix,
+    m: &Matrix,
     bounds: &mut Option<(f64, f64, f64, f64)>,
 ) {
-    let Some(projected) = scene
-        .matrix_scenes
-        .iter()
-        .find(|projected| projected.matrix_id == matrix.id)
-    else {
+    let Some(proj) = scene.matrix_scenes.iter().find(|p| p.matrix_id == m.id) else {
         return;
     };
-    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
-        let part = cell
+    for c in proj.cells.iter().filter(|c| c.enabled) {
+        let part = c
             .member_id
             .as_deref()
-            .and_then(|id| document.parts.iter().find(|part| part.id == id));
-        let definition = part
-            .and_then(|part| {
-                document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == part.definition_id)
-            })
-            .or_else(|| {
-                document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == matrix.definition_id)
-            });
+            .and_then(|id| doc.parts.iter().find(|p| p.id == id));
+        let def = part
+            .and_then(|p| doc.definitions.iter().find(|d| d.id == p.definition_id))
+            .or_else(|| doc.definitions.iter().find(|d| d.id == m.definition_id));
         let size = part
-            .and_then(|part| part.keycap)
-            .or_else(|| definition.and_then(|definition| definition.keycap))
+            .and_then(|p| p.keycap)
+            .or_else(|| def.and_then(|d| d.keycap))
             .unwrap_or(Vec2 {
-                x: (matrix.pitch.x - matrix.edge_gap.map_or(1.0, |gap| gap.x)).max(1.0),
-                y: (matrix.pitch.y - matrix.edge_gap.map_or(1.0, |gap| gap.y)).max(1.0),
+                x: (m.pitch.x - m.edge_gap.map_or(1.0, |g| g.x)).max(1.0),
+                y: (m.pitch.y - m.edge_gap.map_or(1.0, |g| g.y)).max(1.0),
             });
-        include_rotated_rect(bounds, cell.pose, size);
+        include_rotated_rect(bounds, c.pose, size);
     }
 }
 
 fn include_board_contours(
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
     bounds: &mut Option<(f64, f64, f64, f64)>,
 ) {
-    if let Some(board) = scene
-        .board_contours
-        .iter()
-        .find(|board| board.board_id == board_id)
-    {
-        for point in board
-            .contours
-            .iter()
-            .flat_map(|contour: &Contour| &contour.points)
-        {
-            include_point(bounds, *point);
+    if let Some(b) = scene.board_contours.iter().find(|b| b.board_id == board_id) {
+        for pt in b.contours.iter().flat_map(|c: &Contour| &c.points) {
+            include_point(bounds, *pt);
         }
-    } else if document.boards.len() == 1 {
-        for point in scene.contours.iter().flat_map(|contour| &contour.points) {
-            include_point(bounds, *point);
+    } else if doc.boards.len() == 1 {
+        for pt in scene.contours.iter().flat_map(|c| &c.points) {
+            include_point(bounds, *pt);
         }
     }
 }
 
 fn include_rotated_rect(bounds: &mut Option<(f64, f64, f64, f64)>, pose: Pose2, size: Vec2) {
-    for point in [
-        Vec2 {
-            x: -size.x / 2.0,
-            y: -size.y / 2.0,
-        },
-        Vec2 {
-            x: -size.x / 2.0,
-            y: size.y / 2.0,
-        },
-        Vec2 {
-            x: size.x / 2.0,
-            y: -size.y / 2.0,
-        },
-        Vec2 {
-            x: size.x / 2.0,
-            y: size.y / 2.0,
-        },
+    let (hx, hy) = (size.x / 2.0, size.y / 2.0);
+    for pt in [
+        Vec2 { x: -hx, y: -hy },
+        Vec2 { x: -hx, y: hy },
+        Vec2 { x: hx, y: -hy },
+        Vec2 { x: hx, y: hy },
     ] {
-        include_local_point(bounds, pose, false, point);
+        include_local_point(bounds, pose, false, pt);
     }
 }
 
@@ -1098,50 +800,23 @@ fn include_local_point(
     bounds: &mut Option<(f64, f64, f64, f64)>,
     pose: Pose2,
     mirrored: bool,
-    point: Vec2,
+    pt: Vec2,
 ) {
-    let local_x = if mirrored { -point.x } else { point.x };
-    let angle = pose.rotation.to_radians();
-    let (sin, cos) = angle.sin_cos();
+    let lx = if mirrored { -pt.x } else { pt.x };
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     include_point(
         bounds,
         Vec2 {
-            x: pose.at.x + local_x * cos - point.y * sin,
-            y: pose.at.y + local_x * sin + point.y * cos,
+            x: pose.at.x + lx * cos - pt.y * sin,
+            y: pose.at.y + lx * sin + pt.y * cos,
         },
     );
 }
 
-fn include_point(bounds: &mut Option<(f64, f64, f64, f64)>, point: Vec2) {
-    *bounds = Some(bounds.map_or(
-        (point.x, point.x, point.y, point.y),
-        |(min_x, max_x, min_y, max_y)| {
-            (
-                min_x.min(point.x),
-                max_x.max(point.x),
-                min_y.min(point.y),
-                max_y.max(point.y),
-            )
-        },
-    ));
-}
-
-fn finding_action_label(
-    finding: &Finding,
-    document: &ProjectDoc,
-    active_board_id: &str,
-    mechanical_layer_ids: &[String],
-) -> Option<&'static str> {
-    finding_navigation_target_with_layers(finding, document, active_board_id, mechanical_layer_ids)
-        .filter(|target| target_board_id(target) == active_board_id)
-        .map(|target| match target {
-            FindingNavigationTarget::Outline { .. } => "Show outline",
-            FindingNavigationTarget::Part { .. }
-            | FindingNavigationTarget::Matrix { .. }
-            | FindingNavigationTarget::Body { .. }
-            | FindingNavigationTarget::MechanicalLayer { .. }
-            | FindingNavigationTarget::Board { .. } => "Select affected geometry",
-        })
+fn include_point(bounds: &mut Option<(f64, f64, f64, f64)>, pt: Vec2) {
+    *bounds = Some(bounds.map_or((pt.x, pt.x, pt.y, pt.y), |(x0, x1, y0, y1)| {
+        (x0.min(pt.x), x1.max(pt.x), y0.min(pt.y), y1.max(pt.y))
+    }));
 }
 
 pub fn target_board_id(target: &FindingNavigationTarget) -> &str {
@@ -1157,136 +832,78 @@ pub fn target_board_id(target: &FindingNavigationTarget) -> &str {
 
 pub fn target_has_live_layout_destination(
     target: &FindingNavigationTarget,
-    document: &ProjectDoc,
+    doc: &ProjectDoc,
 ) -> bool {
-    let board_id = target_board_id(target);
-    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+    let bid = target_board_id(target);
+    let Some(b) = doc.boards.iter().find(|b| b.id == bid) else {
         return false;
     };
     match target {
         FindingNavigationTarget::Outline { .. } | FindingNavigationTarget::Board { .. } => true,
         FindingNavigationTarget::Part { part_id, .. } => {
-            board.part_ids.iter().any(|id| id == part_id)
-                && document.parts.iter().any(|part| part.id == *part_id)
+            b.part_ids.contains(part_id) && doc.parts.iter().any(|p| p.id == *part_id)
         }
-        FindingNavigationTarget::Matrix { matrix_id, .. } => {
-            document.matrices.iter().any(|matrix| {
-                matrix.id == *matrix_id
-                    && matrix
-                        .board_id
-                        .as_deref()
-                        .is_none_or(|owner| owner == board_id)
-                    && matrix
-                        .part_ids
-                        .iter()
-                        .any(|part_id| board.part_ids.contains(part_id))
-            })
-        }
+        FindingNavigationTarget::Matrix { matrix_id, .. } => doc.matrices.iter().any(|m| {
+            m.id == *matrix_id
+                && m.board_id.as_deref().is_none_or(|o| o == bid)
+                && m.part_ids.iter().any(|id| b.part_ids.contains(id))
+        }),
         FindingNavigationTarget::Body { .. } | FindingNavigationTarget::MechanicalLayer { .. } => {
             false
         }
     }
 }
 
-#[cfg(test)]
-pub fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc) {
-    use boardstudio_application::SessionEpoch;
-    use boardstudio_model::model::{Board, KeycapResolution};
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use boardstudio_model::model::Board;
 
-    let scope = Scope {
-        session_epoch: SessionEpoch(2),
-        document_id: "doc".into(),
-        board_id: "left".into(),
-        instance_id: None,
-    };
-    let source = KeycapsFitSource {
-        scope,
-        token: SnapshotToken(7),
-        revision: 11,
-        case_preview_current: false,
-    };
-    let mut document = ProjectDoc::empty("doc", "Project");
-    document.revision = source.revision;
-    document.boards.push(Board {
-        id: "left".into(),
-        name: "Left PCB".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    let finding = Finding {
-        id: "board:left:invalid-settings".into(),
-        severity: Severity::Warning,
-        scope: FindingScope::Layout,
-        message: "Board needs review".into(),
-        target_ids: vec!["left".into()],
-    };
-    let mut state = KeycapsFitState::begin(source.clone(), None);
-    state.finish(Ok(KeycapResolution {
-        revision: source.revision,
-        specs: vec![],
-        findings: vec![finding.clone()],
-    }));
-    let request = FindingNavigationRequest {
-        source,
-        finding,
-        target: FindingNavigationTarget::Board {
-            board_id: "left".into(),
-        },
-    };
-    (request, state, document)
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> KeycapsFitState {
-    use boardstudio_application::SessionEpoch;
-    use boardstudio_model::model::{KeycapMount, KeycapProfile, KeycapResolution, KeycapSpec};
-
-    let source = KeycapsFitSource {
-        scope: Scope {
-            session_epoch: SessionEpoch(2),
-            document_id: "keycaps-preview-test-document".into(),
-            board_id: board_id.into(),
-            instance_id: None,
-        },
-        token: SnapshotToken(token),
-        revision,
-        case_preview_current: false,
-    };
-    let mut state = KeycapsFitState::begin(source.clone(), None);
-    state.finish(Ok(KeycapResolution {
-        revision,
-        specs: vec![KeycapSpec {
-            id: format!("key-{board_id}"),
-            reference: "A1".into(),
-            profile: KeycapProfile::Cherry,
-            mount: KeycapMount::Mx,
-            row: 1,
-            size: Vec2 { x: 18.0, y: 18.0 },
-            top_size: Vec2 { x: 12.0, y: 12.0 },
-            height: 8.0,
-            tilt: 0.0,
-            dish_depth: 0.0,
-            spherical: false,
-            wall_thickness: 1.2,
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
+    #[test]
+    fn presented_findings_deduplicates_and_sorts_by_severity() {
+        let mut doc = ProjectDoc::empty("d", "P");
+        doc.boards.push(Board {
+            id: "b1".into(),
+            name: "Main".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let findings = vec![
+            Finding {
+                id: "a:feature:dup".into(),
+                severity: Severity::Warning,
+                scope: FindingScope::Layout,
+                message: "W".into(),
+                target_ids: vec!["b1".into()],
             },
-            side: Side::Front,
-            z: 8.4,
-            travel: 4.0,
-            legend: String::new(),
-            color: "#b0b5bd".into(),
-            legend_color: "#202124".into(),
-        }],
-        findings: Vec::new(),
-    }));
-    state
-}
+            Finding {
+                id: "b:feature:dup".into(),
+                severity: Severity::Warning,
+                scope: FindingScope::Layout,
+                message: "W".into(),
+                target_ids: vec!["b1".into()],
+            },
+            Finding {
+                id: "e1".into(),
+                severity: Severity::Error,
+                scope: FindingScope::Layout,
+                message: "E".into(),
+                target_ids: vec!["b1".into()],
+            },
+        ];
+        let out = presented_findings(&findings, &doc);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].severity, Severity::Error);
+        assert_eq!(grouped_findings(&findings, &doc)[0].label, "Main");
+    }
 
-#[cfg(test)]
-mod tests;
+    #[test]
+    fn aspect_bounds_expands_without_cropping() {
+        let b = aspect_bounds((0.0, 100.0, 0.0, 50.0), (100.0, 100.0));
+        assert_eq!(b, (0.0, 100.0, -25.0, 75.0));
+    }
+}

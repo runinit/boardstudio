@@ -1,4 +1,4 @@
-//! Root-lifetime admission and exact outcome settlement for Layout Align commands.
+//! Admission and synchronous execution for Layout Align commands.
 use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
 use super::layout_align_logic::{make_edit, workspace_route_matches};
 use super::{
@@ -9,24 +9,10 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-#[cfg(test)]
-use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_model::model::{Part, ProjectDoc, Vec2};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
-
-/// Domain data needed to place a terminal Align result in its original context.
-#[derive(Clone)]
-struct AlignFollowUp {
-    workspace: &'static str,
-    scope: Scope,
-    scope_generation: u64,
-    context: TreeContext,
-    moving_ids: Vec<String>,
-    reference_id: String,
-    command: AlignCommand,
-}
 
 #[derive(Clone)]
 struct AlignFeedbackState {
@@ -62,25 +48,8 @@ struct AlignProjectionIdentity {
     has_preview: bool,
     has_gesture: bool,
     selected: Option<ScopedTreeContext>,
-    workspace: &'static str,
-    owner_workspace: &'static str,
-}
-
-#[derive(Clone)]
-struct AlignIdentity {
-    scope: Option<Scope>,
-    context: Option<TreeContext>,
-    workspace: &'static str,
-    scope_generation: u64,
-}
-
-impl PartialEq for AlignIdentity {
-    fn eq(&self, other: &Self) -> bool {
-        self.scope == other.scope
-            && self.context == other.context
-            && self.workspace == other.workspace
-            && self.scope_generation == other.scope_generation
-    }
+    workspace: Workspace,
+    owner_workspace: Workspace,
 }
 
 /// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
@@ -88,24 +57,15 @@ pub fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
-    // The committed align is observed through its ticket; the waiting entry (ticket plus
-    // the context its feedback needs) is the pending state. No separate busy flag is kept.
-    let waiting = use_signal(|| None::<(EditOutcome, AlignFollowUp)>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
     let current_scope_generation = scope_generation();
-    let identity = AlignIdentity {
-        scope: selected.as_ref().map(|selected| selected.scope.clone()),
-        context: selected.as_ref().map(|selected| selected.context.clone()),
-        workspace: current_workspace,
-        scope_generation: current_scope_generation,
-    };
     let model = runtime.model();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let active_board_id = model.active_board_id.clone();
@@ -145,29 +105,18 @@ pub fn use_canvas_align(
     .read()
     .clone();
 
-    // Numeric version is deliberately read as a dependency so the exact request settles after
-    // accepted operations even when the Align popover or Layout workspace is hidden.
     use_effect(use_reactive(
         (
             &version(),
             &workspace(),
             &scope_generation(),
-            &identity,
             &selected_reference.read().clone(),
         ),
         {
             let runtime = runtime.clone();
             let selected_reference = selected_reference;
-            let mut waiting = waiting;
             let mut feedback = feedback;
-            move |(_, workspace, scope_generation, identity, _reference_id)| {
-                settle_pending(
-                    &runtime,
-                    selected_context,
-                    &identity,
-                    &mut waiting,
-                    &mut feedback,
-                );
+            move |(_, workspace, scope_generation, _reference_id)| {
                 clear_stale_feedback(
                     &runtime,
                     selected_context,
@@ -205,7 +154,6 @@ pub fn use_canvas_align(
             && projection.selected_reference.as_deref() == Some(state.reference_id.as_str()))
         .then_some(state.feedback)
     });
-    let busy = waiting.read().is_some();
 
     let on_reference = use_callback({
         let runtime = runtime.clone();
@@ -231,12 +179,8 @@ pub fn use_canvas_align(
 
     let on_align = use_callback({
         let runtime = runtime.clone();
-        let mut waiting = waiting;
         let mut feedback = feedback;
         move |request: AlignAction| {
-            if waiting.peek().is_some() {
-                return;
-            }
             let current_workspace = workspace();
             let current_generation = scope_generation();
             let Some(selected) = selected_context.peek().clone() else {
@@ -276,10 +220,11 @@ pub fn use_canvas_align(
             };
             if runtime.scope().as_ref() != Some(&selected.scope)
                 || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
+                || !matches!(
+                    model.durability,
+                    Durability::Saved { revision } | Durability::Saving { revision }
+                        if revision == snapshot.document.revision
+                )
                 || model.display_preview.is_some()
                 || model.gesture.is_some()
                 || model.active_board_id != selected.scope.board_id
@@ -288,9 +233,8 @@ pub fn use_canvas_align(
                 feedback.set(None);
                 return;
             }
-            let ticket = runtime.resolve_edit(
+            let result = runtime.commit(
                 "layout-align",
-                Some("alignment".into()),
                 align_resolver(
                     selected.context.clone(),
                     current.moving_ids.clone(),
@@ -298,19 +242,24 @@ pub fn use_canvas_align(
                     request.command,
                 ),
             );
-            waiting.set(Some((
-                ticket,
-                AlignFollowUp {
-                    workspace: request.workspace,
-                    scope: selected.scope.clone(),
-                    scope_generation: current_generation,
-                    context: selected.context.clone(),
-                    moving_ids: current.moving_ids.clone(),
-                    reference_id: reference_id.clone(),
+            let reference = reference_label(&runtime.model(), &reference_id);
+            let succeeded = result.is_ok();
+            let message = result.err().unwrap_or_else(|| {
+                format!("Aligned selection to {reference}. Reference unchanged.")
+            });
+            feedback.set(Some(AlignFeedbackState {
+                scope: selected.scope,
+                scope_generation: current_generation,
+                context: selected.context,
+                moving_ids: current.moving_ids,
+                reference_id,
+                feedback: AlignFeedback {
+                    reference,
                     command: request.command,
+                    message,
+                    succeeded,
                 },
-            )));
-            feedback.set(None);
+            }));
         }
     });
 
@@ -337,25 +286,20 @@ pub fn use_canvas_align(
         action,
         enabled: projection.enabled,
         disabled_reason: projection.disabled_reason,
-        busy,
         feedback: shown_feedback,
         on_reference,
         on_align,
     }
 }
 
-#[path = "layout_align_controller/tests.rs"]
-#[cfg(all(test, target_arch = "wasm32"))]
-mod tests;
-
 fn clear_stale_feedback(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: &'static str,
+    workspace: Workspace,
     scope_generation: u64,
     selected_reference: Signal<Option<String>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) {
     let Some(current_feedback) = feedback.peek().clone() else {
         return;
@@ -383,9 +327,9 @@ fn clear_stale_feedback(
 fn project(
     runtime: &Runtime,
     selected: Option<&ScopedTreeContext>,
-    workspace: &'static str,
+    workspace: Workspace,
     selected_reference: Option<&str>,
-    owner_workspace: &'static str,
+    owner_workspace: Workspace,
 ) -> AlignProjection {
     let model = runtime.model();
     let empty = AlignProjection {
@@ -517,10 +461,11 @@ fn project(
         selected_reference.as_deref(),
     );
     let active = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
+        && matches!(
+            model.durability,
+            Durability::Saved { revision } | Durability::Saving { revision }
+                if revision == snapshot.document.revision
+        )
         && model.display_preview.is_none()
         && model.gesture.is_none();
     let disabled_reason = if locked_or_driven {
@@ -735,63 +680,6 @@ fn align_resolver(
         };
         Resolution::submit(target_ids, operation)
     })
-}
-
-fn settle_pending(
-    runtime: &Runtime,
-    selected_context: Signal<Option<ScopedTreeContext>>,
-    identity: &AlignIdentity,
-    waiting: &mut Signal<Option<(EditOutcome, AlignFollowUp)>>,
-    feedback: &mut Signal<Option<AlignFeedbackState>>,
-) {
-    let Some((ticket, follow_up)) = waiting.read().clone() else {
-        return;
-    };
-    let model = runtime.model();
-    let live_scope = runtime.scope();
-    let same_scope = live_scope.as_ref() == Some(&follow_up.scope)
-        && identity.scope_generation == follow_up.scope_generation;
-    let settlement = ticket.settlement(same_scope);
-    if matches!(settlement, Settlement::Pending) {
-        return;
-    }
-    waiting.set(None);
-    let (message, succeeded) = match settlement {
-        Settlement::Pending => return,
-        Settlement::Landed { .. } => (
-            format!(
-                "Aligned selection to {}. Reference unchanged.",
-                reference_label(&model, &follow_up.reference_id)
-            ),
-            true,
-        ),
-        Settlement::Failed { message } => (message, false),
-        Settlement::Retired => {
-            feedback.set(None);
-            return;
-        }
-    };
-    let still_visible_target = identity.workspace == follow_up.workspace
-        && selected_context.peek().as_ref().is_some_and(|selected| {
-            selected.scope == follow_up.scope && selected.context == follow_up.context
-        });
-    if still_visible_target {
-        feedback.set(Some(AlignFeedbackState {
-            scope: follow_up.scope.clone(),
-            scope_generation: follow_up.scope_generation,
-            context: follow_up.context.clone(),
-            moving_ids: follow_up.moving_ids.clone(),
-            reference_id: follow_up.reference_id.clone(),
-            feedback: AlignFeedback {
-                reference: reference_label(&model, &follow_up.reference_id),
-                command: follow_up.command,
-                message,
-                succeeded,
-            },
-        }));
-    } else if identity.scope.as_ref() != Some(&follow_up.scope) {
-        feedback.set(None);
-    }
 }
 
 fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> String {

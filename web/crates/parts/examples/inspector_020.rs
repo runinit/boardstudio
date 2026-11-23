@@ -8,7 +8,7 @@ use boardstudio_web_runtime::runtime::Runtime;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_test_runtime::project_name_test_support as support;
 #[cfg(target_arch = "wasm32")]
-use boardstudio_web_ui_model::state::WorkspaceState;
+use boardstudio_web_ui_model::{Workspace, state::WorkspaceState};
 #[cfg(target_arch = "wasm32")]
 use dioxus::prelude::*;
 #[cfg(target_arch = "wasm32")]
@@ -62,7 +62,7 @@ fn InspectorHost() -> Element {
         }
     });
     let _ = version();
-    let workspace = use_signal(|| "Parts");
+    let workspace = use_signal(|| Workspace::Parts);
     use_context_provider(|| WorkspaceState(workspace));
     let assembly = use_signal(|| None::<MatrixPresetId>);
     use_context_provider(|| PartsAssemblySelection(assembly));

@@ -15,6 +15,12 @@ DIRECTORY_ENV = "BOARDSTUDIO_WASM_BINDGEN_DIR"
 TEST_RUNNER = "wasm-bindgen-test-runner"
 
 
+def test_build_env(environment, root):
+    env = dict(environment, CARGO_TARGET_DIR=str(Path(root) / "target/wasm-tests"))
+    env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+    return env
+
+
 def locked_version(root):
     lock = (Path(root) / "Cargo.lock").read_text()
     versions = re.findall(r'name = "wasm-bindgen"\nversion = "([^"]+)"', lock)
@@ -58,10 +64,6 @@ def local_patched_pair(cache, root, version):
     root = Path(root).resolve()
     builder = [sys.executable, "scripts/build-patched-wasm-bindgen.py"]
     env = os.environ.copy()
-    # A cold-run logger wraps workspace compiles, not this independently cached
-    # host tool. Its per-worktree path must not produce a different cache key.
-    if env.get("RUSTC_WRAPPER") == str(root / "scripts/build-time/rustc-log.py"):
-        env.pop("RUSTC_WRAPPER")
     result = subprocess.run([*builder, "--cache-key"], cwd=root, env=env,
                             capture_output=True, text=True)
     key = result.stdout.strip()

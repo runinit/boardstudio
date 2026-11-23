@@ -4,6 +4,9 @@
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub mod host;
 
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub mod browser;
+
 #[cfg(feature = "page")]
 mod captured_case;
 
@@ -28,13 +31,7 @@ mod boundary_parity;
 #[path = "../../../../core/tests/support/mod.rs"]
 pub(crate) mod support;
 
-pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
-
-#[cfg(feature = "page")]
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-mod core_protocol;
-#[cfg(feature = "page")]
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
 mod persistence_contract;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]

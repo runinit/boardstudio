@@ -1,47 +1,17 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn preview_does_not_commit_and_stale_edit_fails() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.parts.push(Part {
-        anchor: None,
-        id: "k1".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    doc.definitions.push(fixture::part_definition(
+        "switch",
+        "Switch",
+        PartKind::Switch,
+    ));
+    doc.parts.push(fixture::part("k1", "switch", "SW1"));
+    engine.handle(fixture::open(doc));
     let op = EditOperation::MoveParts {
         positions: vec![Position {
             id: "k1".into(),
@@ -89,20 +59,8 @@ fn undo_redo_increments_revision() {
     // Ticket 37: raw SetOutline is deleted; the typed case write is the live
     // op for this undo/redo accounting.
     let mut doc = ProjectDoc::empty("p", "Project");
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    doc.boards.push(fixture::board("board", "Board"));
+    scene(engine.handle(fixture::open(doc)));
     let add = || EditOperation::SetCase {
         body: CaseBody {
             features: None,
@@ -162,27 +120,9 @@ fn mechanical_holes_do_not_need_pad_numbers() {
             net_id: None,
         })
         .collect();
-    doc.parts.push(Part {
-        anchor: None,
-        id: "switch".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2::default(),
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+    doc.parts.push(fixture::part("switch", "switch", "SW1"));
     let mut engine = CoreEngine::new();
-    let (scene, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, _) = scene(engine.handle(fixture::open(doc)));
     assert!(
         !scene
             .findings
@@ -197,44 +137,15 @@ fn part_envelope_tracks_committed_move() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
         courtyard: vec![
             Vec2 { x: -1.0, y: -1.0 },
             Vec2 { x: 1.0, y: -1.0 },
             Vec2 { x: 1.0, y: 1.0 },
             Vec2 { x: -1.0, y: 1.0 },
         ],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition("switch", "Switch", PartKind::Switch)
     });
-    doc.parts.push(Part {
-        anchor: None,
-        id: "k1".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+    doc.parts.push(fixture::part("k1", "switch", "SW1"));
     doc.outline.push(OutlineFeature::PartEnvelope {
         connections: vec![],
         id: "boundary".into(),
@@ -243,10 +154,7 @@ fn part_envelope_tracks_committed_move() {
         margin: 1.0,
         operation: Operation::Add,
     });
-    let (before, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (before, _) = scene(engine.handle(fixture::open(doc)));
     let op = EditOperation::MoveParts {
         positions: vec![Position {
             id: "k1".into(),
@@ -273,10 +181,7 @@ fn legacy_scripts_load_without_execution_or_reserialization() {
     json["scripts"] = serde_json::json!([{ "id": "legacy", "name": "Legacy", "enabled": true, "source": "while true {}" }]);
     let doc: ProjectDoc = serde_json::from_value(json).unwrap();
     let mut engine = CoreEngine::new();
-    let (_, opened) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (_, opened) = scene(engine.handle(fixture::open(doc)));
     assert!(opened.parts.is_empty());
     assert_eq!(
         serde_json::to_value(opened).unwrap()["scripts"],
@@ -300,35 +205,11 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
         operation: Operation::Add,
     });
     doc.boards.push(Board {
-        id: "right".into(),
-        name: "Right".into(),
         outline_ids: vec!["right-edge".into()],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("right", "Right")
     });
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
-    let part = Part {
-        anchor: None,
-        id: "k1".into(),
-        definition_id: "switch".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    };
+    engine.handle(fixture::open(doc));
+    let part = fixture::part("k1", "switch", "SW1");
     let op = EditOperation::AddPart {
         part: part.clone(),
         board_id: Some("right".into()),
@@ -397,13 +278,6 @@ fn empty_definition_and_pad_ids_are_reported() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "".into(),
-        name: "Custom".into(),
-        kind: PartKind::Custom,
-        courtyard: vec![],
         pads: vec![Pad {
             id: "".into(),
             number: "".into(),
@@ -416,35 +290,10 @@ fn empty_definition_and_pad_ids_are_reported() {
             rotation: None,
             net_id: None,
         }],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
+        ..fixture::part_definition("", "Custom", PartKind::Custom)
     });
-    doc.parts.push(Part {
-        anchor: None,
-        id: "p".into(),
-        definition_id: "".into(),
-        reference: "U1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
-    let (scene, _) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    doc.parts.push(fixture::part("p", "", "U1"));
+    let (scene, _) = scene(engine.handle(fixture::open(doc)));
     for suffix in ["id", "pad:0:id", "pad:0:drill"] {
         assert!(
             scene
@@ -452,96 +301,6 @@ fn empty_definition_and_pad_ids_are_reported() {
                 .iter()
                 .any(|finding| finding.id == format!("definition::{suffix}")),
             "missing {suffix}"
-        );
-    }
-}
-
-#[test]
-fn public_add_part_from_source_board_creates_one_mirror_correspondence() {
-    let (mut engine, document) = public_native_pair();
-    let halves = document.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    let response = engine.request(&serde_json::json!({
-        "kind": "edit",
-        "id": "source-add",
-        "command": {
-            "baseRevision": document.revision,
-            "transactionId": "source-add",
-            "phase": "commit",
-            "targetIds": [],
-            "operation": {
-                "kind": "add-part",
-                "boardId": halves.source_board_id,
-                "part": {
-                    "id": "source/J1", "definitionId": "generator:ceoloide/switch_mx", "reference": "J1",
-                    "pose": {"at": {"x": 8.0, "y": 12.0}, "rotation": 0.0}, "side": "front"
-                }
-            }
-        }
-    }).to_string());
-    let (_, added) = scene(serde_json::from_str(&response).unwrap());
-    let halves = added.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    assert_eq!(
-        added
-            .parts
-            .iter()
-            .filter(|part| part.id == "source/J1")
-            .count(),
-        1
-    );
-    assert_eq!(
-        halves
-            .correspondences
-            .iter()
-            .filter(|item| { item.kind == MirroredItemKind::Part && item.source_id == "source/J1" })
-            .count(),
-        1,
-        "source-side AddPart must create one durable mirror correspondence"
-    );
-    let association = halves
-        .correspondences
-        .iter()
-        .find(|item| item.kind == MirroredItemKind::Part && item.source_id == "source/J1")
-        .unwrap();
-    assert!(
-        added
-            .boards
-            .iter()
-            .find(|board| board.id == halves.mirror_board_id)
-            .unwrap()
-            .part_ids
-            .contains(&association.mirror_id)
-    );
-    for (outline_id, part_id) in [
-        ("left/synthetic-envelope", &association.source_id),
-        ("mirror/synthetic-envelope", &association.mirror_id),
-    ] {
-        let OutlineFeature::PartEnvelope { part_ids, .. } = added
-            .outline
-            .iter()
-            .find(|feature| feature.id() == outline_id)
-            .unwrap_or_else(|| {
-                panic!(
-                    "missing {outline_id}; present {:?}",
-                    added
-                        .outline
-                        .iter()
-                        .map(OutlineFeature::id)
-                        .collect::<Vec<_>>()
-                )
-            })
-        else {
-            panic!("expected {outline_id}")
-        };
-        assert_eq!(
-            part_ids.iter().filter(|id| *id == part_id).count(),
-            1,
-            "{outline_id} membership"
         );
     }
 }
@@ -572,155 +331,9 @@ fn add_part_refuses_definition_id_mismatch_without_mutation() {
 }
 
 #[test]
-fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
-    let (mut engine, mut doc) = linked_pair();
-    let mut right = doc.matrices[1].clone();
-    right.cells.push(MatrixCell {
-        shift: None,
-        bend: None,
-        deleted: false,
-        assemblies_local: Some(true),
-        row: 0,
-        column: 1,
-        enabled: true,
-        variant: Some("right-only".into()),
-
-        definition_id: None,
-        offset: None,
-        rotation: None,
-        assemblies: vec![MatrixAssembly {
-            id: "encoder".into(),
-            definition_id: "switch".into(),
-            offset: Vec2 { x: 3.0, y: -11.0 },
-            rotation: Some(22.0),
-            side: None,
-        }],
-    });
-    doc = scene(engine.handle(edit(
-        doc.revision,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: right,
-            definitions: None,
-        },
-    )))
-    .1;
-    for side in [0, 1] {
-        let mut matrix = doc.matrices[side].clone();
-        matrix.rows = 3;
-        matrix.pitch = Vec2 { x: 20.0, y: 18.0 };
-        {
-            let values = vec![2.0, -3.0, 7.0];
-            matrix.column_layout.resize_with(
-                values.len().max(matrix.column_layout.len()),
-                Default::default,
-            );
-            for record in &mut matrix.column_layout {
-                record.stagger = 0.0;
-            }
-            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
-                record.stagger = value;
-            }
-        }
-        {
-            let values = vec![5.0, 12.0, -8.0];
-            matrix.column_layout.resize_with(
-                values.len().max(matrix.column_layout.len()),
-                Default::default,
-            );
-            for record in &mut matrix.column_layout {
-                record.splay = 0.0;
-            }
-            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
-                record.splay = value;
-            }
-        }
-        {
-            let values = (vec![
-                Some(Vec2 { x: -9.0, y: 17.0 }),
-                None,
-                Some(Vec2 { x: 25.0, y: -12.0 }),
-            ])
-            .into_iter()
-            .map(|value| value.unwrap_or_default())
-            .collect::<Vec<_>>();
-            matrix.column_layout.resize_with(
-                values.len().max(matrix.column_layout.len()),
-                Default::default,
-            );
-            for record in &mut matrix.column_layout {
-                record.splay_origin = Vec2::default();
-            }
-            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
-                record.splay_origin = value;
-            }
-        }
-        matrix.rotation = Some(13.0);
-        matrix
-            .cells
-            .retain(|cell| cell.row != 1 || cell.column != 2);
-        matrix.cells.push(MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            assemblies_local: None,
-            row: 1,
-            column: 2,
-            enabled: false,
-
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-        });
-        let cell = matrix
-            .cells
-            .iter_mut()
-            .find(|cell| cell.row == 0 && cell.column == 1)
-            .unwrap();
-        cell.offset = Some(Vec2 { x: 2.0, y: 4.0 });
-        cell.rotation = Some(7.0);
-        doc = scene(engine.handle(edit(
-            doc.revision,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix,
-                definitions: None,
-            },
-        )))
-        .1;
-        assert_reflected_keys(&doc);
-        assert_eq!(doc.matrices[0].rows, 3);
-        assert_eq!(doc.matrices[1].rows, 3);
-        assert!(
-            !doc.parts
-                .iter()
-                .any(|part| part.id == "matrix/left-matrix/r1c2"
-                    || part.id == "matrix/right-matrix/r1c2")
-        );
-        assert!(
-            !doc.parts
-                .iter()
-                .any(|part| part.id == "matrix/left-matrix/r0c1/encoder")
-        );
-        let companion = doc.matrices[1]
-            .cells
-            .iter()
-            .find(|cell| cell.row == 0 && cell.column == 1)
-            .unwrap();
-        assert_eq!(companion.variant.as_deref(), Some("right-only"));
-        assert_eq!(companion.assemblies[0].offset.x, 3.0);
-    }
-}
-
-#[test]
 fn matrix_cells_preserve_survivors_and_companions() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(2, 2);
     {
         let values = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
@@ -775,10 +388,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: value.clone(),
-            definitions: None,
-        },
+        fixture::set_matrix(value.clone()),
     )));
     assert_eq!(doc.matrices[0].part_ids.len(), 4);
     assert!(!doc.parts.iter().any(|part| part.id == "matrix/main/r0c1"));
@@ -802,10 +412,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
     let (_, grown) = scene(engine.handle(edit(
         1,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: value.clone(),
-            definitions: None,
-        },
+        fixture::set_matrix(value.clone()),
     )));
     assert_eq!(
         grown
@@ -824,10 +431,7 @@ fn matrix_registers_definitions_atomically() {
     let mut doc = matrix_doc();
     let definitions = std::mem::take(&mut doc.definitions);
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
+    engine.handle(fixture::open(doc));
     let operation = EditOperation::SetMatrix {
         matrix: matrix(1, 1),
         definitions: Some(definitions),
@@ -867,21 +471,11 @@ fn matrix_registers_definitions_atomically() {
 #[test]
 fn matrix_mirror_rotation_and_bad_dimensions() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let mut value = matrix(1, 2);
     value.mirror = Some(Mirror::X);
     value.rotation = Some(90.0);
-    let (_, doc) = scene(engine.handle(edit(
-        0,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: value,
-            definitions: None,
-        },
-    )));
+    let (_, doc) = scene(engine.handle(edit(0, EditPhase::Commit, fixture::set_matrix(value))));
     let second = doc
         .parts
         .iter()
@@ -920,17 +514,11 @@ fn matrix_mirror_rotation_and_bad_dimensions() {
 #[test]
 fn deleting_matrix_removes_its_container_and_parts_in_one_edit() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, before) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(2, 2),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(2, 2)),
     )));
     let operation: EditOperation =
         serde_json::from_value(serde_json::json!({"kind":"remove-matrix", "id":"main"})).unwrap();
@@ -971,169 +559,13 @@ fn deleting_matrix_removes_its_container_and_parts_in_one_edit() {
 }
 
 #[test]
-fn mirrored_resize_keeps_each_halves_local_preset_companions() {
-    for changed_side in [0, 1] {
-        let (mut engine, mut doc) = linked_pair();
-        for side in [0, 1] {
-            let mut matrix = doc.matrices[side].clone();
-            matrix.cells = (0..matrix.rows)
-                .flat_map(|row| {
-                    (0..matrix.columns).map(move |column| MatrixCell {
-                        shift: None,
-                        bend: None,
-                        deleted: false,
-                        row,
-                        column,
-                        enabled: true,
-
-                        definition_id: Some("switch".into()),
-                        variant: Some("preset/mx-rgb/south".into()),
-                        offset: None,
-                        rotation: None,
-                        assemblies_local: Some(true),
-                        assemblies: vec![MatrixAssembly {
-                            id: format!("local-{side}"),
-                            definition_id: "switch".into(),
-                            offset: Vec2 { x: 2.0, y: 3.0 },
-                            rotation: None,
-                            side: None,
-                        }],
-                    })
-                })
-                .collect();
-            doc = scene(engine.handle(edit(
-                doc.revision,
-                EditPhase::Commit,
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
-                },
-            )))
-            .1;
-        }
-        let mut matrix = doc.matrices[changed_side].clone();
-        matrix.rows = 3;
-        for column in 0..matrix.columns {
-            let mut cell = matrix.cells[0].clone();
-            cell.row = 2;
-            cell.column = column;
-            matrix.cells.push(cell);
-        }
-        doc = scene(engine.handle(edit(
-            doc.revision,
-            EditPhase::Commit,
-            EditOperation::SetMatrix {
-                matrix,
-                definitions: None,
-            },
-        )))
-        .1;
-        for side in [0, 1] {
-            let cells = &doc.matrices[side].cells;
-            assert_eq!(cells.len(), 9);
-            for cell in cells {
-                assert_eq!(cell.assemblies.len(), 1, "side {side}, row {}", cell.row);
-                assert_eq!(cell.assemblies[0].id, format!("local-{side}"));
-            }
-        }
-    }
-}
-
-#[test]
-fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() {
-    let (mut engine, mut doc) = linked_pair();
-    let mut right = doc.matrices[1].clone();
-    right.cells = serde_json::from_value(serde_json::json!([
-        {"row":0,"column":2,"enabled":true,"variant":"right-only","assembliesLocal":true,
-        "assemblies":[{"id":"led","definitionId":"switch","offset":{"x":3,"y":4}}]}
-    ]))
-    .unwrap();
-    doc = scene(engine.handle(edit(
-        doc.revision,
-        EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: right,
-            definitions: None,
-        },
-    )))
-    .1;
-    let reference = doc
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/right-matrix/r0c2/led")
-        .unwrap()
-        .reference
-        .clone();
-    let before = doc.clone();
-    let (_, compacted) = scene(engine.handle(edit(
-        doc.revision,
-        EditPhase::Commit,
-        EditOperation::RemoveMatrixColumn {
-            matrix_id: "right-matrix".into(),
-            column: 1,
-        },
-    )));
-    assert!(compacted.matrices.iter().all(|matrix| matrix.columns == 2));
-    let companion = compacted
-        .parts
-        .iter()
-        .find(|part| part.id == "matrix/right-matrix/r0c1/led")
-        .unwrap();
-    assert_eq!(companion.reference, reference);
-    assert!(
-        !compacted
-            .parts
-            .iter()
-            .any(|part| part.id == "matrix/left-matrix/r0c1/led")
-    );
-    assert!(
-        compacted.matrices[1]
-            .cells
-            .iter()
-            .any(|cell| cell.column == 1 && cell.variant.as_deref() == Some("right-only"))
-    );
-    let link = compacted.layouts[1].mirror_link.as_ref().unwrap();
-    let mut pairs: Vec<_> = link
-        .correspondences
-        .iter()
-        .filter(|record| record.kind == MirroredItemKind::Part)
-        .map(|record| (record.source_id.clone(), record.mirror_id.clone()))
-        .collect();
-    pairs.sort();
-    let mut expected: Vec<_> = (0..compacted.matrices[0].rows)
-        .flat_map(|row| {
-            (0..compacted.matrices[0].columns).map(move |column| {
-                (
-                    format!("matrix/left-matrix/r{row}c{column}"),
-                    format!("matrix/right-matrix/r{row}c{column}"),
-                )
-            })
-        })
-        .collect();
-    expected.sort();
-    assert_eq!(pairs, expected, "only the surviving pairs may remain");
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
-    assert_eq!(undone.parts, before.parts);
-    assert_eq!(undone.matrices, before.matrices);
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
-    assert_eq!(redone.parts, compacted.parts);
-    assert_eq!(redone.matrices, compacted.matrices);
-}
-
-#[test]
 fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: matrix_doc(),
-    });
+    engine.handle(fixture::open(matrix_doc()));
     let (_, mut doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(1, 1),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(1, 1)),
     )));
     doc.keymap = Some(KeymapConfiguration::default());
     doc.keymap.as_mut().unwrap().layers[0]

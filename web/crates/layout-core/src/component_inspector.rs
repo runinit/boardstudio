@@ -1,3 +1,5 @@
+pub mod layout_component_edits;
+
 use super::companion_placement::{layout_relationship_summary, part_anchor_summary};
 use super::inspector_types as inspector;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, ReadModel, Resolution};
@@ -31,7 +33,8 @@ pub fn layout_component_inspector_projection(
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let document = document.as_ref();
     let part = document.parts.iter().find(|part| part.id == *part_id)?;
     let mirrored_half = mirrored_half_projection(document, part_id);
     if matrix_id.is_some() && assembly_id.is_some() && mirrored_half.is_none() {

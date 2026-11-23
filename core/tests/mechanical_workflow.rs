@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, request};
 use boardstudio_core::{CoreEngine, model::ProjectDoc};
 use serde_json::{Value, json};
 
@@ -15,10 +16,6 @@ fn contours() -> Value {
     json!([{"hole":false,"points":[{"x":0,"y":0},{"x":60,"y":0},{"x":60,"y":40},{"x":0,"y":40}]},
     {"hole":true,"points":[{"x":10,"y":10},{"x":20,"y":10},{"x":20,"y":20},{"x":10,"y":20}]}])
 }
-fn request(engine: &mut CoreEngine, input: Value) -> Value {
-    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
-}
-
 #[test]
 fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
     let mut engine = CoreEngine::new();
@@ -43,16 +40,13 @@ fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
         json!({"kind":"resolve-mechanical","id":"resolve","document":saved,"contours":contours()}),
     );
     assert_eq!(resolved["assembly"]["revision"], 1);
-    let snapshot = request(&mut engine, json!({"kind":"snapshot","id":"snapshot"}));
+    let snapshot = fixture::wire_snapshot(&mut engine, "snapshot");
     assert_eq!(snapshot["document"], saved);
     let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
     assert!(undone["document"].get("mechanical").is_none());
     let redone = request(&mut engine, json!({"kind":"redo","id":"redo"}));
     assert_eq!(redone["document"]["mechanical"], established);
-    let reopened = request(
-        &mut CoreEngine::new(),
-        json!({"kind":"open","id":"reopen","document":saved}),
-    );
+    let reopened = fixture::wire_open(&mut CoreEngine::new(), "reopen", &saved);
     assert_eq!(reopened["document"]["mechanical"], established);
 }
 
@@ -199,10 +193,7 @@ fn hardware_and_critical_fit_specs_persist_and_match_generated_parts() {
     config["criticalFits"] = json!([{"id":"fit","partId":"plate","label":"Opening","from":{"x":10,"y":10},"to":{"x":20,"y":10},"tolerance":"+0.05/-0.00 mm"}]);
     doc["mechanical"] = config.clone();
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"kind":"open","id":"open","document":doc}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &doc);
     assert_eq!(
         serde_json::from_value::<boardstudio_core::model::MechanicalConfiguration>(
             opened["document"]["mechanical"].clone()

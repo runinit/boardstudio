@@ -6,6 +6,7 @@
 //! same behavior through `CoreEngine` `Edit`/`Undo` and the public mechanical
 //! module functions.
 
+use crate::support::fixture;
 use boardstudio_core::mechanical::change::{
     MechanicalChange, MechanicalDimension, MechanicalEdit, MechanicalFeatureCorrespondence,
     MechanicalMountCollection, MechanicalTarget,
@@ -21,46 +22,12 @@ use boardstudio_core::model::{
     Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
     HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
     MechanicalFeatureKind, MechanicalFeatureValue, MechanicalOpening, Mount, MountKind, Operation,
-    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
+    OutlineFeature, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
 fn board(id: &str) -> Board {
-    Board {
-        id: id.into(),
-        name: id.into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    }
-}
-
-/// The stored configuration the evaluator cases start from.
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board",
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "mounts": [],
-        "closureMounts": [],
-        "profiles": []
-    }))
-    .unwrap()
+    fixture::board(id, id)
 }
 
 fn hardware(instances: Vec<PhysicalBoardInstance>) -> HardwareConfiguration {
@@ -77,7 +44,7 @@ fn hardware(instances: Vec<PhysicalBoardInstance>) -> HardwareConfiguration {
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("doc", "Fixture");
     document.boards.push(board("board"));
-    document.mechanical = Some(configuration());
+    document.mechanical = Some(fixture::mechanical("board"));
     document
 }
 
@@ -122,7 +89,7 @@ fn mirror_instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
 }
 
 fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
-    let mut mechanical = configuration();
+    let mut mechanical = fixture::mechanical("board");
     mechanical.board_id = board_id.into();
     mechanical.mounts = mounts;
     instance(
@@ -169,24 +136,11 @@ fn instance_target(id: &str) -> MechanicalTarget {
     }
 }
 
-fn template() -> PartDefinition {
-    serde_json::from_value(json!({
-        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
-        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
-    }))
-    .unwrap()
-}
-
 fn with_template(target: MechanicalTarget, change: MechanicalChange) -> MechanicalEdit {
     MechanicalEdit {
         target,
         change,
-        mounting_hole: Some(Box::new(template())),
+        mounting_hole: Some(Box::new(fixture::mounting_hole())),
     }
 }
 
@@ -375,7 +329,7 @@ fn link_with_correspondences(
                 construction_source: "left".into(),
                 correspondences,
             },
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
 }
@@ -387,23 +341,9 @@ fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<Str
         &MechanicalEdit {
             target: instance_target(instance_id),
             change: MechanicalChange::RemovePhysicalInstance,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
-}
-
-/// A linked pair whose record names `mirror_board` as the mirror half's board.
-fn paired_document_with_halves(mirror_board: &str) -> ProjectDoc {
-    let mut document = pair_document();
-    link_pair(&mut document);
-    document.hardware.as_mut().unwrap().pairs[0].halves = Some(
-        serde_json::from_value(json!({
-            "sourceBoardId": "board", "mirrorBoardId": mirror_board,
-            "correspondences": [], "exceptions": []
-        }))
-        .unwrap(),
-    );
-    document
 }
 
 /// Gives the fixture board a real outline so export readiness is meaningful.
@@ -462,7 +402,7 @@ fn add_opening(document: &mut ProjectDoc) -> String {
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::AddOpening,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
     .unwrap();
@@ -511,7 +451,7 @@ fn add_instance_opening(document: &mut ProjectDoc, instance_id: &str) -> String 
         &MechanicalEdit {
             target: instance_target(instance_id),
             change: MechanicalChange::AddOpening,
-            mounting_hole: Some(Box::new(template())),
+            mounting_hole: Some(Box::new(fixture::mounting_hole())),
         },
     )
     .unwrap()
@@ -599,7 +539,7 @@ fn gasket_pair(
         });
     }
     let instances = [("left", left), ("right", right)].map(|(id, board)| {
-        let mut configuration = configuration();
+        let mut configuration = fixture::mechanical("board");
         configuration.board_id = board.into();
         configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
         configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
@@ -675,7 +615,7 @@ fn features_member_state(
 /// A legacy-ownership configuration whose hardware, critical fits and profiles are
 /// distinguishable by `marker`.
 fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfiguration {
-    let mut value = serde_json::to_value(configuration()).unwrap();
+    let mut value = serde_json::to_value(fixture::mechanical("board")).unwrap();
     let object = value.as_object_mut().unwrap();
     object.insert("boardId".into(), json!("board"));
     object.insert("plateThickness".into(), json!(plate_thickness));
@@ -795,7 +735,7 @@ fn link_gasket_support(
 /// Three legacy halves that own no per-instance configuration and share one source.
 fn legacy_halves_document() -> ProjectDoc {
     let mut document = document();
-    let mut shared = configuration();
+    let mut shared = fixture::mechanical("board");
     shared.wall_thickness = 2.0;
     shared.internal_gasket = Some(boardstudio_core::mechanical::default_internal_gasket());
     let half = |id| instance(id, "board", None, MechanicalConstructionOwnership::Legacy);

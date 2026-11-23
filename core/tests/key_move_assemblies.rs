@@ -1,24 +1,9 @@
+use crate::support::fixture::{self, document as scene};
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
-fn scene(reply: CoreReply) -> ProjectDoc {
-    match reply {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("expected scene: {other:?}"),
-    }
-}
-
 fn edit(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> ProjectDoc {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "move".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "move", doc.revision, operation)))
 }
 
 fn fixture() -> (CoreEngine, ProjectDoc) {
@@ -30,10 +15,7 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
         {"id":"led","name":"LED","kind":"passive","courtyard":[],"pads":[]}
     ]))
     .unwrap();
-    let doc = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let doc = scene(engine.handle(fixture::open(doc)));
     let matrix = serde_json::from_value(serde_json::json!({
         "id":"main","rows":1,"columns":1,"pitch":{"x":19,"y":19},
         "origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],
@@ -43,14 +25,7 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
         ]}]
     }))
     .unwrap();
-    let doc = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let doc = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     (engine, doc)
 }
 
@@ -113,35 +88,25 @@ fn setting_matrix_key_offset_moves_its_diode_and_led() {
     let (mut engine, before) = fixture();
     let mut matrix = before.matrices[0].clone();
     matrix.cells[0].offset = Some(Vec2 { x: 7.0, y: 9.0 });
-    let after = edit(
-        &mut engine,
-        &before,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let after = edit(&mut engine, &before, fixture::set_matrix(matrix));
     assert_companions_follow(&before, &after);
 }
 
 #[test]
 fn key_move_preview_restores_document_and_moves_companions() {
     let (mut engine, before) = fixture();
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: "matrix/main/r0c0".into(),
-                    at: Vec2 { x: 7.0, y: 9.0 },
-                }],
-            },
+    let reply = engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        before.revision,
+        EditPhase::Preview,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "matrix/main/r0c0".into(),
+                at: Vec2 { x: 7.0, y: 9.0 },
+            }],
         },
-    });
+    ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
     };
@@ -227,10 +192,7 @@ fn key_move_absorbs_legacy_absolute_override_into_cell_offset() {
         .get_or_insert_default()
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: legacy,
-    }));
+    let before = scene(engine.handle(fixture::open(legacy)));
     let after = edit(
         &mut engine,
         &before,
@@ -266,14 +228,7 @@ fn matrix_key_move_respects_rotated_splayed_and_mirrored_cell_coordinates() {
                 record.splay = value;
             }
         }
-        let before = edit(
-            &mut engine,
-            &before,
-            EditOperation::SetMatrix {
-                matrix,
-                definitions: None,
-            },
-        );
+        let before = edit(&mut engine, &before, fixture::set_matrix(matrix));
         let initial = at(&before, "");
         let after = edit(
             &mut engine,
@@ -313,10 +268,7 @@ fn offset_constrained_key_moves_its_companions_and_keeps_constraint() {
         rotation: 0.0,
     });
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let before = scene(engine.handle(fixture::open(doc)));
     let after = edit(
         &mut engine,
         &before,
@@ -350,10 +302,7 @@ fn constraint_source_fixture() -> (CoreEngine, ProjectDoc) {
         rotation: 0.0,
     });
     let mut engine = CoreEngine::new();
-    let doc = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let doc = scene(engine.handle(fixture::open(doc)));
     (engine, doc)
 }
 
@@ -398,21 +347,18 @@ fn moving_only_constraint_source_moves_matrix_key_companions() {
 #[test]
 fn moving_constraint_source_preview_restores_parametric_document() {
     let (mut engine, before) = constraint_source_fixture();
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: "anchor".into(),
-                    at: Vec2 { x: 3.0, y: 4.0 },
-                }],
-            },
+    let reply = engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        before.revision,
+        EditPhase::Preview,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "anchor".into(),
+                at: Vec2 { x: 3.0, y: 4.0 },
+            }],
         },
-    });
+    ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
     };
@@ -524,10 +470,7 @@ fn constrained_key_propagation_respects_companions_own_constraint() {
         rotation: 0.0,
     });
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let before = scene(engine.handle(fixture::open(doc)));
     let after = edit(
         &mut engine,
         &before,
@@ -555,10 +498,7 @@ fn opening_constrained_key_reconciles_companion_placement_and_rotation() {
         rotation: 30.0,
     };
     let mut engine = CoreEngine::new();
-    let after = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let after = scene(engine.handle(fixture::open(doc)));
     let (sin, cos) = 30_f64.to_radians().sin_cos();
     for (suffix, offset) in [
         ("/diode", Vec2 { x: 2.0, y: 5.0 }),
@@ -592,10 +532,7 @@ fn direct_key_move_preserves_companions_authored_constraint() {
         .get_or_insert_default()
         .insert("layoutOverride".into(), serde_json::json!(1));
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let before = scene(engine.handle(fixture::open(doc)));
     let after = edit(
         &mut engine,
         &before,
@@ -619,14 +556,7 @@ fn assembly_chain_fixture() -> (CoreEngine, ProjectDoc) {
         cell.column = column;
         matrix.cells.push(cell);
     }
-    let mut doc = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix,
-            definitions: None,
-        },
-    );
+    let mut doc = edit(&mut engine, &doc, fixture::set_matrix(matrix));
     for column in 1..3 {
         doc.constraints.push(Constraint::Offset {
             id: format!("assembly-chain-{column}"),
@@ -703,21 +633,18 @@ fn assembly_dependency_chain_settles_in_open() {
 #[test]
 fn assembly_dependency_chain_preview_settles_and_restores_document() {
     let (mut engine, before) = assembly_chain_fixture();
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: "anchor".into(),
-                    at: Vec2 { x: 3.0, y: 4.0 },
-                }],
-            },
+    let reply = engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        before.revision,
+        EditPhase::Preview,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "anchor".into(),
+                at: Vec2 { x: 3.0, y: 4.0 },
+            }],
         },
-    });
+    ));
     let CoreReply::Preview { scene: preview, .. } = reply else {
         panic!("expected preview")
     };
@@ -794,10 +721,7 @@ fn independent_assembly_constraint_breaks_implicit_parent_dependency_cycle() {
         rotation: 0.0,
     });
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let before = scene(engine.handle(fixture::open(doc)));
     let after = edit(
         &mut engine,
         &before,

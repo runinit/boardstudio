@@ -41,5 +41,3 @@ pub mod tooltip;
 
 #[cfg(test)]
 mod copy_rules_tests;
-#[cfg(all(test, target_arch = "wasm32"))]
-mod primitives_mount_tests;

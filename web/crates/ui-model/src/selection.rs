@@ -1,3 +1,4 @@
+use crate::Workspace;
 use crate::runtime::Runtime;
 pub use crate::scope_transition::ScopeTransition;
 use crate::tree::{self as objects, ScopedTreeContext, TreeContext};
@@ -67,20 +68,16 @@ pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String>
     let Some(snapshot) = model.accepted.as_ref() else {
         return Vec::new();
     };
-    let Some(board) = snapshot
-        .document
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)
     else {
         return Vec::new();
     };
-    let live: std::collections::HashSet<_> = snapshot
-        .document
-        .parts
-        .iter()
-        .map(|part| part.id.as_str())
-        .collect();
+    let live: std::collections::HashSet<_> =
+        document.parts.iter().map(|part| part.id.as_str()).collect();
     board
         .part_ids
         .iter()
@@ -474,7 +471,7 @@ pub fn active_board_scope_matches(
 
 pub fn current_layout_owner(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
 ) -> crate::state::LayoutOwnerIdentity {
     let model = runtime.model();
@@ -492,16 +489,24 @@ pub fn current_layout_owner(
 
 pub fn layout_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &crate::state::LayoutOwnerIdentity,
 ) -> bool {
-    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let model = runtime.model();
-    owner
-        .scope
-        .as_ref()
-        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+    workspace_owner_is_current(runtime, workspace, adapter, owner, Workspace::Layout)
+}
+
+pub fn workspace_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<Workspace>,
+    adapter: &SelectionAdapter,
+    owner: &crate::state::LayoutOwnerIdentity,
+    expected_workspace: Workspace,
+) -> bool {
+    current_layout_owner(runtime, workspace, adapter) == *owner
+        && owner.workspace == expected_workspace
+        && owner
+            .scope
+            .as_ref()
+            .is_some_and(|scope| active_board_scope_matches(&runtime.model(), scope))
 }

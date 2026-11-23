@@ -10,24 +10,21 @@ impl Runtime {
         draft: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let mut capture = self
-            .export_leases
+            .exports
             .borrow()
-            .get(operation_id)
+            .get(&operation_id)
             .cloned()
             .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(capture.kind(), ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
-            || capture.scope() != scope
-            || capture.token() != initial_snapshot.token
-            || capture.snapshot().document.revision != initial_snapshot.document.revision
+        if !matches!(&capture.kind, ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
+            || &capture.scope != scope
+            || capture.token != initial_snapshot.token
         {
             return Err("KiCad export no longer matches its captured board.".into());
         }
-        let core = self.core.borrow().clone();
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        self.require_pcb_handoff_current(operation_id, &capture)?;
         let mut snapshot = initial_snapshot.clone();
-        let mut plan = self
-            .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
-            .await?;
+        let mut plan =
+            self.resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &capture)?;
         let errors = plan
             .diagnostics
             .iter()
@@ -38,23 +35,18 @@ impl Runtime {
             return Err(errors.join("\n"));
         }
         if !pcb_wiring_is_applied(&snapshot.document, &plan) {
-            capture = self
-                .commit_pcb_handoff(
-                    operation_id,
-                    &capture,
-                    boardstudio_application::ExportCommitRequest::ApplyElectrical {
-                        plan: plan.clone(),
-                        draft,
-                    },
-                )
-                .await?;
+            capture = self.commit_pcb_handoff(
+                operation_id,
+                &capture,
+                boardstudio_application::ExportCommitRequest::ApplyElectrical {
+                    plan: plan.clone(),
+                    draft,
+                },
+            )?;
             snapshot = self
-                .model()
-                .accepted
+                .accepted_snapshot()
                 .ok_or_else(|| "Accepted board snapshot disappeared after wiring.".to_owned())?;
-            plan = self
-                .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
-                .await?;
+            plan = self.resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &capture)?;
             let errors = plan
                 .diagnostics
                 .iter()
@@ -65,7 +57,7 @@ impl Runtime {
                 return Err(errors.join("\n"));
             }
         }
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        self.require_pcb_handoff_current(operation_id, &capture)?;
         let mut populations = Vec::new();
         for instance in snapshot
             .document
@@ -75,16 +67,13 @@ impl Runtime {
             .flat_map(|hardware| hardware.instances.iter())
             .filter(|instance| instance.board_id == scope.board_id)
         {
-            let population = self
-                .resolve_pcb_handoff_plan(
-                    operation_id,
-                    &snapshot,
-                    scope,
-                    Some(&instance.id),
-                    &core,
-                    &capture,
-                )
-                .await?;
+            let population = self.resolve_pcb_handoff_plan(
+                operation_id,
+                &snapshot,
+                scope,
+                Some(&instance.id),
+                &capture,
+            )?;
             if !draft
                 && population
                     .diagnostics
@@ -98,226 +87,67 @@ impl Runtime {
             }
             populations.push((instance.name.clone(), population));
         }
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
-        let (archive, protected_capture) = crate::pcb_handoff::package_then_protect(
-            {
-                let runtime = self.clone();
-                let package_capture = capture.clone();
-                let package_core = core.clone();
-                let package_plan = plan.clone();
-                async move {
-                    let is_current = || {
-                        if runtime.export_lease_is_current(
-                            operation_id,
-                            &package_capture,
-                            &package_core,
-                        ) {
-                            Ok(())
-                        } else {
-                            Err("KiCad export was cancelled, superseded, or its accepted source changed."
-                                .into())
-                        }
-                    };
-                    crate::pcb_handoff::build_handoff(
-                        crate::pcb_handoff::HandoffSource {
-                            operation_id,
-                            snapshot: &snapshot,
-                            scope,
-                            electrical_plan: package_plan,
-                            populations,
-                            draft,
-                        },
-                        crate::pcb_handoff::HandoffPorts {
-                            core: package_core.as_ref(),
-                            store: &runtime.store,
-                            executor_epoch: package_capture.executor_epoch().0,
-                        },
-                        is_current,
-                    )
-                    .await
-                }
+        self.require_pcb_handoff_current(operation_id, &capture)?;
+        let archive = crate::pcb_handoff::build_handoff(
+            crate::pcb_handoff::HandoffSource {
+                operation_id,
+                snapshot: &snapshot,
+                scope,
+                electrical_plan: plan.clone(),
+                populations,
+                draft,
             },
-            || {
-                if self.export_lease_is_current(operation_id, &capture, &core) {
-                    Ok(())
-                } else {
-                    Err("KiCad export was superseded before wiring protection.".into())
-                }
-            },
-            || {
-                self.commit_pcb_handoff(
-                    operation_id,
-                    &capture,
-                    boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff {
-                        plan,
-                    },
-                )
-            },
-            |protected_capture| {
-                if self.export_lease_is_current(operation_id, protected_capture, &core) {
-                    Ok(())
-                } else {
-                    Err("KiCad handoff was superseded before delivery.".into())
-                }
-            },
+            crate::pcb_handoff::HandoffPorts { store: &self.store },
+            || self.require_pcb_handoff_current(operation_id, &capture),
         )
         .await?;
-        capture = protected_capture;
-        Ok((archive, capture.token()))
+        capture = self.commit_pcb_handoff(
+            operation_id,
+            &capture,
+            boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff { plan },
+        )?;
+        self.require_pcb_handoff_current(operation_id, &capture)?;
+        Ok((archive, capture.token))
     }
 
     /// Share complete physical PCB preparation between export and collision.
     pub(super) async fn prepare_physical_step_assembly(
         &self,
-        core: &dyn boardstudio_web_host::host::CoreExecutor,
-        executor_epoch: &str,
         request_prefix: &str,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PhysicalStepAssembly, String> {
         let ensure_current = || {
-            if is_current() {
-                Ok(())
-            } else {
-                Err("Physical PCB preparation was cancelled or became stale.".to_owned())
-            }
+            is_current()
+                .then_some(())
+                .ok_or("Physical PCB preparation was cancelled or became stale.")
         };
         ensure_current()?;
-        let mut prepared =
-            prepare_captured_step_assembly(core, executor_epoch, request_prefix, snapshot, scope)
-                .await
-                .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        let mut prepared = prepare_captured_case(
+            (self.core_services.open_scratch)(),
+            request_prefix,
+            snapshot,
+            scope,
+            true,
+        )
+        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
         ensure_current()?;
         let pcb_source = captured_pcb_source(snapshot, scope)
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
         let mut pcb_source_thickness = None;
         if let Some(source) = &pcb_source {
-            let source_is_current = is_current.clone();
             let bytes = self
-                .load_preview_document_asset(&source.asset, source_is_current)
+                .load_preview_document_asset(&source.asset, is_current.clone())
                 .await?;
             ensure_current()?;
-            let request_id = format!("{request_prefix}-pcb-source");
-            let request = ArtifactRequest::ReadBoardSource {
-                id: request_id.clone(),
-                source: String::from_utf8(bytes)
-                    .map_err(|error| format!("PCB source is not valid UTF-8: {error}"))?,
-                placement: source.placement,
-                flipped: source.flipped,
-            };
-            let reply = core
-                .artifact(&request_id, executor_epoch, &request)
-                .await
-                .map_err(|error| format!("Could not read complete PCB source: {error}"))?;
-            ensure_current()?;
-            let board = match reply {
-                ArtifactReply::ReadBoardSource { id, result } if id == request_id => result,
-                ArtifactReply::Error { id, error } if id == request_id => return Err(error.message),
-                _ => return Err("Core returned PCB source for another request.".into()),
-            };
-            let indices = prepared
-                .prepared
-                .bodies
-                .iter()
-                .enumerate()
-                .filter(|(_, body)| body.body.id == "pcb-reference")
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>();
-            if indices.len() != 1 {
-                return Err("Prepared PCB reference is missing or ambiguous.".into());
-            }
-            let mut body = prepared.prepared.bodies[indices[0]].body.clone();
-            pcb_source_thickness = board.thickness;
-            if board
-                .thickness
-                .is_some_and(|thickness| thickness != body.thickness)
-            {
-                return Err(
-                    "Imported PCB thickness does not match the mechanical PCB thickness.".into(),
-                );
-            }
-            if board
-                .pcb_source
-                .as_ref()
-                .is_none_or(|profile| profile.contours.is_empty())
-                || board.contours.is_empty()
-            {
-                return Err("Core returned incomplete PCB source geometry.".into());
-            }
-            if body
-                .features
-                .as_ref()
-                .is_some_and(|features| !features.is_empty())
-                || body
-                    .openings
-                    .as_ref()
-                    .is_some_and(|openings| !openings.is_empty())
-                || body
-                    .mounts
-                    .as_ref()
-                    .is_some_and(|mounts| !mounts.is_empty())
-                || body.gasket.is_some()
-                || body.pcb_source.is_some()
-            {
-                return Err(
-                    "Imported source cannot replace a modified nominal PCB reference.".into(),
-                );
-            }
-            body.z = Some(body.z.unwrap_or(0.0) + source.reference.elevation);
-            body.pcb_source = board.pcb_source;
-            body.mounts = (!board.round_drills.is_empty()).then_some(board.round_drills);
-            let mut contours = board.contours;
-            contours.extend(
-                board
-                    .holes
-                    .into_iter()
-                    .map(|points| boardstudio_model::model::Contour { points, hole: true }),
-            );
-            let source_ir = CaseIR {
-                revision: prepared.identity.revision,
-                body,
-                contours,
-            };
-            let request_id = format!("{request_prefix}-pcb-prepare");
-            let request = CoreRequest::PrepareCase {
-                id: request_id.clone(),
-                ir: CaseAssemblyIR {
-                    revision: source_ir.revision,
-                    bodies: vec![source_ir.clone()],
-                },
-            };
-            let reply = core
-                .request(&request_id, executor_epoch, &request)
-                .await
-                .map_err(|error| format!("PCB source preparation failed: {error}"))?;
-            ensure_current()?;
-            let mut ir = match reply {
-                CoreReply::CasePrepared { id, ir } if id == request_id => ir,
-                CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-                _ => return Err("Core returned an unexpected source PCB preparation.".into()),
-            };
-            if ir.revision != prepared.identity.revision
-                || ir.bodies.len() != 1
-                || ir.bodies[0].revision != ir.revision
-                || ir.bodies[0].body != source_ir.body
-            {
-                return Err("Core returned an incomplete or stale source PCB preparation.".into());
-            }
-            let mut pcb = ir.bodies.pop().expect("one source PCB body checked");
-            // Compatibility polygons already contain these voids; exact CAD uses body mounts.
-            for region in &mut pcb.regions {
-                region.mounts.clear();
-            }
-            prepared.prepared.bodies[indices[0]] = pcb;
-            if let Some(assembly) = &mut prepared.mechanical_assembly {
-                assembly.pcb_reference = Some(source_ir);
-                for layer in &mut assembly.stack {
-                    if layer.id == "pcb" {
-                        layer.z += source.reference.elevation;
-                    }
-                }
-            }
+            pcb_source_thickness = install_source_pcb(
+                self.core_services.open_scratch,
+                request_prefix,
+                source,
+                bytes,
+                &mut prepared,
+            )?;
         }
         Ok(PhysicalStepAssembly {
             prepared,
@@ -332,29 +162,7 @@ impl Runtime {
         initial_snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let capture = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope() != scope
-            || capture.token() != initial_snapshot.token
-            || capture.snapshot().document.revision != initial_snapshot.document.revision
-            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
-            || capture.snapshot().document.id != initial_snapshot.document.id
-        {
-            return Err("Mechanical export no longer matches its captured project.".into());
-        }
-        let core = self.core.borrow().clone();
-        let runtime = self.clone();
-        let ensure_current = || -> Result<(), String> {
-            if runtime.export_lease_is_current(operation_id, &capture, &core) {
-                Ok(())
-            } else {
-                Err("Mechanical export was cancelled, superseded, or its source changed.".into())
-            }
-        };
+        let ensure_current = || self.require_export_current(operation_id, initial_snapshot, scope);
         ensure_current()?;
         let document = captured_case_document(initial_snapshot, scope)
             .map_err(|error| format!("Could not capture mechanical document: {error:?}"))?;
@@ -388,12 +196,11 @@ impl Runtime {
             .find(|item| item.board_id == scope.board_id)
             .map(|item| item.contours.clone())
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
-        let executor_epoch = capture.executor_epoch().0.to_string();
         let source_is_current = {
             let runtime = self.clone();
-            let capture = capture.clone();
-            let core = core.clone();
-            Rc::new(move || runtime.export_lease_is_current(operation_id, &capture, &core))
+            let token = initial_snapshot.token;
+            let scope = scope.clone();
+            Rc::new(move || runtime.export_current(operation_id, token, &scope))
         };
         let PhysicalStepAssembly {
             prepared,
@@ -401,8 +208,6 @@ impl Runtime {
             pcb_source_thickness,
         } = self
             .prepare_physical_step_assembly(
-                core.as_ref(),
-                &executor_epoch,
                 &format!("mechanical-export-{}", operation_id.0),
                 initial_snapshot,
                 scope,
@@ -414,8 +219,8 @@ impl Runtime {
             .mechanical_assembly
             .as_ref()
             .ok_or_else(|| "Core did not resolve a generated mechanical assembly.".to_owned())?;
-        if assembly.revision != capture.snapshot().document.revision
-            || assembly.case.revision != capture.snapshot().document.revision
+        if assembly.revision != initial_snapshot.document.revision
+            || assembly.case.revision != initial_snapshot.document.revision
             || assembly.generation_blocked
         {
             return Err("Mechanical assembly is blocked or belongs to another revision.".into());
@@ -445,19 +250,12 @@ impl Runtime {
                 document: document.clone(),
                 contours: contours.clone(),
             };
-            let reply = core
-                .artifact(&request_id, &executor_epoch, &request)
-                .await
-                .map_err(|error| format!("Mechanical plate export failed: {error}"))?;
-            ensure_current()?;
+            let reply = artifact_reply(&request)?;
             let result = match reply {
                 ArtifactReply::ExportMechanicalPlate { id, result } if id == request_id => result,
-                ArtifactReply::Error { id, error } if id == request_id => {
-                    return Err(format!("Mechanical plate export failed: {}", error.message));
-                }
                 _ => return Err("Core returned an unexpected mechanical plate artifact.".into()),
             };
-            if result.revision != capture.snapshot().document.revision {
+            if result.revision != initial_snapshot.document.revision {
                 return Err("Core returned a mechanical plate for another revision.".into());
             }
             for file in result.files {
@@ -584,19 +382,9 @@ impl Runtime {
                             format,
                         },
                     };
-                    let reply = core
-                        .artifact(&request_id, &executor_epoch, &request)
-                        .await
-                        .map_err(|error| format!("Mechanical outline export failed: {error}"))?;
-                    ensure_current()?;
+                    let reply = artifact_reply(&request)?;
                     let file = match reply {
                         ArtifactReply::ExportOutline { id, result } if id == request_id => result,
-                        ArtifactReply::Error { id, error } if id == request_id => {
-                            return Err(format!(
-                                "Mechanical outline export failed: {}",
-                                error.message
-                            ));
-                        }
                         _ => return Err("Core returned an unexpected mechanical outline.".into()),
                     };
                     if file.filename != filename {
@@ -631,7 +419,7 @@ impl Runtime {
             critical_fit_drawing(assembly, configuration)?.into_bytes(),
         )?;
         let assembly_json = serde_json::json!({
-            "revision": capture.snapshot().document.revision,
+            "revision": initial_snapshot.document.revision,
             "pcbReference": if pcb_source.is_some() {
                 "Source-backed unpopulated PCB; component solids are not included"
             } else { "Nominal unpopulated PCB only; component solids are not included" },
@@ -652,186 +440,74 @@ impl Runtime {
                 .map_err(|error| format!("Could not serialize mechanical assembly: {error}"))?,
         )?;
         ensure_current()?;
-        let entries = files
-            .iter()
-            .enumerate()
-            .map(|(index, (path, _))| {
-                Ok(ArchiveEntry {
-                    path: path.clone(),
-                    buffer_index: u32::try_from(index)
-                        .map_err(|_| "Too many mechanical package files.".to_owned())?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
-            .map_err(|error| format!("Could not prepare mechanical ZIP request: {error}"))?;
-        let buffers = files
-            .iter()
-            .map(|(_, contents)| Uint8Array::from(contents.as_slice()))
-            .collect();
-        let archive_id = format!("mechanical-archive-{}", operation_id.0);
-        let packed = core
-            .archive(&archive_id, &executor_epoch, &metadata, buffers)
-            .await
-            .map_err(|error| format!("Mechanical packaging failed: {error}"))?;
-        ensure_current()?;
-        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
-            .map_err(|error| format!("Could not read mechanical ZIP result: {error}"))?
-        {
-            ArchiveReply::Packed => packed
-                .buffers
-                .first()
-                .map(Uint8Array::to_vec)
-                .filter(|bytes| !bytes.is_empty())
-                .ok_or_else(|| "Mechanical ZIP provider returned no bytes.".into()),
-            ArchiveReply::Error { message } => {
-                Err(format!("Mechanical packaging failed: {message}"))
-            }
-            ArchiveReply::Unpacked { .. } => {
-                Err("Core returned an unpacked project for mechanical export.".into())
-            }
-        }
+        crate::portable_archive::pack_files(files)
     }
 
-    pub(super) async fn resolve_pcb_handoff_plan(
+    pub(super) fn resolve_pcb_handoff_plan(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
         instance_id: Option<&str>,
-        core: &Rc<dyn CoreExecutor>,
-        capture: &ExportLease,
+        capture: &ExportState,
     ) -> Result<ElectricalPlan, String> {
-        if !self.export_lease_is_current(operation_id, capture, core) {
+        if !self.export_current(operation_id, capture.token, &capture.scope) {
             return Err("Accepted board changed before wiring resolution.".into());
         }
-        let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
-            hardware
-                .boards
-                .iter()
-                .find(|configuration| configuration.board_id == scope.board_id)
-        });
-        let controller_part_id = snapshot
-            .document
-            .hardware
-            .as_ref()
-            .and_then(|hardware| {
-                hardware
-                    .instances
-                    .iter()
-                    .find(|instance| Some(instance.id.as_str()) == instance_id)
-            })
-            .and_then(|instance| instance.controller_part_id.clone())
-            .or_else(|| {
-                configuration.and_then(|configuration| configuration.controller_part_id.clone())
-            });
-        let request_id = format!(
-            "pcb-handoff-{}-wiring-{}",
-            operation_id.0,
-            instance_id.unwrap_or("board")
-        );
-        let request = CoreRequest::ResolveElectrical {
-            id: request_id.clone(),
-            request: ElectricalPlanRequest {
-                document: (*snapshot.document).clone(),
-                instance_id: instance_id.map(str::to_owned),
-                mode: configuration
-                    .map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
-                locks: configuration.map_or_else(Default::default, |configuration| {
-                    configuration.locks.clone()
-                }),
-                controller_profile: None,
-                board_id: Some(scope.board_id.clone()),
-                controller_part_id,
-            },
-        };
-        let reply = core
-            .request(
-                &request_id,
-                &capture.executor_epoch().0.to_string(),
-                &request,
-            )
-            .await
-            .map_err(|error| format!("Wiring resolution failed: {error}"))?;
-        if !self.export_lease_is_current(operation_id, capture, core) {
-            return Err("Accepted board changed during wiring resolution.".into());
-        }
-        let plan = match reply {
-            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned wiring for another KiCad export.".into());
-            }
-            _ => return Err("Core returned an unexpected wiring reply.".into()),
-        };
-        if plan.revision != snapshot.document.revision
-            || plan.board_id.as_deref() != Some(scope.board_id.as_str())
-            || plan.instance_id.as_deref() != instance_id
-        {
-            return Err("Core resolved wiring for another board or revision.".into());
-        }
-        Ok(plan)
+        let plan = self.resolve_export_wiring(snapshot, &scope.board_id, instance_id);
+        self.require_pcb_handoff_current(operation_id, capture)?;
+        plan
     }
 
-    pub(super) async fn commit_pcb_handoff(
+    fn commit_pcb_handoff(
         self: &Rc<Self>,
         export_operation_id: OperationId,
-        capture: &ExportLease,
+        capture: &ExportState,
         commit: boardstudio_application::ExportCommitRequest,
-    ) -> Result<ExportLease, String> {
-        if !self.export_lease_is_current(export_operation_id, capture, &self.core.borrow().clone())
-        {
+    ) -> Result<ExportState, String> {
+        if !self.export_current(export_operation_id, capture.token, &capture.scope) {
             return Err("KiCad export no longer owns the accepted wiring source.".into());
         }
         let operation_id = self.operation();
-        let outcome = self.observe_operation(operation_id);
-        self.submit(Event::ExportCommit {
-            operation_id,
-            export_operation_id,
-            token: capture.token(),
-            scope: capture.scope().clone(),
-            commit,
-        });
-        for _ in 0..1_200 {
-            if let Some(outcome) = outcome.borrow_mut().take() {
-                if outcome != TerminalOutcome::Completed {
-                    return Err(format!(
-                        "Could not accept export wiring change: {outcome:?}"
-                    ));
-                }
-                let accepted = self.model().accepted.ok_or_else(|| {
-                    "Accepted board snapshot disappeared after export wiring.".to_owned()
-                })?;
-                let mut updated = capture.clone();
-                updated.advance(accepted.clone())?;
-                if accepted.session_epoch != updated.snapshot().session_epoch
-                    || accepted.document.id != updated.snapshot().document.id
-                    || accepted.scene.revision != updated.snapshot().document.revision
-                    || !self.session.borrow().export_is_current(
-                        export_operation_id,
-                        updated.token(),
-                        updated.scope(),
-                    )
-                {
-                    return Err("Export wiring changed the captured project or board.".into());
-                }
-                self.export_leases
-                    .borrow_mut()
-                    .begin(export_operation_id, updated.clone());
-                return Ok(updated);
-            }
-            TimeoutFuture::new(25).await;
+        let outcome = self.submit_event(
+            Event::ExportCommit {
+                operation_id,
+                export_operation_id,
+                token: capture.token,
+                scope: capture.scope.clone(),
+                commit,
+            },
+            Some(operation_id),
+        );
+        if outcome != Some(TerminalOutcome::Completed) {
+            return Err(format!(
+                "Could not accept export wiring change: {outcome:?}"
+            ));
         }
-        Err("Export wiring save did not complete.".into())
+        let accepted = self
+            .accepted_snapshot()
+            .ok_or("No accepted wiring snapshot.")?;
+        let mut updated = capture.clone();
+        updated.token = accepted.token;
+        if !self.session.borrow().export_is_current(
+            export_operation_id,
+            updated.token,
+            &updated.scope,
+        ) {
+            return Err("Export wiring changed the captured project or board.".into());
+        }
+        self.exports
+            .borrow_mut()
+            .insert(export_operation_id, updated.clone());
+        Ok(updated)
     }
 
     pub(super) fn require_pcb_handoff_current(
         &self,
         operation_id: OperationId,
-        capture: &ExportLease,
-        core: &Rc<dyn CoreExecutor>,
+        capture: &ExportState,
     ) -> Result<(), String> {
-        if self.export_lease_is_current(operation_id, capture, core) {
+        if self.export_current(operation_id, capture.token, &capture.scope) {
             Ok(())
         } else {
             Err("KiCad export was cancelled, superseded, or its accepted source changed.".into())
@@ -844,36 +520,12 @@ impl Runtime {
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let capture = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Footprint export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope() != scope
-            || capture.token() != snapshot.token
-            || capture.snapshot().document.revision != snapshot.document.revision
-            || capture.snapshot().session_epoch != snapshot.session_epoch
-            || capture.snapshot().document.id != snapshot.document.id
-        {
-            return Err("Footprint export no longer matches its captured project.".into());
-        }
-        let core = self.core.borrow().clone();
-        let runtime = self.clone();
-        let ensure_current = || {
-            if runtime.export_lease_is_current(operation_id, &capture, &core) {
-                Ok(())
-            } else {
-                Err("Footprint export was cancelled, superseded, or its source changed.".into())
-            }
-        };
+        let ensure_current = || self.require_export_current(operation_id, snapshot, scope);
         crate::export_footprints::build_zip(
             crate::export_footprints::ExportSource {
                 operation_id,
                 snapshot,
-                core: core.as_ref(),
                 store: &self.store,
-                executor_epoch: capture.executor_epoch().0,
             },
             ensure_current,
         )

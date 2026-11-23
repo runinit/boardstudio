@@ -5,6 +5,7 @@ use crate::ui::{
     sidenav::Sidenav,
     tabs::{Tabs, TabsList, TabsTrigger},
 };
+use boardstudio_web_ui_model::{Workspace, state::CompactPanelState};
 use dioxus::prelude::*;
 use policy::decode_settings;
 pub use policy::{PanelMode, PanelSettings, PanelSide};
@@ -16,12 +17,12 @@ mod policy;
 
 /// Open the Parts workspace with its browser panel visible.
 pub fn browse_parts_workspace(
-    mut workspace: Signal<&'static str>,
+    mut workspace: Signal<Workspace>,
     mut compact_open: Signal<bool>,
     mut settings: Signal<PanelSettings>,
     compact: bool,
 ) {
-    workspace.set("Parts");
+    workspace.set(Workspace::Parts);
     if compact {
         compact_open.set(true);
         return;
@@ -35,11 +36,11 @@ pub fn browse_parts_workspace(
 
 /// Apply ordinary workspace panel defaults without overriding an explicit reveal.
 pub fn use_workspace_panel_defaults(
-    workspace: &'static str,
+    workspace: Workspace,
     mut objects_open: Signal<bool>,
     mut inspector_open: Signal<bool>,
-) -> Signal<Option<&'static str>> {
-    let mut requested_workspace = use_signal(|| None::<&'static str>);
+) -> Signal<Option<Workspace>> {
+    let mut requested_workspace = use_signal(|| None::<Workspace>);
     use_effect(use_reactive((&workspace,), move |_| {
         let requested = *requested_workspace.peek();
         if requested.is_some() {
@@ -48,7 +49,7 @@ pub fn use_workspace_panel_defaults(
         if requested == Some(workspace) {
             return;
         }
-        if workspace == "Keymap" || workspace == "Case" {
+        if workspace == Workspace::Keymap || workspace == Workspace::Case {
             objects_open.set(false);
             inspector_open.set(true);
         }
@@ -59,7 +60,7 @@ pub fn use_workspace_panel_defaults(
 /// Header controls use the App-owned compact panel signals.
 #[component]
 pub fn CompactPanelControls() -> Element {
-    let state = use_context::<super::CompactPanelState>();
+    let state = use_context::<CompactPanelState>();
     let compact = use_compact_viewport();
     rsx! {
         if compact() {
@@ -125,7 +126,7 @@ fn focus_target_available(target: &HtmlElement) -> bool {
             .is_some_and(|v| v == "visible")
 }
 
-fn toggle_compact_panel(state: super::CompactPanelState, side: PanelSide) {
+fn toggle_compact_panel(state: CompactPanelState, side: PanelSide) {
     let was_open = match side {
         PanelSide::Objects => (state.objects_open)(),
         PanelSide::Inspector => (state.inspector_open)(),
@@ -144,7 +145,7 @@ pub fn DockLayout(
     inspector: Option<Element>,
     children: Element,
 ) -> Element {
-    let state = use_context::<super::CompactPanelState>();
+    let state = use_context::<CompactPanelState>();
     let compact = use_compact_viewport();
     let mut sheet_open = use_signal(|| false);
     let requested_before = use_hook(|| Rc::new(std::cell::Cell::new(false)));
@@ -480,10 +481,6 @@ fn toggle_id(side: PanelSide) -> &'static str {
     }
 }
 
-pub fn focus_panel_toggle(side: PanelSide) {
-    focus_element(toggle_id(side));
-}
-
 fn focus_element(id: &str) {
     if let Some(element) = web_sys::window()
         .and_then(|w| w.document())
@@ -534,11 +531,3 @@ fn set_bool(mut signal: Signal<bool>, value: bool) {
         signal.set(value);
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "panels_scroll_tests.rs"]
-mod scroll_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "panels_resize_tests.rs"]
-mod resize_tests;

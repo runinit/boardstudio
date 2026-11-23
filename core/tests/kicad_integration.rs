@@ -2,10 +2,10 @@
 //! request boundary, with KiCad 10 as the independent parser and plotter.
 //! Ported from `kicad/test/export.test.ts` and `kicad/test/source.test.ts`,
 //! which drove the same boundary through a Node subprocess.
+use crate::support::query::{arr, empty_project};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use boardstudio_core::model::ProjectDoc;
 use regex::Regex;
 use serde_json::{Value, json};
 
@@ -39,9 +39,7 @@ fn export(
 }
 
 fn export_board(document: &Value, board_id: &str, contours: &Value) -> Result<String, String> {
-    let name = document["boards"]
-        .as_array()
-        .unwrap()
+    let name = arr(&document["boards"])
         .iter()
         .find(|board| board["id"] == board_id)
         .map(|board| board["name"].as_str().unwrap().to_owned())
@@ -95,10 +93,6 @@ fn compile_footprint(definition: &Value, side: &str) -> Value {
     }))
     .expect("compile")["result"][0]
         .clone()
-}
-
-fn empty_project(id: &str, name: &str) -> Value {
-    serde_json::to_value(ProjectDoc::empty(id, name)).unwrap()
 }
 
 fn fixture() -> (Value, Value) {
@@ -347,7 +341,7 @@ fn standalone_footprints_retain_repeated_logical_numbers_with_unique_physical_pa
     definition["pads"][0]["number"] = json!("2");
     let (_, content) = export_footprint(&project_with(&definition), "switch", json!({})).unwrap();
     let imported = import_footprint(&content, "repeated-pads").unwrap();
-    let pads = imported["definition"]["pads"].as_array().unwrap();
+    let pads = arr(&imported["definition"]["pads"]);
     assert_eq!(
         pads.iter()
             .map(|pad| pad["number"].clone())
@@ -372,7 +366,7 @@ fn switch_source() -> String {
 fn imports_supported_external_footprint_pads_and_courtyard() {
     let imported = import_footprint(&switch_source(), "external-switch").unwrap();
     assert_eq!(imported["definition"]["name"], "Switch");
-    assert_eq!(imported["definition"]["pads"].as_array().unwrap().len(), 2);
+    assert_eq!(arr(&imported["definition"]["pads"]).len(), 2);
     assert_eq!(
         imported["definition"]["pads"][0]["at"]["x"].as_f64(),
         Some(-3.0)
@@ -381,13 +375,7 @@ fn imports_supported_external_footprint_pads_and_courtyard() {
         imported["definition"]["pads"][0]["at"]["y"].as_f64(),
         Some(0.0)
     );
-    assert_eq!(
-        imported["definition"]["courtyard"]
-            .as_array()
-            .unwrap()
-            .len(),
-        4
-    );
+    assert_eq!(arr(&imported["definition"]["courtyard"]).len(), 4);
 }
 
 fn retained_source(source: &str, id: &str) -> Value {
@@ -751,21 +739,14 @@ fn native_source_import_projects_asymmetric_pads_and_retains_exact_kicad_source(
     let imported = import_source("rich-source", RICH_SOURCE);
     assert_eq!(imported["definition"]["name"], "Rich Imported Ω");
     assert_eq!(imported["definition"]["kicadSource"]["source"], RICH_SOURCE);
-    assert_eq!(imported["geometry"]["pads"].as_array().unwrap().len(), 2);
-    assert_eq!(
-        imported["geometry"]["courtyard"].as_array().unwrap().len(),
-        4
-    );
-    assert!(
-        imported["diagnostics"]
-            .as_array()
+    assert_eq!(arr(&imported["geometry"]["pads"]).len(), 2);
+    assert_eq!(arr(&imported["geometry"]["courtyard"]).len(), 4);
+    assert!(arr(&imported["diagnostics"]).iter().any(|item| {
+        item["message"]
+            .as_str()
             .unwrap()
-            .iter()
-            .any(|item| item["message"]
-                .as_str()
-                .unwrap()
-                .contains("models/rich.step"))
-    );
+            .contains("models/rich.step")
+    }));
     assert!(RICH_SOURCE.contains("(drill oval 1.2 0.6 (offset 0.2 0))"));
     assert!(RICH_SOURCE.contains("café 東京 & Ω"));
 }
@@ -839,11 +820,9 @@ fn imported_source_without_a_pad_angle_preserves_the_absolute_angle_on_both_boar
     (pad 1 smd rect (at 2 3) (size 2 1) (layers F.Cu F.Paste F.Mask))
     (pad 2 smd rect (at 3 3) (size 1 1) (layers F.Cu F.Paste F.Mask)))"#;
     let imported = import_source("angled-source", angled);
-    assert_eq!(imported["geometry"]["pads"].as_array().unwrap().len(), 2);
+    assert_eq!(arr(&imported["geometry"]["pads"]).len(), 2);
     assert_eq!(imported["definition"]["kicadSource"]["source"], angled);
-    let pad = imported["definition"]["pads"]
-        .as_array()
-        .unwrap()
+    let pad = arr(&imported["definition"]["pads"])
         .iter()
         .find(|pad| pad["id"] == "pad-0")
         .unwrap();
@@ -888,11 +867,8 @@ fn legacy_kicad_arc_preserves_sweep_geometry_in_a_kicad_10_board_export() {
     (pad 2 smd rect (at 3 0) (size 1 1) (layers F.Cu F.Paste F.Mask)))"#;
     let imported = import_source("legacy-arc", legacy);
     assert_eq!(imported["definition"]["kicadSource"]["source"], legacy);
-    assert_eq!(
-        imported["geometry"]["courtyard"].as_array().unwrap().len(),
-        4
-    );
-    assert_eq!(imported["geometry"]["pads"].as_array().unwrap().len(), 2);
+    assert_eq!(arr(&imported["geometry"]["courtyard"]).len(), 4);
+    assert_eq!(arr(&imported["geometry"]["pads"]).len(), 2);
 
     let board = export_source_board(&board_document(&imported["definition"], false)).unwrap();
     assert_match(

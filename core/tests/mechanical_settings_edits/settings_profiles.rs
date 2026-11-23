@@ -101,7 +101,7 @@ fn a_placed_custom_stabilizer_definition_accepts_a_profile() {
     doc.parts.push(part("stabilizer-part", "stab-mx-2u", None));
     doc.definitions
         .push(part_definition("stab-mx-2u", PartKind::Custom, None));
-    doc.mechanical = Some(configuration());
+    doc.mechanical = Some(fixture::mechanical("board"));
 
     assert_eq!(
         apply_change(
@@ -292,7 +292,7 @@ fn an_instance_target_persists_to_that_instance() {
         role: "controller".into(),
         flipped: false,
         controller_part_id: None,
-        mechanical: Some(configuration()),
+        mechanical: Some(fixture::mechanical("board")),
         construction_ownership: MechanicalConstructionOwnership::Local,
     };
     instance.mechanical.as_mut().unwrap().wall_thickness = 2.0;

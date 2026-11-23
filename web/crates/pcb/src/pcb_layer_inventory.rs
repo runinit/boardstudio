@@ -37,7 +37,7 @@ pub(crate) fn current_generator_layers(
 pub(crate) fn extend_generator_layers(
     layers: &mut BTreeSet<String>,
     side: &Side,
-    result: Result<Option<std::rc::Rc<Vec<crate::footprint_forms::Graphic>>>, String>,
+    result: Result<Option<std::rc::Rc<Vec<crate::footprint_graphics::Graphic>>>, String>,
 ) {
     if let Ok(Some(drawings)) = result {
         for graphic in drawings.iter() {
@@ -49,7 +49,7 @@ pub(crate) fn extend_generator_layers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::footprint_forms::{Graphic, Point, Shape};
+    use crate::footprint_graphics::{Graphic, Point, Shape};
     use boardstudio_application::SessionEpoch;
     use boardstudio_model::model::{PartGenerator, PartKind};
     use std::rc::Rc;

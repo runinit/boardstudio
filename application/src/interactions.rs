@@ -40,26 +40,6 @@ impl MagneticSnapState {
     pub fn clear(&mut self) {
         self.latched = None;
     }
-
-    pub fn clear_geometry(&mut self) {
-        if self
-            .latched
-            .as_ref()
-            .is_some_and(|latched| latched.source == SnapSource::Geometry)
-        {
-            self.clear();
-        }
-    }
-
-    pub fn clear_grid(&mut self) {
-        if self
-            .latched
-            .as_ref()
-            .is_some_and(|latched| latched.source == SnapSource::Grid)
-        {
-            self.clear();
-        }
-    }
 }
 
 /// Pull a point toward the nearest eligible target, capturing exactly near the target and
@@ -242,16 +222,6 @@ fn landmarks(points: &[Vec2], center: Vec2) -> Vec<Vec2> {
         }
     }));
     result
-}
-
-/// Match the editor's physical envelope landmarks and optional rectangular gap snap.
-pub fn snap_part(
-    document: &ProjectDoc,
-    moving: &Part,
-    tolerance: f64,
-    gap: Option<f64>,
-) -> Option<SnapGuide> {
-    snap_part_candidates(document, moving, tolerance, gap, document.parts.iter())
 }
 
 /// Snap against only parts owned by the selected board.

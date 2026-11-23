@@ -22,13 +22,11 @@ impl Runtime {
     }
 
     pub fn layout_preview_error(&self) -> Option<String> {
-        let scope = self.scope()?;
-        let accepted = self.model().accepted?;
         self.layout_preview
             .borrow()
             .error
             .as_ref()
-            .filter(|(owner, _)| owner.matches_current(&accepted, &scope, owner.source_generation))
+            .filter(|(owner, _)| self.snapshot_current(owner.snapshot_token, &owner.scope))
             .map(|(_, error)| error.clone())
     }
 
@@ -78,7 +76,7 @@ impl Runtime {
         }
     }
 
-    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken, u64)>) {
+    pub fn reconcile_layout_source_request(&self, expected: Option<(&Scope, SnapshotToken)>) {
         let retired = self
             .layout_preview
             .borrow_mut()
@@ -93,13 +91,7 @@ impl Runtime {
         &self,
         owner: &crate::layout_viewer_source::LayoutSourceIdentity,
     ) -> bool {
-        let Some(scope) = self.scope() else {
-            return false;
-        };
-        let Some(accepted) = self.model().accepted else {
-            return false;
-        };
-        owner.matches_current(&accepted, &scope, owner.source_generation)
+        self.snapshot_current(owner.snapshot_token, &owner.scope)
             && self.layout_preview.borrow().owns(owner)
     }
 
@@ -118,22 +110,9 @@ impl Runtime {
         {
             return Ok(());
         }
-        let batch_generation = self
-            .layout_model_batch_generation
-            .get()
-            .checked_add(1)
-            .ok_or_else(|| "Layout model batch identity exhausted".to_owned())?;
-        self.layout_model_batch_generation.set(batch_generation);
-        let owner = crate::model_delivery::ModelOwnerIdentity::new_layout(
-            preview.owner.scope.clone(),
+        let owner = crate::model_delivery::ModelOwnerIdentity::capture(
             preview.owner.snapshot_token,
-            preview.owner.source_generation,
-            &preview.lease,
-        );
-        let batch = crate::model_delivery::ModelBatchIdentity::new(
-            owner,
-            preview.owner.accepted_revision,
-            batch_generation,
+            preview.lease.clone(),
         );
         let source_is_current = {
             let weak = Rc::downgrade(self);
@@ -148,36 +127,19 @@ impl Runtime {
         let module_request_id = format!(
             "layout-module-models-{}-{}-{}",
             preview.owner.snapshot_token.0,
-            preview.owner.accepted_revision,
+            preview.document.revision,
             preview.owner.source_generation
         );
-        let core_executor_epoch = self.session.borrow().core_executor_epoch();
-        let core_executor_epoch_text = core_executor_epoch.0.to_string();
-        let core = self.core.borrow().clone();
         let module_request = CoreRequest::ResolveModules {
             id: module_request_id.clone(),
             document: preview.document.as_ref().clone(),
             board_id: preview.owner.scope.board_id.clone(),
             preview_top_z: Some(preview.preview.thickness),
         };
-        let module_reply = core
-            .request(
-                &module_request_id,
-                &core_executor_epoch_text,
-                &module_request,
-            )
-            .await
-            .map_err(|error| format!("Mounted-module model resolution failed: {error}"))?;
-        if !source_is_current()
-            || self.session.borrow().core_executor_epoch() != core_executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Ok(());
-        }
+        let module_reply = (self.core_services.open_scratch)()(module_request);
         let module_placements = match module_reply {
             CoreReply::ModulesResolved { id, result }
-                if id == module_request_id
-                    && result.revision == preview.owner.accepted_revision =>
+                if id == module_request_id && result.revision == preview.document.revision =>
             {
                 result.model_placements
             }
@@ -192,26 +154,9 @@ impl Runtime {
             _ => return Err("Core returned an unexpected mounted-module model reply".into()),
         };
         let native_paths = crate::model_delivery::native_model_path_assets(&preview.path_assets);
-        let unique_model_paths = preview
-            .preview
-            .models
-            .iter()
-            .map(|model| model.path.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let mut bundled_ids_by_path = BTreeMap::new();
-        if !unique_model_paths.is_empty() {
-            let ids =
-                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
-                    .await?;
-            if !source_is_current() {
-                return Ok(());
-            }
-            if ids.len() != unique_model_paths.len() {
-                return Err("Model path resolver returned an incomplete Layout mapping".into());
-            }
-            bundled_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        let bundled_ids_by_path = bundled_preview_paths(&preview.preview.models).await?;
+        if !source_is_current() {
+            return Ok(());
         }
         let selections = crate::model_delivery::resolve_preview_assets(
             &preview.preview.models,
@@ -219,30 +164,23 @@ impl Runtime {
             &native_paths,
             &preview.document,
             |path| bundled_ids_by_path.get(path).cloned().flatten(),
-            |asset_id| {
-                crate::bundled_models::bundled_model(asset_id).map(|model| {
-                    crate::model_delivery::ResolvedModelAsset {
-                        id: model.id.to_owned(),
-                        sha256: model.sha256.to_owned(),
-                        filename: model.filename.to_owned(),
-                        source: crate::model_delivery::ModelAssetSource::Packaged {
-                            url_path: model.url_path.to_owned(),
-                        },
-                    }
-                })
-            },
+            packaged_model_asset,
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        let ports = self.layout_model_delivery_ports(&preview, source_is_current.clone());
+        let ports = self.model_delivery_ports(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.document.revision,
+            source_is_current.clone(),
+        );
         let board_results = self
             .case_model_delivery
             .deliver_models(
-                preview.preview.revision,
                 &preview.preview.models,
                 &selections,
                 &ports,
-                &batch,
+                &owner,
                 source_is_current.clone(),
             )
             .await;
@@ -254,18 +192,7 @@ impl Runtime {
                     let selection = crate::model_delivery::select_model_asset_id(
                         &placement.asset_id,
                         &preview.document.assets,
-                        |asset_id| {
-                            crate::bundled_models::bundled_model(asset_id).map(|model| {
-                                crate::model_delivery::ResolvedModelAsset {
-                                    id: model.id.to_owned(),
-                                    sha256: model.sha256.to_owned(),
-                                    filename: model.filename.to_owned(),
-                                    source: crate::model_delivery::ModelAssetSource::Packaged {
-                                        url_path: model.url_path.to_owned(),
-                                    },
-                                }
-                            })
-                        },
+                        packaged_model_asset,
                     );
                     (placement.id.clone(), selection)
                 })
@@ -273,11 +200,10 @@ impl Runtime {
             let module_results = self
                 .case_model_delivery
                 .deliver_module_placements(
-                    preview.owner.accepted_revision,
                     &module_placements,
                     &selections,
                     &ports,
-                    &batch,
+                    &owner,
                     source_is_current.clone(),
                 )
                 .await;
@@ -308,12 +234,10 @@ impl Runtime {
         expected_revision: u64,
     ) -> Result<(), String> {
         let accepted = self
-            .model()
-            .accepted
+            .accepted_snapshot()
             .ok_or_else(|| "No accepted project is available for Layout preview".to_owned())?;
-        if accepted.token != expected_token
+        if !self.snapshot_current(expected_token, &expected_scope)
             || accepted.document.revision != expected_revision
-            || self.scope().as_ref() != Some(&expected_scope)
         {
             return Err("The accepted Layout preview source changed before preparation".into());
         }
@@ -323,7 +247,7 @@ impl Runtime {
 
         let source_generation = self.layout_preview.borrow_mut().next_generation()?;
         let operation = self.operation().0;
-        if operation == 0 || operation > 9_007_199_254_740_991 {
+        if operation == 0 || operation > MAX_SAFE_INTEGER {
             let error = "Layout preview operation identity is outside the safe integer range";
             self.layout_preview.borrow_mut().fail_before_begin(
                 crate::layout_viewer_source::LayoutSourceIdentity::from_accepted(
@@ -375,16 +299,14 @@ impl Runtime {
             })
         });
         let result = match &capture.request {
-            crate::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
-                self.run_preview_pipeline(
+            crate::layout_viewer_source::LayoutPreviewRequest::Authored(request) => self
+                .run_preview_pipeline(
                     request.as_ref().clone(),
                     operation,
                     capture.owner.scope.clone(),
                     capture.owner.source_generation,
                     is_current.clone(),
-                )
-                .await
-            }
+                ),
             crate::layout_viewer_source::LayoutPreviewRequest::Imported { asset, .. } => {
                 self.run_imported_layout_preview(&capture, asset, operation, is_current.clone())
                     .await
@@ -465,32 +387,10 @@ impl Runtime {
         let source = String::from_utf8(bytes)
             .map_err(|error| format!("Imported board asset is not valid UTF-8: {error}"))?;
         let request = make_request(source)?;
-        let core = self.core.borrow().clone();
-        let core_epoch = self.session.borrow().core_executor_epoch().0;
         if !is_current() {
-            return Err("Imported board preview source became stale before Core dispatch".into());
+            return Err("Imported board preview source changed.".into());
         }
-        let epoch = core_epoch.to_string();
-        let reply = core
-            .artifact(&request_id, &epoch, &request)
-            .await
-            .map_err(|error| format!("Imported board preview failed: {error}"))?;
-        if !is_current()
-            || self.session.borrow().core_executor_epoch().0 != core_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
-        {
-            return Err("Imported board preview source changed during Core preview".into());
-        }
-        match reply {
-            ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => Err(format!(
-                "Core rejected the imported board preview: {error:?}"
-            )),
-            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned an imported board preview for another request".into())
-            }
-            _ => Err("Core returned an unexpected imported-board preview reply".into()),
-        }
+        self.board_preview(&request, &request_id)
     }
 
     /// Parse a routed KiCad board for the accepted reference editor before its
@@ -504,40 +404,24 @@ impl Runtime {
         if request_id.is_empty() {
             return Err("Routed-board preview request identity must not be empty".into());
         }
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let core = self.core.borrow().clone();
-        let request = ArtifactRequest::PreviewBoard {
-            id: request_id.clone(),
-            source,
-            revision,
-        };
-        let reply = core
-            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Could not preview routed KiCad board: {error}"))?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("Routed-board preview became stale when the Core worker changed".into());
-        }
-        match reply {
+        self.board_preview(
+            &ArtifactRequest::PreviewBoard {
+                id: request_id.clone(),
+                source,
+                revision,
+            },
+            &request_id,
+        )
+    }
+
+    pub(super) fn board_preview(
+        &self,
+        request: &ArtifactRequest,
+        request_id: &str,
+    ) -> Result<PcbPreview, String> {
+        match artifact_reply(request)? {
             ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
-            ArtifactReply::Error { id, error } if id == request_id => {
-                let details = error
-                    .diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>();
-                if details.is_empty() {
-                    Err(error.message)
-                } else {
-                    Err(format!("{} {}", error.message, details.join(" ")))
-                }
-            }
-            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
-                Err("Core returned a routed-board preview for another request".into())
-            }
-            _ => Err("Core returned an unexpected routed-board preview reply".into()),
+            _ => Err("Core returned an unexpected board preview reply.".into()),
         }
     }
 
@@ -563,34 +447,10 @@ impl Runtime {
         if !is_current() {
             return Err("Imported board asset request became stale after loading".into());
         }
-        let digest = sha256_hex(&bytes);
-        if digest != asset.sha256 {
-            return Err("Imported board asset bytes do not match the accepted SHA-256".into());
-        }
+        verify_source_digest(asset, &bytes)?;
         self.assets
             .borrow_mut()
             .insert(asset.sha256.clone(), bytes.clone());
         Ok(bytes)
-    }
-
-    pub(super) fn layout_model_delivery_ports(
-        self: &Rc<Self>,
-        preview: &crate::layout_viewer_source::LayoutPreviewSnapshot,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> crate::model_delivery::ModelDeliveryPorts {
-        let scope = preview.owner.scope.clone();
-        let token = preview.owner.snapshot_token;
-        let source_generation = preview.owner.source_generation;
-        let lease = preview.lease.clone();
-        let owner_is_current = Rc::new(move |owner: &crate::model_delivery::ModelOwnerIdentity| {
-            owner.is_current_layout_owner(&scope, token, source_generation, &lease)
-        });
-        self.model_delivery_ports(
-            preview.owner.scope.clone(),
-            token,
-            preview.owner.accepted_revision,
-            is_current,
-            owner_is_current,
-        )
     }
 }

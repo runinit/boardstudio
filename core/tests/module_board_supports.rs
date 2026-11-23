@@ -1,3 +1,4 @@
+use crate::support::fixture::request;
 use boardstudio_core::{CoreEngine, artifact, model::*};
 use serde_json::{Value, json};
 
@@ -21,10 +22,6 @@ fn document() -> Value {
         "plateThickness":1.5,"plateFoamThickness":0,"pcbThickness":1.6,"bottomFoamThickness":0,"batteryHeight":0,"bottomThickness":2,
         "plateToPcb":6,"wallThickness":2,"clearance":0.2,"profiles":[],"mounts":[]});
     doc
-}
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
 }
 
 fn host_outline() -> Vec<Contour> {

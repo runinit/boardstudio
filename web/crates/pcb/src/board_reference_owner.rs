@@ -7,47 +7,17 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_model::model::EditOperation;
-use boardstudio_web_runtime::operation_outcomes::EditOutcome;
-use boardstudio_web_ui_shared::draft_edits::DraftEdits;
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-/// One routed-board reference control's bounded logical key: its action kind, with the
-/// model path that identifies a model-asset field.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum BoardReferenceKey {
-    Enabled,
-    PositionX,
-    PositionY,
-    Rotation,
-    Elevation,
-    ModelAsset(String),
-    Remove,
-}
-
-impl BoardReferenceKey {
-    pub(crate) fn of(action: &pcb_board_reference::Action) -> Self {
-        match action {
-            pcb_board_reference::Action::SetEnabled(_) => Self::Enabled,
-            pcb_board_reference::Action::SetPositionX(_) => Self::PositionX,
-            pcb_board_reference::Action::SetPositionY(_) => Self::PositionY,
-            pcb_board_reference::Action::SetRotation(_) => Self::Rotation,
-            pcb_board_reference::Action::SetElevation(_) => Self::Elevation,
-            pcb_board_reference::Action::SetModelAsset { path, .. } => {
-                Self::ModelAsset(path.clone())
-            }
-            pcb_board_reference::Action::Remove => Self::Remove,
-        }
-    }
-}
-
 pub fn board_reference_owner_is_current(
     runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
-    if !matches!(owner.workspace, "Layout" | "Case")
+    if !matches!(owner.workspace, Workspace::Layout | Workspace::Case)
         || current_layout_owner(runtime, workspace, adapter) != *owner
     {
         return false;
@@ -60,10 +30,7 @@ pub fn board_reference_owner_is_current(
         return false;
     };
     if !active_board_scope_matches(&model, scope)
-        || !matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        )
+        || model.lifecycle != Lifecycle::Ready
         || !matches!(
             model.durability,
             Durability::Saved { .. } | Durability::Saving { .. }
@@ -81,7 +48,7 @@ pub fn board_reference_owner_is_current(
 
 pub fn board_reference_target_is_current(
     runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
@@ -106,11 +73,11 @@ pub fn board_reference_target_is_current(
 
 pub fn board_reference_owner_lineage_is_current(
     runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
-    if !matches!(owner.workspace, "Layout" | "Case")
+    if !matches!(owner.workspace, Workspace::Layout | Workspace::Case)
         || workspace() != owner.workspace
         || (adapter.generation)() != owner.generation
         || runtime.scope() != owner.scope
@@ -130,7 +97,7 @@ pub(crate) fn submit_board_reference_document(
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_model::model::ProjectDoc,
     transaction_label: &str,
-) -> Result<Option<EditOutcome>, String> {
+) -> Result<(), String> {
     if !live {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
@@ -165,7 +132,7 @@ pub(crate) fn submit_board_reference_document(
         })
         .collect::<Vec<_>>();
     if changes.is_empty() && assets.is_empty() {
-        return Ok(None);
+        return Err("The upload produced no project change.".to_owned());
     }
     // Bytes were stored before this intent. Failed or retired edits leave them unreferenced;
     // asset-store cleanup is deliberately outside this migration.
@@ -237,11 +204,7 @@ pub(crate) fn submit_board_reference_document(
             )
         },
     );
-    Ok(Some(runtime.resolve_edit(
-        transaction_label,
-        Some("board reference".into()),
-        resolver,
-    )))
+    runtime.commit(transaction_label, resolver).map(|_| ())
 }
 
 /// The routed-board removal proposal: drop the reference from its board, retiring when
@@ -272,24 +235,18 @@ fn board_reference_removal_resolver(scope_board_id: String, reference_id: String
 
 pub(crate) fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-    edits: &DraftEdits<BoardReferenceKey, pcb_board_reference::Action>,
-) -> Option<BoardReferenceKey> {
+) -> Option<Result<AcceptedSnapshot, String>> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return None;
     }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
-    let key = BoardReferenceKey::of(&action);
-    let intent = action.clone();
-    let resolver = if key == BoardReferenceKey::Remove {
-        if edits.is_pending(&key) {
-            return None;
-        }
+    let resolver = if action == pcb_board_reference::Action::Remove {
         board_reference_removal_resolver(scope.board_id, reference_id)
     } else {
         EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
@@ -301,7 +258,7 @@ pub(crate) fn dispatch_board_reference_action(
                     "The reference or model asset is no longer available.".into(),
                 );
             };
-            match intent.clone() {
+            match action.clone() {
                 pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
                 pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
                     reference.pose.at.x = value;
@@ -353,13 +310,5 @@ pub(crate) fn dispatch_board_reference_action(
             )
         })
     };
-    edits.submit_value(
-        runtime,
-        key.clone(),
-        "board-reference",
-        Some("board reference".into()),
-        resolver,
-        action,
-    );
-    Some(key)
+    Some(runtime.commit("board-reference", resolver))
 }

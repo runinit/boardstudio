@@ -27,6 +27,7 @@ use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 
 mod board;
+mod vec2_fields;
 use board::{BoardInspectorView, board_outline_inspector};
 
 #[component]

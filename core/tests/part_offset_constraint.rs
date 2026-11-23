@@ -1,49 +1,22 @@
 //! A `part-offset` constraint holds its target at a fixed distance and angle along its
 //! source part's own axes, so a companion held to a key keeps its pose in the key's frame
 //! whenever the key turns. An `offset` constraint keeps its board-axes meaning.
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 const KEY: &str = "matrix/m/r0c1";
 const HELD: &str = "matrix/m/r0c1/held";
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn edit(
     engine: &mut CoreEngine,
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
-        shift: None,
-        bend: None,
-        deleted: false,
-        row: 0,
-        column,
-        enabled: true,
-        definition_id: None,
-        variant: None,
-        offset: None,
-        rotation: None,
         assemblies: vec![MatrixAssembly {
             id: "held".into(),
             definition_id: "diode".into(),
@@ -51,30 +24,16 @@ fn matrix() -> Matrix {
             rotation: None,
             side: None,
         }],
-        assemblies_local: None,
+        ..fixture::cell(0, column)
     };
     Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: None,
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
         column_layout: vec![
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
         ],
-        anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
+        ..fixture::matrix("m", 1, 3)
     }
 }
 
@@ -83,22 +42,6 @@ fn part<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Part {
         .iter()
         .find(|part| part.id == id)
         .unwrap_or_else(|| panic!("missing part {id}"))
-}
-
-/// Board-space pose of a part from the scene snapshot: independent parts on a
-/// stored-gap half evaluate through the half offset, so behavior assertions
-/// read transforms, not storage.
-fn snap(engine: &mut CoreEngine) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }))
-}
-
-fn epose(scene: &SceneDelta, id: &str) -> Pose2 {
-    scene
-        .transforms
-        .iter()
-        .find(|transform| transform.id == id)
-        .unwrap_or_else(|| panic!("missing transform {id}"))
-        .pose
 }
 
 /// The companion's pose in its key's frame: where the key's own turn leaves it.
@@ -125,18 +68,8 @@ fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) 
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let (_, mut doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: matrix(),
-            definitions: None,
-        },
-    );
+    let (_, doc) = scene(engine.handle(fixture::open(doc)));
+    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix()));
     doc.constraints.push(constraint());
     let mut engine = CoreEngine::new();
     scene(engine.handle(CoreRequest::Open {
@@ -212,14 +145,7 @@ fn a_part_offset_companion_keeps_its_key_frame_pose_through_a_matrix_rotation() 
     let (mut engine, before) = fixture(held_by_part_axes);
     let mut turned = before.matrices[0].clone();
     turned.rotation = Some(25.0);
-    let (_, after) = edit(
-        &mut engine,
-        &before,
-        EditOperation::SetMatrix {
-            matrix: turned,
-            definitions: None,
-        },
-    );
+    let (_, after) = edit(&mut engine, &before, fixture::set_matrix(turned));
     assert!(
         (part(&after, KEY).pose.rotation - part(&before, KEY).pose.rotation).abs() > 1e-6,
         "the matrix rotation must turn the key"
@@ -339,19 +265,15 @@ fn convert(
     constraint_id: &str,
     to: OffsetAxes,
 ) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "convert".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "convert".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ConvertOffsetConstraint {
-                constraint_id: constraint_id.into(),
-                to,
-            },
+    engine.handle(fixture::commit(
+        "convert",
+        "convert",
+        doc.revision,
+        EditOperation::ConvertOffsetConstraint {
+            constraint_id: constraint_id.into(),
+            to,
         },
-    })
+    ))
 }
 
 fn assert_every_part_kept(before: &ProjectDoc, after: &ProjectDoc) {
@@ -496,7 +418,7 @@ fn the_part_offset_kind_is_persisted_under_the_current_format_version() {
     let encoded = serde_json::to_value(document).unwrap();
     assert_eq!(
         encoded["formatVersion"],
-        boardstudio_core::migrate::CURRENT_VERSION
+        boardstudio_core::document_format::CURRENT_VERSION
     );
 }
 
@@ -508,24 +430,21 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
     ] {
         let (mut engine, before) = splayed(constraint);
         let start = part(&before, HELD).pose.at;
-        let _ = engine.handle(CoreRequest::Edit {
-            id: "preview".into(),
-            command: EditCommand {
-                base_revision: before.revision,
-                transaction_id: "drag".into(),
-                phase: EditPhase::Preview,
-                target_ids: vec![],
-                operation: EditOperation::MoveParts {
-                    positions: vec![Position {
-                        id: HELD.into(),
-                        at: Vec2 {
-                            x: start.x + 3.0,
-                            y: start.y,
-                        },
-                    }],
-                },
+        let _ = engine.handle(fixture::edit(
+            "preview",
+            "drag",
+            before.revision,
+            EditPhase::Preview,
+            EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: HELD.into(),
+                    at: Vec2 {
+                        x: start.x + 3.0,
+                        y: start.y,
+                    },
+                }],
             },
-        });
+        ));
         let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
         assert_eq!(
             now.constraints, before.constraints,
@@ -650,294 +569,92 @@ fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
     }
 }
 
-/// A mirrored pair of layouts. The left layout owns a free diode, held to a left key that is
-/// turned `left_rotation` degrees by an offset constraint along `axes`. The right layout's
-/// mirror of that diode is derived by Core.
-fn mirrored_pair_with_held_left_component(
-    left_rotation: f64,
-    axes: OffsetAxes,
-) -> (CoreEngine, ProjectDoc) {
-    let mut doc = ProjectDoc::empty("pair", "Pair");
-    doc.definitions = serde_json::from_value(serde_json::json!([
-        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
-        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
-    ]))
-    .unwrap();
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["left-part".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    doc.parts.push(Part {
-        anchor: None,
-        id: "left-part".into(),
-        definition_id: "diode".into(),
-        reference: "D1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 2.0, y: 5.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+/// Dragging an authoritative part retunes a saved `Constraint::Framed` whose target binds to a
+/// live linked-mirror endpoint while preserving the stored `-0.0` rotation bits.
+#[test]
+fn dragging_the_authority_retunes_a_saved_linked_target() {
+    // The saved target is on the beta half, but alpha/T owns its placement.
+    // This pair reflects x about 10 and preserves y.
+    let document: ProjectDoc = serde_json::from_value(serde_json::json!({
+        "format": "boardstudio/v2",
+        "formatVersion": boardstudio_core::document_format::CURRENT_VERSION,
+        "revision": 0,
+        "id": "framed", "name": "Framed drag",
+        "parameters": {}, "matrices": [], "nets": [], "outline": [], "boards": [],
+        "caseBodies": [], "materials": [], "assets": [],
+        "definitions": [{"id": "d", "name": "Fixture", "kind": "custom", "pads": [], "courtyard": []}],
+        "parts": [
+            {"id": "source", "definitionId": "d", "reference": "S1", "side": "front",
+             "pose": {"at": {"x": 1, "y": 2}, "rotation": 0}},
+            {"id": "alpha/T", "definitionId": "d", "reference": "T1", "side": "front",
+             "pose": {"at": {"x": 16, "y": 4}, "rotation": 180}},
+            {"id": "beta/T", "definitionId": "d", "reference": "T2", "side": "front",
+             "pose": {"at": {"x": 4, "y": 4}, "rotation": 0}}
+        ],
+        "constraints": [{
+            "kind": "framed", "id": "drag",
+            "source": {"kind": "part", "partId": "source"},
+            "target": {"kind": "linked-mirror", "pairId": "pair", "sourcePartId": "alpha/T", "mirrorPartId": "beta/T"},
+            "relation": {"kind": "offset", "offset": {"x": 3, "y": 2}, "rotation": -0.0}
+        }],
+        "hardware": {
+            "topology": "split", "transport": "none", "boards": [],
+            "instances": [
+                {"id": "alpha-instance", "name": "Alpha", "boardId": "alpha", "half": "left", "role": "primary", "flipped": false},
+                {"id": "beta-instance", "name": "Beta", "boardId": "beta", "half": "right", "role": "secondary", "flipped": true}
+            ],
+            "pairs": [{
+                "id": "pair", "members": ["alpha-instance", "beta-instance"], "constructionSource": "alpha-instance",
+                "mapping": {"at": {"x": 20, "y": 0}, "rotation": 0},
+                "construction": {"method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0, "bottomFoamThickness": 0,
+                    "bottomThickness": 1.5, "plateToPcb": 5, "wallThickness": 2, "clearance": 0.2},
+                "halves": {"sourceBoardId": "alpha", "mirrorBoardId": "beta",
+                    "correspondences": [{"kind": "part", "sourceId": "alpha/T", "mirrorId": "beta/T"}]}
+            }]
+        }
+    })).unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let left = Matrix {
-        id: "left-matrix".into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: Some("board".into()),
-        mirror: None,
-        rotation: Some(left_rotation),
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
-        anchor: None,
-        cells: vec![MatrixCell {
-            shift: None,
-            bend: None,
-            deleted: false,
-            row: 0,
-            column: 0,
-            enabled: true,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-            assemblies_local: None,
+    let (_, opened) = fixture::scene_and_document(engine.handle(fixture::open(document)));
+    assert_eq!(part(&opened, "alpha/T").pose.at, Vec2 { x: 16.0, y: 4.0 });
+    let at = Vec2 { x: 13.0, y: 8.0 };
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "alpha/T".into(),
+            at,
         }],
     };
-    let layout = |id: &str, matrix_id: &str, part_ids: Vec<String>, mirror_link| Layout {
-        id: id.into(),
-        name: id.into(),
-        board_id: "board".into(),
-        matrix_ids: vec![matrix_id.into()],
-        part_ids,
-        mirror_link,
+    let CoreReply::Preview { scene, .. } = engine.handle(fixture::edit(
+        "drag",
+        "drag",
+        opened.revision,
+        EditPhase::Preview,
+        operation.clone(),
+    )) else {
+        panic!("expected a preview of the linked target");
     };
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::CreateMirroredPair {
-            left: layout("left-layout", "left-matrix", vec![], None),
-            right: layout(
-                "right-layout",
-                "right-matrix",
-                vec![],
-                Some(LayoutMirrorLink {
-                    correspondences: vec![],
-                    exceptions: vec![],
-                    source_id: "left-layout".into(),
-                    axis_x: 10.0,
-                    split_gap: None,
-                    spacing: None,
-                }),
-            ),
-            matrix: Box::new(left),
-            definitions: None,
-        },
-    );
-    // The diode joins the left layout after the pair exists, which derives its mirror.
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetLayout {
-            layout: layout("left-layout", "left-matrix", vec!["left-part".into()], None),
-        },
-    );
-    let (_, doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetConstraint {
-            constraint: held_by(
-                axes,
-                "left-held",
-                "matrix/left-matrix/r0c0",
-                "left-part",
-                Vec2 { x: 1.0, y: -4.0 },
-                0.0,
-            ),
-        },
-    );
-    (engine, doc)
-}
-
-#[test]
-fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() {
-    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, OffsetAxes::Part);
-    let left_key = part(&before, "matrix/left-matrix/r0c0").pose;
     assert!(
-        (left_key.rotation - 30.0).abs() < 1e-9,
-        "the left key must be turned 30 degrees, found {}",
-        left_key.rotation
+        scene
+            .transforms
+            .iter()
+            .any(|transform| transform.id == "alpha/T" && transform.pose.at == at)
     );
-    let right = "right-layout::mirror::left-part";
-    let (before_scene, _) = snap(&mut engine);
-    let start = epose(&before_scene, right).at;
-    let requested = Vec2 {
-        x: start.x + 3.0,
-        y: start.y,
-    };
-    let (after_scene, after) = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: right.into(),
-                at: requested,
-            }],
-        },
-    );
-    // The mirror of the requested right pose across the axis at x = 10.
-    let mirrored = Vec2 {
-        x: 2.0 * 10.0 - requested.x,
-        y: requested.y,
-    };
-    let landed = epose(&after_scene, "left-part").at;
-    // The left component's world move, rotated into the left key's frame at 30 degrees:
-    // (dx cos 30 + dy sin 30, -dx sin 30 + dy cos 30).
-    let left_start = epose(&before_scene, "left-part").at;
-    let (dx, dy) = (mirrored.x - left_start.x, mirrored.y - left_start.y);
-    let (c, s) = (30.0_f64.to_radians().cos(), 30.0_f64.to_radians().sin());
-    let Some(Constraint::PartOffset { offset, .. }) = after
-        .constraints
-        .iter()
-        .find(|constraint| constraint.target() == "left-part")
+    let (_, committed) = fixture::scene_and_document(engine.handle(fixture::commit(
+        "drag",
+        "drag",
+        opened.revision,
+        operation,
+    )));
+    assert_eq!(part(&committed, "alpha/T").pose.at, at);
+    let Constraint::Framed {
+        relation: ConstraintRelation::Offset { offset, rotation },
+        ..
+    } = &committed.constraints[0]
     else {
-        panic!("the held left component lost its part-offset constraint");
+        panic!("expected the framed offset to survive the drag")
     };
-    assert!(
-        (offset.x - (1.0 + dx * c + dy * s)).abs() < 1e-9
-            && (offset.y - (-4.0 - dx * s + dy * c)).abs() < 1e-9,
-        "offset {offset:?} is not the mirrored drag in the key's axes"
-    );
-    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
-    // retuned offset. It coincided with the mirror of the request while the
-    // key stood at the origin.
-    assert!(
-        (landed.x - (left_key.at.x + offset.x * c - offset.y * s)).abs() < 1e-9
-            && (landed.y - (left_key.at.y + offset.x * s + offset.y * c)).abs() < 1e-9,
-        "left component at {landed:?}, expected the key plus {offset:?}"
-    );
-}
-
-#[test]
-fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
-    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, OffsetAxes::Board);
-    let left_key = part(&before, "matrix/left-matrix/r0c0").pose;
-    assert!(
-        (left_key.rotation - 30.0).abs() < 1e-9,
-        "the left key must be turned 30 degrees, found {}",
-        left_key.rotation
-    );
-    let right = "right-layout::mirror::left-part";
-    let (before_scene, _) = snap(&mut engine);
-    let start = epose(&before_scene, right).at;
-    let requested = Vec2 {
-        x: start.x + 3.0,
-        y: start.y,
-    };
-    let (after_scene, after) = edit(
-        &mut engine,
-        &before,
-        EditOperation::MoveParts {
-            positions: vec![Position {
-                id: right.into(),
-                at: requested,
-            }],
-        },
-    );
-    let landed = epose(&after_scene, "left-part").at;
-    let Some(Constraint::Offset { offset, .. }) = after
-        .constraints
-        .iter()
-        .find(|constraint| constraint.target() == "left-part")
-    else {
-        panic!("the held left component lost its offset constraint");
-    };
-    // Board axes: (1, -4) + (-3, 0). The 30 degree key turn plays no part.
-    assert!(
-        (offset.x - -2.0).abs() < 1e-9 && (offset.y - -4.0).abs() < 1e-9,
-        "offset {offset:?} is not the mirrored drag on the board's axes"
-    );
-    // Ticket 10: the halves sit spaced, so the landed pose is the key plus the
-    // retuned offset. It moved 3 mm along -X only while the key stood at the
-    // origin.
-    assert!(
-        (landed.x - (left_key.at.x + offset.x)).abs() < 1e-9
-            && (landed.y - (left_key.at.y + offset.y)).abs() < 1e-9,
-        "left component at {landed:?}, expected the key plus {offset:?}"
-    );
-}
-
-/// Holding the right mirror to its own key with a turn of 10 degrees settles that mirror at
-/// -20 degrees (its key is at -30), so the left component is back-solved to 180 - (-20) = 200
-/// degrees. Its key stands at 30, so its constraint must now store a turn of 170.
-///
-/// The mirror is a genuine independent part, so it keeps ADR-0010's half turn; the stored
-/// heading is normalized to `[0, 360)` by the shared mirror-heading helper, i.e. 340 for
-/// -20, matching the long-standing `derive::pose` convention.
-#[test]
-fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
-    for axes in [OffsetAxes::Board, OffsetAxes::Part] {
-        let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, axes);
-        assert!((part(&before, "matrix/right-matrix/r0c0").pose.rotation - -30.0).abs() < 1e-9);
-        let (_, after) = edit(
-            &mut engine,
-            &before,
-            EditOperation::SetConstraint {
-                constraint: held_by(
-                    OffsetAxes::Board,
-                    "right-held",
-                    "matrix/right-matrix/r0c0",
-                    "right-layout::mirror::left-part",
-                    Vec2 { x: 1.0, y: 4.0 },
-                    10.0,
-                ),
-            },
-        );
-        let right = part(&after, "right-layout::mirror::left-part")
-            .pose
-            .rotation;
-        // Modulo a full turn: the shared helper stores -20 normalized as 340.
-        assert!(
-            (right - -20.0).rem_euclid(360.0) < 1e-9,
-            "{axes:?}: right turn {right}"
-        );
-        let left = part(&after, "left-part").pose.rotation;
-        assert!((left - 200.0).abs() < 1e-9, "{axes:?}: left turn {left}");
-        let Some(Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. }) =
-            after
-                .constraints
-                .iter()
-                .find(|constraint| constraint.target() == "left-part")
-        else {
-            panic!("the held left component lost its constraint");
-        };
-        assert!(
-            (rotation - 170.0).abs() < 1e-9,
-            "{axes:?}: stored turn {rotation}"
-        );
-    }
+    assert_eq!(*offset, Vec2 { x: 6.0, y: 6.0 });
+    assert_eq!(rotation.to_bits(), (-0.0_f64).to_bits());
 }
 
 #[test]

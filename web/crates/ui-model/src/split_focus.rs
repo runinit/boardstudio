@@ -36,18 +36,35 @@ impl SplitHalf {
     }
 }
 
-/// The split axis, if any layout carries a mirror link.
+/// The split axis, if any mirrored pair or layout mirror link defines a same-board split.
 pub fn split_axis_x(document: &ProjectDoc) -> Option<f64> {
     document
-        .layouts
+        .mirrored_pairs
         .iter()
-        .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x))
+        .find(|pair| {
+            matches!(
+                pair.destination,
+                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(_)
+            )
+        })
+        .map(|pair| pair.mapping.at.x / 2.0)
+        .or_else(|| {
+            document
+                .layouts
+                .iter()
+                .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x))
+        })
 }
 
 /// Whether the document has a linked split pair at all. Same definition as the
-/// tree's half grouping: a link exists, or a layout is a link source.
+/// tree's half grouping: a same-board mirrored pair or mirror link exists.
 pub fn has_split(document: &ProjectDoc) -> bool {
-    document
+    document.mirrored_pairs.iter().any(|pair| {
+        matches!(
+            pair.destination,
+            boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(_)
+        )
+    }) || document
         .layouts
         .iter()
         .any(|layout| layout.mirror_link.is_some())

@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::inspector_fields::TextField;
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
@@ -7,7 +8,7 @@ pub fn PartsLibraryPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     scope_generation: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     mut query: PartsQuery,
     mut selected: PartsSelection,
     on_select: EventHandler<()>,
@@ -61,12 +62,12 @@ pub fn PartsLibraryPanel(
                 }
                 CollapsibleContent { class: "data-[open=false]:hidden",
                 if assembly_selection().is_some() {
-                    PartsChoiceField {
+                    SelectField::<String> {
                         label: "Switch orientation", aria_label: "Switch orientation",
-                        value: if assembly_orientation() == assembly_presets::SwitchOrientation::North { "north" } else { "south" },
+                        value: if assembly_orientation() == assembly_editor::SwitchOrientation::North { "north" } else { "south" },
                         options: vec![("south".into(), "South-facing LED".into()), ("north".into(), "North-facing LED".into())],
-                        on_value_change: move |value: String| {
-                            assembly_orientation.set(if value == "north" { assembly_presets::SwitchOrientation::North } else { assembly_presets::SwitchOrientation::South });
+                        on_commit: move |value: String| {
+                            assembly_orientation.set(if value == "north" { assembly_editor::SwitchOrientation::North } else { assembly_editor::SwitchOrientation::South });
                             selection_generation.with_mut(|value| *value = value.wrapping_add(1));
                         },
                     }

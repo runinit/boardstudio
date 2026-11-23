@@ -9,6 +9,63 @@ use boardstudio_model::model::{ProjectDoc, SceneDelta};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+#[cfg(any(test, target_arch = "wasm32"))]
+use std::rc::Rc;
+
+#[derive(Clone)]
+pub struct CadScene {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub snapshot: AcceptedSnapshot,
+    pub result: boardstudio_web_host::cad_jobs::CadResult,
+    pub prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
+    pub physical_fingerprint: Option<[u8; 32]>,
+    pub mechanical: Option<boardstudio_model::model::MechanicalAssembly>,
+    pub exact: bool,
+    pub contours: Vec<boardstudio_model::model::Contour>,
+}
+
+#[cfg(any(test, target_arch = "wasm32"))]
+pub(crate) fn current_cad_scene(
+    cached: &mut Option<Rc<CadScene>>,
+    current_scope: &Scope,
+    accepted: &AcceptedSnapshot,
+) -> Option<Rc<CadScene>> {
+    let scene = cached.as_ref()?;
+    if &scene.scope != current_scope {
+        return None;
+    }
+    if scene.token != accepted.token
+        && may_rebind_completed_case_result(
+            scene.exact,
+            &scene.scope,
+            scene.token,
+            scene.physical_fingerprint,
+            current_scope,
+            accepted.token,
+            physical_case_fingerprint(accepted, current_scope),
+        )
+    {
+        let mut rebound = (**scene).clone();
+        rebound.token = accepted.token;
+        rebound.snapshot = accepted.clone();
+        let revision = accepted.document.revision;
+        rebound.result.revision = revision;
+        rebound.prepared.revision = revision;
+        for body in &mut rebound.prepared.bodies {
+            body.revision = revision;
+        }
+        if let Some(mechanical) = &mut rebound.mechanical {
+            mechanical.revision = revision;
+            mechanical.case.revision = revision;
+            for body in &mut mechanical.case.bodies {
+                body.revision = revision;
+            }
+        }
+        *cached = Some(Rc::new(rebound));
+    }
+    cached.as_ref().cloned()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaseGenerationOwner {
@@ -509,3 +566,6 @@ mod tests {
         assert_ne!(original, changed_geometry);
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod rebind_tests;

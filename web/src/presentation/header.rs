@@ -1,4 +1,5 @@
 //! Header presentation only. Session, history and workspace ownership stay with App.
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::{
     project_menu::ThemePicker,
     ui::{
@@ -9,16 +10,60 @@ use boardstudio_web_ui_shared::{
     },
 };
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::rc::Rc;
 use wasm_bindgen::{JsCast, closure::Closure};
+
+#[component]
+fn HeaderSaveStatus(on_retry_save: EventHandler<()>) -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let _ = try_use_context::<Signal<u64>>().map(|v| v());
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
+    let (save_state, save_retryable) = runtime.with_model(|model| {
+        let save_state = if model.accepted.is_none() {
+            "ready"
+        } else {
+            super::durability_state(&model.durability)
+        };
+        let save_retryable = !matches!(
+            &model.durability,
+            boardstudio_application::Durability::Failed { reason, .. }
+                if reason == boardstudio_web_host::host::CONFLICT
+        );
+        (save_state, save_retryable)
+    });
+    let mut save_open = use_signal(|| false);
+    rsx! {
+        Popover { is_modal: false, open: save_open(), on_open_change: move |o| save_open.set(o),
+            PopoverTrigger { class: "header-save", "data-state": save_state, aria_haspopup: "dialog", aria_expanded: save_open(),
+                aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
+                span { class: "header-save-dot", "aria-hidden": "true" }
+                span { class: "header-save-label", match save_state { "saved" => "Saved", "saving" => "Saving…", "failed" => "Save failed", "ready" => "Ready", _ => "Pending" } }
+            }
+            PopoverContent { id: "header-save-details", class: "header-save-content", aria_label: "Local save details",
+                div { role: "status",
+                    match save_state {
+                        "saved" => "Changes are saved in this browser.",
+                        "saving" => "Saving changes in this browser…",
+                        "failed" if !save_retryable => boardstudio_web_host::host::CONFLICT,
+                        "failed" => "Changes could not be saved locally.",
+                        _ => "Local save status is unavailable.",
+                    }
+                }
+                if save_state == "failed" && save_retryable {
+                    Button { variant: ButtonVariant::Secondary, onclick: move |_| on_retry_save.call(()), "Retry save" }
+                }
+            }
+        }
+    }
+}
 
 #[component]
 pub(super) fn Header(
     project_menu: Element,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     show_workspaces: bool,
     has_project: bool,
-    save_state: &'static str,
+    on_retry_save: EventHandler<()>,
     mut settings_open: Signal<bool>,
     palette_open: ReadSignal<bool>,
     on_search: EventHandler<()>,
@@ -32,60 +77,22 @@ pub(super) fn Header(
     });
     let mut compact = use_signal(|| query.as_ref().is_some_and(|q| q.matches()));
     let listener = use_hook(move || {
-        query.map(|query| {
-            let observed = query.clone();
-            let callback =
-                Closure::wrap(
-                    Box::new(move |_: web_sys::Event| compact.set(observed.matches()))
-                        as Box<dyn FnMut(_)>,
-                );
-            let _ =
-                query.add_event_listener_with_callback("change", callback.as_ref().unchecked_ref());
-            Rc::new((query, callback))
+        query.map(|q| {
+            let obs = q.clone();
+            let cb = Closure::wrap(
+                Box::new(move |_: web_sys::Event| compact.set(obs.matches())) as Box<dyn FnMut(_)>,
+            );
+            let _ = q.add_event_listener_with_callback("change", cb.as_ref().unchecked_ref());
+            Rc::new((q, cb))
         })
     });
     use_drop(move || {
-        if let Some(listener) = listener {
-            let _ = listener
-                .0
-                .remove_event_listener_with_callback("change", listener.1.as_ref().unchecked_ref());
+        if let Some(l) = listener {
+            let _ =
+                l.0.remove_event_listener_with_callback("change", l.1.as_ref().unchecked_ref());
         }
     });
     let mut mobile_open = use_signal(|| false);
-    let mut save_open = use_signal(|| false);
-    let mut menu_content = use_signal(|| None::<web_sys::HtmlElement>);
-    let previous_open = use_hook(|| Rc::new(Cell::new(false)));
-    use_effect(move || {
-        let was_open = previous_open.replace(mobile_open());
-        let Some(content) = menu_content() else {
-            return;
-        };
-        let active = content
-            .owner_document()
-            .and_then(|document| document.active_element());
-        let inside = content.contains(active.as_ref().map(|element| element.as_ref()));
-        if mobile_open() {
-            if !inside
-                && let Ok(Some(first)) = content.query_selector("button:not(:disabled)")
-                && let Some(first) = first.dyn_ref::<web_sys::HtmlElement>()
-            {
-                let _ = first.focus();
-            }
-        } else if was_open
-            && (inside
-                || active.is_none()
-                || active.is_some_and(|element| element.tag_name() == "BODY"))
-        {
-            // The primitive's animated close can retain focus inside its closing content.
-            if let Some(trigger) = content
-                .owner_document()
-                .and_then(|document| document.get_element_by_id("header-mobile-trigger"))
-                .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
-            {
-                let _ = trigger.focus();
-            }
-        }
-    });
     use_effect(move || {
         let _ = (workspace(), compact());
         mobile_open.set(false);
@@ -95,36 +102,14 @@ pub(super) fn Header(
             mobile_open.set(true);
         }
     });
-    let save_status = rsx! {
-            Popover { is_modal: false, open: save_open(), on_open_change: move |open| save_open.set(open),
-                PopoverTrigger { class: "header-save", "data-state": save_state,
-                    aria_haspopup: "dialog", aria_expanded: save_open(),
-                    aria_controls: save_open().then_some("header-save-details"),
-                    aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
-                    span { class: "header-save-dot", "aria-hidden": "true" }
-                    span { class: "header-save-label", match save_state { "saved" => "Saved", "saving" => "Saving…", "failed" => "Save failed", "ready" => "Ready", _ => "Pending" } }
-                }
-                PopoverContent { id: "header-save-details", class: "header-save-content", aria_label: "Local save details",
-                    div { role: "status",
-                        match save_state {
-                            "saved" => "Changes are saved in this browser. Use Save project copy for a portable backup.",
-                            "saving" => "Saving changes in this browser…",
-                            "failed" => "Changes could not be saved locally. Check available browser storage before editing further.",
-                            _ => "Local save status is unavailable.",
-                        }
-                    }
-                }
-            }
-    };
+
+    let export = Workspace::Export.as_str();
     let commands = rsx! {
         div { class: "header-commands",
-            onmounted: move |event: MountedEvent| menu_content.set(event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<web_sys::HtmlElement>()).cloned()),
             if show_workspaces { super::workspace_navigation::WorkspaceObjectNavigation { workspace } }
-            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands",
-                aria_haspopup: "dialog", aria_expanded: palette_open(),
-                aria_controls: palette_open().then(|| "command-palette".to_owned()),
+            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands", aria_haspopup: "dialog", aria_expanded: palette_open(),
                 onclick: move |_| { mobile_open.set(false); on_search.call(()); }, "Search" Kbd { "Ctrl/Cmd K" } }
-            if !compact() { {save_status.clone()} }
+            if !compact() { HeaderSaveStatus { on_retry_save } }
             if has_project {
                 div { role: "group", aria_label: "Edit history", class: "header-history",
                     Button { variant: ButtonVariant::Ghost, aria_label: "Undo", onclick: move |_| { mobile_open.set(false); on_undo.call(()); }, "Undo" Kbd { "Ctrl/Cmd Z" } }
@@ -133,8 +118,7 @@ pub(super) fn Header(
             }
             {panel_controls}
             ThemePicker { open: settings_open }
-            Button { id: "m1-tab-Export", aria_label: "Export", aria_pressed: workspace() == "Export",
-                onclick: move |_| on_export.call(()), "Export" }
+            Button { id: "m1-tab-{export}", aria_label: export, aria_pressed: workspace() == Workspace::Export, onclick: move |_| on_export.call(()), "{export}" }
         }
     };
     rsx! {
@@ -148,17 +132,11 @@ pub(super) fn Header(
             }
             {project_menu}
             if !compact() { {commands.clone()} }
-            if compact() { {save_status} }
             if compact() {
-                Popover { is_modal: false, open: mobile_open(), on_open_change: move |open| {
-                    mobile_open.set(open);
-                    if !open { settings_open.set(false); }
-                },
-                    PopoverTrigger { id: "header-mobile-trigger", aria_label: "Workbench menu", aria_haspopup: "dialog", aria_expanded: mobile_open(),
-                        aria_controls: mobile_open().then_some("header-mobile-commands"), "Menu" ChevronDown {} }
-                    PopoverContent { id: "header-mobile-commands", class: "header-mobile-menu", aria_label: "Workbench menu",
-                        inert: (!mobile_open()).then_some(""),
-                        {commands} }
+                HeaderSaveStatus { on_retry_save }
+                Popover { is_modal: false, open: mobile_open(), on_open_change: move |o| { mobile_open.set(o); if !o { settings_open.set(false); } },
+                    PopoverTrigger { id: "header-mobile-trigger", aria_label: "Workbench menu", aria_haspopup: "dialog", aria_expanded: mobile_open(), "Menu" ChevronDown {} }
+                    PopoverContent { id: "header-mobile-commands", class: "header-mobile-menu", aria_label: "Workbench menu", {commands} }
                 }
             }
         }

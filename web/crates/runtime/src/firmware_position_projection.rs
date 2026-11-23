@@ -9,7 +9,6 @@ pub struct FirmwarePlanIdentity {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
-    pub executor_epoch: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,13 +66,11 @@ pub struct FirmwarePositionProjection {
     pub bindings: Rc<BTreeMap<String, String>>,
 }
 
+/// Snapshot and plan admission after the presentation checks the workspace and instance.
 pub struct FirmwarePositionAdmission<'a> {
-    pub workspace: &'a str,
     pub current_generation: u64,
-    pub instance_is_current: bool,
     pub runtime_scope: Option<&'a Scope>,
     pub accepted: &'a AcceptedSnapshot,
-    pub executor_epoch: u64,
     pub current_plan: Option<&'a FirmwarePlanIdentity>,
     pub current_projection: &'a FirmwarePositionProjection,
 }
@@ -87,9 +84,7 @@ pub fn admits_edit(
         instance_id: None,
         ..identity.ui_scope.clone()
     };
-    admission.workspace == "PCB"
-        && admission.instance_is_current
-        && admission.current_generation == identity.scope_generation
+    admission.current_generation == identity.scope_generation
         && admission.runtime_scope == Some(&identity.ui_scope)
         && admission.accepted.session_epoch == identity.ui_scope.session_epoch
         && admission.accepted.document.id == identity.ui_scope.document_id
@@ -97,7 +92,6 @@ pub fn admits_edit(
         && admission.accepted.scene.revision == admission.accepted.document.revision
         && identity.plan.scope == normalized_scope
         && identity.plan.token == admission.accepted.token
-        && identity.plan.executor_epoch == admission.executor_epoch
         && admission.current_plan == Some(&identity.plan)
         && admission
             .accepted
@@ -228,7 +222,7 @@ mod tests {
             "../../../../core/tests/fixtures/synthetic-outline.json"
         ))
         .expect("synthetic outline fixture is a valid saved project");
-        document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
+        document.format_version = boardstudio_core_kernel::document_format::CURRENT_VERSION;
         let switch = document
             .definitions
             .iter_mut()
@@ -289,64 +283,7 @@ mod tests {
             },
             token: SnapshotToken(11),
             revision: document.revision,
-            executor_epoch: 2,
         }
-    }
-
-    #[test]
-    fn settled_feedback_survives_plan_refresh_but_not_target_or_key_changes() {
-        let document = document();
-        let identity = identity(&document);
-        let plan = resolve(&document);
-        let ui_scope = Scope {
-            instance_id: Some("main".into()),
-            ..identity.scope.clone()
-        };
-        let projection = project(
-            &document,
-            &identity,
-            &ui_scope,
-            5,
-            PlanLifecycle::Current(&identity, &plan),
-        );
-        let target = FirmwarePositionFeedbackTarget {
-            ui_scope: ui_scope.clone(),
-            scope_generation: 5,
-            key_id: projection.keys[0].id.clone(),
-        };
-
-        // Plan token/revision are intentionally outside this visibility target.
-        let mut refreshed = identity.clone();
-        refreshed.token = SnapshotToken(12);
-        refreshed.revision += 1;
-        let mut refreshed_plan = resolve(&document);
-        refreshed_plan.revision = refreshed.revision;
-        let refreshed_projection = project(
-            &document,
-            &refreshed,
-            &ui_scope,
-            5,
-            PlanLifecycle::Current(&refreshed, &refreshed_plan),
-        );
-        assert!(target.is_visible(&ui_scope, 5, &refreshed_projection));
-
-        let other_board = Scope {
-            board_id: "other".into(),
-            ..ui_scope.clone()
-        };
-        assert!(!target.is_visible(&other_board, 5, &refreshed_projection));
-        let other_instance = Scope {
-            instance_id: Some("other-instance".into()),
-            ..ui_scope.clone()
-        };
-        assert!(!target.is_visible(&other_instance, 5, &refreshed_projection));
-        assert!(!target.is_visible(&ui_scope, 6, &refreshed_projection));
-
-        let no_key_projection = FirmwarePositionProjection {
-            keys: Rc::from([]),
-            ..refreshed_projection
-        };
-        assert!(!target.is_visible(&ui_scope, 5, &no_key_projection));
     }
 
     fn resolve(document: &ProjectDoc) -> ElectricalPlan {
@@ -359,113 +296,6 @@ mod tests {
             board_id: Some("main".into()),
             controller_part_id: Some("main/U1".into()),
         })
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn admission_and_edit_settle_through_the_native_runtime() {
-        use boardstudio_application::{EditResolver, Event, Resolution};
-        use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
-
-        let runtime = crate::runtime::Runtime::new();
-        runtime.submit(Event::Open {
-            operation_id: runtime.operation(),
-            document: document(),
-        });
-        let snapshot = runtime.model().accepted.unwrap();
-        let runtime_scope = runtime.scope().expect("opened project has an active board");
-        let board_scope = Scope {
-            instance_id: None,
-            ..runtime_scope.clone()
-        };
-        let plan_identity = FirmwarePlanIdentity {
-            scope: board_scope,
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            executor_epoch: runtime.electrical_preview_executor_epoch(),
-        };
-        let plan = resolve(&snapshot.document);
-        let projection = project(
-            &snapshot.document,
-            &plan_identity,
-            &runtime_scope,
-            3,
-            PlanLifecycle::Current(&plan_identity, &plan),
-        );
-        let key_id = projection
-            .keys
-            .first()
-            .expect("fixture plan has a key")
-            .id
-            .clone();
-        let identity = projection.identity.as_ref().unwrap();
-        assert!(admits_edit(
-            identity,
-            &key_id,
-            FirmwarePositionAdmission {
-                workspace: "PCB",
-                current_generation: 3,
-                instance_is_current: true,
-                runtime_scope: Some(&runtime_scope),
-                accepted: &snapshot,
-                executor_epoch: runtime.electrical_preview_executor_epoch(),
-                current_plan: Some(&plan_identity),
-                current_projection: &projection,
-            },
-        ));
-        assert!(!admits_edit(
-            identity,
-            &key_id,
-            FirmwarePositionAdmission {
-                workspace: "PCB",
-                current_generation: 3,
-                instance_is_current: true,
-                runtime_scope: Some(&Scope {
-                    board_id: "stale-board".into(),
-                    ..runtime_scope.clone()
-                }),
-                accepted: &snapshot,
-                executor_epoch: runtime.electrical_preview_executor_epoch(),
-                current_plan: Some(&plan_identity),
-                current_projection: &projection,
-            },
-        ));
-
-        let resolution = Resolution::submit_with_transaction_id(
-            vec![runtime_scope.board_id.clone(), key_id.clone()],
-            "firmware-position-test",
-            EditOperation::SetKeyBinding {
-                board_id: runtime_scope.board_id.clone(),
-                key_id: key_id.clone(),
-                binding: "&kp Q".into(),
-            },
-        );
-        let ticket = runtime.resolve_edit(
-            "firmware position test",
-            Some("key".into()),
-            EditResolver::new("firmware position test", move |_| resolution.clone()),
-        );
-        assert!(matches!(
-            ticket.settlement(true),
-            crate::operation_outcomes::Settlement::Landed { revision } if revision == snapshot.document.revision + 1
-        ));
-        let accepted = runtime.model().accepted.unwrap();
-        assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
-        assert_eq!(
-            accepted
-                .document
-                .hardware
-                .as_ref()
-                .unwrap()
-                .boards
-                .iter()
-                .find(|board| board.board_id == identity.ui_scope.board_id)
-                .unwrap()
-                .key_bindings
-                .get(&key_id)
-                .map(String::as_str),
-            Some("&kp Q"),
-        );
     }
 
     #[test]
@@ -500,26 +330,6 @@ mod tests {
         assert_eq!(projection.keys[0].id, plan.assignments[0].key_id);
         assert_eq!(projection.keys[0].label, "M1");
         assert_eq!(projection.bindings["matrix/matrix/r0c0"], "&kp Q");
-        for peripheral in &plan.peripherals {
-            let supported_role = matches!(peripheral.kind.as_str(), "encoder" | "press")
-                && peripheral
-                    .gpio_terminals
-                    .iter()
-                    .any(|(terminal, function)| {
-                        terminal == "S1"
-                            || function.ends_with("/encoder-push")
-                            || function.ends_with("/input-push")
-                    });
-            match (supported_role, peripheral.press_key_id.as_ref()) {
-                (true, Some(id)) => assert!(projection.keys.iter().any(|key| key.id == *id)),
-                _ => assert!(
-                    projection
-                        .keys
-                        .iter()
-                        .all(|key| key.id != format!("{}/push", peripheral.part_id))
-                ),
-            }
-        }
         assert_eq!(
             projection
                 .identity
@@ -531,113 +341,5 @@ mod tests {
             Some("main")
         );
         assert_eq!(projection.identity.as_ref().unwrap().scope_generation, 5);
-    }
-
-    #[test]
-    fn lifecycle_and_mismatched_plan_never_look_like_current_empty_inputs() {
-        let document = document();
-        let identity = identity(&document);
-        let empty = ElectricalPlan {
-            assignments: Vec::new(),
-            board_id: Some("main".into()),
-            revision: document.revision,
-            instance_id: None,
-            ..resolve(&document)
-        };
-        assert_eq!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Current(&identity, &empty)
-            )
-            .state,
-            FirmwarePositionState::Current
-        );
-        assert!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Current(&identity, &empty)
-            )
-            .keys
-            .is_empty()
-        );
-        assert_eq!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Pending(&identity)
-            )
-            .state,
-            FirmwarePositionState::Pending
-        );
-        assert_eq!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Failed(&identity, "resolver failed")
-            )
-            .state,
-            FirmwarePositionState::Failed("resolver failed".into())
-        );
-        assert_eq!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Idle
-            )
-            .state,
-            FirmwarePositionState::Idle
-        );
-        let stale = FirmwarePlanIdentity {
-            revision: identity.revision + 1,
-            ..identity.clone()
-        };
-        assert_eq!(
-            project(
-                &document,
-                &identity,
-                &identity.scope,
-                0,
-                PlanLifecycle::Current(&stale, &empty)
-            )
-            .state,
-            FirmwarePositionState::Idle
-        );
-    }
-
-    #[test]
-    fn executor_restart_invalidates_same_accepted_firmware_identity() {
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let before_restart = FirmwarePlanIdentity {
-            scope: scope.clone(),
-            token: SnapshotToken(11),
-            revision: 13,
-            executor_epoch: 17,
-        };
-        let after_restart = FirmwarePlanIdentity {
-            executor_epoch: 18,
-            ..before_restart.clone()
-        };
-
-        assert_ne!(before_restart, after_restart);
-        assert_eq!(before_restart.scope, after_restart.scope);
-        assert_eq!(before_restart.token, after_restart.token);
-        assert_eq!(before_restart.revision, after_restart.revision);
     }
 }

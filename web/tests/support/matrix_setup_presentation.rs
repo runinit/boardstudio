@@ -26,6 +26,7 @@ mod controller;
 mod matrix_setup;
 
 pub mod parts {
+    use boardstudio_web_ui_model::Workspace;
     use boardstudio_core::model::PartDefinition;
     pub async fn load_matrix_templates(_: bool) -> Result<Vec<PartDefinition>, String> {
         std::future::poll_fn(|_| {
@@ -61,7 +62,7 @@ mod tests {
     struct Probe {
         runtime: Rc<runtime::Runtime>,
         version: Rc<Cell<u64>>,
-        workspace: Rc<Cell<&'static str>>,
+        workspace: Rc<Cell<Workspace>>,
         latest: Rc<RefCell<Option<matrix_setup::MatrixSetupMount>>>,
     }
     impl Probe {
@@ -88,19 +89,12 @@ mod tests {
                 });
         }
         fn hold_pending_operation(&self) {
-            self.runtime.hold_next_core();
             self.runtime.hold_next_save();
-        }
-        fn release_core(&self) {
-            self.runtime.release_core();
         }
         fn release_save(&self) {
             self.runtime.release_save();
         }
         fn release_pending_operation(&self) {
-            if self.runtime.core_entered() {
-                self.runtime.release_core();
-            }
             if self.runtime.save_entered() {
                 self.runtime.release_save();
             }
@@ -110,7 +104,7 @@ mod tests {
     fn host() -> Element {
         let probe = use_context::<Probe>();
         let mut version = use_signal(|| 0u64);
-        let mut workspace = use_signal(|| "Layout");
+        let mut workspace = use_signal(|| Workspace::Layout);
         let selected = use_signal(|| None::<ScopedTreeContext>);
         let anchor = use_signal(|| None::<Scope>);
         let generation = use_signal(|| 1u64);
@@ -150,7 +144,7 @@ mod tests {
         let probe = Probe {
             runtime: runtime::Runtime::with_core(boardstudio_web_test_runtime::engine_core_services()),
             version: Rc::default(),
-            workspace: Rc::new(Cell::new("Layout")),
+            workspace: Rc::new(Cell::new(Workspace::Layout)),
             latest: Rc::default(),
         };
         crate::open_document(&probe.runtime, "A", 10, false);
@@ -204,7 +198,7 @@ mod tests {
         probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
-        probe.workspace.set("Case");
+        probe.workspace.set(Workspace::Case);
         flush(&probe, &mut dom);
         assert!(
             probe.mount().projection.is_some(),
@@ -213,7 +207,7 @@ mod tests {
         probe.release_pending_operation();
         flush(&probe, &mut dom);
         assert!(probe.mount().projection.is_none());
-        probe.workspace.set("Layout");
+        probe.workspace.set(Workspace::Layout);
         flush(&probe, &mut dom);
         assert!(probe.mount().can_open);
         assert!(
@@ -233,7 +227,6 @@ mod tests {
         probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
-        probe.release_core();
         flush(&probe, &mut dom);
         let created_part_ids = probe
             .runtime
@@ -246,19 +239,12 @@ mod tests {
             .unwrap()
             .part_ids
             .clone();
-        assert!(
-            !probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, Event::SelectParts { .. })),
-            "terminal completion alone cannot select an unsaved proposal"
-        );
+        assert!(probe.runtime.saved_document("A").is_none());
         probe.release_save();
         crate::poll_detached();
         flush(&probe, &mut dom);
         flush(&probe, &mut dom);
+        assert!(probe.runtime.saved_document("A").is_some());
         let events = probe.runtime.events.borrow();
         let selections: Vec<_> = events
             .iter()

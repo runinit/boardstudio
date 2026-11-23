@@ -85,11 +85,11 @@ class BrowserToolsTests(unittest.TestCase):
                         calls = {
                             "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
                             "shared-wasm-build": "import check; check.run_serial(check.WASM_CRATE_BUILD, dict(os.environ), outputs=[])",
-                            "parallel": "import check; check.run_parallel([['cargo']], dict(os.environ))",
+                            "parallel": "import check; env=dict(os.environ); check.run_parallel([[(['cargo'], check.ROOT, env)]], env)",
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
                             "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",
                             "cad": "sys.path.insert(0, os.environ['CAD']); import cad_build; cad_build.run(['cargo'])",
-                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.build_page_test(m.ROOT, dict(os.environ))",
+                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.build_page_test(m.ROOT, dict(os.environ, BOARDSTUDIO_TEST_CSS_READY='1'))",
                         }
                         source = setup + calls[mode]
                         error_log = tempfile.TemporaryFile(mode="w+")

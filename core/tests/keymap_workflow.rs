@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
 
@@ -74,10 +75,7 @@ fn public_keymap_edit_and_undo_preserve_keycaps_and_legacy_data() {
     value["keycaps"] = json!({"keys":{"key":{"legend":"Q"}},"matrices":{},"boards":{}});
     let doc: ProjectDoc = serde_json::from_value(value).unwrap();
     let mut engine = CoreEngine::new();
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc.clone(),
-    });
+    engine.handle(fixture::open(doc.clone()));
     let reply=engine.handle(serde_json::from_value(json!({"kind":"edit","id":"edit","command":{"baseRevision":0,"transactionId":"binding","phase":"commit","targetIds":["key"],"operation":{"kind":"edit-keymap","change":{"kind":"binding","layerId":"base","keyId":"key","binding":{"kind":"mod-tap","hold":"LSHIFT","tap":"A"}}}}})).unwrap());
     let CoreReply::Scene { document, .. } = reply else {
         panic!("{reply:?}")

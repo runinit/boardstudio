@@ -2,7 +2,7 @@
   "archive": [
     {
       "buffers": [
-        "1107:fba991da7baf20b7"
+        "1107:aa3f0cdef1fff839"
       ],
       "kind": "pack-project",
       "reply": {
@@ -23,12 +23,12 @@
           }
         ],
         "kind": "unpacked",
-        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":7,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnLayout\":[{\"splay\":0,\"stagger\":0},{\"splay\":15,\"splayOrigin\":{\"x\":-15,\"y\":-22},\"stagger\":2},{\"splay\":-8,\"stagger\":-1}],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
+        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":8,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnLayout\":[{\"splay\":0,\"stagger\":0},{\"splay\":15,\"splayOrigin\":{\"x\":-15,\"y\":-22},\"stagger\":2},{\"splay\":-8,\"stagger\":-1}],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
       }
     },
     {
       "buffers": [
-        "981:cb32c589efe548e0"
+        "981:3288d3a6f2e7e096"
       ],
       "kind": "pack-files",
       "reply": {
@@ -42,13 +42,13 @@
       ],
       "kind": "unpack-project",
       "reply": {
-        "bodyDigest": "2471:a060989034696a5e",
+        "bodyDigest": "2471:35867d100d995833",
         "kind": "unpacked"
       }
     },
     {
       "buffers": [
-        "967:c1e439681bcf2920"
+        "967:4f06be515ea8e566"
       ],
       "kind": "pack-files",
       "reply": {
@@ -95,7 +95,7 @@
     },
     {
       "buffers": [
-        "4196508:9c7fb956947dfb12"
+        "4196508:9f44dfa07556dc72"
       ],
       "kind": "pack-project",
       "reply": {
@@ -109,7 +109,7 @@
       ],
       "kind": "unpack-project",
       "reply": {
-        "bodyDigest": "2384:67cb4d42bfeb652e",
+        "bodyDigest": "2384:a28d08d82dd994a7",
         "kind": "unpacked"
       }
     }
@@ -147,7 +147,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 7,
+        "formatVersion": 8,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -904,7 +904,7 @@
       }
     },
     {
-      "bodyDigest": "8522:2ec5eff0a5725095",
+      "bodyDigest": "8522:a0b28de671a9e014",
       "documentKeys": [
         "assets",
         "boards",
@@ -3870,7 +3870,7 @@
       ]
     },
     {
-      "bodyDigest": "8523:7c1bb458995379e0",
+      "bodyDigest": "8523:331bdf07a6f1e98f",
       "documentKeys": [
         "assets",
         "boards",
@@ -3938,7 +3938,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 7,
+        "formatVersion": 8,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -4719,7 +4719,7 @@
       "revision": 1
     },
     {
-      "bodyDigest": "8639:eadfe526b2215025",
+      "bodyDigest": "8639:398902143344be06",
       "documentKeys": [
         "assets",
         "boards",
@@ -4756,7 +4756,7 @@
       ]
     },
     {
-      "bodyDigest": "8752:24906914537b6593",
+      "bodyDigest": "8752:2d8144595250422a",
       "documentKeys": [
         "assets",
         "boards",
@@ -4817,7 +4817,7 @@
       ]
     },
     {
-      "bodyDigest": "8900:caddf0a56eb7fd65",
+      "bodyDigest": "8900:f1248f60dbd99820",
       "documentKeys": [
         "assets",
         "boards",
@@ -4854,7 +4854,7 @@
       ]
     },
     {
-      "bodyDigest": "9073:9fd8dca9ec3c80ed",
+      "bodyDigest": "9073:ae283a96deccf0ba",
       "documentKeys": [
         "assets",
         "boards",
@@ -4892,7 +4892,7 @@
       ]
     },
     {
-      "bodyDigest": "10385:ffdf7cd69654d324",
+      "bodyDigest": "10385:a49d1f0d6be0b3cb",
       "documentKeys": [
         "assets",
         "boards",
@@ -4931,7 +4931,7 @@
       ]
     },
     {
-      "bodyDigest": "10325:4c1450a59185b6c7",
+      "bodyDigest": "10325:a8c989d70392be88",
       "documentKeys": [
         "assets",
         "boards",
@@ -4970,7 +4970,7 @@
       ]
     },
     {
-      "bodyDigest": "10437:a81ca214ece1bd57",
+      "bodyDigest": "10437:fa94493ba582670c",
       "documentKeys": [
         "assets",
         "boards",
@@ -5027,7 +5027,7 @@
       ]
     },
     {
-      "bodyDigest": "10481:cf4a088cec78fae3",
+      "bodyDigest": "10481:e65e3f7ca668ea30",
       "documentKeys": [
         "assets",
         "boards",
@@ -5084,7 +5084,7 @@
       ]
     },
     {
-      "bodyDigest": "10526:62afe8c4f76aa17b",
+      "bodyDigest": "10526:d8f2f5a23b0101a6",
       "documentKeys": [
         "assets",
         "boards",
@@ -5141,7 +5141,7 @@
       ]
     },
     {
-      "bodyDigest": "10578:6d04182274b18fbc",
+      "bodyDigest": "10578:beb2cb6dea6da965",
       "documentKeys": [
         "assets",
         "boards",
@@ -5180,7 +5180,7 @@
       ]
     },
     {
-      "bodyDigest": "14375:e66c0c92eaf6f45a",
+      "bodyDigest": "14375:88914b3895d888e7",
       "documentKeys": [
         "assets",
         "boards",
@@ -5219,7 +5219,7 @@
       ]
     },
     {
-      "bodyDigest": "14331:034012b389d39ba9",
+      "bodyDigest": "14331:a4cbb92d24018a7a",
       "documentKeys": [
         "assets",
         "boards",
@@ -5258,7 +5258,7 @@
       ]
     },
     {
-      "bodyDigest": "14374:0efa4546a8166090",
+      "bodyDigest": "14374:fee6ef4ce79e2bad",
       "documentKeys": [
         "assets",
         "boards",
@@ -5297,7 +5297,7 @@
       ]
     },
     {
-      "bodyDigest": "14344:e3b94736c44abb60",
+      "bodyDigest": "14344:017247c6e27fa955",
       "documentKeys": [
         "assets",
         "boards",
@@ -5336,7 +5336,7 @@
       ]
     },
     {
-      "bodyDigest": "15199:451cb15a8d22ba47",
+      "bodyDigest": "15199:0610a5ce9ecd7b30",
       "documentKeys": [
         "assets",
         "boards",
@@ -5394,7 +5394,7 @@
       ]
     },
     {
-      "bodyDigest": "18022:ef00500f2421eeda",
+      "bodyDigest": "18022:28e891812828878b",
       "documentKeys": [
         "assets",
         "boards",
@@ -5434,7 +5434,7 @@
       ]
     },
     {
-      "bodyDigest": "17776:9e89bb529ff23998",
+      "bodyDigest": "17776:afdf994ca04ac335",
       "documentKeys": [
         "assets",
         "boards",
@@ -5474,7 +5474,7 @@
       ]
     },
     {
-      "bodyDigest": "15524:05d8971b16469848",
+      "bodyDigest": "15524:8acd0f5cdb63eeb5",
       "documentKeys": [
         "assets",
         "boards",
@@ -5514,7 +5514,7 @@
       ]
     },
     {
-      "bodyDigest": "15739:3ba652ec6089f87e",
+      "bodyDigest": "15739:beac50c9c770b30b",
       "documentKeys": [
         "assets",
         "boards",
@@ -5554,7 +5554,7 @@
       ]
     },
     {
-      "bodyDigest": "15676:1650c820f7931a8b",
+      "bodyDigest": "15676:ae24a42a700b3656",
       "documentKeys": [
         "assets",
         "boards",
@@ -5594,7 +5594,7 @@
       ]
     },
     {
-      "bodyDigest": "5592:44c0365cb745d2a5",
+      "bodyDigest": "5592:c72fbd0b10cbcfa8",
       "documentKeys": [
         "assets",
         "boards",
@@ -5634,7 +5634,7 @@
       ]
     },
     {
-      "bodyDigest": "6857:6a4127797d15c394",
+      "bodyDigest": "6857:fd06218fac07261d",
       "documentKeys": [
         "assets",
         "boards",
@@ -5674,7 +5674,7 @@
       ]
     },
     {
-      "bodyDigest": "6118:8724992e1a300a5c",
+      "bodyDigest": "6118:ef524e29643c68ab",
       "documentKeys": [
         "assets",
         "boards",
@@ -5714,7 +5714,7 @@
       ]
     },
     {
-      "bodyDigest": "6091:5b4034b3eeb28f3e",
+      "bodyDigest": "6091:b791b53a3b4f94b3",
       "documentKeys": [
         "assets",
         "boards",
@@ -5754,7 +5754,7 @@
       ]
     },
     {
-      "bodyDigest": "6116:c1411098c0cd9e08",
+      "bodyDigest": "6116:3b6ce3c376fdabb3",
       "documentKeys": [
         "assets",
         "boards",
@@ -5794,7 +5794,7 @@
       ]
     },
     {
-      "bodyDigest": "6115:64eb2ffb28857c82",
+      "bodyDigest": "6115:f352f62d787af21f",
       "documentKeys": [
         "assets",
         "boards",
@@ -5834,7 +5834,7 @@
       ]
     },
     {
-      "bodyDigest": "6457:1712af0bf4517f65",
+      "bodyDigest": "6457:e6c7521038d3cd40",
       "documentKeys": [
         "assets",
         "boards",
@@ -5874,7 +5874,7 @@
       ]
     },
     {
-      "bodyDigest": "6146:f2edc2e0b7c7a51e",
+      "bodyDigest": "6146:1b354ba22b222135",
       "documentKeys": [
         "assets",
         "boards",
@@ -5914,7 +5914,7 @@
       ]
     },
     {
-      "bodyDigest": "8267:1b4c410c0e36630f",
+      "bodyDigest": "8267:03a449537803419e",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -5956,7 +5956,7 @@
       ]
     },
     {
-      "bodyDigest": "7002:95551cd22413a16e",
+      "bodyDigest": "7002:fc3acc51ef540f01",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -5997,7 +5997,7 @@
       ]
     },
     {
-      "bodyDigest": "7016:a1a571fee905da7e",
+      "bodyDigest": "7016:64b9bc2ba3c08541",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6038,7 +6038,7 @@
       ]
     },
     {
-      "bodyDigest": "7026:1dc0f316da22126d",
+      "bodyDigest": "7026:98bd0586206a26ca",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6079,7 +6079,7 @@
       ]
     },
     {
-      "bodyDigest": "8313:419b57a7687a6b69",
+      "bodyDigest": "8313:80cd78e799e28fb8",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6121,7 +6121,7 @@
       ]
     },
     {
-      "bodyDigest": "7050:43792d84229d901f",
+      "bodyDigest": "7050:9958ba03e1855334",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6162,7 +6162,7 @@
       ]
     },
     {
-      "bodyDigest": "7017:76ea373f9a254f2f",
+      "bodyDigest": "7017:d27aa8e4a6af6854",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6203,7 +6203,7 @@
       ]
     },
     {
-      "bodyDigest": "7436:f948cb26807e8285",
+      "bodyDigest": "7436:a41e9ef31028816a",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6244,7 +6244,7 @@
       ]
     },
     {
-      "bodyDigest": "8058:b148db5ee7bf084f",
+      "bodyDigest": "8058:9d71b4f42e46ea00",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6285,7 +6285,7 @@
       ]
     },
     {
-      "bodyDigest": "8072:72c441b96df9bac4",
+      "bodyDigest": "8072:d4a354665d5501bb",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6326,7 +6326,7 @@
       ]
     },
     {
-      "bodyDigest": "8978:428942a6b74523ef",
+      "bodyDigest": "8978:6d4c7e4f63796e02",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6367,7 +6367,7 @@
       ]
     },
     {
-      "bodyDigest": "8670:117439505833edd0",
+      "bodyDigest": "8670:c38fc0c43a01f717",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6408,7 +6408,7 @@
       ]
     },
     {
-      "bodyDigest": "8679:d52a4bf8e96d09f9",
+      "bodyDigest": "8679:804adf8354e3ab82",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6449,7 +6449,7 @@
       ]
     },
     {
-      "bodyDigest": "9098:8056ac55b1f27b6e",
+      "bodyDigest": "9098:60629f14c6367191",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6490,7 +6490,7 @@
       ]
     },
     {
-      "bodyDigest": "9110:b0a900731cba9d60",
+      "bodyDigest": "9110:6d9d750496ab3e65",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6531,7 +6531,7 @@
       ]
     },
     {
-      "bodyDigest": "9122:844ea3a476cdb697",
+      "bodyDigest": "9122:0d5e358479315db0",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6572,7 +6572,7 @@
       ]
     },
     {
-      "bodyDigest": "9100:09908038e178d4fc",
+      "bodyDigest": "9100:fcbf014357f7913f",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6613,7 +6613,7 @@
       ]
     },
     {
-      "bodyDigest": "9082:7b78b2f370ce9dd1",
+      "bodyDigest": "9082:3f32144cd4e50ba6",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6654,7 +6654,7 @@
       ]
     },
     {
-      "bodyDigest": "9124:072ef9e3db209616",
+      "bodyDigest": "9124:e143ec612936bf69",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6713,7 +6713,7 @@
       ]
     },
     {
-      "bodyDigest": "9106:c2507b44b5789053",
+      "bodyDigest": "9106:9e6bb9bc32eeff04",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6754,7 +6754,7 @@
       ]
     },
     {
-      "bodyDigest": "9137:19c1ab5a82947062",
+      "bodyDigest": "9137:3b7d8378b3ff1623",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6802,151 +6802,25 @@
       "revision": 45
     },
     {
-      "bodyDigest": "117:6c1af8c1fc87aa85",
+      "bodyDigest": "106:67ff0eafd53d3956",
       "id": "mirrored-half-new-board",
       "kind": "error",
-      "message": "Physical instance \"board\" is unavailable.",
+      "message": "Unknown source physical instance",
       "revision": 45
     },
     {
-      "bodyDigest": "119:134f07aff727995f",
+      "bodyDigest": "108:32210e531efc46d4",
       "id": "mirrored-half-reuse-board",
       "kind": "error",
-      "message": "Physical instance \"board\" is unavailable.",
+      "message": "Unknown source physical instance",
       "revision": 45
     }
   ],
-  "electricalMirrorReplacement": {
-    "archiveSaveOpenPreservesAssignments": true,
-    "capacityPlacementRefusalAtomic": true,
-    "capacityRejoinRefusalAtomic": true,
-    "freedCsPinWasAllocatedToReplacement": true,
-    "mirrorOnlyPlacementAutomaticallyPinned": true,
-    "omitReleasesPerPartCs": true,
-    "omittedReplacementArchiveOpenStable": true,
-    "previewNonpublishing": true,
-    "rejoinRestoresSourcePinsAndRepinsReplacement": true,
-    "singleStepUndoRedo": true,
-    "sourceUnchanged": true,
-    "supportedController": "ceoloide/mcu_nice_nano"
-  },
-  "mirrorAddition": {
-    "archiveRoundTrip": {
-      "open": {
-        "buffers": [],
-        "kind": "unpacked",
-        "projectJson": "20357:9039caa3212ebf81"
-      },
-      "save": {
-        "buffers": [
-          "2991:7d6ed6136858f13d"
-        ],
-        "kind": "packed"
-      }
-    },
-    "linkedAdditions": {
-      "mirrorSideCorrespondence": true,
-      "sourceAndMirrorLayoutsRegistered": true,
-      "sourceSideCorrespondence": true
-    },
-    "mirrorOnly": {
-      "mirrorBoardLayoutEnvelopeMembership": true,
-      "noPairProvenance": true,
-      "openRetained": true,
-      "previewNonpublishing": true,
-      "saveOpenRetained": true,
-      "singleMirrorPart": true,
-      "sourceUnchanged": true,
-      "undoRemovedAndRedoRestored": true
-    }
-  },
-  "pairedElectricalPreview": {
-    "afterPreview": {
-      "documentUnchanged": true,
-      "kind": "scene"
-    },
-    "commit": {
-      "kind": "scene",
-      "mirrorNetRemoved": true,
-      "previewNoticeCount": 0
-    },
-    "created": {
-      "kind": "scene",
-      "mirrorNetId": "right/omit-controller-net",
-      "pairId": "boundary-electrical-pair"
-    },
-    "open": {
-      "kind": "scene"
-    },
-    "preview": {
-      "acceptedDocumentUnchanged": true,
-      "findings": [
-        {
-          "id": "preview:electrical:net:25-72696768742f6f6d69742d636f6e74726f6c6c65722d6e6574",
-          "message": "Preview removes net OMIT_CONTROLLER (right/omit-controller-net).",
-          "scope": "pcb",
-          "severity": "info",
-          "targetIds": [
-            "right/omit-controller-net"
-          ]
-        },
-        {
-          "id": "preview:electrical:pin:25-72696768742f6f6d69742d636f6e74726f6c6c65722d6e6574:8-72696768742f5531:5-7061642d31",
-          "message": "Preview removes pad pad-1 on right-U1 (right/U1) from net OMIT_CONTROLLER (right/omit-controller-net).",
-          "scope": "pcb",
-          "severity": "info",
-          "targetIds": [
-            "right/omit-controller-net",
-            "right/U1"
-          ]
-        },
-        {
-          "id": "preview:electrical:registration:5-7269676874:25-72696768742f6f6d69742d636f6e74726f6c6c65722d6e6574",
-          "message": "Preview removes net OMIT_CONTROLLER (right/omit-controller-net) from board Synthetic left (mirror) (right).",
-          "scope": "pcb",
-          "severity": "info",
-          "targetIds": [
-            "right",
-            "right/omit-controller-net"
-          ]
-        }
-      ],
-      "kind": "preview"
-    }
-  },
-  "pairedPreviewHistory": {
-    "afterPreview": {
-      "documentUnchanged": true,
-      "kind": "scene"
-    },
-    "beforePreview": {
-      "kind": "scene"
-    },
-    "created": {
-      "kind": "scene",
-      "pairCount": 1
-    },
-    "open": {
-      "kind": "scene"
-    },
-    "preview": {
-      "changedIds": [
-        "left/U1",
-        "right/U1"
-      ],
-      "kind": "preview",
-      "partX": {
-        "left/U1": -16.0,
-        "right/U1": 216.0
-      }
-    },
-    "redo": {
-      "kind": "scene",
-      "pairCount": 1
-    },
-    "undo": {
-      "kind": "scene",
-      "pairCount": 0
-    }
+  "derivedMirror": {
+    "formatVersion": 8,
+    "previewX": 6.0,
+    "redoX": 6.0,
+    "reopenedX": 6.0,
+    "undoX": 8.0
   }
 }

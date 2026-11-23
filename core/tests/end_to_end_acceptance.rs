@@ -3,23 +3,12 @@
 //! reopen, carrying an anchored matrix inside a same-board mirrored group.
 //! Every step runs through the real routes (CoreEngine Open/Edit/Undo and the
 //! real archive pack/unpack), never test doubles.
+use crate::support::fixture::{self, key_part, part_pose, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, archive, model::*};
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
     (engine, scene, doc)
 }
 
@@ -28,29 +17,17 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
-    match engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
+    match engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        doc.revision,
+        EditPhase::Preview,
+        operation,
+    )) {
         CoreReply::Preview { scene, .. } => scene,
         other => panic!("expected preview: {other:?}"),
     }
@@ -78,58 +55,15 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 
-fn key_part(id: &str, x: f64, y: f64) -> Part {
-    Part {
-        anchor: None,
-        id: id.into(),
-        definition_id: "switch".into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2 { x, y },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
 fn main_matrix() -> Matrix {
     Matrix {
-        id: "main".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
-    }
-}
-
-fn mirror_kind(matrix: &str) -> MirroredCorrespondence {
-    MirroredCorrespondence {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: MirroredItemKind::Matrix,
-        source_id: matrix.into(),
-        mirror_id: format!("{matrix}2"),
+        ..fixture::matrix("main", 1, 3)
     }
 }
 
@@ -158,26 +92,6 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         follow: all,
         aggregate: None,
     });
-    let mut main2 = main_matrix();
-    main2.id = "main2".into();
-    main2.origin = Vec2 { x: 20.0, y: 0.0 };
-    main2.mirror = Some(Mirror::X);
-    main2.part_ids = vec![
-        member("main2", 0, 0),
-        member("main2", 0, 1),
-        member("main2", 0, 2),
-    ];
-    let mut thumb2 = thumb.clone();
-    thumb2.id = "thumb2".into();
-    thumb2.mirror = Some(Mirror::X);
-    thumb2.part_ids = vec![
-        member("thumb2", 0, 0),
-        member("thumb2", 0, 1),
-        member("thumb2", 0, 2),
-    ];
-    if let Some(anchor) = thumb2.anchor.as_mut() {
-        anchor.matrix_id = "main2".into();
-    }
     doc.parts = vec![
         key_part(&member("main", 0, 0), 0.0, 0.0),
         key_part(&member("main", 0, 1), 19.0, 0.0),
@@ -185,27 +99,13 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         key_part(&member("thumb", 0, 0), 38.0, -19.0),
         key_part(&member("thumb", 0, 1), 57.0, -19.0),
         key_part(&member("thumb", 0, 2), 76.0, -19.0),
-        key_part(&member("main2", 0, 0), 20.0, 0.0),
-        key_part(&member("main2", 0, 1), 1.0, 0.0),
-        key_part(&member("main2", 0, 2), -18.0, 0.0),
-        key_part(&member("thumb2", 0, 0), -18.0, -19.0),
-        key_part(&member("thumb2", 0, 1), 1.0, -19.0),
-        key_part(&member("thumb2", 0, 2), 20.0, -19.0),
     ];
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
         part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
     doc.matrices.push(main_matrix());
     doc.matrices.push(thumb);
-    doc.matrices.push(main2);
-    doc.matrices.push(thumb2);
     doc.layouts.push(Layout {
         id: "layout".into(),
         name: "Layout".into(),
@@ -218,16 +118,20 @@ fn anchored_mirrored_doc() -> ProjectDoc {
         id: "mirror-layout".into(),
         name: "Mirror".into(),
         board_id: "board".into(),
-        matrix_ids: vec!["main2".into(), "thumb2".into()],
+        matrix_ids: vec![],
         part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "layout".into(),
-            axis_x: 10.0,
-            split_gap: None,
-            spacing: None,
-            correspondences: vec![mirror_kind("main"), mirror_kind("thumb")],
-            exceptions: vec![],
-        }),
+        mirror_link: None,
+    });
+    use boardstudio_model::mirrored_half::{MirrorDestination, MirroredPair};
+    doc.mirrored_pairs.push(MirroredPair {
+        id: "mirror-layout".into(),
+        source: MirrorDestination::SameBoardLayout("layout".into()),
+        destination: MirrorDestination::SameBoardLayout("mirror-layout".into()),
+        mapping: Pose2 {
+            at: Vec2 { x: 20.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        overrides: vec![],
     });
     doc
 }
@@ -242,14 +146,6 @@ fn scene_pose(scene: &SceneDelta, matrix_id: &str, row: u32, column: u32) -> Pos
         .iter()
         .find(|cell| cell.row == row && cell.column == column)
         .unwrap_or_else(|| panic!("missing cell {matrix_id} {row}/{column}"))
-        .pose
-}
-
-fn part_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
         .pose
 }
 
@@ -290,7 +186,9 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
         close(thumb_preview.at.y, 2.5 - 19.0),
         "thumb follows the anchor key: {thumb_preview:?}"
     );
-    let mirror_preview = scene_pose(&previewed, "main2", 0, 2);
+    let view = boardstudio_core::project_document(&doc);
+    let derived_matrix = &view.geometry().layouts[1].matrix_ids[0];
+    let mirror_preview = scene_pose(&previewed, derived_matrix, 0, 2);
     assert!(
         close(mirror_preview.at.x + anchor_preview.at.x, 2.0 * 10.0),
         "mirror reflects about the pair axis: {mirror_preview:?} vs {anchor_preview:?}"
@@ -316,9 +214,10 @@ fn preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_grou
             }
         }
     }
-    assert_eq!(committed.format_version, 7);
+    assert_eq!(committed.format_version, 8);
     assert_eq!(committed.layouts.len(), 2);
-    assert!(committed.layouts[1].mirror_link.is_some());
+    assert!(committed.layouts[1].matrix_ids.is_empty());
+    assert_eq!(committed.mirrored_pairs, doc.mirrored_pairs);
 
     // Undo restores the exact pre-commit observable state.
     let restored = undone(&mut engine);

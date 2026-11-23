@@ -2,6 +2,21 @@
 use super::*;
 
 impl Runtime {
+    async fn model_worker(&self, scope: &Scope) -> Result<Rc<CadWorker>, String> {
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
+        worker.ready().await.map_err(|error| error.to_string())?;
+        Ok(worker)
+    }
+
     pub(super) async fn read_step_model(
         &self,
         bytes: crate::model_delivery::VerifiedModelBytes,
@@ -18,17 +33,7 @@ impl Runtime {
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("STEP model request became stale before worker setup".into());
         }
-        let worker = crate::case_model_lifecycle::case_model_worker(
-            &self.cad_worker,
-            &scope,
-            |worker| !worker.is_closed(),
-            || {
-                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                    .map(Rc::new)
-                    .map_err(|error| error.to_string())
-            },
-        )?;
-        worker.ready().await.map_err(|error| error.to_string())?;
+        let worker = self.model_worker(&scope).await?;
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("STEP model request became stale before dispatch".into());
         }
@@ -92,52 +97,6 @@ impl Runtime {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn query_vendor_step_collision(
-        &self,
-        left: &crate::model_delivery::DeliveredModel,
-        left_explicit_pcb_transform: Option<[f64; 16]>,
-        right: &crate::model_delivery::DeliveredModel,
-        right_explicit_pcb_transform: Option<[f64; 16]>,
-        clearance_threshold_mm: f64,
-        requested_accuracy_mm: Option<f64>,
-        scope: Scope,
-        token: SnapshotToken,
-        revision: u64,
-        is_current: Rc<dyn Fn() -> bool>,
-    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
-        use crate::model_delivery::{CadCollisionSubject, resolve_physical_model_row_transform};
-        let left = CadCollisionSubject::VendorModel {
-            id: left.id.clone(),
-            reference: left.id.clone(),
-            row_transform_f64: resolve_physical_model_row_transform(
-                left,
-                left_explicit_pcb_transform,
-            )?,
-            vendor_step: left.mesh.vendor_step.clone(),
-        };
-        let right = CadCollisionSubject::VendorModel {
-            id: right.id.clone(),
-            reference: right.id.clone(),
-            row_transform_f64: resolve_physical_model_row_transform(
-                right,
-                right_explicit_pcb_transform,
-            )?,
-            vendor_step: right.mesh.vendor_step.clone(),
-        };
-        self.query_collision_subjects(
-            &left,
-            &right,
-            clearance_threshold_mm,
-            requested_accuracy_mm,
-            scope,
-            token,
-            revision,
-            is_current,
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn query_collision_subjects(
         &self,
         left: &crate::model_delivery::CadCollisionSubject,
@@ -164,7 +123,7 @@ impl Runtime {
         for attempt in 0..2 {
             if batch != self.collision_batch.get()
                 || !is_current()
-                || !self.collision_snapshot_is_current(&scope, token, revision)
+                || !self.snapshot_current(token, &scope)
             {
                 return Err("collision request became stale before dispatch".into());
             }
@@ -246,7 +205,7 @@ impl Runtime {
         let batch = self.collision_batch.get();
         use crate::model_delivery::assess_subject_collision_observation;
         use boardstudio_web_host::cad_jobs::CadCollisionMeshPair;
-        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+        if !is_current() || !self.snapshot_current(token, &scope) {
             return Err("collision request became stale before worker setup".into());
         }
         let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
@@ -261,20 +220,10 @@ impl Runtime {
         if pair_bytes > boardstudio_web_host::cad_jobs::MAX_COLLISION_QUERY_BYTES {
             return Err("collision pair exceeds the 64 MiB limit before copying".into());
         }
-        let worker = crate::case_model_lifecycle::case_model_worker(
-            &self.cad_worker,
-            &scope,
-            |worker| !worker.is_closed(),
-            || {
-                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                    .map(Rc::new)
-                    .map_err(|error| error.to_string())
-            },
-        )?;
-        worker.ready().await.map_err(|error| error.to_string())?;
+        let worker = self.model_worker(&scope).await?;
         if self.collision_batch.get() != batch
             || !is_current()
-            || !self.collision_snapshot_is_current(&scope, token, revision)
+            || !self.snapshot_current(token, &scope)
         {
             return Err("collision request became stale before dispatch".into());
         }
@@ -306,7 +255,7 @@ impl Runtime {
         if !active
             || self.collision_batch.get() != batch
             || !is_current()
-            || !self.collision_snapshot_is_current(&scope, token, revision)
+            || !self.snapshot_current(token, &scope)
         {
             return Err("collision request became stale after parsing".into());
         }
@@ -379,21 +328,6 @@ impl Runtime {
         }
     }
 
-    pub(super) fn collision_snapshot_is_current(
-        &self,
-        scope: &Scope,
-        token: SnapshotToken,
-        revision: u64,
-    ) -> bool {
-        self.scope().as_ref() == Some(scope)
-            && self.model().accepted.is_some_and(|accepted| {
-                accepted.token == token
-                    && accepted.document.revision == revision
-                    && accepted.session_epoch == scope.session_epoch
-                    && accepted.document.id == scope.document_id
-            })
-    }
-
     pub(super) fn collision_current(
         &self,
         is_current: Rc<dyn Fn() -> bool>,
@@ -420,6 +354,33 @@ impl Runtime {
         crate::model_delivery::VerifiedModelBytes::verify(bytes, sha)
     }
 
+    async fn load_collision_evidence(
+        &self,
+        cache: &crate::model_delivery::ModelDeliveryAdapter,
+        sha: &str,
+        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        context: StepReadContext,
+    ) -> Result<Rc<boardstudio_web_host::cad_jobs::CadVendorStep>, String> {
+        let batch = format!(
+            "{:?}/{}/{}/{}",
+            context.scope,
+            context.token.0,
+            context.revision,
+            self.collision_batch.get()
+        );
+        let current = context.is_current.clone();
+        let load = async {
+            let bytes = self.verified_collision_step_bytes(sha).await?;
+            self.read_step_model(bytes, options, context).await
+        };
+        cache
+            .refresh_step_evidence(sha, options, &batch, current, load)
+            .await?
+            .vendor_step
+            .clone()
+            .ok_or_else(|| "STEP evidence omitted its source asset".into())
+    }
+
     pub(super) async fn refresh_collision_subject(
         &self,
         subject: &crate::model_delivery::CadCollisionSubject,
@@ -430,7 +391,7 @@ impl Runtime {
     ) -> Result<crate::model_delivery::CadCollisionSubject, String> {
         use crate::model_delivery::CadCollisionSubject;
         let current = self.collision_current(is_current);
-        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+        if !current() || !self.snapshot_current(token, scope) {
             return Err("evidence preparation became stale".into());
         }
         let mut refreshed = subject.clone();
@@ -439,18 +400,11 @@ impl Runtime {
                 vendor_step: Some(asset),
                 ..
             } => {
-                let batch = format!(
-                    "{scope:?}/{}/{revision}/{}",
-                    token.0,
-                    self.collision_batch.get()
-                );
-                let options = asset.import_options;
-                let sha = asset.source_sha256.clone();
-                let load = async {
-                    let bytes = self.verified_collision_step_bytes(&sha).await?;
-                    self.read_step_model(
-                        bytes,
-                        options,
+                *asset = self
+                    .load_collision_evidence(
+                        &self.case_model_delivery,
+                        &asset.source_sha256,
+                        asset.import_options,
                         StepReadContext {
                             scope: scope.clone(),
                             token,
@@ -459,16 +413,7 @@ impl Runtime {
                             collision: true,
                         },
                     )
-                    .await
-                };
-                let mesh = self
-                    .case_model_delivery
-                    .refresh_step_evidence(&sha, options, &batch, current.clone(), load)
                     .await?;
-                *asset = mesh
-                    .vendor_step
-                    .clone()
-                    .ok_or("reprepared STEP omitted full source asset")?;
             }
             CadCollisionSubject::GeneratedCaseBody {
                 analysis: Some(asset),
@@ -522,7 +467,7 @@ impl Runtime {
             }
             _ => return Err("source evidence cannot be prepared".into()),
         }
-        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+        if !current() || !self.snapshot_current(token, scope) {
             return Err("evidence preparation became stale after settlement".into());
         }
         Ok(refreshed)
@@ -548,13 +493,7 @@ impl Runtime {
                 subject.label()
             ));
         };
-        if !is_current()
-            || !self.collision_snapshot_is_current(
-                &scene.scope,
-                scene.token,
-                scene.snapshot.document.revision,
-            )
-        {
+        if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
             return Err("vendor refinement became stale".into());
         }
         let is_current = self.collision_current(is_current);
@@ -563,45 +502,25 @@ impl Runtime {
             ..asset.import_options
         };
         options.validate()?;
-        let batch = format!(
-            "{:?}/{}/{}/{}",
-            scene.scope,
-            scene.token.0,
-            scene.snapshot.document.revision,
-            self.collision_batch.get()
-        );
-        let load = async {
-            let bytes = self
-                .verified_collision_step_bytes(&asset.source_sha256)
-                .await?;
-            self.read_step_model(
-                bytes,
+        let evidence = self
+            .load_collision_evidence(
+                &self.collision_vendor_refinement,
+                &asset.source_sha256,
                 options,
                 StepReadContext {
                     scope: scene.scope.clone(),
                     token: scene.token,
                     revision: scene.snapshot.document.revision,
-                    is_current: is_current.clone(),
+                    is_current,
                     collision: true,
                 },
-            )
-            .await
-        };
-        let arrays = self
-            .collision_vendor_refinement
-            .refresh_step_evidence(
-                &asset.source_sha256,
-                options,
-                &batch,
-                is_current.clone(),
-                load,
             )
             .await?;
         Ok(CadCollisionSubject::VendorModel {
             id: id.clone(),
             reference: reference.clone(),
             row_transform_f64: *row_transform_f64,
-            vendor_step: arrays.vendor_step.clone(),
+            vendor_step: Some(evidence),
         })
     }
 
@@ -640,21 +559,12 @@ impl Runtime {
                 return (Vec::new(), Vec::new());
             }
         }
-        let core = self.core.borrow().clone();
-        let epoch = self.session.borrow().core_executor_epoch();
-        let pcb_current: Rc<dyn Fn() -> bool> = {
+        let pcb_current = {
             let runtime = self.clone();
-            let core = core.clone();
             let current = current.clone();
-            let scope = scene.scope.clone();
-            let token = scene.token;
-            let revision = scene.snapshot.document.revision;
             let scene_identity = scene as *const CadScene as usize;
             Rc::new(move || {
                 current()
-                    && runtime.collision_snapshot_is_current(&scope, token, revision)
-                    && runtime.session.borrow().core_executor_epoch() == epoch
-                    && Rc::ptr_eq(&core, &runtime.core.borrow())
                     && runtime
                         .cad_scene()
                         .is_some_and(|scene| Rc::as_ptr(&scene) as usize == scene_identity)
@@ -663,8 +573,6 @@ impl Runtime {
         let pcb = async {
             let physical = self
                 .prepare_physical_step_assembly(
-                    core.as_ref(),
-                    &epoch.0.to_string(),
                     &format!("collision-pcb-{}", self.operation().0),
                     &scene.snapshot,
                     &scene.scope,
@@ -736,7 +644,7 @@ impl Runtime {
         let revision = scene.snapshot.document.revision;
         if !is_current()
             || !scene.exact
-            || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            || !self.snapshot_current(scene.token, &scene.scope)
             || !self
                 .cad_scene()
                 .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
@@ -766,19 +674,8 @@ impl Runtime {
             )?;
             return Ok(cached.clone());
         }
-        let worker = crate::case_model_lifecycle::case_model_worker(
-            &self.cad_worker,
-            &scene.scope,
-            |worker| !worker.is_closed(),
-            || {
-                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                    .map(Rc::new)
-                    .map_err(|error| error.to_string())
-            },
-        )?;
-        worker.ready().await.map_err(|error| error.to_string())?;
-        if !is_current() || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
-        {
+        let worker = self.model_worker(&scene.scope).await?;
+        if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
             return Err("generated analysis became stale before dispatch".into());
         }
         let receiver = {
@@ -802,9 +699,7 @@ impl Runtime {
             let result = receiver
                 .await
                 .map_err(|_| "generated analysis task was abandoned")?;
-            if !is_current()
-                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
-            {
+            if !is_current() || !self.snapshot_current(scene.token, &scene.scope) {
                 return Err("joined generated analysis became stale".into());
             }
             return result;
@@ -848,7 +743,7 @@ impl Runtime {
             let reply = reply.map_err(|error| error.to_string())?;
             if !active
                 || !is_current()
-                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+                || !self.snapshot_current(scene.token, &scene.scope)
                 || !self
                     .cad_scene()
                     .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))

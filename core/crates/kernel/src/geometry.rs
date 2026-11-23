@@ -264,6 +264,25 @@ fn feature_geometry_with_reuse(
                     }
                     Some(link.axis_x)
                 })
+                .chain(doc.mirrored_pairs.iter().filter_map(|pair| {
+                    let boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                        layout_id,
+                    ) = &pair.destination
+                    else {
+                        return None;
+                    };
+                    if pair.mapping.rotation != 0.0 {
+                        return None;
+                    }
+                    let layout = doc.layouts.iter().find(|layout| &layout.id == layout_id)?;
+                    let board = doc.boards.iter().find(|board| board.id == layout.board_id);
+                    if board
+                        .is_some_and(|board| !part_ids.iter().any(|id| board.part_ids.contains(id)))
+                    {
+                        return None;
+                    }
+                    Some(pair.mapping.at.x / 2.0)
+                }))
                 .collect();
             axes.sort_by(f64::total_cmp);
             axes.dedup();
@@ -1182,7 +1201,6 @@ fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
 mod tests {
     use super::*;
     use crate::model::{PartDefinition, PartKind, Pose2, Side};
-    use std::time::Instant;
 
     #[test]
     fn linked_halves_do_not_bridge_automatic_envelopes() {
@@ -1312,8 +1330,6 @@ mod tests {
         assert!(cache.paths["large-outline"].1.is_err());
     }
 
-    const SAMPLES: usize = 100;
-    const WARMUP: usize = 10;
     const PITCH: f64 = 19.05;
 
     fn fixture(keys: usize) -> ProjectDoc {
@@ -1470,52 +1486,5 @@ mod tests {
             assert_eq!(envelopes.prefixes[&0].0, prefix_len);
             doc.parts[index].pose.at.y = 0.0;
         }
-    }
-
-    fn percentile(samples: &mut [u128], percent: usize) -> u128 {
-        samples.sort_unstable();
-        samples[samples.len() * percent / 100]
-    }
-
-    fn compare(keys: usize) {
-        let mut doc = fixture(keys);
-        let (mut cache, _, _) = outlines(&doc, None, &[]);
-        let moved = vec!["key-0".into()];
-        let mut full = Vec::with_capacity(SAMPLES);
-        let mut cached = Vec::with_capacity(SAMPLES);
-        for index in 0..SAMPLES + WARMUP {
-            doc.parts[0].pose.at.x = index as f64 * 0.01;
-            let start = Instant::now();
-            let (_, full_contours, _) = outlines(&doc, None, &[]);
-            let full_time = start.elapsed().as_micros();
-            let start = Instant::now();
-            let (next, cached_contours, _) = outlines(&doc, Some(&cache), &moved);
-            let cached_time = start.elapsed().as_micros();
-            assert_eq!(full_contours, cached_contours);
-            cache = next;
-            if index >= WARMUP {
-                full.push(full_time);
-                cached.push(cached_time);
-            }
-        }
-        println!(
-            "{keys} features: full p50={}µs p95={}µs; cached p50={}µs p95={}µs",
-            percentile(&mut full, 50),
-            percentile(&mut full, 95),
-            percentile(&mut cached, 50),
-            percentile(&mut cached, 95)
-        );
-    }
-
-    #[test]
-    #[ignore = "Run with cargo test --release --lib -- --ignored --nocapture"]
-    fn compare_100() {
-        compare(100);
-    }
-
-    #[test]
-    #[ignore = "Run with cargo test --release --lib -- --ignored --nocapture"]
-    fn compare_200() {
-        compare(200);
     }
 }

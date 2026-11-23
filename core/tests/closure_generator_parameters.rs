@@ -7,6 +7,7 @@
 //! then render every generator-backed definition and part, preview the board and
 //! export it through the same entry points the engine uses.
 
+use crate::support::fixture;
 use std::collections::BTreeMap;
 
 use boardstudio_core::artifact::kicad;
@@ -17,12 +18,12 @@ use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::model::{
     Board, Contour, ExportTarget, HardwareConfiguration, HardwareTopology, HardwareTransport,
-    MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalFeatureKind, Mount,
-    MountKind, Operation, OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2,
-    PrepareExportRequest, ProjectDoc, Vec2,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, Mount, MountKind, Operation,
+    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, PrepareExportRequest, ProjectDoc,
+    Vec2,
 };
 use boardstudio_core::model::{CoreReply, CoreRequest};
-use boardstudio_core::{CoreEngine, migrate};
+use boardstudio_core::{CoreEngine, document_format};
 use serde_json::{Value, json};
 
 const SOURCE: &str = "ceoloide/mounting_hole_npth";
@@ -44,18 +45,6 @@ fn board(id: &str) -> Board {
     .unwrap()
 }
 
-fn configuration() -> MechanicalConfiguration {
-    serde_json::from_value(json!({
-        "boardId": "board", "method": "printed", "mount": "rigid",
-        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4, "batteryHeight": 4.0, "bottomThickness": 3.0,
-        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
-        "bottomStyle": "shell", "middleFrame": false, "openingAllowance": 0.25,
-        "mounts": [], "closureMounts": [], "profiles": []
-    }))
-    .unwrap()
-}
-
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("closure", "Closure");
     document.boards.push(board("board"));
@@ -68,7 +57,7 @@ fn document() -> ProjectDoc {
         rotation: None,
         operation: Operation::Add,
     });
-    document.mechanical = Some(configuration());
+    document.mechanical = Some(fixture::mechanical("board"));
     document
 }
 
@@ -92,7 +81,7 @@ fn apply(document: &mut ProjectDoc, change: MechanicalChange) {
 }
 
 fn instance(id: &str, flipped: bool, mounts: Vec<Mount>) -> PhysicalBoardInstance {
-    let mut mechanical = configuration();
+    let mut mechanical = fixture::mechanical("board");
     mechanical.closure_mounts = Some(mounts);
     PhysicalBoardInstance {
         id: id.into(),
@@ -325,11 +314,8 @@ fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export(
     assert!(saved.to_string().contains("\"hole_drill\":\""));
 
     let original = saved.to_string();
-    let error = migrate::migrate_json(&original).unwrap_err();
-    assert!(
-        error.contains("format 3") && error.contains("No conversion"),
-        "{error}"
-    );
+    let error = document_format::require_current_value(&saved).unwrap_err();
+    assert!(error == "Unsupported formatVersion: expected 8", "{error}");
     assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {

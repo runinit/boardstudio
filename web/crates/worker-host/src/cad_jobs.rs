@@ -6,7 +6,8 @@ pub use boardstudio_model::model::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const MAX_CAD_REVISION: u64 = 9_007_199_254_740_991;
+pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+pub use MAX_SAFE_INTEGER as MAX_CAD_REVISION;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

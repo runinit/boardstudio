@@ -1,4 +1,5 @@
 use super::*;
+use crate::mechanical::tests::{configuration, empty_board as board};
 use crate::model::{
     Board, HardwareConfiguration, HardwareTopology, HardwareTransport,
     MechanicalConstructionOwnership, MechanicalGasketAnchor, MechanicalGasketLayout,
@@ -12,38 +13,6 @@ fn resolve_inputs(
     target: &MechanicalTarget,
 ) -> Result<MechanicalInputs, String> {
     effective_inputs(document, &[], target)
-}
-
-fn board(id: &str, thickness: f64) -> Board {
-    Board {
-        id: id.into(),
-        name: id.into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness,
-        traces: vec![],
-        vias: vec![],
-    }
-}
-
-fn configuration(board_id: &str) -> MechanicalConfiguration {
-    serde_json::from_value(serde_json::json!({
-        "boardId": board_id,
-        "method": "printed",
-        "mount": "tray",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 1.0,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.5,
-        "batteryHeight": 0.0,
-        "bottomThickness": 2.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.2,
-        "profiles": []
-    }))
-    .unwrap()
 }
 
 fn part(id: &str, x: f64) -> Part {

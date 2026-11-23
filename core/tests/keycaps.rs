@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, document as scene_doc};
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
@@ -112,10 +113,7 @@ fn case_walls_are_checked_over_full_travel_and_ignore_stale_cases() {
 fn open_replace_undo_and_roundtrip_preserve_settings() {
     let document = doc();
     let mut core = CoreEngine::new();
-    let opened = core.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document.clone(),
-    });
+    let opened = core.handle(fixture::open(document.clone()));
     assert!(matches!(opened, CoreReply::Scene { .. }));
     let mut changed = document.clone();
     changed
@@ -126,18 +124,14 @@ fn open_replace_undo_and_roundtrip_preserve_settings() {
         .get_mut("board")
         .unwrap()
         .color = "#aabbcc".into();
-    core.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: document.revision,
-            phase: EditPhase::Commit,
-            transaction_id: "color".into(),
-            target_ids: vec![],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(changed),
-            },
+    core.handle(fixture::commit(
+        "edit",
+        "color",
+        document.revision,
+        EditOperation::ReplaceDocument {
+            document: Box::new(changed),
         },
-    });
+    ));
     let undo = core.handle(CoreRequest::Undo { id: "undo".into() });
     match undo {
         CoreReply::Scene {
@@ -226,23 +220,12 @@ fn size_doc() -> ProjectDoc {
 }
 
 fn commit_size(engine: &mut CoreEngine, base: u64, operation: EditOperation) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "keycap-size".into(),
-        command: EditCommand {
-            base_revision: base,
-            transaction_id: "keycap-size".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    })
-}
-
-fn scene_doc(reply: CoreReply) -> ProjectDoc {
-    match reply {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("expected scene, got {other:?}"),
-    }
+    engine.handle(fixture::commit(
+        "keycap-size",
+        "keycap-size",
+        base,
+        operation,
+    ))
 }
 
 /// Ticket 33 RED: a typed keycap-size edit writes sizes, reflow poses and cell
@@ -250,10 +233,7 @@ fn scene_doc(reply: CoreReply) -> ProjectDoc {
 #[test]
 fn typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step() {
     let mut engine = CoreEngine::new();
-    scene_doc(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: size_doc(),
-    }));
+    scene_doc(engine.handle(fixture::open(size_doc())));
     let committed = scene_doc(commit_size(
         &mut engine,
         0,
@@ -368,10 +348,7 @@ fn typed_keycap_size_refuses_invalid_writes_atomically() {
         },
     ] {
         let mut engine = CoreEngine::new();
-        let before = scene_doc(engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: size_doc(),
-        }));
+        let before = scene_doc(engine.handle(fixture::open(size_doc())));
         let reply = commit_size(&mut engine, 0, operation);
         assert!(matches!(reply, CoreReply::Error { .. }), "got {reply:?}");
         let after = scene_doc(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));

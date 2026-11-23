@@ -5,15 +5,17 @@
 //! generator does not declare, and text where a number or a list is declared (the version 4
 //! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
 //! legacy warning does not block an unrelated edit.
+use crate::support::fixture::{self, document as scene_document};
+use crate::support::{query::arr, session::Session};
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
 use boardstudio_core::mechanical::MechanicalTarget;
 use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::model::{
-    Contour, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, ExportTarget, Finding,
-    Matrix, Part, PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
+    Contour, CoreReply, CoreRequest, EditOperation, EditPhase, ExportTarget, Finding, Matrix, Part,
+    PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
 };
-use boardstudio_core::{CoreEngine, migrate};
+use boardstudio_core::{CoreEngine, document_format};
 use boardstudio_footprints::bundled;
 use serde_json::{Value, json};
 
@@ -49,7 +51,7 @@ fn part(id: &str, definition: &str, parameters: Value) -> Part {
 
 fn document(parts: Vec<Part>) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("generators", "Generators");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(HOLE));
     doc.definitions.push(catalogue_definition(MCU));
     doc.parts = parts;
@@ -57,10 +59,7 @@ fn document(parts: Vec<Part>) -> ProjectDoc {
 }
 
 fn open(engine: &mut CoreEngine, doc: ProjectDoc) -> CoreReply {
-    engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    })
+    engine.handle(fixture::open(doc))
 }
 
 fn edit(
@@ -69,16 +68,13 @@ fn edit(
     phase: EditPhase,
     operation: EditOperation,
 ) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision,
-            transaction_id: "transaction".into(),
-            phase,
-            target_ids: Vec::new(),
-            operation,
-        },
-    })
+    engine.handle(fixture::edit(
+        "edit",
+        "transaction",
+        base_revision,
+        phase,
+        operation,
+    ))
 }
 
 fn add_part(part: Part) -> EditOperation {
@@ -125,162 +121,114 @@ fn open_refuses_a_boolean_for_a_number_and_names_the_generator_and_parameter() {
 }
 
 #[test]
-fn open_warns_on_an_undeclared_name_with_a_finding_on_the_part() {
-    let mut engine = CoreEngine::new();
-    let doc = document(vec![part(
-        "h1",
-        HOLE_DEFINITION,
-        json!({ "hole_sise": 2.0 }),
-    )]);
-    let findings = scene_findings(open(&mut engine, doc));
-    let found = generator_findings(&findings);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert_eq!(found[0].severity, Severity::Warning);
-    assert_eq!(found[0].target_ids, vec!["h1".to_string()]);
-    assert!(
-        found[0].message.contains("hole_sise"),
-        "{}",
-        found[0].message
-    );
-    assert!(found[0].message.contains(HOLE), "{}", found[0].message);
+fn open_reports_legacy_generator_parameter_warnings_on_the_affected_part() {
+    for (id, definition, parameter, value) in [
+        ("h1", HOLE_DEFINITION, "hole_sise", json!(2.0)),
+        (
+            "mcu1",
+            MCU_DEFINITION,
+            "mcu_3dmodel_xyz_offset",
+            json!("[1,2,3]"),
+        ),
+    ] {
+        let doc = document(vec![part(id, definition, json!({ parameter: value }))]);
+        let findings = scene_findings(open(&mut CoreEngine::new(), doc));
+        let found = generator_findings(&findings);
+        assert_eq!(found.len(), 1, "{found:?}");
+        let warning = found[0];
+        assert_eq!(warning.severity, Severity::Warning);
+        assert_eq!(warning.target_ids, vec![id]);
+        assert!(warning.message.contains(parameter), "{}", warning.message);
+        if definition == HOLE_DEFINITION {
+            assert!(warning.message.contains(HOLE), "{}", warning.message);
+        }
+    }
 }
 
 #[test]
-fn open_keeps_non_empty_list_text_as_a_warning_not_a_refusal() {
-    let mut engine = CoreEngine::new();
-    let doc = document(vec![part(
-        "mcu1",
-        MCU_DEFINITION,
-        json!({ "mcu_3dmodel_xyz_offset": "[1,2,3]" }),
-    )]);
-    let findings = scene_findings(open(&mut engine, doc));
-    let found = generator_findings(&findings);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert_eq!(found[0].severity, Severity::Warning);
-    assert_eq!(found[0].target_ids, vec!["mcu1".to_string()]);
-    assert!(
-        found[0].message.contains("mcu_3dmodel_xyz_offset"),
-        "{}",
-        found[0].message
-    );
+fn generator_parameter_writes_are_refused_atomically_in_preview_and_commit() {
+    for (definition, parameter, value) in [
+        (HOLE_DEFINITION, "hole_size", json!("2")),
+        (HOLE_DEFINITION, "hole_sise", json!(2.0)),
+        (MCU_DEFINITION, "mcu_3dmodel_xyz_offset", json!("[1,2,3]")),
+    ] {
+        for phase in [EditPhase::Preview, EditPhase::Commit] {
+            let mut engine = CoreEngine::new();
+            let accepted = scene_document(open(&mut engine, document(vec![])));
+            let id = if definition == MCU_DEFINITION {
+                "mcu1"
+            } else {
+                "h1"
+            };
+            let bad = part(id, definition, json!({ parameter: value }));
+            let message = error_message(edit(&mut engine, 0, phase, add_part(bad)));
+            assert!(message.contains(parameter), "{message}");
+            if definition == HOLE_DEFINITION {
+                assert!(message.contains(HOLE), "{message}");
+            }
+            assert_eq!(
+                scene_document(engine.handle(CoreRequest::Snapshot {
+                    id: "after-refusal".into(),
+                })),
+                accepted,
+                "{phase:?}: {parameter}"
+            );
+
+            // A valid write at the same base confirms the refusal consumed no revision.
+            let good = part("h1", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
+            assert!(matches!(
+                edit(&mut engine, 0, EditPhase::Commit, add_part(good)),
+                CoreReply::Scene { .. }
+            ));
+        }
+    }
 }
 
 #[test]
-fn an_edit_that_writes_text_for_a_number_is_refused_and_applies_nothing() {
-    let mut engine = CoreEngine::new();
-    assert!(matches!(
-        open(&mut engine, document(Vec::new())),
-        CoreReply::Scene { .. }
-    ));
-    let bad = part("h1", HOLE_DEFINITION, json!({ "hole_size": "2" }));
-    let message = error_message(edit(&mut engine, 0, EditPhase::Commit, add_part(bad)));
-    assert!(message.contains(HOLE), "{message}");
-    assert!(message.contains("hole_size"), "{message}");
-    // Nothing was applied, so the same base revision still takes a valid edit.
-    let good = part("h1", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Commit, add_part(good)),
-        CoreReply::Scene { .. }
-    ));
-}
-
-#[test]
-fn an_edit_that_writes_an_undeclared_name_is_refused() {
-    let mut engine = CoreEngine::new();
-    assert!(matches!(
-        open(&mut engine, document(Vec::new())),
-        CoreReply::Scene { .. }
-    ));
-    let bad = part("h1", HOLE_DEFINITION, json!({ "hole_sise": 2.0 }));
-    let message = error_message(edit(&mut engine, 0, EditPhase::Commit, add_part(bad)));
-    assert!(message.contains("hole_sise"), "{message}");
-    assert!(message.contains(HOLE), "{message}");
-}
-
-#[test]
-fn an_edit_that_writes_list_text_is_refused() {
-    let mut engine = CoreEngine::new();
-    assert!(matches!(
-        open(&mut engine, document(Vec::new())),
-        CoreReply::Scene { .. }
-    ));
-    let bad = part(
-        "mcu1",
-        MCU_DEFINITION,
-        json!({ "mcu_3dmodel_xyz_offset": "[1,2,3]" }),
-    );
-    let message = error_message(edit(&mut engine, 0, EditPhase::Commit, add_part(bad)));
-    assert!(message.contains("mcu_3dmodel_xyz_offset"), "{message}");
-}
-
-#[test]
-fn a_preview_that_writes_text_for_a_number_is_refused_the_same_way() {
-    let mut engine = CoreEngine::new();
-    assert!(matches!(
-        open(&mut engine, document(Vec::new())),
-        CoreReply::Scene { .. }
-    ));
-    let bad = part("h1", HOLE_DEFINITION, json!({ "hole_size": "2" }));
-    let message = error_message(edit(&mut engine, 0, EditPhase::Preview, add_part(bad)));
-    assert!(message.contains("hole_size"), "{message}");
-}
-
-#[test]
-fn an_unrelated_edit_is_not_refused_for_a_legacy_name_it_does_not_write() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "h1",
-        HOLE_DEFINITION,
-        json!({ "hole_sise": 2.0 }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    let reply = edit(&mut engine, 0, EditPhase::Commit, add_part(other));
-    let findings = scene_findings(reply);
-    let found = generator_findings(&findings);
-    assert_eq!(
-        found.len(),
-        1,
-        "the legacy warning stays, the edit is accepted"
-    );
-    assert_eq!(found[0].target_ids, vec!["h1".to_string()]);
-}
-
-#[test]
-fn an_unrelated_edit_is_not_refused_for_legacy_list_text() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "mcu1",
-        MCU_DEFINITION,
-        json!({ "mcu_3dmodel_xyz_offset": "[1,2,3]" }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Commit, add_part(other)),
-        CoreReply::Scene { .. }
-    ));
-}
-
-#[test]
-fn a_move_preview_is_not_refused_for_a_legacy_name() {
-    let mut engine = CoreEngine::new();
-    let legacy = document(vec![part(
-        "h1",
-        HOLE_DEFINITION,
-        json!({ "hole_sise": 2.0 }),
-    )]);
-    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
-    let operation = EditOperation::MoveParts {
-        positions: vec![Position {
-            id: "h1".into(),
-            at: boardstudio_core::model::Vec2 { x: 1.0, y: 2.0 },
-        }],
-    };
-    assert!(matches!(
-        edit(&mut engine, 0, EditPhase::Preview, operation),
-        CoreReply::Preview { .. }
-    ));
+fn legacy_names_and_list_text_allow_unrelated_edits_and_move_preview() {
+    for (id, definition, parameters, preview) in [
+        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0}), false),
+        ("h1", HOLE_DEFINITION, json!({"hole_sise": 2.0}), true),
+        (
+            "mcu1",
+            MCU_DEFINITION,
+            json!({"mcu_3dmodel_xyz_offset": "[1,2,3]"}),
+            false,
+        ),
+    ] {
+        let mut session = Session::default();
+        assert!(
+            matches!(
+                session.open(document(vec![part(id, definition, parameters)])),
+                CoreReply::Scene { .. }
+            ),
+            "{id}"
+        );
+        if preview {
+            let movement = EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: id.into(),
+                    at: Vec2 { x: 1.0, y: 2.0 },
+                }],
+            };
+            assert!(matches!(
+                session.preview(0, movement),
+                CoreReply::Preview { .. }
+            ));
+        } else {
+            let other = part("h2", HOLE_DEFINITION, json!({"hole_size": 2.0}));
+            let findings = scene_findings(session.commit(0, add_part(other)));
+            if id == "h1" {
+                let found = generator_findings(&findings);
+                assert_eq!(
+                    found.len(),
+                    1,
+                    "the legacy warning stays, the edit is accepted"
+                );
+                assert_eq!(found[0].target_ids, vec!["h1"]);
+            }
+        }
+    }
 }
 
 #[test]
@@ -345,13 +293,6 @@ fn matrix(definition: &str) -> Matrix {
     .expect("matrix")
 }
 
-fn scene_document(reply: CoreReply) -> ProjectDoc {
-    match reply {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("expected a scene, got {other:?}"),
-    }
-}
-
 /// Saved version 3 data as an older Parts editor could have left it, after the migration the
 /// page runs before Open: it keeps the text that is not a number and the name no generator declares.
 fn current_document_with_unconvertible_text() -> Value {
@@ -368,12 +309,10 @@ fn current_document_with_unconvertible_text() -> Value {
         json!({ "hole_size": " 3.5 ", "not_a_parameter": "4" }),
     );
     let mut saved = serde_json::to_value(ProjectDoc::empty("saved", "Saved")).unwrap();
-    saved["formatVersion"] = json!(migrate::CURRENT_VERSION);
+    saved["formatVersion"] = json!(document_format::CURRENT_VERSION);
     saved["definitions"] = json!([definition]);
     saved["parts"] = json!([held]);
-    migrate::migrate_value(saved)
-        .expect("current schema is admitted unchanged")
-        .0
+    saved
 }
 
 #[test]
@@ -388,9 +327,7 @@ fn a_current_project_that_keeps_unconvertible_number_text_opens_with_a_warning()
         opened["kind"], "scene",
         "current-schema saved text remains a warning, not an edit: {opened}"
     );
-    let found: Vec<&Value> = opened["scene"]["findings"]
-        .as_array()
-        .unwrap()
+    let found: Vec<&Value> = arr(&opened["scene"]["findings"])
         .iter()
         .filter(|finding| {
             finding["id"]
@@ -497,7 +434,7 @@ fn a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not() {
 fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_declare() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("keys", "Keys");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(CHOC));
     doc.definitions.push(catalogue_definition(ENCODER));
     assert!(matches!(open(&mut engine, doc), CoreReply::Scene { .. }));
@@ -505,10 +442,7 @@ fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_decla
         &mut engine,
         0,
         EditPhase::Commit,
-        EditOperation::SetMatrix {
-            matrix: matrix(CHOC_DEFINITION),
-            definitions: None,
-        },
+        fixture::set_matrix(matrix(CHOC_DEFINITION)),
     ));
     assert_eq!(placed.parts.len(), 1, "one key is placed");
     // Electrical wiring stores each terminal's net as a parameter of the placed key.
@@ -524,10 +458,7 @@ fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_decla
             &mut engine,
             wired.revision,
             phase,
-            EditOperation::SetMatrix {
-                matrix: matrix(ENCODER_DEFINITION),
-                definitions: None,
-            },
+            fixture::set_matrix(matrix(ENCODER_DEFINITION)),
         );
         match (phase, reply) {
             (EditPhase::Commit, CoreReply::Scene { document, .. }) => {
@@ -706,7 +637,7 @@ fn saved_flipped_and_board_export_documents_validate_generator_jobs() {
 #[test]
 fn applying_synthetic_matrix_wiring_writes_the_declared_column_terminal_net() {
     let mut doc = ProjectDoc::empty("synthetic-wiring", "Synthetic wiring");
-    doc.format_version = migrate::CURRENT_VERSION;
+    doc.format_version = document_format::CURRENT_VERSION;
     doc.definitions.push(catalogue_definition(MCU));
     let mut switch: PartDefinition = serde_json::from_value(json!({
         "id": "synthetic/switch", "name": "Synthetic switch", "kind": "switch",
@@ -742,10 +673,7 @@ fn applying_synthetic_matrix_wiring_writes_the_declared_column_terminal_net() {
     );
 
     let mut engine = CoreEngine::new();
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }) else {
+    let CoreReply::Scene { document, .. } = engine.handle(fixture::open(doc)) else {
         panic!("synthetic project opens");
     };
     let plan = boardstudio_core::electrical::resolve(

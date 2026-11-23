@@ -1,4 +1,31 @@
-use boardstudio_model::model::Vec2;
+use boardstudio_model::matrix::splay::rotate;
+use boardstudio_model::model::{Contour, Pose2, Vec2};
+
+/// Bounds of the visible key rectangles and board contours in a 2D design view.
+pub fn key_and_contour_bounds(
+    keys: impl IntoIterator<Item = (Pose2, Vec2)>,
+    contours: &[Contour],
+) -> Option<(f64, f64, f64, f64)> {
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut include = |x: f64, y: f64| {
+        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+        }));
+    };
+    for (pose, size) in keys {
+        let (x, y) = (size.x / 2.0, size.y / 2.0);
+        for (x, y) in [(-x, -y), (-x, y), (x, -y), (x, y)] {
+            let corner = rotate(Vec2 { x, y }, pose.rotation, Vec2::default());
+            include(pose.at.x + corner.x, pose.at.y + corner.y);
+        }
+    }
+    for contour in contours {
+        for point in &contour.points {
+            include(point.x, point.y);
+        }
+    }
+    bounds
+}
 
 /// 2D canvas zoom limits shared by wheel and Zoom buttons. These are the pinned
 /// TypeScript Workbench limits (`Math.min(4, Math.max(0.25, ...))`).

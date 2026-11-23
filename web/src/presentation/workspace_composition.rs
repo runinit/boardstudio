@@ -1,8 +1,10 @@
 //! Private routing for the six independently owned workspace surfaces.
-use super::objects;
-use boardstudio_application::Scope;
-use dioxus::prelude::*;
+use super::workbench::editor_session::commands::camera_commands;
+use super::workbench::editor_session::{camera, keyboard};
+use super::*;
+use boardstudio_web_ui_model::editor::EditorContext;
 
+#[derive(Clone)]
 pub(super) struct SharedObjectsInput {
     pub(super) selected_context: Signal<Option<objects::ScopedTreeContext>>,
     pub(super) on_select: EventHandler<objects::TreeSelectRequest>,
@@ -11,26 +13,7 @@ pub(super) struct SharedObjectsInput {
     pub(super) board_setup: objects::BoardSetupMount,
 }
 
-pub(super) enum WorkspaceObjectsInput<'a> {
-    Layout(Box<super::layout_workspace::ObjectsInput>),
-    Pcb(Box<super::pcb_workspace::ObjectsInput>),
-    Keymap(super::keymap_workspace::NavigationInput),
-    Keycaps(super::keycaps_workspace::NavigationInput),
-    Case(Box<super::case_workspace::ObjectsInput<'a>>),
-    Parts(super::parts_workspace::ObjectsInput),
-}
-
-pub(super) enum WorkspaceToolbarInput {
-    Layout(Box<super::layout_workspace::ToolbarInput>),
-    Pcb(Box<super::pcb_workspace::ToolbarInput>),
-    Keymap(super::shared_viewer::DesignViewToolbarProps),
-    Keycaps(super::shared_viewer::DesignViewToolbarProps),
-    Case,
-    Parts,
-    Export,
-    Other,
-}
-
+#[derive(Clone)]
 pub(super) struct CanvasEventHandlers {
     pub(super) mount: EventHandler<MountedEvent>,
     pub(super) start_pan: EventHandler<PointerEvent>,
@@ -42,97 +25,288 @@ pub(super) struct CanvasEventHandlers {
     pub(super) wheel: EventHandler<WheelEvent>,
 }
 
-pub(super) struct PlaceholderInput {
-    pub(super) workspace: Signal<&'static str>,
-    pub(super) name: &'static str,
-    pub(super) message: &'static str,
+// The editor owns the frame and the resources that survive workspace changes.
+// The active workspace supplies its surfaces under the existing dock and canvas shells.
+#[derive(Clone)]
+pub(super) struct WorkspaceInteraction {
+    pub navigation: CanvasNavigationState,
+    pub arbiter: CanvasInteractionArbiter,
+    pub tree_cell_anchor: Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    pub inspector_settings: Signal<PanelSettings>,
 }
 
-pub(super) enum WorkspaceCanvasInput {
-    Pcb(Box<super::pcb_workspace::CanvasInput>),
-    Keymap(Box<super::keymap_workspace::CanvasInput>),
-    Keycaps(Box<super::keycaps_workspace::CanvasInput>),
-    Case(Box<super::case_workspace::CanvasInput>),
-    Parts(super::parts_workspace::CanvasInput),
-    Other(PlaceholderInput),
+pub(super) struct WorkspaceFrame {
+    pub scope: Scope,
+    pub snapshot: AcceptedSnapshot,
+    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+    pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
+    pub model: Rc<ReadModel>,
+    pub visible_positions: Option<(f64, f64, f64, f64)>,
+    pub owner: LayoutOwnerIdentity,
+    pub objects: SharedObjectsInput,
+    pub handlers: CanvasEventHandlers,
+    pub svg: Rc<RefCell<Option<SvgElement>>>,
+    pub surface_size: Signal<(f64, f64)>,
+
+    pub matrix_setup: objects::MatrixSetupMount,
+    pub part_placement: part_placement::PartPlacementMount,
+    pub placement_error: Option<String>,
+    pub layout_target: Signal<Option<String>>,
+    pub parts_query: parts::PartsQuery,
+    pub browse_parts: EventHandler<()>,
+    pub select_module: EventHandler<String>,
+    pub show_position_inspector: bool,
+    pub camera: camera::SceneBounds,
+    pub status: StatusFooter,
+    pub case: Option<case_workspace::CaseFrame>,
+    pub parts: Option<parts_workspace::PartsFrame>,
+    pub layout: Option<layout_workspace::LayoutFrame>,
 }
 
-pub(super) enum WorkspaceInspectorInput {
-    Layout(Box<super::layout_workspace::InspectorInput>),
-    Pcb(Option<Box<super::pcb_wiring::PcbWiringInspectorProps>>),
-    PcbModule(Box<super::pcb_module_inspector::InspectorInput>),
-    Keymap(Box<super::keymap_workspace::InspectorInput>),
-    Keycaps(Box<super::keycaps_workspace::InspectorInput>),
-    Case(Box<super::case_workspace::InspectorInput>),
-    Parts(Box<super::parts_workspace::InspectorInput>),
-}
+#[derive(Clone)]
+pub(super) struct Frame(Rc<WorkspaceFrame>);
 
-pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
-    match input {
-        WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(*input),
-        WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(*input),
-        WorkspaceObjectsInput::Keymap(input) => super::keymap_workspace::objects(input),
-        WorkspaceObjectsInput::Keycaps(input) => super::keycaps_workspace::objects(input),
-        WorkspaceObjectsInput::Case(input) => super::case_workspace::objects(*input),
-        WorkspaceObjectsInput::Parts(input) => super::parts_workspace::objects(input),
+impl Frame {
+    pub(super) fn new(frame: WorkspaceFrame) -> Self {
+        Self(Rc::new(frame))
     }
 }
 
-pub(super) fn toolbar(input: WorkspaceToolbarInput) -> Element {
-    match input {
-        WorkspaceToolbarInput::Layout(input) => super::layout_workspace::toolbar(*input),
-        WorkspaceToolbarInput::Pcb(input) => super::pcb_workspace::toolbar(*input),
-        WorkspaceToolbarInput::Keymap(input) => super::keymap_workspace::toolbar(input),
-        WorkspaceToolbarInput::Keycaps(input) => super::keycaps_workspace::toolbar(input),
-        WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
-        WorkspaceToolbarInput::Parts => super::parts_workspace::toolbar(),
-        WorkspaceToolbarInput::Export | WorkspaceToolbarInput::Other => rsx! {},
+impl PartialEq for Frame {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
     }
 }
 
-/// Layout's pointer-transaction SVG stays inline with its existing Editor-owned
-/// handlers. Other workspaces mount their current content here.
-pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
-    match input {
-        WorkspaceCanvasInput::Pcb(input) => super::pcb_workspace::canvas(*input),
-        WorkspaceCanvasInput::Keymap(input) => super::keymap_workspace::canvas(*input),
-        WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(*input),
-        WorkspaceCanvasInput::Case(input) => super::case_workspace::canvas(*input),
-        WorkspaceCanvasInput::Parts(input) => super::parts_workspace::preview(input),
-        WorkspaceCanvasInput::Other(input) => super::parts_workspace::canvas(input),
+#[component]
+pub(super) fn RoutedWorkspace(workspace: Workspace, frame: ReadSignal<Frame>) -> Element {
+    use_context_provider(|| frame);
+    match workspace {
+        Workspace::Case => rsx! { case_workspace::CaseWorkspace {} },
+        Workspace::Parts => rsx! { parts_workspace::PartsWorkspace {} },
+        Workspace::Layout => rsx! { layout_workspace::LayoutWorkspace {} },
+        Workspace::Pcb => rsx! { pcb_workspace::PcbWorkspace {} },
+        Workspace::Keymap => rsx! { keymap_workspace::KeymapWorkspace {} },
+        Workspace::Keycaps => rsx! { keycaps_workspace::KeycapsWorkspace {} },
+        _ => rsx! {},
     }
 }
 
-pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
-    match input {
-        WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(*input),
-        WorkspaceInspectorInput::Pcb(Some(input)) => rsx! {
-            super::pcb_workspace::PcbInspector { selected: input.source.active_part_id.is_some(),
-            super::pcb_wiring::PcbWiringInspector {
-                board_overview: true,
-                source: input.source,
-                resolution: input.resolution,
-                firmware_positions: input.firmware_positions,
-                firmware_feedback: input.firmware_feedback,
-                firmware_controls: input.firmware_controls,
-                part_net_actions: input.part_net_actions,
-                part_input_actions: input.part_input_actions,
-                on_firmware_edit: input.on_firmware_edit,
-                on_resolve: input.on_resolve,
-                on_choose_controller: input.on_choose_controller,
-                on_edit_board_wiring: input.on_edit_board_wiring,
-                mode_actions: input.mode_actions,
-                pin_actions: input.pin_actions,
-                apply_actions: input.apply_actions,
-                protected_remap_actions: input.protected_remap_actions,
+pub(super) fn use_frame() -> Rc<WorkspaceFrame> {
+    use_context::<ReadSignal<Frame>>().read().0.clone()
+}
+
+#[derive(Clone, PartialEq)]
+pub(super) struct WorkspaceSurfaces {
+    pub objects: Element,
+    pub inspector: Element,
+    pub toolbar: Element,
+    pub canvas: Element,
+    pub status: Element,
+    pub layers: Element,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct WorkspaceOutputs(pub Signal<Option<(Workspace, WorkspaceSurfaces)>>);
+
+pub(super) fn publish_surfaces(
+    mut outputs: WorkspaceOutputs,
+    workspace: Workspace,
+    surfaces: WorkspaceSurfaces,
+) {
+    // Only the outlets read this signal. The active workspace publishes before the
+    // frame renders its outlets, and can update them independently when its hooks change.
+    outputs.0.set(Some((workspace, surfaces)));
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum Surface {
+    Objects,
+    Inspector,
+    Toolbar,
+    Canvas,
+    Status,
+    Layers,
+}
+
+#[component]
+pub(super) fn WorkspaceOutlet(workspace: Workspace, surface: Surface) -> Element {
+    let outputs = use_context::<WorkspaceOutputs>();
+    let surfaces = outputs.0.read();
+    let Some((_, surfaces)) = surfaces.as_ref().filter(|(active, _)| *active == workspace) else {
+        return rsx! {};
+    };
+    match surface {
+        Surface::Objects => surfaces.objects.clone(),
+        Surface::Inspector => surfaces.inspector.clone(),
+        Surface::Toolbar => surfaces.toolbar.clone(),
+        Surface::Canvas => surfaces.canvas.clone(),
+        Surface::Status => surfaces.status.clone(),
+        Surface::Layers => surfaces.layers.clone(),
+    }
+}
+
+pub(super) fn toggle_footprints(layers: LayerVisibility) -> EventHandler<()> {
+    let mut footprints = layers.footprints;
+    EventHandler::new(move |()| footprints.set(!footprints()))
+}
+
+pub(super) fn design_toolbar(
+    frame: &WorkspaceFrame,
+    editor: EditorContext,
+    adapter: &SelectionAdapter,
+    detail: &str,
+    contextual_tools: Element,
+) -> Element {
+    let assembly = frame.status.layout.assembly_3d();
+    let layers = editor.layers;
+    rsx! {
+        boardstudio_web_ui_shared::design_view_toolbar::DesignViewToolbar {
+            contextual_tools: Some(contextual_tools),
+            workspace: frame.owner.workspace,
+            detail: detail.to_owned(),
+            assembly_3d: assembly(),
+            footprints_visible: (layers.footprints)() && !(layers.hidden)().contains("Footprints"),
+            on_view_mode: design_consumer_view_mode_handler(editor.runtime(), editor.workspace, adapter.clone(), frame.owner.clone(), assembly),
+            on_toggle_footprints: toggle_footprints(layers),
+        }
+    }
+}
+
+impl WorkspaceFrame {
+    pub(super) fn use_design_canvas(
+        &self,
+        editor: EditorContext,
+        adapter: &SelectionAdapter,
+        model: &ReadModel,
+        workspace_bounds: Option<(f64, f64, f64, f64)>,
+        selection_bounds: Option<(f64, f64, f64, f64)>,
+    ) -> (String, CanvasEventHandlers, Element) {
+        let workspace = self.owner.workspace;
+        let assembly = self.status.layout.assembly_3d();
+        let bounds = camera::use_scene_bounds(camera::SceneBoundsInput {
+            model,
+            snapshot: &self.snapshot,
+            document: self.document.clone(),
+            scene: self.scene.clone(),
+            render_scope: self.scope.clone(),
+            active_workspace: workspace,
+            workspace_bounds,
+            visible_positions: self.visible_positions,
+            layout_assembly_3d: assembly,
+            svg: self.svg.clone(),
+            zoom_surface_size: self.surface_size,
+        });
+        let footer = camera::footer_bounds(camera::FooterBoundsInput {
+            min_x: bounds.min_x,
+            max_x: bounds.max_x,
+            min_y: bounds.min_y,
+            max_y: bounds.max_y,
+            workspace_rect_bounds: bounds.workspace_rect_bounds,
+            displayed_layout_bounds: bounds.displayed_layout_bounds,
+            active_workspace: workspace,
+            selection_bounds,
+            document: self.document.clone(),
+            scene: self.scene.clone(),
+            board_id: self.scope.board_id.clone(),
+            model,
+        });
+        let actions = camera::camera_actions(
+            editor,
+            adapter,
+            &self.owner,
+            &self.scope,
+            &self.snapshot,
+            &self.svg,
+            &footer,
+            &bounds,
+            &model.selected_part_ids,
+        );
+        boardstudio_web_ui_shared::ui::command::use_commands(if assembly() {
+            Vec::new()
+        } else {
+            camera_commands(actions).collect()
+        });
+        let status = if assembly() {
+            self.status.summary(model.camera.zoom)
+        } else {
+            self.status.controls(
+                false,
+                footer.footer_selection_available,
+                bounds.zoom_percent,
+                model,
+                actions,
+            )
+        };
+        let handlers = CanvasEventHandlers {
+            wheel: EventHandler::new(keyboard::build_wheel(
+                editor,
+                adapter,
+                &self.scope,
+                self.owner.generation,
+                &self.svg,
+                &bounds,
+            )),
+            ..self.handlers.clone()
+        };
+        (bounds.view_box, handlers, status)
+    }
+
+    pub(super) fn design_canvas(
+        &self,
+        keycaps_fit: Option<keycaps_fit::KeycapsFitState>,
+        canvas: Element,
+    ) -> Element {
+        if (self.status.layout.assembly_3d())() {
+            rsx! { layout_viewer::LayoutCanonicalViewer { keycaps_fit } }
+        } else {
+            canvas
+        }
+    }
+}
+
+pub(super) struct StatusFooter {
+    pub count: usize,
+    pub toggle_findings: Callback<()>,
+    pub layout: layout_workspace::LayoutWorkspaceState,
+    pub part_position: Option<Vec2>,
+}
+
+impl StatusFooter {
+    pub(super) fn controls(
+        &self,
+        snap_menu_available: bool,
+        selection_available: bool,
+        zoom_percent: f64,
+        model: &ReadModel,
+        actions: camera::CameraActions,
+    ) -> Element {
+        rsx! {
+            canvas_status_footer::CanvasStatusFooter {
+                snap_settings: self.layout.snap_settings().read().clone(),
+                active_part_position: self.part_position,
+                snap_menu_available,
+                open_menu: self.layout.command_menu(),
+                board_available: true,
+                selection_available,
+                zoom_percent,
+                findings_count: Some(self.count),
+                on_toggle_findings: self.toggle_findings,
+                on_fit_board: actions.fit_board,
+                on_fit_selection: actions.fit_selection,
+                on_zoom_out: actions.zoom_out,
+                on_zoom_in: actions.zoom_in,
             }
+            if let Some(guide) = model.snap_guide.as_ref() {
+                span { class: "ml-auto max-w-[min(35vw,340px)] truncate", role: "status", "{guide.label}" }
             }
-        },
-        WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),
-        WorkspaceInspectorInput::PcbModule(input) => super::pcb_module_inspector::inspector(*input),
-        WorkspaceInspectorInput::Keymap(input) => super::keymap_workspace::inspector(*input),
-        WorkspaceInspectorInput::Keycaps(input) => super::keycaps_workspace::inspector(*input),
-        WorkspaceInspectorInput::Case(input) => super::case_workspace::inspector(*input),
-        WorkspaceInspectorInput::Parts(input) => super::parts_workspace::inspector(*input),
+        }
+    }
+
+    pub(super) fn summary(&self, zoom: f64) -> Element {
+        rsx! {
+            span { "{zoom * 100.0:.0}%" }
+            canvas_status_footer::FindingsButton { count: self.count, on_toggle: self.toggle_findings }
+        }
     }
 }

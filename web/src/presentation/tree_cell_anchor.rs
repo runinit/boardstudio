@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 #[derive(Clone)]
 pub(crate) struct OwnedTreeCellAnchor {
@@ -23,7 +24,7 @@ pub(crate) fn update_tree_cell_anchor(
     model: &boardstudio_application::ReadModel,
     context: Option<&objects::TreeContext>,
 ) {
-    if owner.workspace != "Layout" && owner.workspace != "PCB" {
+    if owner.workspace != Workspace::Layout && owner.workspace != Workspace::Pcb {
         anchor.borrow_mut().take();
         return;
     }

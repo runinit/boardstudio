@@ -1,17 +1,42 @@
 //! Accepted board-level mode edits for PCB wiring.
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::{
-    pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
-    runtime::Runtime,
-};
+use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core_mechanical::electrical::ElectricalMode;
+use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::EditOperation;
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
+use boardstudio_web_ui_model::Workspace;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use dioxus::prelude::*;
-use std::rc::Rc;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardWiringModeIdentity {
+    /// Selection-independent accepted board-plan identity.
+    pub plan: WiringPlanIdentity,
+    /// Selection and UI-scope identity of the rendered control.
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
+
+impl BoardWiringModeIdentity {
+    pub fn feedback_target(&self) -> BoardWiringModeFeedbackTarget {
+        BoardWiringModeFeedbackTarget {
+            ui_scope: self.ui_scope.clone(),
+            selected_part_id: self.selected_part_id.clone(),
+            scope_generation: self.scope_generation,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardWiringModeFeedbackTarget {
+    pub ui_scope: Scope,
+    pub selected_part_id: Option<String>,
+    pub scope_generation: u64,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeEditRequest {
@@ -19,7 +44,7 @@ pub struct BoardWiringModeEditRequest {
     pub mode: ElectricalMode,
 }
 
-/// The accepted or pending mode written as the mode control's `value` text.
+/// The label used in the wiring panel header.
 pub(crate) fn mode_text(mode: ElectricalMode) -> String {
     match mode {
         ElectricalMode::Matrix => "matrix".to_owned(),
@@ -56,147 +81,56 @@ pub(crate) struct BoardWiringFailure {
 pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    /// The value the mode control shows: the submitted choice while its edit is pending,
-    /// otherwise the accepted mode. The helper restores it on settlement and a newer
-    /// choice is never overwritten by an older outcome.
-    pub(crate) draft: Signal<String>,
-    /// The current target's latest observation is still pending.
-    pub(crate) pending: bool,
-    /// The current target's inline failure; landing and retirement are silent.
-    pub(crate) failure: Signal<Option<String>>,
+    pub(crate) mode: ElectricalMode,
+    pub(crate) failure: Option<String>,
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
+#[cfg(target_arch = "wasm32")]
 pub fn use_board_wiring_mode_edits(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-    workspace: Signal<&'static str>,
-    scope_generation: Signal<u64>,
-    instance_is_current: Rc<dyn Fn() -> bool>,
+    guard: EditGuard,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    // A rendered owner has one field binding. Departing drops only its observation;
-    // its edit remains in the Session queue and can still land normally.
-    let edits = use_hook(DraftEdits::<BoardWiringModeFeedbackTarget>::default);
-    let mut draft = use_signal(String::new);
-    let mut failure = use_signal(|| None::<String>);
-    let mut bound = use_signal(|| None::<BoardWiringModeFeedbackTarget>);
-    let settlement_tick = use_signal(|| 0u64);
-    let _ = settlement_tick();
-    let identity = source.as_ref().map(mode_identity);
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let accepted_snapshot = runtime.model().accepted;
-    let accepted = identity.as_ref().map_or_else(
-        || mode_text(ElectricalMode::Matrix),
-        |identity| {
-            accepted_snapshot.as_ref().map_or_else(
-                || mode_text(ElectricalMode::Matrix),
-                |snapshot| mode_text(board_mode(&snapshot.document, &identity.ui_scope.board_id)),
-            )
-        },
-    );
-    if bound.peek().as_ref() != target.as_ref() {
-        // Feedback targets exclude accepted revision/token, so ordinary landing does
-        // not replace this helper; only selection or scope ownership does.
-        edits.clear();
-        bound.set(target.clone());
-        failure.set(None);
-        draft.set(accepted.clone());
-    }
-    let pending = target
-        .as_ref()
-        .is_some_and(|target| edits.is_pending(target));
-    if !pending && draft.peek().as_str() != accepted {
-        draft.set(accepted);
-    }
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let runtime = runtime.clone();
-        let edits = edits.clone();
-        let mut settlement_tick = settlement_tick;
-        move |_| {
-            // The helper owns panel-lifetime gating; each ticket retires itself when its
-            // captured Scope moves on. The mode control therefore only answers for the
-            // workspace it belongs to.
-            let panel_is_live = workspace() == "PCB";
-            let results = edits.settle(panel_is_live, |target| {
-                let model = runtime.model();
-                model.accepted.as_ref().map_or_else(
-                    || mode_text(ElectricalMode::Matrix),
-                    |snapshot| mode_text(board_mode(&snapshot.document, &target.ui_scope.board_id)),
-                )
-            });
-            if !results.is_empty() {
-                settlement_tick.set(settlement_tick().wrapping_add(1));
-            }
-        }
-    }));
-    let on_change = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        let edits = edits.clone();
-        let mut draft = draft;
-        let mut failure = failure;
-        move |request: BoardWiringModeEditRequest| {
-            let Some(_snapshot) = current_edit_snapshot(
-                &runtime,
+    let failure = use_signal(|| None::<BoardWiringFailure>);
+    let mode = source.as_ref().map_or(ElectricalMode::Matrix, |source| {
+        board_mode(&source.document, &source.ui_scope.board_id)
+    });
+    let mut feedback = failure;
+    let on_change = use_guarded_edit(
+        guard,
+        move |runtime, request: BoardWiringModeEditRequest| {
+            let Some((_snapshot, _plan)) = current_wiring_edit(
+                runtime,
                 &request.identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
+                (guard.editor.scope_generation)(),
+                &resolution.read(),
             ) else {
                 return;
             };
-            let PcbWiringResolution::Current {
-                identity,
-                plan: _plan,
-            } = &*resolution.read()
-            else {
-                return;
-            };
-            if identity != &request.identity.plan {
-                return;
-            };
-            // Submit the exact text the user chose; the control keeps it while pending.
-            let text = mode_text(request.mode);
-            draft.set(text.clone());
-            failure.set(None);
-            edits.submit(
-                &runtime,
-                request.identity.feedback_target(),
-                "pcb-wiring-mode",
-                Some("wiring mode".into()),
-                mode_resolver(request),
-                FieldView::new(draft, failure).submitted(text),
+            let target = request.identity.feedback_target();
+            let result = runtime.commit("pcb-wiring-mode", mode_resolver(request));
+            feedback.set(
+                result
+                    .err()
+                    .map(|message| BoardWiringFailure { target, message }),
             );
-        }
-    });
+        },
+    );
     let identity = source.as_ref().map(mode_identity);
-    let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
-        && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let editable = wiring_editable(guard, identity.as_ref(), resolution);
+    let target = identity
+        .as_ref()
+        .map(BoardWiringModeIdentity::feedback_target);
+    let failure = failure()
+        .filter(|failure| Some(&failure.target) == target.as_ref())
+        .map(|failure| failure.message);
     BoardWiringModeActions {
         identity,
         editable,
-        draft,
-        pending,
+        mode,
         failure,
         on_change,
-    }
-}
-
-#[cfg(test)]
-mod board_mode_tests {
-    use super::*;
-
-    #[test]
-    fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
-        let document = boardstudio_model::model::ProjectDoc::empty("project", "Mode text");
-        assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
-        assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
-        assert_eq!(mode_text(ElectricalMode::Direct), "direct");
     }
 }
 
@@ -244,151 +178,106 @@ pub fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
     }
 }
 
-pub fn current_snapshot(
+pub(super) fn pcb_source(
     runtime: &Runtime,
-    identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-) -> Option<boardstudio_application::AcceptedSnapshot> {
-    current_snapshot_probe(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-    )
-    .ok()
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CurrentSnapshotBlocker {
-    Workspace,
-    InstanceSelection,
-    MissingAcceptedSnapshot,
-    Lifecycle,
-    Preview,
-    Gesture,
-    Durability,
-    ActiveBoard,
-    ActiveInstance,
-    SessionEpoch,
-    DocumentId,
-    ActionContext,
-    BoardMissing,
-}
-
-/// Private diagnostic seam used by the mounted owner regression probe. Production admission
-/// uses this same predicate and discards the reason; no runtime state or debug API is exposed.
-pub fn current_snapshot_probe(
-    runtime: &Runtime,
-    identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
-    snapshot_probe(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-        false,
-    )
+    generation: u64,
+) -> Option<(AcceptedSnapshot, PcbWiringSource)> {
+    let model = runtime.model();
+    let snapshot = model.accepted?;
+    let scope = runtime.scope()?;
+    if model.lifecycle != Lifecycle::Ready
+        || model.gesture.is_some()
+        || model.display_preview.is_some()
+        || model.active_board_id != scope.board_id
+        || model.active_instance_id != scope.instance_id
+        || !matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
+    {
+        return None;
+    }
+    let board_scope = Scope {
+        instance_id: None,
+        ..scope.clone()
+    };
+    let source = PcbWiringSource::new(
+        &snapshot,
+        &board_scope,
+        &scope,
+        model.selected_part_ids.first().map(String::as_str),
+        generation,
+    )?;
+    Some((snapshot, source))
 }
 
 pub(super) fn current_edit_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
-    workspace: &str,
+    workspace: Workspace,
     scope_generation: u64,
     instance_is_current: bool,
-) -> Option<boardstudio_application::AcceptedSnapshot> {
-    snapshot_probe(
-        runtime,
-        identity,
-        workspace,
-        scope_generation,
-        instance_is_current,
-        true,
-    )
-    .ok()
+) -> Option<AcceptedSnapshot> {
+    if workspace != Workspace::Pcb || !instance_is_current {
+        return None;
+    }
+    matching_mode_snapshot(runtime, identity, scope_generation)
 }
 
-fn snapshot_probe(
+fn matching_mode_snapshot(
     runtime: &Runtime,
     identity: &BoardWiringModeIdentity,
-    workspace: &str,
-    scope_generation: u64,
-    instance_is_current: bool,
-    queued: bool,
-) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
-    if workspace != "PCB" {
-        return Err(CurrentSnapshotBlocker::Workspace);
+    generation: u64,
+) -> Option<AcceptedSnapshot> {
+    let (snapshot, source) = pcb_source(runtime, generation)?;
+    (*identity == mode_identity(&source)).then_some(snapshot)
+}
+
+pub(super) fn current_wiring_edit<'a>(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    generation: u64,
+    resolution: &'a PcbWiringResolution,
+) -> Option<(AcceptedSnapshot, &'a ElectricalPlan)> {
+    let snapshot = matching_mode_snapshot(runtime, identity, generation)?;
+    match resolution {
+        PcbWiringResolution::Current {
+            identity: current,
+            plan,
+        } if current == &identity.plan => Some((snapshot, plan)),
+        _ => None,
     }
-    if !instance_is_current {
-        return Err(CurrentSnapshotBlocker::InstanceSelection);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) fn wiring_editable(
+    guard: EditGuard,
+    identity: Option<&BoardWiringModeIdentity>,
+    resolution: Signal<PcbWiringResolution>,
+) -> bool {
+    identity.is_some_and(|identity| {
+        let runtime = guard.editor.runtime();
+        guard.workspace_is_current()
+            && guard.instance_is_current(&runtime)
+            && current_wiring_edit(
+                &runtime,
+                identity,
+                (guard.editor.scope_generation)(),
+                &resolution.read(),
+            )
+            .is_some()
+    })
+}
+
+#[cfg(test)]
+mod board_mode_tests {
+    use super::*;
+
+    #[test]
+    fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
+        let document = boardstudio_model::model::ProjectDoc::empty("project", "Mode text");
+        assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
+        assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
+        assert_eq!(mode_text(ElectricalMode::Direct), "direct");
     }
-    let model = runtime.model();
-    let snapshot = model
-        .accepted
-        .ok_or(CurrentSnapshotBlocker::MissingAcceptedSnapshot)?;
-    let current_scope = runtime.scope();
-    let current_plan = WiringPlanIdentity {
-        scope: Scope {
-            instance_id: None,
-            ..identity.ui_scope.clone()
-        },
-        token: snapshot.token,
-        revision: snapshot.document.revision,
-        executor_epoch: runtime.electrical_preview_executor_epoch(),
-    };
-    if !(model.lifecycle == Lifecycle::Ready
-        || queued && matches!(model.lifecycle, Lifecycle::Applying | Lifecycle::Saving))
-    {
-        return Err(CurrentSnapshotBlocker::Lifecycle);
-    }
-    if model.display_preview.is_some() {
-        return Err(CurrentSnapshotBlocker::Preview);
-    }
-    if model.gesture.is_some() {
-        return Err(CurrentSnapshotBlocker::Gesture);
-    }
-    if !(model.durability
-        == (Durability::Saved {
-            revision: snapshot.document.revision,
-        })
-        || queued && matches!(model.durability, Durability::Saving { .. }))
-    {
-        return Err(CurrentSnapshotBlocker::Durability);
-    }
-    if model.active_board_id != identity.ui_scope.board_id {
-        return Err(CurrentSnapshotBlocker::ActiveBoard);
-    }
-    if model.active_instance_id != identity.ui_scope.instance_id {
-        return Err(CurrentSnapshotBlocker::ActiveInstance);
-    }
-    if snapshot.session_epoch != identity.ui_scope.session_epoch {
-        return Err(CurrentSnapshotBlocker::SessionEpoch);
-    }
-    if snapshot.document.id != identity.ui_scope.document_id {
-        return Err(CurrentSnapshotBlocker::DocumentId);
-    }
-    if !identity.matches_action_context(
-        &current_plan,
-        current_scope.as_ref(),
-        model.selected_part_ids.first().map(String::as_str),
-        scope_generation,
-    ) {
-        return Err(CurrentSnapshotBlocker::ActionContext);
-    }
-    if !snapshot
-        .document
-        .boards
-        .iter()
-        .any(|board| board.id == identity.plan.scope.board_id)
-    {
-        return Err(CurrentSnapshotBlocker::BoardMissing);
-    }
-    Ok(snapshot)
 }

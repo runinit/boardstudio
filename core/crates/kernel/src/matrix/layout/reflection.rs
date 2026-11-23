@@ -1,6 +1,6 @@
 //! Reflection of companions and the pair sync/resolve pass.
 
-use super::{axis_mapping, companion_mode, pair_gap, partner, sync_components, validate};
+use super::{axis_mapping, companion_mode, pair_gap, partner, validate};
 use crate::{matrix, model::*};
 use boardstudio_model::mechanical::pair;
 use std::collections::BTreeMap;
@@ -502,7 +502,6 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
         sync(doc, &source)?;
     }
     refresh_existing(doc)?;
-    sync_components(doc)?;
     Ok(())
 }
 
@@ -593,37 +592,6 @@ pub fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
         == Some(MirroredExceptionState::Omitted)
 }
 
-/// Ticket 12: the pair a layout belongs to: the source layout id, the link
-/// carrier (mirror layout) id, whether `layout_id` is the source side, and
-/// whether the pair stores a Split gap. `None` for unlinked layouts.
-pub(super) fn pair_sides(
-    doc: &ProjectDoc,
-    layout_id: &str,
-) -> Option<(String, String, bool, bool)> {
-    let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
-    if let Some(link) = layout.mirror_link.as_ref() {
-        return Some((
-            link.source_id.clone(),
-            layout.id.clone(),
-            false,
-            link.split_gap.or(link.spacing).is_some(),
-        ));
-    }
-    let carrier = doc.layouts.iter().find(|other| {
-        other
-            .mirror_link
-            .as_ref()
-            .is_some_and(|link| link.source_id == layout_id)
-    })?;
-    let link = carrier.mirror_link.as_ref()?;
-    Some((
-        layout_id.to_string(),
-        carrier.id.clone(),
-        true,
-        link.split_gap.or(link.spacing).is_some(),
-    ))
-}
-
 /// Ticket 12: the Part correspondence naming `part_id` on a same-board
 /// mirror link, with the carrier layout id. Either copy carries the link: the
 /// correspondence is the shared record while both copies exist; its absence
@@ -651,31 +619,6 @@ pub fn part_correspondence(
 
 /// Whether `definition_id` names a controller: controllers keep the plain
 /// reflected heading so both halves share the world rotation.
-pub(super) fn is_controller_definition(doc: &ProjectDoc, definition_id: &str) -> bool {
-    doc.definitions
-        .iter()
-        .any(|definition| definition.id == definition_id && definition.kind == PartKind::Controller)
-}
-
-/// Ticket 12: reflect a half-frame part pose across the split axis. Stored x
-/// negates (both halves' frames grow from the axis); the heading follows the
-/// shared mirrored-part rule. An involution: reflecting twice restores the pose.
-pub fn reflect_half_part(doc: &ProjectDoc, part_id: &str, pose: Pose2) -> Pose2 {
-    let is_controller = doc
-        .parts
-        .iter()
-        .find(|part| part.id == part_id)
-        .map(|part| is_controller_definition(doc, &part.definition_id))
-        .unwrap_or(false);
-    Pose2 {
-        at: Vec2 {
-            x: -pose.at.x,
-            y: pose.at.y,
-        },
-        rotation: pair::mirrored_part_heading(is_controller, axis_mapping(0.0), pose.rotation),
-    }
-}
-
 /// Ticket 12: evaluation offset of a layout record: the split axis offset by
 /// half the current spacing on the record's side. `None` for unlinked layouts
 /// and legacy pairs without a stored gap. Neither record needs to be in the

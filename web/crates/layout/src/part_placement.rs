@@ -32,11 +32,9 @@ pub(crate) use owner::PlacementCapture;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) use plan::PlacementIntent;
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod hook_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod key_component_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod plan_tests;
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod test_support;

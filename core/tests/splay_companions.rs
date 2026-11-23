@@ -1,32 +1,15 @@
 //! A column splay turns every key in the column and carries its companions with it:
 //! a companion keeps its pose relative to its key (offset and turn), whether it
 //! follows the key or was authored. An explicit constraint keeps its own contract.
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn edit(
     engine: &mut CoreEngine,
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn matrix() -> Matrix {
@@ -38,45 +21,21 @@ fn matrix() -> Matrix {
         side: None,
     };
     let cell = |column: u32| MatrixCell {
-        shift: None,
-        bend: None,
-        deleted: false,
-        row: 0,
-        column,
-        enabled: true,
-        definition_id: None,
-        variant: None,
-        offset: None,
-        rotation: None,
         assemblies: vec![
             assembly("follow", 2.0, 5.0),
             assembly("authored", -3.0, 6.0),
             assembly("held", 1.0, -4.0),
         ],
-        assemblies_local: None,
+        ..fixture::cell(0, column)
     };
     Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: None,
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
         column_layout: vec![
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
             boardstudio_core::model::ColumnLayout::default(),
         ],
-        anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
+        ..fixture::matrix("m", 1, 3)
     }
 }
 
@@ -110,18 +69,8 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
     ]))
     .unwrap();
     let mut engine = CoreEngine::new();
-    let (_, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
-    let (_, mut doc) = edit(
-        &mut engine,
-        &doc,
-        EditOperation::SetMatrix {
-            matrix: matrix(),
-            definitions: None,
-        },
-    );
+    let (_, doc) = scene(engine.handle(fixture::open(doc)));
+    let (_, mut doc) = edit(&mut engine, &doc, fixture::set_matrix(matrix()));
     doc.constraints.push(Constraint::Offset {
         id: "held-key".into(),
         source_part_id: "matrix/m/r0c1".into(),

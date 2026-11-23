@@ -7,18 +7,15 @@ pub use boardstudio_model::electrical_jumpers;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
 mod keycaps;
-pub use boardstudio_core_kernel::migrate;
 use boardstudio_core_mechanical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
 use boardstudio_core_mechanical::modules;
-use boardstudio_core_mirrored_half::mirrored_half;
+use boardstudio_core_mirrored_half as mirrored_half;
+pub use boardstudio_model::document_format;
 pub use boardstudio_model::model;
+use std::sync::Arc;
 mod outline_validation;
 mod validate;
-
-#[cfg(feature = "test-support")]
-#[doc(hidden)]
-pub use validate::validate as validate_document_for_test;
 
 use boardstudio_core_kernel::{
     case, constraints, geometry, hardware, inputs, matrix, outline_controls, outline_versions,
@@ -47,9 +44,9 @@ mod edit_tests;
 mod preview;
 mod scene_reuse;
 
-pub use self::apply::{apply_for_test, apply_unscripted_for_test, apply_with_ledger_for_test};
 pub struct CoreEngine {
     document: ProjectDoc,
+    resolved: Arc<mirrored_half::ResolvedDoc>,
     undo: Vec<ProjectDoc>,
     redo: Vec<ProjectDoc>,
     contours: Vec<Contour>,
@@ -58,6 +55,7 @@ pub struct CoreEngine {
     /// Accepted projection when safe to reuse. Reply metadata is set per request.
     reusable_scene: Option<SceneDelta>,
     stagger_preview: Option<scene_reuse::StaggerPreview>,
+    move_preview: Option<dispatch::MovePreview>,
     #[cfg(test)]
     stagger_outline_projections: std::cell::Cell<usize>,
     #[cfg(test)]
@@ -83,7 +81,7 @@ impl CoreEngine {
                 } else {
                     None
                 };
-                candidate.map_or(Ok(()), migrate::require_current_value)
+                candidate.map_or(Ok(()), document_format::require_current_value)
             });
         if let Err(message) = preflight {
             return boardstudio_model::wire::encode_core_reply(&CoreReply::Error {
@@ -123,9 +121,15 @@ impl Default for CoreEngine {
 }
 
 impl CoreEngine {
+    fn refresh_resolved(&mut self) {
+        self.resolved = Arc::new(mirrored_half::project_document(&self.document));
+    }
+
     pub fn new() -> Self {
+        let document = ProjectDoc::empty("untitled", "Untitled");
         Self {
-            document: ProjectDoc::empty("untitled", "Untitled"),
+            resolved: Arc::new(mirrored_half::project_document(&document)),
+            document,
             undo: vec![],
             redo: vec![],
             contours: vec![],
@@ -133,6 +137,7 @@ impl CoreEngine {
             outline_cache: OutlineCache::default(),
             reusable_scene: None,
             stagger_preview: None,
+            move_preview: None,
             #[cfg(test)]
             stagger_outline_projections: std::cell::Cell::default(),
             #[cfg(test)]
@@ -143,3 +148,5 @@ impl CoreEngine {
         }
     }
 }
+
+pub use boardstudio_core_mirrored_half::{ResolvedDoc, project_document};

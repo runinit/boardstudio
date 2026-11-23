@@ -356,10 +356,10 @@ pub fn ModuleInspector(
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
-            super::PartsChoiceField {
+            super::SelectField::<String> {
                 label: "Variant", aria_label: "Module variant", value: definition.id.clone(),
                 options: variants.iter().map(|variant| (variant.definition.id.clone(), variant.definition.variant.clone())).collect(),
-                on_value_change: move |value: String| {
+                on_commit: move |value: String| {
                     selected.set(Some((variant_scope.clone(), format!("module:{value}"))));
                     selection_generation.with_mut(|value| *value = value.wrapping_add(1));
                     preview_activation.with_mut(|value| *value = value.wrapping_add(1));

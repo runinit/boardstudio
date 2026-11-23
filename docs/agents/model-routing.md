@@ -8,10 +8,10 @@ The user's direct requests take precedence over these defaults. Select from the 
 
 | Work | Preferred route |
 | --- | --- |
-| Deep architectural cutovers & complex multi-stage planning | Opus 5.5 (`medium`/`high`) via Claude or Sol 6.2 / Astra 6.2 (`high`) via Codex; Wonder (`high`/`max`) as user-approved fallback. |
-| Standard multi-file refactors & native test conversions | Sonnet 5.5 (`medium`) via Claude, Terra 6.1 (`medium`) via Codex/Pi, or Spark 1.3 Contributor (`medium`/`high`) via Muse/Pi. |
-| Mechanical cleanups, dead-code/vendor deletion & research collection | Terra 6.1 (`low`) via Codex/Pi, Sonnet 5.5 (`low`) via Claude, or Spark 1.3 Contributor (`low`) via Muse/Pi. |
-| High-risk architectural review | Opus 5.5 (`medium`/`high`) via Claude or Sol 6.2 (`high`) via Codex. |
+| Deep architectural cutovers & complex multi-stage planning | **Codex** Sol 6.2 (`medium`/`high`) first; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`/`high`) as implementation fallback if Codex usage runs out. |
+| Standard multi-file refactors & native test conversions | **Codex** Terra 6.1 (`medium`) or Sol 6.2 (`medium`) first; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `medium`) as implementation fallback if Codex usage runs out (or Spark 1.3 Contributor via Muse/Pi if enabled). |
+| Mechanical cleanups, dead-code/vendor deletion & research collection | **Codex** Terra 6.1 (`low`) first; **Antigravity** Hydrogen (`gemini-4-hydrogen`, `low`/`medium`) or Neon (`low`) as fallback. |
+| Read-only architectural, diff, and invariant reviews *(reviews only — reserve Claude here)* | **Claude** Opus 5.5 (`medium`/`high`) or Sonnet 5.5 (`medium`) for read-only reviews only; **Antigravity** Neon (`high`) for wave-end gate audits. |
 
 Collect research at low effort, then route synthesis according to its complexity. A long command alone does not justify an expensive model; route diagnosis by the complexity of the problem.
 

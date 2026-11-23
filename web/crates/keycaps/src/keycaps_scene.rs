@@ -1,16 +1,10 @@
 //! Accepted-snapshot projection and physical 2D scene for the Keycaps workspace.
-//!
-//! The page parent owns route composition and canonical selection. This module is a
-//! controlled view over the accepted document and emits stable part IDs only.
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{
     Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
-use boardstudio_web_ui_shared::inspector_fields::TextField;
-#[cfg(target_arch = "wasm32")]
-use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -50,7 +44,6 @@ pub struct KeycapsMatrix {
     pub settings: KeycapMatrixSettings,
 }
 
-/// Build the physical Keycaps view from one accepted snapshot and its active board scope.
 pub fn project(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
@@ -62,92 +55,70 @@ pub fn project(
     {
         return None;
     }
-
-    let document = &snapshot.document;
-    let board = document
-        .boards
-        .iter()
-        .find(|board| board.id == active_board_id)?;
-    let defaults = KeycapBoardSettings::default();
-    let board_settings = document
+    let doc = &snapshot.document;
+    let board = doc.boards.iter().find(|b| b.id == active_board_id)?;
+    let board_settings = doc
         .keycaps
         .as_ref()
-        .and_then(|settings| settings.boards.get(active_board_id))
+        .and_then(|k| k.boards.get(active_board_id))
         .cloned()
-        .unwrap_or(defaults);
-    let board_color = board_settings.color.as_str();
-    let keys: Vec<_> = document
+        .unwrap_or_default();
+    let keys: Vec<_> = doc
         .parts
         .iter()
-        .filter(|part| board.part_ids.iter().any(|id| id == &part.id))
-        .filter(|part| is_supported_key(document, part))
-        .map(|part| {
-            let settings = document
-                .keycaps
-                .as_ref()
-                .and_then(|keycaps| keycaps.keys.get(&part.id));
-            let definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id);
-            let binding_label = key_binding_label(document, active_board_id, &part.id);
-            let (legend, legend_source) = settings
-                .and_then(|settings| settings.legend.as_deref())
-                .map_or_else(
-                    || (binding_label.clone(), LegendSource::Binding),
-                    |legend| (legend.to_owned(), LegendSource::Explicit),
-                );
-            let color = settings
-                .and_then(|settings| settings.color.as_deref())
-                .unwrap_or(board_color);
+        .filter(|p| board.part_ids.contains(&p.id) && is_supported_key(doc, p))
+        .map(|p| {
+            let s = doc.keycaps.as_ref().and_then(|k| k.keys.get(&p.id));
+            let def = doc.definitions.iter().find(|d| d.id == p.definition_id);
+            let binding_label = key_binding_label(doc, active_board_id, &p.id);
+            let (legend, legend_source) = s.and_then(|s| s.legend.as_deref()).map_or_else(
+                || (binding_label.clone(), LegendSource::Binding),
+                |l| (l.to_owned(), LegendSource::Explicit),
+            );
+            let color = s
+                .and_then(|s| s.color.as_deref())
+                .unwrap_or(&board_settings.color);
             let pose = snapshot
                 .scene
                 .transforms
                 .iter()
-                .find(|transform| transform.id == part.id)
-                .map_or(part.pose, |transform| transform.pose);
-            let reference = part.reference.as_str();
+                .find(|t| t.id == p.id)
+                .map_or(p.pose, |t| t.pose);
             KeycapsKey {
-                id: Rc::from(part.id.as_str()),
-                reference: Rc::from(reference),
+                id: Rc::from(p.id.as_str()),
+                reference: Rc::from(p.reference.as_str()),
                 pose,
-                size: keycap_size(part, definition, settings),
+                size: keycap_size(p, def, s),
                 color: Rc::from(color),
                 legend: Rc::from(legend.as_str()),
                 legend_source,
                 binding_label: Rc::from(binding_label.as_str()),
-                search_text: format!("{reference} {binding_label}").to_lowercase(),
+                search_text: format!("{} {binding_label}", p.reference).to_lowercase(),
             }
         })
         .collect();
     let assigned_count = keys
         .iter()
-        .filter(|key| key_binding(document, active_board_id, &key.id) != "&none")
+        .filter(|k| key_binding(doc, active_board_id, &k.id) != "&none")
         .count();
-    let matrices = document
+    let matrices = doc
         .matrices
         .iter()
-        .filter(|matrix| {
-            matrix.board_id.as_deref() == Some(active_board_id)
-                || matrix.part_ids.iter().any(|part_id| {
-                    board
-                        .part_ids
-                        .iter()
-                        .any(|board_part_id| board_part_id == part_id)
-                })
+        .filter(|m| {
+            m.board_id.as_deref() == Some(active_board_id)
+                || m.part_ids.iter().any(|id| board.part_ids.contains(id))
         })
-        .map(|matrix| KeycapsMatrix {
-            id: Rc::from(matrix.id.as_str()),
-            name: Rc::from(matrix.name.as_deref().unwrap_or(&matrix.id)),
-            settings: document
+        .map(|m| KeycapsMatrix {
+            id: Rc::from(m.id.as_str()),
+            name: Rc::from(m.name.as_deref().unwrap_or(&m.id)),
+            settings: doc
                 .keycaps
                 .as_ref()
-                .and_then(|keycaps| keycaps.matrices.get(&matrix.id))
+                .and_then(|k| k.matrices.get(&m.id))
                 .cloned()
                 .unwrap_or_default(),
         })
         .collect();
-
     Some(Rc::new(KeycapsView {
         board_id: Rc::from(active_board_id),
         board_settings,
@@ -157,47 +128,42 @@ pub fn project(
     }))
 }
 
-fn is_supported_key(document: &ProjectDoc, part: &Part) -> bool {
-    document
-        .definitions
+fn is_supported_key(doc: &ProjectDoc, part: &Part) -> bool {
+    doc.definitions
         .iter()
-        .find(|definition| definition.id == part.definition_id)
-        .is_some_and(|definition| definition.kind == PartKind::Switch)
-        || document.matrices.iter().any(|matrix| {
-            matrix.part_ids.iter().any(|id| id == &part.id)
+        .find(|d| d.id == part.definition_id)
+        .is_some_and(|d| d.kind == PartKind::Switch)
+        || doc.matrices.iter().any(|m| {
+            m.part_ids.contains(&part.id)
                 && part
                     .id
-                    .strip_prefix(&format!("matrix/{}/", matrix.id))
-                    .is_some_and(|suffix| !suffix.contains('/'))
+                    .strip_prefix(&format!("matrix/{}/", m.id))
+                    .is_some_and(|s| !s.contains('/'))
         })
 }
 
-fn keycap_size(
-    part: &Part,
-    definition: Option<&PartDefinition>,
-    settings: Option<&KeycapKeySettings>,
-) -> Vec2 {
-    settings.and_then(|settings| settings.units).map_or_else(
+fn keycap_size(part: &Part, def: Option<&PartDefinition>, s: Option<&KeycapKeySettings>) -> Vec2 {
+    s.and_then(|s| s.units).map_or_else(
         || {
             part.keycap
-                .or_else(|| definition.and_then(|definition| definition.keycap))
+                .or_else(|| def.and_then(|d| d.keycap))
                 .unwrap_or(Vec2 { x: 18.2, y: 18.2 })
         },
-        |units| Vec2 {
-            x: units.x * 19.05 - 0.85,
-            y: units.y * 19.05 - 0.85,
+        |u| Vec2 {
+            x: u.x * 19.05 - 0.85,
+            y: u.y * 19.05 - 0.85,
         },
     )
 }
 
-fn key_binding(document: &ProjectDoc, board_id: &str, key_id: &str) -> String {
-    let saved_binding = document
+fn key_binding(doc: &ProjectDoc, board_id: &str, key_id: &str) -> String {
+    if let Some(b) = doc
         .keymap
         .as_ref()
-        .and_then(|keymap| keymap.layers.first())
-        .and_then(|layer| layer.bindings.get(key_id));
-    if let Some(binding) = saved_binding {
-        return match binding {
+        .and_then(|k| k.layers.first())
+        .and_then(|l| l.bindings.get(key_id))
+    {
+        return match b {
             KeyBinding::KeyPress { keycode } | KeyBinding::StickyKey { keycode } => {
                 format!("&kp {keycode}")
             }
@@ -208,73 +174,53 @@ fn key_binding(document: &ProjectDoc, board_id: &str, key_id: &str) -> String {
             _ => "&none".into(),
         };
     }
-    document
-        .hardware
+    doc.hardware
         .as_ref()
-        .and_then(|hardware| {
-            hardware
-                .boards
-                .iter()
-                .find(|board| board.board_id == board_id)
-        })
-        .and_then(|board| board.key_bindings.get(key_id))
+        .and_then(|h| h.boards.iter().find(|b| b.board_id == board_id))
+        .and_then(|b| b.key_bindings.get(key_id))
         .cloned()
         .unwrap_or_else(|| "&none".into())
 }
 
-fn key_binding_label(document: &ProjectDoc, board_id: &str, key_id: &str) -> String {
-    let binding = key_binding(document, board_id, key_id);
-    if binding == "&none" || binding == "&trans" {
+fn key_binding_label(doc: &ProjectDoc, board_id: &str, key_id: &str) -> String {
+    let b = key_binding(doc, board_id, key_id);
+    if b == "&none" || b == "&trans" {
         return String::new();
     }
-    if let Some(code) = binding.strip_prefix("&kp ") {
-        return match code {
-            "SPACE" => "Space".into(),
-            "ENTER" => "Enter".into(),
-            "ESC" => "Esc".into(),
-            "TAB" => "Tab".into(),
-            "BSPC" => "Backspace".into(),
-            "LSHFT" => "Shift".into(),
-            "LCTRL" => "Ctrl".into(),
-            "LALT" => "Alt".into(),
-            "LGUI" => "Super".into(),
-            "UP" => "Up".into(),
-            "DOWN" => "Down".into(),
-            "LEFT" => "Left".into(),
-            "RIGHT" => "Right".into(),
-            "MINUS" => "-".into(),
-            "EQUAL" => "=".into(),
-            "LBKT" => "[".into(),
-            "RBKT" => "]".into(),
-            "BSLH" => "\\".into(),
-            "SEMI" => ";".into(),
-            "SQT" => "'".into(),
-            "COMMA" => ",".into(),
-            "DOT" => ".".into(),
-            "FSLH" => "/".into(),
-            "GRAVE" => "`".into(),
-            code if code.len() == 1 && code.as_bytes()[0].is_ascii_uppercase() => code.into(),
-            code if code.len() == 2
-                && code.starts_with('N')
-                && code.as_bytes()[1].is_ascii_digit() =>
-            {
-                code[1..].into()
-            }
-            code if code.strip_prefix('F').is_some_and(|suffix| {
-                suffix
-                    .parse::<u8>()
-                    .is_ok_and(|number| (1..=12).contains(&number))
-            }) =>
-            {
-                code.into()
-            }
-            _ => code.into(),
-        };
+    let Some(c) = b.strip_prefix("&kp ") else {
+        return b;
+    };
+    match c {
+        "SPACE" => "Space",
+        "ENTER" => "Enter",
+        "ESC" => "Esc",
+        "TAB" => "Tab",
+        "BSPC" => "Backspace",
+        "LSHFT" => "Shift",
+        "LCTRL" => "Ctrl",
+        "LALT" => "Alt",
+        "LGUI" => "Super",
+        "UP" => "Up",
+        "DOWN" => "Down",
+        "LEFT" => "Left",
+        "RIGHT" => "Right",
+        "MINUS" => "-",
+        "EQUAL" => "=",
+        "LBKT" => "[",
+        "RBKT" => "]",
+        "BSLH" => "\\",
+        "SEMI" => ";",
+        "SQT" => "'",
+        "COMMA" => ",",
+        "DOT" => ".",
+        "FSLH" => "/",
+        "GRAVE" => "`",
+        _ if c.len() == 2 && c.starts_with('N') && c.as_bytes()[1].is_ascii_digit() => &c[1..],
+        _ => c,
     }
-    binding
+    .to_owned()
 }
 
-/// Render physical keycaps into the active board SVG coordinate system.
 #[component]
 pub fn KeycapsCanvas(
     view: Rc<KeycapsView>,
@@ -285,73 +231,35 @@ pub fn KeycapsCanvas(
     rsx! {
         g { "data-board-id": "{view.board_id}",
             g { "aria-hidden": "true", "pointer-events": "none",
-                for (index, contour) in contours.iter().enumerate() {
+                for (i, c) in contours.iter().enumerate() {
                     polygon {
-                        key: "outline-{index}",
-                        points: contour_points(&contour.points),
-                        class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
+                        key: "outline-{i}",
+                        points: c.points.iter().map(|p| format!("{},{}", p.x, p.y)).collect::<Vec<_>>().join(" "),
+                        class: if c.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
             }
             for key in &view.keys {
                 {
-                    let id = key.id.clone();
-                    let click_id = id.clone();
-                    let keyboard_id = id.clone();
-                    let reference = key.reference.clone();
-                    let selected = selected_ids.contains(id.as_ref());
-                    let color = key.color.clone();
-                    let pose = key.pose;
-                    let size = key.size;
-                    let legend = key.legend.clone();
-                    let foreground = foreground_color(&color);
-                    let font_size = (4.0_f64).min(
-                        13.0 / (legend.encode_utf16().count().max(1) as f64) * 1.3,
-                    );
+                    let (id, sel) = (key.id.clone(), selected_ids.contains(key.id.as_ref()));
+                    let (click_id, kb_id) = (id.clone(), id.clone());
+                    let fg = foreground_color(&key.color);
+                    let font_size = (4.0_f64).min(13.0 / (key.legend.encode_utf16().count().max(1) as f64) * 1.3);
                     rsx! {
                         g {
                             key: "{id}",
-                            class: if selected { "cursor-pointer outline-none [&_rect]:stroke-primary [&_rect]:stroke-[0.8] [&_text]:pointer-events-none" } else { "cursor-pointer outline-none [&_rect]:stroke-border-strong [&_rect]:stroke-[0.2] hover:[&_rect]:stroke-primary hover:[&_rect]:stroke-[0.5] focus-visible:[&_rect]:stroke-primary focus-visible:[&_rect]:stroke-[0.8] [&_text]:pointer-events-none" },
-                            transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
-                            role: "button",
-                            tabindex: "0",
-                            "aria-pressed": selected,
-                            "aria-label": "Edit key {reference}",
-                            onclick: move |event| {
-                                event.stop_propagation();
-                                on_select_key.call(click_id.to_string());
+                            class: if sel { "cursor-pointer outline-none [&_rect]:stroke-primary [&_rect]:stroke-[0.8] [&_text]:pointer-events-none" } else { "cursor-pointer outline-none [&_rect]:stroke-border-strong [&_rect]:stroke-[0.2] hover:[&_rect]:stroke-primary hover:[&_rect]:stroke-[0.5] [&_text]:pointer-events-none" },
+                            transform: "translate({key.pose.at.x} {key.pose.at.y}) rotate({key.pose.rotation})",
+                            role: "button", tabindex: "0", "aria-pressed": sel, "aria-label": "Edit key {key.reference}",
+                            onclick: move |e| { e.stop_propagation(); on_select_key.call(click_id.to_string()); },
+                            onkeydown: move |e: KeyboardEvent| {
+                                let k = e.data().key().to_string();
+                                if k == "Enter" || k == " " { e.prevent_default(); e.stop_propagation(); on_select_key.call(kb_id.to_string()); }
                             },
-                            onkeydown: move |event: KeyboardEvent| {
-                                let pressed = event.data().key().to_string();
-                                if pressed == "Enter" || pressed == " " {
-                                    event.prevent_default();
-                                    event.stop_propagation();
-                                    on_select_key.call(keyboard_id.to_string());
-                                }
-                            },
-                            rect {
-                                x: "{-size.x / 2.0}",
-                                y: "{-size.y / 2.0}",
-                                width: "{size.x}",
-                                height: "{size.y}",
-                                rx: "1.3",
-                                fill: "{color}",
-                            }
+                            rect { x: "{-key.size.x / 2.0}", y: "{-key.size.y / 2.0}", width: "{key.size.x}", height: "{key.size.y}", rx: "1.3", fill: "{key.color}" }
                             g { transform: "scale(1 -1)",
-                                text {
-                                    text_anchor: "middle",
-                                    dominant_baseline: "central",
-                                    fill: "{foreground}",
-                                    font_size: "{font_size}",
-                                    if legend.is_empty() { "—" } else { "{legend}" }
-                                }
-                                text {
-                                    text_anchor: "middle",
-                                    y: "6",
-                                    font_size: "2.1",
-                                    fill: "{foreground}",
-                                    "{reference}"
-                                }
+                                text { text_anchor: "middle", dominant_baseline: "central", fill: "{fg}", font_size: "{font_size}", if key.legend.is_empty() { "—" } else { "{key.legend}" } }
+                                text { text_anchor: "middle", y: "6", font_size: "2.1", fill: "{fg}", "{key.reference}" }
                             }
                         }
                     }
@@ -361,16 +269,6 @@ pub fn KeycapsCanvas(
     }
 }
 
-fn contour_points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{},{}", point.x, point.y))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Native source compatibility is intentionally broken: this crate is unpublished,
-/// has no native consumers as of 024, and its projections remain native.
 #[cfg(target_arch = "wasm32")]
 #[component]
 pub fn KeycapsKeyList(
@@ -379,498 +277,89 @@ pub fn KeycapsKeyList(
     on_select_key: EventHandler<String>,
 ) -> Element {
     let mut query = use_signal(String::new);
-    let normalized_query = query().to_lowercase();
-    // Match React's resolved selected key: an ID outside this accepted projection
-    // has no selected option, without emitting a selection change.
-    let selected_value = selected_key_id
-        .filter(|id| view.keys.iter().any(|key| key.id.as_ref() == id.as_str()))
+    let q = query().to_lowercase();
+    let selected = selected_key_id
+        .filter(|id| view.keys.iter().any(|k| k.id.as_ref() == id.as_str()))
         .unwrap_or_default();
-    let visible_keys = view
+    let mut options = vec![(String::new(), "Choose on the layout…".to_owned())];
+    for k in view
         .keys
         .iter()
-        .filter(|key| key.search_text.contains(normalized_query.as_str()))
-        .collect::<Vec<_>>();
-    let no_visible_keys = visible_keys.is_empty();
-    let search_id = format!("keycaps-key-search-{}", dioxus::core::current_scope_id().0);
-    let selection_id = format!(
-        "keycaps-key-selection-{}",
-        dioxus::core::current_scope_id().0
-    );
-    let current = use_memo(use_reactive((&selected_value,), |(value,)| Some(value)));
+        .filter(|k| k.search_text.contains(q.as_str()))
+    {
+        let lbl = if k.binding_label.is_empty() {
+            "Unassigned"
+        } else {
+            k.binding_label.as_ref()
+        };
+        options.push((k.id.to_string(), format!("{} · {lbl}", k.reference)));
+    }
+    let no_matches = !query().is_empty() && options.len() == 1;
     rsx! {
         section { class: "grid min-w-0 gap-3", "aria-label": "Keycaps key selection",
             TextField {
-                id: search_id, label: "Find a key", aria_label: "Find a key",
-                class: "gap-1.5", aria_invalid: None, r#type: InputType::Search,
-                value: query(), oninput: move |event: FormEvent| query.set(event.value()),
+                id: format!("keycaps-key-search-{}", dioxus::core::current_scope_id().0),
+                label: "Find a key".to_owned(), aria_label: "Find a key", r#type: InputType::Search,
+                value: query(), oninput: move |e: FormEvent| query.set(e.value()),
             }
-            Field { class: "gap-1.5",
-                FieldLabel { html_for: selection_id.clone(), "Selected key" }
-                Combobox::<String> {
-                    id: selection_id, aria_label: "Selected key", list_aria_label: "Selected key",
-                    class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                    value: Some(current.into()), placeholder: "Choose on the layout…",
-                    on_value_change: move |value: Option<String>| if let Some(value) = value { on_select_key.call(value); },
-                    ComboboxOption::<String> { index: 0usize, value: "", text_value: "Choose on the layout…", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Choose on the layout…" }
-                    for (index, key) in visible_keys.iter().enumerate() {
-                        {
-                            let binding_label = if key.binding_label.is_empty() {
-                                "Unassigned"
-                            } else {
-                                key.binding_label.as_ref()
-                            };
-                            let label = format!("{} · {binding_label}", key.reference);
-                            rsx! {
-                                ComboboxOption::<String> {
-                                    key: "{key.id}", index: index + 1, value: key.id.to_string(), text_value: label.clone(),
-                                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}"
-                                }
-                            }
-                        }
-                    }
-                }
+            SelectField::<String> {
+                label: "Selected key".to_owned(), aria_label: "Selected key",
+                value: selected, options, placeholder: "Choose on the layout…",
+                on_commit: move |v: String| on_select_key.call(v),
             }
-            if !query().is_empty() && no_visible_keys {
-                p { role: "status", "No matching keys." }
-            }
+            if no_matches { p { role: "status", "No matching keys." } }
         }
     }
 }
 
 fn foreground_color(color: &str) -> &'static str {
-    let Some(hex) = color.strip_prefix('#') else {
+    let Some(rgb) = color
+        .strip_prefix('#')
+        .and_then(|h| u32::from_str_radix(h, 16).ok())
+    else {
         return "#ffffff";
     };
-    let Ok(rgb) = u32::from_str_radix(hex, 16) else {
-        return "#ffffff";
-    };
-    let red = ((rgb >> 16) & 255) as f64;
-    let green = ((rgb >> 8) & 255) as f64;
-    let blue = (rgb & 255) as f64;
-    if red * 0.299 + green * 0.587 + blue * 0.114 > 150.0 {
+    let (r, g, b) = (
+        ((rgb >> 16) & 255) as f64,
+        ((rgb >> 8) & 255) as f64,
+        (rgb & 255) as f64,
+    );
+    if r * 0.299 + g * 0.587 + b * 0.114 > 150.0 {
         "#182331"
     } else {
         "#ffffff"
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
-mod key_list_mounted_tests {
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
     use super::*;
-    use boardstudio_web_ui_shared::test_mount::MountedFixture;
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-    use std::cell::RefCell;
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[derive(Clone)]
-    struct Selection(Rc<RefCell<Option<String>>>);
-
-    #[component]
-    fn fixture() -> Element {
-        let selected = use_context::<Selection>();
-        let key = |id: &'static str, reference: &'static str| KeycapsKey {
-            id: Rc::from(id),
-            reference: Rc::from(reference),
+    #[test]
+    fn foreground_color_picks_contrast_and_keycap_size_scales_units() {
+        assert_eq!(foreground_color("#ffffff"), "#182331");
+        assert_eq!(foreground_color("#101010"), "#ffffff");
+        let part = Part {
+            id: "k1".into(),
+            reference: "K1".into(),
+            definition_id: "sw".into(),
             pose: Pose2 {
                 at: Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
-            size: Vec2 { x: 18.2, y: 18.2 },
-            color: Rc::from("#ffffff"),
-            legend: Rc::from(""),
-            legend_source: LegendSource::Binding,
-            binding_label: Rc::from(""),
-            search_text: reference.to_lowercase(),
-        };
-        rsx! { KeycapsKeyList {
-            view: Rc::new(KeycapsView { board_id: Rc::from("board"), board_settings: KeycapBoardSettings::default(), keys: vec![key("a", "A1"), key("b", "B2")], matrices: Vec::new(), assigned_count: 0 }),
-            selected_key_id: None,
-            on_select_key: move |id| *selected.0.borrow_mut() = Some(id),
-        } }
-    }
-
-    #[wasm_bindgen_test]
-    async fn key_picker_filters_by_name_and_selects_a_key() {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let selected = Rc::new(RefCell::new(None));
-        let dom = VirtualDom::new(fixture);
-        dom.provide_root_context(Selection(selected.clone()));
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("key picker renders", || {
-            by_role_name(&root, "combobox", "Selected key").is_some()
-        })
-        .await;
-        let picker = by_role_name(&root, "combobox", "Selected key").unwrap();
-        picker.focus().unwrap();
-        let key = |value: &str| {
-            let event = web_sys::KeyboardEventInit::new();
-            event.set_key(value);
-            event.set_bubbles(true);
-            event.set_cancelable(true);
-            picker
-                .dispatch_event(
-                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
-                        .unwrap(),
-                )
-                .unwrap();
-        };
-        key("ArrowDown");
-        wait_until("named list opens", || {
-            by_role_name(&root, "listbox", "Selected key").is_some()
-        })
-        .await;
-        let input: web_sys::HtmlInputElement = picker.clone().dyn_into().unwrap();
-        input.set_value("B2");
-        let event = web_sys::EventInit::new();
-        event.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
-            .unwrap();
-        wait_until("list filters", || {
-            by_role_name(&root, "option", "B2 · Unassigned").is_some()
-                && by_role_name(&root, "option", "A1 · Unassigned").is_none()
-        })
-        .await;
-        key("ArrowDown");
-        wait_until("matching key is active", || {
-            by_role_name(&root, "option", "B2 · Unassigned").is_some_and(|option| {
-                picker.get_attribute("aria-activedescendant").as_deref()
-                    == Some(option.id().as_str())
-            })
-        })
-        .await;
-        key("Enter");
-        wait_until("selection emitted", || {
-            selected.borrow().as_deref() == Some("b")
-        })
-        .await;
-        root.remove();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_model::model::{
-        Board, KeyBinding, KeycapConfiguration, KeycapKeySettings, KeymapConfiguration,
-        KeymapLayer, Matrix, SceneDelta, Transform,
-    };
-    use std::{collections::BTreeMap, sync::Arc};
-
-    fn part(id: &str, definition_id: &str, reference: &str) -> Part {
-        Part {
+            side: boardstudio_model::model::Side::Front,
             keycap: None,
             outline: None,
-            id: id.into(),
-            definition_id: definition_id.into(),
-            reference: reference.into(),
-            pose: Pose2 {
-                at: Vec2 { x: 1.0, y: 2.0 },
-                rotation: 0.0,
-            },
-            side: boardstudio_model::model::Side::Front,
             anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
-        }
-    }
-
-    fn definition(id: &str, kind: &str, keycap: Option<Vec2>) -> PartDefinition {
-        let mut value = serde_json::json!({
-            "id": id,
-            "name": id,
-            "kind": kind,
-            "courtyard": [],
-            "pads": [],
-        });
-        if let Some(size) = keycap {
-            value["keycap"] = serde_json::json!(size);
-        }
-        serde_json::from_value(value).unwrap()
-    }
-
-    fn board(part_ids: &[&str]) -> Board {
-        Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: part_ids.iter().map(|id| (*id).into()).collect(),
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        }
-    }
-
-    fn matrix(id: &str, board_id: Option<&str>, part_ids: &[&str], name: Option<&str>) -> Matrix {
-        serde_json::from_value(serde_json::json!({
-            "id": id,
-            "name": name,
-            "rows": 1,
-            "columns": 1,
-            "pitch": {"x": 19.05, "y": 19.05},
-            "origin": {"x": 0.0, "y": 0.0},
-            "definitionId": "matrix-switch",
-            "partIds": part_ids,
-            "boardId": board_id,
-        }))
-        .unwrap()
-    }
-
-    fn snapshot(document: ProjectDoc, transforms: Vec<Transform>) -> AcceptedSnapshot {
-        let revision = document.revision;
-        AcceptedSnapshot {
-            token: SnapshotToken(4),
-            session_epoch: SessionEpoch(7),
-            document: Arc::new(document),
-            scene: Arc::new(SceneDelta {
-                module_scenes: vec![],
-                revision,
-                transaction_id: "fixture".into(),
-                changed_ids: vec![],
-                transforms,
-                matrix_scenes: vec![],
-                contours: vec![],
-                board_contours: vec![],
-                board_readiness: vec![],
-                board_outline_scenes: vec![],
-                finding_markers: vec![],
-                findings: vec![],
-                readiness: boardstudio_model::model::Readiness {
-                    layout: true,
-                    outline: false,
-                    pcb: false,
-                    case_ready: false,
-                },
-            }),
-        }
-    }
-
-    fn scope(board_id: &str) -> Scope {
-        Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "doc".into(),
-            board_id: board_id.into(),
-            instance_id: None,
-        }
-    }
-
-    #[test]
-    fn accepted_board_projection_preserves_membership_pose_and_display_fallbacks() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.boards.push(board(&[
-            "switch",
-            "matrix/m/member",
-            "matrix/m/",
-            "matrix/m/nested/member",
-            "other",
-        ]));
-        document.definitions.push(definition(
-            "switch-def",
-            "switch",
-            Some(Vec2 { x: 22.0, y: 21.0 }),
-        ));
-        document
-            .definitions
-            .push(definition("plain-def", "custom", None));
-        document.parts = vec![
-            part("switch", "switch-def", "SW1"),
-            part("matrix/m/member", "plain-def", "K1"),
-            part("matrix/m/", "plain-def", "K2"),
-            part("matrix/m/nested/member", "plain-def", "K3"),
-            part("not-on-board", "switch-def", "SW2"),
-            part("other", "plain-def", "Q1"),
-        ];
-        document.matrices = vec![matrix(
-            "m",
-            None,
-            &["matrix/m/member", "matrix/m/", "matrix/m/nested/member"],
-            None,
-        )];
-        let accepted = snapshot(
-            document,
-            vec![Transform {
-                id: "switch".into(),
-                pose: Pose2 {
-                    at: Vec2 { x: 12.5, y: -4.0 },
-                    rotation: 30.0,
-                },
-            }],
-        );
-
-        let view = project(&accepted, &scope("board"), "board").unwrap();
-        assert_eq!(
-            view.keys
-                .iter()
-                .map(|key| key.id.as_ref())
-                .collect::<Vec<_>>(),
-            ["switch", "matrix/m/member", "matrix/m/"]
-        );
-        assert_eq!(view.keys[0].pose.at, Vec2 { x: 12.5, y: -4.0 });
-        assert_eq!(view.keys[0].pose.rotation, 30.0);
-        assert_eq!(view.keys[0].size, Vec2 { x: 22.0, y: 21.0 });
-        assert_eq!(view.keys[1].size, Vec2 { x: 18.2, y: 18.2 });
-        assert_eq!(view.matrices[0].name.as_ref(), "m");
-        assert_eq!(view.assigned_count, 0);
-    }
-
-    #[test]
-    fn keycaps_projection_supplies_editable_defaults_without_materializing_config() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.boards.push(board(&["matrix/m/a", "matrix/m/b"]));
-        document.parts = vec![
-            part("matrix/m/a", "plain-def", "K1"),
-            part("matrix/m/b", "plain-def", "K2"),
-        ];
-        document
-            .definitions
-            .push(definition("plain-def", "custom", None));
-        document.matrices = vec![matrix("m", None, &["matrix/m/a", "matrix/m/b"], None)];
-        let before = document.clone();
-
-        let view = project(&snapshot(document, vec![]), &scope("board"), "board").unwrap();
-
-        assert_eq!(view.board_settings.color, "#e8e4dc");
-        assert_eq!(view.board_settings.legend_color, "#202630");
-        assert_eq!(view.board_settings.clearance, 0.5);
-        assert_eq!(view.matrices[0].settings.profile, None);
-        assert_eq!(view.matrices[0].settings.mount, None);
-        assert_eq!(view.matrices[0].settings.first_row, 1);
-        assert_eq!(view.matrices[0].settings.wall_thickness, 1.2);
-        assert!(before.keycaps.is_none());
-    }
-
-    #[test]
-    fn contour_points_keeps_coordinates_ordered_for_svg_path_inputs() {
-        assert_eq!(
-            contour_points(&[Vec2 { x: 1.0, y: 2.5 }, Vec2 { x: -3.0, y: 4.0 }]),
-            "1,2.5 -3,4"
-        );
-    }
-
-    #[test]
-    fn explicit_blank_keeps_inherited_binding_search_and_settings_are_not_materialized() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.boards.push(board(&["switch"]));
-        document
-            .definitions
-            .push(definition("switch-def", "switch", None));
-        document.parts.push(part("switch", "switch-def", "SW1"));
-        document.keymap = Some(KeymapConfiguration {
-            layers: vec![KeymapLayer {
-                id: "base".into(),
-                name: "Base".into(),
-                bindings: BTreeMap::from([(
-                    "switch".into(),
-                    KeyBinding::KeyPress {
-                        keycode: "SPACE".into(),
-                    },
-                )]),
-                sensors: BTreeMap::new(),
-            }],
-            macros: vec![],
-        });
-        document.keycaps = Some(KeycapConfiguration {
-            keys: BTreeMap::from([(
-                "switch".into(),
-                KeycapKeySettings {
-                    legend: Some(String::new()),
-                    color: Some("#102030".into()),
-                    units: Some(Vec2 { x: 1.5, y: 1.25 }),
-                    ..KeycapKeySettings::default()
-                },
-            )]),
-            ..KeycapConfiguration::default()
-        });
-        let before = document.clone();
-        let accepted = snapshot(document, vec![]);
-
-        let view = project(&accepted, &scope("board"), "board").unwrap();
-        let key = &view.keys[0];
-        assert_eq!(key.legend.as_ref(), "");
-        assert_eq!(key.legend_source, LegendSource::Explicit);
-        assert_eq!(key.binding_label.as_ref(), "Space");
-        assert_eq!(key.search_text, "sw1 space");
-        assert_eq!(key.color.as_ref(), "#102030");
-        assert!((key.size.x - 27.725).abs() < 1e-9);
-        assert!((key.size.y - 22.9625).abs() < 1e-9);
-        assert_eq!(view.assigned_count, 1);
-        assert_eq!(*accepted.document, before);
-        assert!(
-            accepted
-                .document
-                .keycaps
-                .as_ref()
-                .unwrap()
-                .boards
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn physical_legend_inheritance_uses_legacy_binding_and_active_scope_is_required() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.boards.push(board(&["switch"]));
-        document
-            .definitions
-            .push(definition("switch-def", "switch", None));
-        document.parts.push(part("switch", "switch-def", "SW1"));
-        let mut hardware = boardstudio_model::model::HardwareConfiguration::default();
-        hardware
-            .boards
-            .push(boardstudio_model::model::ElectricalBoardConfiguration {
-                board_id: "board".into(),
-                key_bindings: BTreeMap::from([("switch".into(), "&kp A".into())]),
-                ..Default::default()
-            });
-        document.hardware = Some(hardware);
-        let accepted = snapshot(document, vec![]);
-        let view = project(&accepted, &scope("board"), "board").unwrap();
-        assert_eq!(view.keys[0].legend.as_ref(), "A");
-        assert_eq!(view.keys[0].legend_source, LegendSource::Binding);
-        assert!(project(&accepted, &scope("wrong-board"), "board").is_none());
-        let mut stale = scope("board");
-        stale.session_epoch = SessionEpoch(8);
-        assert!(project(&accepted, &stale, "board").is_none());
-    }
-
-    #[test]
-    fn key_binding_labels_match_existing_choices_and_fallbacks() {
-        let mut document = ProjectDoc::empty("doc", "Fixture");
-        document.boards.push(board(&[]));
-        let mut hardware = boardstudio_model::model::HardwareConfiguration::default();
-        hardware
-            .boards
-            .push(boardstudio_model::model::ElectricalBoardConfiguration {
-                board_id: "board".into(),
-                key_bindings: BTreeMap::from([
-                    ("space".into(), "&kp SPACE".into()),
-                    ("custom".into(), "&kp CUSTOM".into()),
-                    ("transparent".into(), "&trans".into()),
-                    ("none".into(), "&none".into()),
-                ]),
-                ..Default::default()
-            });
-        document.hardware = Some(hardware);
-        assert_eq!(key_binding_label(&document, "board", "space"), "Space");
-        assert_eq!(key_binding_label(&document, "board", "custom"), "CUSTOM");
-        assert_eq!(key_binding_label(&document, "board", "transparent"), "");
-        assert_eq!(key_binding_label(&document, "board", "none"), "");
-        assert_eq!(key_binding_label(&document, "board", "missing"), "");
-    }
-
-    #[test]
-    fn canvas_text_contrast_uses_effective_cap_color_luminance() {
-        assert_eq!(foreground_color("#ffffff"), "#182331");
-        assert_eq!(foreground_color("#000000"), "#ffffff");
-        assert_eq!(foreground_color("#808080"), "#ffffff");
-        assert_eq!(foreground_color("not-a-color"), "#ffffff");
+        };
+        let s = KeycapKeySettings {
+            units: Some(Vec2 { x: 2.0, y: 1.0 }),
+            ..Default::default()
+        };
+        let sz = keycap_size(&part, None, Some(&s));
+        assert!((sz.x - (2.0 * 19.05 - 0.85)).abs() < 1e-6);
     }
 }

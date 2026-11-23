@@ -204,6 +204,7 @@ fn rotated_oblong_uses_absolute_angle_and_back_side_canonical_mirror() {
     };
     let front = native_footprint(
         &definition,
+        &compile::authored_geometry(&definition, part.side.clone()).unwrap(),
         "board:part:placed",
         Some(&part),
         &BTreeMap::new(),
@@ -217,6 +218,7 @@ fn rotated_oblong_uses_absolute_angle_and_back_side_canonical_mirror() {
     back_part.side = Side::Back;
     let back = native_footprint(
         &definition,
+        &compile::authored_geometry(&definition, back_part.side.clone()).unwrap(),
         "board:part:placed",
         Some(&back_part),
         &BTreeMap::new(),
@@ -249,8 +251,16 @@ fn native_models_use_safe_project_paths_and_kicad_axis_transforms() {
         },
     }]);
     let paths = BTreeMap::from([("mesh".into(), "models/body.step".into())]);
-    let footprint =
-        native_footprint(&definition, "model-test", None, &BTreeMap::new(), &paths).unwrap();
+    let geometry = compile::authored_geometry(&definition, Side::Front).unwrap();
+    let footprint = native_footprint(
+        &definition,
+        &geometry,
+        "model-test",
+        None,
+        &BTreeMap::new(),
+        &paths,
+    )
+    .unwrap();
     assert!(footprint.contains("${KIPRJMOD}/models/body.step"));
     assert!(footprint.contains("(offset (xyz 1 -2 3))"));
     assert!(footprint.contains("(scale (xyz 1 2 3))"));
@@ -259,7 +269,15 @@ fn native_models_use_safe_project_paths_and_kicad_axis_transforms() {
     for unsafe_path in ["../escape.step", "/absolute.step", "models\\body.step"] {
         let paths = BTreeMap::from([("mesh".into(), unsafe_path.into())]);
         assert!(
-            native_footprint(&definition, "model-test", None, &BTreeMap::new(), &paths,).is_err()
+            native_footprint(
+                &definition,
+                &geometry,
+                "model-test",
+                None,
+                &BTreeMap::new(),
+                &paths
+            )
+            .is_err()
         );
     }
 }

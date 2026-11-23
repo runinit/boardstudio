@@ -68,7 +68,7 @@ class DevWebTests(unittest.TestCase):
             root = Path(directory)
             samples = {
                 "m1.css": (b".board { color: red }", "text/css"),
-                "core-worker/entry.js": (b"start_core_worker();", "text/javascript"),
+                "cad-worker/entry.js": (b"start_cad_worker();", "text/javascript"),
                 "fixtures/example.boardstudio": (b"PK\x03\x04fixture", "application/octet-stream"),
             }
             for relative, (body, _) in samples.items():

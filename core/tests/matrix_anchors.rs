@@ -1,6 +1,7 @@
 //! Ticket 19: Core-owned single-key anchor evaluation and typed Add/change/detach
 //! edits. All behavior runs through public Core routes (`Open` / `Edit`), never
 //! graph helpers alone.
+use crate::support::fixture::{self, key_part, part_pose as pose_of, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 #[path = "matrix_anchors/anchor_chunk0.rs"]
@@ -9,21 +10,10 @@ mod anchor_chunk0;
 mod anchor_chunk1;
 #[path = "matrix_anchors/anchor_chunk2.rs"]
 mod anchor_chunk2;
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
-}
 
 fn open(doc: ProjectDoc) -> (CoreEngine, SceneDelta, ProjectDoc) {
     let mut engine = CoreEngine::new();
-    let (scene, doc) = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    let (scene, doc) = scene(engine.handle(fixture::open(doc)));
     (engine, scene, doc)
 }
 
@@ -32,45 +22,24 @@ fn edit(
     doc: &ProjectDoc,
     operation: EditOperation,
 ) -> (SceneDelta, ProjectDoc) {
-    scene(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }))
+    scene(engine.handle(fixture::commit("edit", "edit", doc.revision, operation)))
 }
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
-    match engine.handle(CoreRequest::Edit {
-        id: "preview".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "preview".into(),
-            phase: EditPhase::Preview,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
+    match engine.handle(fixture::edit(
+        "preview",
+        "preview",
+        doc.revision,
+        EditPhase::Preview,
+        operation,
+    )) {
         CoreReply::Preview { scene, .. } => scene,
         other => panic!("expected preview: {other:?}"),
     }
 }
 
 fn error(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> String {
-    match engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: doc.revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation,
-        },
-    }) {
+    match engine.handle(fixture::commit("edit", "edit", doc.revision, operation)) {
         CoreReply::Error { message, .. } => message,
         other => panic!("expected error: {other:?}"),
     }
@@ -83,48 +52,15 @@ fn definitions() -> Vec<PartDefinition> {
     .unwrap()
 }
 
-fn key_part(id: &str, x: f64, y: f64) -> Part {
-    Part {
-        anchor: None,
-        id: id.into(),
-        definition_id: "switch".into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2 { x, y },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        keycap: None,
-        outline: None,
-        locked: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
 fn main_matrix() -> Matrix {
     Matrix {
-        id: "main".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
         board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
+        ..fixture::matrix("main", 1, 3)
     }
 }
 
@@ -137,18 +73,12 @@ fn fixture() -> (CoreEngine, ProjectDoc) {
         key_part(&member("main", 0, 2), 38.0, 0.0),
     ];
     doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
         part_ids: vec![
             member("main", 0, 0),
             member("main", 0, 1),
             member("main", 0, 2),
         ],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
+        ..fixture::board("board", "Board")
     });
     doc.matrices.push(main_matrix());
     doc.layouts.push(Layout {
@@ -195,37 +125,6 @@ fn layout<'a>(doc: &'a ProjectDoc, id: &str) -> &'a Layout {
         .unwrap_or_else(|| panic!("missing layout {id}"))
 }
 
-fn mirror_link(doc: &ProjectDoc) -> &LayoutMirrorLink {
-    layout(doc, "mirror-layout")
-        .mirror_link
-        .as_ref()
-        .expect("mirror link")
-}
-
-fn with_mirror_exception(
-    engine: &mut CoreEngine,
-    doc: &ProjectDoc,
-    kind: MirroredItemKind,
-    mirror_id: impl Into<String>,
-    state: MirroredExceptionState,
-) -> ProjectDoc {
-    let mut layout = layout(doc, "mirror-layout").clone();
-    layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link")
-        .exceptions
-        .push(MirroredException {
-            kind,
-            mirror_id: mirror_id.into(),
-            state,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        });
-    edit(engine, doc, EditOperation::SetLayout { layout }).1
-}
-
 fn poses(doc: &ProjectDoc) -> impl Iterator<Item = (&str, Pose2)> {
     doc.parts.iter().map(|part| (part.id.as_str(), part.pose))
 }
@@ -233,10 +132,7 @@ fn poses(doc: &ProjectDoc) -> impl Iterator<Item = (&str, Pose2)> {
 fn change_matrix(doc: &ProjectDoc, id: &str, update: impl FnOnce(&mut Matrix)) -> EditOperation {
     let mut matrix = matrix(doc, id).clone();
     update(&mut matrix);
-    EditOperation::SetMatrix {
-        matrix,
-        definitions: None,
-    }
+    fixture::set_matrix(matrix)
 }
 
 fn move_part(id: impl Into<String>, at: Vec2) -> EditOperation {
@@ -302,14 +198,6 @@ fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
     edit(engine, doc, add_anchored("thumb", key_anchor("main", 0, 2))).1
 }
 
-fn pose_of(doc: &ProjectDoc, id: &str) -> Pose2 {
-    doc.parts
-        .iter()
-        .find(|part| part.id == id)
-        .unwrap_or_else(|| panic!("missing part {id}"))
-        .pose
-}
-
 fn near(actual: Vec2, x: f64, y: f64) {
     assert!(
         (actual.x - x).abs() < 1e-9 && (actual.y - y).abs() < 1e-9,
@@ -319,163 +207,11 @@ fn near(actual: Vec2, x: f64, y: f64) {
     );
 }
 
-fn linked_anchored_fixture() -> (CoreEngine, ProjectDoc) {
-    let all = Follow {
-        x: true,
-        y: true,
-        rotation: true,
-    };
-    let mut doc = ProjectDoc::empty("anchors-linked", "Anchors linked");
-    doc.definitions = definitions();
-    let mut main = main_matrix();
-    let mut thumb = Matrix {
-        id: "thumb".into(),
-        name: None,
-        rows: 1,
-        columns: 3,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2 { x: 0.0, y: -19.0 },
-        definition_id: "switch".into(),
-        part_ids: vec![
-            member("thumb", 0, 0),
-            member("thumb", 0, 1),
-            member("thumb", 0, 2),
-        ],
-        board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: Some(MatrixAnchor {
-            matrix_id: "main".into(),
-            row: 0,
-            column: 2,
-            follow: all,
-            aggregate: None,
-        }),
-        cells: vec![],
-    };
-    let mut main2 = main.clone();
-    main2.id = "main2".into();
-    main2.origin = Vec2 { x: 20.0, y: 0.0 };
-    main2.mirror = Some(Mirror::X);
-    main2.part_ids = vec![
-        member("main2", 0, 0),
-        member("main2", 0, 1),
-        member("main2", 0, 2),
-    ];
-    let mut thumb2 = thumb.clone();
-    thumb2.id = "thumb2".into();
-    thumb2.mirror = Some(Mirror::X);
-    thumb2.part_ids = vec![
-        member("thumb2", 0, 0),
-        member("thumb2", 0, 1),
-        member("thumb2", 0, 2),
-    ];
-    if let Some(anchor) = thumb2.anchor.as_mut() {
-        anchor.matrix_id = "main2".into();
-    }
-    main.part_ids = vec![
-        member("main", 0, 0),
-        member("main", 0, 1),
-        member("main", 0, 2),
-    ];
-    thumb.part_ids = vec![
-        member("thumb", 0, 0),
-        member("thumb", 0, 1),
-        member("thumb", 0, 2),
-    ];
-    doc.parts = vec![
-        key_part(&member("main", 0, 0), 0.0, 0.0),
-        key_part(&member("main", 0, 1), 19.0, 0.0),
-        key_part(&member("main", 0, 2), 38.0, 0.0),
-        key_part(&member("thumb", 0, 0), 38.0, -19.0),
-        key_part(&member("thumb", 0, 1), 57.0, -19.0),
-        key_part(&member("thumb", 0, 2), 76.0, -19.0),
-        key_part(&member("main2", 0, 0), 20.0, 0.0),
-        key_part(&member("main2", 0, 1), 1.0, 0.0),
-        key_part(&member("main2", 0, 2), -18.0, 0.0),
-        key_part(&member("thumb2", 0, 0), -18.0, -19.0),
-        key_part(&member("thumb2", 0, 1), 1.0, -19.0),
-        key_part(&member("thumb2", 0, 2), 20.0, -19.0),
-    ];
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    doc.matrices.push(main);
-    doc.matrices.push(thumb);
-    doc.matrices.push(main2);
-    doc.matrices.push(thumb2);
-    doc.layouts.push(Layout {
-        id: "layout".into(),
-        name: "Layout".into(),
-        board_id: "board".into(),
-        matrix_ids: vec!["main".into(), "thumb".into()],
-        part_ids: vec![],
-        mirror_link: None,
-    });
-    doc.layouts.push(Layout {
-        id: "mirror-layout".into(),
-        name: "Mirror".into(),
-        board_id: "board".into(),
-        matrix_ids: vec!["main2".into(), "thumb2".into()],
-        part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "layout".into(),
-            axis_x: 10.0,
-            split_gap: None,
-            spacing: None,
-            correspondences: vec![
-                MirroredCorrespondence {
-                    companion_mode: None,
-                    companion_tweak: None,
-                    kind: MirroredItemKind::Matrix,
-                    source_id: "main".into(),
-                    mirror_id: "main2".into(),
-                },
-                MirroredCorrespondence {
-                    companion_mode: None,
-                    companion_tweak: None,
-                    kind: MirroredItemKind::Matrix,
-                    source_id: "thumb".into(),
-                    mirror_id: "thumb2".into(),
-                },
-            ],
-            exceptions: vec![],
-        }),
-    });
-    let (engine, _, doc) = open(doc);
-    (engine, doc)
-}
-
 fn single_matrix(id: &str, board: &str) -> Matrix {
     Matrix {
-        id: id.into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
         part_ids: vec![member(id, 0, 0)],
         board_id: Some(board.into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_layout: vec![],
-        column_layout: vec![],
-        anchor: None,
-        cells: vec![],
+        ..fixture::matrix(id, 1, 1)
     }
 }
 
@@ -502,14 +238,8 @@ fn rich_fixture() -> (CoreEngine, ProjectDoc) {
         ("board2", vec![member("far", 0, 0)]),
     ] {
         doc.boards.push(Board {
-            id: board.into(),
-            name: board.into(),
-            outline_ids: vec![],
             part_ids: ids,
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
+            ..fixture::board(board, board)
         });
     }
     let mut main = main_matrix();

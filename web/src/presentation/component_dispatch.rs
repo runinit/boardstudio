@@ -1,11 +1,12 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
 pub(crate) fn layout_component_inspector_owner_key(
     model: &ReadModel,
-    workspace: &'static str,
+    workspace: Workspace,
     selected: Option<&objects::ScopedTreeContext>,
 ) -> Option<inspector::LayoutComponentInspectorOwnerKey> {
-    if workspace != "Layout" {
+    if workspace != Workspace::Layout {
         return None;
     }
     let selected = selected?;
@@ -35,7 +36,7 @@ pub(crate) fn layout_component_inspector_owner_key(
 
 pub(crate) fn layout_component_inspector_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
@@ -51,10 +52,10 @@ pub(crate) fn layout_component_inspector_owner_is_current(
         return false;
     }
     let model = runtime.model();
-    let Some(snapshot) = model.accepted.as_ref() else {
+    let Some(snap) = model.accepted.as_ref() else {
         return false;
     };
-    if snapshot.token != owner.snapshot_token || snapshot.document.revision != owner.revision {
+    if snap.token != owner.snapshot_token || snap.document.revision != owner.revision {
         return false;
     }
     let selected = adapter.selected_context.read();
@@ -62,13 +63,7 @@ pub(crate) fn layout_component_inspector_owner_is_current(
         return false;
     };
     selected.scope == owner.scope
-        && matches!(
-            &selected.context,
-            objects::TreeContext::Component {
-                part_id: Some(part_id),
-                ..
-            } if part_id == &owner.part_id
-        )
+        && matches!(&selected.context, objects::TreeContext::Component { part_id: Some(pid), .. } if pid == &owner.part_id)
         && selection::context_is_current(&model, &owner.scope, &selected.context)
         && model.selected_part_ids == owner.selected_part_ids
         && model.selected_part_ids.first() == Some(&owner.part_id)
@@ -76,17 +71,17 @@ pub(crate) fn layout_component_inspector_owner_is_current(
 
 pub(crate) fn companion_placement_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &inspector::CompanionPlacementOwner,
     pair_id: &str,
     submitted_targets: &[CompanionPlacementTarget],
 ) -> bool {
-    let current_owner = current_layout_owner(runtime, workspace, adapter);
-    if current_owner.workspace != "Layout"
-        || current_owner.scope.as_ref() != Some(&owner.scope)
-        || current_owner.token != Some(owner.snapshot_token)
-        || current_owner.revision != Some(owner.revision)
+    let cur = current_layout_owner(runtime, workspace, adapter);
+    if cur.workspace != Workspace::Layout
+        || cur.scope.as_ref() != Some(&owner.scope)
+        || cur.token != Some(owner.snapshot_token)
+        || cur.revision != Some(owner.revision)
         || owner.context_generation != (adapter.generation)()
         || owner.scope_generation != (adapter.generation)()
     {
@@ -102,7 +97,7 @@ pub(crate) fn companion_placement_owner_is_current(
     {
         return false;
     }
-    let Some(projection) = companion_placement_projection(
+    let Some(proj) = companion_placement_projection(
         &model,
         Some(&selected),
         owner.context_generation,
@@ -110,13 +105,13 @@ pub(crate) fn companion_placement_owner_is_current(
     ) else {
         return false;
     };
-    if projection.pair_id != pair_id {
+    if proj.pair_id != pair_id {
         return false;
     }
-    let mut expected = projection.targets;
+    let mut expected = proj.targets;
     if submitted_targets
         .iter()
-        .any(|target| matches!(target, CompanionPlacementTarget::Pair))
+        .any(|t| matches!(t, CompanionPlacementTarget::Pair))
     {
         expected.push(CompanionPlacementTarget::Pair);
     }
@@ -127,46 +122,8 @@ pub(crate) fn companion_placement_owner_is_current(
 }
 
 pub(crate) fn sort_companion_targets(targets: &mut Vec<CompanionPlacementTarget>) {
-    targets.sort_by_key(|target| serde_json::to_string(target).unwrap_or_default());
+    targets.sort_by_key(|t| serde_json::to_string(t).unwrap_or_default());
     targets.dedup();
-}
-
-/// Begin the pending edit for an Inspector field and park it on its field of the
-/// Inspector's pending-edit state, so the form renders the draft while it is pending and
-/// the accepted value again when it settles.
-pub(super) fn submit_layout_component_edit(
-    runtime: &Rc<Runtime>,
-    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
-    field: layout_component_edits::InspectorField,
-    resolver: boardstudio_application::EditResolver,
-    display: boardstudio_web_ui_shared::draft_edits::EditDisplay<String>,
-) {
-    let helper = pending_edits.peek().clone();
-    let label = match field {
-        layout_component_edits::InspectorField::X => "layout-inspector-x",
-        layout_component_edits::InspectorField::Y => "layout-inspector-y",
-        layout_component_edits::InspectorField::Margin => "layout-inspector-outline",
-        layout_component_edits::InspectorField::Layout => "layout-inspector-layout",
-        layout_component_edits::InspectorField::Constraint => "layout-inspector-constraint",
-        layout_component_edits::InspectorField::RemoveConstraint => {
-            "layout-inspector-remove-constraint"
-        }
-        layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
-        layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
-        layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
-        layout_component_edits::InspectorField::PartAnchorValue => "layout-part-anchor-value",
-        layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
-        layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
-        layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
-    };
-    helper.submit(
-        runtime,
-        field,
-        label,
-        Some("layout".into()),
-        resolver,
-        display,
-    );
 }
 
 pub(super) fn dispatch_layout_component_inspector_action(
@@ -174,27 +131,26 @@ pub(super) fn dispatch_layout_component_inspector_action(
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
-    (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
-    (pending_edits, views): (
-        Signal<layout_component_edits::LayoutComponentInspectorEdits>,
-        layout_component_edits::ComponentEditViews,
-    ),
+    (mut workspace, mut inspect_open): (Signal<Workspace>, Signal<bool>),
+    views: layout_component_edits::ComponentEditViews,
     action: inspector::LayoutComponentInspectorAction,
 ) {
+    use inspector::LayoutComponentInspectorAction as A;
+    use layout_component_edits::{self as edits, InspectorField as F};
     let action_owner = match &action {
-        inspector::LayoutComponentInspectorAction::SetPosition { owner, .. }
-        | inspector::LayoutComponentInspectorAction::AssignLayout { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetOutline { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetConstraint { owner, .. }
-        | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
-        | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
-        | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
-        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, .. }
-        | inspector::LayoutComponentInspectorAction::SetPartAnchor { owner, .. }
-        | inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => owner,
+        A::SetPosition { owner, .. }
+        | A::AssignLayout { owner, .. }
+        | A::SetOutline { owner, .. }
+        | A::SetConstraint { owner, .. }
+        | A::RemoveConstraint { owner, .. }
+        | A::ConvertOffsetAxes { owner, .. }
+        | A::NavigateElectrical { owner }
+        | A::SetMirroredHalfState { owner, .. }
+        | A::SetPartMirrored { owner, .. }
+        | A::SetPartAnchorValue { owner, .. }
+        | A::SetPartAnchorFollow { owner, .. }
+        | A::SetPartAnchor { owner, .. }
+        | A::DetachPartAnchor { owner } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -214,230 +170,190 @@ pub(super) fn dispatch_layout_component_inspector_action(
         .document
         .boards
         .iter()
-        .find(|board| board.id == action_owner.scope.board_id)
+        .find(|b| b.id == action_owner.scope.board_id)
     else {
         return;
     };
-    if action_owner.selected_part_ids.is_empty()
-        || action_owner.selected_part_ids.first() != Some(&action_owner.part_id)
-        || action_owner.selected_part_ids.iter().any(|selected_id| {
-            !board.part_ids.iter().any(|part_id| part_id == selected_id)
-                || !snapshot
-                    .document
-                    .parts
-                    .iter()
-                    .any(|part| part.id == *selected_id)
+    if action_owner.selected_part_ids.first() != Some(&action_owner.part_id)
+        || action_owner.selected_part_ids.iter().any(|id| {
+            !board.part_ids.contains(id) || !snapshot.document.parts.iter().any(|p| p.id == *id)
         })
     {
         return;
     }
-    let submit = |field, resolver, draft| {
-        submit_layout_component_edit(
-            runtime,
-            pending_edits,
-            field,
-            resolver,
-            views.display(field, draft),
-        );
+    let part_id = action_owner.part_id.clone();
+    let submit = |field: F, resolver| {
+        let label = match field {
+            F::X => "layout-inspector-x",
+            F::Y => "layout-inspector-y",
+            F::Margin => "layout-inspector-outline",
+            F::Layout => "layout-inspector-layout",
+            F::Constraint => "layout-inspector-constraint",
+            F::RemoveConstraint => "layout-inspector-remove-constraint",
+            F::MirroredHalfState => "layout-mirrored-half-state",
+            F::PartMirror => "layout-part-mirror",
+            F::PartAnchorValue => "layout-part-anchor-value",
+            F::PartAnchorFollow => "layout-part-anchor-follow",
+            F::PartAnchorPick => "layout-part-anchor-pick",
+            F::PartAnchorDetach => "layout-part-anchor-detach",
+        };
+        let res = runtime.commit(label, resolver);
+        let mut error = views.error;
+        let view = match field {
+            F::X => Some(views.x),
+            F::Y => Some(views.y),
+            F::Margin => Some(views.margin),
+            _ => None,
+        };
+        if let Some((mut draft, mut failure)) = view {
+            let acc = res.as_ref().unwrap_or(snapshot);
+            if let Some(p) = acc.document.parts.iter().find(|p| p.id == part_id) {
+                let pos = if p.anchor.is_some() {
+                    boardstudio_core::evaluated_part_pose(&acc.document, p).at
+                } else {
+                    p.pose.at
+                };
+                draft.set(match field {
+                    F::X => format!("{:.2}", pos.x),
+                    F::Y => format!("{:.2}", pos.y),
+                    F::Margin => p
+                        .outline
+                        .as_ref()
+                        .and_then(|o| o.margin)
+                        .map(|v| v.to_string())
+                        .unwrap_or_default(),
+                    _ => unreachable!(),
+                });
+            }
+            failure.set(res.err());
+            error.set(None);
+        } else {
+            error.set(res.err());
+        }
     };
     match action {
-        inspector::LayoutComponentInspectorAction::SetPosition {
-            owner,
-            axis,
-            value,
-            submitted_draft,
-        } => {
-            if !value.is_finite() {
-                return;
-            }
-            let field = match axis {
-                inspector::ComponentPositionAxis::X => layout_component_edits::InspectorField::X,
-                inspector::ComponentPositionAxis::Y => layout_component_edits::InspectorField::Y,
-            };
-            submit(
-                field,
-                layout_component_edits::position_resolver(
-                    owner.part_id.clone(),
-                    owner.selected_part_ids.clone(),
-                    owner.scope.board_id.clone(),
-                    axis,
-                    value,
-                ),
-                Some(submitted_draft),
-            );
-        }
-        inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {
-            if let Some(layout_id) = layout_id.as_ref()
-                && !snapshot
+        A::SetPosition {
+            owner, axis, value, ..
+        } if value.is_finite() => submit(
+            match axis {
+                inspector::ComponentPositionAxis::X => F::X,
+                inspector::ComponentPositionAxis::Y => F::Y,
+            },
+            edits::position_resolver(
+                owner.part_id,
+                owner.selected_part_ids,
+                owner.scope.board_id,
+                axis,
+                value,
+            ),
+        ),
+        A::AssignLayout { owner, layout_id } => {
+            if layout_id.as_ref().is_some_and(|lid| {
+                !snapshot
                     .document
                     .layouts
                     .iter()
-                    .any(|layout| layout.id == *layout_id && layout.board_id == board.id)
-            {
+                    .any(|l| l.id == *lid && l.board_id == board.id)
+            }) {
                 return;
             }
-            let current_layout = snapshot.document.layouts.iter().find(|layout| {
-                layout.board_id == board.id && layout.part_ids.contains(&owner.part_id)
-            });
-            if current_layout.map(|layout| layout.id.as_str()) == layout_id.as_deref() {
-                return;
+            let cur = snapshot
+                .document
+                .layouts
+                .iter()
+                .find(|l| l.board_id == board.id && l.part_ids.contains(&owner.part_id));
+            if cur.map(|l| l.id.as_str()) != layout_id.as_deref() {
+                submit(
+                    F::Layout,
+                    edits::assign_layout_resolver(owner.part_id, owner.scope.board_id, layout_id),
+                );
             }
-            submit(
-                layout_component_edits::InspectorField::Layout,
-                layout_component_edits::assign_layout_resolver(
-                    owner.part_id.clone(),
-                    owner.scope.board_id.clone(),
-                    layout_id,
-                ),
-                None,
-            );
         }
-        inspector::LayoutComponentInspectorAction::SetOutline {
-            owner,
-            outline,
-            submitted_draft,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::Margin,
-                layout_component_edits::outline_resolver(owner.part_id.clone(), outline),
-                Some(submitted_draft),
-            );
+        A::SetOutline { owner, outline, .. } => {
+            submit(F::Margin, edits::outline_resolver(owner.part_id, outline))
         }
-        inspector::LayoutComponentInspectorAction::SetConstraint {
+        A::SetConstraint {
             owner,
             source_part_id,
             values,
-        } => {
-            if source_part_id == owner.part_id
-                || !board.part_ids.iter().any(|id| id == &source_part_id)
-            {
-                return;
-            }
-            let id_seed = runtime.operation().0;
+        } if source_part_id != owner.part_id && board.part_ids.contains(&source_part_id) => {
             submit(
-                layout_component_edits::InspectorField::Constraint,
-                layout_component_edits::constraint_resolver(
-                    owner.part_id.clone(),
-                    owner.scope.board_id.clone(),
+                F::Constraint,
+                edits::constraint_resolver(
+                    owner.part_id,
+                    owner.scope.board_id,
                     source_part_id,
                     values,
-                    id_seed,
+                    runtime.operation().0,
                 ),
-                None,
             );
         }
-        inspector::LayoutComponentInspectorAction::ConvertOffsetAxes {
+        A::ConvertOffsetAxes {
             owner,
             constraint_id,
             to,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::Constraint,
-                layout_component_edits::offset_axes_resolver(
-                    owner.part_id.clone(),
-                    constraint_id,
-                    to,
-                ),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::RemoveConstraint {
+        } => submit(
+            F::Constraint,
+            edits::offset_axes_resolver(owner.part_id, constraint_id, to),
+        ),
+        A::RemoveConstraint {
             owner,
             constraint_id,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::RemoveConstraint,
-                layout_component_edits::remove_constraint_resolver(
-                    owner.part_id.clone(),
-                    constraint_id,
-                ),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
-            workspace.set("PCB");
+        } => submit(
+            F::RemoveConstraint,
+            edits::remove_constraint_resolver(owner.part_id, constraint_id),
+        ),
+        A::NavigateElectrical { .. } => {
+            workspace.set(Workspace::Pcb);
             inspect_open.set(true);
         }
-        inspector::LayoutComponentInspectorAction::SetMirroredHalfState {
-            owner: _,
+        A::SetMirroredHalfState {
             pair_id,
             mirror_id,
             state,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::MirroredHalfState,
-                layout_component_edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::SetPartMirrored {
-            owner: _,
-            part_id,
-            mirrored,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::PartMirror,
-                layout_component_edits::part_mirror_resolver(part_id, mirrored),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, change } => {
-            if !part_anchor_value_finite(&change) {
-                return;
-            }
-            submit(
-                layout_component_edits::InspectorField::PartAnchorValue,
-                layout_component_edits::part_anchor_value_resolver(owner.part_id, change),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, follow } => {
-            submit(
-                layout_component_edits::InspectorField::PartAnchorFollow,
-                layout_component_edits::part_anchor_follow_resolver(owner.part_id, follow),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::SetPartAnchor {
+            ..
+        } => submit(
+            F::MirroredHalfState,
+            edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
+        ),
+        A::SetPartMirrored {
+            part_id, mirrored, ..
+        } => submit(
+            F::PartMirror,
+            edits::part_mirror_resolver(part_id, mirrored),
+        ),
+        A::SetPartAnchorValue { owner, change } if part_anchor_value_finite(&change) => submit(
+            F::PartAnchorValue,
+            edits::part_anchor_value_resolver(owner.part_id, change),
+        ),
+        A::SetPartAnchorFollow { owner, follow } => submit(
+            F::PartAnchorFollow,
+            edits::part_anchor_follow_resolver(owner.part_id, follow),
+        ),
+        A::SetPartAnchor {
             owner,
             matrix_id,
             row,
             column,
             follow,
-        } => {
-            submit(
-                layout_component_edits::InspectorField::PartAnchorPick,
-                layout_component_edits::part_anchor_pick_resolver(
-                    owner.part_id,
-                    matrix_id,
-                    row,
-                    column,
-                    follow,
-                ),
-                None,
-            );
-        }
-        inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => {
-            submit(
-                layout_component_edits::InspectorField::PartAnchorDetach,
-                layout_component_edits::part_anchor_detach_resolver(owner.part_id),
-                None,
-            );
-        }
+        } => submit(
+            F::PartAnchorPick,
+            edits::part_anchor_pick_resolver(owner.part_id, matrix_id, row, column, follow),
+        ),
+        A::DetachPartAnchor { owner } => submit(
+            F::PartAnchorDetach,
+            edits::part_anchor_detach_resolver(owner.part_id),
+        ),
+        _ => {}
     }
 }
 
-/// Ticket 13: finite check for anchor value edits; Follow, Pick and Detach
-/// carry no floats.
 pub(crate) fn part_anchor_value_finite(
     change: &boardstudio_core::model::PartAnchorValueChange,
 ) -> bool {
-    use boardstudio_core::model::PartAnchorValueChange as Change;
+    use boardstudio_core::model::PartAnchorValueChange as C;
     match change {
-        Change::Spread(value)
-        | Change::Stagger(value)
-        | Change::Splay(value)
-        | Change::Rotation(value) => value.is_finite(),
-        Change::Offset(offset) => offset.x.is_finite() && offset.y.is_finite(),
+        C::Spread(v) | C::Stagger(v) | C::Splay(v) | C::Rotation(v) => v.is_finite(),
+        C::Offset(o) => o.x.is_finite() && o.y.is_finite(),
     }
 }

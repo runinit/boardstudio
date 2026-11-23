@@ -6,24 +6,19 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, ToggleField};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::Button,
     callout::Callout,
-    checkbox::{Checkbox, CheckboxState},
-    label::Label,
     spinner::Spinner,
     toast::{ToastOptions, use_toast},
 };
 use dioxus::prelude::*;
-use std::{cell::Cell, collections::BTreeMap, rc::Rc};
-use wasm_bindgen_futures::spawn_local;
+use std::{collections::BTreeMap, rc::Rc};
 
 const AUTOMATIC_CONNECTOR_SELECTION: &str = "__automatic_vik_host_connector__";
-
-/// This panel's attachment intent: preparation is cancellable, the ticket observes the
-/// committed edit and its mounted-module identity drives the Landed follow-up.
 
 #[derive(Clone)]
 pub struct AttachedModuleNavigation {
@@ -48,9 +43,6 @@ pub fn ModuleAttachment(
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
     let mut preparing = use_signal(|| false);
-    // The committed attachment and the mounted-module identity its Landed follow-up
-    // selects; the ticket itself is the pending observation.
-    let waiting = use_signal(|| None::<(EditOutcome, String)>);
     let mut feedback = use_signal(String::new);
     let connectors = eligible_host_connectors(
         &snapshot,
@@ -68,88 +60,12 @@ pub fn ModuleAttachment(
         .find(|port| port.role == VikRole::Module)
         .map(|port| port.id.clone());
     let mut host_connection_enabled = use_signal(|| true);
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
-    use_drop({
-        let alive = alive.clone();
-        move || alive.set(false)
-    });
-
     let definition = module.definition.clone();
     let definition_id = definition.id.clone();
     let expected_selection = (scope.clone(), format!("module:{definition_id}"));
     let owner_scope = scope.clone();
     let initial_generation = selection_generation();
 
-    // The attachment settles outside Dioxus (Core replies, saves), so the workspace
-    // version wakes the settle pass below even when nothing else changed.
-    let version = use_context::<Signal<u64>>();
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let runtime = runtime.clone();
-        let mut waiting = waiting;
-        let mut preparing = preparing;
-        let mut feedback = feedback;
-        let selected = selected;
-        let scope = owner_scope.clone();
-        let definition = definition.clone();
-        let expected_selection = expected_selection.clone();
-        move |_| {
-            let Some((ticket, module_id)) = waiting.peek().clone() else {
-                return;
-            };
-            let attach_scope = scope.clone();
-            let live = attach_scope.as_ref().is_some_and(|attach_scope| {
-                attachment_selection_current(
-                    &runtime,
-                    attach_scope,
-                    selected,
-                    selection_generation,
-                    &expected_selection,
-                    initial_generation,
-                    workspace,
-                )
-            });
-            let settlement = ticket.settlement(live);
-            if settlement == Settlement::Pending {
-                return;
-            }
-            waiting.set(None);
-            preparing.set(false);
-            match settlement {
-                Settlement::Landed { .. } => {
-                    let model = runtime.model();
-                    let Some(accepted) = model.accepted.as_ref() else {
-                        return;
-                    };
-                    let Some(mounted) = accepted.document.modules.iter().rev().find(|mounted| {
-                        mounted.id == module_id
-                            || mounted
-                                .id
-                                .strip_prefix(&format!("{module_id}-"))
-                                .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
-                    }) else {
-                        return;
-                    };
-                    let Some(attach_scope) = attach_scope.clone() else {
-                        return;
-                    };
-                    let navigation = AttachedModuleNavigation {
-                        scope: attach_scope,
-                        snapshot_token: accepted.token,
-                        revision: accepted.document.revision,
-                        module_id: mounted.id.clone(),
-                        definition_id: definition.id.clone(),
-                        selection_generation: initial_generation,
-                    };
-                    toasts.success("Module attached.".into(), ToastOptions::new());
-                    feedback.set(String::new());
-                    on_attached.call(navigation);
-                }
-                Settlement::Failed { message } => feedback.set(message),
-                Settlement::Retired | Settlement::Pending => {}
-            }
-        }
-    }));
     let can_attach = scope.as_ref().is_some_and(|scope| {
         snapshot
             .document
@@ -172,12 +88,7 @@ pub fn ModuleAttachment(
     let attachment_port_id = module_port_id.clone();
     let attach = move |_| {
         let module_port_id = &attachment_port_id;
-        if preparing()
-            || waiting
-                .peek()
-                .as_ref()
-                .is_some_and(|(ticket, _)| ticket.is_pending())
-        {
+        if preparing() {
             return;
         }
         let Some(scope) = owner_scope.clone() else {
@@ -286,31 +197,14 @@ pub fn ModuleAttachment(
         let selection_generation = selection_generation;
         let expected_selection = expected_selection.clone();
         let workspace = workspace;
-        let alive = alive.clone();
-        let mut waiting = waiting;
         let mut preparing = preparing;
         let mut feedback = feedback;
-        spawn_local(async move {
+        spawn(async move {
             let connector_definition = if needs_host_connector {
                 Some(load_horizontal_host_connector_definition().await)
             } else {
                 None
             };
-            if !alive.get() {
-                return;
-            }
-            if !attachment_selection_current(
-                &runtime,
-                &scope,
-                selected,
-                selection_generation,
-                &expected_selection,
-                initial_generation,
-                workspace,
-            ) {
-                preparing.set(false);
-                return;
-            }
             let Some(_current) = attachment_owner_current(
                 &runtime,
                 &scope,
@@ -335,54 +229,67 @@ pub fn ModuleAttachment(
                 }
                 None => None,
             };
-            let ticket = runtime.resolve_edit(
-                "attach-mounted-module",
-                Some("module attachment".into()),
-                attachment_resolver(
-                    scope.clone(),
-                    instance,
-                    definition.clone(),
-                    connector_definition,
-                ),
-            );
-            waiting.set(Some((ticket, module_id)));
-            feedback.set(String::new());
-            // Preparation is over: the settle pass observes the edit's terminal.
             preparing.set(false);
+            let resolver = attachment_resolver(
+                scope.clone(),
+                instance,
+                definition.clone(),
+                connector_definition,
+            );
+            let accepted = match runtime.commit("attach-mounted-module", resolver) {
+                Ok(accepted) => accepted,
+                Err(message) => {
+                    feedback.set(message);
+                    return;
+                }
+            };
+            let Some(mounted) = accepted.document.modules.iter().rev().find(|mounted| {
+                mounted.id == module_id
+                    || mounted
+                        .id
+                        .strip_prefix(&format!("{module_id}-"))
+                        .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
+            }) else {
+                return;
+            };
+            toasts.success("Module attached.".into(), ToastOptions::new());
+            feedback.set(String::new());
+            on_attached.call(AttachedModuleNavigation {
+                scope,
+                snapshot_token: accepted.token,
+                revision: accepted.document.revision,
+                module_id: mounted.id.clone(),
+                definition_id: definition.id,
+                selection_generation: initial_generation,
+            });
         });
     };
 
     rsx! {
         section { "aria-label": "Attach module to PCB",
             Button { class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: preparing() || waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) || !can_attach,
+                disabled: preparing() || !can_attach,
                 onclick: attach,
                 "Attach module to {board_name}"
             }
-            Label { html_for: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                Checkbox {
-                    id: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
-                    aria_label: "Assign host connection",
-                    checked: Some(if host_connection_enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    disabled: preparing() || waiting.read().as_ref().is_some_and(|(ticket, _)| ticket.is_pending()) || module_port_id.is_none(),
-                    on_checked_change: move |value: CheckboxState| {
-                        let checked = bool::from(value);
-                        host_connection_enabled.set(checked);
-                        if checked && connector_selection().is_empty() {
-                            connector_selection.set(initial_connector.clone());
-                        }
+            ToggleField {
+                label: "Assign host connection", checked: host_connection_enabled(),
+                disabled_reason: if preparing() { Some("Attaching module".to_owned()) }
+                    else { module_port_id.is_none().then(|| "No module-role VIK port".to_owned()) },
+                on_commit: move |checked| {
+                    host_connection_enabled.set(checked);
+                    if checked && connector_selection().is_empty() {
+                        connector_selection.set(initial_connector.clone());
                     }
-                }
-                "Assign host connection"
+                },
             }
             if host_connection_enabled() && module_port_id.is_some() {
-                super::super::PartsChoiceField {
+                SelectField::<String> {
                     label: "Host connector", aria_label: "Module host connector",
                     value: connector_selection(), disabled: preparing(),
                     options: std::iter::once((AUTOMATIC_CONNECTOR_SELECTION.to_owned(), "Add source-backed horizontal VIK connector beside module".into()))
-                        .chain(connectors.iter().map(|(id, reference)| (id.clone(), reference.clone()))).collect(),
-                    on_value_change: move |value| connector_selection.set(value),
+                        .chain(connectors.iter().cloned()).collect(),
+                    on_commit: move |value| connector_selection.set(value),
                 }
             }
             if module_port_id.is_none() {
@@ -406,9 +313,9 @@ fn attachment_selection_current(
     selection_generation: Signal<u64>,
     expected_selection: &(Option<Scope>, String),
     expected_generation: u64,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> bool {
-    workspace() == "Parts"
+    workspace() == Workspace::Parts
         && runtime.scope().as_ref() == Some(scope)
         && selected() == Some(expected_selection.clone())
         && selection_generation() == expected_generation
@@ -421,7 +328,7 @@ fn attachment_owner_current(
     selection_generation: Signal<u64>,
     expected_selection: &(Option<Scope>, String),
     expected_generation: u64,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
     if !attachment_selection_current(
         runtime,
@@ -450,6 +357,7 @@ fn attachment_resolver(
         "attach-mounted-module",
         move |accepted: &AcceptedSnapshot| {
             if accepted.document.id != scope.document_id
+                || accepted.session_epoch != scope.session_epoch
                 || !accepted
                     .document
                     .boards
@@ -559,231 +467,4 @@ fn fresh_module_id(document: &boardstudio_model::model::ProjectDoc) -> Option<St
         }
     }
     None
-}
-
-#[cfg(test)]
-mod mounted_settlement_tests {
-    use super::*;
-    use boardstudio_model::model::{Board, ProjectDoc};
-    use boardstudio_web_test_runtime::project_name_test_support as support;
-    use boardstudio_web_ui_shared::test_mount::MountedFixture;
-    use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
-    use std::cell::RefCell;
-    use wasm_bindgen_test::*;
-
-    struct Probe {
-        runtime: Rc<Runtime>,
-        navigations: RefCell<Vec<AttachedModuleNavigation>>,
-    }
-
-    fn host() -> Element {
-        let probe = use_context::<Rc<Probe>>();
-        let runtime = probe.runtime.clone();
-        use_context_provider(|| runtime.clone());
-        let version = use_signal(|| 0_u64);
-        use_context_provider(|| version);
-        let workspace = use_signal(|| "Parts");
-        use_context_provider(|| crate::presentation::WorkspaceState(workspace));
-        let generation = use_signal(|| 1_u64);
-        use_context_provider(|| super::super::super::PartsSelectionGeneration(generation));
-        let mut selected = use_signal(|| Some((runtime.scope(), "module:module".into())));
-        let _ = version();
-        use_hook({
-            let runtime = runtime.clone();
-            move || {
-                runtime.subscribe(Rc::new(move || {
-                    let mut version = version;
-                    version += 1;
-                }))
-            }
-        });
-        let snapshot = runtime.model().accepted.unwrap();
-        let module = ModuleEntry {
-            row: "Module".into(),
-            definition: Rc::new(snapshot.document.module_definitions[0].clone()),
-            source: super::super::EntrySource::Project,
-        };
-        rsx! {
-            boardstudio_web_ui_shared::ui::toast::ToastProvider {
-            ModuleAttachment {
-                snapshot,
-                module,
-                scope: runtime.scope(),
-                selected,
-                on_attached: move |navigation| probe.navigations.borrow_mut().push(navigation),
-            }
-            Button { id: "depart-attachment-owner", onclick: move |_| selected.set(None), "Depart" }
-            Button { id: "return-attachment-owner", onclick: move |_| selected.set(Some((runtime.scope(), "module:module".into()))), "Return" }
-            }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_attachment_drains_landing_failure_and_silent_retirement() {
-        let runtime = support::new_runtime();
-        let mut document = ProjectDoc::empty("attachment-settlement", "Attachment settlement");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.module_definitions.push(
-            serde_json::from_value(serde_json::json!({
-                "id":"module", "name":"Module", "family":"test", "variant":"test",
-                "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
-                "board":{"contours":[]}, "electrical":{"protocol":"gpio"}
-            }))
-            .unwrap(),
-        );
-        support::open_document(&runtime, document).await;
-        let probe = Rc::new(Probe {
-            runtime: runtime.clone(),
-            navigations: RefCell::new(Vec::new()),
-        });
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(probe.clone());
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("module attachment control mounts", || {
-            by_role_name(&root, "button", "Attach module to Board").is_some()
-        })
-        .await;
-        let attach = by_role_name(&root, "button", "Attach module to Board").unwrap();
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        attach.click();
-        wait_until("module attachment is admitted", || {
-            attach.has_attribute("disabled")
-        })
-        .await;
-        support::drive_pending(&runtime);
-        wait_until_future("module attachment enters Core", entered)
-            .await
-            .unwrap();
-        assert!(attach.has_attribute("disabled"));
-        assert!(
-            probe.navigations.borrow().is_empty(),
-            "navigation waits for landing"
-        );
-        release.send(()).unwrap();
-        settle_until(
-            &runtime,
-            support::run_pending,
-            "module attachment lands and navigates",
-            || {
-                runtime.model().accepted.unwrap().document.modules.len() == 1
-                    && probe.navigations.borrow().len() == 1
-                    && !attach.has_attribute("disabled")
-            },
-        )
-        .await;
-        let accepted = runtime.model().accepted.unwrap();
-        assert_eq!(accepted.document.modules.len(), 1);
-        assert_eq!(
-            probe.navigations.borrow().len(),
-            1,
-            "landing delivers one exact selection follow-up"
-        );
-        let navigation = probe.navigations.borrow()[0].clone();
-        assert_eq!(navigation.module_id, accepted.document.modules[0].id);
-        assert_eq!(navigation.definition_id, "module");
-        assert_eq!(navigation.snapshot_token, accepted.token);
-        assert_eq!(navigation.revision, accepted.document.revision);
-        assert_eq!(navigation.selection_generation, 1);
-        assert!(!attach.has_attribute("disabled"));
-        wait_until("attachment success is a transient Toast", || {
-            by_role_name(&root, "status", "Module attached.").is_some()
-        })
-        .await;
-        by_role_name(&root, "button", "close").unwrap().click();
-        wait_until("the success Toast dismisses", || {
-            by_role_name(&root, "status", "Module attached.").is_none()
-        })
-        .await;
-
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        attach.click();
-        wait_until("second module attachment is admitted", || {
-            attach.has_attribute("disabled")
-        })
-        .await;
-        support::drive_pending(&runtime);
-        wait_until_future("second module attachment enters Core", entered)
-            .await
-            .unwrap();
-        by_role_name(&root, "button", "Depart").unwrap().click();
-        wait_until("departed module attachment owner retires", || {
-            !attach.has_attribute("disabled")
-        })
-        .await;
-        release.send(()).unwrap();
-        settle_until(
-            &runtime,
-            support::run_pending,
-            "departed module attachment settles silently",
-            || {
-                runtime.model().accepted.unwrap().document.modules.len() == 2
-                    && probe.navigations.borrow().len() == 1
-                    && !root
-                        .text_content()
-                        .unwrap()
-                        .contains("controlled attachment failure")
-                    && !attach.has_attribute("disabled")
-            },
-        )
-        .await;
-        assert_eq!(
-            probe.navigations.borrow().len(),
-            1,
-            "departed owner retires its follow-up silently"
-        );
-        assert!(
-            !root
-                .text_content()
-                .unwrap()
-                .contains("controlled attachment failure")
-        );
-        assert!(!root.text_content().unwrap().contains("Module attached."));
-        assert!(!attach.has_attribute("disabled"));
-
-        by_role_name(&root, "button", "Return").unwrap().click();
-        wait_until("module attachment owner returns", || {
-            by_role_name(&root, "button", "Attach module to Board").is_some()
-        })
-        .await;
-        support::fail_next_core_reply(&runtime, "controlled attachment failure");
-        attach.click();
-        settle_until(
-            &runtime,
-            support::run_pending,
-            "module attachment failure is shown",
-            || {
-                root.text_content()
-                    .unwrap()
-                    .contains("controlled attachment failure")
-                    && !attach.has_attribute("disabled")
-            },
-        )
-        .await;
-        assert!(
-            root.text_content()
-                .unwrap()
-                .contains("controlled attachment failure")
-        );
-        assert_eq!(
-            probe.navigations.borrow().len(),
-            1,
-            "failure does not navigate"
-        );
-        assert!(!attach.has_attribute("disabled"));
-        runtime.unsubscribe();
-        root.remove();
-    }
 }

@@ -1,6 +1,7 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
+use boardstudio_web_ui_model::Workspace;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
 pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
     CanvasNavigationState, use_canvas_navigation_state,
@@ -8,7 +9,6 @@ pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
 mod canvas_status_footer;
 pub(crate) use boardstudio_web_case::case_controller;
 pub(crate) use boardstudio_web_case::case_display;
-pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
 mod command_palette;
 mod companion_placement;
@@ -36,19 +36,15 @@ mod layout_bounds;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
-mod layout_component_inspector_tests;
-#[cfg(test)]
 mod layout_field_preview_tests;
 #[cfg(test)]
 mod layout_layers_tests;
 #[cfg(test)]
-mod layout_relation_highlight_tests;
-#[cfg(test)]
 mod layout_remainder_tests;
 #[cfg(test)]
-mod layout_spacing_ghost_tests;
-#[cfg(test)]
 mod layout_split_focus_tests;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod test_mount_helpers;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
     ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
@@ -58,16 +54,9 @@ pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
 // and so on.
-#[allow(unused_imports)]
-#[cfg(test)]
-pub(crate) use boardstudio_web_case::test_contexts::{
-    use_case_generation_readiness_test_bridge, use_case_viewer_test_contexts,
-};
 pub(crate) use boardstudio_web_ui_model::selection::{
     active_board_scope_matches, current_layout_owner, layout_owner_is_current,
 };
-#[cfg(test)]
-pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
 pub(crate) use boardstudio_web_ui_model::state::{
     AppearanceState, PreferenceStorageWarning, ThemeState,
 };
@@ -88,7 +77,6 @@ mod layout_key_selection_actions;
 mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
-pub(crate) use boardstudio_web_case::mechanical_settings_mount;
 pub(crate) use boardstudio_web_layout::objects;
 pub(crate) use boardstudio_web_layout::outline_lifecycle;
 pub(crate) use boardstudio_web_layout::outline_snapping;
@@ -133,18 +121,14 @@ use canvas_layers::CanvasLayers;
 pub(crate) use companion_placement::{
     companion_placement_projection, matrix_context_relations, relation_target_request,
 };
+pub(in crate::presentation) use component_dispatch::dispatch_layout_component_inspector_action;
 pub(crate) use component_dispatch::{
     companion_placement_owner_is_current, layout_component_inspector_owner_key,
-};
-pub(in crate::presentation) use component_dispatch::{
-    dispatch_layout_component_inspector_action, submit_layout_component_edit,
 };
 pub(crate) use component_inspector::{
     layout_component_inspector_projection, mirrored_half_projection,
 };
 use editor::Editor;
-#[cfg(test)]
-pub(crate) use export_workspace::ExportPanel;
 pub(crate) use finding_navigation::{
     LayoutFindingNavigationContext, current_keycaps_navigation_owner, findings_owner_is_current,
     fit_selected_bridge, layout_finding_context, layout_findings_for_display,
@@ -154,8 +138,9 @@ pub(crate) use layout_bounds::{
     accepted_board_contours, keycaps_bounds, keymap_bounds, keymap_toolbar_height, pcb_bounds,
 };
 use library::Library;
-pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
-pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
+pub(crate) use mechanical_settings::{
+    MechanicalSettings, MechanicalSettingsProps, MechanicalSettingsState,
+};
 pub(crate) use notifications::RuntimeReportBanner;
 pub(crate) use owner_checks::{
     canvas_owner_is_current, case_setup_context_is_current, current_case_layer_ids,
@@ -185,8 +170,6 @@ pub(crate) use view_helpers::{
 use zmk_firmware_export::use_export_panel_input;
 
 use crate::runtime::{CoreServices, Runtime};
-#[cfg(test)]
-use boardstudio_application::SnapshotToken;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode,
     TerminalOutcome,
@@ -207,7 +190,7 @@ use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
 
 #[derive(Clone, Copy)]
-pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
+pub(super) struct ExportReturnWorkspace(pub(super) Signal<Workspace>);
 
 #[allow(non_snake_case)]
 pub fn App() -> Element {
@@ -236,6 +219,7 @@ fn WorkbenchApp() -> Element {
     };
     let workbench::RuntimeBundle {
         version,
+        durability_version,
         project_created,
         pending_new_keyboard,
         new_keyboard_error,
@@ -245,7 +229,6 @@ fn WorkbenchApp() -> Element {
         workspace,
         project_browser,
         return_workspace,
-        observed_version,
     } = workbench::use_workbench_panels(
         runtime.clone(),
         version,
@@ -256,7 +239,8 @@ fn WorkbenchApp() -> Element {
     );
     workbench::use_keyboard_creation(
         runtime.clone(),
-        observed_version,
+        version,
+        durability_version,
         pending_new_keyboard,
         project_created,
         new_keyboard_error,
@@ -264,7 +248,6 @@ fn WorkbenchApp() -> Element {
     let preference_warning = workbench::use_workbench_appearance();
     let workbench::HeaderBundle {
         project_name,
-        save_state,
         mut settings_open,
         palette,
         on_undo,
@@ -276,6 +259,7 @@ fn WorkbenchApp() -> Element {
         return_workspace,
         project_browser,
     );
+    let has_project = runtime.with_model(|model| model.accepted.is_some());
     rsx! {
         link { rel: "stylesheet", href: "assets/workbench-base.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
@@ -297,9 +281,12 @@ fn WorkbenchApp() -> Element {
                     on_settings: move |_| settings_open.set(true),
                 } },
                 workspace,
-                show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
-                has_project: runtime.model().accepted.is_some(),
-                save_state,
+                show_workspaces: has_project && !project_browser(),
+                has_project,
+                on_retry_save: {
+                    let runtime = runtime.clone();
+                    move |_| runtime.submit(boardstudio_application::Event::RetrySave { operation_id: runtime.operation() })
+                },
                 settings_open,
                 palette_open: palette.open,
                 on_search: move |_| palette.show(),
@@ -307,14 +294,14 @@ fn WorkbenchApp() -> Element {
                 on_redo,
                 on_export,
                 panel_controls: rsx! {
-                    if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
+                    if has_project && workspace() != Workspace::Export { panels::CompactPanelControls {} }
                 },
             }
             command_palette::CommandPalette { state: palette }
-            if runtime.model().accepted.is_some() {
+            if has_project {
                 div { class: "flex min-h-0 flex-1 flex-col", hidden: project_browser(), Editor {} }
             }
-            if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
+            if project_browser() || !has_project { LibraryLanding {} }
                 notifications::RuntimeNotifications {}
             if preference_warning() {
                 p { role: "status", "aria-live": "polite", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",

@@ -1,7 +1,4 @@
-use super::apply::{
-    affects_outline, apply_with_ledger, edit_dispatch, has_native_mirror_pair,
-    uses_prepared_transaction, validate_project_name,
-};
+use super::apply::{affects_outline, apply_with_ledger, validate_project_name};
 use super::preview::{changed_ids, preview_electrical_loss_findings};
 use super::scene_reuse::{
     SettledStagger, StaggerPreview, ValidatedBoardScene, is_column_stagger,
@@ -23,18 +20,34 @@ impl CoreEngine {
         if document.format != "boardstudio/v2" {
             return Err("Unsupported document format".into());
         }
-        migrate::require_current_version(document.format_version)?;
+        document_format::require_current_version(document.format_version)?;
         if document.revision == u64::MAX {
             return Err("Document revision is exhausted".into());
         }
         if let Some(message) = validate::duplicate_top_level_identity(document) {
             return Err(message);
         }
-        let prepared = mirrored_half::prepare_open(document, &[])?;
-        if let Some(message) = validate::duplicate_top_level_identity(&prepared.0) {
+        if document
+            .layouts
+            .iter()
+            .any(|layout| layout.mirror_link.is_some())
+        {
+            return Err("Layout mirror links are unsupported; use a mirrored pair".into());
+        }
+        mirrored_half::validate_pairs(document)?;
+        let mut canonical = document.clone();
+        canonical.scripts.clear();
+        layout::resolve(&mut canonical)?;
+        constraints::resolve(&mut canonical)?;
+        generators::document_error(&canonical)?;
+        if let Some(map) = &canonical.keymap {
+            keymap::validate(map)?;
+        }
+        let resolved = mirrored_half::project_document(&canonical);
+        if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
             return Err(message);
         }
-        Ok(prepared)
+        Ok((canonical, vec![]))
     }
 
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
@@ -45,9 +58,11 @@ impl CoreEngine {
                 board_id,
                 preview_top_z,
             } => {
-                let mut result = modules::resolve(&document, &board_id);
+                let resolved = mirrored_half::project_document(&document);
+                let document = resolved.geometry();
+                let mut result = modules::resolve(document, &board_id);
                 match modules::prepare_preview(
-                    &document,
+                    document,
                     &board_id,
                     &mut result,
                     preview_top_z.unwrap_or(0.0),
@@ -67,13 +82,18 @@ impl CoreEngine {
                 cases,
             } => CoreReply::KeycapsResolved {
                 id,
-                result: keycaps::resolve(&document, &board_id, cases.as_ref()),
+                result: keycaps::resolve(
+                    mirrored_half::project_document(&document).geometry(),
+                    &board_id,
+                    cases.as_ref(),
+                ),
             },
             CoreRequest::GenerateFirmware { id, request } => match firmware::generate(&request) {
                 Ok(package) => CoreReply::FirmwareGenerated { id, package },
                 Err(message) => self.error(id, &message),
             },
             CoreRequest::Open { id, document } => {
+                self.move_preview = None;
                 let (document, repaired_findings) = match Self::prepare_open(&document) {
                     Ok(prepared) => prepared,
                     Err(message) => return self.error(id, &message),
@@ -112,7 +132,10 @@ impl CoreEngine {
                 contours,
             } => CoreReply::MechanicalResolved {
                 id,
-                assembly: mechanical::resolve(&document, &contours),
+                assembly: mechanical::resolve(
+                    mirrored_half::project_document(&document).geometry(),
+                    &contours,
+                ),
             },
             CoreRequest::PrepareCase { id, ir } => match case::prepare(&ir) {
                 Ok(ir) => CoreReply::CasePrepared { id, ir },
@@ -172,10 +195,15 @@ impl CoreEngine {
                     matrix_scenes: scenes,
                 }
             }
-            CoreRequest::ResolveElectrical { id, request } => CoreReply::ElectricalResolved {
-                id,
-                plan: electrical::resolve(request),
-            },
+            CoreRequest::ResolveElectrical { id, mut request } => {
+                request.document = mirrored_half::project_document(&request.document)
+                    .geometry()
+                    .clone();
+                CoreReply::ElectricalResolved {
+                    id,
+                    plan: electrical::resolve(request),
+                }
+            }
             CoreRequest::ApplyElectrical {
                 id,
                 base_revision,
@@ -186,7 +214,7 @@ impl CoreEngine {
                     return self.error(id, "Stale base revision");
                 }
                 let reviewed = electrical::resolve(electrical::ElectricalPlanRequest {
-                    document: self.document.clone(),
+                    document: self.resolved.geometry().clone(),
                     instance_id: plan.instance_id.clone(),
                     mode: plan.mode,
                     locks: Default::default(),
@@ -250,13 +278,15 @@ impl CoreEngine {
                 config.protected_handoff = None;
                 self.reusable_scene = None;
                 self.stagger_preview = None;
+                self.move_preview = None;
                 self.document.revision = revision;
+                self.refresh_resolved();
                 self.scene(
                     id,
                     SceneInput {
                         transaction: "review-remap",
                         changed: vec![],
-                        document: &self.document,
+                        document: self.resolved.geometry(),
                         contours: &self.contours,
                         geom_findings: &self.findings,
                         cache: &self.outline_cache,
@@ -280,7 +310,7 @@ impl CoreEngine {
                     return self.error(id, "The handoff belongs to a different PCB");
                 }
                 let reviewed = electrical::resolve(electrical::ElectricalPlanRequest {
-                    document: self.document.clone(),
+                    document: self.resolved.geometry().clone(),
                     instance_id: None,
                     mode: plan.mode,
                     locks: Default::default(),
@@ -309,17 +339,19 @@ impl CoreEngine {
                 assignments.extend(electrical::handoff_assignments(&plan));
                 self.reusable_scene = None;
                 self.stagger_preview = None;
+                self.move_preview = None;
                 board.protected_handoff = Some(ElectricalHandoffBaseline {
                     fingerprint: plan.fingerprint.clone(),
                     revision: self.document.revision,
                     assignments,
                 });
+                self.refresh_resolved();
                 self.scene(
                     id,
                     SceneInput {
                         transaction: "protect-handoff",
                         changed: vec![],
-                        document: &self.document,
+                        document: self.resolved.geometry(),
                         contours: &self.contours,
                         geom_findings: &self.findings,
                         cache: &self.outline_cache,
@@ -331,6 +363,10 @@ impl CoreEngine {
     }
 
     fn edit(&mut self, id: String, command: EditCommand) -> CoreReply {
+        let move_preview = self
+            .move_preview
+            .take()
+            .filter(|preview| command.phase == EditPhase::Commit && preview.matches(&command));
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
@@ -379,9 +415,8 @@ impl CoreEngine {
         {
             return self.error(id, &message);
         }
-        let prepared_route = uses_prepared_transaction(&self.document, &command.operation);
-        if command.phase == EditPhase::Preview && prepared_route {
-            return self.preview_prepared_edit(id, command);
+        if let Err(refusal) = mirrored_half::admit_edit(&self.document, &command.operation) {
+            return self.error(id, &refusal.to_string());
         }
         if command.phase == EditPhase::Preview
             && matches!(
@@ -395,65 +430,7 @@ impl CoreEngine {
         {
             return self.preview_edit(id, command);
         }
-        let prepared_mechanical_contours = if prepared_route
-            && command.phase == EditPhase::Commit
-            && matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. })
-        {
-            Some(geometry::board_contours(&self.document, &self.outline_cache).0)
-        } else {
-            None
-        };
-        if let (Some(board_contours), EditOperation::ApplyMechanicalEdit { edit }) =
-            (&prepared_mechanical_contours, &command.operation)
-            && matches!(
-                mechanical::evaluate_edit(&self.document, board_contours, edit),
-                Ok(mechanical::MechanicalEditDisposition::Unchanged)
-            )
-        {
-            return self.scene(
-                id,
-                SceneInput {
-                    transaction: &command.transaction_id,
-                    changed: vec![],
-                    document: &self.document,
-                    contours: &self.contours,
-                    geom_findings: &self.findings,
-                    cache: &self.outline_cache,
-                    kind: SceneKind::Committed,
-                },
-            );
-        }
-        let mut next;
-        let mut changed;
-        let mut layout_settled = false;
-        if prepared_route {
-            let accepted_contours;
-            let board_contours: &[BoardContours] =
-                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
-                    if let Some(board_contours) = &prepared_mechanical_contours {
-                        board_contours
-                    } else {
-                        accepted_contours =
-                            geometry::board_contours(&self.document, &self.outline_cache).0;
-                        &accepted_contours
-                    }
-                } else {
-                    &[]
-                };
-            match mirrored_half::prepare_transaction_with_ledger(
-                &self.document,
-                board_contours,
-                &command.operation,
-                &self.identity_ledger,
-                edit_dispatch(),
-            ) {
-                Ok((draft, prepared_changed)) => {
-                    next = draft;
-                    changed = prepared_changed;
-                }
-                Err(message) => return self.error(id, &message),
-            }
-        } else {
+        let (mut next, mut changed, layout_settled) = {
             let mut raw_next = self.document.clone();
             // Mechanical edits resolve against the accepted outline projection the user
             // sees, not a stale or re-derived one, so the accepted cache supplies it.
@@ -471,7 +448,7 @@ impl CoreEngine {
                     Ok(applied) => applied,
                     Err(message) => return self.error(id, &message),
                 };
-            layout_settled = settled;
+            let layout_settled = settled;
             if let Some(map) = &raw_next.keymap
                 && let Err(message) = keymap::validate(map)
             {
@@ -509,9 +486,8 @@ impl CoreEngine {
             {
                 return self.error(id, &message);
             }
-            next = raw_next;
-            changed = raw_changed;
-        }
+            (raw_next, raw_changed, layout_settled)
+        };
         if let Err(message) =
             matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
         {
@@ -525,6 +501,7 @@ impl CoreEngine {
         // lands in `next` before the undo snapshot is pushed. Creation owns
         // its own gap (ticket 11). The settled stagger route excludes linked
         // layouts, so there is no half-frame or spacing adjustment to run.
+        let mut spacing_changed = false;
         if command.phase == EditPhase::Commit
             && !layout_settled
             && next != self.document
@@ -537,7 +514,8 @@ impl CoreEngine {
                 Ok(adapted) => adapted,
                 Err(message) => return self.error(id, &message),
             };
-            if !adapted.is_empty() {
+            spacing_changed = !adapted.is_empty();
+            if spacing_changed {
                 if let Err(message) = layout::resolve(&mut next) {
                     return self.error(id, &message);
                 }
@@ -546,35 +524,16 @@ impl CoreEngine {
                 changed.dedup();
             }
         }
-        // Prepared edits can change document-level fields that have no entity ID. Use the
-        // typed document as the no-op oracle rather than treating an empty changed-ID list as
-        // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
         if command.phase == EditPhase::Commit
-            && (((prepared_route
-                || matches!(
-                    command.operation,
-                    EditOperation::SetMatrixPlacement { .. }
-                        | EditOperation::SetMatrixSplay { .. }
-                        | EditOperation::AddAnchoredMatrix { .. }
-                        | EditOperation::SetMatrixAnchor { .. }
-                        | EditOperation::DetachMatrixAnchor { .. }
-                        | EditOperation::MoveParts { .. }
-                ))
-                && next == self.document)
-                || (!prepared_route
-                    && changed.is_empty()
-                    && matches!(
-                        command.operation,
-                        EditOperation::ApplyMechanicalEdit { .. }
-                            | EditOperation::ApplyOutlineEdit { .. }
-                    )))
+            && next == self.document
+            && !matches!(command.operation, EditOperation::ReplaceDocument { .. })
         {
             return self.scene(
                 id,
                 SceneInput {
                     transaction: &command.transaction_id,
                     changed,
-                    document: &self.document,
+                    document: self.resolved.geometry(),
                     contours: &self.contours,
                     geom_findings: &self.findings,
                     cache: &self.outline_cache,
@@ -586,15 +545,36 @@ impl CoreEngine {
             && self.reusable_scene.is_some()
             && matches!(command.operation, EditOperation::ReplaceDocument { .. })
             && replacement_keeps_scene(&self.document, &mut next);
-        let (outline, board_geometry) = if reuse_scene
-            || (!prepared_route && !affects_outline(&command.operation))
-        {
-            (None, None)
-        } else if prepared_route {
-            (Some(outlines(&next, None, &[])), None)
+        if let Err(message) = mirrored_half::validate_pairs(&next) {
+            return self.error(id, &message);
+        }
+        let resolved = mirrored_half::project_document(&next);
+        let affected: Vec<_> = self
+            .resolved
+            .affected_targets(&changed)
+            .chain(resolved.affected_targets(&changed))
+            .cloned()
+            .collect();
+        changed.extend(affected);
+        changed.sort();
+        changed.dedup();
+        if let Some(message) = validate::duplicate_top_level_identity(resolved.geometry()) {
+            return self.error(id, &message);
+        }
+        let move_preview = move_preview.filter(|_| {
+            !spacing_changed
+                && self.document.mirrored_pairs.is_empty()
+                && move_scene_can_publish(&next)
+        });
+        let (outline, board_geometry, preview_scene) = if let Some(preview) = move_preview {
+            (Some(preview.outline), None, Some(preview.scene))
+        } else if !next.mirrored_pairs.is_empty() || !self.document.mirrored_pairs.is_empty() {
+            (Some(outlines(resolved.geometry(), None, &[])), None, None)
+        } else if reuse_scene || !affects_outline(&command.operation) {
+            (None, None, None)
         } else {
             let (outline, board_geometry) = self.edited_outlines(&next, &command, layout_settled);
-            (Some(outline), board_geometry)
+            (Some(outline), board_geometry, None)
         };
         if command.phase == EditPhase::Preview {
             let accepted = (&self.outline_cache, &self.contours, &self.findings);
@@ -603,14 +583,19 @@ impl CoreEngine {
                 .map_or(accepted, |(cache, contours, findings)| {
                     (cache, contours, findings)
                 });
+            let mut findings = findings.clone();
+            findings.extend(preview_electrical_loss_findings(
+                self.resolved.geometry(),
+                resolved.geometry(),
+            ));
             return self.scene_with_board_geometry(
                 id,
                 SceneInput {
                     transaction: &command.transaction_id,
                     changed,
-                    document: &next,
+                    document: resolved.geometry(),
                     contours,
-                    geom_findings: findings,
+                    geom_findings: &findings,
                     cache,
                     kind: SceneKind::Preview,
                 },
@@ -625,7 +610,7 @@ impl CoreEngine {
                 changed,
                 outline,
                 board_geometry,
-                preview_scene: None,
+                preview_scene,
                 reuse_scene,
                 cacheable: !matches!(command.operation, EditOperation::MoveParts { .. }),
             },
@@ -643,7 +628,7 @@ impl CoreEngine {
             return self.error(id, &message);
         }
         let name_changed = self.document.name != name;
-        let changed = if name_changed && !has_native_mirror_pair(&self.document) {
+        let changed = if name_changed && self.document.mirrored_pairs.is_empty() {
             // Non-prepared replacements report every Part and Outline ID. The
             // native-pair path diffs individual entities, so a rename reports none.
             changed_ids(&self.document, &self.document)
@@ -660,6 +645,7 @@ impl CoreEngine {
                     self.record_undo(self.document.clone());
                     self.document.name = name;
                     self.document.revision = revision;
+                    self.refresh_resolved();
                 }
                 SceneKind::Committed
             }
@@ -693,7 +679,7 @@ impl CoreEngine {
             SceneInput {
                 transaction,
                 changed,
-                document: &self.document,
+                document: self.resolved.geometry(),
                 contours: &self.contours,
                 geom_findings: &self.findings,
                 cache: &self.outline_cache,
@@ -704,6 +690,7 @@ impl CoreEngine {
 
     fn record_undo(&mut self, previous: ProjectDoc) {
         self.stagger_preview = None;
+        self.move_preview = None;
         // Keep the latest 100 committed edits without retaining an unbounded document history.
         if self.undo.len() == 100 {
             self.undo.remove(0);
@@ -738,6 +725,7 @@ impl CoreEngine {
         }
         let previous = std::mem::replace(&mut self.document, next);
         self.record_undo(previous);
+        self.refresh_resolved();
         self.identity_ledger.capture(&self.document);
         if reuse_scene {
             return self.scene_with_unchanged_geometry(
@@ -753,14 +741,16 @@ impl CoreEngine {
             self.contours = contours;
             self.findings = findings;
         }
-        if let Some(scene) = preview_scene {
-            self.reusable_scene = Some(scene);
-            return self.scene_with_unchanged_geometry(
+        if let Some(mut scene) = preview_scene {
+            scene.revision = revision;
+            scene.transaction_id = transaction;
+            scene.changed_ids = changed;
+            self.reusable_scene = cacheable.then(|| scene.clone());
+            return CoreReply::Scene {
                 id,
-                &transaction,
-                changed,
-                SceneKind::Committed,
-            );
+                scene,
+                document: Box::new(self.document.clone()),
+            };
         }
         self.project_committed_scene(
             id,
@@ -768,48 +758,6 @@ impl CoreEngine {
             changed,
             cacheable && rebuilt,
             board_geometry,
-        )
-    }
-
-    fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
-        let accepted_contours;
-        let board_contours: &[BoardContours] =
-            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
-                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
-                &accepted_contours
-            } else {
-                &[]
-            };
-        let (draft, changed) = match mirrored_half::prepare_transaction_with_ledger(
-            &self.document,
-            board_contours,
-            &command.operation,
-            &self.identity_ledger,
-            edit_dispatch(),
-        ) {
-            Ok(prepared) => prepared,
-            Err(message) => return self.error(id, &message),
-        };
-        if let Err(message) = matrix::placement::validate_translation(
-            &self.document.parts,
-            &draft,
-            &command.operation,
-        ) {
-            return self.error(id, &message);
-        }
-        let (cache, contours, mut findings) = outlines(&draft, None, &changed);
-        findings.extend(preview_electrical_loss_findings(&self.document, &draft));
-        self.scene(
-            id,
-            SceneInput {
-                transaction: &command.transaction_id,
-                changed,
-                document: &draft,
-                contours: &contours,
-                geom_findings: &findings,
-                cache: &cache,
-                kind: SceneKind::Preview,
-            },
         )
     }
 
@@ -856,6 +804,9 @@ impl CoreEngine {
                 // path publishes: anchored matrices follow from the anchor key's
                 // edited pose, and `resolve` (which starts with `validate`)
                 // refreshes every dependant exactly as commit does.
+                if matches!(command.operation, EditOperation::MoveParts { .. }) {
+                    electrical::preserve_handoff(&self.document, &mut draft);
+                }
                 if !layout_settled {
                     layout::resolve(&mut draft)?;
                     settle_layout_dependents(
@@ -880,18 +831,37 @@ impl CoreEngine {
                 )?;
                 Ok((changed, layout_settled))
             });
-        let (changed, layout_settled) = match result {
+        let (mut changed, layout_settled) = match result {
             Ok(applied) => applied,
             Err(message) => return self.error(id, &message),
         };
-        let ((cache, contours, findings), board_geometry) =
-            self.edited_outlines(&draft, &command, layout_settled);
+        let resolved_draft = mirrored_half::project_document(&draft);
+        if let Some(message) = validate::duplicate_top_level_identity(resolved_draft.geometry()) {
+            return self.error(id, &message);
+        }
+        let affected: Vec<_> = self
+            .resolved
+            .affected_targets(&changed)
+            .chain(resolved_draft.affected_targets(&changed))
+            .cloned()
+            .collect();
+        changed.extend(affected);
+        changed.sort();
+        changed.dedup();
+        let ((cache, contours, mut findings), board_geometry) =
+            self.edited_outlines(resolved_draft.geometry(), &command, layout_settled);
+        if !draft.mirrored_pairs.is_empty() {
+            findings.extend(preview_electrical_loss_findings(
+                self.resolved.geometry(),
+                resolved_draft.geometry(),
+            ));
+        }
         let reply = self.scene_with_board_geometry(
             id,
             SceneInput {
                 transaction: &command.transaction_id,
                 changed,
-                document: &draft,
+                document: resolved_draft.geometry(),
                 contours: &contours,
                 geom_findings: &findings,
                 cache: &cache,
@@ -899,7 +869,17 @@ impl CoreEngine {
             },
             board_geometry,
         );
-        if layout_settled
+        if matches!(command.operation, EditOperation::MoveParts { .. })
+            && self.document.mirrored_pairs.is_empty()
+            && move_scene_can_publish(&draft)
+            && let CoreReply::Preview { scene, .. } = &reply
+        {
+            self.move_preview = Some(MovePreview {
+                command,
+                scene: scene.clone(),
+                outline: (cache, contours, findings),
+            });
+        } else if layout_settled
             && let Some(preview) = &mut self.stagger_preview
             && preview.matches(&draft)
             && let CoreReply::Preview { scene, .. } = &reply
@@ -969,6 +949,7 @@ impl CoreEngine {
     }
 
     fn history(&mut self, id: String, direction: History) -> CoreReply {
+        self.move_preview = None;
         let Some(revision) = self.document.revision.checked_add(1) else {
             return self.error(id, "Document revision is exhausted");
         };
@@ -979,7 +960,7 @@ impl CoreEngine {
         .cloned() else {
             return self.error(id, "History is empty");
         };
-        let changed = changed_ids(&self.document, &next);
+        let mut changed = changed_ids(&self.document, &next);
         electrical::preserve_handoff(&self.document, &mut next);
         let (from, to) = match direction {
             History::Undo => (&mut self.undo, &mut self.redo),
@@ -991,6 +972,10 @@ impl CoreEngine {
         self.document = next;
         self.identity_ledger.capture(&self.document);
         self.recompute();
+        let targets: Vec<_> = self.resolved.affected_targets(&changed).cloned().collect();
+        changed.extend(targets);
+        changed.sort();
+        changed.dedup();
         let transaction = match direction {
             History::Undo => "undo",
             History::Redo => "redo",
@@ -1011,7 +996,7 @@ impl CoreEngine {
             SceneInput {
                 transaction,
                 changed,
-                document: &self.document,
+                document: self.resolved.geometry(),
                 contours: &self.contours,
                 geom_findings: &self.findings,
                 cache: &self.outline_cache,
@@ -1034,8 +1019,11 @@ impl CoreEngine {
 
     fn recompute(&mut self) {
         self.stagger_preview = None;
-        (self.outline_cache, self.contours, self.findings) = outlines(&self.document, None, &[]);
+        self.refresh_resolved();
+        (self.outline_cache, self.contours, self.findings) =
+            outlines(self.resolved.geometry(), None, &[]);
         outline_versions::refresh_recovery(&mut self.document, &self.outline_cache);
+        self.refresh_resolved();
     }
 
     fn scene(&self, id: String, input: SceneInput<'_>) -> CoreReply {
@@ -1293,7 +1281,7 @@ impl CoreEngine {
             SceneKind::Committed => CoreReply::Scene {
                 id,
                 scene,
-                document: Box::new(doc.clone()),
+                document: Box::new(self.document.clone()),
             },
         }
     }
@@ -1318,10 +1306,6 @@ fn settle_layout_dependents(
     if accepted_projection
         && is_column_stagger(operation)
         && doc.constraints.is_empty()
-        && doc
-            .layouts
-            .iter()
-            .all(|layout| layout.mirror_link.is_none())
         && doc.parts.iter().all(|part| part.anchor.is_none())
         && doc
             .matrices
@@ -1330,16 +1314,57 @@ fn settle_layout_dependents(
     {
         return Ok(());
     }
-    for _ in 0..2 {
-        changed.extend(constraints::resolve_edit(doc, operation)?);
-        changed.extend(layout::sync_components(doc)?);
-    }
+    changed.extend(constraints::resolve_edit(doc, operation)?);
     Ok(())
 }
 
 enum History {
     Undo,
     Redo,
+}
+
+pub(super) struct MovePreview {
+    command: EditCommand,
+    scene: SceneDelta,
+    outline: geometry::OutlineProjection,
+}
+
+impl MovePreview {
+    fn matches(&self, commit: &EditCommand) -> bool {
+        let (
+            EditOperation::MoveParts { positions },
+            EditOperation::MoveParts { positions: preview },
+        ) = (&commit.operation, &self.command.operation)
+        else {
+            return false;
+        };
+        self.command.base_revision == commit.base_revision
+            && self.command.transaction_id == commit.transaction_id
+            && self.command.target_ids == commit.target_ids
+            && positions
+                .iter()
+                .map(position_bits)
+                .eq(preview.iter().map(position_bits))
+    }
+}
+
+fn position_bits(position: &Position) -> (&str, u64, u64) {
+    (
+        &position.id,
+        position.at.x.to_bits(),
+        position.at.y.to_bits(),
+    )
+}
+
+fn move_scene_can_publish(doc: &ProjectDoc) -> bool {
+    // Linked electrical findings are preview-only. Protected gaps can refresh
+    // saved recovery during publication and change the board projection.
+    doc.mirrored_pairs.is_empty()
+        && doc.board_outlines.is_empty()
+        && !doc.outline.iter().any(|feature| {
+            matches!(feature, OutlineFeature::PartEnvelope { settings, .. }
+                if settings.repair.as_ref().is_some_and(|repair| !repair.keep_gaps.is_empty()))
+        })
 }
 
 struct PreparedEdit {
@@ -1366,56 +1391,4 @@ struct SceneInput<'a> {
     geom_findings: &'a [Finding],
     cache: &'a OutlineCache,
     kind: SceneKind,
-}
-
-#[doc(hidden)]
-impl CoreEngine {
-    pub fn with_document_for_test(document: ProjectDoc) -> Self {
-        Self {
-            document,
-            ..Self::new()
-        }
-    }
-
-    pub fn document_for_test(&self) -> &ProjectDoc {
-        &self.document
-    }
-
-    pub fn undo_for_test(&self) -> &[ProjectDoc] {
-        &self.undo
-    }
-
-    pub fn redo_for_test(&self) -> &[ProjectDoc] {
-        &self.redo
-    }
-
-    pub fn outline_cache_for_test(&self) -> &OutlineCache {
-        &self.outline_cache
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn publish_prepared_for_test(
-        &mut self,
-        id: String,
-        transaction: String,
-        document: ProjectDoc,
-        changed: Vec<String>,
-        cache: OutlineCache,
-        contours: Vec<Contour>,
-        findings: Vec<Finding>,
-    ) -> CoreReply {
-        self.publish_prepared_edit(
-            id,
-            PreparedEdit {
-                transaction,
-                document,
-                changed,
-                outline: Some((cache, contours, findings)),
-                board_geometry: None,
-                preview_scene: None,
-                reuse_scene: false,
-                cacheable: false,
-            },
-        )
-    }
 }

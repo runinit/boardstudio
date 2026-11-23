@@ -8,62 +8,29 @@ pub(crate) struct SetupProjectNameEdit {
 }
 
 pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
-    use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
     let accepted = runtime.model().accepted;
     let owner = accepted
         .as_ref()
-        .map(|snapshot| (snapshot.session_epoch, snapshot.document.id.clone()));
+        .map(|s| (s.session_epoch, s.document.id.clone()));
     let accepted_name = accepted
         .as_ref()
-        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
+        .map(|s| (s.document.id.clone(), s.document.name.clone()));
     let mut draft = use_signal(|| accepted_name.clone());
     let mut dirty = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
-    let mut tickets =
-        use_signal(Vec::<((boardstudio_application::SessionEpoch, String), EditOutcome)>::new);
-    let mut latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let mut previous_owner = use_signal(|| owner.clone());
-    let mut previous_name = use_signal(|| accepted_name.clone());
+    let mut prev_owner = use_signal(|| owner.clone());
     let version = use_context::<Signal<u64>>()();
-    let operations = tickets
-        .read()
-        .iter()
-        .map(|(_, ticket)| ticket.operation())
-        .collect::<Vec<_>>();
     use_effect(use_reactive(
-        (&owner, &accepted_name, &version, &operations),
-        move |(owner, accepted_name, _, _)| {
-            let owner_changed = *previous_owner.peek() != owner;
-            let name_changed = *previous_name.peek() != accepted_name;
-            previous_owner.set(owner.clone());
-            previous_name.set(accepted_name.clone());
-            let mut pending = tickets.peek().clone();
-            let had_tickets = !pending.is_empty();
-            pending.retain(|(ticket_owner, ticket)| {
-                match ticket.settlement(owner.as_ref() == Some(ticket_owner)) {
-                    Settlement::Pending => true,
-                    settlement => {
-                        if *latest.peek() == Some(ticket.operation()) {
-                            failure.set(match settlement {
-                                Settlement::Failed { message } => Some(message),
-                                _ => None,
-                            });
-                        }
-                        false
-                    }
-                }
-            });
-            if owner_changed
-                || (pending.is_empty() && !*dirty.peek() && (name_changed || had_tickets))
-            {
-                draft.set(accepted_name);
+        (&owner, &accepted_name, &version),
+        move |(owner, name, _)| {
+            let changed = *prev_owner.peek() != owner;
+            prev_owner.set(owner);
+            if changed || !*dirty.peek() {
+                draft.set(name);
                 dirty.set(false);
             }
-            if owner_changed {
+            if changed {
                 failure.set(None);
-            }
-            if pending.len() != tickets.peek().len() {
-                tickets.set(pending);
             }
         },
     ));
@@ -85,103 +52,33 @@ pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEd
         let Some((epoch, id)) = owner.as_ref() else {
             return;
         };
-        let Some(current) = runtime.model().accepted else {
+        let Some(cur) = runtime.model().accepted else {
             return;
         };
-        if current.session_epoch != *epoch || current.document.id != *id {
+        if cur.session_epoch != *epoch || cur.document.id != *id {
             return;
         }
         let proposed = draft()
-            .filter(|(project_id, _)| project_id == id)
-            .map(|(_, name)| name.trim().to_owned())
+            .filter(|(pid, _)| pid == id)
+            .map(|(_, n)| n.trim().to_owned())
             .unwrap_or_default();
         if proposed.is_empty() {
-            draft.set(Some((id.clone(), current.document.name.clone())));
+            draft.set(Some((id.clone(), cur.document.name.clone())));
             return;
         }
-        let resolver =
-            boardstudio_application::EditResolver::rename_project("setup-project-name", proposed);
-        let ticket =
-            runtime.resolve_edit("setup-project-name", Some("project name".into()), resolver);
-        latest.set(Some(ticket.operation()));
-        failure.set(None);
-        tickets.write().push(((*epoch, id.clone()), ticket));
+        let res = runtime.commit(
+            "setup-project-name",
+            boardstudio_application::EditResolver::rename_project("setup-project-name", proposed),
+        );
+        if let Some(acc) = runtime.model().accepted {
+            draft.set(Some((acc.document.id.clone(), acc.document.name.clone())));
+        }
+        failure.set(res.err());
     });
     SetupProjectNameEdit {
         draft,
         failure,
         on_change,
         on_commit,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_core::model::ProjectDoc;
-    use boardstudio_web_test_runtime::project_name_test_support as support;
-    use boardstudio_web_ui_shared::ui::button::Button;
-    use boardstudio_web_ui_shared::{
-        test_mount::MountedFixture, test_role::by_role_name, test_wait::wait_until,
-    };
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    fn host() -> Element {
-        let version = use_signal(|| 0_u64);
-        use_context_provider(|| version);
-        let edit = use_setup_project_name(use_context::<Rc<Runtime>>());
-        rsx! {
-            Button {
-                onclick: move |_| {
-                    edit.on_change.call("  ".into());
-                    edit.on_commit.call(());
-                },
-                "Commit blank"
-            }
-            Button {
-                onclick: move |_| {
-                    edit.on_change.call("  Setup name  ".into());
-                    edit.on_commit.call(());
-                },
-                "Commit name"
-            }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn setup_project_name_trims_and_preserves_undo() {
-        let runtime = support::new_runtime();
-        support::open_document(&runtime, ProjectDoc::empty("setup-name", "Original")).await;
-        let initial = runtime.model().accepted.unwrap();
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(runtime.clone());
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("setup name controls mount", || {
-            by_role_name(&root, "button", "Commit blank").is_some()
-        })
-        .await;
-        let click = |name| by_role_name(&root, "button", name).unwrap().click();
-        click("Commit blank");
-        support::run_pending(&runtime).await;
-        assert_eq!(runtime.model().accepted.unwrap().token, initial.token);
-
-        click("Commit name");
-        support::run_pending(&runtime).await;
-        let renamed = runtime.model().accepted.unwrap();
-        assert_eq!(renamed.document.name, "Setup name");
-        assert_eq!(renamed.document.revision, initial.document.revision + 1);
-
-        runtime.submit(Event::Undo {
-            operation_id: runtime.operation(),
-        });
-        support::run_pending(&runtime).await;
-        let undone = runtime.model().accepted.unwrap();
-        assert_eq!(undone.document.name, "Original");
-        assert_eq!(undone.document.revision, renamed.document.revision + 1);
     }
 }

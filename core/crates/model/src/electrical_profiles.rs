@@ -230,28 +230,3 @@ pub fn profile(id: &str) -> Option<ElectricalProfile> {
     };
     Some(value)
 }
-
-pub fn validate_params(
-    profile: &ElectricalProfile,
-    reversible: bool,
-    reverse_mount: bool,
-    include_extra_pins: bool,
-    _include_traces: bool,
-    invert_jumpers_position: bool,
-) -> Result<(), &'static str> {
-    if reversible && !profile.supports_reversible {
-        return Err("footprint does not support reversible assembly");
-    }
-    if reverse_mount && !profile.supports_reverse_mount {
-        return Err("footprint does not support reverse mounting");
-    }
-    if include_extra_pins && !profile.supports_extra_pins {
-        return Err("footprint does not expose extra pins");
-    }
-    if invert_jumpers_position && profile.rejects_invert_jumpers_position {
-        return Err("invert_jumpers_position is unsupported for this controller footprint");
-    }
-    // Missing supplied traces is a routing obligation for the handoff, not an
-    // invalid footprint configuration. The jumper recipe reports it.
-    Ok(())
-}

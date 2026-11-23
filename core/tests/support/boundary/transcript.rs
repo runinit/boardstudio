@@ -1,4 +1,3 @@
-use super::scenarios::paired_electrical_preview_case;
 use super::*;
 
 /// Numbers match to a relative 1e-9; everything else exactly.
@@ -63,7 +62,7 @@ fn check_core(replies: &[Value]) {
                 Some("Converting requires zero Splay, Column rotation and carried Bend")
             }
             "mirrored-half-new-board" | "mirrored-half-reuse-board" => {
-                Some("Physical instance \"board\" is unavailable.")
+                Some("Unknown source physical instance")
             }
             _ => None,
         };
@@ -322,11 +321,11 @@ fn check_core(replies: &[Value]) {
         ),
         (
             "mirrored-half-new-board",
-            "Physical instance \"board\" is unavailable.",
+            "Unknown source physical instance",
         ),
         (
             "mirrored-half-reuse-board",
-            "Physical instance \"board\" is unavailable.",
+            "Unknown source physical instance",
         ),
     ] {
         let reply = &replies[position(replies, id)];
@@ -843,11 +842,7 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     check_outline(&replies);
     compact_replies(&mut replies);
 
-    let paired_preview_history = paired_preview_history_case(&mut *core);
-    let paired_electrical_preview = paired_electrical_preview_case(&mut *core);
-    let mirror_addition = mirror_addition_boundary_case(&mut *core, &mut *archive);
-    let electrical_mirror_replacement =
-        electrical_mirror_replacement_case(&mut *core, &mut *archive);
+    let derived_mirror = derived_mirror_case(&mut *core, &mut *archive);
 
     let mut transcript = Vec::new();
     let mut call = |request: Value, buffers: &[Vec<u8>]| -> (Value, Vec<Vec<u8>>) {
@@ -922,10 +917,7 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     json!({
         "core": replies,
         "archive": transcript,
-        "pairedPreviewHistory": paired_preview_history,
-        "pairedElectricalPreview": paired_electrical_preview,
-        "mirrorAddition": mirror_addition,
-        "electricalMirrorReplacement": electrical_mirror_replacement
+        "derivedMirror": derived_mirror
     })
 }
 

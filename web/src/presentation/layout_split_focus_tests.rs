@@ -2,10 +2,10 @@
 //! view-only focus while tree selection, workspace switches and spacing edits
 //! keep it. Mounted against the real Editor, Session and Core.
 use super::*;
-use boardstudio_core::model::{
-    Board, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind, ProjectDoc,
-};
+use crate::presentation::test_mount_helpers;
+use boardstudio_core::model::{Board, Layout, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -18,7 +18,7 @@ fn split_document() -> ProjectDoc {
         id: "board".into(),
         name: "Board".into(),
         outline_ids: vec![],
-        part_ids: vec!["matrix/left/r0c0".into(), "matrix/right/r0c0".into()],
+        part_ids: vec!["matrix/left/r0c0".into()],
         net_ids: vec![],
         thickness: 1.6,
         traces: vec![],
@@ -32,32 +32,22 @@ fn split_document() -> ProjectDoc {
         }))
         .unwrap(),
     );
-    for (id, reference, x) in [
-        ("matrix/left/r0c0", "SW1", -30.0),
-        ("matrix/right/r0c0", "SW2", 30.0),
-    ] {
-        document.parts.push(
-            serde_json::from_value(serde_json::json!({
-                "id": id, "definitionId": "switch:base", "reference": reference,
-                "pose": {"at": {"x": x, "y": 0.0}, "rotation": 0}, "side": "front"
-            }))
-            .unwrap(),
-        );
-    }
-    for (id, origin_x, part) in [
-        ("left", -30.0, "matrix/left/r0c0"),
-        ("right", 30.0, "matrix/right/r0c0"),
-    ] {
-        document.matrices.push(
-            serde_json::from_value(serde_json::json!({
-                "id": id, "rows": 1, "columns": 1,
-                "pitch": {"x": 19, "y": 19}, "origin": {"x": origin_x, "y": 0.0},
-                "definitionId": "switch:base", "partIds": [part], "boardId": "board",
-                "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": []}]
-            }))
-            .unwrap(),
-        );
-    }
+    document.parts.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "matrix/left/r0c0", "definitionId": "switch:base", "reference": "SW1",
+            "pose": {"at": {"x": -30.0, "y": 0.0}, "rotation": 0}, "side": "front"
+        }))
+        .unwrap(),
+    );
+    document.matrices.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "left", "rows": 1, "columns": 1,
+            "pitch": {"x": 19, "y": 19}, "origin": {"x": -30.0, "y": 0.0},
+            "definitionId": "switch:base", "partIds": ["matrix/left/r0c0"], "boardId": "board",
+            "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": []}]
+        }))
+        .unwrap(),
+    );
     document.layouts.push(Layout {
         id: "source-layout".into(),
         name: "Left half".into(),
@@ -70,32 +60,24 @@ fn split_document() -> ProjectDoc {
         id: "paired-layout".into(),
         name: "Right half".into(),
         board_id: "board".into(),
-        matrix_ids: vec!["right".into()],
+        matrix_ids: vec![],
         part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            correspondences: vec![MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Matrix,
-                source_id: "left".into(),
-                mirror_id: "right".into(),
-            }],
-            exceptions: vec![],
-            source_id: "source-layout".into(),
-            axis_x: 0.0,
-            split_gap: None,
-            spacing: None,
-        }),
+        mirror_link: None,
     });
+    document.mirrored_pairs = serde_json::from_value(serde_json::json!([{
+        "id": "pair",
+        "source": {"kind": "sameBoardLayout", "id": "source-layout"},
+        "destination": {"kind": "sameBoardLayout", "id": "paired-layout"},
+        "mapping": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0},
+        "overrides": []
+    }]))
+    .unwrap();
     document
 }
 
 fn host() -> Element {
-    let workspace = use_signal(|| "Layout");
-    use_context_provider(|| WorkspaceState(workspace));
-    use_context_provider(|| ExportReturnWorkspace(workspace));
+    let workspace = use_signal(|| Workspace::Layout);
     let version = use_signal(|| 0u64);
-    use_context_provider(|| version);
     let runtime = use_context::<Rc<Runtime>>();
     use_hook(move || {
         runtime.subscribe(Rc::new(move || {
@@ -103,39 +85,17 @@ fn host() -> Element {
             version += 1;
         }))
     });
-    let created = use_signal(|| None::<SetupGuideRequest>);
-    use_context_provider(|| created);
-    let objects_open = use_signal(|| true);
-    let inspector_open = use_signal(|| true);
-    use_context_provider(|| CompactPanelState {
-        objects_open,
-        inspector_open,
-    });
-    let warning = use_signal(|| false);
-    use_context_provider(|| PreferenceStorageWarning(warning));
-    let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
-    let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedAppearance(resolved));
     let selected = use_signal(|| None);
     let anchor = use_signal(|| None);
     let generation = use_signal(|| 0u64);
-    use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
-    let hidden = use_signal(BTreeSet::new);
-    let modules_hidden = use_signal(BTreeSet::new);
-    let footprints = use_signal(|| false);
-    use_context_provider(|| LayerVisibility {
-        hidden,
-        modules_hidden,
-        footprints,
-    });
-    boardstudio_web_ui_model::state::use_test_case_generation_state();
+    let adapter = SelectionAdapter::new(selected, anchor, generation);
+    test_mount_helpers::use_editor_context(workspace, version, adapter);
     // The header workspace tabs live above `Editor` and write this same
     // signal; these buttons drive the identical switch for the test.
     let mut workspace_switch = workspace;
     rsx! {
-        button { id: "split-focus-go-pcb", onclick: move |_| workspace_switch.set("PCB"), "Go PCB" }
-        button { id: "split-focus-go-layout", onclick: move |_| workspace_switch.set("Layout"), "Go Layout" }
+        button { id: "split-focus-go-pcb", onclick: move |_| workspace_switch.set(Workspace::Pcb), "Go PCB" }
+        button { id: "split-focus-go-layout", onclick: move |_| workspace_switch.set(Workspace::Layout), "Go Layout" }
         boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} }
     }
 }
@@ -174,18 +134,11 @@ fn dim_label(root: &web_sys::Element) -> String {
 
 #[wasm_bindgen_test]
 async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
-    let runtime = support::new_runtime();
-    support::open_document(&runtime, split_document()).await;
+    let runtime = test_mount_helpers::open_document(split_document()).await;
     let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
-    let dom_document = web_sys::window().unwrap().document().unwrap();
-    let root = dom_document.create_element("div").unwrap();
-    dom_document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(runtime.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let root = test_mount_helpers::mount(dom, None);
 
     // Focus starts on the source half: the right half dims with variant B's
     // grey dashed outline and inline click-to-edit label.
@@ -196,12 +149,16 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     .await;
 
     // Clicking the dimmed half on the canvas focuses it and still selects.
-    canvas_pointer_down(&root, "[data-matrix-id='right'][data-row][data-column]");
+    canvas_pointer_down(
+        &root,
+        "[data-matrix-id='mirror_70616972_left'][data-row][data-column]",
+    );
     wait_until(
         "the canvas click focuses and selects the right half",
         || {
             dim_label(&root).contains("Left half · linked mirror · click to edit here")
-                && runtime.model().selected_part_ids == vec!["matrix/right/r0c0".to_owned()]
+                && runtime.model().selected_part_ids
+                    == vec!["matrix/mirror_70616972_left/r0c0".to_owned()]
         },
     )
     .await;
@@ -262,12 +219,14 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     // The tree selection survived the revision on the dimmed half, so the
     // dimmed key correctly shows selection instead of the dim outline.
     // Re-select the focused half on the canvas: the unfocused key must dim.
-    canvas_pointer_down(&root, "[data-matrix-id='right'][data-row][data-column]");
+    canvas_pointer_down(
+        &root,
+        "[data-matrix-id='mirror_70616972_left'][data-row][data-column]",
+    );
     wait_until("the unfocused half dims again after the revision", || {
-        runtime.model().selected_part_ids == vec!["matrix/right/r0c0".to_owned()]
+        runtime.model().selected_part_ids == vec!["matrix/mirror_70616972_left/r0c0".to_owned()]
             && count(&root, "[data-matrix-id][data-dimmed='true']") == 1
             && dim_label(&root).contains("Left half · linked mirror · click to edit here")
     })
     .await;
-    root.remove();
 }

@@ -2,8 +2,8 @@
 //! acceptance suites, split halves, splay, key moves and the project library.
 //! See `integration.rs` for the split.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "electrical_wiring.rs"]
@@ -42,15 +42,5 @@ mod mounted_modules;
 mod splay_companions;
 #[path = "splay_reconciliation.rs"]
 mod splay_reconciliation;
-#[path = "split_adaptive_spacing.rs"]
-mod split_adaptive_spacing;
-#[path = "split_creation_gap.rs"]
-mod split_creation_gap;
-#[path = "split_half_frame.rs"]
-mod split_half_frame;
-#[path = "split_half_frame_parts.rs"]
-mod split_half_frame_parts;
-#[path = "split_part_anchoring.rs"]
-mod split_part_anchoring;
 #[path = "thqwgd001_library.rs"]
 mod thqwgd001_library;

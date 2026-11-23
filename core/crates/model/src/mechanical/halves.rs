@@ -28,18 +28,4 @@ impl MirroredHalves {
             exception.kind == correspondence.kind && exception.mirror_id == correspondence.mirror_id
         })
     }
-
-    /// The overlay on the item that mirrors `source_id`, when one is stored.
-    pub fn overlay_for_source(
-        &self,
-        kind: MirroredItemKind,
-        source_id: &str,
-    ) -> Option<&MirroredException> {
-        self.correspondences
-            .iter()
-            .find(|correspondence| {
-                correspondence.kind == kind && correspondence.source_id == source_id
-            })
-            .and_then(|correspondence| self.overlay_of(correspondence))
-    }
 }

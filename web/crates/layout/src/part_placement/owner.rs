@@ -13,6 +13,7 @@ use boardstudio_model::model::{
     EditOperation, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_catalogue::matrix_input::matrix_input_available;
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_model::tree::matrix_visible_on_board;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
 use std::rc::Rc;
@@ -41,8 +42,13 @@ pub use boardstudio_web_ui_model::state::ComponentPlacementAction;
 
 impl ControllerChooserOwner {
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn is_current(&self, runtime: &Runtime, generation: u64, workspace: &str) -> bool {
-        workspace == "Parts"
+    pub(crate) fn is_current(
+        &self,
+        runtime: &Runtime,
+        generation: u64,
+        workspace: Workspace,
+    ) -> bool {
+        workspace == Workspace::Parts
             && generation == self.generation
             && runtime.scope().as_ref() == Some(&self.scope)
             && accepted_snapshot_is_current(runtime, &self.accepted)
@@ -57,7 +63,7 @@ pub struct PlacementOwner {
     pub revision: u64,
     pub scope: Scope,
     pub generation: u64,
-    pub(crate) source_workspace: &'static str,
+    pub(crate) source_workspace: Workspace,
     pub board_id: String,
     pub part_id: String,
     pub definition_id: String,
@@ -76,7 +82,7 @@ pub(crate) struct PlacementCapture {
     pub(crate) kind: PartKind,
     pub(crate) workflow: PlacementWorkflow,
     pub(crate) intent: PlacementIntent,
-    pub(crate) source_workspace: &'static str,
+    pub(crate) source_workspace: Workspace,
     pub(crate) layout_id: Option<String>,
     pub(crate) at: Vec2,
 }
@@ -220,8 +226,8 @@ pub(crate) fn key_component_resolver(
 pub(crate) struct PlacementAdmission {
     scope: Option<Scope>,
     generation: u64,
-    workspace: &'static str,
-    expected_workspace: &'static str,
+    workspace: Workspace,
+    expected_workspace: Workspace,
     #[cfg(target_arch = "wasm32")]
     preferences: Option<SetupGuidePreferences>,
 }
@@ -231,8 +237,8 @@ impl PlacementAdmission {
     pub(crate) fn capture(
         runtime: &Runtime,
         generation: u64,
-        workspace: &'static str,
-        expected_workspace: &'static str,
+        workspace: Workspace,
+        expected_workspace: Workspace,
         preferences: Option<SetupGuidePreferences>,
     ) -> Self {
         Self {
@@ -278,7 +284,7 @@ pub(crate) struct ComponentActionOwner {
     pub(crate) accepted: AcceptedSnapshot,
     pub(crate) scope: Scope,
     pub(crate) generation: u64,
-    pub(crate) workspace: &'static str,
+    pub(crate) workspace: Workspace,
     pub(crate) selected_context: Option<ScopedTreeContext>,
 }
 
@@ -287,7 +293,7 @@ impl ComponentActionOwner {
     pub(crate) fn capture(
         runtime: &Runtime,
         generation: u64,
-        workspace: &'static str,
+        workspace: Workspace,
         selected_context: Option<ScopedTreeContext>,
     ) -> Option<Self> {
         let model = runtime.model();
@@ -312,9 +318,9 @@ impl ComponentActionOwner {
         &self,
         runtime: &Runtime,
         generation: u64,
-        workspace: &'static str,
+        workspace: Workspace,
         selected_context: Option<ScopedTreeContext>,
-        expected_workspace: &'static str,
+        expected_workspace: Workspace,
     ) -> bool {
         self.workspace == expected_workspace
             && workspace == self.workspace

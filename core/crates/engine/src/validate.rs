@@ -50,18 +50,11 @@ pub(super) struct SceneDiagnostics {
     pub matrices: Vec<Option<MatrixScene>>,
 }
 
-#[cfg(feature = "test-support")]
-pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
-    scene_diagnostics(doc).findings
-}
-
 pub(super) fn scene_diagnostics(doc: &ProjectDoc) -> SceneDiagnostics {
     let (mut findings, hardware_markers) = crate::hardware::nominal_fit(doc);
     let mut keycaps = vec![];
     let mut modules = vec![];
     findings.extend(crate::generators::parameter_findings(doc));
-    findings.extend(crate::mirrored_half::heading_findings(doc));
-    findings.extend(crate::mirrored_half::module_findings(doc));
     for board in &doc.boards {
         if doc.keycaps.is_some() {
             let mut keycap_projection = crate::keycaps::project(doc, &board.id, None);

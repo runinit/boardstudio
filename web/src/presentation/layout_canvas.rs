@@ -4,79 +4,17 @@ use boardstudio_core::model::{
     Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, ProjectDoc, SceneDelta, Side,
     Transform, Vec2,
 };
-use boardstudio_web_layout::anchor_badge;
 use boardstudio_web_layout::screen_scale::px_to_world;
+use boardstudio_web_layout::{
+    anchor_badge,
+    canvas_projection::{project, resolved_matrix_keycap},
+};
 use boardstudio_web_ui_model::split_focus::{self, SplitHalf};
 use dioxus::prelude::*;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
 };
-
-/// Ticket 07: `part` carries the mount site's part-rail facts for an
-/// independent part selection (a `Component` with a part id and no matrix).
-/// Matrix members and companions name themselves in the facts and keep their
-/// matrix's tools.
-pub(super) fn transform_tools(
-    context: &super::objects::TreeContext,
-    active: Option<super::objects::LayoutTransformTool>,
-    handles_visible: bool,
-    part: Option<boardstudio_web_layout::part_rail::PartRailFacts>,
-) -> Vec<super::objects::LayoutTransformTool> {
-    use super::objects::{LayoutTransformTool as Tool, TreeContext};
-    use boardstudio_web_layout::part_rail::part_rail_tools;
-    let part_tools = |facts: boardstudio_web_layout::part_rail::PartRailFacts| {
-        part_rail_tools(facts)
-            .into_iter()
-            .map(Tool::from)
-            .collect::<Vec<_>>()
-    };
-    if !handles_visible {
-        // View-only: every passive handle hides, but the active tool keeps
-        // the handle its gesture requires. Origin and Splay expose their
-        // origin through the active overlay itself, so no extra overlay is
-        // needed. With no active tool nothing draws.
-        return match (context, active) {
-            (TreeContext::Column { .. }, Some(tool)) => vec![tool],
-            (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
-            (TreeContext::Row { .. }, Some(Tool::Shift)) => vec![Tool::Shift],
-            (TreeContext::Row { .. }, Some(Tool::Bend)) => vec![Tool::Bend],
-            (TreeContext::Key { .. }, Some(Tool::Shift)) => vec![Tool::Shift],
-            (TreeContext::Key { .. }, Some(Tool::Bend)) => vec![Tool::Bend],
-            (TreeContext::Matrix { .. }, Some(active @ (Tool::Move | Tool::Rotate))) => {
-                vec![active]
-            }
-            // Ticket 07: a hidden part rail keeps only its active tool.
-            (TreeContext::Component { .. }, Some(tool)) => part.map_or_else(Vec::new, |facts| {
-                let tools = part_tools(facts);
-                if tools.contains(&tool) {
-                    vec![tool]
-                } else {
-                    Vec::new()
-                }
-            }),
-            _ => Vec::new(),
-        };
-    }
-    match context {
-        TreeContext::Column { .. } => match active {
-            Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],
-            Some(Tool::Origin) => vec![Tool::Stagger, Tool::Origin],
-            Some(Tool::Spread) => vec![Tool::Spread, Tool::Splay],
-            _ => vec![Tool::Stagger, Tool::Splay],
-        },
-        TreeContext::Row { .. } => vec![Tool::Offset, Tool::Shift, Tool::Bend],
-        TreeContext::Key { .. } => vec![Tool::Shift, Tool::Bend],
-        // Ticket 08: the rail of a matrix ends in the Anchor token. The
-        // mount site only mounts it while the matrix is anchored (the
-        // projection arms no pick without an anchor to retarget).
-        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate, Tool::Anchor],
-        // Ticket 07: an independent part gets its own rail; without facts
-        // (a member or companion) nothing draws.
-        TreeContext::Component { .. } => part.map_or_else(Vec::new, part_tools),
-        _ => vec![],
-    }
-}
 
 pub(super) fn snap_origins(
     document: &ProjectDoc,
@@ -406,47 +344,6 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) footprints_visible: bool,
     pub(super) on_matrix_pointer_down: EventHandler<MatrixPointerDown>,
     pub(super) on_part_pointer_down: EventHandler<PartPointerDown>,
-}
-
-struct Projection<'a> {
-    visible_by_id: BTreeMap<&'a str, &'a Part>,
-    matrix_keycaps: BTreeMap<&'a str, Vec2>,
-    part_transforms: BTreeMap<&'a str, Pose2>,
-}
-
-fn project<'a>(
-    visible: &'a [&'a Part],
-    matrices: &'a [&'a Matrix],
-    matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
-    transforms: &'a [Transform],
-) -> Projection<'a> {
-    let visible_by_id = visible
-        .iter()
-        .map(|part| (part.id.as_str(), *part))
-        .collect();
-    let mut matrix_keycaps = BTreeMap::new();
-    for matrix in matrices {
-        if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
-            for cell in projected.cells.iter().filter(|cell| cell.enabled) {
-                if let Some(part_id) = cell.member_id.as_deref() {
-                    matrix_keycaps
-                        .entry(part_id)
-                        .or_insert_with(|| resolved_matrix_keycap(None, None, matrix));
-                }
-            }
-        }
-    }
-    let mut part_transforms = BTreeMap::new();
-    for transform in transforms {
-        part_transforms
-            .entry(transform.id.as_str())
-            .or_insert(transform.pose);
-    }
-    Projection {
-        visible_by_id,
-        matrix_keycaps,
-        part_transforms,
-    }
 }
 
 pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
@@ -940,19 +837,6 @@ fn PartContents(
             text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono", style: "font-size:{label_font}px", "data-part-label": "", x: "0", y: "{part_label_y}", "{part.reference}" }
         }
     }
-}
-
-fn resolved_matrix_keycap(
-    part: Option<&Part>,
-    definition: Option<&PartDefinition>,
-    matrix: &Matrix,
-) -> Vec2 {
-    part.and_then(|part| part.keycap)
-        .or_else(|| definition.and_then(|definition| definition.keycap))
-        .unwrap_or(Vec2 {
-            x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
-            y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
-        })
 }
 
 fn polygon_points(points: &[Vec2]) -> String {

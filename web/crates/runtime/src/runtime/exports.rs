@@ -5,11 +5,7 @@ impl Runtime {
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.
     pub(super) fn mechanical_mount_initialization_pending(&self) -> bool {
-        let model = self.model();
-        let Some(accepted) = model.accepted.as_ref() else {
-            return false;
-        };
-        let Some(scope) = self.scope() else {
+        let Some((accepted, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             return false;
         };
         let scene = self.cad_scene();
@@ -24,84 +20,73 @@ impl Runtime {
         }) {
             return false;
         }
-        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(
-            |document| {
-                document.mechanical.as_ref().is_some_and(|configuration| {
-                    configuration.board_id == scope.board_id
-                        && configuration.closure_mounts.is_none()
-                        && configuration.mount != boardstudio_model::model::MechanicalMount::Gasket
-                })
-            },
-        )
+        captured_case_document(&accepted, &scope).is_ok_and(|document| {
+            document.mechanical.as_ref().is_some_and(|configuration| {
+                configuration.board_id == scope.board_id
+                    && configuration.closure_mounts.is_none()
+                    && configuration.mount != boardstudio_model::model::MechanicalMount::Gasket
+            })
+        })
     }
 
-    pub fn export_step(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a board before exporting authored case geometry.",
-            ));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted.as_ref() else {
-            self.apply_report(RuntimeReport::alert(
-                "Authored Case STEP requires a ready accepted snapshot.",
-            ));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || snapshot.scene.revision != snapshot.document.revision
-            || !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-            || !snapshot
-                .document
-                .case_bodies
-                .iter()
-                .any(|body| body.board_id == scope.board_id)
-            || !boardstudio_model::case_readiness::authored_case_geometry_ready(
-                &snapshot.document,
-                &snapshot.scene,
-                &scope.board_id,
-            )
-        {
-            self.apply_report(RuntimeReport::alert(
-                "Resolve authored case findings for the selected board before export.",
-            ));
-            return;
+    fn start_export(self: &Rc<Self>, kind: ExportKind, snapshot: &AcceptedSnapshot, scope: Scope) {
+        if !matches!(
+            kind,
+            ExportKind::BoardOutline { .. } | ExportKind::ProjectCopy { .. }
+        ) {
+            self.status.borrow_mut().clear_alert();
+            self.changed();
         }
-        self.clear_alert();
         let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::Step, snapshot, &scope);
+        if kind == ExportKind::Firmware {
+            self.latest_firmware_export.set(Some(operation_id));
+        }
+        self.exports.borrow_mut().insert(
+            operation_id,
+            ExportState {
+                kind,
+                token: snapshot.token,
+                scope: scope.clone(),
+            },
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
         });
     }
 
-    pub fn export_keycaps_stl(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+    pub fn export_step(self: &Rc<Self>) {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
-                "Select a board before exporting keycaps.",
+                "Select a board before exporting authored case geometry.",
             ));
             return;
         };
-        let Some(snapshot) = self.model().accepted else {
+        if !boardstudio_model::case_readiness::authored_case_geometry_ready(
+            &snapshot.document,
+            &snapshot.scene,
+            &scope.board_id,
+        ) {
+            self.apply_report(RuntimeReport::alert(
+                "Resolve authored case findings for the selected board before export.",
+            ));
+            return;
+        }
+        self.start_export(ExportKind::Step, &snapshot, scope);
+    }
+
+    pub fn export_keycaps_stl(self: &Rc<Self>) {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a board before exporting keycaps.",
+            ));
             return;
         };
         if let Err(error) = self.ensure_keycaps_source_current(&snapshot, &scope) {
             self.apply_report(RuntimeReport::alert(error));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::KeycapsStl, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::KeycapsStl, &snapshot, scope);
     }
 
     pub fn export_mechanical(self: &Rc<Self>) {
@@ -111,60 +96,16 @@ impl Runtime {
             ));
             return;
         }
-        let Some(scope) = self.scope() else {
+        let model = self.model();
+        let Some((snapshot, scope)) = model.accepted.as_ref().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a physical board before exporting the mechanical assembly.",
             ));
             return;
         };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Mechanical export requires a ready accepted snapshot.",
-            ));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || snapshot.scene.revision != snapshot.document.revision
-        {
+        if snapshot.scene.revision != snapshot.document.revision {
             self.apply_report(RuntimeReport::alert(
                 "The selected board is still resolving; export the current revision again.",
-            ));
-            return;
-        }
-        let document = match captured_case_document(&snapshot, &scope) {
-            Ok(document) => document,
-            Err(error) => {
-                self.apply_report(RuntimeReport::alert(format!(
-                    "Could not capture the selected mechanical configuration: {error:?}"
-                )));
-                return;
-            }
-        };
-        let Some(configuration) = document.mechanical.as_ref() else {
-            self.apply_report(RuntimeReport::alert(
-                "Enable a mechanical assembly for the selected board before export.",
-            ));
-            return;
-        };
-        if configuration.board_id != scope.board_id {
-            self.apply_report(RuntimeReport::alert(
-                "The selected mechanical configuration belongs to another board.",
-            ));
-            return;
-        }
-        let outline_ready = snapshot
-            .scene
-            .board_readiness
-            .iter()
-            .find(|item| item.board_id == scope.board_id)
-            .map_or(
-                snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.outline,
-                |item| item.outline,
-            );
-        if !outline_ready {
-            self.apply_report(RuntimeReport::alert(
-                "Resolve active outline findings before exporting plate or case artifacts.",
             ));
             return;
         }
@@ -207,56 +148,30 @@ impl Runtime {
             }
             None => String::new(),
         };
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
+        self.start_export(
             ExportKind::Mechanical {
                 filename: format!(
                     "{}{}-mechanical.zip",
                     snapshot.document.name, instance_suffix
                 ),
             },
-            &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
+            snapshot,
             scope,
-        });
+        );
     }
 
     pub fn export_firmware(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.report("Select a board before exporting ZMK source.");
             return;
         };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.report("Firmware export requires a ready accepted snapshot.");
-            return;
-        };
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.latest_firmware_export.set(Some(operation_id));
-        self.begin_export_lease(operation_id, ExportKind::Firmware, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::Firmware, &snapshot, scope);
     }
 
     pub fn export_footprints(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Open a project before exporting its footprint library.",
-            ));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Footprint export requires a ready accepted snapshot.",
             ));
             return;
         };
@@ -266,25 +181,12 @@ impl Runtime {
             ));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::Footprints, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::Footprints, &snapshot, scope);
     }
 
     pub fn export_kicad_board(self: &Rc<Self>, draft: bool) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "KiCad export requires a ready accepted snapshot.",
-            ));
             return;
         };
         let board_exists = snapshot
@@ -298,177 +200,49 @@ impl Runtime {
             .iter()
             .find(|readiness| readiness.board_id == scope.board_id)
             .map_or(snapshot.scene.readiness.pcb, |readiness| readiness.pcb);
-        if model.active_board_id != scope.board_id || !board_exists || !pcb_ready {
+        if !board_exists || !pcb_ready {
             self.apply_report(RuntimeReport::alert(
                 "Resolve PCB findings before exporting this board.",
             ));
             return;
         }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
-            ExportKind::PcbHandoff { draft },
-            &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
+        self.start_export(ExportKind::PcbHandoff { draft }, &snapshot, scope);
     }
 
     pub fn export_project_copy(self: &Rc<Self>) {
-        let Some(snapshot) = self.model().accepted else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             return;
         };
-        let Some(scope) = self.scope() else {
-            return;
-        };
-        let operation_id = self.operation();
-        self.archive_export_options.begin_archive(operation_id);
-        self.begin_export_lease(operation_id, ExportKind::ProjectCopy, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
+        self.start_export(
+            ExportKind::ProjectCopy {
+                embed_used_models: self.embed_used_models(),
+            },
+            &snapshot,
             scope,
-        });
+        );
     }
 
     pub fn export_board_outline(
         self: &Rc<Self>,
         format: boardstudio_model::model::OutlineExportFormat,
     ) {
-        let Some(scope) = self.scope() else {
+        let Some((snapshot, scope)) = self.accepted_snapshot().zip(self.scope()) else {
             self.apply_report(RuntimeReport::alert(
                 "Select a board before outline export.",
             ));
             return;
         };
-        let Some(snapshot) = self.model().accepted else {
-            self.apply_report(RuntimeReport::alert(
-                "Outline export requires a ready accepted snapshot.",
-            ));
+        if let Err(error) = outline_geometry(&snapshot, &scope) {
+            self.apply_report(RuntimeReport::alert(error));
             return;
-        };
-        let Some(_board) = snapshot
-            .document
-            .boards
-            .iter()
-            .find(|board| board.id == scope.board_id)
-            .cloned()
-        else {
-            self.apply_report(RuntimeReport::alert(
-                "Select a resolved board before outline export.",
-            ));
-            return;
-        };
-        let Some(_contours) = snapshot
-            .scene
-            .board_contours
-            .iter()
-            .find(|entry| entry.board_id == scope.board_id)
-            .map(|entry| entry.contours.clone())
-        else {
-            self.apply_report(RuntimeReport::alert(
-                "The selected board has no resolved outline.",
-            ));
-            return;
-        };
-        let operation_id = self.operation();
-        self.begin_export_lease(
-            operation_id,
+        }
+        self.start_export(
             ExportKind::BoardOutline {
                 dxf: matches!(format, boardstudio_model::model::OutlineExportFormat::Dxf),
             },
             &snapshot,
-            &scope,
-        );
-        self.submit(Event::StartExport {
-            operation_id,
             scope,
-        });
-    }
-
-    pub(super) async fn board_outline_bytes(
-        &self,
-        operation_id: OperationId,
-        snapshot: &AcceptedSnapshot,
-        scope: &Scope,
-        dxf: bool,
-    ) -> Result<(Vec<u8>, SnapshotToken), String> {
-        let lease = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(lease.kind(), ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
-            || lease.scope() != scope
-            || lease.token() != snapshot.token
-        {
-            return Err("Outline export no longer matches its captured board.".into());
-        }
-        let board = snapshot
-            .document
-            .boards
-            .iter()
-            .find(|board| board.id == scope.board_id)
-            .cloned()
-            .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
-        let contours = snapshot
-            .scene
-            .board_contours
-            .iter()
-            .find(|entry| entry.board_id == scope.board_id)
-            .map(|entry| entry.contours.clone())
-            .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
-        let format = if dxf {
-            boardstudio_model::model::OutlineExportFormat::Dxf
-        } else {
-            boardstudio_model::model::OutlineExportFormat::Svg
-        };
-        let format_name = if dxf { "dxf" } else { "svg" };
-        let request_id = format!("export-outline-{}", operation_id.0);
-        let request = ArtifactRequest::ExportOutline {
-            id: request_id.clone(),
-            request: boardstudio_model::model::OutlineExportRequest {
-                filename: format!("{}.{}", snapshot.document.name, format_name),
-                board,
-                contours,
-                format,
-            },
-        };
-        let core = self.core.borrow().clone();
-        if !self.export_lease_is_current(operation_id, &lease, &core) {
-            return Err("Outline export was cancelled, superseded, or its source changed.".into());
-        }
-        let reply = core
-            .artifact(&request_id, &lease.executor_epoch().0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Outline export failed: {error}"))?;
-        if !self.export_lease_is_current(operation_id, &lease, &core) {
-            return Err("Outline export was cancelled, superseded, or its source changed.".into());
-        }
-        let file = match reply {
-            ArtifactReply::ExportOutline { id, result } if id == request_id => result,
-            ArtifactReply::Error { id, error } if id == request_id => {
-                return Err(format!("Outline export failed: {}", error.message));
-            }
-            _ => return Err("Core returned an outline for another export request.".into()),
-        };
-        Ok((file.content.into_bytes(), snapshot.token))
-    }
-
-    pub(super) fn export_lease_is_current(
-        &self,
-        operation_id: OperationId,
-        lease: &ExportLease,
-        worker: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let core = self.core.borrow().clone();
-        self.export_leases.borrow().get(operation_id) == Some(lease)
-            && self.export_current(operation_id, lease.token(), lease.scope())
-            && Rc::ptr_eq(worker, &core)
+        );
     }
 
     pub(super) fn export_current(
@@ -477,105 +251,35 @@ impl Runtime {
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        let core = self.core.borrow().clone();
-        let session = self.session.borrow();
-        self.export_leases
+        self.session
             .borrow()
-            .get(operation_id)
-            .is_some_and(|lease| {
-                let session_owns_export = session.export_is_current(operation_id, token, scope)
-                    && session.scope().as_ref() == Some(scope);
-                lease.token() == token
-                    && lease.scope() == scope
-                    && lease
-                        .require_current(
-                            session_owns_export,
-                            session.read_model().accepted.as_ref(),
-                            session.core_executor_epoch(),
-                            core_executor_identity(&core),
-                        )
-                        .is_ok()
-            })
-    }
-
-    pub(super) fn begin_export_lease(
-        &self,
-        operation_id: OperationId,
-        kind: ExportKind,
-        snapshot: &AcceptedSnapshot,
-        scope: &Scope,
-    ) {
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        self.export_leases.borrow_mut().begin(
-            operation_id,
-            ExportLease::new(
-                kind,
-                snapshot.clone(),
-                scope.clone(),
-                executor_epoch,
-                core_executor_identity(&core),
-            ),
-        );
-    }
-
-    pub(super) fn export_source_is_current(&self, lease: &ExportLease) -> bool {
-        let model = self.model();
-        let core = self.core.borrow().clone();
-        let session = self.session.borrow();
-        lease.source_is_current(
-            session.scope().as_ref(),
-            model.accepted.as_ref(),
-            session.core_executor_epoch(),
-            core_executor_identity(&core),
-        )
-    }
-    pub(super) fn export_delivery_is_current(
-        &self,
-        operation_id: OperationId,
-        token: SnapshotToken,
-        scope: &Scope,
-    ) -> bool {
-        self.export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .is_some_and(|lease| {
-                lease.token() == token
-                    && lease.scope() == scope
-                    && self.export_source_is_current(&lease)
-            })
-    }
-    pub(super) fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
-        self.scope().as_ref() == Some(scope)
+            .export_is_current(operation_id, token, scope)
             && self
-                .model()
-                .accepted
-                .as_ref()
-                .is_some_and(|s| s.token == token)
+                .exports
+                .borrow()
+                .get(&operation_id)
+                .is_some_and(|state| state.token == token && &state.scope == scope)
     }
-    pub(super) fn current_firmware_executor(
+
+    pub(super) fn export_source_is_current(&self, state: &ExportState) -> bool {
+        self.snapshot_current(state.token, &state.scope)
+    }
+
+    pub(super) fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
+        self.session.borrow().snapshot_is_current(token, scope)
+    }
+    pub(super) fn deliver_export(
         &self,
-    ) -> (Rc<dyn CoreExecutor>, boardstudio_application::ExecutorEpoch) {
-        let core = self.core.borrow().clone();
-        let executor: Rc<dyn CoreExecutor> = core;
-        (executor, self.session.borrow().core_executor_epoch())
-    }
-    pub(super) fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
+        bytes: &[u8],
+        filename: &str,
+        media_type: Option<&str>,
+    ) -> Result<(), String> {
         #[cfg(any(test, feature = "test-support"))]
         if let Some(adapters) = self.in_process_adapters.borrow().as_ref() {
-            adapters.deliver(
-                &artifact.bytes,
-                &artifact.filename,
-                artifact.media_type.as_deref(),
-            );
+            adapters.deliver(bytes, filename, media_type);
             return Ok(());
         }
-        deliver(
-            &artifact.bytes,
-            &artifact.filename,
-            artifact.media_type.as_deref(),
-        )
+        deliver(bytes, filename, media_type)
     }
     pub(super) async fn generate(
         self: &Rc<Self>,
@@ -589,9 +293,9 @@ impl Runtime {
             .generate_current(job_id, &scope, &snapshot, &cancelled)
             .await;
         self.cad_jobs.borrow_mut().remove(&job_id);
-        let current_job = matches!(self.model().generation,
+        let current_job = self.with_model(|model| matches!(model.generation,
             boardstudio_application::GenerationStatus::Preparing { job_id: active }
-            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id));
         if result.is_err()
             && current_job
             && let Some((_, worker)) = self.cad_worker.borrow_mut().take()
@@ -604,19 +308,21 @@ impl Runtime {
                 scope,
                 exact: true,
             }),
-            Err(CadJobError::Blocked(reason)) => self.complete(Completion::GenerationBlocked {
+            Err(CadJobError::Blocked(reason)) => self.complete(Completion::GenerationFailed {
                 job_id,
                 scope,
                 reason,
+                blocked: true,
             }),
             Err(CadJobError::Failed(reason) | CadJobError::Stale(reason)) => {
                 self.complete(Completion::GenerationFailed {
                     job_id,
                     scope,
                     reason,
+                    blocked: false,
                 })
             }
-            Err(CadJobError::Cancelled) => vec![],
+            Err(CadJobError::Cancelled) => Vec::new(),
         }
     }
     pub(super) async fn generate_current(
@@ -627,9 +333,9 @@ impl Runtime {
         cancelled: &Cell<bool>,
     ) -> Result<(), CadJobError> {
         let guard = || {
-            let current_job = matches!(self.model().generation,
-                boardstudio_application::GenerationStatus::Preparing { job_id: active }
-                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            let current_job = self.with_model(|model| matches!(model.generation,
+            boardstudio_application::GenerationStatus::Preparing { job_id: active }
+                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id));
             if cancelled.get() || !current_job || !self.snapshot_current(snapshot.token, scope) {
                 Err(CadJobError::Cancelled)
             } else {
@@ -637,41 +343,31 @@ impl Runtime {
             }
         };
         guard()?;
-        let core = self.core.borrow().clone();
-        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let job = format!("case-{}", job_id.0);
         let prepared = prepare_captured_case(
-            core.as_ref(),
-            &epoch,
-            &format!("case-{}", job_id.0),
+            (self.core_services.open_scratch)(),
+            &job,
             snapshot,
             scope,
-        )
-        .await?;
+            false,
+        )?;
         guard()?;
-        let previous = self.cad_worker.borrow_mut().take();
-        let worker = match previous {
-            Some((worker_scope, worker)) if worker_scope == *scope && !worker.is_closed() => worker,
-            Some((_, worker)) => {
-                worker.close();
-                Rc::new(
-                    CadWorker::new(
-                        &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
-                    )
-                    .map_err(|e| CadJobError::Failed(e.to_string()))?,
-                )
-            }
-            None => Rc::new(
-                CadWorker::new(
-                    &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
-                )
-                .map_err(|e| CadJobError::Failed(e.to_string()))?,
-            ),
-        };
-        *self.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            scope,
+            |worker| !worker.is_closed(),
+            || {
+                let url = resource_url("assets/cad-worker/entry.js")?;
+                CadWorker::new(&url)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )
+        .map_err(CadJobError::Failed)?;
         worker
             .ready()
             .await
-            .map_err(|e| CadJobError::Failed(e.to_string()))?;
+            .map_err(|error| CadJobError::Failed(error.to_string()))?;
         guard()?;
         let contours = captured_case_scene(snapshot, scope)?
             .board_contours
@@ -679,10 +375,12 @@ impl Runtime {
             .find(|board| board.board_id == scope.board_id)
             .ok_or_else(|| CadJobError::Blocked("Case contours unavailable".into()))?
             .contours;
+        let physical_fingerprint =
+            crate::case_generation_lifecycle::physical_case_fingerprint(snapshot, scope);
         for operation in [CadOperation::Preview, CadOperation::Exact] {
             let request = CadRequest {
-                request_id: format!("case-{}-{operation:?}", job_id.0),
-                job_id: format!("case-{}", job_id.0),
+                request_id: format!("{job}-{operation:?}"),
+                job_id: job.clone(),
                 identity: prepared.identity.clone(),
                 operation,
                 prepared: Some(prepared.prepared.clone()),
@@ -707,9 +405,7 @@ impl Runtime {
                 snapshot: snapshot.clone(),
                 result,
                 prepared: prepared.prepared.clone(),
-                physical_fingerprint: crate::case_generation_lifecycle::physical_case_fingerprint(
-                    snapshot, scope,
-                ),
+                physical_fingerprint,
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
                 contours: contours.clone(),
@@ -723,33 +419,31 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        worker: Option<&Rc<dyn CoreExecutor>>,
     ) -> Result<(), String> {
-        let lease = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Export lease is no longer current.".to_owned())?;
-        if lease.token() != snapshot.token
-            || lease.scope() != scope
-            || lease.snapshot().document.revision != snapshot.document.revision
-        {
-            return Err("Export lease is no longer current.".into());
+        if self.export_current(operation_id, snapshot.token, scope) {
+            Ok(())
+        } else {
+            Err("Export lease is no longer current.".into())
         }
-        let core = self.core.borrow().clone();
-        let session = self.session.borrow();
-        let session_owns_export = session.export_is_current(operation_id, lease.token(), scope)
-            && session.scope().as_ref() == Some(scope);
-        lease.require_current(
-            session_owns_export,
-            session.read_model().accepted.as_ref(),
-            session.core_executor_epoch(),
-            core_executor_identity(&core),
-        )?;
-        if worker.is_some_and(|worker| !Rc::ptr_eq(worker, &core)) {
-            return Err("Export lease is no longer current.".into());
-        }
-        Ok(())
     }
+}
+
+pub(super) fn outline_geometry<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<(&'a Board, &'a [boardstudio_model::model::Contour]), String> {
+    let board = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == scope.board_id)
+        .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
+    let contours = snapshot
+        .scene
+        .board_contours
+        .iter()
+        .find(|entry| entry.board_id == scope.board_id)
+        .map(|entry| entry.contours.as_slice())
+        .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
+    Ok((board, contours))
 }

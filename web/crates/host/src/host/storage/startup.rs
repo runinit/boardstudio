@@ -19,19 +19,6 @@ impl BrowserStore {
     pub async fn start_session(
         &self,
     ) -> Result<(Option<StorageSession>, Option<PersistError>), PersistError> {
-        let store = self.clone();
-        let (sender, receiver) = oneshot::channel();
-        spawn_local(async move {
-            let _ = sender.send(store.start_session_inner().await);
-        });
-        receiver
-            .await
-            .map_err(|_| PersistError("storage startup task was abandoned".into()))?
-    }
-
-    async fn start_session_inner(
-        &self,
-    ) -> Result<(Option<StorageSession>, Option<PersistError>), PersistError> {
         let navigator = window()?.navigator();
         let manager = Reflect::get(&navigator, &"locks".into()).map_err(js_error)?;
         if manager.is_null() || manager.is_undefined() {
@@ -40,9 +27,7 @@ impl BrowserStore {
         let name = format!("boardstudio-storage:{}", self.database_name);
         let mut cleanup_error = None;
         if let Some(exclusive) = acquire(&manager, &name, "exclusive", true).await? {
-            if only_window().await {
-                cleanup_error = collect_unused_assets(&self.database_name).await.err();
-            }
+            cleanup_error = collect_unused_assets(self).await.err();
             drop(exclusive);
         }
         let shared = acquire(&manager, &name, "shared", false).await?;
@@ -105,68 +90,10 @@ async fn acquire(
     }))
 }
 
-/// A new service worker enumerates uncontrolled windows too, covering legacy tabs
-/// that do not participate in Web Locks. Missing or older workers defer cleanup.
-async fn only_window() -> bool {
-    let Ok(window) = window() else {
-        return false;
-    };
-    let Some(worker) = window.navigator().service_worker().controller() else {
-        return false;
-    };
-    let Ok(channel) = web_sys::MessageChannel::new() else {
-        return false;
-    };
-    let (sender, receiver) = oneshot::channel();
-    let sender = Rc::new(RefCell::new(Some(sender)));
-    let received = sender.clone();
-    let callback =
-        Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |event: web_sys::MessageEvent| {
-            if let Some(sender) = received.borrow_mut().take() {
-                let _ = sender.send(
-                    event.data().as_string().as_deref()
-                        == Some(crate::offline::STORAGE_WINDOW_ALONE),
-                );
-            }
-        });
-    let port = channel.port1();
-    port.set_onmessage(Some(callback.as_ref().unchecked_ref()));
-    let transfers = Array::new();
-    transfers.push(&channel.port2());
-    let posted = worker
-        .post_message_with_transferable(
-            &JsValue::from_str(crate::offline::STORAGE_WINDOW_QUERY),
-            &transfers,
-        )
-        .is_ok();
-    // Keep a bounded wait even when a legacy service worker ignores this protocol.
-    let timeout = sender.clone();
-    spawn_local(async move {
-        gloo_timers::future::TimeoutFuture::new(500).await;
-        if let Some(sender) = timeout.borrow_mut().take() {
-            let _ = sender.send(false);
-        }
-    });
-    let alone = if posted {
-        receiver.await.unwrap_or(false)
-    } else {
-        false
-    };
-    port.set_onmessage(None);
-    port.close();
-    channel.port2().close();
-    drop(callback);
-    alone
-}
-
-async fn collect_unused_assets(database_name: &str) -> Result<(), PersistError> {
-    let database = open_database(database_name).await?;
-    let names = Array::new();
-    names.push(&PROJECT_STORE.into());
-    names.push(&ASSET_STORE.into());
-    let transaction = database
-        .transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)
-        .map_err(js_error)?;
+async fn collect_unused_assets(store: &BrowserStore) -> Result<(), PersistError> {
+    let transaction = store
+        .transaction(&[PROJECT_STORE, ASSET_STORE], IdbTransactionMode::Readwrite)
+        .await?;
     let failure = Rc::new(RefCell::new(None));
     let completion = transaction_completion(&transaction, failure.clone());
     let projects = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
@@ -183,7 +110,7 @@ async fn collect_unused_assets(database_name: &str) -> Result<(), PersistError> 
             let values = project_check.result().map_err(js_error)?;
             let mut hashes = BTreeSet::new();
             for value in Array::from(&values).iter() {
-                let (document, _) = decode_document(value)?;
+                let document = decode_document(value)?;
                 hashes.extend(document.assets.into_iter().map(|asset| asset.sha256));
             }
             *refs.borrow_mut() = Some(hashes);
@@ -217,7 +144,6 @@ async fn collect_unused_assets(database_name: &str) -> Result<(), PersistError> 
     projects_request.set_onsuccess(Some(project_callback.as_ref().unchecked_ref()));
     keys_request.set_onsuccess(Some(key_callback.as_ref().unchecked_ref()));
     let result = completion.await;
-    database.close();
     drop((project_callback, key_callback));
     result
 }

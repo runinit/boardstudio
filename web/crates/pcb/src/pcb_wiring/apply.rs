@@ -1,23 +1,21 @@
 //! Apply the exact current accepted board plan through the normal Session edit owner.
-use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
+use super::mode::{
+    BoardWiringFailure, BoardWiringModeIdentity, board_mode, current_edit_snapshot, mode_identity,
+};
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
-use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone, PartialEq)]
 pub struct BoardWiringApplyActions {
     pub identity: Option<BoardWiringModeIdentity>,
-    /// The Apply control is available: no apply edit is pending and the current plan
-    /// still matches the accepted document.
+    /// The current plan matches the accepted document.
     pub editable: bool,
-    /// The reviewed-connection release control is unavailable while its edit is pending.
-    pub(crate) release_disabled: bool,
     /// The current board target's failure; landing and retirement are silent.
     pub(crate) failure: Option<String>,
     pub on_apply: EventHandler<BoardWiringModeIdentity>,
@@ -27,47 +25,19 @@ pub struct BoardWiringApplyActions {
 pub fn use_board_wiring_apply(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let apply = use_signal(|| None::<(EditOutcome, BoardWiringModeFeedbackTarget)>);
-    let release_review = use_signal(|| None::<(EditOutcome, BoardWiringModeFeedbackTarget)>);
-    let latest = use_signal(|| None);
-    let mut failure = use_signal(|| None::<BoardWiringFailure>);
-    use_effect(use_reactive((&version(),), move |_| {
-        let live = workspace() == "PCB";
-        for mut slot in [apply, release_review] {
-            let Some((outcome, target)) = slot.peek().clone() else {
-                continue;
-            };
-            let message = match outcome.settlement(live) {
-                Settlement::Pending => continue,
-                Settlement::Failed { message } => Some(message),
-                Settlement::Landed { .. } | Settlement::Retired => None,
-            };
-            slot.set(None);
-            if *latest.peek() == Some(outcome.operation()) {
-                failure.set(message.map(|message| BoardWiringFailure { target, message }));
-            }
-        }
-    }));
+    let _ = version();
+    let failure = use_signal(|| None::<BoardWiringFailure>);
     let submit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut latest = latest;
         let mut failure = failure;
         move |(identity, release): (BoardWiringModeIdentity, bool)| {
-            let mut slot = if release { release_review } else { apply };
-            if slot
-                .peek()
-                .as_ref()
-                .is_some_and(|(outcome, _)| outcome.is_pending())
-            {
-                return;
-            }
             let Some(snapshot) = current_edit_snapshot(
                 &runtime,
                 &identity,
@@ -93,37 +63,32 @@ pub fn use_board_wiring_apply(
             if release && review.is_none() {
                 return;
             }
-            failure.set(None);
             let target = identity.feedback_target();
-            let outcome = runtime.resolve_edit(
-                "pcb-wiring-apply",
-                Some("wiring plan".into()),
-                apply_resolver(identity, (*plan).clone(), review),
+            let resolver = apply_resolver(identity, (*plan).clone(), review);
+            failure.set(
+                runtime
+                    .commit("pcb-wiring-apply", resolver)
+                    .err()
+                    .map(|message| BoardWiringFailure { target, message }),
             );
-            latest.set(Some(outcome.operation()));
-            slot.set(Some((outcome, target)));
         }
     });
     let on_apply = use_callback(move |identity| submit.call((identity, false)));
     let on_release_reviewed_connections =
         use_callback(move |identity| submit.call((identity, true)));
     let identity = source.as_ref().map(mode_identity);
-    let editable = !apply
-        .read()
-        .as_ref()
-        .is_some_and(|(outcome, _)| outcome.is_pending())
-        && identity.as_ref().is_some_and(|identity| {
-            current_edit_snapshot(
-                &runtime,
-                identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-            )
-            .is_some_and(|snapshot| {
-                current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
-            })
-        });
+    let editable = identity.as_ref().is_some_and(|identity| {
+        current_edit_snapshot(
+            &runtime,
+            identity,
+            workspace(),
+            scope_generation(),
+            instance_is_current(),
+        )
+        .is_some_and(|snapshot| {
+            current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
+        })
+    });
     let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
@@ -133,10 +98,6 @@ pub fn use_board_wiring_apply(
     BoardWiringApplyActions {
         identity,
         editable,
-        release_disabled: release_review
-            .read()
-            .as_ref()
-            .is_some_and(|(outcome, _)| outcome.is_pending()),
         failure,
         on_apply,
         on_release_reviewed_connections,
@@ -245,23 +206,4 @@ fn current_review_plan(
         return None;
     }
     Some(plan.clone())
-}
-
-fn board_mode(
-    document: &ProjectDoc,
-    board_id: &str,
-) -> boardstudio_core_mechanical::electrical::ElectricalMode {
-    document
-        .hardware
-        .as_ref()
-        .and_then(|hardware| {
-            hardware
-                .boards
-                .iter()
-                .find(|configuration| configuration.board_id == board_id)
-        })
-        .map_or(
-            boardstudio_core_mechanical::electrical::ElectricalMode::Matrix,
-            |configuration| configuration.mode,
-        )
 }

@@ -1,11 +1,8 @@
+use crate::support::fixture::request;
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 const MODULE_LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn surface_anchor_in_host(surface: &Value, footprint: &Value) -> (f64, f64) {
     let local = &surface["points"][0];

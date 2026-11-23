@@ -102,35 +102,29 @@ class QuickPlanTests(unittest.TestCase):
         self.assertLess(names.index("test-css"), names.index("lint"))
 
     def test_core_and_footprints_use_one_workspace_test_command(self):
-        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked"]])
+        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked", "--lib", "--bins", "--tests"]])
         plan = self.plan(["core/src/lib.rs", "catalogue/footprints/a.rs"])
         self.assertEqual(len(plan["test"]), 1)
         self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
         self.assertIn("boardstudio-footprints", plan["test"][0])
         self.assertIn("core", plan["test"][0])
 
-    def test_a_web_crate_edit_runs_its_launches_without_full_web_build(self):
+    def test_a_retired_web_crate_edit_runs_native_checks_without_chrome(self):
         plan = self.plan(["web/crates/keymap/src/lib.rs"])
         self.assertNotIn("build", plan)
-        launches = [command for command in plan["browser"] if check.is_crate_launch(command)]
-        self.assertTrue(launches)
-        self.assertTrue(all("web/crates/keymap" in command for command in launches))
-        self.assertEqual(plan["browser"], [
-            [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-keymap"], *launches,
-        ])
+        self.assertNotIn("browser", plan)
         self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
         self.assertIn("keymap", plan["test"][0])
         self.assertIn("web", plan["test"][0])
 
-    def test_quick_layout_runs_prepare_css_before_browser(self):
-        with mock.patch.object(check, "tailwind_cli", return_value=Path("/tools/tailwindcss")):
+    def test_quick_layout_generates_stylesheet_without_a_browser_launch(self):
+        with mock.patch("tailwind_tools.tailwind_cli", return_value=Path("/tools/tailwindcss")):
             plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
         names = [name for name, _ in plan]
-        self.assertLess(names.index("test-css"), names.index("browser"))
+        self.assertLess(names.index("test-css"), names.index("lint"))
         command = dict(plan)["test-css"][0]
         self.assertEqual(command, ["/tools/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"])
-        self.assertIn("browser", names)
-        self.assertNotIn("layout-test-css", names)
+        self.assertNotIn("browser", names)
 
     def test_other_crate_lint_also_generates_test_css(self):
         self.assertIn("test-css", self.plan(["web/crates/keymap/src/lib.rs"]))

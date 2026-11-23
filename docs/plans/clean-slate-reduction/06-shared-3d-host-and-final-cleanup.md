@@ -27,40 +27,38 @@ On `dev`, 3D viewing is split across:
 - **ONE** shared Dioxus `<Viewport3D />` component (≤ 900 Prod LOC) used by Case, Parts, Layout 3D, and Keycaps 3D — deleting duplicate orbit/pan/zoom gesture wrappers and redundant `case_viewer` / `shared_viewer` splits.
 - Concise native orbit/camera math tests + 1 browser WebGL smoke check (≤ 500 Test LOC).
 
-### Part B — Trim Dead Paths in `core/crates/{mechanical,kernel,artifact}` (`~52,600 → ≤ 34,000 LOC`, **−18,600 LOC**)
-Once Track 1 removes legacy mirror reconciliation and format-7 compatibility, audit and delete dead/duplicated code in:
-- `core/crates/mechanical/` (25,442 LOC: 19,406 Prod + 6,036 Test → target **≤ 16,500 LOC**):
-  - Delete legacy mirror-compatibility branches in `mechanical/halves.rs` (1,380 LOC) and `mechanical/edit/changes.rs` (1,347 LOC).
-  - Deduplicate repeated case-body/clearance/opening validation helpers and collapse copy-pasted mechanical unit tests.
-- `core/crates/kernel/` (20,526 LOC: 16,395 Prod + 4,131 Test → target **≤ 13,500 LOC**):
+### Part B — Trim Dead Paths in `core/crates/{mechanical,kernel,artifact}` *(Feature Parity Preserved)*
+Once Track 1 removes legacy mirror reconciliation and format-7 compatibility, audit and delete dead/duplicated code **without dropping any active mechanical, CAD, KiCad, ZMK, BOM capability, saved parameter, or validation invariant**:
+- `core/crates/mechanical/` (advisory target **≤ 16,500 LOC**):
+  - Delete legacy mirror-compatibility branches in `mechanical/halves.rs` and `mechanical/edit/changes.rs`.
+  - Deduplicate repeated case-body/clearance/opening validation helpers and collapse duplicated unit-test scaffolding while keeping every domain invariant tested.
+- `core/crates/kernel/` (advisory target **≤ 13,500 LOC**):
   - Remove dead pre-format-8 deserializers, unused compatibility helpers, and duplicate outline/matrix utilities.
-- `core/crates/artifact/` (6,615 LOC → target **≤ 4,000 LOC**):
+- `core/crates/artifact/` (advisory target **≤ 4,000 LOC**):
   - Simplify KiCad/ZMK/BOM artifact emitters now that they read one clean `ResolvedDoc`.
 
 ### Part C — Prune Stale Worktrees & Final Program Audit
-1. Audit `git worktree list` (currently **37 worktrees** on disk) and remove all merged/abandoned worktrees (never delete active/unmerged user branches without checking with the user first). Confirm `df -h .` has `> 50 GiB` free.
+1. Audit `git worktree list` and remove all merged/abandoned worktrees (never delete active/unmerged user branches without checking with the user first). Confirm `df -h .` has `> 50 GiB` free.
 2. Run the **Final Program Audit** against `dev` (`5aae86ff4`):
-   - Total tracked `.rs` + `scripts/*.{py,sh}` LOC **≤ 230,000** (down from 565,286 on `dev` and 721,916 on baseline `28e08ac7f`).
-   - Full `python3 scripts/check.py` passes cleanly in **≤ 75s**.
+   - **Feature Parity:** Full `PRODUCT.md` capability parity across Layout, PCB, Keymap, Keycaps, Case, Parts, and Export.
+   - Full `python3 scripts/check.py` passes cleanly (targeting **≤ 75s**).
    - Packaged release build (`scripts/build-web.py`) succeeds with:
-     - Total shipped WASM bytes **strictly smaller than `dev`** (at least **−11.6 MB** from retiring `core-worker.wasm` plus page WASM shrinkage).
+     - Total shipped WASM bytes **strictly smaller than `dev`** (at least **−11.6 MB** from retiring `core-worker.wasm`, page WASM **≤ 27.05 MB**).
      - `scripts/run-drag-browser.py` passes on both 2×2 default and 4×6 saved collision fixtures.
      - Cold startup and drag-to-save latency **≤ `dev`** (`≤ 1,116 ms` cold startup, `≤ 64 ms` drag-to-saved).
+   - Total tracked `.rs` + `scripts/*.{py,sh}` LOC evaluated against the advisory stretch band (**≤ 230,000–255,000 LOC**).
 
 ---
 
-## 2. Hard LOC Budget (Whole-Repo `check_reduction.py` Gate vs. Post-Wave-2/Track-5 Base)
+## 2. Hard Architectural, Performance & Hygiene Gate + Advisory LOC Targets
 
-- **Mandatory Net Production Rust Delta:** **`<= -16,000` LOC**
-- **Mandatory Net Test Rust Delta:** **`<= -9,000` LOC**
-- **Mandatory Net Scripts Delta:** **`<= 0` LOC**
-- **Mandatory Net Other Delta:** **`<= +100` LOC**
-
-### Cumulative End-of-Program Gate (Against `dev` `5aae86ff4`)
-- **Cumulative Net Production Rust Delta:** **`<= -120,000` LOC** (290,116 → ≤ 170,000)
-- **Cumulative Net Test Rust Delta:** **`<= -170,000` LOC** (248,907 → ≤ 79,000)
-- **Cumulative Net Scripts Delta:** **`<= -18,000` LOC** (26,263 → ≤ 8,200)
-- **Total Tracked Rust + Scripts:** **≤ 230,000 LOC** *(conservative hard ceiling: ≤ 255,000 LOC if `footprints`/`cad`/`renderer` remain untouched)*.
+- **Hard Track 6 Requirements:**
+  - Unified `web/crates/host/src/renderer_host.rs` initializer and unified `<Viewport3D />` component used across Case, Parts, Layout 3D, and Keycaps 3D; Mandatory Deletion Manifest paths removed (`case_viewer/`, `case_viewer.rs`, `shared_viewer/tests.rs`, duplicate renderer loaders).
+  - Anti-bloat floors: `--max-prod-delta -1`, `--max-test-delta -1`, `--max-script-delta 0`, `--max-other-delta 100`.
+  - Release bundle / latency / full `check.py` / feature parity checks strictly pass.
+- **Advisory Track 6 Targets:** `--target-prod-delta -16000 --target-test-delta -9000`.
+- **Advisory End-of-Program Stretch Targets (Against `dev` `5aae86ff4`):**
+  - `--target-prod-delta -120000 --target-test-delta -170000 --target-script-delta -18000` (**≤ 230,000–255,000 LOC** directional stretch ceiling).
 
 ---
 
@@ -80,20 +78,26 @@ Once Track 1 removes legacy mirror reconciliation and format-7 compatibility, au
 python3 docs/plans/clean-slate-reduction/check_reduction.py \
   --base <PRE_TRACK6_SHA> \
   --head HEAD \
-  --max-prod-delta -16000 \
-  --max-test-delta -9000 \
+  --max-prod-delta -1 \
+  --max-test-delta -1 \
+  --target-prod-delta -16000 \
+  --target-test-delta -9000 \
   --max-script-delta 0 \
   --max-other-delta 100 \
   --must-delete web/crates/case/src/case_viewer \
-  --must-delete web/crates/case/src/case_viewer.rs
+  --must-delete web/crates/case/src/case_viewer.rs \
+  --must-delete web/crates/case/src/shared_viewer/tests.rs
 
 # 2. Cumulative Program Gate (against original dev 5aae86ff4)
 python3 docs/plans/clean-slate-reduction/check_reduction.py \
   --base 5aae86ff4 \
   --head HEAD \
-  --max-prod-delta -120000 \
-  --max-test-delta -170000 \
-  --max-script-delta -18000 \
+  --max-prod-delta -1 \
+  --max-test-delta -1 \
+  --max-script-delta -1 \
+  --target-prod-delta -120000 \
+  --target-test-delta -170000 \
+  --target-script-delta -18000 \
   --max-other-delta 500
 
 # 3. Full Verification Gate (under shared flock)

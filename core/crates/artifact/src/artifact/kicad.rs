@@ -131,32 +131,6 @@ fn point_valid(point: Vec2) -> bool {
     point.x.is_finite() && point.y.is_finite()
 }
 
-fn assert_geometry(geometry: &FootprintGeometry) -> Result<(), ArtifactError> {
-    unique_ids(geometry.pads.iter().map(|pad| pad.id.as_str()), "pad")?;
-    for pad in &geometry.pads {
-        if pad.number.trim().is_empty() && pad.plated != Some(false) {
-            return Err(validation(format!(
-                "Empty electrical pad number: {}",
-                pad.id
-            )));
-        }
-        if !point_valid(pad.at)
-            || !point_valid(pad.size)
-            || pad.size.x <= 0.0
-            || pad.size.y <= 0.0
-            || pad
-                .drill
-                .is_some_and(|drill| !drill.is_finite() || drill <= 0.0)
-        {
-            return Err(validation(format!("Invalid pad geometry: {}", pad.id)));
-        }
-    }
-    if geometry.courtyard.iter().any(|point| !point_valid(*point)) {
-        return Err(validation("Invalid courtyard coordinate"));
-    }
-    Ok(())
-}
-
 fn pad_form(
     pad: &Pad,
     net: Option<&ReservedNet>,
@@ -323,19 +297,13 @@ fn courtyard_forms(points: &[Vec2], scope: &str, back: bool) -> Result<Vec<Strin
 
 fn native_footprint(
     definition: &PartDefinition,
+    geometry: &FootprintGeometry,
     scope: &str,
     part: Option<&Part>,
     nets: &BTreeMap<String, ReservedNet>,
     model_paths: &BTreeMap<String, String>,
 ) -> Result<String, ArtifactError> {
-    let job = FootprintCompileJob {
-        id: definition.id.clone(),
-        definition: definition.clone(),
-        side: part.map_or(Side::Front, |part| part.side.clone()),
-    };
-    let compiled = compile::compile_authored(&job.definition, job.side).map_err(validation)?;
-    let geometry = &compiled.geometry;
-    assert_geometry(geometry)?;
+    unique_ids(geometry.pads.iter().map(|pad| pad.id.as_str()), "pad")?;
     let back = matches!(geometry.side, Side::Back);
     let layer = if back { "B.Cu" } else { "F.Cu" };
     let reference_layer = if back { "B.SilkS" } else { "F.SilkS" };

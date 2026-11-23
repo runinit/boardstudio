@@ -7,13 +7,14 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{GenerationStatus, ReadModel, SelectionMode};
 use boardstudio_core::model::OutlineExportFormat;
+use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::inspector_fields::ToggleField;
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
     callout::{Callout, CalloutVariant},
-    checkbox::{Checkbox, CheckboxState},
+    command::{Command, use_commands},
     item::{Item, ItemContent, ItemDescription},
-    label::Label,
 };
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -22,158 +23,110 @@ use wasm_bindgen::{JsCast, closure::Closure};
 #[component]
 pub(super) fn ExportWorkspace(
     zmk_firmware: Option<ZmkFirmwareExportPanelInput>,
-    workspace: Signal<&'static str>,
-    return_workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
+    return_workspace: Signal<Workspace>,
     mut inspect_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
     let selection = use_context::<SelectionAdapter>();
     let model = runtime.model();
-    let board_name = selected_board_name(&model);
+    let board_name = model
+        .accepted
+        .as_ref()
+        .and_then(|s| {
+            s.document
+                .boards
+                .iter()
+                .find(|b| b.id == model.active_board_id)
+        })
+        .map_or_else(|| "this board".into(), |b| b.name.clone());
     let rows = export_rows(
         &runtime,
         &model,
-        zmk_firmware.as_ref().is_some_and(|firmware| firmware.ready),
-        zmk_firmware
-            .as_ref()
-            .is_some_and(|firmware| firmware.wiring_ready),
+        zmk_firmware.as_ref().is_some_and(|f| f.ready),
+        zmk_firmware.as_ref().is_some_and(|f| f.wiring_ready),
     );
-    let project_name = model
-        .accepted
-        .as_ref()
-        .map(|snapshot| snapshot.document.name.clone())
-        .unwrap_or_default();
-    let revision = model
-        .accepted
-        .as_ref()
-        .map(|snapshot| snapshot.document.revision)
-        .unwrap_or_default();
+    let (project_name, revision) = model.accepted.as_ref().map_or_else(
+        || (String::new(), 0),
+        |s| (s.document.name.clone(), s.document.revision),
+    );
     let durability = boardstudio_web_ui_shared::project_menu::durability_label(&model.durability);
     let back = return_workspace();
-    let key_listener = use_hook(|| {
-        let retained = Rc::new(RefCell::new(
+    let listener = use_hook(|| {
+        let slot = Rc::new(RefCell::new(
             None::<(
                 web_sys::Document,
                 Closure<dyn FnMut(web_sys::KeyboardEvent)>,
             )>,
         ));
-        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-            let mut workspace = workspace;
-            let return_workspace = return_workspace;
-            let listener = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
-                move |event: web_sys::KeyboardEvent| {
-                    if event.key() == "Escape" && workspace() == "Export" {
-                        event.prevent_default();
-                        workspace.set(return_workspace());
+        if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+            let mut ws = workspace;
+            let cb = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
+                move |e: web_sys::KeyboardEvent| {
+                    if e.key() == "Escape" && ws() == Workspace::Export {
+                        e.prevent_default();
+                        ws.set(return_workspace());
                     }
                 },
             );
-            let _ = document
-                .add_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref());
-            *retained.borrow_mut() = Some((document, listener));
+            let _ = doc.add_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref());
+            *slot.borrow_mut() = Some((doc, cb));
         }
-        retained
+        slot
     });
-    use_drop({
-        let key_listener = key_listener.clone();
-        move || {
-            if let Some((document, listener)) = key_listener.borrow_mut().take() {
-                let _ = document.remove_event_listener_with_callback(
-                    "keydown",
-                    listener.as_ref().unchecked_ref(),
-                );
-            }
+    use_drop(move || {
+        if let Some((d, cb)) = listener.borrow_mut().take() {
+            let _ = d.remove_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref());
         }
     });
-
-    let review_wiring = {
-        let runtime = runtime.clone();
-        let mut inspect_open = inspect_open;
-        let inspector_settings = inspector_settings;
-        move |_| {
-            let mut selected_context = selection.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = selection.anchor_scope;
-            anchor_scope.set(None);
-            let model = runtime.model();
-            if !model.selected_part_ids.is_empty() || model.selection_anchor_id.is_some() {
-                runtime.submit(boardstudio_application::Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: vec![],
-                    range_part_ids: vec![],
-                    mode: SelectionMode::Replace,
-                });
-            }
-            pin_inspector_on_desktop(inspector_settings);
-            inspect_open.set(true);
-            workspace.set("PCB");
-        }
-    };
-    let review_case = {
-        let mut inspect_open = inspect_open;
-        let inspector_settings = inspector_settings;
-        move |_| {
-            pin_inspector_on_desktop(inspector_settings);
-            inspect_open.set(true);
-            workspace.set("Case");
-        }
-    };
-    let archive = runtime.clone();
-
+    let (rt_w, rt_a) = (runtime.clone(), runtime.clone());
     rsx! {
-        section { class: "grid w-full max-w-none grid-cols-[minmax(0,1fr)_minmax(320px,34%)] content-start gap-x-8 gap-y-4 bg-card p-[clamp(24px,3vw,48px)] text-foreground max-[1100px]:grid-cols-[minmax(0,1fr)_minmax(280px,36%)] max-[1100px]:gap-x-5 max-[1100px]:gap-y-3.5 max-[1100px]:p-6 max-[760px]:flex max-[760px]:flex-col max-[760px]:gap-4 max-[760px]:px-4 max-[760px]:pt-5 max-[760px]:pb-8 max-[960px]:[&_[data-slot=button]]:min-h-11 [@media(pointer:coarse)]:[&_[data-slot=button]]:min-h-11", "aria-label": "Export package",
-            header { class: "col-start-1 [&_h1]:mt-2 [&_h1]:mb-3 [&_h1]:text-[32px] [&_p]:m-0 [&_p]:max-w-[68ch] [&_p]:text-base [&_p]:text-muted-foreground",
-                Button {
-                    variant: ButtonVariant::Ghost,
-                    size: ButtonSize::Sm,
-                    onclick: move |_| workspace.set(back),
-                    "Back to {back}"
-                }
-                h1 { "Export package" }
-                p { "Choose a handoff for {board_name}. Downloads use the current committed design; routing and mechanical fit still need downstream review." }
+        section { class: "grid w-full grid-cols-[minmax(0,1fr)_minmax(320px,34%)] content-start gap-x-8 gap-y-4 bg-card p-[clamp(24px,3vw,48px)] text-foreground max-[760px]:flex max-[760px]:flex-col", "aria-label": "Export package",
+            header { class: "col-start-1",
+                Button { variant: ButtonVariant::Ghost, size: ButtonSize::Sm, onclick: move |_| workspace.set(back), "Back to {back}" }
+                h1 { class: "mt-2 mb-3 text-[32px]", "Export package" }
+                p { class: "m-0 text-base text-muted-foreground", "Choose a handoff for {board_name}. Downloads use the current committed design." }
             }
-            div { class: "col-start-2 row-start-1 row-span-6 flex min-w-0 flex-col content-start gap-4 max-[1100px]:row-span-8 max-[760px]:gap-3",
-                section { class: "grid gap-3 rounded-xl bg-card p-5 [&_h2]:m-0 [&_h2]:text-xl [&_p]:m-0 [&_p]:text-muted-foreground max-[760px]:p-4", "aria-label": "Portable project",
-                    h2 { "Portable project" }
-                    p { "Keep an editable copy of the whole project, including all boards." }
-                    Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground [&_[data-slot=checkbox]]:min-h-6 [&_[data-slot=checkbox]]:min-w-6 [&_[data-slot=checkbox]]:flex-none",
-                        Checkbox {
-                            aria_label: "Embed used models",
-                            checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                            on_checked_change: move |state: CheckboxState| runtime.set_embed_used_models(state == CheckboxState::Checked),
-                        }
-                        span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
-                    }
-                    Button { variant: ButtonVariant::Secondary,
-                        class: "min-h-12 w-full justify-self-start",
-                        button_type: "button",
-                        disabled: model.accepted.is_none(),
-                        onclick: move |_| archive.export_project_copy(),
-                        "Download .boardstudio project"
-                    }
-                }
-                aside { class: "order-first grid content-start gap-3 rounded-xl bg-card p-5 [&_h2]:m-0 [&_h2]:text-xl [&_dl]:m-0 [&_dl]:grid [&_dl]:grid-cols-[minmax(86px,auto)_minmax(0,1fr)] [&_dl]:gap-x-3 [&_dl]:gap-y-2 [&_dt]:text-muted-foreground [&_dd]:m-0 [&_dd]:font-semibold [&_dd]:[overflow-wrap:anywhere] [&_p]:m-0 [&_p]:text-muted-foreground max-[760px]:order-none max-[760px]:p-4", aria_label: "Current design",
-                    h2 { "Current design" }
-                    dl {
+            div { class: "col-start-2 row-start-1 row-span-6 flex min-w-0 flex-col gap-4",
+                aside { class: "grid gap-3 rounded-xl bg-card p-5", aria_label: "Current design",
+                    h2 { class: "m-0 text-xl", "Current design" }
+                    dl { class: "m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2",
                         dt { "Project" } dd { "{project_name}" }
                         dt { "Active board" } dd { "{board_name}" }
                         dt { "Revision" } dd { "{revision}" }
                         dt { "Local save" } dd { "{durability}" }
                     }
-                    p { "Review routing, firmware builds and mechanical fit in downstream tools." }
+                }
+                section { class: "grid gap-3 rounded-xl bg-card p-5", "aria-label": "Portable project",
+                    h2 { class: "m-0 text-xl", "Portable project" }
+                    ToggleField {
+                        label: "Embed used models".to_owned(), aria_label: "Embed used models",
+                        description: "Include attached 3D model files used in this project.",
+                        checked: runtime.embed_used_models(),
+                        on_commit: { let rt = runtime.clone(); move |v: bool| rt.set_embed_used_models(v) },
+                    }
+                    Button { variant: ButtonVariant::Secondary, class: "min-h-12 w-full", button_type: "button", disabled: model.accepted.is_none(),
+                        onclick: move |_| rt_a.export_project_copy(), "Download .boardstudio project" }
                 }
             }
             h2 { class: "col-start-1 mt-2 border-b border-border pb-2.5 text-lg", "Design files" }
             div { class: "col-start-1 grid gap-0",
-                for row in rows {
-                    ExportRowView { row, zmk_firmware: zmk_firmware.clone() }
-                }
+                for row in rows { ExportRowView { row, zmk_firmware: zmk_firmware.clone() } }
             }
-            div { class: "col-start-1 mt-0 flex flex-wrap gap-2.5",
-                Button { variant: ButtonVariant::Secondary, onclick: review_wiring, "Review wiring" }
-                Button { variant: ButtonVariant::Secondary, onclick: review_case, "Review case" }
+            div { class: "col-start-1 flex flex-wrap gap-2.5",
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| {
+                    let (mut sc, mut an) = (selection.selected_context, selection.anchor_scope);
+                    sc.set(None); an.set(None);
+                    let m = rt_w.model();
+                    if !m.selected_part_ids.is_empty() || m.selection_anchor_id.is_some() {
+                        rt_w.submit(boardstudio_application::Event::SelectParts { operation_id: rt_w.operation(), part_ids: vec![], range_part_ids: vec![], mode: SelectionMode::Replace });
+                    }
+                    pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set(Workspace::Pcb);
+                }, "Review wiring" }
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| { pin_inspector_on_desktop(inspector_settings); inspect_open.set(true); workspace.set(Workspace::Case); }, "Review case" }
             }
             RuntimeReportBanner {}
         }
@@ -187,69 +140,44 @@ struct ExportRow {
     status: &'static str,
     action: &'static str,
     ready: bool,
-    available: bool,
     reason: Option<&'static str>,
     on_export: Option<EventHandler<()>>,
 }
 
 #[component]
 fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
-    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
-    let firmware_owned = row.label == "ZMK firmware" && zmk_firmware.is_some();
-    use_commands(if firmware_owned {
-        Vec::new()
+    let fw_owned = row.label == "ZMK firmware" && zmk_firmware.is_some();
+    use_commands(if fw_owned {
+        vec![]
     } else {
         vec![Command {
             group: "Current Workspace",
             label: format!("Export {}", row.label),
-            reason: if !row.ready {
-                row.reason.or(Some(row.status))
-            } else if !row.available {
-                Some("This export provider is not connected in this build.")
-            } else {
-                None
-            }
-            .map(str::to_owned),
+            reason: (!row.ready).then(|| row.reason.unwrap_or(row.status).to_owned()),
             hint: None,
             on_select: EventHandler::new(move |()| {
-                if let Some(on_export) = row.on_export {
-                    on_export.call(());
+                if let Some(cb) = row.on_export {
+                    cb.call(());
                 }
             }),
         }]
     });
-    if row.label == "ZMK firmware"
-        && let Some(firmware) = zmk_firmware
-    {
-        return rsx! { ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export } };
+    if let (true, Some(fw)) = (row.label == "ZMK firmware", zmk_firmware) {
+        return rsx! { ZmkFirmwareExportRow { ready: fw.ready, on_export: fw.on_export } };
     }
     rsx! {
         div { "data-export-kind": "{row.label}",
-          Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-card p-4 max-[760px]:grid-cols-1",
-            ItemContent { class: "flex min-w-0 flex-wrap items-start gap-x-3 gap-y-1 [&>strong]:text-lg [&_[data-slot=badge]]:w-fit [&_[data-slot=item-description]]:block [&_[data-slot=item-description]]:overflow-visible [&_[data-slot=item-description]]:[-webkit-line-clamp:unset]",
-                strong { "{row.label}" }
-                Badge { variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
-                    if !row.available { "Provider unavailable" } else { "{row.status}" }
+            Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-card p-4 max-[760px]:grid-cols-1",
+                ItemContent { class: "flex min-w-0 flex-wrap items-start gap-x-3 gap-y-1",
+                    strong { "{row.label}" }
+                    Badge { variant: if row.ready { BadgeVariant::Success } else { BadgeVariant::Warning }, "{row.status}" }
+                    ItemDescription { "{row.detail}" }
+                    if let Some(reason) = row.reason { Callout { variant: CalloutVariant::Warning, "{reason}" } }
                 }
-                ItemDescription { "{row.detail}" }
-                if let Some(reason) = row.reason { Callout { variant: CalloutVariant::Warning, "{reason}" } }
-                if row.ready && !row.available {
-                    Callout { variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
-                }
+                Button { variant: ButtonVariant::Secondary, class: "min-h-9 min-w-[104px]", button_type: "button",
+                    aria_label: format!("Export {}", row.label), disabled: !row.ready,
+                    onclick: move |_| if let Some(cb) = row.on_export { cb.call(()); }, "{row.action}" }
             }
-            Button { variant: ButtonVariant::Secondary,
-                class: "min-h-9 min-w-[104px] max-[760px]:col-start-1 max-[760px]:min-h-11 max-[760px]:justify-self-start",
-                button_type: "button",
-                aria_label: format!("Export {}", row.label),
-                disabled: !row.ready || !row.available,
-                onclick: move |_| {
-                    if let Some(on_export) = row.on_export.as_ref() {
-                        on_export.call(());
-                    }
-                },
-                "{row.action}"
-            }
-          }
         }
     }
 }
@@ -260,93 +188,48 @@ fn export_rows(
     firmware_ready: bool,
     wiring_ready: bool,
 ) -> Vec<ExportRow> {
-    let Some(snapshot) = model.accepted.as_ref() else {
+    let Some(snap) = model.accepted.as_ref() else {
         return vec![];
     };
-    let document = &snapshot.document;
-    let board_count = document.boards.len();
-    let board_id = model.active_board_id.as_str();
-    let scene = &snapshot.scene;
-    let selected_readiness = scene
-        .board_readiness
-        .iter()
-        .find(|item| item.board_id == board_id);
-    let pcb_ready =
-        selected_readiness.map_or(board_count <= 1 && scene.readiness.pcb, |item| item.pcb);
-    let outline_ready = selected_readiness.map_or(scene.readiness.outline, |item| item.outline);
-    let pcb_blocker = (!pcb_ready).then_some("Review the board outline and layout findings.");
-    let outline_blocker =
-        (!outline_ready).then_some("Review the board outline and layout findings.");
-    let wiring_blocker =
+    let (doc, scene, bid) = (&snap.document, &snap.scene, model.active_board_id.as_str());
+    let sel = scene.board_readiness.iter().find(|r| r.board_id == bid);
+    let pcb_ready = sel.map_or(doc.boards.len() <= 1 && scene.readiness.pcb, |r| r.pcb);
+    let outline_ready = sel.map_or(scene.readiness.outline, |r| r.outline);
+    let pcb_blk = (!pcb_ready).then_some("Review the board outline and layout findings.");
+    let out_blk = (!outline_ready).then_some("Review the board outline and layout findings.");
+    let wire_blk =
         (!wiring_ready).then_some("Review the layout and resolve controller wiring in PCB.");
-    let authored_case_ready =
-        boardstudio_core::authored_case_geometry_ready(document, scene, board_id);
-    let mechanical_scope = runtime.scope();
-    let mechanical_document = mechanical_scope.as_ref().and_then(|scope| {
-        boardstudio_web_host::cad_jobs::captured_case_document(snapshot, scope).ok()
-    });
-    let generated_case = mechanical_document
+    let case_ready = boardstudio_core::authored_case_geometry_ready(doc, scene, bid);
+    let scope = runtime.scope();
+    let gen_case = scope
         .as_ref()
-        .and_then(|document| document.mechanical.as_ref())
-        .is_some_and(|configuration| configuration.board_id == board_id);
-    let step_runtime = runtime.clone();
-    let step_scope = runtime.scope();
-    let step_token = snapshot.token;
-    let step_epoch = snapshot.session_epoch;
-    let step_export = EventHandler::new(move |()| {
-        let model = step_runtime.model();
-        if step_runtime.scope() == step_scope
-            && model.accepted.as_ref().is_some_and(|accepted| {
-                accepted.token == step_token && accepted.session_epoch == step_epoch
-            })
-        {
-            step_runtime.export_step();
-        }
-    });
-    let mechanical_runtime = runtime.clone();
-    let mechanical_callback_scope = mechanical_scope.clone();
-    let mechanical_token = snapshot.token;
-    let mechanical_session_epoch = snapshot.session_epoch;
-    let mechanical_export = EventHandler::new(move |()| {
-        let model = mechanical_runtime.model();
-        if mechanical_runtime.scope() == mechanical_callback_scope
-            && model.accepted.as_ref().is_some_and(|accepted| {
-                accepted.token == mechanical_token
-                    && accepted.session_epoch == mechanical_session_epoch
-            })
-        {
-            mechanical_runtime.export_mechanical();
-        }
-    });
-    let svg_runtime = runtime.clone();
-    let svg_export =
-        EventHandler::new(move |()| svg_runtime.export_board_outline(OutlineExportFormat::Svg));
-    let dxf_runtime = runtime.clone();
-    let dxf_export =
-        EventHandler::new(move |()| dxf_runtime.export_board_outline(OutlineExportFormat::Dxf));
-    let keycaps_runtime = runtime.clone();
-    let keycaps_ready = scene.revision == document.revision
-        && document.boards.iter().any(|board| board.id == board_id);
-    let keycaps_scope = runtime.scope();
-    let keycaps_token = snapshot.token;
-    let keycaps_export = EventHandler::new(move |()| {
-        if keycaps_runtime.scope() == keycaps_scope
-            && keycaps_runtime
-                .model()
-                .accepted
-                .as_ref()
-                .is_some_and(|accepted| accepted.token == keycaps_token)
-        {
-            keycaps_runtime.export_keycaps_stl();
-        }
-    });
-    let footprints_runtime = runtime.clone();
-    let footprints_export = EventHandler::new(move |()| footprints_runtime.export_footprints());
-    let kicad_runtime = runtime.clone();
-    let kicad_export = EventHandler::new(move |()| kicad_runtime.export_kicad_board(false));
-    let draft_kicad_runtime = runtime.clone();
-    let draft_kicad_export =
-        EventHandler::new(move |()| draft_kicad_runtime.export_kicad_board(true));
+        .and_then(|s| boardstudio_web_host::cad_jobs::captured_case_document(snap, s).ok())
+        .and_then(|d| d.mechanical)
+        .is_some_and(|c| c.board_id == bid);
+    let token = snap.token;
+    let epoch = snap.session_epoch;
+    let guarded = |f: fn(&Rc<Runtime>)| {
+        let (rt, sc) = (runtime.clone(), scope.clone());
+        EventHandler::new(move |()| {
+            if rt.scope() == sc
+                && rt
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|a| a.token == token && a.session_epoch == epoch)
+            {
+                f(&rt);
+            }
+        })
+    };
+    let (rt_k, rt_dk, rt_fp, rt_svg, rt_dxf) = (
+        runtime.clone(),
+        runtime.clone(),
+        runtime.clone(),
+        runtime.clone(),
+        runtime.clone(),
+    );
+    let keycaps_ready = scene.revision == doc.revision && doc.boards.iter().any(|b| b.id == bid);
     let mut rows = vec![
         ExportRow {
             label: "KiCad board",
@@ -360,15 +243,14 @@ fn export_rows(
             },
             action: "Export KiCad",
             ready: pcb_ready && wiring_ready,
-            available: true,
             reason: if pcb_ready && wiring_ready {
                 None
             } else if wiring_ready {
-                pcb_blocker
+                pcb_blk
             } else {
-                wiring_blocker
+                wire_blk
             },
-            on_export: Some(kicad_export),
+            on_export: Some(EventHandler::new(move |()| rt_k.export_kicad_board(false))),
         },
         ExportRow {
             label: "Draft KiCad board",
@@ -380,9 +262,8 @@ fn export_rows(
             },
             action: "Export draft",
             ready: pcb_ready,
-            available: true,
-            reason: pcb_blocker,
-            on_export: Some(draft_kicad_export),
+            reason: pcb_blk,
+            on_export: Some(EventHandler::new(move |()| rt_dk.export_kicad_board(true))),
         },
         ExportRow {
             label: "Keycap STLs",
@@ -394,10 +275,9 @@ fn export_rows(
             },
             action: "Export keycap STLs",
             ready: keycaps_ready,
-            available: true,
             reason: (!keycaps_ready)
                 .then_some("Select a board with a current design before exporting keycaps."),
-            on_export: Some(keycaps_export),
+            on_export: Some(guarded(Runtime::export_keycaps_stl)),
         },
         ExportRow {
             label: "ZMK firmware",
@@ -409,26 +289,24 @@ fn export_rows(
             },
             action: "Export firmware",
             ready: firmware_ready,
-            available: true,
-            reason: wiring_blocker,
+            reason: wire_blk,
             on_export: None,
         },
         ExportRow {
             label: "KiCad footprints",
             detail: "Component footprint library",
-            status: if !document.definitions.is_empty() {
+            status: if !doc.definitions.is_empty() {
                 "Available"
             } else {
                 "Needs component definition"
             },
             action: "Export footprints",
-            ready: !document.definitions.is_empty(),
-            available: true,
-            reason: document
+            ready: !doc.definitions.is_empty(),
+            reason: doc
                 .definitions
                 .is_empty()
                 .then_some("Add a component definition before exporting footprints."),
-            on_export: Some(footprints_export),
+            on_export: Some(EventHandler::new(move |()| rt_fp.export_footprints())),
         },
         ExportRow {
             label: "SVG board outline",
@@ -440,9 +318,10 @@ fn export_rows(
             },
             action: "Export SVG",
             ready: outline_ready,
-            available: true,
-            reason: outline_blocker,
-            on_export: Some(svg_export),
+            reason: out_blk,
+            on_export: Some(EventHandler::new(move |()| {
+                rt_svg.export_board_outline(OutlineExportFormat::Svg)
+            })),
         },
         ExportRow {
             label: "DXF board outline",
@@ -454,46 +333,46 @@ fn export_rows(
             },
             action: "Export DXF",
             ready: outline_ready,
-            available: true,
-            reason: outline_blocker,
-            on_export: Some(dxf_export),
+            reason: out_blk,
+            on_export: Some(EventHandler::new(move |()| {
+                rt_dxf.export_board_outline(OutlineExportFormat::Dxf)
+            })),
         },
         ExportRow {
-            label: if generated_case {
+            label: if gen_case {
                 "Authored Case STEP"
             } else {
                 "Case STEP"
             },
             detail: "Saved authored case bodies",
-            status: if authored_case_ready {
+            status: if case_ready {
                 "Available"
             } else {
                 "Needs case geometry"
             },
             action: "Export STEP",
-            ready: authored_case_ready,
-            available: true,
-            reason: (!authored_case_ready).then_some("Add and generate case geometry in Case."),
-            on_export: Some(step_export),
+            ready: case_ready,
+            reason: (!case_ready).then_some("Add and generate case geometry in Case."),
+            on_export: Some(guarded(Runtime::export_step)),
         },
     ];
-    if generated_case {
-        let expected_scope = mechanical_scope;
+    if gen_case {
         let ready = outline_ready
-            && runtime.cad_scene().is_some_and(|cad| {
-                Some(&cad.scope) == expected_scope.as_ref()
-                    && cad.token == snapshot.token
-                    && cad.exact
+            && runtime.cad_scene().is_some_and(|c| {
+                Some(&c.scope) == scope.as_ref()
+                    && c.token == token
+                    && c.exact
                     && matches!(
                         &model.generation,
                         GenerationStatus::Ready { exact: true, .. }
                     )
-                    && cad.mechanical.as_ref().is_some_and(|assembly| {
-                        assembly.revision == snapshot.document.revision
-                            && !assembly.generation_blocked
-                            && !assembly.diagnostics.iter().any(|finding| {
-                                finding.severity == boardstudio_core::model::Severity::Error
-                            })
+                    && c.mechanical.as_ref().is_some_and(|a| {
+                        a.revision == doc.revision
+                            && !a.generation_blocked
+                            && !a
+                                .diagnostics
+                                .iter()
+                                .any(|f| f.severity == boardstudio_core::model::Severity::Error)
                     })
             });
         rows.push(ExportRow {
@@ -506,288 +385,9 @@ fn export_rows(
             },
             action: "Export package",
             ready,
-            available: true,
             reason: (!ready).then_some("Update the current mechanical preview before export."),
-            on_export: Some(mechanical_export),
+            on_export: Some(guarded(Runtime::export_mechanical)),
         });
     }
     rows
-}
-
-fn selected_board_name(model: &ReadModel) -> String {
-    model
-        .accepted
-        .as_ref()
-        .and_then(|snapshot| {
-            snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == model.active_board_id)
-        })
-        .map(|board| board.name.clone())
-        .unwrap_or_else(|| "this board".to_owned())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{ProjectDoc, Readiness, SceneDelta};
-    use std::sync::Arc;
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[derive(Clone)]
-    struct ExportRowProbe {
-        runtime: Rc<Runtime>,
-        model: ReadModel,
-        wiring_ready: bool,
-    }
-
-    #[component]
-    fn export_row_fixture() -> Element {
-        let probe = use_context::<ExportRowProbe>();
-        let rows = export_rows(&probe.runtime, &probe.model, false, probe.wiring_ready);
-        let row = rows
-            .into_iter()
-            .find(|row| row.label == "KiCad board")
-            .expect("accepted model creates the KiCad board row");
-        rsx! { ExportRowView { row, zmk_firmware: None } }
-    }
-
-    fn model_with_pcb_readiness(pcb_ready: bool) -> ReadModel {
-        let session_epoch = SessionEpoch(1);
-        let scene = SceneDelta {
-            module_scenes: vec![],
-            revision: 1,
-            transaction_id: "export-row-test".into(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![],
-            board_readiness: vec![],
-            board_outline_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: pcb_ready,
-                case_ready: false,
-            },
-        };
-        ReadModel {
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(1),
-                session_epoch,
-                document: Arc::new(ProjectDoc::empty("export-row-test", "Export row test")),
-                scene: Arc::new(scene),
-            }),
-            active_board_id: String::new(),
-            ..ReadModel::default()
-        }
-    }
-
-    fn palette_row_fixture() -> Element {
-        use boardstudio_web_ui_shared::ui::command::use_command_registry;
-        let registry = use_command_registry();
-        let mut blocked = use_signal(|| false);
-        let mut available = use_signal(|| true);
-        let calls = use_context::<Rc<std::cell::Cell<u32>>>();
-        let on_export = use_callback(move |()| calls.set(calls.get() + 1));
-        let reason = registry
-            .commands()
-            .first()
-            .map(|c| c.reason.clone().unwrap_or_else(|| "enabled".into()))
-            .unwrap_or_default();
-        rsx! {
-            ExportRowView { zmk_firmware: None, row: ExportRow {
-                label: "Test output", detail: "Owner output", status: "Needs owner review", action: "Export test output",
-                ready: !blocked(), available: available(), reason: blocked().then_some("Owner blocker"), on_export: Some(on_export),
-            } }
-            Button { onclick: move |_| registry.commands()[0].on_select.call(()), "Invoke palette export" }
-            Button { onclick: move |_| blocked.set(!blocked()), "Toggle owner blocker" }
-            Button { onclick: move |_| available.set(!available()), "Toggle export provider" }
-            output { role: "status", aria_label: "Export command reason", "{reason}" }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn palette_export_reuses_the_row_callback_and_live_blockers() {
-        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let calls = Rc::new(std::cell::Cell::new(0u32));
-        let dom = VirtualDom::new(palette_row_fixture);
-        dom.provide_root_context(calls.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        let status = |name| by_role_name(&root, "status", name).map(|e| e.text_content().unwrap());
-        let click = |name| by_role_name(&root, "button", name).unwrap().click();
-        wait_until("ready export registered", || {
-            status("Export command reason").as_deref() == Some("enabled")
-        })
-        .await;
-        click("Export Test output");
-        assert_eq!(calls.get(), 1, "native owner callback once");
-        click("Invoke palette export");
-        assert_eq!(calls.get(), 2, "same owner callback from palette once");
-        click("Toggle owner blocker");
-        wait_until("owner blocker refreshed", || {
-            status("Export command reason").as_deref() == Some("Owner blocker")
-        })
-        .await;
-        assert!(
-            by_role_name(&root, "button", "Export Test output")
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        click("Invoke palette export");
-        click("Export Test output");
-        assert_eq!(calls.get(), 2);
-        click("Toggle owner blocker");
-        click("Toggle export provider");
-        wait_until("provider gap refreshed", || {
-            status("Export command reason").as_deref()
-                == Some("This export provider is not connected in this build.")
-        })
-        .await;
-        assert!(
-            by_role_name(&root, "button", "Export Test output")
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        click("Invoke palette export");
-        assert_eq!(calls.get(), 2);
-        root.remove();
-    }
-
-    fn mount_export_row(probe: ExportRowProbe) -> web_sys::Element {
-        let document = web_sys::window().unwrap().document().unwrap();
-        if let Some(previous) = document.get_element_by_id("export-workspace-row-test-root") {
-            previous.remove();
-        }
-        let root = document.create_element("div").unwrap();
-        root.set_id("export-workspace-row-test-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(export_row_fixture);
-        dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
-    }
-
-    async fn browser_tick() {
-        gloo_timers::future::TimeoutFuture::new(25).await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn kicad_board_row_explains_pcb_blocker_and_preserves_readiness_guards() {
-        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-        let cases = [
-            (
-                false,
-                true,
-                Some("Review the board outline and layout findings."),
-                true,
-                "Needs board review",
-                "Export KiCad",
-            ),
-            (
-                true,
-                false,
-                Some("Review the layout and resolve controller wiring in PCB."),
-                true,
-                "Needs controller wiring",
-                "Export KiCad",
-            ),
-            (true, true, None, false, "Available", "Export KiCad"),
-        ];
-
-        for (pcb_ready, wiring_ready, expected_reason, disabled, expected_status, label) in cases {
-            let root = mount_export_row(ExportRowProbe {
-                runtime: runtime.clone(),
-                model: model_with_pcb_readiness(pcb_ready),
-                wiring_ready,
-            });
-            browser_tick().await;
-
-            let button = boardstudio_web_ui_shared::test_role::by_role_name(
-                &root,
-                "button",
-                "Export KiCad board",
-            )
-            .unwrap();
-            assert_eq!(button.has_attribute("disabled"), disabled);
-            assert_eq!(button.text_content().as_deref(), Some(label));
-            let text = root.text_content().unwrap();
-            assert!(text.contains(expected_status));
-            for reason in [
-                "Review the board outline and layout findings.",
-                "Review the layout and resolve controller wiring in PCB.",
-            ] {
-                assert_eq!(text.contains(reason), expected_reason == Some(reason));
-            }
-            root.remove();
-        }
-    }
-}
-
-#[cfg(test)]
-#[component]
-pub(crate) fn ExportPanel(
-    #[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>,
-) -> Element {
-    use boardstudio_web_ui_shared::ui::{
-        checkbox::{Checkbox, CheckboxState},
-        label::Label,
-    };
-    let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
-    let model = runtime.model();
-    let archive = runtime.clone();
-    let preference = runtime.clone();
-    let step = runtime.clone();
-    rsx! {
-        section { class: "m-auto w-[min(100%,760px)] p-7 text-foreground [&>p]:max-w-[60ch] [&>p]:text-muted-foreground [&>h2]:mt-6 [&>h2]:mb-2.5", "aria-label": "Export",
-            h1 { "Export" }
-            p { "Create files from the saved keyboard in the current board and instance scope." }
-            div { class: "my-5 flex flex-wrap gap-2",
-                Button { variant: ButtonVariant::Secondary, disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
-            }
-            if let Some(firmware) = zmk_firmware {
-                h2 { "Design files" }
-                div { class: "grid gap-2",
-                    ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export }
-                }
-            }
-            section { class: "mt-6 grid gap-2.5 rounded-md border border-border bg-card p-4 [&_h2]:m-0 [&_p]:m-0 [&_p]:text-muted-foreground", "aria-label": "Portable project",
-                h2 { "Portable project" }
-                p { "Keep an editable copy of the whole project, including all boards." }
-                Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground",
-                    Checkbox {
-                        aria_label: "Embed used models",
-                        checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
-                        on_checked_change: move |state: CheckboxState| preference.set_embed_used_models(state == CheckboxState::Checked),
-                    }
-                    span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
-                }
-                Button { variant: ButtonVariant::Secondary,
-                    class: "justify-self-start",
-                    disabled: model.accepted.is_none(),
-                    onclick: move |_| archive.export_project_copy(),
-                    "Save .boardstudio project"
-                }
-            }
-            RuntimeReportBanner {}
-        }
-    }
 }

@@ -203,6 +203,8 @@ class PatchedPairWorkflowTests(unittest.TestCase):
             "CARGO_HOME": str(self.root / "cargo-home"), "RUSTC": str(self.root / "rustc"),
             "PATH": str(self.root) + os.pathsep + os.environ["PATH"], "TRACE": str(self.trace),
         }
+        # Fixture subprocesses use fake Cargo and do not inherit the real build-lock descriptor.
+        self.env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         self.write_executable(self.root / "rustc", 'echo "fixture rustc $RUSTUP_TOOLCHAIN"\n')
         self.write_executable(self.root / "cargo", textwrap.dedent('''\
             set -eu
@@ -249,7 +251,8 @@ class PatchedPairWorkflowTests(unittest.TestCase):
                     assert shutil.which(binary, path=env['PATH']) == str(pair / binary)
                 return 0.0, True
             suite = sys.argv[-1]
-            with patch.object(check, 'run_commands', observe_launch):
+            with patch.dict(os.environ, {'CHROME_BIN': '/bin/true', 'CHROMEDRIVER': '/bin/true'}), \
+                 patch.object(check, 'run_commands', observe_launch):
                 assert check._run_plan([(suite, check.STEPS[suite][1])]) == 0
             with open(os.environ["TRACE"], "a") as trace:
                 trace.write("consumer " + " ".join(sys.argv[1:]) + " " + str(pair) + "\\n")

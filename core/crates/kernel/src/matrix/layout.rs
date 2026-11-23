@@ -2,38 +2,23 @@ use crate::{matrix, model::*};
 use std::collections::BTreeSet;
 
 mod adoption;
-mod components;
 mod keys;
-mod parts;
 mod reflection;
 mod spacing;
 
-use adoption::strip_substitute_flag;
 pub use adoption::{
-    adopt_half_frames, adopt_unrecorded_mirrors, evaluated_part, evaluated_part_pose,
-    is_member_or_companion, layout_half_offset, part_half_offset, set_pair_gap, unadopt_pair,
+    adopt_half_frames, evaluated_part, evaluated_part_pose, is_member_or_companion,
+    layout_half_offset, part_half_offset, set_pair_gap,
 };
-pub use components::{
-    mirrored_component_ids, move_linked_component, remove_matrix, retune_driven_constraint,
-    sync_components, unlink_components,
-};
-use components::{remove_component, set_component_pose, sync_component_nets};
 use keys::primary_member;
 pub use keys::{
-    AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception,
-    apply_exception_transitions, assembly_placements, companion_mode, edits_alone, is_matrix_key,
-    move_keys, plan_linked_matrix_removal, reconcile_constraint_keys, refuse_omitted_storage_edit,
+    AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception, assembly_placements,
+    companion_mode, edits_alone, is_matrix_key, move_keys, plan_linked_matrix_removal,
+    reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
-use parts::materialize_unrecorded_partners;
-pub use parts::{
-    clamp_part_to_half, ensure_part_mirror, mirror_new_pair_part, move_pair_part,
-    reframe_moved_parts, retire_part_correspondences, set_detached_part_rotation,
-    set_part_mirrored, stored_part_pose,
-};
-use reflection::{carrier_offset, pair_sides, remap_anchor_target};
+use reflection::carrier_offset;
 pub use reflection::{
-    exception_state, omitted, part_correspondence, reflect_half_part, reflected, refresh_existing,
-    resolve, sync,
+    exception_state, omitted, part_correspondence, reflected, refresh_existing, resolve, sync,
 };
 pub use spacing::{
     DEFAULT_CREATION_GAP_MM, DEFAULT_SPACING_MARGIN_MM, adapt_spacing, part_extent_offsets,
@@ -64,7 +49,14 @@ pub fn validate(doc: &ProjectDoc) -> Result<(), String> {
             .iter()
             .find(|board| board.id == layout.board_id)
             .ok_or("Layout board is missing")?;
-        if layout.matrix_ids.is_empty() {
+        if layout.matrix_ids.is_empty()
+            && !doc.mirrored_pairs.iter().any(|pair| {
+                pair.destination
+                    == boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(
+                        layout.id.clone(),
+                    )
+            })
+        {
             return Err("Layout matrix membership must be nonempty".into());
         }
         for id in &layout.matrix_ids {
@@ -255,40 +247,6 @@ fn is_excepted(exceptions: &[MirroredException], mirror_id: &str) -> bool {
     })
 }
 
-pub fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
-    let Some(link) = &mut target.mirror_link else {
-        return Ok(());
-    };
-    if !link.correspondences.is_empty() {
-        return Ok(());
-    }
-    let source = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == link.source_id)
-        .ok_or("Linked layout is missing")?;
-    if source.matrix_ids.len() != 1 || target.matrix_ids.len() != 1 {
-        return Err("Linking matrix groups requires explicit matrix correspondences".into());
-    }
-    let source_id = &source.matrix_ids[0];
-    let mirror_id = &target.matrix_ids[0];
-    link.correspondences.push(MirroredCorrespondence {
-        kind: MirroredItemKind::Matrix,
-        source_id: source_id.clone(),
-        mirror_id: mirror_id.clone(),
-        companion_mode: None,
-        companion_tweak: None,
-    });
-    let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
-    let exceptions = link.exceptions.clone();
-    link.correspondences.extend(part_correspondences(
-        member_pairs(&matrix, mirror_id, None)
-            .into_iter()
-            .filter(|(_, mirror_id)| !is_excepted(&exceptions, mirror_id)),
-    ));
-    Ok(())
-}
-
 /// Membership edits maintain explicit identities; admission never repairs them.
 pub fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
     for index in 0..doc.layouts.len() {
@@ -354,22 +312,6 @@ pub fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), St
         doc.layouts[index].mirror_link = Some(link);
     }
     Ok(())
-}
-
-/// The relationship is stored once, but geometry can be edited from either half.
-pub fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
-    doc.layouts
-        .iter()
-        .filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
-        .any(|owner| {
-            owner.mirror_link.is_some()
-                || doc.layouts.iter().any(|layout| {
-                    layout
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == owner.id)
-                })
-        })
 }
 
 pub fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
@@ -477,97 +419,79 @@ pub fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
     })
 }
 
+pub fn retune_driven_constraint(
+    doc: &mut ProjectDoc,
+    id: &str,
+    board: crate::model::Pose2,
+    turn: Option<f64>,
+) -> Result<bool, String> {
+    if !doc.parts.iter().any(|part| part.id == id) {
+        return Ok(false);
+    }
+    match crate::constraints::retune_offset(doc, id, board.at, turn)? {
+        None => Ok(false),
+        Some(crate::constraints::Retune::Applied) => Ok(true),
+        Some(crate::constraints::Retune::Mirror) => Err(format!(
+            "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
+        )),
+    }
+}
+
+pub fn set_detached_part_rotation(
+    doc: &mut ProjectDoc,
+    part_id: &str,
+    rotation: f64,
+) -> Result<Vec<String>, String> {
+    if !rotation.is_finite() {
+        return Err("Part rotation must be finite".into());
+    }
+    let index = doc
+        .parts
+        .iter()
+        .position(|part| part.id == part_id)
+        .ok_or_else(|| format!("Unknown part {part_id}"))?;
+    if doc.parts[index].locked == Some(true) {
+        return Err(format!("Part {part_id} is locked"));
+    }
+    if is_member_or_companion(doc, part_id) {
+        return Err(format!(
+            "Part {part_id} follows its matrix and cannot rotate"
+        ));
+    }
+    if doc.parts[index].anchor.is_some() {
+        return Err(format!(
+            "Part {part_id} is anchored; use SetPartAnchorValues"
+        ));
+    }
+    if doc.constraint_driving_part(part_id)?.is_some() {
+        return Err(format!(
+            "Part {part_id} is driven by a constraint and cannot rotate"
+        ));
+    }
+    doc.parts[index].pose.rotation = rotation;
+    Ok(vec![part_id.into()])
+}
+
+pub fn stored_part_pose(doc: &ProjectDoc, part_id: &str, mut pose: Pose2) -> Pose2 {
+    if let Some(offset) = part_half_offset(doc, part_id) {
+        pose.at.x -= offset.x;
+        pose.at.y -= offset.y;
+    }
+    pose
+}
+
+pub fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
+    doc.layouts
+        .retain(|layout| layout.matrix_ids != [matrix_id]);
+    for layout in &mut doc.layouts {
+        layout.matrix_ids.retain(|id| id != matrix_id);
+    }
+}
+
 #[cfg(test)]
-mod case_hardware_tests {
-    use super::components::adopt_unassigned_components;
+mod reflection_tests {
     use super::*;
     use boardstudio_model::mechanical::pair;
-
-    #[test]
-    fn case_clearance_holes_are_not_adopted_by_linked_layouts() {
-        let mut doc = ProjectDoc::empty("case", "Case");
-        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
-        doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
-        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
-        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixIds":["matrix"],"partIds":[]}])).unwrap();
-        adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
-        assert!(doc.layouts[0].part_ids.is_empty());
-    }
-
-    #[test]
-    fn linked_controller_mirror_keeps_world_heading() {
-        // Setup "Place controller": one controller source part at rotation 0 on a linked
-        // source layout. The derived mirror must share world rotation 0 (plain reflection
-        // `-r = 0`), not ADR-0010's `180 - r` half turn.
-        let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
-        doc.definitions = serde_json::from_value(serde_json::json!([
-            {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
-        ]))
-        .unwrap();
-        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
-        doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":0.0},"side":"front"}])).unwrap();
-        doc.matrices = serde_json::from_value(serde_json::json!([
-            {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
-            {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
-        ])).unwrap();
-        doc.layouts = serde_json::from_value(serde_json::json!([
-            {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
-            {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
-        ])).unwrap();
-        sync_components(&mut doc).unwrap();
-        let mirrored = doc
-            .parts
-            .iter()
-            .find(|part| {
-                part.properties
-                    .as_ref()
-                    .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
-                    .and_then(serde_json::Value::as_str)
-                    == Some("source/U1")
-            })
-            .expect("the linked controller mirror is materialized");
-        assert_eq!(mirrored.pose.at, Vec2 { x: 90.0, y: 5.0 });
-        assert!(
-            (mirrored.pose.rotation - 0.0).abs() < 1e-9,
-            "controller mirror keeps world heading 0, got {}",
-            mirrored.pose.rotation
-        );
-        for heading in [90.0f64, 180.0, 270.0] {
-            let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
-            doc.definitions = serde_json::from_value(serde_json::json!([
-                {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
-            ]))
-            .unwrap();
-            doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
-            doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":heading},"side":"front"}])).unwrap();
-            doc.matrices = serde_json::from_value(serde_json::json!([
-                {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
-                {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
-            ])).unwrap();
-            doc.layouts = serde_json::from_value(serde_json::json!([
-                {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
-                {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
-            ])).unwrap();
-            sync_components(&mut doc).unwrap();
-            let mirrored = doc
-                .parts
-                .iter()
-                .find(|part| {
-                    part.properties
-                        .as_ref()
-                        .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
-                        .and_then(serde_json::Value::as_str)
-                        == Some("source/U1")
-                })
-                .expect("the linked controller mirror is materialized");
-            let expected = (0.0 - heading).rem_euclid(360.0);
-            assert!(
-                (mirrored.pose.rotation - expected).abs() < 1e-9,
-                "controller heading {heading} mirrors to {expected}, got {}",
-                mirrored.pose.rotation
-            );
-        }
-    }
 
     fn matrix_with_companion() -> Matrix {
         serde_json::from_value(serde_json::json!({

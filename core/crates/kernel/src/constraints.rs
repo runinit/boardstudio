@@ -15,7 +15,6 @@ use boardstudio_model::constraints::endpoints;
 #[cfg(test)]
 mod framed_tests;
 use boardstudio_model::constraints::relation;
-use boardstudio_model::constraints::retune;
 
 // The mirrored-half preparation seam carries only these private compiler records across the
 // crate; no public document or operation API is widened.
@@ -30,84 +29,6 @@ pub use relation::ConstraintRelation;
 /// value is chosen and pinned by below/at/above boundary tests on both native and packaged
 /// WASM while leaving ordinary design chains ample room.
 const MAX_DEPENDENCY_DEPTH: usize = 256;
-
-/// Outcome for the mirrored edit preparer when a moved target has an owner-dependent view.
-#[derive(Clone, Debug, PartialEq)]
-pub enum PreparedTargetRetune {
-    Retuned(FramedConstraint),
-    Deferred(DeferredTargetRetune),
-}
-
-/// Target drag intent that must wait for live endpoint owners to resolve (usually a key).
-#[derive(Clone, Debug, PartialEq)]
-pub struct DeferredTargetRetune {
-    pub record: FramedConstraint,
-    pub requested: Position,
-    pub source_owner: Option<String>,
-    pub target_owner: Option<String>,
-}
-
-/// Retunes an already compiled record through its authored endpoint views.
-///
-/// `requested` is in authoritative part coordinates. Position edits have no requested heading,
-/// so the existing relation turn is preserved exactly. Owner poses are supplied by a caller
-/// that has resolved the MoveParts batch; missing owner poses return an explicit deferred intent.
-pub fn prepare_target_retune(
-    document: &ProjectDoc,
-    record: &FramedConstraint,
-    source_authority: Pose2,
-    target_authority: Pose2,
-    requested: &Position,
-    owner_poses: [Option<Pose2>; 2],
-) -> Result<PreparedTargetRetune, String> {
-    let FramedConstraint::Framed {
-        id,
-        source: source_endpoint,
-        target: target_endpoint,
-        relation,
-    } = record;
-    let source =
-        endpoints::resolve_endpoint(document, id, endpoints::Side::Source, source_endpoint)?;
-    let target =
-        endpoints::resolve_endpoint(document, id, endpoints::Side::Target, target_endpoint)?;
-    if matches!(relation, ConstraintRelation::MirrorLine { .. }) {
-        return Err(mirror_drag_refusal(&target.visible_id));
-    }
-
-    let owners = [source.owner.clone(), target.owner.clone()];
-    if (owners[0].is_some() && owner_poses[0].is_none())
-        || (owners[1].is_some() && owner_poses[1].is_none())
-    {
-        return Ok(PreparedTargetRetune::Deferred(DeferredTargetRetune {
-            record: record.clone(),
-            requested: requested.clone(),
-            source_owner: owners[0].clone(),
-            target_owner: owners[1].clone(),
-        }));
-    }
-
-    let source_frame = source.frame.with_key(owner_poses[0]);
-    let target_frame = target.frame.with_key(owner_poses[1]);
-    let requested_view = target_frame.project(Pose2 {
-        at: requested.at,
-        rotation: target_authority.rotation,
-    })?;
-    let retuned = retune::retune_target(
-        relation,
-        source_authority,
-        source_frame,
-        target_frame,
-        target_authority,
-        requested_view.at,
-        None,
-    )?;
-    Ok(PreparedTargetRetune::Retuned(FramedConstraint::Framed {
-        id: id.clone(),
-        source: source_endpoint.clone(),
-        target: target_endpoint.clone(),
-        relation: retuned.relation,
-    }))
-}
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
@@ -323,51 +244,136 @@ pub fn mirror_drag_refusal(part_id: &str) -> String {
     format!("Part {part_id} is controlled by a mirror constraint and cannot be dragged")
 }
 
-/// Moves a constraint's stored numbers so its target lands `delta` away from where it was
+/// Moves the driven part to the requested board position by retuning the stored relation
 /// and, when `turn` is given, turns that many degrees further. `None` leaves the stored
 /// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. A drag
 /// passes `None`; `dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind`
 /// in `core/tests/part_offset_constraint.rs` pins it. An `offset` stores board-axis numbers,
 /// so the drag is added as it is. A `part-offset` stores source-axis numbers, so the drag is
-/// first turned back into the source's frame, measured from the source's pose in `parts`.
+/// first turned back into the source's frame. Linked endpoints use their resolved views.
 pub fn retune_offset(
-    parts: &[Part],
-    constraint: &mut Constraint,
-    delta: Vec2,
+    doc: &mut ProjectDoc,
+    target_id: &str,
+    requested: Vec2,
     turn: Option<f64>,
-) -> Result<Retune, String> {
-    if constraint.is_mirror() {
-        return Ok(Retune::Mirror);
+) -> Result<Option<Retune>, String> {
+    if doc.constraints.is_empty() {
+        return Ok(None);
     }
-    let source = source_pose(parts, constraint)?;
+    let Some(constraint) = driving_constraint(doc, target_id)? else {
+        return Ok(None);
+    };
+    if constraint.is_mirror() {
+        return Ok(Some(Retune::Mirror));
+    }
+    let index = doc
+        .constraints
+        .iter()
+        .position(|record| record.id() == constraint.id())
+        .expect("driving constraint belongs to the document");
+    let at = |id: &str| {
+        doc.parts
+            .iter()
+            .find(|part| part.id == id)
+            .map(|part| crate::matrix::layout::evaluated_part_pose(doc, part))
+            .ok_or_else(|| format!("Part {id} is missing"))
+    };
+    if let Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = constraint
+        && (matches!(source, ConstraintEndpoint::LinkedMirror { .. })
+            || matches!(target, ConstraintEndpoint::LinkedMirror { .. }))
+    {
+        let source = endpoints::resolve_endpoint(doc, id, Side::Source, source)?;
+        let target = endpoints::resolve_endpoint(doc, id, Side::Target, target)?;
+        let source_frame = source
+            .frame
+            .with_key(source.owner.as_deref().map(at).transpose()?);
+        let target_frame = target
+            .frame
+            .with_key(target.owner.as_deref().map(at).transpose()?);
+        let authority = at(&target.authoritative_id)?;
+        let same_view = target_id == target.visible_id;
+        let requested = if same_view {
+            requested
+        } else {
+            target_frame
+                .project(Pose2 {
+                    at: requested,
+                    ..authority
+                })?
+                .at
+        };
+        let heading = turn
+            .map(|turn| -> Result<f64, String> {
+                let visible = target_frame.project(authority)?.rotation;
+                if same_view {
+                    Ok(visible + turn)
+                } else if matches!(target_frame, EndpointFrame::LinkedMirror { .. }) {
+                    // Projecting a full angle wraps at 360°; the stored turn is a signed delta.
+                    Ok(visible - turn)
+                } else {
+                    target_frame
+                        .project(Pose2 {
+                            rotation: authority.rotation + turn,
+                            ..authority
+                        })
+                        .map(|pose| pose.rotation)
+                }
+            })
+            .transpose()?;
+        let retuned = boardstudio_model::constraints::retune::retune_target(
+            relation,
+            at(&source.authoritative_id)?,
+            source_frame,
+            target_frame,
+            authority,
+            requested,
+            heading,
+        )?;
+        let Constraint::Framed { relation, .. } = &mut doc.constraints[index] else {
+            unreachable!();
+        };
+        *relation = retuned.relation;
+        return Ok(Some(Retune::Applied));
+    }
+    let current = at(target_id)?.at;
+    let delta = Vec2 {
+        x: requested.x - current.x,
+        y: requested.y - current.y,
+    };
+    let source = source_pose(&doc.parts, constraint)?;
+    let constraint = &mut doc.constraints[index];
     let (offset, rotation, step) = match constraint {
         Constraint::Offset {
             offset, rotation, ..
+        }
+        | Constraint::Framed {
+            relation: ConstraintRelation::Offset { offset, rotation },
+            ..
         } => (offset, rotation, delta),
         Constraint::PartOffset {
             offset, rotation, ..
+        }
+        | Constraint::Framed {
+            relation: ConstraintRelation::PartOffset { offset, rotation },
+            ..
         } => (
             offset,
             rotation,
             rotate(delta, -source.rotation, Vec2::default()),
         ),
-        Constraint::Mirror { .. } => return Ok(Retune::Mirror),
-        Constraint::Framed { relation, .. } => match relation {
-            ConstraintRelation::Offset { offset, rotation } => (offset, rotation, delta),
-            ConstraintRelation::PartOffset { offset, rotation } => (
-                offset,
-                rotation,
-                rotate(delta, -source.rotation, Vec2::default()),
-            ),
-            ConstraintRelation::MirrorLine { .. } => return Ok(Retune::Mirror),
-        },
+        _ => unreachable!("mirror relations were handled before retuning"),
     };
     offset.x += step.x;
     offset.y += step.y;
     if let Some(turn) = turn {
         *rotation += turn;
     }
-    Ok(Retune::Applied)
+    Ok(Some(Retune::Applied))
 }
 
 /// Re-expresses an offset constraint's numbers in `to`'s axes, measured from the source's

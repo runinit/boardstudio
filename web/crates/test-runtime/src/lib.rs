@@ -1,4 +1,5 @@
 //! Concrete Core engine wiring for web tests.
+pub mod layout_fixtures;
 use boardstudio_core::CoreEngine;
 use boardstudio_web_runtime::core_services::CoreServices;
 

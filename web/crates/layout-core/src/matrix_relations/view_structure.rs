@@ -297,6 +297,39 @@ impl View<'_> {
             .layouts
             .iter()
             .find(|layout| layout.matrix_ids.contains(&self.matrix.id))?;
+        for pair in &self.document.mirrored_pairs {
+            let (
+                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(source_id),
+                boardstudio_model::mirrored_half::MirrorDestination::SameBoardLayout(dest_id),
+            ) = (&pair.source, &pair.destination)
+            else {
+                continue;
+            };
+            let prefix = boardstudio_model::mirrored_half::mirrored_matrix_id_prefix(&pair.id);
+            let (partner_layout_id, partner_matrix_id) = if owner.id == *source_id {
+                (dest_id.as_str(), format!("{prefix}{}", self.matrix.id))
+            } else if owner.id == *dest_id {
+                let Some(source_matrix_id) = self.matrix.id.strip_prefix(&prefix) else {
+                    continue;
+                };
+                (source_id.as_str(), source_matrix_id.to_owned())
+            } else {
+                continue;
+            };
+            if let Some(partner_layout) = self
+                .document
+                .layouts
+                .iter()
+                .find(|layout| layout.id == partner_layout_id)
+                && let Some(partner_matrix) = self
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == partner_matrix_id)
+            {
+                return Some((partner_layout, partner_matrix));
+            }
+        }
         let partner = match &owner.mirror_link {
             Some(link) => self
                 .document

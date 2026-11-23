@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, request};
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{
     ExportTarget, FinishExportRequest, PrepareExportRequest, ProjectDoc,
@@ -6,10 +7,6 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 const LIBRARY: &str = include_str!("../../catalogue/modules/imported-modules.json");
-
-fn request(engine: &mut CoreEngine, value: Value) -> Value {
-    serde_json::from_str(&engine.request(&value.to_string())).unwrap()
-}
 
 fn export_host_board(document: &Value, scene: &Value) -> String {
     let document: ProjectDoc = serde_json::from_value(document.clone()).unwrap();
@@ -105,10 +102,7 @@ fn attaching_a_module_adds_and_links_a_source_host_footprint_in_one_undoable_edi
         "geometry":{"features":[{"kind":"rect","id":"fixed-outline","center":{"x":0,"y":0},"size":{"x":80,"y":80},"radius":0,"operation":"add"}],
         "settings":{"corners":"sharp","size":2,"bridgeWidth":10},"expectedRegions":1}}]}]);
     let mut engine = CoreEngine::new();
-    let opened = request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document}),
-    );
+    let opened = fixture::wire_open(&mut engine, "open", &document);
     assert_eq!(opened["kind"], "scene");
     let reviewed_outline = opened["document"]["boardOutlines"][0].clone();
     let reviewed_contours = opened["scene"]["boardContours"].clone();
@@ -243,10 +237,7 @@ fn reusing_a_host_connector_preserves_its_manual_pose_and_board_ownership() {
     document["definitions"] = json!([host]);
     document["parts"] = json!([{"id":"manual-host","definitionId":host["id"],"reference":"J9","pose":{"at":{"x":-17.5,"y":6.25},"rotation":90},"side":"back"}]);
     let mut engine = CoreEngine::new();
-    request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document}),
-    );
+    fixture::wire_open(&mut engine, "open", &document);
     let module = json!({"id":"module/reuse","definitionId":"module-reuse","hostBoardId":"pcb","hostFace":"back","facingFace":"front",
         "at":{"x":10,"y":8},"rotation":15,"gap":3,"attachment":"board","serviceClearance":0,
         "connection":{"hostConnectorPartId":"manual-host","modulePortId":"input","busId":"manual-bus","assignments":{},"cableType":"type-a-12-0.5","railVoltages":{}}});
@@ -291,10 +282,7 @@ fn automatic_placement_rejects_a_host_connector_that_would_fall_outside_the_boar
     document["boards"] = json!([{"id":"pcb","name":"PCB","partIds":[],"netIds":[],"outlineIds":["outline"],"thickness":1.6}]);
     document["outline"] = json!([{"kind":"rect","id":"outline","center":{"x":0,"y":0},"size":{"x":20,"y":20},"radius":0,"operation":"add"}]);
     let mut engine = CoreEngine::new();
-    request(
-        &mut engine,
-        json!({"id":"open","kind":"open","document":document}),
-    );
+    fixture::wire_open(&mut engine, "open", &document);
     let definition = json!({"id":"module-tight","name":"Tight board module","family":"test","variant":"source",
         "source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/test","license":"CERN-OHL-S-2.0"},
         "board":{"contours":[{"hole":false,"points":[{"x":-8,"y":-6},{"x":8,"y":-6},{"x":8,"y":6},{"x":-8,"y":6}]}]},

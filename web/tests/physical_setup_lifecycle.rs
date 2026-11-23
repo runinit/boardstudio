@@ -9,10 +9,7 @@ use boardstudio_application::{
 use boardstudio_core::model::{ProjectDoc, SceneDelta};
 use std::{
     cell::{Cell, RefCell},
-    future::Future,
-    pin::Pin,
     rc::Rc,
-    task::{Context, Poll, Waker},
 };
 
 #[path = "../crates/runtime/src/operation_outcomes.rs"]
@@ -22,40 +19,11 @@ mod physical_setup;
 #[path = "../src/presentation/pcb_physical_setup.rs"]
 mod presentation;
 
-type Detached = Pin<Box<dyn Future<Output = ()>>>;
-thread_local! { static TASKS: RefCell<Vec<Detached>> = RefCell::default(); }
-pub fn spawn_local(task: impl Future<Output = ()> + 'static) {
-    TASKS.with_borrow_mut(|tasks| tasks.push(Box::pin(task)));
-}
-fn poll_detached() {
-    TASKS.with_borrow_mut(|tasks| {
-        tasks.retain_mut(|task| {
-            task.as_mut()
-                .poll(&mut Context::from_waker(Waker::noop()))
-                .is_pending()
-        })
-    });
-}
-pub mod future {
-    use super::*;
-    pub struct TimeoutFuture(bool);
-    impl TimeoutFuture {
-        pub fn new(_: u32) -> Self {
-            Self(false)
-        }
-    }
-    impl Future for TimeoutFuture {
-        type Output = ();
-        fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<()> {
-            if self.0 {
-                Poll::Ready(())
-            } else {
-                self.0 = true;
-                Poll::Pending
-            }
-        }
-    }
-}
+#[path = "support/detached.rs"]
+mod detached;
+use detached::poll_detached;
+pub use detached::{future, spawn_local};
+
 #[derive(Clone, Copy, Default)]
 struct InstanceSelection;
 impl InstanceSelection {

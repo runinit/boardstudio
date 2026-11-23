@@ -507,7 +507,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 7,
+          "formatVersion": 8,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -1115,7 +1115,7 @@
               ]
             },
             "format": "boardstudio/v2",
-            "formatVersion": 7,
+            "formatVersion": 8,
             "id": "untitled",
             "name": "Untitled",
             "revision": 1,
@@ -1243,7 +1243,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 7,
+          "formatVersion": 8,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -1564,7 +1564,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 7,
+          "formatVersion": 8,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,
@@ -2249,7 +2249,7 @@
             "profiles": []
           },
           "format": "boardstudio/v2",
-          "formatVersion": 7,
+          "formatVersion": 8,
           "id": "untitled",
           "name": "Untitled",
           "revision": 1,

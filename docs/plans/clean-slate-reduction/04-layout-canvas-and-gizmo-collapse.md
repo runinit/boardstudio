@@ -26,27 +26,25 @@ In `refactor/simplify-implementation-wave`:
 
 ---
 
-## 2. Baseline vs. Hard LOC Budget
+## 2. Baseline, Hard Architectural Gate & Advisory LOC Targets
 
-| Surface on `dev` (`5aae86ff4`) | Prod LOC | Test LOC | Total LOC | Target Ceiling |
+| Surface on `dev` (`5aae86ff4`) | Prod LOC | Test LOC | Total LOC | Advisory Stretch Ceiling |
 |---|---:|---:|---:|---:|
-| `web/crates/layout-objects/` (84 files) | 24,688 | 13,794 | 38,482 | ≤ 9,500 |
-| `web/crates/layout/` (31 files) | 8,825 | 7,941 | 16,766 | ≤ 5,500 |
+| `web/crates/layout-objects/` (84 files) | 24,688 | 13,794 | 38,482 | ≤ 11,500 |
+| `web/crates/layout/` (31 files) | 8,825 | 7,941 | 16,766 | ≤ 6,500 |
 | `web/crates/layout-core/` (39 files) | 7,797 | 6,010 | 13,807 | ≤ 6,500 |
-| `web/src/presentation/{editor*,layout_*}` | ~13,500 | ~6,500 | ~20,000 | ≤ 6,500 |
-| **Total Track 4 Footprint** | **~54,810** | **~34,245** | **~89,055** | **≤ 28,000** |
+| `web/src/presentation/{editor*,layout_*}` | ~13,500 | ~6,500 | ~20,000 | ≤ 8,000 |
+| **Total Track 4 Footprint** | **~54,810** | **~34,245** | **~89,055** | **≤ 32,500** |
 
-### Hard Budget (Whole-Repo `check_reduction.py` Gate vs. Post-Wave-1 Base)
-- **Mandatory Net Production Rust Delta:** **`<= -32,000` LOC**
-- **Mandatory Net Test Rust Delta:** **`<= -25,000` LOC**
-- **Mandatory Net Scripts Delta:** **`<= 0` LOC**
-- **Mandatory Net Other Delta:** **`<= +200` LOC**
+### Hard Gate + Advisory Stretch Targets (Whole-Repo `check_reduction.py` Gate vs. Wave Base)
+- **Hard Anti-Bloat Floor:** `--max-prod-delta -1 --max-test-delta -1 --max-script-delta 0 --max-other-delta 200` (plus ALL Mandatory Deletion Manifest paths deleted, zero `Draft*` / 4-layer controller stacks, single `CanvasInteraction` state machine + single SVG canvas adapter, and full Layout feature parity).
+- **Advisory Stretch Targets:** `--target-prod-delta -31000 --target-test-delta -22000` (report actual deltas alongside feature parity; never drop Layout capabilities or domain invariants to hit the stretch numbers).
 
 ---
 
-## 3. Target Replacement Architecture
+## 3. Target Replacement Architecture & Feature Preservation
 
-### A. One Pure-Rust `CanvasInteraction` State Machine (`web/crates/layout-core/src/interaction.rs`, ≤ 1,500 Prod LOC)
+### A. One Pure-Rust `CanvasInteraction` State Machine (`web/crates/layout-core/src/interaction.rs`)
 Handles **every** Layout canvas gesture in pure, host-testable Rust with **zero** `web_sys` or Dioxus dependency:
 - **Normalized Input Events:** `PointerDown { id, pos_mm, screen_px, button, modifiers, hit }`, `PointerMove`, `PointerUp`, `PointerCancel`, `KeyDown { key, modifiers }`, `Blur`, `ScopeChanged`.
 - **Single Explicit State Enum:**
@@ -60,27 +58,25 @@ Handles **every** Layout canvas gesture in pure, host-testable Rust with **zero*
   - `PlacingPart { def_id, cursor_mm }`
   - `DraggingOutlineHandle { outline_id, handle, origin_mm, preview }`
 - **Pure Outputs:** `InteractionEffect` (`SetCamera`, `SetSelection`, `PreviewOp(EditOperation)`, `CommitOp(EditOperation)`, `CancelPreview`, `CapturePointer(id)` / `ReleasePointer(id)`).
-- **Invariants pinned in ≤ 500 LOC of native `#[test]`:**
+- **Preserved Pure-Rust Invariants (`#[test]`):**
   - Second pointer ignored cleanly without corrupting active drag.
   - Lost pointer capture, window blur, `Escape`, and scope/mode switch cancel preview cleanly with zero stuck state.
   - Commit produces a single synchronous `EditOperation` with exact Undo.
-  - Snapping, grid alignment, and keyboard nudge (arrow keys + Shift) run through the exact same math.
+  - Snapping, grid alignment, keyboard nudge (arrow keys + Shift), matrix transform math, outline editing, and placement invariants remain thoroughly covered by pure-Rust unit tests (no arbitrary LOC cap stripping valid invariant tests).
 
-### B. One Mounted SVG Surface Adapter (`web/src/presentation/editor/canvas_adapter.rs`, ≤ 500 Prod LOC)
+### B. One Mounted SVG Surface Adapter (`web/src/presentation/editor/canvas_adapter.rs`)
 - Single `<svg>` container listening to `onpointerdown`, `onpointermove`, `onpointerup`, `onpointercancel`, `onwheel`, `onkeydown`, `onblur`.
 - Performs pointer capture (`set_pointer_capture` / `release_pointer_capture`), converts client coordinates to board `mm` via the active `Camera`, resolves `data-pick-id` hit target once, and feeds `CanvasInteraction::handle(...)`.
 - Renders transient visual overlays (marquee rectangle, snap guides, rotation pivot, active drag highlight) directly from `CanvasInteraction` state.
 - **Zero** `web_sys::Document` `Closure::wrap` listener leaks, **zero** `thread_local!` mount registries, **zero** per-tool pointer handlers.
 
-### C. Collapsed Declarative Layout Inspectors (`≤ 6,000 Prod LOC` across `layout-objects` + `layout`)
-Replace the fragmented 4-layer controllers with concise declarative `ui-shared` components:
-- `matrix_inspector.rs` (≤ 1,200 LOC): Matrix, column, row, key properties, splay, stagger, and anchor-follow using `NumericField`/`SelectField`/`ToggleField` directly against `&ResolvedDoc`.
-- `part_inspector.rs` (≤ 800 LOC): Selected part/companion pose, rotation, mirror ownership actions (`Make Local` / `Rejoin` / `Omit` from Track 1).
-- `outline_inspector.rs` (≤ 1,000 LOC): Outline & gap parameters + contour editing hooks (replaces `layout/src/outline/` 5,168 LOC + `outline_lifecycle_*tests` 3,475 LOC).
-- `keycap_size_inspector.rs` (≤ 500 LOC): Replaces `keycap_resize*` + `keycap_size*` (4,154 LOC).
-- `align_and_setup.rs` (≤ 800 LOC): Replaces `layout_align*` (1,769 LOC) + `matrix_setup*` (1,216 LOC) + `mirrored_pair*` (1,730 LOC) + `existing_half.rs` (926 LOC).
-
-*(Optional bonus in Track 4C: merge `boardstudio-web-layout-objects` into `boardstudio-web-layout` if compile-graph timings remain flat or faster, eliminating cross-crate re-export glue.)*
+### C. Collapsed Declarative Layout Inspectors & Feature Parity
+Replace the fragmented 4-layer controllers with concise declarative `ui-shared` components while **preserving ALL user-facing Layout capabilities** (matrix/row/col/key properties, splay/stagger/column-offset handles, anchor follow & anchor picking/badges, part & companion pose/rotation/mirror actions, outline & gap parameters + contour/overlay editing, keycap size/resize controls, alignment tools, setup guide, findings navigation, selection/undo/Escape workflows, and every `scripts/run-drag-browser.py` selector):
+- `matrix_inspector.rs`: Matrix, column, row, key properties, splay, stagger, and anchor-follow using `NumericField`/`TextCommitField`/`SelectField`/`ToggleField` directly against `&ResolvedDoc`.
+- `part_inspector.rs`: Selected part/companion pose, rotation, mirror ownership actions (`Make Local` / `Rejoin` / `Omit` / companion placement).
+- `outline_inspector.rs`: Outline & gap parameters + contour editing hooks & overlays.
+- `keycap_size_inspector.rs`: Keycap size & interactive resize controls.
+- `align_and_setup.rs`: Alignment actions, matrix setup presets, and mirrored-pair actions.
 
 ---
 
@@ -114,12 +110,14 @@ Every single path below MUST be **completely deleted** (`git ls-files` count = 0
 ## 6. Verification & Mechanical Gate Commands
 
 ```bash
-# 1. Mechanical Reduction Gate (MUST exit 0 against <WAVE1_SHA>)
+# 1. Mechanical Reduction Gate (MUST exit 0 against <WAVE_BASE_SHA>)
 python3 docs/plans/clean-slate-reduction/check_reduction.py \
-  --base <WAVE1_SHA> \
+  --base <WAVE_BASE_SHA> \
   --head HEAD \
-  --max-prod-delta -32000 \
-  --max-test-delta -25000 \
+  --max-prod-delta -1 \
+  --max-test-delta -1 \
+  --target-prod-delta -31000 \
+  --target-test-delta -22000 \
   --max-script-delta 0 \
   --max-other-delta 200 \
   --must-delete web/crates/layout-objects/src/objects/layout_transform_toolbar \

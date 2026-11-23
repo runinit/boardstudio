@@ -59,8 +59,8 @@ fn generator_sources(snapshot: &AcceptedSnapshot, scope: &Scope) -> Vec<Generato
     if snapshot.session_epoch != scope.session_epoch || snapshot.document.id != scope.document_id {
         return Vec::new();
     }
-    let Some(board) = snapshot
-        .document
+    let document = boardstudio_application::resolved_document(&snapshot.document);
+    let Some(board) = document
         .boards
         .iter()
         .find(|board| board.id == scope.board_id)
@@ -68,16 +68,14 @@ fn generator_sources(snapshot: &AcceptedSnapshot, scope: &Scope) -> Vec<Generato
         return Vec::new();
     };
     let members: HashSet<&str> = board.part_ids.iter().map(String::as_str).collect();
-    snapshot
-        .document
+    document
         .parts
         .iter()
         .filter_map(|part| {
             if !members.contains(part.id.as_str()) {
                 return None;
             }
-            let definition = snapshot
-                .document
+            let definition = document
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)?;
@@ -115,6 +113,7 @@ pub fn layer_groups_for_scene(
     if document.id != scope.document_id {
         return Vec::new();
     }
+    let document = boardstudio_application::resolved_document(document);
     let Some(board) = document
         .boards
         .iter()

@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 #[test]
 fn the_evaluator_reports_changed_and_unchanged_without_touching_the_document() {
@@ -104,7 +105,7 @@ fn accepted_contours_drive_absent_closure_mount_initialization() {
     });
     document.boards.push(board("board"));
     document.boards[0].outline_ids = vec!["outline".into()];
-    let mut configuration = configuration();
+    let mut configuration = fixture::mechanical("board");
     configuration.closure_mounts = None;
     document.mechanical = Some(configuration);
 
@@ -190,15 +191,12 @@ fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
 #[test]
 fn a_topology_replacement_never_leaves_a_dangling_pair() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+    use boardstudio_core::model::{CoreReply, EditOperation};
 
     let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
-    let accepted = match engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    }) {
+    let accepted = match engine.handle(fixture::open(document)) {
         CoreReply::Scene { document, .. } => *document,
         other => panic!("expected scene: {other:?}"),
     };
@@ -217,18 +215,14 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
         "the incoming document still lists the pair"
     );
 
-    let replaced = match engine.handle(CoreRequest::Edit {
-        id: "replace".into(),
-        command: EditCommand {
-            base_revision: accepted.revision,
-            transaction_id: "replace".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(replacement),
-            },
+    let replaced = match engine.handle(fixture::commit(
+        "replace",
+        "replace",
+        accepted.revision,
+        EditOperation::ReplaceDocument {
+            document: Box::new(replacement),
         },
-    }) {
+    )) {
         CoreReply::Scene { document, .. } => *document,
         other => panic!("expected scene: {other:?}"),
     };
@@ -254,7 +248,7 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
 #[test]
 fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, Scope};
+    use boardstudio_core::model::{CoreReply, Scope};
 
     let mut document = conflicting_pair_document();
     link_pair(&mut document);
@@ -285,10 +279,7 @@ fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
     // The accepted scene carries the same located finding, so readiness and the
     // export gates see accepted state rather than a transient assembly warning.
     let mut engine = CoreEngine::new();
-    let scene = match engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document.clone(),
-    }) {
+    let scene = match engine.handle(fixture::open(document.clone())) {
         CoreReply::Scene { scene, .. } => scene,
         other => panic!("expected scene: {other:?}"),
     };
@@ -751,42 +742,30 @@ fn converting_legacy_members_materializes_the_overlay_and_keeps_the_third_baseli
 fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
     use boardstudio_core::CoreEngine;
     use boardstudio_core::mechanical::effective_inputs;
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+    use boardstudio_core::model::{CoreRequest, EditOperation};
 
-    fn document_of(reply: CoreReply) -> ProjectDoc {
-        match reply {
-            CoreReply::Scene { document, .. } => *document,
-            other => panic!("expected scene: {other:?}"),
-        }
-    }
+    use crate::support::fixture::document as document_of;
 
     let mut engine = CoreEngine::new();
-    let accepted = document_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: legacy_document(),
-    }));
+    let accepted = document_of(engine.handle(fixture::open(legacy_document())));
     let before_c = effective_inputs(&accepted, &[], &instance_target("c"))
         .unwrap()
         .configuration;
 
-    let converted = document_of(engine.handle(CoreRequest::Edit {
-        id: "convert".into(),
-        command: EditCommand {
-            base_revision: accepted.revision,
-            transaction_id: "convert".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::ApplyMechanicalEdit {
-                edit: Box::new(MechanicalEdit {
-                    target: board_target(),
-                    change: MechanicalChange::MaterializeLegacyConstruction {
-                        instance_ids: vec!["a".into()],
-                    },
-                    mounting_hole: None,
-                }),
-            },
+    let converted = document_of(engine.handle(fixture::commit(
+        "convert",
+        "convert",
+        accepted.revision,
+        EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::MaterializeLegacyConstruction {
+                    instance_ids: vec!["a".into()],
+                },
+                mounting_hole: None,
+            }),
         },
-    }));
+    )));
     assert_eq!(
         stored_instance(&converted, "a").construction_ownership,
         MechanicalConstructionOwnership::Local

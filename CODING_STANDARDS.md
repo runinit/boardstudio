@@ -48,7 +48,7 @@ file holds the judgement calls that no check can make.
 - **Match surrounding tests and isolate shared browser state with RAII.** Follow sibling fixture
   shape and naming. Because `wasm-bindgen-test-runner` shares one document and WASM memory per
   crate, own mounted DOM roots, injected `<style>` nodes, and modified `localStorage` through RAII
-  guards (`MountedFixture`, `SavedLocalStorage`).
+  guards that tear down the render task and restore the shared state.
 - **Keep one leaf helper per tooling contract.** Share leaf modules (`tailwind_tools`, `cargo_json`,
   `browser_tools`) instead of duplicating CLI discovery, Cargo JSON parsing, shallow `TMPDIR`/Chrome
   env setup, or asset staging across scripts. Avoid circular imports into `check.py` and keep

@@ -14,7 +14,7 @@
 //!      placement edits (`SetMatrix` edits: ticket 144);
 //!   3. following: generated from the key by `project_matrix` here; the solver places it with
 //!      `follow_pose` in constraints.rs.
-//! - Key moves and linked halves: `layout::move_keys`, `layout::sync`, `set_component_pose`.
+//! - Key moves and linked halves: `layout::move_keys`, `layout::sync`.
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
 pub mod anchors;
@@ -173,10 +173,6 @@ pub fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec<String
         }
     }
     removed.into_iter().collect()
-}
-
-pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
-    validate_matrix_projection(matrix, doc).map(|_| ())
 }
 
 fn validate_matrix_projection(
@@ -351,12 +347,6 @@ pub fn project_matrix(
     mode: ProjectionMode,
 ) -> Result<MatrixScene, String> {
     project_evaluated(matrix, doc, mode, evaluated(matrix, doc)?)
-}
-
-/// Project a scene only for a fully valid matrix, reusing its validated layout
-/// when world evaluation has no additional frame to resolve.
-pub fn project_valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixScene, String> {
-    validated_matrix(matrix, doc)?.project()
 }
 
 /// Structural validation produces a world layout. Applying a document frame

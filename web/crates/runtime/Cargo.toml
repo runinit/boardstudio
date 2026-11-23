@@ -11,6 +11,7 @@ description = "BoardStudio page runtime: browser services, model delivery and pr
 test-support = []
 
 [dependencies]
+boardstudio_core = { path = "../../../core" }
 boardstudio-application = { path = "../../../application" }
 boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
@@ -27,9 +28,6 @@ wasm-bindgen-futures = "=0.4.79"
 js-sys = "=0.3.106"
 futures-channel = "=0.3.34"
 web-sys = { workspace = true }
-
-[dev-dependencies]
-boardstudio_core = { path = "../../../core", features = ["test-support"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 futures-channel = "=0.3.34"

@@ -416,6 +416,13 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                     &json!({"kind":"open","id":"fixture","document":document}).to_string(),
                 ))
                 .unwrap();
+                if case["links"].is_array() {
+                    assert_eq!(
+                        opened["message"],
+                        "Layout mirror links are unsupported; use a mirrored pair"
+                    );
+                    continue;
+                }
                 assert_eq!(opened["kind"], "scene", "{}: {opened}", case["id"]);
                 let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
                 assert_eq!(
@@ -485,7 +492,7 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
             }
         }
     }
-    assert_eq!(count, 401);
+    assert_eq!(count, 357);
 }
 
 #[test]
@@ -688,75 +695,102 @@ fn follow_in_slanted_basis_uses_actual_anchor() {
 
 #[test]
 fn column_axes_match_step_differences_and_mirrored_frames() {
-    for mirror in [
-        boardstudio_core::model::Mirror::None,
-        boardstudio_core::model::Mirror::X,
-        boardstudio_core::model::Mirror::Y,
-    ] {
-        let mut input = LayoutInput {
-            rows: 2,
-            columns: 3,
-            origin: Vec2 { x: 20.0, y: -3.0 },
-            rotation: 17.0,
-            mirror,
-            column_layout: vec![
-                ColumnLayout {
-                    splay: 23.0,
-                    ..Default::default()
-                },
-                ColumnLayout {
-                    stagger: 4.0,
-                    splay: -31.0,
-                    rotation: 12.0,
-                    splay_origin: Vec2 { x: 2.0, y: -5.0 },
-                    ..Default::default()
-                },
-            ],
-            row_layout: vec![RowLayout {
-                bend: 38.0,
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        let base = evaluate(&input, RawAnchorContext::World).unwrap();
-        assert!(base.columns[1].custom_origin);
-        near(base.columns[1].relative_origin, 2.0, -5.0);
-        input.column_layout[1].spread = Some(input.pitch.x + 1.0);
-        let spread = evaluate(&input, RawAnchorContext::World).unwrap();
-        let axis = base.columns[1].spread_axis.unwrap();
-        for row in 0..2 {
-            let a = base.cells[2 + row].pose.at;
-            let b = spread.cells[2 + row].pose.at;
-            near(axis, b.x - a.x, b.y - a.y);
-        }
-        input.column_layout[1].spread = None;
-        input.column_layout[1].stagger += 1.0;
-        let stagger = evaluate(&input, RawAnchorContext::World).unwrap();
-        let axis = base.columns[1].stagger_axis;
-        near(
-            axis,
-            stagger.cells[3].pose.at.x - base.cells[3].pose.at.x,
-            stagger.cells[3].pose.at.y - base.cells[3].pose.at.y,
-        );
-        // Independent offset differencing verifies both published mirror-aware axes.
-        input.column_layout[1].stagger -= 1.0;
-        for (offset, axis) in [
-            (Vec2 { x: 1.0, y: 0.0 }, base.cells[3].offset_frame.axis_x),
-            (Vec2 { x: 0.0, y: 1.0 }, base.cells[3].offset_frame.axis_y),
-        ] {
-            input.cells = vec![KeyLayout {
-                row: 1,
-                column: 1,
-                offset,
-                ..Default::default()
-            }];
-            let moved = evaluate(&input, RawAnchorContext::World).unwrap();
-            near(
-                axis,
-                moved.cells[3].pose.at.x - base.cells[3].pose.at.x,
-                moved.cells[3].pose.at.y - base.cells[3].pose.at.y,
+    use boardstudio_core::model::Mirror;
+
+    // Keep the worked case and sweep signed angles with a reproducible seed.
+    let mut seed = 0x8ecc_175d_u32;
+    let mut angle = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        f64::from((seed >> 16) % 91) - 45.0
+    };
+    let angles = [(17.0, 23.0, -31.0, 12.0, 38.0)]
+        .into_iter()
+        .chain((0..8).map(|_| (angle(), angle(), angle(), angle(), angle())));
+    for (rotation, first_splay, second_splay, column_rotation, bend) in angles {
+        for mirror in [Mirror::None, Mirror::X, Mirror::Y] {
+            check_column_axes(
+                mirror,
+                rotation,
+                first_splay,
+                second_splay,
+                column_rotation,
+                bend,
             );
         }
+    }
+}
+
+fn check_column_axes(
+    mirror: boardstudio_core::model::Mirror,
+    rotation: f64,
+    first_splay: f64,
+    second_splay: f64,
+    column_rotation: f64,
+    bend: f64,
+) {
+    let mut input = LayoutInput {
+        rows: 2,
+        columns: 3,
+        origin: Vec2 { x: 20.0, y: -3.0 },
+        rotation,
+        mirror,
+        column_layout: vec![
+            ColumnLayout {
+                splay: first_splay,
+                ..Default::default()
+            },
+            ColumnLayout {
+                stagger: 4.0,
+                splay: second_splay,
+                rotation: column_rotation,
+                splay_origin: Vec2 { x: 2.0, y: -5.0 },
+                ..Default::default()
+            },
+        ],
+        row_layout: vec![RowLayout {
+            bend,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let base = evaluate(&input, RawAnchorContext::World).unwrap();
+    assert!(base.columns[1].custom_origin);
+    near(base.columns[1].relative_origin, 2.0, -5.0);
+    input.column_layout[1].spread = Some(input.pitch.x + 1.0);
+    let spread = evaluate(&input, RawAnchorContext::World).unwrap();
+    let axis = base.columns[1].spread_axis.unwrap();
+    for row in 0..2 {
+        let a = base.cells[2 + row].pose.at;
+        let b = spread.cells[2 + row].pose.at;
+        near(axis, b.x - a.x, b.y - a.y);
+    }
+    input.column_layout[1].spread = None;
+    input.column_layout[1].stagger += 1.0;
+    let stagger = evaluate(&input, RawAnchorContext::World).unwrap();
+    let axis = base.columns[1].stagger_axis;
+    near(
+        axis,
+        stagger.cells[3].pose.at.x - base.cells[3].pose.at.x,
+        stagger.cells[3].pose.at.y - base.cells[3].pose.at.y,
+    );
+    // Independent offset differencing verifies both published mirror-aware axes.
+    input.column_layout[1].stagger -= 1.0;
+    for (offset, axis) in [
+        (Vec2 { x: 1.0, y: 0.0 }, base.cells[3].offset_frame.axis_x),
+        (Vec2 { x: 0.0, y: 1.0 }, base.cells[3].offset_frame.axis_y),
+    ] {
+        input.cells = vec![KeyLayout {
+            row: 1,
+            column: 1,
+            offset,
+            ..Default::default()
+        }];
+        let moved = evaluate(&input, RawAnchorContext::World).unwrap();
+        near(
+            axis,
+            moved.cells[3].pose.at.x - base.cells[3].pose.at.x,
+            moved.cells[3].pose.at.y - base.cells[3].pose.at.y,
+        );
     }
 }
 
@@ -949,7 +983,7 @@ fn open_and_project(document: Value) -> (Value, Value, Vec<String>) {
     )
 }
 
-fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
+fn states_document(source_cell: Value) -> Value {
     use boardstudio_core::model::ProjectDoc;
     use serde_json::json;
     let mut document = serde_json::to_value(ProjectDoc::empty("states", "States")).unwrap();
@@ -969,7 +1003,7 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
         cell["row"] != row || (cell["enabled"] != false && cell["deleted"] != true)
     };
     let mut parts = vec![];
-    let (mut source_ids, mut mirror_ids) = (vec![], vec![]);
+    let mut source_ids = vec![];
     let mut push = |id: String, x: f64| {
         let n = parts.len() + 1;
         parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{n}"),"pose":{"at":{"x":x,"y":-456.0},"rotation":17.0},"side":"front"}));
@@ -980,34 +1014,11 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
             push(id.clone(), 1000.0 + column as f64);
             source_ids.push(id);
         }
-        if !(omit_mirror_first && column == 0) {
-            let id = format!("matrix/mir/r{column}c0");
-            push(id.clone(), 2000.0 + column as f64);
-            mirror_ids.push(id);
-        }
     }
     let source = matrix("src", 0.0, &source_cell, &source_ids);
-    let mirror = matrix("mir", 200.0, &source_cell, &mirror_ids);
-    let exceptions = if omit_mirror_first {
-        json!([{"kind":"part","mirrorId":"matrix/mir/r0c0","state":"omitted"}])
-    } else {
-        json!([])
-    };
-    let mut correspondences = vec![json!({"kind":"matrix","sourceId":"src","mirrorId":"mir"})];
-    if omit_mirror_first {
-        correspondences
-            .push(json!({"kind":"part","sourceId":"matrix/src/r0c0","mirrorId":"matrix/mir/r0c0"}));
-    }
     document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,"partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
     document["parts"] = json!(parts);
-    document["matrices"] = json!([source, mirror]);
-    document["layouts"] = json!([
-        {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
-        {"id":"mirror","name":"Mirror","boardId":"board","partIds":[],"matrixIds":["mir"],
-         "mirrorLink":{"sourceId":"source","axisX":100.0,
-            "correspondences":correspondences,
-            "exceptions":exceptions}}
-    ]);
+    document["matrices"] = json!([source]);
     document
 }
 
@@ -1024,14 +1035,13 @@ fn scene_cell<'a>(scenes: &'a Value, matrix: &str, row: u64) -> Option<&'a Value
 }
 
 /// Ticket 16 Answer: the kernel proves supplied logical values carry, but not that
-/// production selects the right state. Enabled, deleted and omitted keys all keep
+/// production selects the right state. Enabled and deleted keys keep
 /// their carried Shift and Bend in Core's actual and draft scenes and materialized parts.
 #[test]
 fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     use serde_json::json;
     let carry = json!({"row":0,"column":0,"enabled":true,"shift":{"x":2.0,"y":0.0},"bend":90.0});
-    let (base_actual, base_draft, base_parts) =
-        open_and_project(states_document(carry.clone(), false));
+    let (base_actual, base_draft, base_parts) = open_and_project(states_document(carry.clone()));
     assert!(base_parts.contains(&"matrix/src/r0c0".to_owned()));
     let carried = |scenes: &Value, matrix: &str, column| {
         scene_cell(scenes, matrix, column).unwrap()["pose"].clone()
@@ -1049,14 +1059,10 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     disabled["enabled"] = json!(false);
     let mut deleted = carry.clone();
     deleted["deleted"] = json!(true);
-    for (state, cell, omit) in [
-        ("disabled", disabled, false),
-        ("deleted", deleted, false),
-        ("omitted", carry.clone(), true),
-    ] {
-        let (actual, draft, parts) = open_and_project(states_document(cell, omit));
+    for (state, cell) in [("disabled", disabled), ("deleted", deleted)] {
+        let (actual, draft, parts) = open_and_project(states_document(cell));
         for (scenes, base) in [(&actual, &base_actual), (&draft, &base_draft)] {
-            for matrix in ["src", "mir"] {
+            for matrix in ["src"] {
                 for column in [1, 2] {
                     assert_eq!(
                         carried(scenes, matrix, column),
@@ -1085,18 +1091,7 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
                 }
                 assert!(!parts.contains(&"matrix/src/r0c0".to_owned()));
             }
-            _ => {
-                assert!(
-                    !parts.contains(&"matrix/mir/r0c0".to_owned()),
-                    "omitted key is never rematerialized"
-                );
-                for scenes in [&actual, &draft] {
-                    let cell =
-                        scene_cell(scenes, "mir", 0).expect("omitted key keeps its logical cell");
-                    assert_eq!(cell["pose"], carried(&base_actual, "mir", 0));
-                    assert!(cell["memberId"].is_null());
-                }
-            }
+            _ => unreachable!(),
         }
         for column in [1, 2] {
             let id = format!("matrix/src/r{column}c0");
@@ -1188,25 +1183,10 @@ fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() 
         document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,
             "partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
         document["parts"] = json!(parts);
-        // Open preserves Local parts and parts with layoutOverride == 1. Local is
-        // sufficient here; projection itself reads saved member poses regardless of Local.
-        // The fixture matrix shares the mirror layout with a dummy mirror of `src`.
-        let dummy = |id: &str, x: f64| {
-            json!({"id":id,"definitionId":"switch","boardId":"board","rows":1,"columns":1,
-                "pitch":{"x":19.0,"y":18.0},"origin":{"x":x,"y":0.0},"cells":[],"partIds":[]})
-        };
-        document["matrices"] = json!([matrix, dummy("src", 0.0), dummy("mir", 200.0)]);
-        let local: Vec<_> = parts
-            .iter()
-            .map(|part| json!({"kind":"part","mirrorId":part["id"],"state":"local"}))
-            .collect();
-        document["layouts"] = json!([
-            {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
-            {"id":"layout","name":"Layout","boardId":"board","partIds":[],"matrixIds":["fixture","mir"],
-             "mirrorLink":{"sourceId":"source","axisX":100.0,
-                "correspondences":[{"kind":"matrix","sourceId":"src","mirrorId":"mir"}],
-                "exceptions":local}}
-        ]);
+        for part in document["parts"].as_array_mut().unwrap() {
+            part["properties"] = json!({"layoutOverride":1});
+        }
+        document["matrices"] = json!([matrix]);
         let mut engine = CoreEngine::new();
         let opened: Value = serde_json::from_str(
             &engine.request(&json!({"kind":"open","id":"oracle","document":document}).to_string()),

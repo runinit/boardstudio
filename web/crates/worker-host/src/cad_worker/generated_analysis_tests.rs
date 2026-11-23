@@ -213,17 +213,19 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
         target_deflection_mm: Some(0.01),
     };
     let mut request = WireRequest {
-        request_id: "analysis-1".into(),
-        job_id: "analysis-1".into(),
-        identity: CadSnapshotIdentity {
-            token: 3,
-            session_epoch: 1,
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-            revision: 7,
+        header: CadEnvelope {
+            request_id: "analysis-1".into(),
+            job_id: "analysis-1".into(),
+            identity: CadSnapshotIdentity {
+                token: 3,
+                session_epoch: 1,
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+                revision: 7,
+            },
+            operation: CadOperation::AnalyzeGeneratedBody,
         },
-        operation: CadOperation::AnalyzeGeneratedBody,
         prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
             revision: 7,
             bodies: vec![body],
@@ -257,7 +259,10 @@ async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers
     let failed = run_request(&queue, &module, request.clone(), vec![]).await;
     assert!(matches!(failed, Err((_, reason, false)) if reason.contains("identity")));
     request.generated_analysis_request = Some(metadata);
-    queue.borrow_mut().cancelled.insert(request.job_id.clone());
+    queue
+        .borrow_mut()
+        .cancelled
+        .insert(request.header.job_id.clone());
     assert!(matches!(
         run_request(&queue, &module, request.clone(), vec![]).await,
         Err((_, _, true))
@@ -316,7 +321,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &missing_frame, None),
+        worker_message("request", &missing_frame),
     )
     .unwrap();
     yield_to_worker().await;
@@ -332,10 +337,10 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     assert_eq!(replies.borrow().len(), 1);
     {
         let failed = &replies.borrow()[0];
-        assert_eq!(failed.request_id, "raw-preview-missing");
-        assert_eq!(failed.job_id, "job-missing");
-        assert_eq!(failed.identity, identity);
-        assert_eq!(failed.operation, CadOperation::Preview);
+        assert_eq!(failed.header.request_id, "raw-preview-missing");
+        assert_eq!(failed.header.job_id, "job-missing");
+        assert_eq!(failed.header.identity, identity);
+        assert_eq!(failed.header.operation, CadOperation::Preview);
         assert_eq!(failed.outcome, CadReplyOutcome::Failed);
         assert!(
             failed
@@ -367,7 +372,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &case_frame, None),
+        worker_message("request", &case_frame),
     )
     .unwrap();
     for _ in 0..4 {
@@ -375,7 +380,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     }
     assert!(!queue.borrow().active);
     assert_eq!(replies.borrow().len(), 2);
-    assert_eq!(replies.borrow()[1].request_id, "raw-preview-case");
+    assert_eq!(replies.borrow()[1].header.request_id, "raw-preview-case");
     assert_eq!(replies.borrow()[1].outcome, CadReplyOutcome::Completed);
 
     let keycap = boardstudio_model::model::KeycapSpec {
@@ -414,7 +419,7 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
         &queue,
         &scope,
         &module,
-        worker_message("request", &keycap_frame, None),
+        worker_message("request", &keycap_frame),
     )
     .unwrap();
     for _ in 0..4 {
@@ -422,6 +427,6 @@ async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_w
     }
     assert!(!queue.borrow().active);
     assert_eq!(replies.borrow().len(), 3);
-    assert_eq!(replies.borrow()[2].request_id, "raw-preview-keycaps");
+    assert_eq!(replies.borrow()[2].header.request_id, "raw-preview-keycaps");
     assert_eq!(replies.borrow()[2].outcome, CadReplyOutcome::Completed);
 }

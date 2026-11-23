@@ -3,6 +3,7 @@
   "id": "internal-gasket-v1-rotated-concave",
   "document": {
     "format": "boardstudio/v2",
+    "formatVersion": 8,
     "id": "untitled",
     "name": "Untitled",
     "revision": 0,

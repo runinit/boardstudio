@@ -1,6 +1,5 @@
 //! Definition-level model attachment and alignment in the selected Parts Inspector.
 
-use super::model_axis::{ModelAxisField, ModelAxisGrid};
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{
@@ -9,14 +8,13 @@ use crate::{
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
-use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView, PendingEditResult};
+use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
     callout::{Callout, CalloutVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    field::FieldError,
     spinner::Spinner,
 };
 use dioxus::prelude::*;
@@ -41,9 +39,6 @@ struct ModelEditorMessage {
     owner: ModelEditorOwner,
     text: String,
 }
-
-#[cfg(test)]
-type UploadHandlerProbe = Rc<std::cell::RefCell<Option<Callback<FormEvent>>>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum VectorField {
@@ -84,9 +79,9 @@ fn current_snapshot(
     selected: &PartsSelection,
     selection_generation: u64,
     scope_generation: u64,
-    workspace: &Signal<&'static str>,
+    workspace: &Signal<Workspace>,
 ) -> Option<AcceptedSnapshot> {
-    if workspace() != "Parts"
+    if workspace() != Workspace::Parts
         || owner.scope.is_none()
         || runtime.scope() != owner.scope
         || owner.selection_generation != selection_generation
@@ -287,8 +282,6 @@ pub fn ComponentModelEditor(
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
     let mut file_input = use_signal(|| None::<HtmlInputElement>);
-    let mut upload_edit = use_signal(|| None::<(EditOutcome, ModelEditorOwner)>);
-    let mut remove_edit = use_signal(|| None::<(EditOutcome, ModelEditorOwner)>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     use_drop({
@@ -311,47 +304,6 @@ pub fn ComponentModelEditor(
             }
         }
     }));
-    use_effect(use_reactive((&version(),), {
-        let runtime = runtime.clone();
-        let mut error = error;
-        let mut notice = notice;
-        move |_| {
-            // Both actions can complete while the editor is between renders.
-            let mut actions = [upload_edit, remove_edit];
-            actions.sort_by_key(|action| {
-                action
-                    .peek()
-                    .as_ref()
-                    .map(|(outcome, _)| outcome.operation())
-            });
-            for mut action in actions {
-                let Some((outcome, owner)) = action.peek().clone() else {
-                    continue;
-                };
-                let live = current_snapshot(
-                    &runtime,
-                    &owner,
-                    &selected,
-                    selection_generation(),
-                    scope_generation(),
-                    &workspace,
-                )
-                .is_some();
-                let result = outcome.settlement(live);
-                if result != Settlement::Pending {
-                    action.set(None);
-                }
-                if let Settlement::Failed { message } = result {
-                    error.set(Some(ModelEditorMessage {
-                        owner,
-                        text: message,
-                    }));
-                    notice.set(None);
-                }
-            }
-        }
-    }));
-
     let current_owner = current_snapshot(
         &runtime,
         &owner,
@@ -366,14 +318,6 @@ pub fn ComponentModelEditor(
     let visible_notice = notice()
         .filter(|message| message.owner == owner && current_owner.is_some())
         .map(|message| message.text);
-    let upload_pending = upload_edit
-        .read()
-        .as_ref()
-        .is_some_and(|(outcome, _)| outcome.is_pending());
-    let remove_pending = remove_edit
-        .read()
-        .as_ref()
-        .is_some_and(|(outcome, _)| outcome.is_pending());
     let base_definition = definition.clone();
     let selected_for_upload = selected;
     let runtime_for_upload = runtime.clone();
@@ -393,10 +337,6 @@ pub fn ComponentModelEditor(
         };
         input.set_value("");
         if uploading()
-            || upload_edit
-                .peek()
-                .as_ref()
-                .is_some_and(|(outcome, _)| outcome.is_pending())
             || current_snapshot(
                 &runtime_for_upload,
                 &owner_for_upload,
@@ -548,23 +488,11 @@ pub fn ComponentModelEditor(
             uploading.set(false);
             error.set(None);
             notice.set(None);
-            let outcome = runtime.resolve_edit(
-                "parts-component-model",
-                Some("component model".into()),
-                resolver,
-            );
-            upload_edit.set(Some((outcome, owner)));
+            if let Err(text) = runtime.commit("parts-component-model", resolver) {
+                error.set(Some(ModelEditorMessage { owner, text }));
+            }
         });
     };
-
-    // Mounted tests retain the first real handler to exercise admission after rerenders.
-    #[cfg(test)]
-    if let Some(probe) = try_use_context::<UploadHandlerProbe>() {
-        let mut retained = probe.borrow_mut();
-        if retained.is_none() {
-            *retained = Some(Callback::new(upload_model.clone()));
-        }
-    }
 
     let cancel_upload = {
         let request_generation = request_generation.clone();
@@ -630,13 +558,6 @@ pub fn ComponentModelEditor(
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
-            if remove_edit
-                .peek()
-                .as_ref()
-                .is_some_and(|(outcome, _)| outcome.is_pending())
-            {
-                return;
-            }
             let live = current_snapshot(
                 &runtime,
                 &owner,
@@ -650,12 +571,12 @@ pub fn ComponentModelEditor(
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    let outcome = runtime.resolve_edit(
-                        "parts-component-model",
-                        Some("component model".into()),
-                        resolver,
-                    );
-                    remove_edit.set(Some((outcome, owner.clone())));
+                    if let Err(text) = runtime.commit("parts-component-model", resolver) {
+                        error.set(Some(ModelEditorMessage {
+                            owner: owner.clone(),
+                            text,
+                        }));
+                    }
                 }
                 Err(message) => error.set(Some(ModelEditorMessage {
                     owner: owner.clone(),
@@ -695,14 +616,14 @@ pub fn ComponentModelEditor(
                         { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true,
                             on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) } } }
                     }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: remove_model, "Remove attached model" }
                 } else {
                     p { "No model attached to this component." }
                 }
                 Button {
                     variant: ButtonVariant::Secondary,
                     class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    disabled: uploading() || upload_pending || current_owner.is_none(),
+                    disabled: uploading() || current_owner.is_none(),
                     onclick: move |_| {
                         if let Some(input) = file_input() {
                             input.click();
@@ -715,7 +636,7 @@ pub fn ComponentModelEditor(
                     hidden: true,
                     accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
                     aria_label: "Attach STEP / STL / WRL model",
-                    disabled: uploading() || upload_pending || current_owner.is_none(),
+                    disabled: uploading() || current_owner.is_none(),
                     onmounted: move |event: MountedEvent| {
                         file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
                     },
@@ -744,144 +665,30 @@ fn ModelVectorEditor(
     positive: bool,
     on_commit: Callback<(Axis, String, f64), Option<EditResolver>>,
 ) -> Element {
-    let version = use_context::<Signal<u64>>();
-    let _ = version();
     let runtime = use_context::<Rc<Runtime>>();
-    // This editor's own collection: the editor is remounted per owner (its parent keys
-    // it by the model owner), so its lifetime is the owner lifetime and it settles its
-    // own axes here, like the render-body settlement it replaces.
-    let pending = use_hook(DraftEdits::<Axis>::default);
-    let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
-    let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
-    let mut dirty = use_signal(|| [false; 3]);
-    let mut synced = use_signal(|| current);
-    let mut error = use_signal(|| None::<(usize, String)>);
-    let failure = use_signal(|| None::<String>);
-    {
-        let previous = synced();
-        for index in 0..3 {
-            let key = axes[index];
-            if !pending.is_pending(&key)
-                && !dirty.peek()[index]
-                && current[index] != previous[index]
-            {
-                drafts[index].set(current[index].to_string());
-            }
-        }
-        if previous != current {
-            synced.set(current);
-        }
-    }
-    // Settle this editor's axes before rendering: a failure restores the accepted
-    // value and reports inline; landed and retired edits drop silently.
-    let settled = pending.settle(true, |axis| {
-        match axis {
-            Axis::X => value.x,
-            Axis::Y => value.y,
-            Axis::Z => value.z,
-        }
-        .to_string()
-    });
-    for result in settled {
-        let key = match result {
-            PendingEditResult::Landed { key, .. }
-            | PendingEditResult::Failed { key, .. }
-            | PendingEditResult::Retired { key } => key,
-        };
-        let index = match key {
-            Axis::X => 0,
-            Axis::Y => 1,
-            Axis::Z => 2,
-        };
-        if drafts[index].peek().as_str() == current[index].to_string() {
-            dirty.write()[index] = false;
-        }
-    }
+    let mut error = use_signal(|| None::<String>);
     rsx! {
         fieldset { class: "grid gap-2",
             legend { "{title} · {unit}" }
-            ModelAxisGrid {
-            for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
-                {
-                    let pending = pending.clone();
-                    let pending_for_escape = pending.clone();
-                    let runtime = runtime.clone();
-                    rsx! {
-                    ModelAxisField {
-                        axis: label,
-                        min: positive.then(|| "0.001".to_owned()),
-                        value: drafts[index](),
-                        aria_label: format!("{title} {label} {unit}"),
-                        error: error().filter(|(failed, _)| *failed == index).map(|(_, message)| message),
-                        oninput: move |event: FormEvent| {
-                            drafts[index].set(event.value());
-                            // Typing remains a draft even when it returns to the old
-                            // accepted value while an earlier edit is still settling.
-                            dirty.write()[index] = true;
-                        },
-                        onblur: move |_| {
-                            let raw = drafts[index]().clone();
-                            let parsed = raw.trim().parse::<f64>().ok();
-                            let valid = parsed.is_some_and(|number| number.is_finite() && (!positive || number > 0.0));
-                            if !valid {
-                                error.set(Some((index, if positive { "Enter a positive finite number." } else { "Enter a finite number." }.into())));
-                                return;
-                            }
-                            let number = parsed.unwrap_or_default();
-                            error.set(None);
-                            let key = axis;
-                            let already_submitted =
-                                pending.pending_submission(&key).as_deref() == Some(raw.as_str());
-                            let axis_pending = pending.is_pending(&key);
-                            if !axis_pending && number == current[index] {
-                                dirty.write()[index] = false;
-                                return;
-                            }
-                            if !already_submitted
-                                && let Some(resolver) = on_commit.call((axis, raw.clone(), number))
-                            {
-                                // The helper remembers the submitted axis text, so an
-                                // older outcome can never clobber a newer draft.
-                                pending.submit(
-                                    &runtime,
-                                    key,
-                                    "parts-component-model",
-                                    Some("component model".into()),
-                                    resolver,
-                                    FieldView::new(drafts[index], failure).submitted(raw),
-                                );
+            div { class: "grid grid-cols-3 gap-2",
+                for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
+                    NumericField { key: "{label}", label, aria_label: format!("{title} {label} {unit}"),
+                        value: current[index], min: positive.then_some(0.001),
+                        on_commit: {
+                            let runtime = runtime.clone();
+                            move |number: f64| {
+                                if let Some(resolver) = on_commit.call((axis, number.to_string(), number)) {
+                                    error.set(runtime.commit("parts-component-model", resolver).err());
+                                }
                             }
                         },
-                        onkeydown: move |event: KeyboardEvent| {
-                            let key = event.key().to_string();
-                            if key == "Enter"
-                                && let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                            {
-                                let _ = input.blur();
-                            } else if key == "Escape" {
-                                let escape_key = axis;
-                                let restored = if pending_for_escape.is_pending(&escape_key) {
-                                    pending_for_escape
-                                        .pending_submission(&escape_key)
-                                        .unwrap_or_else(|| current[index].to_string())
-                                } else {
-                                    current[index].to_string()
-                                };
-                                drafts[index].set(restored);
-                                dirty.write()[index] = false;
-                                error.set(None);
-                            }
-                        }
                     }
                 }
-                }
             }
+            if let Some(message) = error() {
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
-            if let Some(message) = failure() { FieldError { "{message}" } }
         }
     }
 }
-
-#[cfg(test)]
-mod settlement_tests;

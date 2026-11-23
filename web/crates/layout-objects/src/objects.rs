@@ -1,5 +1,6 @@
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
+use boardstudio_application::{ReadModel, Scope, SelectionMode};
+use boardstudio_web_ui_model::Workspace;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use boardstudio_web_ui_shared::ui::{
@@ -21,16 +22,9 @@ use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod add_matrix_surface;
 mod board_setup_controller;
 mod existing_half;
-#[cfg(test)]
-mod tree_projection_tests;
-
-#[cfg(test)]
-thread_local! {
-    static TREE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-mod add_matrix_surface;
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -39,24 +33,27 @@ mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_align_logic;
+mod layout_anchor_pick;
 mod layout_canvas_controls;
+mod layout_rail;
+mod layout_rail_chrome;
+mod layout_rail_menu;
+mod layout_rail_tool;
+mod workspace_state;
+pub use workspace_state::{LayoutInspectorTab, LayoutWorkspaceState, use_layout_workspace_state};
 mod layout_selection_kind;
 mod layout_toolbar;
 mod layout_toolbar_logic;
-mod layout_transform_toolbar;
-mod matrix_departure_actions;
-mod matrix_edit_test_support;
 mod matrix_inspector;
-mod matrix_inspector_controller;
-mod matrix_inspector_logic;
 mod matrix_placement_controller;
+mod matrix_preparation;
+mod matrix_preset;
+mod matrix_preset_logic;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
-mod matrix_transform_controller;
-mod matrix_transform_inspector;
-mod matrix_transform_logic;
+mod matrix_transform;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree_projection_logic;
@@ -70,35 +67,36 @@ pub use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };
 pub use layout_align_controller::use_canvas_align;
+pub use layout_anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 pub use layout_canvas_controls::LayoutCanvasControls;
+pub use layout_rail::{
+    LayoutRailOverlay, LayoutTransformRuntime, LayoutTransformTool, RailTarget, ToolActivation,
+    activate_transform_tool,
+};
+pub use layout_rail_menu::{
+    LayoutContextActionToolbar, LayoutTransformMenuMount, LayoutTransformToolbar,
+};
+pub use layout_rail_tool::transform_tools;
 pub use layout_toolbar::{
     GestureSnapInputs, LayoutCanvasGridStyle, LayoutCommandMenu, LayoutCommandPill,
     LayoutSelectionKind, LayoutSnapDock, LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor,
     context_for_selection_kind, gesture_snap_inputs, layout_canvas_grid_style,
     snap_label as layout_snap_label,
 };
-pub use layout_transform_toolbar::LayoutPartToolOverlay;
-pub use layout_transform_toolbar::LayoutTransformToolOverlay;
-pub use layout_transform_toolbar::{
-    AnchorPickOwner, LayoutAnchorPickOverlay, LayoutTransformMenuMount, LayoutTransformRuntime,
-    LayoutTransformSvg, LayoutTransformTool, ToolActivation, activate_transform_tool,
-};
-pub use matrix_departure_actions::DepartureControl;
-pub use matrix_inspector::MatrixInspector;
-pub use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
-pub use matrix_inspector_controller::matrix_with_preset;
-pub use matrix_inspector_controller::{MatrixInspectorMount, use_matrix_inspector};
+pub use matrix_inspector::{MatrixInspector, MatrixInspectorMount, use_matrix_inspector};
 pub use matrix_placement_controller::use_matrix_placement;
+pub use matrix_preset::{
+    MatrixPreset, SwitchOrientation as MatrixSwitchOrientation, matrix_with_preset,
+};
 pub use matrix_setup::{
     MatrixPlacementInput, MatrixPlacementMount, MatrixPlacementMove, MatrixPlacementSource,
     MatrixSetup, MatrixSetupMount,
 };
 pub use matrix_setup_controller::use_matrix_setup;
-pub use matrix_transform_controller::{
-    MatrixTransformInspectorMount, use_workspace_matrix_transform,
-};
-pub use matrix_transform_inspector::{
-    MatrixTransformInspector, MatrixTransformInspectorOwner, SelectionDeleteControl,
+pub use matrix_transform::{
+    DepartureControl, MatrixTransformInspector, MatrixTransformInspectorMount,
+    MatrixTransformInspectorOwner, MatrixTransformProjection, SelectionDeleteControl,
+    use_workspace_matrix_transform,
 };
 pub use mirrored_pair::{
     MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
@@ -196,8 +194,8 @@ pub fn Objects(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
-    let case_workspace = workspace() == "Case";
-    let pcb_workspace = workspace() == "PCB";
+    let case_workspace = workspace() == Workspace::Case;
+    let pcb_workspace = workspace() == Workspace::Pcb;
     let scope_generation = use_context::<super::SelectionAdapter>().generation;
     let generation = scope_generation();
     let version = use_context::<Signal<u64>>();
@@ -210,7 +208,8 @@ pub fn Objects(
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
-    let document = &snapshot.document;
+    let resolved = boardstudio_application::resolved_document(&snapshot.document);
+    let document = resolved.as_ref();
     let board_id = model.active_board_id.clone();
     let active_scope = runtime.scope();
     let instance_scope = active_scope.clone();
@@ -276,10 +275,9 @@ pub fn Objects(
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),
         |(source, board_id, expanded, by_part)| {
-            #[cfg(test)]
-            TREE_BUILDS.set(TREE_BUILDS.get() + 1);
             let snapshot = &source.0;
-            let document = &snapshot.document;
+            let resolved = boardstudio_application::resolved_document(&snapshot.document);
+            let document = resolved.as_ref();
             let mut items = if by_part {
                 grouped_part_tree(
                     &ReadModel {
@@ -698,18 +696,6 @@ pub fn Objects(
             }
 }
 
-#[derive(Clone)]
-struct AcceptedSource(AcceptedSnapshot);
-
-impl PartialEq for AcceptedSource {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.token == other.0.token
-            && self.0.session_epoch == other.0.session_epoch
-            && std::sync::Arc::ptr_eq(&self.0.document, &other.0.document)
-            && std::sync::Arc::ptr_eq(&self.0.scene, &other.0.scene)
-    }
-}
-
 #[component]
 fn AddObjectEntry(
     mut menu_open: Signal<bool>,
@@ -735,28 +721,20 @@ fn AddObjectEntry(
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
     let existing_half_open = (existing_half.can_open, existing_half.on_open);
+    // The selected matrix's label and id, plus the scope to select first when the matrix is only named.
     let matrix_actions = matrix_inspector
         .as_ref()
         .and_then(|mount| {
-            mount.projection.as_ref().map(|projection| {
-                (
-                    projection.matrix_label.clone(),
-                    mount.on_add_row,
-                    mount.on_add_column,
-                    None,
-                    (mount.add_row_pending, mount.add_column_pending),
-                )
-            })
+            let id = mount.selected_matrix_id().filter(|_| mount.is_active())?;
+            Some((format!("Matrix {id}"), id, None, mount.clone()))
         })
         .or_else(|| {
             let (scope, matrix_id, label) = selected_matrix_action?;
-            let mount = matrix_inspector.as_ref()?;
             Some((
                 label,
-                mount.on_add_row,
-                mount.on_add_column,
+                matrix_id.clone(),
                 Some((scope, matrix_id)),
-                (mount.add_row_pending, mount.add_column_pending),
+                matrix_inspector.clone()?,
             ))
         });
     rsx! {
@@ -856,17 +834,11 @@ fn AddObjectEntry(
                                     }
                                 }
                             }
-                            if let Some(
-                                (
-                                    matrix_label,
-                                    on_add_row,
-                                    on_add_column,
-                                    selection,
-                                    (add_row_pending, add_column_pending),
-                                ),
-                            ) = matrix_actions
+                            if let Some((matrix_label, matrix_id, selection, mount)) = matrix_actions
                             {
                                 {
+                                    let (row_mount, column_mount) = (mount.clone(), mount);
+                                    let (row_id, column_id) = (matrix_id.clone(), matrix_id);
                                     let add_row_selection = selection.clone();
                                     let add_column_selection = selection.clone();
                                     let select_matrix_for_row = on_select;
@@ -884,7 +856,6 @@ fn AddObjectEntry(
                                                 Item { class: "p-0",
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: add_row_pending,
     onclick: move |_| {
                                                     menu_open.set(false);
                                                     if let Some((scope, matrix_id)) = add_row_selection.clone() {
@@ -895,7 +866,7 @@ fn AddObjectEntry(
                                                             outline_action: None,
                                                         });
                                                     }
-                                                    on_add_row.call(());
+                                                    report_grow(&row_mount, row_mount.grow(&row_id, true));
                                                 },
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
@@ -906,7 +877,6 @@ fn AddObjectEntry(
                                                 Item { class: "p-0",
                                                     Button { variant: ButtonVariant::Secondary,
     button_type: "button",
-    disabled: add_column_pending,
     onclick: move |_| {
                                                     menu_open.set(false);
                                                     if let Some((scope, matrix_id)) = add_column_selection.clone() {
@@ -917,7 +887,7 @@ fn AddObjectEntry(
                                                             outline_action: None,
                                                         });
                                                     }
-                                                    on_add_column.call(());
+                                                    report_grow(&column_mount, column_mount.grow(&column_id, false));
                                                 },
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
@@ -1070,4 +1040,11 @@ fn tree_glyph(kind: TreeKind) -> Element {
     }
 }
 
+use tree_projection_logic::AcceptedSource;
 pub(crate) use tree_projection_logic::grouped_part_tree;
+
+fn report_grow(mount: &MatrixInspectorMount, result: Result<(), String>) {
+    if let Err(message) = result {
+        mount.runtime.0.report(message);
+    }
+}

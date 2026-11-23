@@ -1,15 +1,16 @@
+use crate::common::qualification::{
+    self, field as child, footprint, kicad_world_delta, near, numbers_in_field, scalar, smd_pad,
+    socket_model_rotation, xyz as xyz_numbers_in_field,
+};
 use boardstudio_footprints::{
-    generators::bundled,
-    nets::NetAllocator,
     sexpr::{self, Expr},
-    types::{GeneratorRef, PartRef, Pose2, Side, Vec2},
+    types::{Side, Vec2},
 };
 use serde_json::json;
 
 const SOURCE: &str = "ceoloide/switch_choc_v1_v2";
 const MODEL: &str = "Choc_V1_Hotswap.step";
 const PCB_THICKNESS_MM: f64 = 1.6;
-const EPSILON_MM: f64 = 1.0e-6;
 const FROM_NET: &str = "CHOC_ROW_QUAL";
 const TO_NET: &str = "CHOC_COL_QUAL";
 
@@ -21,96 +22,33 @@ const TO_NET: &str = "CHOC_COL_QUAL";
 // The drawing's Ø3 callout applies only to the lower-left hole; the common
 // upper-hole diameter remains manufacturer-unknown and configuration-only.
 fn render(side: &str, part_side: Side, at: Vec2, rotation: f64) -> Vec<Expr> {
-    let generator = GeneratorRef {
-        source: SOURCE.into(),
-        version: "bundled-1".into(),
-        parameters: serde_json::from_value(json!({
-            "side": side,
-            "choc_v1_support": true,
-            "choc_v2_support": false,
-            "hotswap": true,
-            "reversible": false,
-            "solder": false,
-            "include_plated_holes": false,
-            "pcb_thickness": PCB_THICKNESS_MM,
-            "outer_pad_width_front": 2.6,
-            "outer_pad_width_back": 2.6,
-            "hotswap_pads_same_side": false,
-            "from": FROM_NET,
-            "to": TO_NET,
-        }))
-        .expect("selected Choc socket parameters are valid"),
-    };
-    let part = PartRef {
-        id: "choc-socket-qualification".into(),
-        reference: "S1".into(),
-        pose: Pose2 { at, rotation },
-        side: part_side,
-        generator_parameters: None,
-    };
-    let mut nets = NetAllocator::new(&[], 1);
-    bundled()
-        .render(
-            "choc-socket-qualification",
-            &generator,
-            Some(&part),
-            &mut nets,
-        )
-        .expect("the bundled Choc socket renders")
-}
-
-fn list_named<'a>(forms: &'a [Expr], name: &str) -> &'a [Expr] {
-    forms
-        .iter()
-        .find_map(|form| {
-            let items = form.as_list()?;
-            (items.first().and_then(|item| item.value().ok()) == Some(name)).then_some(items)
-        })
-        .unwrap_or_else(|| panic!("missing {name} form"))
-}
-
-fn child<'a>(items: &'a [Expr], name: &str) -> &'a [Expr] {
-    sexpr::child(items, name).unwrap_or_else(|| panic!("missing {name} field"))
-}
-
-fn children<'a>(items: &'a [Expr], name: &'a str) -> Vec<&'a [Expr]> {
-    sexpr::children(items, name).collect()
-}
-
-fn scalar(item: &Expr) -> &str {
-    item.value().expect("field value is a scalar")
-}
-
-fn numbers_in(items: &[Expr]) -> Vec<f64> {
-    items
-        .iter()
-        .skip(1)
-        .map(|item| {
-            scalar(item)
-                .parse::<f64>()
-                .unwrap_or_else(|_| panic!("expected numeric S-expression value, found {item:?}"))
-        })
-        .collect()
-}
-
-fn numbers_in_field(items: &[Expr], name: &str) -> Vec<f64> {
-    numbers_in(child(items, name))
+    let generator = qualification::generator(
+        SOURCE,
+        json!({
+            "side": side, "choc_v1_support": true, "choc_v2_support": false,
+            "hotswap": true, "reversible": false, "solder": false, "include_plated_holes": false,
+            "pcb_thickness": PCB_THICKNESS_MM, "outer_pad_width_front": 2.6, "outer_pad_width_back": 2.6,
+            "hotswap_pads_same_side": false, "from": FROM_NET, "to": TO_NET,
+        }),
+    );
+    let id = "choc-socket-qualification";
+    let part = qualification::part(id, "S1", part_side, at, rotation);
+    qualification::render(id, &generator, Some(&part)).expect("the bundled Choc socket renders")
 }
 
 fn strings_in_field(items: &[Expr], name: &str) -> Vec<String> {
     child(items, name)
         .iter()
         .skip(1)
-        .map(|item| scalar(item).to_owned())
+        .map(|item| item.value().expect("scalar field").to_owned())
         .collect()
 }
 
 fn socket_holes(footprint: &[Expr]) -> Vec<&[Expr]> {
-    let nonplated = children(footprint, "pad")
-        .into_iter()
+    let nonplated = sexpr::children(footprint, "pad")
         .filter(|pad| {
             pad.get(2)
-                .is_some_and(|kind| scalar(kind) == "np_thru_hole")
+                .is_some_and(|kind| kind.value().ok() == Some("np_thru_hole"))
         })
         .collect::<Vec<_>>();
     // In this explicit configuration the source emits one centerhole from
@@ -124,23 +62,6 @@ fn socket_holes(footprint: &[Expr]) -> Vec<&[Expr]> {
         "centerhole, two v1 stabilizers, shared socket hole, and face socket hole"
     );
     nonplated.into_iter().skip(3).collect()
-}
-
-fn smd_pad<'a>(footprint: &'a [Expr], number: &str) -> &'a [Expr] {
-    children(footprint, "pad")
-        .into_iter()
-        .find(|pad| {
-            pad.get(1).is_some_and(|value| scalar(value) == number)
-                && pad.get(2).is_some_and(|kind| scalar(kind) == "smd")
-        })
-        .unwrap_or_else(|| panic!("missing SMD pad {number}"))
-}
-
-fn near(actual: f64, expected: f64, label: &str) {
-    assert!(
-        (actual - expected).abs() <= EPSILON_MM,
-        "{label}: expected {expected}, got {actual}"
-    );
 }
 
 fn assert_vector_near(actual: [f64; 2], expected: [f64; 2], label: &str) {
@@ -160,12 +81,11 @@ fn assert_exact_values(actual: Vec<String>, mut expected: Vec<&str>, label: &str
 }
 
 fn assert_socket_model(footprint: &[Expr], side: &str) {
-    let model = children(footprint, "model")
-        .into_iter()
+    let model = sexpr::children(footprint, "model")
         .find(|model| {
             model
                 .get(1)
-                .is_some_and(|path| scalar(path).ends_with(MODEL))
+                .is_some_and(|path| path.value().is_ok_and(|path| path.ends_with(MODEL)))
         })
         .unwrap_or_else(|| panic!("{side} missing configured socket model {MODEL}"));
     assert_xyz_near(
@@ -178,24 +98,11 @@ fn assert_socket_model(footprint: &[Expr], side: &str) {
         [1.0, 1.0, 1.0],
         &format!("{side} socket model configured scale"),
     );
-    let expected_rotation = if side == "F" {
-        [0.0, 180.0, 0.0]
-    } else {
-        [180.0, 0.0, 0.0]
-    };
     assert_xyz_near(
         xyz_numbers_in_field(model, "rotate"),
-        expected_rotation,
+        socket_model_rotation(side),
         &format!("{side} socket model configured rotation"),
     );
-}
-
-fn xyz_numbers_in_field(items: &[Expr], name: &str) -> [f64; 3] {
-    let field = child(items, name);
-    let xyz = child(field, "xyz");
-    let numbers = numbers_in(xyz);
-    assert_eq!(numbers.len(), 3, "{name} has three coordinates");
-    [numbers[0], numbers[1], numbers[2]]
 }
 
 fn assert_xyz_near(actual: [f64; 3], expected: [f64; 3], label: &str) {
@@ -242,17 +149,6 @@ fn local_hole_delta(holes: &[&[Expr]], expected_rotation: f64) -> [f64; 2] {
     [lower[0] - upper[0], lower[1] - upper[1]]
 }
 
-fn kicad_world_delta(footprint: &[Expr], local_delta: [f64; 2]) -> [f64; 2] {
-    let angle = numbers_in_field(footprint, "at")[2].to_radians();
-    // KiCad uses a down-Y frame and serializes the footprint rotation with the
-    // corresponding negative-theta transform. The expected vectors below are
-    // fixed drawing-derived values, not outputs of this calculation.
-    [
-        local_delta[0] * angle.cos() + local_delta[1] * angle.sin(),
-        -local_delta[0] * angle.sin() + local_delta[1] * angle.cos(),
-    ]
-}
-
 fn expected_socket_vector(side: &str, rotation: u16) -> [f64; 2] {
     match (side, rotation) {
         ("F", 0) => [-5.0, 2.2],
@@ -277,7 +173,7 @@ fn datasheet_drills_and_dimensioned_left_land_match_nominals_at_both_faces_and_a
                 Vec2 { x: 0.0, y: 0.0 }
             };
             let forms = render(side, part_side.clone(), at, f64::from(rotation));
-            let footprint = list_named(&forms, "footprint");
+            let footprint = footprint(&forms);
             let holes = socket_holes(footprint);
             let footprint_angle = numbers_in_field(footprint, "at")[2];
             let actual = kicad_world_delta(footprint, local_hole_delta(&holes, footprint_angle));
@@ -318,16 +214,16 @@ fn configured_terminals_and_effective_pad_layers_are_exact_and_distinct() {
         ("B", Side::Back, "B.Cu", "B.Paste", "B.Mask"),
     ] {
         let forms = render(side, part_side, Vec2 { x: 0.0, y: 0.0 }, 0.0);
-        let footprint = list_named(&forms, "footprint");
+        let footprint = footprint(&forms);
         let inner_pad = smd_pad(footprint, "1");
         let outer_pad = smd_pad(footprint, "2");
         assert_eq!(
-            scalar(&child(inner_pad, "net")[2]),
+            scalar(child(inner_pad, "net"), 2),
             FROM_NET,
             "{side} fixed inner pad uses the configured from identity; manufacturer polarity is unknown"
         );
         assert_eq!(
-            scalar(&child(outer_pad, "net")[2]),
+            scalar(child(outer_pad, "net"), 2),
             TO_NET,
             "{side} outer pad uses the configured to identity; manufacturer polarity is unknown"
         );

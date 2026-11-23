@@ -1,3 +1,4 @@
+use crate::support::fixture;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
@@ -16,34 +17,30 @@ fn outline(id: &str) -> OutlineFeature {
 fn commit_case(base_revision: u64, id: &str) -> CoreRequest {
     // Ticket 37: raw SetOutline is deleted; the history setup below uses the live
     // typed case write instead.
-    CoreRequest::Edit {
-        id: format!("edit-{id}"),
-        command: EditCommand {
-            base_revision,
-            transaction_id: format!("tx-{id}"),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetCase {
-                body: CaseBody {
-                    features: None,
-                    openings: None,
-                    id: id.into(),
-                    name: id.into(),
-                    board_id: "board".into(),
-                    kind: CaseKind::Plate,
-                    thickness: 2.0,
-                    clearance: 0.0,
-                    material_id: None,
-                    z: None,
-                    wall_height: None,
-                    wall_thickness: None,
-                    mounts: None,
-                    pcb_source: None,
-                    gasket: None,
-                },
+    fixture::commit(
+        format!("edit-{id}"),
+        format!("tx-{id}"),
+        base_revision,
+        EditOperation::SetCase {
+            body: CaseBody {
+                features: None,
+                openings: None,
+                id: id.into(),
+                name: id.into(),
+                board_id: "board".into(),
+                kind: CaseKind::Plate,
+                thickness: 2.0,
+                clearance: 0.0,
+                material_id: None,
+                z: None,
+                wall_height: None,
+                wall_thickness: None,
+                mounts: None,
+                pcb_source: None,
+                gasket: None,
             },
         },
-    }
+    )
 }
 
 fn case_ir(assembly_revision: u64, body_revision: u64) -> CaseAssemblyIR {

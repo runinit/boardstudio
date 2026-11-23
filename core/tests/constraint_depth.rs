@@ -1,14 +1,11 @@
 //! Ticket 03: the public Core boundary refuses over-budget constraint traversal
 //! on Open and edit without changing accepted state.
+use crate::support::fixture::{self, request};
 use boardstudio_core::CoreEngine;
 use serde_json::{Value, json};
 
 /// Mirrors Core's private budget so this public-boundary test pins the documented value.
 const MAX_DEPENDENCY_DEPTH: usize = 256;
-
-fn request(engine: &mut CoreEngine, input: Value) -> Value {
-    serde_json::from_str(&engine.request(&input.to_string())).unwrap()
-}
 
 /// A linear chain whose lexicographically first target depends on every later
 /// part: `p00000 -> p00001 -> ...`. `BTreeMap` target iteration starts at
@@ -57,11 +54,11 @@ fn chain_document(count: usize, with_board: bool) -> Value {
 }
 
 fn open(engine: &mut CoreEngine, id: &str, document: &Value) -> Value {
-    request(engine, json!({"kind":"open","id":id,"document":document}))
+    fixture::wire_open(engine, id, &document)
 }
 
 fn snapshot(engine: &mut CoreEngine) -> Value {
-    request(engine, json!({"kind":"snapshot","id":"snapshot"}))["document"].clone()
+    fixture::wire_snapshot(engine, "snapshot")["document"].clone()
 }
 
 #[test]

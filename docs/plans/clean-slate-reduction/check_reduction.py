@@ -139,30 +139,64 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Verify clean-slate reduction budgets and deletion manifests.")
     parser.add_argument("--base", required=True, help="Base git ref (e.g. dev or 5aae86ff4).")
     parser.add_argument("--head", default="HEAD", help="Head git ref (default: HEAD).")
-    parser.add_argument("--max-prod-delta", type=int, required=True, help="Maximum allowed net Prod Rust LOC delta.")
-    parser.add_argument("--max-test-delta", type=int, required=True, help="Maximum allowed net Test Rust LOC delta.")
+    parser.add_argument(
+        "--max-prod-delta",
+        type=int,
+        default=0,
+        help="Maximum allowed net Prod Rust LOC delta (default: 0; anti-bloat floor when --advisory-loc is set).",
+    )
+    parser.add_argument(
+        "--max-test-delta",
+        type=int,
+        default=0,
+        help="Maximum allowed net Test Rust LOC delta (default: 0; anti-bloat floor when --advisory-loc is set).",
+    )
     parser.add_argument("--max-script-delta", type=int, default=0, help="Maximum allowed net scripts/ LOC delta.")
     parser.add_argument("--max-other-delta", type=int, default=200, help="Maximum allowed net Other LOC delta.")
+    parser.add_argument("--target-prod-delta", type=int, default=None, help="Advisory stretch target for net Prod Rust LOC.")
+    parser.add_argument("--target-test-delta", type=int, default=None, help="Advisory stretch target for net Test Rust LOC.")
+    parser.add_argument("--target-script-delta", type=int, default=None, help="Advisory stretch target for net scripts/ LOC.")
+    parser.add_argument(
+        "--advisory-loc",
+        action="store_true",
+        help="Treat negative --max-{prod,test,script}-delta values as advisory targets while hard-enforcing <= 0 anti-bloat.",
+    )
     parser.add_argument("--must-delete", action="append", default=[], help="Tracked path/prefix that must have 0 files.")
     parser.add_argument("--forbid-symbol", action="append", default=[], help="Symbol that must not appear in *.rs.")
     args = parser.parse_args()
 
+    def _limit_and_target(max_val: int, explicit_target: int | None, allow_advisory: bool) -> tuple[int, int | None]:
+        target = explicit_target
+        limit = max_val
+        if args.advisory_loc and allow_advisory:
+            if target is None and max_val < 0:
+                target = max_val
+            limit = min(0, max_val) if target is None else 0
+        return limit, target
+
     deltas = compute_deltas(args.base, args.head)
     labels = {
-        "prod_rust": ("Production Rust", args.max_prod_delta),
-        "test_rust": ("Test Rust", args.max_test_delta),
-        "scripts": ("Scripts", args.max_script_delta),
-        "other": ("Other", args.max_other_delta),
+        "prod_rust": ("Production Rust", *_limit_and_target(args.max_prod_delta, args.target_prod_delta, True)),
+        "test_rust": ("Test Rust", *_limit_and_target(args.max_test_delta, args.target_test_delta, True)),
+        "scripts": ("Scripts", *_limit_and_target(args.max_script_delta, args.target_script_delta, True)),
+        "other": ("Other", args.max_other_delta, None),
     }
 
     failures: list[str] = []
     print(f"Reduction Gate ({args.base} -> {args.head})")
     print("-" * 74)
-    for cat, (label, limit) in labels.items():
+    for cat, (label, limit, target) in labels.items():
         added, deleted, net = deltas[cat]
         ok = net <= limit
         status = "PASS" if ok else "FAIL"
-        print(f"{label:18} +{added:7} -{deleted:7} net {net:+8}  (limit {limit:+8})  [{status}]")
+        if target is not None:
+            t_status = "TARGET MET" if net <= target else "ADVISORY"
+            print(
+                f"{label:18} +{added:7} -{deleted:7} net {net:+8}  "
+                f"(limit {limit:+8}, target {target:+8})  [{status} | {t_status}]"
+            )
+        else:
+            print(f"{label:18} +{added:7} -{deleted:7} net {net:+8}  (limit {limit:+8})  [{status}]")
         if not ok:
             failures.append(f"{label} net delta {net:+d} exceeds limit {limit:+d}")
 

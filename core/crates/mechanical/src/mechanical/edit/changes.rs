@@ -17,6 +17,16 @@ use super::{
 };
 use crate::model::*;
 
+fn remove_item<T>(
+    items: Option<&mut Vec<T>>,
+    matches: impl FnMut(&T) -> bool,
+    unavailable: &str,
+) -> Result<T, String> {
+    let items = items.ok_or(unavailable)?;
+    let index = items.iter().position(matches).ok_or(unavailable)?;
+    Ok(items.remove(index))
+}
+
 /// Reference defaults for a board that has no stored configuration.
 ///
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
@@ -114,10 +124,7 @@ pub(super) fn apply_change(
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => {
-            return Err(
-                "Configure, Disable, closure initialization, the pair lifecycle and legacy conversion are handled by the operation."
-                    .into(),
-            );
+            return Err("This change is handled by the mechanical edit lifecycle.".into());
         }
         MechanicalChange::AssignSwitchProfile {
             definition_id,
@@ -342,16 +349,12 @@ pub(super) fn apply_change(
             changed.push(fit_id);
         }
         MechanicalChange::RemoveCriticalFit { fit_id } => {
-            let fits = configuration
-                .critical_fits
-                .as_mut()
-                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
-            let index = fits
-                .iter()
-                .position(|fit| fit.id == *fit_id)
-                .ok_or_else(|| "The selected critical fit is no longer available.".to_owned())?;
-            fits.remove(index);
-            changed.push(fit_id.clone());
+            let removed = remove_item(
+                configuration.critical_fits.as_mut(),
+                |item| item.id == *fit_id,
+                "The selected critical fit is no longer available.",
+            )?;
+            changed.push(removed.id);
         }
         MechanicalChange::SetCriticalFitText {
             fit_id,
@@ -435,16 +438,12 @@ pub(super) fn apply_change(
             changed.push(hardware_id);
         }
         MechanicalChange::RemoveHardware { hardware_id } => {
-            let entries = configuration
-                .hardware
-                .as_mut()
-                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
-            let index = entries
-                .iter()
-                .position(|entry| entry.id == *hardware_id)
-                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
-            entries.remove(index);
-            changed.push(hardware_id.clone());
+            let removed = remove_item(
+                configuration.hardware.as_mut(),
+                |item| item.id == *hardware_id,
+                "The selected hardware entry is no longer available.",
+            )?;
+            changed.push(removed.id);
         }
         MechanicalChange::SetHardwareMount {
             hardware_id,
@@ -481,19 +480,11 @@ pub(super) fn apply_change(
             let entry = hardware_mut(configuration, hardware_id)?;
             match field {
                 MechanicalDimension::HardwareLength => {
-                    if !value.is_finite() || *value < 0.1 {
-                        return Err("Hardware length must be at least 0.1 mm.".into());
-                    }
+                    validate_dimension(*field, *value)?;
                     entry.length = *value;
                 }
                 MechanicalDimension::HardwareQuantity => {
-                    if !value.is_finite()
-                        || *value < 1.0
-                        || value.fract() != 0.0
-                        || *value > f64::from(u32::MAX)
-                    {
-                        return Err("Hardware quantity must be a positive whole number.".into());
-                    }
+                    validate_dimension(*field, *value)?;
                     entry.quantity = *value as u32;
                 }
                 _ => return Err("The selected hardware dimension is unavailable.".into()),
@@ -528,16 +519,12 @@ pub(super) fn apply_change(
             changed.push(id);
         }
         MechanicalChange::RemoveOpening { opening_id } => {
-            let openings = configuration
-                .openings
-                .as_mut()
-                .ok_or("The selected access opening is no longer available.")?;
-            let position = openings
-                .iter()
-                .position(|opening| opening.id == *opening_id)
-                .ok_or("The selected access opening is no longer available.")?;
-            openings.remove(position);
-            changed.push(opening_id.clone());
+            let removed = remove_item(
+                configuration.openings.as_mut(),
+                |item| item.id == *opening_id,
+                "The selected access opening is no longer available.",
+            )?;
+            changed.push(removed.id);
         }
         MechanicalChange::AddOpeningVertex { opening_id } => {
             let openings = configuration
@@ -572,19 +559,18 @@ pub(super) fn apply_change(
                 .iter_mut()
                 .find(|opening| opening.id == *opening_id)
                 .ok_or("The selected access opening is no longer available.")?;
-            let position = opening
-                .vertices
-                .iter()
-                .position(|vertex| vertex.id == *vertex_id)
-                .ok_or("The selected opening vertex is no longer available.")?;
-            if opening.vertices.len() <= 3 {
+            let matches = |vertex: &MechanicalOpeningVertex| vertex.id == *vertex_id;
+            if opening.vertices.len() <= 3 && opening.vertices.iter().any(matches) {
                 return Err("An opening footprint needs at least three vertices.".into());
             }
-            opening.vertices.remove(position);
+            let removed = remove_item(
+                Some(&mut opening.vertices),
+                matches,
+                "The selected opening vertex is no longer available.",
+            )?;
             let opening_id = opening.id.clone();
             validate_openings(openings)?;
-            changed.push(opening_id);
-            changed.push(vertex_id.clone());
+            changed.extend([opening_id, removed.id]);
         }
         MechanicalChange::SetOpeningDimension {
             opening_id,
@@ -824,12 +810,12 @@ pub(super) fn apply_change(
             {
                 return Err("Suspension mounts are unavailable for a gasket mount.".into());
             }
-            let mounts = mount_collection_mut(configuration, *collection);
-            let Some(index) = mounts.iter().position(|mount| mount.id == *mount_id) else {
-                return Err("The selected mount is no longer available.".into());
-            };
-            mounts.remove(index);
-            changed.push(mount_id.clone());
+            let removed = remove_item(
+                Some(mount_collection_mut(configuration, *collection)),
+                |mount| mount.id == *mount_id,
+                "The selected mount is no longer available.",
+            )?;
+            changed.push(removed.id);
         }
         MechanicalChange::SetBottomStyle(style) => {
             configuration.bottom_style = Some(style.clone());
@@ -1303,45 +1289,41 @@ pub(super) fn skip_process_normalization(change: &MechanicalChange) -> bool {
             | MechanicalChange::RemoveOpeningVertex { .. }
             | MechanicalChange::SetOpeningDimension { .. }
             | MechanicalChange::SetStabilizerKind(_)
-    ) || matches!(
-        change,
-        MechanicalChange::SetMountPosition { .. }
+            | MechanicalChange::SetMountPosition { .. }
             | MechanicalChange::SetGasketSupportPlacement { .. }
             | MechanicalChange::ResetGasketPlacement
-    ) || matches!(
-        change,
-        MechanicalChange::SetDimension {
-            field: MechanicalDimension::BatteryWidth
-                | MechanicalDimension::OpeningBottomZ
-                | MechanicalDimension::OpeningHeight
-                | MechanicalDimension::OpeningPointX
-                | MechanicalDimension::OpeningPointY
-                | MechanicalDimension::BatteryDepth
-                | MechanicalDimension::BatteryHeight
-                | MechanicalDimension::BatteryCableWidth
-                | MechanicalDimension::BatteryPositionX
-                | MechanicalDimension::BatteryPositionY
-                | MechanicalDimension::BatteryCableExitX
-                | MechanicalDimension::BatteryCableExitY
-                | MechanicalDimension::ClosureThreadDiameter
-                | MechanicalDimension::ClosurePitch
-                | MechanicalDimension::ClosureHeadDiameter
-                | MechanicalDimension::ClosureHeadHeight
-                | MechanicalDimension::ClosureHoleDiameter
-                | MechanicalDimension::ClosureInsertDiameter
-                | MechanicalDimension::ClosureInsertLength
-                | MechanicalDimension::ClosureSeatDiameter
-                | MechanicalDimension::ClosureSeatDepth
-                | MechanicalDimension::ClosureEngagement
-                | MechanicalDimension::ClosureThreadStart
-                | MechanicalDimension::ClosureTipAllowance
-                | MechanicalDimension::ClosureBottomingClearance
-                | MechanicalDimension::ClosureRoof
-                | MechanicalDimension::ClosureSurround
-                | MechanicalDimension::ClosureSeatLeadDepth
-                | MechanicalDimension::ClosureSeatLeadDiameter
-                | MechanicalDimension::ClosureBearingThickness,
-            ..
-        }
+            | MechanicalChange::SetDimension {
+                field: MechanicalDimension::BatteryWidth
+                    | MechanicalDimension::OpeningBottomZ
+                    | MechanicalDimension::OpeningHeight
+                    | MechanicalDimension::OpeningPointX
+                    | MechanicalDimension::OpeningPointY
+                    | MechanicalDimension::BatteryDepth
+                    | MechanicalDimension::BatteryHeight
+                    | MechanicalDimension::BatteryCableWidth
+                    | MechanicalDimension::BatteryPositionX
+                    | MechanicalDimension::BatteryPositionY
+                    | MechanicalDimension::BatteryCableExitX
+                    | MechanicalDimension::BatteryCableExitY
+                    | MechanicalDimension::ClosureThreadDiameter
+                    | MechanicalDimension::ClosurePitch
+                    | MechanicalDimension::ClosureHeadDiameter
+                    | MechanicalDimension::ClosureHeadHeight
+                    | MechanicalDimension::ClosureHoleDiameter
+                    | MechanicalDimension::ClosureInsertDiameter
+                    | MechanicalDimension::ClosureInsertLength
+                    | MechanicalDimension::ClosureSeatDiameter
+                    | MechanicalDimension::ClosureSeatDepth
+                    | MechanicalDimension::ClosureEngagement
+                    | MechanicalDimension::ClosureThreadStart
+                    | MechanicalDimension::ClosureTipAllowance
+                    | MechanicalDimension::ClosureBottomingClearance
+                    | MechanicalDimension::ClosureRoof
+                    | MechanicalDimension::ClosureSurround
+                    | MechanicalDimension::ClosureSeatLeadDepth
+                    | MechanicalDimension::ClosureSeatLeadDiameter
+                    | MechanicalDimension::ClosureBearingThickness,
+                ..
+            }
     )
 }

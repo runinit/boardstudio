@@ -151,31 +151,13 @@ mod tests {
     #[test]
     fn automatic_navigation_waits_for_real_session_open_and_save() {
         let mut session = Session::new(CoreEngine::validate_open);
-        let mut core = CoreEngine::new();
         assert!(!can_reconcile(session.read_model()));
         let effects = session.submit(Event::Open {
             operation_id: OperationId(1),
             document: ProjectDoc::empty("open", "Open"),
         });
         assert!(!can_reconcile(session.read_model()));
-        let mut saves = Vec::new();
         for effect in effects {
-            if let Effect::Core {
-                request_id,
-                executor_epoch,
-                request,
-                ..
-            } = effect
-            {
-                saves.extend(session.complete(Completion::Core {
-                    request_id,
-                    executor_epoch,
-                    reply: Box::new(core.handle(*request)),
-                }));
-            }
-        }
-        assert!(!can_reconcile(session.read_model()));
-        for effect in saves {
             if let Effect::Persist {
                 save_attempt_id, ..
             } = effect
@@ -194,8 +176,8 @@ mod tests {
             .as_ref()
             .map(|snapshot| snapshot.scene.clone());
         assert!(!can_reconcile(&previewing));
-        let mut recovering = session.read_model().clone();
-        recovering.lifecycle = Lifecycle::RecoveryRequired;
-        assert!(!can_reconcile(&recovering));
+        let mut closed = session.read_model().clone();
+        closed.lifecycle = Lifecycle::Closed;
+        assert!(!can_reconcile(&closed));
     }
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::fixture;
 
 /// `create-generated`: one accepted edit adds the board's Generated envelope AND
 /// registers its board membership (the gap `SetOutline` has today), and one Undo removes
@@ -6,10 +7,9 @@ use super::*;
 #[test]
 fn create_generated_registers_the_envelope_and_board_membership() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(fixture_without_generated()).unwrap(),
-    }));
+    let opened = scene(engine.handle(fixture::open(
+        serde_json::from_value(fixture_without_generated()).unwrap(),
+    )));
     let feature_id = "board:board:automatic:outline:91";
     let change = serde_json::json!({
         "create-generated": {

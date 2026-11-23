@@ -1,9 +1,6 @@
-//! Native-testable preparation for linking copies of existing unpaired matrices.
-//!
-//! The [`prepare_existing_half`] builder is shared with mirrored-pair creation:
-//! both emit one explicit [`MirroredCorrespondence`] per matrix pair in the link
-//! so Core never sees an empty correspondence list for a linked pair.
-use boardstudio_model::model::{Layout, LayoutMirrorLink, ProjectDoc};
+//! Prepare canonical pairs from existing authored matrices.
+use boardstudio_model::mirrored_half::{MirrorDestination, MirroredPair};
+use boardstudio_model::model::{Layout, Pose2, ProjectDoc, Vec2};
 
 #[derive(Clone)]
 pub struct PreparedExistingHalf {
@@ -61,13 +58,10 @@ pub fn prepare_existing_half(
             })
             .cloned();
         if existing.as_ref().is_some_and(|layout| {
-            layout.mirror_link.is_some()
-                || next.layouts.iter().any(|candidate| {
-                    candidate
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
+            let location = MirrorDestination::SameBoardLayout(layout.id.clone());
+            next.mirrored_pairs
+                .iter()
+                .any(|pair| pair.source == location || pair.destination == location)
         }) {
             return Err("This layout already belongs to a linked pair.".into());
         }
@@ -93,37 +87,27 @@ pub fn prepare_existing_half(
             layout
         };
 
-        let target_matrix_id = fresh_id(&mut used_ids, new_id)?;
         let target_layout_id = fresh_id(&mut used_ids, new_id)?;
-        let target_name = format!("{} · mirrored", source_layout.name);
-        let mut target_matrix = source.clone();
-        target_matrix.id = target_matrix_id.clone();
-        target_matrix.name = Some(target_name.clone());
-        target_matrix.part_ids.clear();
-        for cell in &mut target_matrix.cells {
-            for assembly in &mut cell.assemblies {
-                assembly.offset.x = -assembly.offset.x;
-                assembly.rotation = assembly.rotation.map(|rotation| -rotation);
-            }
-        }
-        next.matrices.push(target_matrix);
         next.layouts.push(Layout {
             id: target_layout_id.clone(),
-            name: target_name,
+            name: format!("{} · mirrored", source_layout.name),
             board_id: board_id.to_owned(),
-            matrix_ids: vec![target_matrix_id.clone()],
-            part_ids: Vec::new(),
-            mirror_link: Some(LayoutMirrorLink {
-                correspondences: crate::mirrored_pair_geometry::matrix_pair_correspondences(
-                    &source.id,
-                    &target_matrix_id,
-                ),
-                exceptions: vec![],
-                source_id: source_layout.id,
-                axis_x,
-                split_gap: None,
-                spacing: None,
-            }),
+            matrix_ids: vec![],
+            part_ids: vec![],
+            mirror_link: None,
+        });
+        next.mirrored_pairs.push(MirroredPair {
+            id: target_layout_id.clone(),
+            source: MirrorDestination::SameBoardLayout(source_layout.id),
+            destination: MirrorDestination::SameBoardLayout(target_layout_id),
+            mapping: Pose2 {
+                at: Vec2 {
+                    x: 2.0 * axis_x,
+                    y: 0.0,
+                },
+                rotation: 0.0,
+            },
+            overrides: vec![],
         });
     }
 
@@ -206,70 +190,38 @@ mod tests {
         .expect("mirror-existing-half prepares a linked copy")
     }
 
-    fn mirror_matrix_id(prepared: &PreparedExistingHalf) -> String {
-        prepared
-            .document
-            .layouts
-            .iter()
-            .find(|layout| layout.mirror_link.is_some())
-            .expect("mirror layout exists")
-            .matrix_ids
-            .first()
-            .expect("mirror layout carries its matrix")
-            .clone()
-    }
-
     #[test]
-    fn mirror_existing_half_links_source_and_mirror_matrices_with_one_explicit_correspondence() {
-        let prepared = prepared(&document_fixture(false));
-
-        let link = prepared
-            .document
-            .layouts
-            .iter()
-            .find_map(|layout| layout.mirror_link.as_ref())
-            .expect("mirror-existing-half creates a linked half");
-        assert_eq!(
-            link.correspondences,
-            vec![boardstudio_model::model::MirroredCorrespondence {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: boardstudio_model::model::MirroredItemKind::Matrix,
-                source_id: "matrix-source".into(),
-                mirror_id: mirror_matrix_id(&prepared),
-            }],
-            "mirror-existing-half must emit one explicit per-matrix correspondence"
-        );
-    }
-
-    #[test]
-    fn mirror_existing_half_reuses_source_layout_and_still_links_matrices_explicitly() {
-        let prepared = prepared(&document_fixture(true));
-
-        let sources = prepared
-            .document
-            .layouts
-            .iter()
-            .filter(|layout| layout.mirror_link.is_none() && layout.matrix_ids == ["matrix-source"])
-            .count();
-        assert_eq!(
-            sources, 1,
-            "the existing source layout is reused, not duplicated"
-        );
-        let link = prepared
-            .document
-            .layouts
-            .iter()
-            .find_map(|layout| layout.mirror_link.as_ref())
-            .expect("mirror-existing-half creates a linked half");
-        assert_eq!(link.source_id, "layout-source");
-        assert_eq!(link.correspondences.len(), 1);
-        let correspondence = &link.correspondences[0];
-        assert_eq!(
-            correspondence.kind,
-            boardstudio_model::model::MirroredItemKind::Matrix
-        );
-        assert_eq!(correspondence.source_id, "matrix-source");
-        assert_eq!(correspondence.mirror_id, mirror_matrix_id(&prepared));
+    fn mirror_existing_half_stores_only_source_geometry() {
+        for with_layout in [false, true] {
+            let prepared = prepared(&document_fixture(with_layout));
+            let document = prepared.document;
+            assert_eq!(document.matrices.len(), 1);
+            assert_eq!(document.layouts.len(), 2);
+            assert!(
+                document
+                    .layouts
+                    .iter()
+                    .all(|layout| layout.mirror_link.is_none())
+            );
+            let pair = &document.mirrored_pairs[0];
+            let MirrorDestination::SameBoardLayout(source) = &pair.source else {
+                panic!("same board source")
+            };
+            let MirrorDestination::SameBoardLayout(destination) = &pair.destination else {
+                panic!("same board destination")
+            };
+            let layout = |id: &str| {
+                document
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == id)
+                    .unwrap()
+            };
+            assert_eq!(layout(source).matrix_ids, ["matrix-source"]);
+            assert!(layout(destination).matrix_ids.is_empty());
+            if with_layout {
+                assert_eq!(source, "layout-source");
+            }
+        }
     }
 }

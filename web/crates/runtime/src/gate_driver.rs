@@ -1,4 +1,4 @@
-//! Shared one-shot test behavior for in-process Core and persistence adapters.
+//! Shared one-shot test behavior for persistence adapters.
 
 use std::cell::RefCell;
 
@@ -9,28 +9,15 @@ pub enum OneShotBehavior {
     Hold,
 }
 
-/// Stores one-shot Core and save behavior without prescribing how an adapter waits.
+/// Stores one-shot save behavior without prescribing how an adapter waits.
 /// The browser adapter waits asynchronously; the native Runtime parks the effect and
 /// resumes it from its explicit `release_*` methods.
 #[derive(Default)]
 pub struct GateDriver {
-    core: RefCell<Option<OneShotBehavior>>,
     save: RefCell<Option<OneShotBehavior>>,
 }
 
 impl GateDriver {
-    pub fn fail_next_core(&self, reason: impl Into<String>) {
-        *self.core.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
-    }
-
-    pub fn hold_next_core(&self) {
-        *self.core.borrow_mut() = Some(OneShotBehavior::Hold);
-    }
-
-    pub fn take_core(&self) -> Option<OneShotBehavior> {
-        self.core.borrow_mut().take()
-    }
-
     pub fn fail_next_save(&self, reason: impl Into<String>) {
         *self.save.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }

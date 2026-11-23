@@ -18,8 +18,7 @@ offending line is listed); counts may only go down. Regenerate with
 --write-baseline only after deliberately accepting or fixing debt.
 
 It also fails on any raw launch_virtual_dom call under web/crates/*/src/
-outside web/crates/ui-shared/src/test_mount.rs (zero tolerance, no baseline):
-browser tests share one document, so every mount must go through MountedFixture.
+because browser tests share one document and raw launches leak VDOMs.
 Examples and web/src/ are not scanned.
 
 Usage: check-wasm-tests.py [--root REPO_ROOT] [--baseline FILE] [--write-baseline]
@@ -252,7 +251,6 @@ def load_baseline(path):
         return {}
 
 
-LAUNCH_ALLOWED = "web/crates/ui-shared/src/test_mount.rs"
 LAUNCH = re.compile(r"\blaunch_virtual_dom\b")
 
 
@@ -367,17 +365,12 @@ def _blank_rust_code(source):
 def find_launch_violations(root):
     """Repo-relative (path, line) for raw launch_virtual_dom calls in crate src trees.
 
-    Browser tests must mount through MountedFixture (test_mount.rs), which owns
-    the render task and root; raw launches leak VDOMs across tests that share one
-    document. Only web/crates/*/src/** is scanned: examples/ and web/src/ may
-    still launch directly. Comments and string/char literals never flag.
+    Only web/crates/*/src/** is scanned. Comments and string/char literals never flag.
     """
     root = Path(root).resolve()
     violations = []
     for path in sorted((root / "web/crates").glob("*/src/**/*.rs")):
         relative = path.relative_to(root).as_posix()
-        if relative == LAUNCH_ALLOWED:
-            continue
         scrubbed = _blank_rust_code(path.read_text(errors="replace"))
         for lineno, line in enumerate(scrubbed.split("\n"), 1):
             if LAUNCH.search(line):
@@ -403,8 +396,7 @@ def main(argv=None):
         print(f"check-wasm-tests: wrote {len(counts)} file(s) to {baseline_path}")
         if launch_violations:
             for relative, line in launch_violations:
-                print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
-                      "mount browser tests through MountedFixture")
+                print(f"{relative}:{line}: raw launch_virtual_dom in a workspace crate")
             print(f"check-wasm-tests: {len(launch_violations)} raw launch_virtual_dom call(s) "
                   "leak VDOMs across browser tests", file=sys.stderr)
             return 1
@@ -424,8 +416,7 @@ def main(argv=None):
             print(f"check-wasm-tests: note: {relative} improved ({counts.get(relative, 0)} < baseline {known}); "
                   "lower the baseline with --write-baseline", file=sys.stderr)
     for relative, line in launch_violations:
-        print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
-              "mount browser tests through MountedFixture")
+        print(f"{relative}:{line}: raw launch_virtual_dom in a workspace crate")
     if failed:
         print(f"check-wasm-tests: {failed} new plain #[test](s) would run zero times natively",
               file=sys.stderr)

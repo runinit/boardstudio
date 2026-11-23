@@ -5,6 +5,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{Board, EditOperation, Operation, OutlineFeature};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -14,7 +15,7 @@ pub struct BoardCreateOwner {
     token: SnapshotToken,
     revision: u64,
     generation: u64,
-    workspace: &'static str,
+    workspace: Workspace,
 }
 
 #[derive(Clone, PartialEq)]
@@ -68,7 +69,7 @@ fn add_board_resolver(board_id: String, outline_id: String) -> EditResolver {
 pub fn use_board_setup(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     generation: Signal<u64>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) -> BoardSetupMount {
@@ -87,7 +88,6 @@ pub fn use_board_setup(
                 && current_workspace == owner.workspace
                 && current_generation == owner.generation;
             match ticket.settlement(owner_is_live) {
-                Settlement::Pending => {}
                 Settlement::Landed { .. } => {
                     let exists = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
                         snapshot
@@ -158,20 +158,25 @@ pub fn use_board_setup(
 
 fn board_source(
     runtime: &Runtime,
-    workspace: &'static str,
+    workspace: Workspace,
     generation: u64,
 ) -> Option<BoardCreateOwner> {
-    if !matches!(workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") {
+    if !matches!(
+        workspace,
+        Workspace::Layout | Workspace::Pcb | Workspace::Keymap | Workspace::Keycaps
+    ) {
         return None;
     }
     let model = runtime.model();
     let snapshot = model.accepted.as_ref()?;
     let scope = runtime.scope()?;
+    let durability_ready = matches!(
+        model.durability,
+        Durability::Saved { revision } | Durability::Saving { revision }
+            if revision == snapshot.document.revision
+    );
     if model.lifecycle != Lifecycle::Ready
-        || model.durability
-            != (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
+        || !durability_ready
         || model.gesture.is_some()
         || model.display_preview.is_some()
         || snapshot.session_epoch != scope.session_epoch

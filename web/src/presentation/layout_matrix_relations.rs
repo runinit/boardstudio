@@ -28,14 +28,6 @@ pub(super) struct MatrixRelationsPanelProps {
 #[component]
 pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element {
     let on_navigate = props.on_navigate;
-    use_effect({
-        let mount = props.mount.clone();
-        move || mount.set_inspector_mounted(true)
-    });
-    use_drop({
-        let mount = props.mount.clone();
-        move || mount.set_inspector_mounted(false)
-    });
     let Some(relations) = props.relations.as_ref() else {
         return rsx! {
             section {
@@ -179,7 +171,8 @@ fn DepartureActionButton(
     parameter: String,
     mount: objects::MatrixTransformInspectorMount,
 ) -> Element {
-    let mut submitted = use_signal(|| None::<u64>);
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
+    let mut error = use_signal(|| None::<String>);
     let Some(control) = mount.departure_control(action) else {
         return rsx! {};
     };
@@ -193,7 +186,6 @@ fn DepartureActionButton(
         dioxus::core::current_scope_id().0
     );
     let described_by = control.reason.is_some().then(|| reason_id.clone());
-    let error = mount.departure_feedback(action, submitted());
     rsx! {
             div { "data-relation-action": "{kind}",
                 Button {
@@ -203,8 +195,8 @@ fn DepartureActionButton(
                     aria_label: "{label}: {parameter}",
                     aria_describedby: described_by,
                     onclick: move |_| {
-                        if let Some(id) = mount.run_departure(action) {
-                            submitted.set(Some(id));
+                        if let Some(result) = mount.run_departure(action) {
+                            error.set(result.err());
                         }
                     },
 
@@ -218,7 +210,7 @@ fn DepartureActionButton(
                     "{reason}"
                 }
             }
-            if let Some(message) = error.as_deref() {
+            if let Some(message) = error().as_deref() {
                 Alert {
     variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }

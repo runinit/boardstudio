@@ -3,15 +3,16 @@ use super::matrix_setup_fields::{
     MatrixAssemblyPicker, MatrixDimensionSliders, MatrixPreview, matrix_setup_preset,
     parse_matrix_dimensions,
 };
+pub use super::workspace_state::{MirroredPairCreated, MirroredPairOwner};
 use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
-use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
-use boardstudio_web_ui_shared::inspector_fields::NumericField;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -29,17 +30,6 @@ pub struct MirroredPairRequest {
     pub columns: u32,
     pub preset: MatrixSetupPreset,
     pub gap_mm: f64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MirroredPairOwner {
-    pub editor_instance_id: u64,
-    pub open_id: u64,
-    pub scope_generation: u64,
-    pub scope: Scope,
-    pub board_id: String,
-    pub snapshot_token: SnapshotToken,
-    pub revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,18 +93,6 @@ pub struct MirroredPairMove {
     pub center: Vec2,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MirroredPairCreated {
-    pub owner: MirroredPairOwner,
-    pub result_token: SnapshotToken,
-    pub result_revision: u64,
-    pub scope: Scope,
-    pub left_layout_id: String,
-    pub right_layout_id: String,
-    pub left_matrix_id: String,
-    pub right_matrix_id: String,
-}
-
 #[derive(Props, Clone, PartialEq)]
 pub struct MirroredPairFormProps {
     pub projection: MirroredPairFormProjection,
@@ -159,16 +137,16 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let rows_value = rows();
     let columns_value = columns();
     let gap_value = gap();
-    let choc = family().is_some_and(|choice| choice.contains(&1));
-    let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
-    let rgb = lighting().is_some_and(|choice| choice.contains(&1));
-    let selected_preset = matrix_setup_preset(choc, hotswap, rgb);
-    let dimensions = parse_matrix_dimensions(&rows_value, &columns_value);
     let gap_mm = gap_value
         .trim()
         .parse::<f64>()
         .ok()
         .filter(|value| value.is_finite() && *value >= 0.0);
+    let choc = family().is_some_and(|choice| choice.contains(&1));
+    let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
+    let rgb = lighting().is_some_and(|choice| choice.contains(&1));
+    let selected_preset = matrix_setup_preset(choc, hotswap, rgb);
+    let dimensions = parse_matrix_dimensions(&rows_value, &columns_value);
     let valid_names = !left_name_value.trim().is_empty()
         && !right_name_value.trim().is_empty()
         && left_name_value.trim() != right_name_value.trim();
@@ -179,19 +157,13 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let left_submit = left_name_value.clone();
     let right_submit = right_name_value.clone();
     let preset_submit = selected_preset;
-    let gap_submit = gap_value.clone();
     let owner_submit = owner.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
         let Some((rows, columns)) = dimensions else {
             return;
         };
-        let Some(gap_mm) = gap_submit
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|value| value.is_finite() && *value >= 0.0)
-        else {
+        let Some(gap_mm) = gap_mm else {
             return;
         };
         let left_name = left_submit.trim().to_owned();
@@ -260,10 +232,12 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 }
                 MatrixAssemblyPicker { family, mounting, lighting, editable: props.projection.editable }
                 MatrixPreview { rows: rows_value.clone(), columns: columns_value.clone() }
-                NumericField {
-                    id: gap_id, label: "Gap between key edges (mm)", aria_label: "Gap between key edges (mm)",
-                    class: "", control_class: "max-[760px]:h-control-touch", aria_invalid: None,
-                    min: "0", required: true, value: "{gap_value}", disabled: !props.projection.editable,
+                TextField {
+                    id: gap_id, label: "Gap between key edges (mm)".to_owned(), aria_label: "Gap between key edges (mm)",
+                    r#type: InputType::Number, value: gap_value,
+                    disabled: !props.projection.editable,
+                    description: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                    error: gap_mm.is_none().then(|| "Enter a finite non-negative gap in millimetres.".to_owned()),
                     oninput: move |event: FormEvent| gap.set(event.value()),
                 }
                 p { class: "mt-2.5 mb-5 border-t border-border pt-3.5 text-[13px] leading-normal text-muted-foreground",
@@ -292,7 +266,3 @@ fn preset_choices(preset: MatrixSetupPreset) -> (bool, bool, bool) {
         MatrixSetupPreset::ChocHotswapRgb => (true, true, true),
     }
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "mirrored_pair/canvas_overlay_tests.rs"]
-mod canvas_overlay_tests;

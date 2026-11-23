@@ -2,8 +2,8 @@
 //! part offsets, boundary parity, generators and the matrix aggregate suites.
 //! See `integration.rs` for the split.
 
-#[path = "support/mod.rs"]
 #[allow(dead_code)] // This shard uses only some of the shared helpers.
+#[path = "support.rs"]
 mod support;
 
 #[path = "boundary_parity.rs"]
@@ -20,8 +20,6 @@ mod generator_export;
 mod generator_parameters;
 #[path = "matrix_aggregate_anchors.rs"]
 mod matrix_aggregate_anchors;
-#[path = "matrix_aggregate_reflection.rs"]
-mod matrix_aggregate_reflection;
 #[path = "mechanical_identity_monotonic.rs"]
 mod mechanical_identity_monotonic;
 #[path = "mechanical_integration.rs"]

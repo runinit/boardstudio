@@ -1,3 +1,4 @@
+use crate::support::fixture::{self, scene_and_document as scene};
 use boardstudio_core::{CoreEngine, model::*};
 
 fn matrix() -> Matrix {
@@ -33,39 +34,14 @@ fn matrix() -> Matrix {
 
 fn open() -> CoreEngine {
     let mut doc = ProjectDoc::empty("p", "P");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
+    doc.definitions.push(fixture::part_definition(
+        "switch",
+        "Switch",
+        PartKind::Switch,
+    ));
+    doc.boards.push(fixture::board("board", "Board"));
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    }));
+    scene(engine.handle(fixture::open(doc)));
     let mut source = matrix();
     source.board_id = Some("board".into());
     let request = serde_json::json!({"kind":"edit","id":"pair","command":{
@@ -85,29 +61,17 @@ fn open() -> CoreEngine {
 }
 
 fn edit(base: u64, phase: EditPhase, change: MatrixSplayChange) -> CoreRequest {
-    CoreRequest::Edit {
-        id: "e".into(),
-        command: EditCommand {
-            base_revision: base,
-            transaction_id: "t".into(),
-            phase,
-            target_ids: vec![],
-            operation: EditOperation::SetMatrixSplay {
-                matrix_id: "m".into(),
-                column: 1,
-                change,
-            },
+    fixture::edit(
+        "e",
+        "t",
+        base,
+        phase,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "m".into(),
+            column: 1,
+            change,
         },
-    }
-}
-
-fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("expected scene: {other:?}"),
-    }
+    )
 }
 
 #[test]
@@ -137,120 +101,4 @@ fn preview_and_commit_have_equal_matrix_projection_and_history_roundtrips() {
     assert_eq!(undone.matrices[0].column_layout[1].splay, 0.0);
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
     assert_eq!(redone.matrices[0].column_layout[1].splay, 25.0);
-}
-
-#[test]
-fn custom_origin_and_linked_following_change_are_preserved() {
-    let mut engine = open();
-    let preview = match engine.handle(edit(
-        0,
-        EditPhase::Preview,
-        MatrixSplayChange::Angle {
-            angle: 12.0,
-            affect: MatrixSplayAffect::Following,
-        },
-    )) {
-        CoreReply::Preview { scene, .. } => scene,
-        other => panic!("{other:?}"),
-    };
-    let (_, snapshot) = scene(engine.handle(CoreRequest::Snapshot { id: "s".into() }));
-    assert_eq!(snapshot.revision, 0);
-    assert_eq!(preview.revision, 0);
-    assert!(
-        snapshot
-            .matrices
-            .iter()
-            .all(|matrix| matrix.column_layout[1].splay == 0.0)
-    );
-    let (committed, doc) = scene(engine.handle(edit(
-        0,
-        EditPhase::Commit,
-        MatrixSplayChange::Origin {
-            world: Some(Vec2 { x: 3.0, y: 4.0 }),
-        },
-    )));
-    assert_eq!(
-        doc.matrices[0].column_layout[1].splay_origin,
-        Vec2 { x: 42.5, y: 4.0 }
-    );
-    assert_eq!(
-        doc.matrices[1].column_layout[1].splay_origin,
-        Vec2 { x: 42.5, y: 4.0 }
-    );
-    let left = committed
-        .matrix_scenes
-        .iter()
-        .find(|scene| scene.matrix_id == "m")
-        .unwrap();
-    let right = committed
-        .matrix_scenes
-        .iter()
-        .find(|scene| scene.matrix_id == "right")
-        .unwrap();
-    assert_eq!(left.cells.len(), 3);
-    assert_eq!(left.cells.len(), right.cells.len());
-    assert!((left.columns[1].splay_origin.x + right.columns[1].splay_origin.x).abs() < 1e-8);
-    assert!((left.columns[1].splay_origin.y - right.columns[1].splay_origin.y).abs() < 1e-8);
-    for (left_cell, right_cell) in left.cells.iter().zip(&right.cells) {
-        assert!((left_cell.pose.at.x + right_cell.pose.at.x).abs() < 1e-8);
-        assert!((left_cell.pose.at.y - right_cell.pose.at.y).abs() < 1e-8);
-    }
-    let (_, reset) = scene(engine.handle(edit(
-        1,
-        EditPhase::Commit,
-        MatrixSplayChange::Origin { world: None },
-    )));
-    assert_eq!(
-        reset.matrices[0].column_layout[1].splay_origin,
-        Vec2::default()
-    );
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
-    assert_eq!(
-        undone.matrices[0].column_layout[1].splay_origin,
-        Vec2 { x: 42.5, y: 4.0 }
-    );
-    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(
-        redone.matrices[0].column_layout[1].splay_origin,
-        Vec2::default()
-    );
-}
-
-#[test]
-fn editing_the_mirrored_half_updates_both_projections() {
-    let mut engine = open();
-    let mut request = edit(
-        0,
-        EditPhase::Commit,
-        MatrixSplayChange::Origin {
-            world: Some(Vec2 { x: -7.0, y: -13.0 }),
-        },
-    );
-    if let CoreRequest::Edit { command, .. } = &mut request
-        && let EditOperation::SetMatrixSplay { matrix_id, .. } = &mut command.operation
-    {
-        *matrix_id = "right".into();
-    }
-    let (committed, document) = scene(engine.handle(request));
-    // Ticket 11: the mirror-targeted world converts through the mirror frame,
-    // negating the delta, so the shared records carry the negated offset.
-    assert!(
-        document
-            .matrices
-            .iter()
-            .all(|matrix| matrix.column_layout[1].splay_origin == Vec2 { x: 46.5, y: -13.0 })
-    );
-    let left = &committed.matrix_scenes[0];
-    let right = &committed.matrix_scenes[1];
-    assert_eq!(left.columns[1].splay_origin, Vec2 { x: 7.0, y: -13.0 });
-    assert_eq!(right.columns[1].splay_origin, Vec2 { x: -7.0, y: -13.0 });
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
-    assert!(undone.matrices.iter().all(|matrix| {
-        matrix
-            .column_layout
-            .iter()
-            .all(|record| record.splay_origin == Vec2::default())
-    }));
-    let (redone, _) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
-    assert_eq!(redone.matrix_scenes, committed.matrix_scenes);
 }

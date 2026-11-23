@@ -60,7 +60,8 @@ pub(super) fn add_feature(
             // version in the same accepted edit: one revision and one Undo step.
             let version_id = unique_id("outline-version", edit.seed, &persisted_identities(doc));
             let prefix = format!("board:{board_id}:version:{version_id}");
-            let mut geometry = outline_versions::snapshot(doc, board_id, &prefix)?;
+            let mut geometry =
+                outline_versions::snapshot(&super::resolved_doc(doc), board_id, &prefix)?;
             geometry.features.push(feature);
             let name = default_version_name(doc, board_id);
             push_fixed_version(doc, board_id, &version_id, &name, geometry, None)?;
@@ -168,8 +169,11 @@ pub(super) fn add_connection(
     if !connection.width.is_finite() || connection.width <= 0.0 {
         return Err("A connection width must be a positive finite number".into());
     }
-    for point in &connection.points {
-        crate::outline_controls::point(doc, point)?;
+    {
+        let resolved = super::resolved_doc(doc);
+        for point in &connection.points {
+            crate::outline_controls::point(&resolved, point)?;
+        }
     }
     let connection_id = {
         let identities = persisted_identities(doc);
@@ -252,20 +256,29 @@ pub(super) fn create_generated(
     {
         return Err("The generated outline repair settings must be finite numbers".into());
     }
+    {
+        let resolved = super::resolved_doc(doc);
+        let resolved_membership = resolved
+            .boards
+            .iter()
+            .find(|board| board.id == board_id)
+            .map(|board| board.part_ids.clone())
+            .ok_or_else(|| format!("Unknown board {board_id}"))?;
+        for id in part_ids {
+            if !resolved.parts.iter().any(|part| &part.id == id) {
+                return Err(format!("Unknown part {id}"));
+            }
+            if !resolved_membership.iter().any(|member| member == id) {
+                return Err(format!("Part {id} is not on board {board_id}"));
+            }
+        }
+    }
     let membership = doc
         .boards
         .iter()
         .find(|board| board.id == board_id)
         .map(|board| board.part_ids.clone())
         .ok_or_else(|| format!("Unknown board {board_id}"))?;
-    for id in part_ids {
-        if !doc.parts.iter().any(|part| &part.id == id) {
-            return Err(format!("Unknown part {id}"));
-        }
-        if !membership.iter().any(|member| member == id) {
-            return Err(format!("Part {id} is not on board {board_id}"));
-        }
-    }
     // No second Generated envelope exists: an existing one settles Unchanged.
     if membership.iter().any(|id| {
         doc.outline.iter().any(|feature| {
@@ -365,16 +378,24 @@ pub(super) fn create_linked_refinement(
     let name = outline_versions::name(name)?;
     version_identity(doc, version_id)?;
     let prefix = format!("board:{board_id}:version:{version_id}");
-    let (cache, _, _) = geometry::outlines(doc, None, &[]);
+    let composed = {
+        let resolved = super::resolved_doc(doc);
+        let (cache, _, _) = geometry::outlines(&resolved, None, &[]);
+        let resolved_board = resolved
+            .boards
+            .iter()
+            .find(|board| board.id == board_id)
+            .ok_or_else(|| format!("Unknown board {board_id}"))?;
+        // A linked refinement follows the board's current components, so it owns the
+        // generated envelope recipe (and any authored generated features) and resolves
+        // live; the composed projection stays the permanent Generated version's business.
+        geometry::generated_source(&resolved, &cache, resolved_board)
+    };
     let board = doc
         .boards
         .iter()
         .find(|board| board.id == board_id)
         .ok_or_else(|| format!("Unknown board {board_id}"))?;
-    // A linked refinement follows the board's current components, so it owns the
-    // generated envelope recipe (and any authored generated features) and resolves
-    // live; the composed projection stays the permanent Generated version's business.
-    let composed = geometry::generated_source(doc, &cache, board);
     if composed.source.is_empty()
         || composed
             .findings
@@ -444,7 +465,7 @@ pub(super) fn copy(
     let name = outline_versions::name(name)?;
     version_identity(doc, version_id)?;
     let prefix = format!("board:{board_id}:version:{version_id}");
-    let geometry = outline_versions::snapshot(doc, board_id, &prefix)?;
+    let geometry = outline_versions::snapshot(&super::resolved_doc(doc), board_id, &prefix)?;
     let provenance = active_version_id(doc, board_id);
     push_fixed_version(doc, board_id, version_id, &name, geometry, provenance)?;
     Ok(vec![board_id.to_owned(), version_id.to_owned()])
@@ -473,7 +494,8 @@ pub(super) fn freeze(
     // retains the source version, so a linked refinement keeps its link.
     let mut geometry = source.geometry.clone();
     if !source.ownership.is_fixed() {
-        let resolved = outline_versions::resolved_features(doc, &board_id, &source);
+        let resolved =
+            outline_versions::resolved_features(&super::resolved_doc(doc), &board_id, &source);
         geometry.features = resolved;
     }
     let prefix = format!("board:{board_id}:version:{new_id}");
@@ -514,7 +536,7 @@ pub(super) fn edit_generated_perimeter(
     }
     let version_id = unique_id("outline-version", edit.seed, &persisted_identities(doc));
     let prefix = format!("board:{board_id}:version:{version_id}");
-    let mut geometry = outline_versions::snapshot(doc, board_id, &prefix)?;
+    let mut geometry = outline_versions::snapshot(&super::resolved_doc(doc), board_id, &prefix)?;
     let Some(feature) = geometry.features.get_mut(contour as usize) else {
         return Err("The perimeter no longer exists".into());
     };
@@ -588,7 +610,8 @@ pub(super) fn edit_feature_perimeter(
     // retains the linked version.
     let new_id = unique_id("outline-version", edit.seed, &persisted_identities(doc));
     let mut geometry = source.geometry.clone();
-    geometry.features = outline_versions::resolved_features(doc, &board_id, &source);
+    geometry.features =
+        outline_versions::resolved_features(&super::resolved_doc(doc), &board_id, &source);
     replace(&mut geometry.features)?;
     let prefix = format!("board:{board_id}:version:{new_id}");
     for (index, feature) in geometry.features.iter_mut().enumerate() {

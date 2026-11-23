@@ -236,6 +236,14 @@ fn companion_placement_projection_normalizes_layout_selections() {
         }))
         .expect("fixture linked pair"),
     );
+    document.mirrored_pairs = serde_json::from_value(json!([{
+        "id": "pair/A",
+        "source": { "kind": "secondBoard", "id": "board" },
+        "destination": { "kind": "secondBoard", "id": "mirror-board" },
+        "mapping": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+        "overrides": []
+    }]))
+    .expect("fixture mirror pair");
     let second_source_id = format!("{source_key_id}/led2");
     document.matrices[0].part_ids.push(second_source_id.clone());
     document.matrices[0].cells[0].assemblies.push(

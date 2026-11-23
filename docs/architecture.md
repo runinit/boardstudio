@@ -72,11 +72,11 @@ refinement, physical PCB preparation and pair traversal. A check returns one rep
 only while its captured inputs and cancellation batch remain current. Case retains
 field drafts, controls, pending display, result rendering and view-lifetime
 cancellation. Tight refinement and missing-evidence recovery retain separate bounded
-attempts, and unsupported accuracy remains uncertain. Controlled-worker tests exercise
-the complete Runtime check; the [collision browser-test fixture](../web/crates/runtime/src/runtime_collision_browser_tests.rs)
-states the ownership, readiness and literal operands a new complete check must preserve.
-Mounted Case tests cover presentation, and packaged-page checks retain actual provider
-coverage.
+attempts, and unsupported accuracy remains uncertain. Native Runtime tests
+([`runtime/collision.rs`](../web/crates/runtime/src/runtime/collision.rs),
+[`runtime_report.rs`](../web/crates/runtime/src/runtime_report.rs)) and packaged-page
+checks ([`run-drag-browser.py`](../scripts/run-drag-browser.py)) cover ownership,
+readiness, presentation, and actual provider collision behavior.
 
 The page is split into crates by workspace so each stays a manageable size. Lower
 crates never depend on higher ones:

@@ -1,11 +1,5 @@
+use crate::support::fixture::{self, outline_document as synthetic_document};
 use boardstudio_core::{CoreEngine, model::*};
-
-fn synthetic_document() -> ProjectDoc {
-    let mut document: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
-    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
-    document
-}
 
 fn open(document: ProjectDoc) -> SceneDelta {
     match CoreEngine::new().handle(CoreRequest::Open {
@@ -268,10 +262,7 @@ fn removing_a_protected_gap_source_retains_last_valid_geometry() {
         scene: before,
         document,
         ..
-    } = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document,
-    })
+    } = engine.handle(fixture::open(document))
     else {
         panic!("open")
     };

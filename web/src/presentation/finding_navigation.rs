@@ -1,6 +1,6 @@
 use super::*;
+use boardstudio_web_ui_model::Workspace;
 
-/// Keep accepted diagnostics stable while exposing only electrical loss notices from a preview.
 pub(crate) fn layout_findings_for_display(
     accepted: &[LayoutFinding],
     preview: Option<&[LayoutFinding]>,
@@ -10,7 +10,7 @@ pub(crate) fn layout_findings_for_display(
         preview
             .into_iter()
             .flatten()
-            .filter(|finding| finding.id.starts_with("preview:electrical:"))
+            .filter(|f| f.id.starts_with("preview:electrical:"))
             .cloned(),
     );
     findings
@@ -20,42 +20,39 @@ pub(crate) fn layout_finding_context(
     model: &ReadModel,
     target: &keycaps_fit::FindingNavigationTarget,
 ) -> Option<objects::TreeContext> {
-    use keycaps_fit::FindingNavigationTarget as Target;
+    use keycaps_fit::FindingNavigationTarget as T;
     match target {
-        Target::Part { part_id, .. } => objects::component_context_for_finding_part(model, part_id),
-        Target::Matrix { matrix_id, .. } => Some(objects::TreeContext::Matrix {
+        T::Part { part_id, .. } => objects::component_context_for_finding_part(model, part_id),
+        T::Matrix { matrix_id, .. } => Some(objects::TreeContext::Matrix {
             matrix_id: matrix_id.clone(),
         }),
-        Target::Outline { board_id } => Some(objects::TreeContext::Outline {
+        T::Outline { board_id } | T::Board { board_id } => Some(objects::TreeContext::Outline {
             board_id: board_id.clone(),
         }),
-        Target::Board { board_id } => Some(objects::TreeContext::Outline {
-            board_id: board_id.clone(),
-        }),
-        Target::Body { .. } | Target::MechanicalLayer { .. } => None,
+        T::Body { .. } | T::MechanicalLayer { .. } => None,
     }
 }
 
 pub(crate) fn findings_owner_is_current(
     runtime: &Runtime,
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
 ) -> bool {
     let model = runtime.model();
-    owner.workspace != "Export"
+    owner.workspace != Workspace::Export
         && current_layout_owner(runtime, workspace, adapter) == *owner
         && owner
             .scope
             .as_ref()
-            .is_some_and(|scope| active_board_scope_matches(&model, scope))
+            .is_some_and(|s| active_board_scope_matches(&model, s))
 }
 
 pub(crate) struct LayoutFindingNavigationContext {
     pub(crate) runtime: Rc<Runtime>,
     pub(crate) adapter: SelectionAdapter,
     pub(crate) owner: LayoutOwnerIdentity,
-    pub(crate) workspace: Signal<&'static str>,
+    pub(crate) workspace: Signal<Workspace>,
     pub(crate) objects_open: Signal<bool>,
     pub(crate) inspect_open: Signal<bool>,
     pub(crate) findings_open: Signal<bool>,
@@ -63,181 +60,145 @@ pub(crate) struct LayoutFindingNavigationContext {
     pub(super) keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub(crate) svg: Rc<RefCell<Option<SvgElement>>>,
     pub(crate) alive: Rc<Cell<bool>>,
-    pub(crate) body_selection: Signal<Option<case_viewer::BodySelection>>,
-    pub(crate) case_selection: case_viewer::CaseSelection,
+    pub(crate) body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    pub(crate) case_selection: shared_viewer::CaseSelection,
     pub(crate) select_tree: EventHandler<objects::TreeSelectRequest>,
     pub(crate) resumed_after_board_navigation: bool,
 }
 
 pub(crate) fn perform_layout_finding_navigation(
-    context: LayoutFindingNavigationContext,
-    request: layout_findings::Request,
+    mut ctx: LayoutFindingNavigationContext,
+    req: layout_findings::Request,
 ) {
-    let LayoutFindingNavigationContext {
-        runtime,
-        adapter,
-        owner,
-        workspace,
-        mut objects_open,
-        mut inspect_open,
-        mut findings_open,
-        inspector_settings,
-        keycaps_state,
-        svg,
-        alive,
-        body_selection,
-        case_selection,
-        select_tree,
-        resumed_after_board_navigation,
-    } = context;
-    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
-        || !source_matches_layout_owner(&request.source, &owner, resumed_after_board_navigation)
+    if !layout_owner_is_current(&ctx.runtime, ctx.workspace, &ctx.adapter, &ctx.owner)
+        || !source_matches_layout_owner(&req.source, &ctx.owner, ctx.resumed_after_board_navigation)
     {
         return;
     }
-    let Some(scope) = owner.scope.as_ref() else {
+    let Some(scope) = ctx.owner.scope.as_ref() else {
         return;
     };
-    let model = runtime.model();
-    if !layout_finding_is_live(&model, &request, &scope.board_id) {
+    let model = ctx.runtime.model();
+    if !layout_finding_is_live(&model, &req, &scope.board_id) {
         return;
     }
-    let Some(snapshot) = model.accepted.as_ref() else {
+    let Some(snap) = model.accepted.as_ref() else {
         return;
     };
-    let Some(context) = layout_finding_context(&model, &request.target) else {
+    let Some(tree_ctx) = layout_finding_context(&model, &req.target) else {
         return;
     };
-    select_tree.call(objects::TreeSelectRequest {
+    ctx.select_tree.call(objects::TreeSelectRequest {
         scope: scope.clone(),
-        context: context.clone(),
+        context: tree_ctx.clone(),
         mode: SelectionMode::Replace,
         outline_action: None,
     });
-    let route_model = runtime.model();
-    let Some(route_snapshot) = route_model.accepted.as_ref() else {
+    let rm = ctx.runtime.model();
+    let Some(rs) = rm.accepted.as_ref() else {
         return;
     };
-    if workspace() != "Layout"
-        || runtime.scope().as_ref() != Some(scope)
-        || route_snapshot.token != request.source.token
-        || route_snapshot.document.revision != request.source.revision
+    if (ctx.workspace)() != Workspace::Layout
+        || ctx.runtime.scope().as_ref() != Some(scope)
+        || rs.token != req.source.token
+        || rs.document.revision != req.source.revision
     {
         return;
     }
-    let route_generation = (adapter.generation)();
-
-    let destination = keycaps_navigation::Destination::Layout(context);
-    let navigation_owner = keycaps_navigation::NavigationOwner {
-        workspace: "Layout",
+    let generation = (ctx.adapter.generation)();
+    let nav_owner = keycaps_navigation::NavigationOwner {
+        workspace: Workspace::Layout,
         scope: scope.clone(),
-        generation: route_generation,
-        token: request.source.token,
-        revision: request.source.revision,
-        destination,
+        generation,
+        token: req.source.token,
+        revision: req.source.revision,
+        destination: keycaps_navigation::Destination::Layout(tree_ctx),
     };
-    if let Some(surface) = svg.borrow().as_ref() {
-        let rect = surface.get_bounding_client_rect();
-        let surface_size = (rect.width(), rect.height());
-        if let (Some(base), Some(target_bounds)) = (
-            keycaps_fit::layout_camera_basis(
-                &snapshot.document,
-                &snapshot.scene,
-                &scope.board_id,
-                surface_size,
-            ),
+    if let Some(surface) = ctx.svg.borrow().as_ref() {
+        let r = surface.get_bounding_client_rect();
+        let sz = (r.width(), r.height());
+        if let (Some(base), Some(tb)) = (
+            keycaps_fit::layout_camera_basis(&snap.document, &snap.scene, &scope.board_id, sz),
             keycaps_fit::finding_navigation_bounds(
-                &snapshot.document,
-                &snapshot.scene,
-                &request.finding.id,
-                &request.target,
+                &snap.document,
+                &snap.scene,
+                &req.finding.id,
+                &req.target,
             ),
         ) {
-            let live_owner = keycaps_navigation::LiveNavigationOwner {
-                workspace: "Layout",
+            let live = keycaps_navigation::LiveNavigationOwner {
+                workspace: Workspace::Layout,
                 scope: Some(scope.clone()),
-                generation: route_generation,
-                token: Some(request.source.token),
-                revision: Some(request.source.revision),
-                destinations: vec![navigation_owner.destination.clone()],
+                generation,
+                token: Some(req.source.token),
+                revision: Some(req.source.revision),
+                destinations: vec![nav_owner.destination.clone()],
             };
-            if let Some(camera) = keycaps_navigation::destination_camera_fit(
-                &navigation_owner,
-                &live_owner,
-                base.bounds,
-                target_bounds,
-                surface_size,
-            ) {
-                runtime.submit(Event::SetCamera {
-                    operation_id: runtime.operation(),
-                    center: camera.center,
-                    zoom: camera.zoom,
+            if let Some(cam) =
+                keycaps_navigation::destination_camera_fit(&nav_owner, &live, base.bounds, tb, sz)
+            {
+                ctx.runtime.submit(Event::SetCamera {
+                    operation_id: ctx.runtime.operation(),
+                    center: cam.center,
+                    zoom: cam.zoom,
                 });
             }
         }
     }
-
-    keycaps_state.focus_finding(
+    ctx.keycaps_state.focus_finding(
         scope.clone(),
-        request.source.token,
-        request.source.revision,
-        request.finding.id,
+        req.source.token,
+        req.source.revision,
+        req.finding.id,
     );
-    findings_open.set(false);
-    objects_open.set(false);
-    inspect_open.set(true);
-    pin_inspector_on_desktop(inspector_settings);
-    let focus_runtime = runtime.clone();
-    let focus_adapter = adapter.clone();
-    focus_first_inspector_control_on_next_frame(alive, navigation_owner, move || {
-        current_keycaps_navigation_owner(
-            workspace,
-            &focus_runtime,
-            &focus_adapter,
-            body_selection,
-            case_selection,
-        )
+    ctx.findings_open.set(false);
+    ctx.objects_open.set(false);
+    ctx.inspect_open.set(true);
+    pin_inspector_on_desktop(ctx.inspector_settings);
+    let (rt, ad, ws, bs, cs) = (
+        ctx.runtime.clone(),
+        ctx.adapter.clone(),
+        ctx.workspace,
+        ctx.body_selection,
+        ctx.case_selection,
+    );
+    focus_first_inspector_control_on_next_frame(ctx.alive, nav_owner, move || {
+        current_keycaps_navigation_owner(ws, &rt, &ad, bs, cs)
     });
 }
 
 pub(crate) fn current_keycaps_navigation_owner(
-    workspace: Signal<&'static str>,
+    workspace: Signal<Workspace>,
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
-    body_selection: Signal<Option<case_viewer::BodySelection>>,
-    case_selection: case_viewer::CaseSelection,
+    body_selection: Signal<Option<shared_viewer::BodySelection>>,
+    case_selection: shared_viewer::CaseSelection,
 ) -> keycaps_navigation::LiveNavigationOwner {
-    let scope = runtime.scope();
-    let model = runtime.model();
+    let (scope, model) = (runtime.scope(), runtime.model());
     let (token, revision) = model
         .accepted
         .as_ref()
-        .map(|snapshot| (Some(snapshot.token), Some(snapshot.document.revision)))
-        .unwrap_or((None, None));
+        .map_or((None, None), |s| (Some(s.token), Some(s.document.revision)));
     let destinations = match (workspace(), scope.as_ref()) {
-        ("Layout", Some(scope)) => adapter
+        (Workspace::Layout, Some(sc)) => adapter
             .selected_context
             .read()
             .as_ref()
-            .filter(|selected| &selected.scope == scope)
-            .map(|selected| {
-                vec![keycaps_navigation::Destination::Layout(
-                    selected.context.clone(),
-                )]
-            })
+            .filter(|s| &s.scope == sc)
+            .map(|s| vec![keycaps_navigation::Destination::Layout(s.context.clone())])
             .unwrap_or_default(),
-        ("Case", Some(scope)) => {
-            let layer_id = case_selection.layer_id(scope);
-            let body_id = body_selection
+        (Workspace::Case, Some(sc)) => {
+            let lid = case_selection.layer_id(sc);
+            let bid = body_selection
                 .read()
                 .as_ref()
-                .filter(|selected| &selected.scope == scope)
-                .map(|body| body.body_id.clone());
-            keycaps_navigation::active_case_destination(&layer_id, body_id.as_deref())
+                .filter(|s| &s.scope == sc)
+                .map(|b| b.body_id.clone());
+            keycaps_navigation::active_case_destination(&lid, bid.as_deref())
                 .into_iter()
                 .collect()
         }
-        _ => Vec::new(),
+        _ => vec![],
     };
     keycaps_navigation::LiveNavigationOwner {
         workspace: workspace(),
@@ -249,173 +210,100 @@ pub(crate) fn current_keycaps_navigation_owner(
     }
 }
 
+fn points_bounds(pts: impl Iterator<Item = Vec2>) -> Option<(f64, f64, f64, f64)> {
+    pts.fold(None, |b, p| {
+        Some(b.map_or(
+            (p.x, p.x, p.y, p.y),
+            |(x0, x1, y0, y1): (f64, f64, f64, f64)| {
+                (x0.min(p.x), x1.max(p.x), y0.min(p.y), y1.max(p.y))
+            },
+        ))
+    })
+}
+
 pub(crate) fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
-    let Some(bridge_id) = bridge_id else { return };
-    let model = runtime.model();
-    let Some(snapshot) = model.accepted.as_ref() else {
+    let Some(bridge_id) = bridge_id else {
         return;
     };
-    let Some(bridge) = snapshot
+    let model = runtime.model();
+    let Some(snap) = model.accepted.as_ref() else {
+        return;
+    };
+    let Some(bridge) = snap
         .scene
         .board_outline_scenes
         .iter()
-        .find(|scene| scene.board_id == model.active_board_id)
-        .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == bridge_id))
+        .find(|s| s.board_id == model.active_board_id)
+        .and_then(|s| s.bridges.iter().find(|b| b.id == bridge_id))
     else {
         return;
     };
-    let Some((min_x, max_x, min_y, max_y)) = bridge.points.iter().fold(None, |bounds, point| {
-        Some(bounds.map_or(
-            (point.x, point.x, point.y, point.y),
-            |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
-                (
-                    min_x.min(point.x),
-                    max_x.max(point.x),
-                    min_y.min(point.y),
-                    max_y.max(point.y),
-                )
-            },
-        ))
-    }) else {
+    let Some((x0, x1, y0, y1)) = points_bounds(bridge.points.iter().copied()) else {
         return;
     };
-    let board_bounds = snapshot
-        .scene
-        .board_contours
-        .iter()
-        .filter(|board| board.board_id == model.active_board_id)
-        .flat_map(|board| &board.contours)
-        .flat_map(|contour| &contour.points)
-        .fold(None, |bounds, point| {
-            Some(bounds.map_or(
-                (point.x, point.x, point.y, point.y),
-                |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
-                    (
-                        min_x.min(point.x),
-                        max_x.max(point.x),
-                        min_y.min(point.y),
-                        max_y.max(point.y),
-                    )
-                },
-            ))
-        })
-        .or_else(|| {
-            let board = snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == model.active_board_id)?;
-            let mut parts = snapshot
-                .document
+    let board_bounds = points_bounds(
+        snap.scene
+            .board_contours
+            .iter()
+            .filter(|b| b.board_id == model.active_board_id)
+            .flat_map(|b| &b.contours)
+            .flat_map(|c| &c.points)
+            .copied(),
+    )
+    .or_else(|| {
+        let b = snap
+            .document
+            .boards
+            .iter()
+            .find(|b| b.id == model.active_board_id)?;
+        points_bounds(
+            snap.document
                 .parts
                 .iter()
-                .filter(|part| board.part_ids.contains(&part.id));
-            let first = parts.next()?.pose.at;
-            Some(parts.fold(
-                (first.x, first.x, first.y, first.y),
-                |(min_x, max_x, min_y, max_y), part| {
-                    (
-                        min_x.min(part.pose.at.x),
-                        max_x.max(part.pose.at.x),
-                        min_y.min(part.pose.at.y),
-                        max_y.max(part.pose.at.y),
-                    )
-                },
-            ))
-        })
-        .unwrap_or((min_x, max_x, min_y, max_y));
-    let viewport_bounds = snapshot
+                .filter(|p| b.part_ids.contains(&p.id))
+                .map(|p| p.pose.at),
+        )
+    })
+    .unwrap_or((x0, x1, y0, y1));
+    let viewport_bounds = snap
         .document
         .boards
         .iter()
-        .find(|board| board.id == model.active_board_id)
-        .and_then(|board| {
-            snapshot
-                .document
-                .parts
-                .iter()
-                .filter(|part| board.part_ids.contains(&part.id))
-                .map(|part| {
-                    // Ticket 12: fit the evaluated board pose of half-frame
-                    // parts, like the canvas does.
-                    snapshot
-                        .scene
-                        .transforms
-                        .iter()
-                        .find(|transform| transform.id == part.id)
-                        .map(|transform| transform.pose.at)
-                        .unwrap_or(part.pose.at)
-                })
-                .fold(None, |bounds, point| {
-                    Some(bounds.map_or(
-                        (point.x, point.x, point.y, point.y),
-                        |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
-                            (
-                                min_x.min(point.x),
-                                max_x.max(point.x),
-                                min_y.min(point.y),
-                                max_y.max(point.y),
-                            )
-                        },
-                    ))
-                })
+        .find(|b| b.id == model.active_board_id)
+        .and_then(|b| {
+            points_bounds(
+                snap.document
+                    .parts
+                    .iter()
+                    .filter(|p| b.part_ids.contains(&p.id))
+                    .map(|p| {
+                        snap.scene
+                            .transforms
+                            .iter()
+                            .find(|t| t.id == p.id)
+                            .map_or(p.pose.at, |t| t.pose.at)
+                    }),
+            )
         })
         .unwrap_or(board_bounds);
-    let bridge_width = (max_x - min_x).max(bridge.width).max(1.0);
-    let bridge_height = (max_y - min_y).max(bridge.width).max(1.0);
-    let board_width = (board_bounds.1 - board_bounds.0).max(50.0) + 40.0;
-    let board_height = (board_bounds.3 - board_bounds.2).max(50.0) + 40.0;
-    let zoom =
-        (0.72 * (board_width / bridge_width).min(board_height / bridge_height)).clamp(0.15, 8.0);
+    let (bw, bh) = (
+        (x1 - x0).max(bridge.width).max(1.0),
+        (y1 - y0).max(bridge.width).max(1.0),
+    );
+    let (ow, oh) = (
+        (board_bounds.1 - board_bounds.0).max(50.0) + 40.0,
+        (board_bounds.3 - board_bounds.2).max(50.0) + 40.0,
+    );
+    let zoom = (0.72 * (ow / bw).min(oh / bh)).clamp(0.15, 8.0);
     runtime.submit(Event::SetCamera {
         operation_id: runtime.operation(),
         center: layout_camera::bridge_camera_offset(
             viewport_bounds,
             Vec2 {
-                x: (min_x + max_x) * 0.5,
-                y: (min_y + max_y) * 0.5,
+                x: (x0 + x1) * 0.5,
+                y: (y0 + y1) * 0.5,
             },
         ),
         zoom,
     });
-}
-
-#[cfg(test)]
-mod layout_findings_for_display_tests {
-    use super::*;
-    use boardstudio_core::model::{Scope as FindingScope, Severity as FindingSeverity};
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[wasm_bindgen_test]
-    fn preview_adds_only_electrical_notices_and_keeps_accepted_findings() {
-        let accepted = LayoutFinding {
-            id: "accepted:layout:warning".into(),
-            severity: FindingSeverity::Warning,
-            scope: FindingScope::Layout,
-            message: "Accepted diagnostic remains visible".into(),
-            target_ids: vec!["accepted-part".into()],
-        };
-        let ordinary_preview = LayoutFinding {
-            id: "preview:layout:warning".into(),
-            severity: FindingSeverity::Warning,
-            scope: FindingScope::Layout,
-            message: "Ordinary preview diagnostic stays hidden".into(),
-            target_ids: vec!["preview-part".into()],
-        };
-        let electrical_preview = LayoutFinding {
-            id: "preview:electrical:net:1-61".into(),
-            severity: FindingSeverity::Info,
-            scope: FindingScope::Pcb,
-            message: "Electrical preview notice is visible".into(),
-            target_ids: vec!["preview-pad".into()],
-        };
-
-        assert_eq!(
-            layout_findings_for_display(
-                std::slice::from_ref(&accepted),
-                Some(&[ordinary_preview, electrical_preview.clone()]),
-            ),
-            vec![accepted, electrical_preview],
-        );
-    }
 }

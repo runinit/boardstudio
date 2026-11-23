@@ -1,6 +1,7 @@
 //! Shared document, request and reply types and their intrinsic operations.
 pub mod case_readiness;
 pub mod constraints;
+pub mod document_format;
 pub mod electrical;
 pub mod electrical_jumpers;
 pub mod electrical_peripherals;
@@ -10,7 +11,6 @@ pub mod hardware;
 pub mod inputs;
 pub mod keymap;
 pub mod matrix;
-pub mod migrate;
 pub mod mirrored_half;
 pub mod model;
 pub mod modules;

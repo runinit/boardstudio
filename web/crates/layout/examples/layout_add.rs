@@ -6,13 +6,14 @@ use dioxus::prelude::*;
 fn fixture() -> Element {
     use boardstudio_model::model::{Board, ProjectDoc};
     use boardstudio_web_test_runtime::project_name_test_support as support;
+    use boardstudio_web_ui_model::Workspace;
     use boardstudio_web_ui_model::{selection::SelectionAdapter, state::WorkspaceState};
 
     let runtime = use_hook(support::new_runtime);
     use_context_provider(|| runtime.clone());
     let version = use_signal(|| 0_u64);
     use_context_provider(|| version);
-    let workspace = use_signal(|| "Layout");
+    let workspace = use_signal(|| Workspace::Layout);
     use_context_provider(|| WorkspaceState(workspace));
     let selected = use_signal(|| None);
     let anchor = use_signal(|| None);

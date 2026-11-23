@@ -8,29 +8,6 @@ pub(super) fn validate_project_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
-    if matches!(
-        operation,
-        EditOperation::AddMirrorOnlyPart { .. }
-            | EditOperation::SetCompanionPlacement { .. }
-            | EditOperation::SetHalfException { .. }
-            | EditOperation::UnlinkHalves { .. }
-    ) {
-        return true;
-    }
-    has_native_mirror_pair(document)
-}
-
-pub(super) fn has_native_mirror_pair(document: &ProjectDoc) -> bool {
-    document.hardware.as_ref().is_some_and(|hardware| {
-        hardware.pairs.iter().any(|pair| {
-            pair.halves
-                .as_ref()
-                .is_some_and(|halves| halves.source_board_id != halves.mirror_board_id)
-        })
-    })
-}
-
 pub(crate) fn affects_outline(op: &EditOperation) -> bool {
     if let EditOperation::ApplyMechanicalEdit { edit } = op {
         return crate::mechanical::edit::affects_outline(&edit.change);
@@ -243,48 +220,6 @@ pub(crate) fn apply(
     )
 }
 
-pub(crate) fn edit_dispatch() -> mirrored_half::EditDispatch {
-    mirrored_half::EditDispatch {
-        apply_with_ledger,
-        apply_unscripted,
-    }
-}
-
-/// Staged-edit dispatch for the engine integration tests.
-#[doc(hidden)]
-#[allow(clippy::too_many_arguments)]
-pub fn apply_with_ledger_for_test(
-    doc: &mut ProjectDoc,
-    board_contours: &[BoardContours],
-    op: &EditOperation,
-    identities: &mechanical::edit::MechanicalIdentityLedger,
-) -> Result<Vec<String>, String> {
-    apply_with_ledger(doc, board_contours, op, identities)
-}
-
-#[doc(hidden)]
-pub fn apply_unscripted_for_test(
-    doc: &mut ProjectDoc,
-    op: &EditOperation,
-) -> Result<Vec<String>, String> {
-    apply_unscripted(doc, op)
-}
-
-/// Applies one operation under a fresh identity ledger for sibling crates' tests.
-#[doc(hidden)]
-pub fn apply_for_test(
-    doc: &mut ProjectDoc,
-    board_contours: &[BoardContours],
-    op: &EditOperation,
-) -> Result<Vec<String>, String> {
-    apply_with_ledger(
-        doc,
-        board_contours,
-        op,
-        &mechanical::edit::MechanicalIdentityLedger::default(),
-    )
-}
-
 // Recursive and staged edits dispatch known operations and cannot replace the document.
 fn apply_unscripted(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     apply_with_ledger(
@@ -301,7 +236,7 @@ pub(crate) fn apply_with_ledger(
     op: &EditOperation,
     identities: &mechanical::edit::MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
-    let mut changed = match op {
+    match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
         }
@@ -473,6 +408,17 @@ pub(crate) fn apply_with_ledger(
                 if handled.contains(&position.id) {
                     continue;
                 }
+                if let Some(part) = mirrored_half::local_part_mut(doc, &position.id) {
+                    if part.locked == Some(true) {
+                        return Err(format!("Part {} is locked", position.id));
+                    }
+                    if !position.at.x.is_finite() || !position.at.y.is_finite() {
+                        return Err("Position must be finite".into());
+                    }
+                    part.pose.at = position.at;
+                    changed.push(part.id.clone());
+                    continue;
+                }
                 let Some(index) = doc.parts.iter().position(|part| part.id == position.id) else {
                     return Err(format!("Unknown part {}", position.id));
                 };
@@ -482,44 +428,22 @@ pub(crate) fn apply_with_ledger(
                 if !position.at.x.is_finite() || !position.at.y.is_finite() {
                     return Err("Position must be finite".into());
                 }
-                // Ticket 12: pair parts cannot cross the split axis; the drag
-                // stops at it. The clamp is the identity off a mirrored half.
-                // Drags arrive board-space while storage is half-frame, so the
-                // retune delta measures against the evaluated pose.
-                let at = layout::clamp_part_to_half(doc, &position.id, position.at);
+                let at = position.at;
                 // Ticket 13: an anchored part re-solves Spread/Stagger from
                 // the clamped drop instead of writing the pose.
                 if doc.parts[index].anchor.is_some() {
                     changed.extend(matrix::part_anchors::move_anchored(doc, &position.id, at)?);
                     continue;
                 }
-                let current = layout::evaluated_part_pose(doc, &doc.parts[index]);
-                let delta = Vec2 {
-                    x: at.x - current.at.x,
-                    y: at.y - current.at.y,
-                };
-                if let Some(constraint) = doc
-                    .constraints
-                    .iter_mut()
-                    .find(|constraint| constraint.target() == position.id)
-                {
-                    if constraints::retune_offset(&doc.parts, constraint, delta, None)?
-                        == constraints::Retune::Mirror
-                    {
+                match constraints::retune_offset(doc, &position.id, at, None)? {
+                    Some(constraints::Retune::Mirror) => {
                         return Err(constraints::mirror_drag_refusal(&position.id));
                     }
-                    changed.push(position.id.clone());
-                    continue;
-                }
-                // Ticket 12: a correspondence-mirrored part on a stored-gap
-                // pair writes both copies through, so either copy edits both.
-                if let Some(mirrored) = layout::move_pair_part(doc, &position.id, at)? {
-                    changed.extend(mirrored);
-                    continue;
-                }
-                if let Some(linked) = layout::move_linked_component(doc, &position.id, at)? {
-                    changed.extend(linked);
-                    continue;
+                    Some(constraints::Retune::Applied) => {
+                        changed.push(position.id.clone());
+                        continue;
+                    }
+                    None => {}
                 }
                 // Ticket 12: the drop commits board-space; storage converts.
                 let stored = layout::stored_part_pose(
@@ -549,20 +473,13 @@ pub(crate) fn apply_with_ledger(
                 board_id,
                 definition,
                 layout_id,
-            } => {
-                let mut changed = add_part_placement(
-                    doc,
-                    part,
-                    board_id.as_deref(),
-                    definition.as_ref(),
-                    layout_id.as_deref(),
-                )?;
-                // Ticket 12: a part added to a stored-gap half mirrors by
-                // correspondence in the same Undo entry; legacy pairs mirror
-                // through the resolve sync. Mirror-only adds stay single.
-                changed.extend(layout::mirror_new_pair_part(doc, &part.id)?);
-                Ok(changed)
-            }
+            } => add_part_placement(
+                doc,
+                part,
+                board_id.as_deref(),
+                definition.as_ref(),
+                layout_id.as_deref(),
+            ),
             EditOperation::AddMirrorOnlyPart {
                 part,
                 board_id,
@@ -577,8 +494,8 @@ pub(crate) fn apply_with_ledger(
             ),
             _ => unreachable!("the placement arm matches both Part addition operations"),
         },
-        EditOperation::SetMirroredPart { part_id, mirrored } => {
-            layout::set_part_mirrored(doc, part_id, *mirrored)
+        EditOperation::SetMirroredPart { .. } => {
+            Err("Use a mirror exception to change derived part ownership".into())
         }
         EditOperation::SetPartAnchor { part_id, anchor } => {
             matrix::part_anchors::set_anchor(doc, part_id, anchor)
@@ -591,6 +508,15 @@ pub(crate) fn apply_with_ledger(
             matrix::part_anchors::set_value(doc, part_id, change)
         }
         EditOperation::SetPartRotation { part_id, rotation } => {
+            if let Some(part) = mirrored_half::local_part_mut(doc, part_id) {
+                if !rotation.is_finite() || part.locked == Some(true) {
+                    return Err(
+                        "Local mirror rotation requires an unlocked part and finite angle".into(),
+                    );
+                }
+                part.pose.rotation = rotation.rem_euclid(360.0);
+                return Ok(vec![part_id.clone()]);
+            }
             layout::set_detached_part_rotation(doc, part_id, *rotation)
         }
         EditOperation::RemoveMatrix { id } => {
@@ -656,13 +582,28 @@ pub(crate) fn apply_with_ledger(
             matrix::deletion::remove_axis(doc, matrix_id, *column, false, apply_unscripted)
         }
         EditOperation::RemoveParts { ids } => {
+            let mut authored = Vec::new();
+            let mut omitted = Vec::new();
+            for id in ids {
+                if let Some(pair_id) = mirrored_half::local_pair_id(doc, id) {
+                    omitted.extend(mirrored_half::set_exception(
+                        doc,
+                        &pair_id,
+                        id,
+                        HalfExceptionState::Omitted,
+                    )?);
+                } else {
+                    authored.push(id.clone());
+                }
+            }
+            let ids = &authored;
             let affected: Vec<_> = doc
                 .matrices
                 .iter()
                 .filter(|matrix| matrix.part_ids.iter().any(|id| ids.contains(id)))
                 .map(|matrix| matrix.id.clone())
                 .collect();
-            let ids = layout::mirrored_component_ids(doc, ids);
+            let ids = ids.clone();
             let ids = matrix::removed_members(doc, &ids);
             doc.constraints.retain(|constraint| {
                 !ids.iter()
@@ -691,8 +632,8 @@ pub(crate) fn apply_with_ledger(
             // removal share one Undo step and never retarget onto another component.
             // Ticket 12: removing either copy of a mirrored part drops its Part
             // correspondence, so no dangling record survives the removal.
-            layout::retire_part_correspondences(doc, &ids);
             let mut changed = ids;
+            changed.extend(omitted);
             let cleanup = outline_versions::prune_removed_sources(doc, &changed);
             changed.extend(cleanup);
             for matrix_id in affected {
@@ -872,268 +813,54 @@ pub(crate) fn apply_with_ledger(
                         .into(),
                 );
             }
-            // New pairs store the half frame directly: the source origin is
-            // re-expressed half-local and the mirror reflects it, so a later
-            // Split gap change moves both halves without rewriting storage.
-            // Anchored matrices stay legacy (no stored gap); their first edit
-            // adopts only when an unanchored source matrix exists.
-            // Ticket 11: the conversion still uses the requested placement,
-            // while the stored gap is max(requested, 40 mm, minimum), so the
-            // halves widen symmetrically to the stored gap on evaluation.
-            let requested_gap = if matrix.anchor.is_none() {
-                let gap = layout::implied_gap(link.axis_x, matrix);
-                if !gap.is_finite() {
-                    return Err("Split gap must be finite".into());
-                }
-                Some(gap)
-            } else {
-                None
-            };
-            let stored_gap = match requested_gap {
-                Some(_) => Some(layout::proposed_creation_gap(doc, matrix, link.axis_x)?),
-                None => None,
-            };
-            let mut source_half = matrix.as_ref().clone();
-            if let Some(gap) = requested_gap {
-                source_half.origin.x -= link.axis_x - gap / 2.0;
-            }
             let mut changed = apply_unscripted(
                 doc,
                 &EditOperation::SetMatrix {
-                    matrix: source_half.clone(),
+                    matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = source_half.clone();
-            target.id = right.matrix_ids[0].clone();
-            target.name = Some(right.name.clone());
-            for cell in &mut target.cells {
-                for assembly in &mut cell.assemblies {
-                    assembly.offset.x = -assembly.offset.x;
-                    assembly.rotation = assembly.rotation.map(|angle| -angle);
-                }
-            }
-            let target = layout::reflected(
-                &source_half,
-                &target,
-                layout::axis_mapping(link.axis_x),
-                false,
-                stored_gap.is_some(),
-            )?;
-            changed.extend(matrix::set_matrix(doc, &target)?);
-            let mut follower = right.clone();
-            let link = follower
-                .mirror_link
-                .as_mut()
-                .ok_or("A new mirrored pair must be linked")?;
-            link.split_gap = stored_gap;
-            link.correspondences.clear();
-            link.correspondences.push(MirroredCorrespondence {
-                kind: MirroredItemKind::Matrix,
-                source_id: matrix.id.clone(),
-                mirror_id: target.id.clone(),
-                companion_mode: None,
-                companion_tweak: None,
-            });
-            link.correspondences
-                .extend(layout::part_correspondences(layout::member_pairs(
-                    matrix,
-                    &target.id,
-                    Some(&target),
-                )));
-            doc.layouts.extend([left.clone(), follower]);
-            layout::validate(doc)?;
-            changed.extend([left.id.clone(), right.id.clone()]);
+            let mut target = right.clone();
+            target.mirror_link = None;
+            target.matrix_ids.clear();
+            doc.layouts.extend([left.clone(), target]);
+            changed.extend(mirrored_half::create_pair(
+                doc,
+                mirrored_half::MirroredPair {
+                    id: right.id.clone(),
+                    source: mirrored_half::MirrorDestination::SameBoardLayout(left.id.clone()),
+                    destination: mirrored_half::MirrorDestination::SameBoardLayout(
+                        right.id.clone(),
+                    ),
+                    mapping: layout::axis_mapping(link.axis_x),
+                    overrides: vec![],
+                },
+            )?);
             Ok(changed)
         }
-        EditOperation::CreateMirroredHalf {
-            pair_id,
-            source_instance_id,
-            mode,
-            labels,
-            physical_setup,
-            companion_mode,
-            companion_tweak,
-            mapping,
-            id_rule,
-            mounting_hole,
-        } => match physical_setup {
-            Some(setup) => mirrored_half::create_with_physical_setup(
-                doc,
-                pair_id,
-                source_instance_id,
-                mode,
-                *mapping,
-                *id_rule,
-                mounting_hole.as_deref(),
-                *companion_mode,
-                *companion_tweak,
-                labels.as_ref(),
-                setup,
-            ),
-            None => mirrored_half::create(
-                doc,
-                pair_id,
-                source_instance_id,
-                mode,
-                *mapping,
-                *id_rule,
-                mounting_hole.as_deref(),
-                *companion_mode,
-                *companion_tweak,
-                labels.as_ref(),
-            ),
-        },
+        EditOperation::CreateMirroredHalf { .. } => {
+            apply_create_mirrored_half(doc, board_contours, op, identities)
+        }
         EditOperation::SetLayout { layout: incoming } => {
-            let mut incoming = incoming.clone();
-            if incoming.mirror_link.is_some()
-                && doc
-                    .layouts
-                    .iter()
-                    .find(|layout| layout.id == incoming.id)
-                    .is_some_and(|layout| layout.mirror_link.is_none())
-            {
-                layout::populate_new_link(doc, &mut incoming)?;
-            }
-            let (old_gap, was_linked_target, source_layout_id) = {
-                let current = doc
-                    .layouts
-                    .iter()
-                    .find(|layout| layout.id == incoming.id)
-                    .ok_or("Layout does not exist")?;
-                if current.board_id != incoming.board_id
-                    || current.matrix_ids != incoming.matrix_ids
-                {
-                    return Err("Layout ownership cannot be reassigned".into());
-                }
-                let was_linked_target =
-                    current.mirror_link.is_some() && incoming.mirror_link.is_none();
-                let source_layout_id = was_linked_target
-                    .then(|| {
-                        current
-                            .mirror_link
-                            .as_ref()
-                            .map(|link| link.source_id.clone())
-                    })
-                    .flatten();
-                (
-                    current.mirror_link.as_ref().and_then(|link| link.split_gap),
-                    was_linked_target,
-                    source_layout_id,
-                )
-            };
-            // Half-frame gap transitions run before the record is replaced so
-            // the conversion still sees the previous gap: adding a gap adopts
-            // the board placement first, clearing one restores it.
-            let new_gap = incoming
-                .mirror_link
-                .as_ref()
-                .and_then(|link| link.split_gap);
-            match (old_gap, new_gap) {
-                (None, Some(_)) => {
-                    layout::adopt_half_frames(doc)?;
-                }
-                (Some(_), None) => {
-                    layout::unadopt_pair(doc, &incoming.id)?;
-                }
-                _ => {}
-            }
-            // Ticket 12: parts joining or leaving a stored-gap half reframe
-            // with it, preserving evaluated poses. The unlink transition
-            // skips leaving parts: unadopt above already restored them.
-            let unlinking = matches!((old_gap, new_gap), (Some(_), None));
-            if let Some(previous) = doc
-                .layouts
-                .iter()
-                .find(|layout| layout.id == incoming.id)
-                .cloned()
-            {
-                layout::reframe_moved_parts(doc, &previous, &incoming, unlinking)?;
+            if incoming.mirror_link.is_some() {
+                return Err("Layout mirror links are unsupported; use a mirrored pair".into());
             }
             let current = doc
                 .layouts
                 .iter_mut()
                 .find(|layout| layout.id == incoming.id)
                 .ok_or("Layout does not exist")?;
-            let previous = current.clone();
+            if current.board_id != incoming.board_id || current.matrix_ids != incoming.matrix_ids {
+                return Err("Layout ownership cannot be reassigned".into());
+            }
             *current = incoming.clone();
-            // Ticket 21: run the same-board exception lifecycle (Local/Omitted
-            // transitions, Rejoin materialization) before resolve adopts the
-            // current source state.
-            let mut transitioned = layout::apply_exception_transitions(doc, &previous, &incoming)?;
-            let mut detached = if was_linked_target {
-                layout::unlink_components(doc, &incoming.id)
-            } else {
-                Vec::new()
-            };
-            if let Some(source_layout_id) = source_layout_id {
-                detached.extend(layout::unlink_components(doc, &source_layout_id));
-            }
-            layout::resolve(doc)?;
-            if !matches!((old_gap, new_gap), (Some(_), None)) {
-                transitioned.extend(layout::adopt_half_frames(doc)?);
-            }
-            transitioned.append(&mut detached);
-            Ok([
-                [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
-                transitioned,
-            ]
-            .concat())
+            layout::validate(doc)?;
+            Ok(std::iter::once(incoming.id.clone())
+                .chain(incoming.matrix_ids.clone())
+                .collect())
         }
-        EditOperation::SetSplitGap {
-            layout_id,
-            split_gap,
-        } => {
-            if !split_gap.is_finite() || *split_gap < 0.0 {
-                return Err("The Split gap must be a finite non-negative distance".into());
-            }
-            let paired = doc.layouts.iter().any(|layout| {
-                layout.id == *layout_id && layout.mirror_link.is_some()
-                    || layout
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == *layout_id)
-            });
-            if !paired {
-                return Err(format!("Layout {layout_id} is not part of a mirrored pair"));
-            }
-            // A legacy board-coordinate pair adopts the half frame first, so
-            // the gap change itself moves the halves without rewriting them.
-            let mut changed = layout::adopt_half_frames(doc)?;
-            changed.extend(layout::set_pair_gap(doc, layout_id, *split_gap)?);
-            layout::resolve(doc)?;
-            let root = doc
-                .layouts
-                .iter()
-                .find(|layout| layout.id == *layout_id)
-                .and_then(|layout| {
-                    layout
-                        .mirror_link
-                        .as_ref()
-                        .map(|link| link.source_id.clone())
-                })
-                .unwrap_or(layout_id.clone());
-            for layout in doc.layouts.iter() {
-                let in_pair = layout.id == root
-                    || layout
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == root);
-                if in_pair {
-                    changed.push(layout.id.clone());
-                    for matrix_id in &layout.matrix_ids {
-                        changed.push(matrix_id.clone());
-                        if let Some(matrix) =
-                            doc.matrices.iter().find(|matrix| matrix.id == *matrix_id)
-                        {
-                            changed.extend(matrix.part_ids.iter().cloned());
-                        }
-                    }
-                }
-            }
-            changed.sort();
-            changed.dedup();
-            Ok(changed)
+        EditOperation::SetSplitGap { .. } => {
+            Err("Layout mirror links are unsupported; use a mirrored pair".into())
         }
         EditOperation::ConvertOffsetConstraint { constraint_id, to } => {
             constraints::convert_offset(doc, constraint_id, *to)
@@ -1164,10 +891,39 @@ pub(crate) fn apply_with_ledger(
             crate::mechanical::edit::apply_with_ledger(doc, board_contours, edit, identities)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
-        EditOperation::SetHalfException { .. }
-        | EditOperation::SetCompanionPlacement { .. }
-        | EditOperation::UnlinkHalves { .. } => {
-            Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
+        EditOperation::SetHalfException {
+            pair_id,
+            mirror_id,
+            state,
+            ..
+        } => mirrored_half::set_exception(doc, pair_id, mirror_id, *state),
+        EditOperation::UnlinkHalves { pair_id } => mirrored_half::unlink_pair(doc, pair_id),
+        EditOperation::SetCompanionPlacement {
+            pair_id,
+            targets,
+            tweak,
+            ..
+        } => {
+            let mut changed = Vec::new();
+            for target in targets {
+                if let (CompanionPlacementTarget::Item { mirror_id, .. }, Some(tweak)) =
+                    (target, tweak)
+                {
+                    changed.extend(mirrored_half::set_companion_pose(
+                        doc,
+                        pair_id,
+                        mirror_id,
+                        Pose2 {
+                            at: Vec2 {
+                                x: tweak.x,
+                                y: tweak.y,
+                            },
+                            rotation: tweak.rotation,
+                        },
+                    )?);
+                }
+            }
+            Ok(changed)
         }
         EditOperation::RenameProject { name } => {
             validate_project_name(name)?;
@@ -1178,7 +934,14 @@ pub(crate) fn apply_with_ledger(
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
             }
-            migrate::require_current_version(document.format_version)?;
+            document_format::require_current_version(document.format_version)?;
+            if document
+                .layouts
+                .iter()
+                .any(|layout| layout.mirror_link.is_some())
+            {
+                return Err("Layout mirror links are unsupported; use a mirrored pair".into());
+            }
             let accepted = doc.clone();
             let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
@@ -1198,29 +961,208 @@ pub(crate) fn apply_with_ledger(
             changed.dedup();
             Ok(changed)
         }
-    }?;
-    // The first committed geometry edit adopts the half frame: legacy
-    // board-coordinate pairs store their implied Split gap and re-express
-    // unanchored origins as half-frame values, preserving every world pose.
-    // SetLayout and SetSplitGap manage their own gap transitions;
-    // CreateMirroredPair stores the frame directly; parts adopt with 12.
-    if matches!(
-        op,
-        EditOperation::SetMatrix { .. }
-            | EditOperation::SetMatrixSplay { .. }
-            | EditOperation::SetMatrixPlacement { .. }
-            | EditOperation::AddAnchoredMatrix { .. }
-            | EditOperation::SetMatrixAnchor { .. }
-            | EditOperation::DetachMatrixAnchor { .. }
-            | EditOperation::DetachMatrixAnchorConfirmed { .. }
-            | EditOperation::RemoveMatrix { .. }
-            | EditOperation::SetMatrixCellsEnabled { .. }
-            | EditOperation::RemoveMatrixCells { .. }
-            | EditOperation::RemoveMatrixRow { .. }
-            | EditOperation::RemoveMatrixColumn { .. }
-            | EditOperation::RemoveSelectedMatrixCells { .. }
-    ) {
-        changed.extend(layout::adopt_half_frames(doc)?);
     }
+}
+
+fn feature_correspondences(
+    configuration: &MechanicalConfiguration,
+) -> Vec<crate::mechanical::change::MechanicalFeatureCorrespondence> {
+    let same = |kind: MechanicalFeatureKind, id: &str| {
+        crate::mechanical::change::MechanicalFeatureCorrespondence {
+            kind,
+            first_feature_id: id.into(),
+            second_feature_id: id.into(),
+            source_instance_id: None,
+        }
+    };
+    configuration
+        .mounts
+        .iter()
+        .map(|mount| same(MechanicalFeatureKind::Mount, &mount.id))
+        .chain(
+            configuration
+                .closure_mounts
+                .iter()
+                .flatten()
+                .map(|mount| same(MechanicalFeatureKind::ClosureMount, &mount.id)),
+        )
+        .chain(
+            configuration
+                .openings
+                .iter()
+                .flatten()
+                .map(|opening| same(MechanicalFeatureKind::Opening, &opening.id)),
+        )
+        .chain(
+            configuration
+                .gasket_layout
+                .iter()
+                .flat_map(|layout| &layout.supports)
+                .map(|support| same(MechanicalFeatureKind::GasketSupport, &support.id)),
+        )
+        .collect()
+}
+
+fn apply_create_mirrored_half(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    identities: &mechanical::edit::MechanicalIdentityLedger,
+) -> Result<Vec<String>, String> {
+    let EditOperation::CreateMirroredHalf {
+        pair_id,
+        source_instance_id,
+        mode,
+        labels,
+        physical_setup,
+        companion_mode,
+        companion_tweak,
+        mapping,
+        id_rule,
+        mounting_hole,
+    } = op
+    else {
+        unreachable!("apply_create_mirrored_half requires CreateMirroredHalf");
+    };
+    let MirroredIdRule::BoardPrefix = id_rule;
+    crate::mechanical::halves::validate_companion(*companion_mode, *companion_tweak)?;
+    if !(mapping.at.x.is_finite() && mapping.at.y.is_finite() && mapping.rotation.is_finite()) {
+        return Err("The mirrored half's mapping must be finite.".into());
+    }
+    if matches!(mode, MirroredHalfMode::ReuseBoard { .. }) {
+        if companion_tweak.is_some() {
+            return Err(
+                "reuse-board copies no companions; companionTweak requires new-board".into(),
+            );
+        }
+        if mapping.at.x != 0.0 || mapping.at.y != 0.0 || mapping.rotation != 0.0 {
+            return Err(
+                "A flipped instance of a reused board must use zero translation and zero rotation."
+                    .into(),
+            );
+        }
+    }
+    if let Some(setup) = physical_setup {
+        if setup.topology != HardwareTopology::Split
+            || !matches!(
+                setup.transport,
+                HardwareTransport::Wired | HardwareTransport::Wireless
+            )
+        {
+            return Err(
+                "Mirrored physical setup requires split topology and wired or wireless transport."
+                    .into(),
+            );
+        }
+        let source = &setup.source_instance;
+        if source.id != *source_instance_id
+            || source.board_id != setup.shared_construction.board_id
+            || !doc.boards.iter().any(|board| board.id == source.board_id)
+        {
+            return Err(
+                "Physical setup source and shared construction must belong to a configured board."
+                    .into(),
+            );
+        }
+    }
+    let mut next = doc.clone();
+    let mut changed = mirrored_half::create_half(
+        &mut next,
+        pair_id,
+        source_instance_id,
+        mode,
+        labels.as_ref(),
+        physical_setup.as_ref(),
+        *mapping,
+    )?;
+    let source_board_id = next
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .find(|instance| instance.id == *source_instance_id)
+        })
+        .map(|instance| instance.board_id.clone())
+        .ok_or("Unknown source physical instance")?;
+    let (mirror_instance_id, mirror_board_id, is_new_board) = match mode {
+        MirroredHalfMode::NewBoard {
+            board_id,
+            instance_id,
+        } => (instance_id.as_str(), board_id.clone(), true),
+        MirroredHalfMode::ReuseBoard { instance_id } => {
+            (instance_id.as_str(), source_board_id.clone(), false)
+        }
+    };
+    if let Ok(source_inputs) = crate::mechanical::inputs::effective_inputs(
+        &next,
+        &[],
+        &crate::mechanical::MechanicalTarget::Instance {
+            instance_id: source_instance_id.to_owned(),
+        },
+    ) {
+        if let Some(mirror_instance) = next.hardware.as_mut().and_then(|hardware| {
+            hardware
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == mirror_instance_id)
+        }) && mirror_instance.mechanical.is_none()
+        {
+            let mut cfg = source_inputs.configuration;
+            cfg.board_id.clone_from(&mirror_board_id);
+            if is_new_board {
+                cfg.hardware = None;
+                cfg.critical_fits = None;
+                cfg.battery = None;
+            }
+            mirror_instance.mechanical = Some(cfg);
+        }
+        let mirror_inputs = crate::mechanical::inputs::effective_inputs(
+            &next,
+            &[],
+            &crate::mechanical::MechanicalTarget::Instance {
+                instance_id: mirror_instance_id.to_owned(),
+            },
+        )?;
+        let edit = crate::mechanical::MechanicalEdit {
+            target: crate::mechanical::MechanicalTarget::Instance {
+                instance_id: source_instance_id.to_owned(),
+            },
+            change: crate::mechanical::MechanicalChange::LinkMirrorPair {
+                pair_id: pair_id.to_owned(),
+                members: [source_instance_id.to_owned(), mirror_instance_id.to_owned()],
+                mapping: *mapping,
+                construction_source: source_instance_id.to_owned(),
+                correspondences: feature_correspondences(&mirror_inputs.configuration),
+            },
+            mounting_hole: mounting_hole.clone(),
+        };
+        changed.extend(crate::mechanical::edit::apply_with_ledger(
+            &mut next,
+            board_contours,
+            &edit,
+            identities,
+        )?);
+        if !is_new_board
+            && let Some(pair) = next
+                .hardware
+                .as_mut()
+                .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == *pair_id))
+        {
+            pair.halves = Some(MirroredHalves {
+                companion_mode: *companion_mode,
+                source_board_id,
+                mirror_board_id,
+                correspondences: vec![],
+                exceptions: vec![],
+            });
+        }
+    }
+    layout::validate(&next)?;
+    crate::mechanical::halves::validate_document(&next)?;
+    changed.sort();
+    changed.dedup();
+    *doc = next;
     Ok(changed)
 }

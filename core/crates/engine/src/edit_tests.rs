@@ -615,7 +615,7 @@ mod mechanical_edit_engine_tests {
             "../../../tests/fixtures/synthetic-outline.json"
         ))
         .unwrap();
-        source.format_version = crate::migrate::CURRENT_VERSION;
+        source.format_version = crate::document_format::CURRENT_VERSION;
         // Use only two authored square courtyards with a 4 mm gap. This creates
         // an independent automatic bridge pocket for the recovery contract.
         source

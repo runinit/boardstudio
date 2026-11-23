@@ -1,6 +1,6 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
 use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
-use crate::footprint_forms::Shape;
+use crate::footprint_graphics::Shape;
 use crate::presentation::footprint_graphics::{self, GraphicElement};
 use crate::preview_logic::*;
 use boardstudio_application::{Scope, SnapshotToken};
@@ -18,36 +18,6 @@ use std::{
     collections::BTreeSet,
     rc::Rc,
 };
-
-#[cfg(test)]
-thread_local! {
-    static NEXT_PARTS_TEST_PREVIEW: RefCell<Option<boardstudio_model::model::PcbPreview>> = const { RefCell::new(None) };
-}
-
-#[cfg(test)]
-struct PartsTestPreviewGuard;
-
-#[cfg(test)]
-impl Drop for PartsTestPreviewGuard {
-    fn drop(&mut self) {
-        NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take());
-    }
-}
-
-#[cfg(test)]
-fn seed_parts_preview_for_test(
-    preview: boardstudio_model::model::PcbPreview,
-) -> PartsTestPreviewGuard {
-    NEXT_PARTS_TEST_PREVIEW.with(|next| {
-        assert!(next.borrow_mut().replace(preview).is_none());
-    });
-    PartsTestPreviewGuard
-}
-
-#[cfg(test)]
-fn take_parts_preview_for_test() -> Option<boardstudio_model::model::PcbPreview> {
-    NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take())
-}
 
 #[derive(Clone, Debug)]
 enum PreviewFailure {
@@ -244,10 +214,6 @@ pub fn PartsPreviewPanel(
                             &recipe,
                         )?;
                         lease_slot.replace(capture.lease.clone());
-                        #[cfg(test)]
-                        if let Some(preview) = take_parts_preview_for_test() {
-                            return capture.accept_preview(preview, None).map(Rc::new);
-                        }
                         runtime
                             .prepare_parts_library_preview(capture)
                             .await
@@ -463,7 +429,7 @@ fn PartsSampleViewer(
                     Alert { variant: AlertVariant::Destructive, "{failure.reference}: {failure.reason}" }
                 }
             }
-            super::super::shared_viewer::CaseSharedViewer {
+            super::super::shared_viewer::Viewport3D {
                 toolbar_leading: Some(view_controls),
                 scene: None,
                 preview: None,
@@ -726,8 +692,3 @@ fn PartsPreviewLayers(
     };
     boardstudio_web_ui_shared::layer_dock::use_docked_layers(content)
 }
-
-#[cfg(test)]
-#[cfg(test)]
-#[path = "preview/tests.rs"]
-mod tests;

@@ -127,7 +127,8 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
             "linked geometry must not be stored on the half"
         );
     }
-    let projected = project_owned_closure_clearance(document.clone(), &template()).unwrap();
+    let projected =
+        project_owned_closure_clearance(document.clone(), &fixture::mounting_hole()).unwrap();
     let generated: Vec<&str> = projected
         .parts
         .iter()
@@ -146,7 +147,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     use boardstudio_core::mechanical::edit::apply;
 
     let mut document = document();
-    let mut configuration = configuration();
+    let mut configuration = fixture::mechanical("board");
     configuration.closure_mounts = Some(vec![mount("closure-1", 4.0, 0.0)]);
     document.mechanical = Some(configuration);
 
@@ -304,60 +305,40 @@ fn the_evaluator_retires_an_edit_that_targets_a_removed_member() {
 
 #[test]
 fn a_malformed_mirrored_half_record_is_refused_on_open_and_replace() {
-    use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
-
-    let mut engine = CoreEngine::new();
-    let refused = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: paired_document_with_halves("ghost"),
-    });
-    let CoreReply::Error { message, .. } = refused else {
-        panic!("Open must refuse the record: {refused:?}");
+    use serde_json::Value;
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let mut document = serde_json::to_value(pair_document()).unwrap();
+    let request = |engine: &mut boardstudio_core::CoreEngine, value: Value| {
+        serde_json::from_str::<Value>(&engine.request(&value.to_string())).unwrap()
     };
-    assert!(message.contains("\"pair-left-right\""), "{message}");
-    assert!(message.contains("halves.mirrorBoardId"), "{message}");
-    assert!(message.contains("\"ghost\""), "{message}");
-
-    // A consistent record opens and replaces.
-    let accepted = match engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: paired_document_with_halves("board"),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("a consistent record opens: {other:?}"),
-    };
-    assert!(
-        accepted.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .is_some()
+    let accepted = request(
+        &mut engine,
+        json!({"kind":"open","id":"valid","document":document}),
     );
-
-    let replace = |engine: &mut CoreEngine, replacement: ProjectDoc| {
-        engine.handle(CoreRequest::Edit {
-            id: "replace".into(),
-            command: EditCommand {
-                base_revision: accepted.revision,
-                transaction_id: "replace".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
-            },
-        })
-    };
-    let refused = replace(&mut engine, paired_document_with_halves("ghost"));
-    let CoreReply::Error { message, .. } = refused else {
-        panic!("ReplaceDocument must refuse the record: {refused:?}");
-    };
-    assert!(message.contains("halves.mirrorBoardId"), "{message}");
-    // The refusal changed nothing: the same consistent replacement still applies on the same
-    // base revision.
-    assert!(matches!(
-        replace(&mut engine, paired_document_with_halves("board")),
-        CoreReply::Scene { .. }
-    ));
+    assert_eq!(accepted["kind"], "scene");
+    document["mirroredPairs"] = json!([{
+        "id":"invalid-pair","source":{"kind":"secondBoard","id":"board"},
+        "destination":{"kind":"secondBoard","id":"ghost"},
+        "mapping":{"at":{"x":0,"y":0},"rotation":0},"overrides":[]
+    }]);
+    for candidate in [
+        json!({"kind":"open","id":"open","document":document}),
+        json!({"kind":"edit","id":"replace","command":{
+            "baseRevision":accepted["document"]["revision"],"transactionId":"replace","phase":"commit",
+            "targetIds":[],"operation":{"kind":"replace-document","document":document}
+        }}),
+    ] {
+        let refusal = request(&mut engine, candidate);
+        assert_eq!(refusal["kind"], "error");
+        assert!(
+            refusal["message"]
+                .as_str()
+                .unwrap()
+                .contains("invalid-pair")
+        );
+        let snapshot = request(&mut engine, json!({"kind":"snapshot","id":"snapshot"}));
+        assert_eq!(snapshot["document"], accepted["document"]);
+    }
 }
 
 #[test]

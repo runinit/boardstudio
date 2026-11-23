@@ -16,40 +16,24 @@ pub fn installed(runtime: &Runtime) -> Rc<dyn InstalledAdapters> {
 }
 
 pub fn new_runtime(services: CoreServices) -> Result<Rc<Runtime>, String> {
-    Runtime::new_with_restoration(false, services, None)
+    Runtime::new_with_restoration(false, services)
 }
 
 pub fn store(runtime: &Runtime) -> BrowserStore {
     runtime.store.clone()
 }
-pub fn clear_saved_tokens(runtime: &Runtime) {
-    runtime.saved_tokens.borrow_mut().clear();
-}
-pub fn has_artifacts(runtime: &Runtime) -> bool {
-    !runtime.artifacts.borrow().is_empty()
+pub fn cache_asset(runtime: &Runtime, sha256: String, bytes: Vec<u8>) {
+    runtime.assets.borrow_mut().insert(sha256, bytes);
 }
 
 pub fn install(
     runtime: &Runtime,
     session: Session,
     adapters: Rc<dyn InstalledAdapters>,
-    core: Rc<dyn CoreExecutor>,
     persistence: Rc<dyn DocumentPersistence>,
-    factory: Rc<CoreExecutorFactory>,
 ) {
-    runtime.saved_tokens.borrow_mut().clear();
-    if let Some(accepted) = session.read_model().accepted.as_ref()
-        && let Some(token) = runtime.store.observed_token(&accepted.document.id)
-    {
-        runtime
-            .saved_tokens
-            .borrow_mut()
-            .insert(accepted.document.id.clone(), token);
-    }
     *runtime.session.borrow_mut() = session;
-    *runtime.core.borrow_mut() = core;
     *runtime.persistence.borrow_mut() = persistence;
-    *runtime.core_executor_factory.borrow_mut() = factory;
     *runtime.in_process_adapters.borrow_mut() = Some(adapters);
     runtime.changed();
 }

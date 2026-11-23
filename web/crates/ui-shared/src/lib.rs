@@ -1,31 +1,11 @@
 //! Page UI shared by several workspaces: panels, canvas layers, the layout camera,
-//! footprint forms and graphics, geometry scripts, model import and board-reference
-//! effects. Depends on `ui-model` only, never on a workspace crate or the page shell.
+//! footprint graphics, geometry scripts, model import and board-reference effects.
+//! Depends on `ui-model` only, never on a workspace crate or the page shell.
 //!
 //! Browser-only modules are `wasm32`-only; the rest also compile natively so their
 //! unit tests run under `cargo test`.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
-
-// Modules address shared types as the page bin does: `super::WorkspaceState`,
-// `crate::presentation::model_delivery`, `crate::runtime`.
-#[allow(unused_imports)]
-pub(crate) use crate as presentation;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::model_delivery;
-#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::runtime;
-#[allow(unused_imports)]
-pub(crate) use boardstudio_web_ui_model::state::*;
-
-pub mod draft_edits;
-pub mod footprint_forms;
-#[cfg(any(test, target_arch = "wasm32"))]
-mod generator_preview_defaults;
-pub mod inspector_fields;
-pub mod layout_camera;
-pub mod owned_edits;
-pub mod ui;
+#[derive(Clone, Copy)]
+pub struct DurabilityVersion(pub dioxus::prelude::Signal<u64>);
 
 pub mod board_layer;
 pub mod board_reference_effect;
@@ -33,13 +13,15 @@ pub mod board_reference_effect;
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
-pub mod choice_field;
-#[cfg(target_arch = "wasm32")]
+pub mod design_view_toolbar;
 pub mod footprint_graphics;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(test, target_arch = "wasm32"))]
+mod generator_preview_defaults;
+pub mod inspector_fields;
 #[cfg(target_arch = "wasm32")]
 pub mod layer_dock;
-#[cfg(target_arch = "wasm32")]
+pub mod layout_camera;
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod model_asset_import;
 #[cfg(target_arch = "wasm32")]
 pub mod object_options;
@@ -47,9 +29,11 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
-// Bounded waits for the browser tests of the workspace crates (test-support only).
-#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
-pub mod test_mount;
+// Vendored components include hooks that are active only in browser builds.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
+pub mod ui;
+
+// Bounded waits for browser tests (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_wait;
 // Finds controls by accessible role and name, as a user or assistive technology would (test-support only).
@@ -62,9 +46,3 @@ mod panels {
     #[path = "policy.rs"]
     mod policy;
 }
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-#[cfg(all(test, target_arch = "wasm32"))]
-mod toolbar_toggle_slider_toast_tests;

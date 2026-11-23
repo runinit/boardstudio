@@ -1,27 +1,21 @@
 //! Selection-attached measurements using the Inspector's typed edit route.
-use super::matrix_transform_controller::MatrixTransformInspectorMount;
-use super::matrix_transform_inspector::NumericTransformField;
-use super::{LayoutTransformMenuMount, LayoutTransformTool};
+use super::LayoutTransformTool;
+use super::matrix_transform::{MatrixTransformInspectorMount, number};
 use crate::matrix_transform_operation::{
-    MatrixTransformField, MatrixTransformFields, column_angle,
+    MatrixTransformField as Field, MatrixTransformFields, column_angle,
 };
 use dioxus::prelude::*;
 
 #[component]
 pub fn LayoutCanvasControls(
     mount: MatrixTransformInspectorMount,
-    tools: LayoutTransformMenuMount,
+    #[props(default)] active_tool: Option<LayoutTransformTool>,
 ) -> Element {
-    let mut mounted = mount.canvas_mounted;
-    let visible = mount.projection.is_some();
-    use_effect(use_reactive((&visible,), move |(visible,)| {
-        mounted.set(visible)
-    }));
-    use_drop(move || mounted.set(false));
-    let Some(projection) = mount.projection.as_ref() else {
+    let error = use_signal(|| None::<String>);
+    let Some((_, _, fields)) = mount.parts() else {
         return rsx! {};
     };
-    let fields = match &projection.fields {
+    let rows: Vec<(Field, &str, &str, f64)> = match &fields {
         MatrixTransformFields::Column {
             stagger,
             offset,
@@ -30,115 +24,49 @@ pub fn LayoutCanvasControls(
             splay_origin,
             ..
         } => {
-            let mut fields = vec![
+            let mut rows = vec![
+                (Field::ColumnOffsetX, "Offset X", "mm", offset.x),
+                (Field::ColumnOffsetY, "Offset Y", "mm", offset.y),
+                (Field::ColumnStagger, "Stagger", "mm", *stagger),
                 (
-                    MatrixTransformField::ColumnOffsetX,
-                    "Offset X",
-                    "mm",
-                    offset.x,
-                ),
-                (
-                    MatrixTransformField::ColumnOffsetY,
-                    "Offset Y",
-                    "mm",
-                    offset.y,
-                ),
-                (
-                    MatrixTransformField::ColumnStagger,
-                    "Stagger",
-                    "mm",
-                    *stagger,
-                ),
-                (
-                    MatrixTransformField::ColumnSplay,
+                    Field::ColumnSplay,
                     "Splay",
                     "°",
                     column_angle(*splay_angle, *rotation, &(mount.splay_affect)()),
                 ),
             ];
-            if tools.active_tool == Some(LayoutTransformTool::Origin) {
-                fields.extend([
-                    (
-                        MatrixTransformField::SplayOriginX,
-                        "Origin X",
-                        "mm",
-                        splay_origin.x,
-                    ),
-                    (
-                        MatrixTransformField::SplayOriginY,
-                        "Origin Y",
-                        "mm",
-                        splay_origin.y,
-                    ),
+            if active_tool == Some(LayoutTransformTool::Origin) {
+                rows.extend([
+                    (Field::SplayOriginX, "Origin X", "mm", splay_origin.x),
+                    (Field::SplayOriginY, "Origin Y", "mm", splay_origin.y),
                 ]);
             }
-            fields
+            rows
         }
         MatrixTransformFields::Row { offset, .. } => vec![
-            (MatrixTransformField::RowOffsetX, "Offset X", "mm", offset.x),
-            (MatrixTransformField::RowOffsetY, "Offset Y", "mm", offset.y),
+            (Field::RowOffsetX, "Offset X", "mm", offset.x),
+            (Field::RowOffsetY, "Offset Y", "mm", offset.y),
         ],
         MatrixTransformFields::Matrix { origin, .. } => vec![
-            (MatrixTransformField::OriginX, "Origin X", "mm", origin.x),
-            (MatrixTransformField::OriginY, "Origin Y", "mm", origin.y),
+            (Field::OriginX, "Origin X", "mm", origin.x),
+            (Field::OriginY, "Origin Y", "mm", origin.y),
         ],
         MatrixTransformFields::Key { offset, .. } => vec![
-            (MatrixTransformField::KeyOffsetX, "Offset X", "mm", offset.x),
-            (MatrixTransformField::KeyOffsetY, "Offset Y", "mm", offset.y),
+            (Field::KeyOffsetX, "Offset X", "mm", offset.x),
+            (Field::KeyOffsetY, "Offset Y", "mm", offset.y),
         ],
     };
-    let owner_key = format!("{:?}", projection.owner);
     rsx! {
-        div {
-            class: "grid gap-1.5 text-xs text-foreground",
-            role: "group", aria_label: "Selection geometry",
-            onpointerdown: move |event| event.stop_propagation(),
-            onkeydown: move |event| event.stop_propagation(),
+        div { class: "grid gap-1.5 text-xs text-foreground", role: "group", aria_label: "Selection geometry",
+            onpointerdown: move |event| event.stop_propagation(), onkeydown: move |event| event.stop_propagation(),
             div { class: "box-border grid w-[276px] grid-cols-2 gap-2 rounded-md border border-toolbar-border bg-toolbar p-2 [&_input]:min-w-0 [&_input]:w-full [&_input]:font-mono [&_input]:text-xs [&_input]:tabular-nums",
-                for (field, label, unit, value) in fields {
-                    CanvasDimension {
-                        key: "{owner_key}-{field:?}", mount: mount.clone(), field, label, unit, value,
-                    }
+                for (field, label, unit, value) in rows {
+                    {number(&mount, field, label, unit, value, error)}
                 }
             }
-        }
-    }
-}
-
-// Separate drafts let typing on the canvas coexist with an unfinished Inspector edit.
-// Requests still share the controller's sequence, owner checks and ticket settlement.
-#[component]
-fn CanvasDimension(
-    mount: MatrixTransformInspectorMount,
-    field: MatrixTransformField,
-    label: &'static str,
-    unit: &'static str,
-    value: f64,
-) -> Element {
-    let Some((_, draft, failure)) = mount
-        .canvas_numeric_fields
-        .iter()
-        .find(|(candidate, _, _)| *candidate == field)
-    else {
-        return rsx! {};
-    };
-    let mut draft = *draft;
-    let mut failure = *failure;
-    use_hook(move || {
-        draft.set(value.to_string());
-        failure.set(None);
-    });
-    let Some(projection) = mount.projection.as_ref() else {
-        return rsx! {};
-    };
-    rsx! {
-        NumericTransformField {
-            owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
-            revision: projection.revision, field, label, unit, value,
-            display_precision: Some(4),
-            request_sequence: mount.request_sequence, editable: mount.editable,
-            feedback: mount.feedback.clone(), on_edit: mount.on_edit,
-            splay_affect: mount.splay_affect, draft, failure,
+            if let Some(message) = error() {
+                p { role: "alert", class: "text-xs text-destructive", "{message}" }
+            }
         }
     }
 }

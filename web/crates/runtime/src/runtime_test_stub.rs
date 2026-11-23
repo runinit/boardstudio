@@ -1,22 +1,16 @@
 //! Native test Runtime: Session and Core are real; browser effects use in-memory ports.
-use crate::core_services::{CoreServices, ScratchCore};
-#[cfg(any(test, feature = "test-support"))]
+use crate::core_services::CoreServices;
 use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
-    Completion, Effect, Event, OperationId, ReadModel, RequestId, SaveResult, Scope, Session,
+    Completion, Effect, Event, Landing, OperationId, ReadModel, SaveResult, Scope, Session,
+    TerminalOutcome,
 };
-use boardstudio_model::model::{CoreRequest, ProjectDoc};
+use boardstudio_model::model::ProjectDoc;
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, VecDeque},
     rc::Rc,
 };
-
-type ParkedCore = (
-    RequestId,
-    boardstudio_application::ExecutorEpoch,
-    Box<CoreRequest>,
-);
 
 /// A synchronous adapter for the browser Runtime's session-driven edit behavior.
 ///
@@ -25,20 +19,12 @@ type ParkedCore = (
 /// reaches a one-shot test gate.
 pub struct Runtime {
     session: RefCell<Session>,
-    engine: RefCell<ScratchCore>,
     services: CoreServices,
     pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     next_operation: Cell<u64>,
     saves: RefCell<BTreeMap<String, ProjectDoc>>,
-    #[cfg(any(test, feature = "test-support"))]
     gates: GateDriver,
-    #[cfg(any(test, feature = "test-support"))]
-    core_entered: Cell<bool>,
-    #[cfg(any(test, feature = "test-support"))]
     save_entered: Cell<bool>,
-    #[cfg(any(test, feature = "test-support"))]
-    parked_core: RefCell<Option<ParkedCore>>,
-    #[cfg(any(test, feature = "test-support"))]
     parked_save: RefCell<Option<(boardstudio_application::SaveAttemptId, ProjectDoc)>>,
     /// Events submitted through this Runtime, retained for read-only test assertions.
     pub events: EventLog,
@@ -70,20 +56,12 @@ impl Runtime {
     pub fn with_core(services: CoreServices) -> Rc<Self> {
         Rc::new(Self {
             session: RefCell::new(Session::new(services.validate_open)),
-            engine: RefCell::new((services.open_scratch)()),
             services,
             operation_outcomes: Default::default(),
             next_operation: Cell::new(1),
             saves: RefCell::new(BTreeMap::new()),
-            #[cfg(any(test, feature = "test-support"))]
             gates: GateDriver::default(),
-            #[cfg(any(test, feature = "test-support"))]
-            core_entered: Cell::new(false),
-            #[cfg(any(test, feature = "test-support"))]
             save_entered: Cell::new(false),
-            #[cfg(any(test, feature = "test-support"))]
-            parked_core: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
             parked_save: RefCell::new(None),
             events: EventLog::new(),
         })
@@ -95,15 +73,15 @@ impl Runtime {
     }
 
     pub fn model(&self) -> ReadModel {
-        self.session.borrow().read_model().clone()
+        self.with_model(Clone::clone)
+    }
+
+    pub fn with_model<R>(&self, f: impl FnOnce(&ReadModel) -> R) -> R {
+        f(self.session.borrow().read_model())
     }
 
     pub fn scope(&self) -> Option<Scope> {
         self.session.borrow().scope()
-    }
-
-    pub fn electrical_preview_executor_epoch(&self) -> u64 {
-        self.session.borrow().core_executor_epoch().0
     }
 
     pub fn operation(&self) -> OperationId {
@@ -124,67 +102,59 @@ impl Runtime {
         self.operation_outcomes.observe(operation)
     }
 
+    pub fn commit(
+        &self,
+        label: &str,
+        resolver: boardstudio_application::EditResolver,
+    ) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+        let operation_id = self.operation();
+        let outcome = self.submit_observed(
+            Event::ResolveEdit {
+                operation_id,
+                label: label.into(),
+                resolver,
+            },
+            Some(operation_id),
+        );
+        crate::operation_outcomes::commit_result(outcome.map(|(outcome, _)| outcome), || {
+            self.with_model(|model| model.accepted.clone())
+        })
+    }
+
     pub fn submit(&self, event: Event) {
+        self.submit_observed(event, None);
+    }
+
+    pub(crate) fn submit_observed(
+        &self,
+        event: Event,
+        observe: Option<OperationId>,
+    ) -> Option<(TerminalOutcome, Option<Landing>)> {
         self.events.push(event.clone());
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
         if self.scope() != previous_scope {
             self.operation_outcomes.retire_edit_scope();
         }
+        let result = crate::operation_outcomes::observed_outcome(&effects, observe);
         self.drive(effects.into());
+        result
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn hold_next_core(&self) {
-        self.core_entered.set(false);
-        self.gates.hold_next_core();
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn fail_next_core(&self, reason: impl Into<String>) {
-        self.gates.fail_next_core(reason);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
     pub fn hold_next_save(&self) {
         self.save_entered.set(false);
         self.gates.hold_next_save();
     }
 
-    #[cfg(any(test, feature = "test-support"))]
     pub fn fail_next_save(&self, reason: impl Into<String>) {
         self.gates.fail_next_save(reason);
     }
 
-    /// Whether the held Core request has reached the in-memory adapter.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn core_entered(&self) -> bool {
-        self.core_entered.get()
-    }
-
     /// Whether the held save has reached the in-memory adapter.
-    #[cfg(any(test, feature = "test-support"))]
     pub fn save_entered(&self) -> bool {
         self.save_entered.get()
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn release_core(&self) {
-        let Some((request_id, executor_epoch, request)) = self.parked_core.borrow_mut().take()
-        else {
-            panic!("no parked Core request");
-        };
-        self.core_entered.set(false);
-        let reply = (self.engine.borrow_mut())(*request);
-        let effects = self.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        self.drive(effects.into());
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
     pub fn release_save(&self) {
         let Some((save_attempt_id, document)) = self.parked_save.borrow_mut().take() else {
             panic!("no parked save");
@@ -220,12 +190,6 @@ impl Runtime {
     fn drive(&self, mut effects: VecDeque<Effect>) {
         while let Some(effect) = effects.pop_front() {
             match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => effects.extend(self.run_core(request_id, executor_epoch, request)),
                 Effect::Persist {
                     save_attempt_id,
                     document,
@@ -234,13 +198,9 @@ impl Runtime {
                 Effect::Settled {
                     operation_id,
                     outcome,
-                    landing,
+                    ..
                 } => {
-                    self.operation_outcomes
-                        .settle_with_landing(operation_id, outcome, landing);
-                }
-                Effect::RestartCoreExecutor { executor_epoch } => {
-                    effects.extend(self.complete(Completion::ExecutorRestarted { executor_epoch }));
+                    self.operation_outcomes.settle(operation_id, outcome);
                 }
                 _ => {}
             }
@@ -249,39 +209,6 @@ impl Runtime {
 }
 
 impl Runtime {
-    #[cfg(any(test, feature = "test-support"))]
-    fn run_core(
-        &self,
-        request_id: RequestId,
-        executor_epoch: boardstudio_application::ExecutorEpoch,
-        request: Box<CoreRequest>,
-    ) -> VecDeque<Effect> {
-        match self.gates.take_core() {
-            Some(OneShotBehavior::Fail(reason)) => self
-                .complete(Completion::CoreFailed {
-                    request_id,
-                    executor_epoch,
-                    reason,
-                })
-                .into(),
-            Some(OneShotBehavior::Hold) => {
-                self.core_entered.set(true);
-                *self.parked_core.borrow_mut() = Some((request_id, executor_epoch, request));
-                VecDeque::new()
-            }
-            None => {
-                let reply = (self.engine.borrow_mut())(*request);
-                self.complete(Completion::Core {
-                    request_id,
-                    executor_epoch,
-                    reply: Box::new(reply),
-                })
-                .into()
-            }
-        }
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
     fn run_save(
         &self,
         save_attempt_id: boardstudio_application::SaveAttemptId,
