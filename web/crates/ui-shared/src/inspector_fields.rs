@@ -88,11 +88,12 @@ fn attempt_commit(
         return;
     }
     state.focused.set(false);
-    if validate(&draft()).is_some() {
+    let current_draft = draft.peek().clone();
+    if validate(&current_draft).is_some() {
         state.failed_at.set(Some(accepted.to_owned()));
     } else {
         state.failed_at.set(None);
-        commit(draft());
+        commit(current_draft);
     }
 }
 
@@ -132,6 +133,7 @@ fn commit_field_row(
     let internal = failed_at()
         .filter(|at| at == &accepted)
         .and_then(|_| validate(&draft()));
+    let has_internal_error = internal.is_some();
     let commit = on_commit_text;
     let on_input = move |e: FormEvent| {
         focused.set(true);
@@ -139,10 +141,14 @@ fn commit_field_row(
         draft.set(e.value());
     };
     let on_focus = move |_| {
-        draft.set(focus_value.clone());
+        if failed_at.peek().as_deref() != Some(focus_value.as_str()) {
+            draft.set(focus_value.clone());
+            dirty.set(false);
+            failed_at.set(None);
+        } else {
+            dirty.set(true);
+        }
         focused.set(true);
-        dirty.set(false);
-        failed_at.set(None);
     };
     let on_blur = move |_| {
         attempt_commit(state, draft, &accepted_blur, &validate_blur, |next| {
@@ -165,7 +171,7 @@ fn commit_field_row(
     };
     let message = spec.error.clone().or(internal);
     let failed = message.is_some();
-    let shown = if focused() || failed {
+    let shown = if focused() || has_internal_error {
         draft()
     } else {
         accepted
@@ -748,26 +754,42 @@ mod commit_field_tests {
     }
 
     #[test]
-    fn external_error_renders_field_error_wiring() {
-        fn fixture() -> Element {
+    fn external_error_renders_field_error_wiring_and_tracks_accepted() {
+        #[component]
+        fn Probe(value: String) -> Element {
             rsx! {
                 TextCommitField {
                     label: "Name",
                     id: "probe-text",
-                    value: "",
+                    value,
                     error: "Required",
                     on_commit: |_| {},
                 }
             }
         }
+        fn fixture() -> Element {
+            let mut val = use_signal(|| "Initial".to_owned());
+            if val.peek().as_str() == "Initial" {
+                val.set("Updated".to_owned());
+            }
+            rsx! { Probe { value: val() } }
+        }
         let mut dom = VirtualDom::new(fixture);
-        let rendered = format!("{:?}", dom.rebuild_to_vec());
+        let mut mutations = dioxus_core::Mutations::default();
+        dom.rebuild(&mut mutations);
+        dom.render_immediate(&mut mutations);
+        let rendered = format!("{mutations:?}");
         assert!(
-            rendered.contains("aria-invalid"),
+            rendered.contains("Updated"),
+            "unfocused field with external error must track accepted updates: {rendered}"
+        );
+        let dom_view = format!("{:?}", dom.rebuild_to_vec());
+        assert!(
+            dom_view.contains("aria-invalid"),
             "error flags aria-invalid"
         );
         assert!(
-            rendered.contains("probe-text-error"),
+            dom_view.contains("probe-text-error"),
             "error links describedby"
         );
     }
