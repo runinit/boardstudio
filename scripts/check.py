@@ -476,18 +476,27 @@ def overlap_span(plan):
         if OVERLAP_STEPS <= names:
             # Only the plain Cargo page can reuse CSS while WASM Clippy reads it.
             if importlib.import_module("build-web").page_tools(quiet=True):
+                if end < len(plan) and plan[end] == ("browser", STEPS["browser"][1]):
+                    end += 1
                 return start, end
             return None
     return None
 
 
-def run_overlapped_steps(group, update_native_baseline):
+def run_overlapped_steps(group, update_native_baseline, *, keep_going=False):
     env = os.environ.copy()
+    include_browser = any(name == "browser" for name, _ in group)
     with tempfile.TemporaryDirectory(prefix="check-compile-") as temporary:
         with overlap_jobserver(Path(temporary), os.cpu_count() or OVERLAP_MIN_CPUS) as flags:
             batch = []
             for name, _ in group:
-                command = [sys.executable, "scripts/check.py", name]
+                if name == "browser":
+                    continue
+                if name == "build" and include_browser:
+                    command = [sys.executable, "scripts/check.py", "build", "browser",
+                               *(["--keep-going"] if keep_going else [])]
+                else:
+                    command = [sys.executable, "scripts/check.py", name]
                 if name == "test" and update_native_baseline:
                     command.append("--update-native-baseline")
                 child_env = dict(env, MAKEFLAGS=flags, **{IN_OVERLAP_ENV: "1"})
@@ -546,7 +555,9 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, totals=No
                 return 1
             group = plan[index:span[1]]
             group_name = "/".join(name for name, _ in group)
-            totals[group_name], passed = run_overlapped_steps(group, update_native_baseline)
+            totals[group_name], passed = run_overlapped_steps(
+                group, update_native_baseline, keep_going=keep_going
+            )
             if not passed:
                 return 1
             state["css"] = True

@@ -97,7 +97,7 @@ class CheckTests(unittest.TestCase):
             events.append(command)
             return 0, 0
 
-        def overlap(group, _):
+        def overlap(group, _, **_kwargs):
             events.append(group)
             return 0, True
 
@@ -114,6 +114,23 @@ class CheckTests(unittest.TestCase):
             self.assertIsNone(check.overlap_span([*plan[:2], ("build", []), *plan[3:]]))
             with patch.dict(os.environ, {"CI": "1"}):
                 self.assertIsNone(check.overlap_span(plan))
+
+    def test_overlap_chains_browser_onto_build_lane_in_full_plan(self):
+        names = ["repo", "tooling", "build", "lint", "test", "browser"]
+        plan = [(name, check.STEPS[name][1]) for name in names]
+        with patch.dict(os.environ, {"CI": "", "MAKEFLAGS": ""}), \
+             patch.object(check.os, "cpu_count", return_value=8), \
+             patch.object(check, "check_jobs", return_value=6), \
+             patch.object(importlib.import_module("build-web"), "page_tools", return_value=True), \
+             patch.object(check, "run_parallel", return_value=(0, True)) as parallel:
+            self.assertEqual(check.overlap_span(plan), (0, 6))
+            self.assertEqual(check.run_overlapped_steps(plan, False, keep_going=True), (0, True))
+        batch = [lane[0] for lane in parallel.call_args.args[0]]
+        self.assertEqual([cmd[2:] for cmd, _, _ in batch], [
+            ["repo"], ["tooling"], ["build", "browser", "--keep-going"], ["lint"], ["test"],
+        ])
+        with patch.dict(os.environ, {"CI": "1"}):
+            self.assertIsNone(check.overlap_span(plan))
 
     def test_parallel_native_gate_only_receives_workspace_cargo_output(self):
         commands = check.STEPS["test"][1]
