@@ -11,13 +11,13 @@ pub(super) enum ProfileTargetKind {
     ImportedGeometry,
 }
 
-pub(super) fn validate_profile_target(
-    document: &ProjectDoc,
+pub(super) fn validate_profile_target<'a>(
+    document: &'a ProjectDoc,
     board_id: &str,
     configuration: &MechanicalConfiguration,
     definition_id: &str,
     target_kind: ProfileTargetKind,
-) -> Result<(), String> {
+) -> Result<(&'a Part, &'a PartDefinition), String> {
     if configuration.board_id != board_id {
         return Err("The mechanical configuration belongs to another board.".into());
     }
@@ -41,22 +41,43 @@ pub(super) fn validate_profile_target(
         .definitions
         .iter()
         .find(|definition| definition.id == definition_id);
-    let eligible = match (part, definition) {
-        (Some(_), Some(definition)) if matches!(target_kind, ProfileTargetKind::Switch) => {
-            definition.kind == PartKind::Switch
-                || definition
-                    .generator
-                    .as_ref()
-                    .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
-        }
-        (Some(_), Some(_)) if matches!(target_kind, ProfileTargetKind::Stabilizer) => true,
-        (Some(_), Some(definition)) => definition.kicad_source.is_some(),
-        _ => false,
-    };
-    if !eligible {
-        return Err("The selected part type is not available for this profile assignment.".into());
+    part.zip(definition)
+        .filter(|(_, definition)| match target_kind {
+            ProfileTargetKind::Switch => {
+                definition.kind == PartKind::Switch
+                    || definition
+                        .generator
+                        .as_ref()
+                        .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
+            }
+            ProfileTargetKind::Stabilizer => true,
+            ProfileTargetKind::ImportedGeometry => definition.kicad_source.is_some(),
+        })
+        .ok_or_else(|| {
+            "The selected part type is not available for this profile assignment.".into()
+        })
+}
+
+pub(super) fn find_item_mut<'a, T>(
+    items: &'a mut [T],
+    matches: impl Fn(&T) -> bool,
+    unavailable: &str,
+) -> Result<&'a mut T, String> {
+    items
+        .iter_mut()
+        .find(|item| matches(item))
+        .ok_or_else(|| unavailable.into())
+}
+
+pub(super) fn upsert_item<T>(items: &mut Vec<T>, value: T, key: impl Fn(&T) -> &str) {
+    if let Some(existing) = items
+        .iter_mut()
+        .find(|existing| key(existing) == key(&value))
+    {
+        *existing = value;
+    } else {
+        items.push(value);
     }
-    Ok(())
 }
 
 pub(super) fn mount_collection_mut(
@@ -318,11 +339,11 @@ pub(super) fn validate_dimension(field: MechanicalDimension, value: f64) -> Resu
         | MechanicalDimension::BatteryDepth
         | MechanicalDimension::BatteryHeight
         | MechanicalDimension::BatteryCableWidth
-        | MechanicalDimension::HardwareLength => value >= 0.1,
+        | MechanicalDimension::HardwareLength
+        | MechanicalDimension::OpeningHeight => value >= 0.1,
         MechanicalDimension::HardwareQuantity => {
             value >= 1.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX)
         }
-        MechanicalDimension::OpeningHeight => value >= 0.1,
         MechanicalDimension::GasketSupportLength => value >= 5.0,
         MechanicalDimension::GasketSupportWidth => value >= 0.5,
         MechanicalDimension::OpeningBottomZ

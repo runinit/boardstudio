@@ -4,7 +4,7 @@ use super::super::change::{
     MechanicalHardwareTextField, MechanicalMountCollection,
 };
 use super::super::inferred_switch_family;
-use super::validation::validate_gasket_anchor_selection;
+use super::validation::{find_item_mut, upsert_item, validate_gasket_anchor_selection};
 use super::{
     IdentityFloor, ProfileTargetKind, closure_hardware_mut, critical_fit_mut,
     family_assignment_changes, hardware_mut, identity_index_for, initial_switch_family,
@@ -16,6 +16,11 @@ use super::{
     validate_profile_target,
 };
 use crate::model::*;
+
+const OPENING_UNAVAILABLE: &str = "The selected access opening is no longer available.";
+const VERTEX_UNAVAILABLE: &str = "The selected opening vertex is no longer available.";
+const MOUNT_UNAVAILABLE: &str = "The selected mount is no longer available.";
+
 fn upsert_gasket_anchors(
     configuration: &mut MechanicalConfiguration,
     support_id: &str,
@@ -33,15 +38,7 @@ fn upsert_gasket_anchors(
         let mut anchor = source.clone();
         mutate(&mut anchor);
         anchor.placement = Some(GasketPlacement::User);
-        if let Some(existing) = layout
-            .supports
-            .iter_mut()
-            .find(|entry| entry.id == anchor.id)
-        {
-            *existing = anchor;
-        } else {
-            layout.supports.push(anchor);
-        }
+        upsert_item(&mut layout.supports, anchor, |entry| &entry.id);
     }
     changed.push(support_id.to_owned());
     Ok(())
@@ -54,6 +51,25 @@ fn remove_item<T>(
     let items = items.ok_or(unavailable)?;
     let index = items.iter().position(matches).ok_or(unavailable)?;
     Ok(items.remove(index))
+}
+
+fn opening_mut<'a>(
+    openings: &'a mut [MechanicalOpening],
+    id: &str,
+) -> Result<&'a mut MechanicalOpening, String> {
+    find_item_mut(openings, |opening| opening.id == id, OPENING_UNAVAILABLE)
+}
+
+fn mount_mut<'a>(
+    configuration: &'a mut MechanicalConfiguration,
+    collection: MechanicalMountCollection,
+    id: &str,
+) -> Result<&'a mut Mount, String> {
+    find_item_mut(
+        mount_collection_mut(configuration, collection),
+        |mount| mount.id == id,
+        MOUNT_UNAVAILABLE,
+    )
 }
 
 /// Reference defaults for a board that has no stored configuration.
@@ -226,29 +242,14 @@ pub(super) fn apply_change(
             changed.push(definition_id.clone());
         }
         MechanicalChange::AssignImportedGeometryProfile { definition_id } => {
-            validate_profile_target(
+            let (part, definition) = validate_profile_target(
                 document,
                 board_id,
                 configuration,
                 definition_id,
                 ProfileTargetKind::ImportedGeometry,
             )?;
-            let definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == *definition_id)
-                .ok_or_else(|| "The imported part definition is no longer available.".to_owned())?;
-            let family = document
-                .parts
-                .iter()
-                .find(|part| {
-                    part.definition_id == *definition_id
-                        && document
-                            .boards
-                            .iter()
-                            .any(|board| board.id == *board_id && board.part_ids.contains(&part.id))
-                })
-                .and_then(|part| inferred_switch_family(part, definition));
+            let family = inferred_switch_family(part, definition);
             configuration.profiles.push(MechanicalPartProfile {
                 source_geometry: None,
                 pcb_holes: None,
@@ -409,24 +410,15 @@ pub(super) fn apply_change(
             field,
             value,
         } => {
-            if !matches!(
-                *field,
-                MechanicalDimension::CriticalFitFromX
-                    | MechanicalDimension::CriticalFitFromY
-                    | MechanicalDimension::CriticalFitToX
-                    | MechanicalDimension::CriticalFitToY
-            ) {
-                return Err("The selected critical-fit endpoint is unavailable.".into());
-            }
-            validate_dimension(*field, *value)?;
-            let fit = critical_fit_mut(configuration, fit_id)?;
-            match field {
-                MechanicalDimension::CriticalFitFromX => fit.from.x = *value,
-                MechanicalDimension::CriticalFitFromY => fit.from.y = *value,
-                MechanicalDimension::CriticalFitToX => fit.to.x = *value,
-                MechanicalDimension::CriticalFitToY => fit.to.y = *value,
+            let endpoint: fn(&mut MechanicalCriticalFit) -> &mut f64 = match field {
+                MechanicalDimension::CriticalFitFromX => |fit| &mut fit.from.x,
+                MechanicalDimension::CriticalFitFromY => |fit| &mut fit.from.y,
+                MechanicalDimension::CriticalFitToX => |fit| &mut fit.to.x,
+                MechanicalDimension::CriticalFitToY => |fit| &mut fit.to.y,
                 _ => return Err("The selected critical-fit endpoint is unavailable.".into()),
-            }
+            };
+            validate_dimension(*field, *value)?;
+            *endpoint(critical_fit_mut(configuration, fit_id)?) = *value;
             changed.push(fit_id.clone());
         }
         MechanicalChange::AddHardware {
@@ -507,16 +499,17 @@ pub(super) fn apply_change(
             value,
         } => {
             let entry = hardware_mut(configuration, hardware_id)?;
-            match field {
-                MechanicalDimension::HardwareLength => {
-                    validate_dimension(*field, *value)?;
-                    entry.length = *value;
-                }
-                MechanicalDimension::HardwareQuantity => {
-                    validate_dimension(*field, *value)?;
-                    entry.quantity = *value as u32;
-                }
-                _ => return Err("The selected hardware dimension is unavailable.".into()),
+            if !matches!(
+                field,
+                MechanicalDimension::HardwareLength | MechanicalDimension::HardwareQuantity
+            ) {
+                return Err("The selected hardware dimension is unavailable.".into());
+            }
+            validate_dimension(*field, *value)?;
+            if *field == MechanicalDimension::HardwareLength {
+                entry.length = *value;
+            } else {
+                entry.quantity = *value as u32;
             }
             changed.push(hardware_id.clone());
         }
@@ -551,19 +544,13 @@ pub(super) fn apply_change(
             let removed = remove_item(
                 configuration.openings.as_mut(),
                 |item| item.id == *opening_id,
-                "The selected access opening is no longer available.",
+                OPENING_UNAVAILABLE,
             )?;
             changed.push(removed.id);
         }
         MechanicalChange::AddOpeningVertex { opening_id } => {
-            let openings = configuration
-                .openings
-                .as_mut()
-                .ok_or("The selected access opening is no longer available.")?;
-            let opening = openings
-                .iter_mut()
-                .find(|opening| opening.id == *opening_id)
-                .ok_or("The selected access opening is no longer available.")?;
+            let openings = configuration.openings.as_deref_mut().unwrap_or_default();
+            let opening = opening_mut(openings, opening_id)?;
             // Reserved from the opening's own monotonic counter, so a removed vertex
             // id can never be handed out again within that opening.
             let vertex_id = reserve_vertex_identity(opening, identity_floor.vertex)?;
@@ -580,23 +567,13 @@ pub(super) fn apply_change(
             opening_id,
             vertex_id,
         } => {
-            let openings = configuration
-                .openings
-                .as_mut()
-                .ok_or("The selected access opening is no longer available.")?;
-            let opening = openings
-                .iter_mut()
-                .find(|opening| opening.id == *opening_id)
-                .ok_or("The selected access opening is no longer available.")?;
+            let openings = configuration.openings.as_deref_mut().unwrap_or_default();
+            let opening = opening_mut(openings, opening_id)?;
             let matches = |vertex: &MechanicalOpeningVertex| vertex.id == *vertex_id;
             if opening.vertices.len() <= 3 && opening.vertices.iter().any(matches) {
                 return Err("An opening footprint needs at least three vertices.".into());
             }
-            let removed = remove_item(
-                Some(&mut opening.vertices),
-                matches,
-                "The selected opening vertex is no longer available.",
-            )?;
+            let removed = remove_item(Some(&mut opening.vertices), matches, VERTEX_UNAVAILABLE)?;
             let opening_id = opening.id.clone();
             validate_openings(openings)?;
             changed.extend([opening_id, removed.id]);
@@ -607,49 +584,42 @@ pub(super) fn apply_change(
             field,
             value,
         } => {
-            let is_volume_field = matches!(
-                *field,
-                MechanicalDimension::OpeningBottomZ | MechanicalDimension::OpeningHeight
-            );
-            let is_point_field = matches!(
-                *field,
-                MechanicalDimension::OpeningPointX | MechanicalDimension::OpeningPointY
-            );
-            if !(is_volume_field && vertex_id.is_none() || is_point_field && vertex_id.is_some()) {
+            if !matches!(
+                (field, vertex_id),
+                (
+                    MechanicalDimension::OpeningBottomZ | MechanicalDimension::OpeningHeight,
+                    None
+                ) | (
+                    MechanicalDimension::OpeningPointX | MechanicalDimension::OpeningPointY,
+                    Some(_)
+                )
+            ) {
                 return Err("The selected opening field is unavailable.".into());
             }
             validate_dimension(*field, *value)?;
-            let openings = configuration
-                .openings
-                .as_mut()
-                .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
-            let opening = openings
-                .iter_mut()
-                .find(|opening| opening.id == *opening_id)
-                .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
+            let opening = opening_mut(
+                configuration.openings.as_deref_mut().unwrap_or_default(),
+                opening_id,
+            )?;
             if let Some(vertex_id) = vertex_id {
-                let vertex = opening
-                    .vertices
-                    .iter_mut()
-                    .find(|vertex| vertex.id == *vertex_id)
-                    .ok_or_else(|| {
-                        "The selected opening vertex is no longer available.".to_owned()
-                    })?;
-                match field {
-                    MechanicalDimension::OpeningPointX => vertex.point.x = *value,
-                    MechanicalDimension::OpeningPointY => vertex.point.y = *value,
-                    _ => return Err("The selected opening field is unavailable.".into()),
+                let vertex = find_item_mut(
+                    &mut opening.vertices,
+                    |vertex| vertex.id == *vertex_id,
+                    VERTEX_UNAVAILABLE,
+                )?;
+                if *field == MechanicalDimension::OpeningPointX {
+                    vertex.point.x = *value;
+                } else {
+                    vertex.point.y = *value;
                 }
-                let opening_id = opening.id.clone();
-                changed.push(opening_id);
-                changed.push(vertex_id.clone());
+                changed.extend([opening_id.clone(), vertex_id.clone()]);
             } else {
-                match field {
-                    MechanicalDimension::OpeningBottomZ => opening.z = *value,
-                    MechanicalDimension::OpeningHeight => opening.height = *value,
-                    _ => return Err("The selected opening field is unavailable.".into()),
+                if *field == MechanicalDimension::OpeningBottomZ {
+                    opening.z = *value;
+                } else {
+                    opening.height = *value;
                 }
-                changed.push(opening.id.clone());
+                changed.push(opening_id.clone());
             }
         }
         MechanicalChange::SetMethod(method) => configuration.method = method.clone(),
@@ -781,11 +751,7 @@ pub(super) fn apply_change(
             value,
         } => {
             validate_dimension(*field, *value)?;
-            let mounts = mount_collection_mut(configuration, *collection);
-            let mount = mounts
-                .iter_mut()
-                .find(|mount| mount.id == *mount_id)
-                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            let mount = mount_mut(configuration, *collection, mount_id)?;
             match field {
                 MechanicalDimension::MountPositionX => mount.at.x = *value,
                 MechanicalDimension::MountPositionY => mount.at.y = *value,
@@ -806,11 +772,7 @@ pub(super) fn apply_change(
             if mount_id.is_empty() || !at.x.is_finite() || !at.y.is_finite() {
                 return Err("Mount positions must be finite values.".into());
             }
-            let mounts = mount_collection_mut(configuration, *collection);
-            let mount = mounts
-                .iter_mut()
-                .find(|mount| mount.id == *mount_id)
-                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            let mount = mount_mut(configuration, *collection, mount_id)?;
             mount.at = *at;
             changed.push(mount_id.clone());
         }
@@ -819,11 +781,7 @@ pub(super) fn apply_change(
             mount_id,
             kind,
         } => {
-            let mounts = mount_collection_mut(configuration, *collection);
-            let mount = mounts
-                .iter_mut()
-                .find(|mount| mount.id == *mount_id)
-                .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
+            let mount = mount_mut(configuration, *collection, mount_id)?;
             mount.kind = kind.clone();
             changed.push(mount_id.clone());
         }
@@ -832,7 +790,7 @@ pub(super) fn apply_change(
             mount_id,
         } => {
             if mount_id.is_empty() {
-                return Err("The selected mount is no longer available.".into());
+                return Err(MOUNT_UNAVAILABLE.into());
             }
             if *collection == MechanicalMountCollection::Suspension
                 && configuration.mount == MechanicalMount::Gasket
@@ -842,7 +800,7 @@ pub(super) fn apply_change(
             let removed = remove_item(
                 Some(mount_collection_mut(configuration, *collection)),
                 |mount| mount.id == *mount_id,
-                "The selected mount is no longer available.",
+                MOUNT_UNAVAILABLE,
             )?;
             changed.push(removed.id);
         }
@@ -1158,14 +1116,7 @@ pub(super) fn apply_change(
                 return Err("The selected wide key no longer needs a stabilizer.".into());
             }
             let values = configuration.stabilizers.get_or_insert_with(Vec::new);
-            if let Some(existing) = values
-                .iter_mut()
-                .find(|existing| existing.part_id == stabilizer.part_id)
-            {
-                *existing = stabilizer.clone();
-            } else {
-                values.push(stabilizer.clone());
-            }
+            upsert_item(values, stabilizer.clone(), |entry| &entry.part_id);
             changed.push(stabilizer.part_id.clone());
         }
     }

@@ -188,31 +188,14 @@ fn preserve_identity_reservations(
     before: &MechanicalConfiguration,
     after: &mut MechanicalConfiguration,
 ) -> Result<(), String> {
-    let accepted = identity_reservation_of(before);
-    let requested = identity_reservation_of(after);
-    let reserved = reserved_identity_floor(document, target);
-    let floor = IdentityFloor {
-        opening: reserved
-            .opening
-            .max(accepted.next_opening_identity.saturating_sub(1))
-            .max(requested.next_opening_identity.saturating_sub(1)),
-        vertex: reserved
-            .vertex
-            .max(accepted.next_vertex_identity.saturating_sub(1))
-            .max(requested.next_vertex_identity.saturating_sub(1)),
-        critical_fit: reserved
-            .critical_fit
-            .max(accepted.next_critical_fit_identity.saturating_sub(1))
-            .max(requested.next_critical_fit_identity.saturating_sub(1)),
-        hardware: reserved
-            .hardware
-            .max(accepted.next_hardware_identity.saturating_sub(1))
-            .max(requested.next_hardware_identity.saturating_sub(1)),
-        mount: reserved
-            .mount
-            .max(accepted.next_mount_identity.saturating_sub(1))
-            .max(requested.next_mount_identity.saturating_sub(1)),
-    };
+    let next = identity_reservation_of(before).merged(identity_reservation_of(after));
+    let floor = reserved_identity_floor(document, target).merged(IdentityFloor {
+        opening: next.next_opening_identity.saturating_sub(1),
+        vertex: next.next_vertex_identity.saturating_sub(1),
+        critical_fit: next.next_critical_fit_identity.saturating_sub(1),
+        hardware: next.next_hardware_identity.saturating_sub(1),
+        mount: next.next_mount_identity.saturating_sub(1),
+    });
     merge_identity_floor(after, floor)
 }
 

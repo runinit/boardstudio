@@ -2,8 +2,8 @@
 use super::mechanical_extract::circular_arc_parameters;
 use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{
-    arc_sweep_through_mid, atom, chain_loop_from, child, children, circumcenter, decoded_text,
-    head, items,
+    NumberError, atom, atom_at, chain_loop_from, child, children, decoded_text, head,
+    is_back_layer, items, parse_finite, sample_arc, three_point_arc,
 };
 use crate::model::*;
 use boardstudio_contracts::polygon_contains;
@@ -14,7 +14,7 @@ fn error(message: impl Into<String>) -> ArtifactError {
     ArtifactError::new(ArtifactErrorCode::ParseError, message)
 }
 fn value(n: &Node, i: usize) -> &str {
-    items(n).and_then(|v| v.get(i)).and_then(atom).unwrap_or("")
+    atom_at(n, i).unwrap_or("")
 }
 /// A quoted text value decoded from the raw source, so control escapes agree with
 /// the export instead of the CST's lossy generic unescaping.
@@ -29,10 +29,11 @@ fn number(n: &Node, i: usize, fallback: f64) -> Result<f64, ArtifactError> {
     if s.is_empty() {
         return Ok(fallback);
     }
-    let v: f64 = s
-        .parse()
-        .map_err(|_| error(format!("Invalid numeric board value: {s}")))?;
-    if !v.is_finite() || v.abs() > 1e7 {
+    let v = parse_finite(s).map_err(|failure| match failure {
+        NumberError::Invalid => error(format!("Invalid numeric board value: {s}")),
+        NumberError::NonFinite => error("Board coordinate is outside preview limits"),
+    })?;
+    if v.abs() > 1e7 {
         return Err(error("Board coordinate is outside preview limits"));
     }
     Ok(v)
@@ -118,22 +119,12 @@ fn arc(n: &Node) -> Result<Vec<Vec2>, ArtifactError> {
         let b = child(n, "mid")
             .map(point)
             .ok_or_else(|| error("Arc needs either a midpoint or a legacy angle"))??;
-        let (o, radius) =
-            circumcenter(a, b, c, 1e-10).ok_or_else(|| error("Degenerate board arc"))?;
-        let (start, sweep) = arc_sweep_through_mid(o, a, b, c);
-        (o, start, sweep, radius)
+        three_point_arc(a, b, c, 1e-10).ok_or_else(|| error("Degenerate board arc"))?
     };
     let steps = ((radius * sweep.abs() / 0.1).ceil() as usize).clamp(8, 2048);
-    Ok((0..=steps)
-        .map(|i| {
-            let t = start + sweep * i as f64 / steps as f64;
-            Vec2 {
-                x: o.x + radius * t.cos(),
-                y: o.y + radius * t.sin(),
-            }
-        })
-        .collect())
+    Ok(sample_arc(o, start, sweep, radius, steps))
 }
+
 fn surface(layer: String, points: Vec<Vec2>, width: f64, filled: bool) -> PcbSurface {
     PcbSurface {
         layer,
@@ -430,7 +421,7 @@ pub fn board_parsed(
         match head(n).unwrap_or("") {
             "footprint" | "module" => {
                 let fp = pose(n)?;
-                let side = if child(n, "layer").is_some_and(|n| value(n, 1).starts_with("B.")) {
+                let side = if is_back_layer(n) {
                     Side::Back
                 } else {
                     Side::Front

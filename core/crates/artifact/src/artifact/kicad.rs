@@ -31,13 +31,9 @@ fn num(value: f64) -> Result<String, ArtifactError> {
     if !value.is_finite() || value.abs() > MAX_COORD {
         return Err(validation(format!("Invalid KiCad coordinate: {value}")));
     }
-    let rounded = format!("{value:.6}")
-        .parse::<f64>()
-        .map_err(|_| validation(format!("Invalid KiCad coordinate: {value}")))?;
-    if rounded == 0.0 {
-        return Ok("0".into());
-    }
-    Ok(rounded.to_string())
+    let rounded = sexpr::format_decimal(value);
+    // Generated board coordinates canonicalize rounded negative zero.
+    Ok(if rounded == "-0" { "0".into() } else { rounded })
 }
 
 fn q(value: &str) -> Result<String, ArtifactError> {

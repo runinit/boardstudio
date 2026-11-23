@@ -393,10 +393,8 @@ pub fn circular_arc_parameters(
     legacy_sweep_degrees: Option<f64>,
 ) -> Result<(Vec2, f64, f64, f64), ArtifactError> {
     let (center, first, sweep, radius) = if let (Some(mid), None) = (mid, legacy_sweep_degrees) {
-        let (center, radius) = sexpr::circumcenter(start, mid, end, 1e-12)
-            .ok_or_else(|| validation("Degenerate plate-cutout arc"))?;
-        let (first, sweep) = sexpr::arc_sweep_through_mid(center, start, mid, end);
-        (center, first, sweep, radius)
+        sexpr::three_point_arc(start, mid, end, 1e-12)
+            .ok_or_else(|| validation("Degenerate plate-cutout arc"))?
     } else if let (None, Some(degrees)) = (mid, legacy_sweep_degrees) {
         super::legacy_arc_parameters(start, end, degrees)
             .ok_or_else(|| validation("Degenerate legacy plate-cutout arc"))?
@@ -422,15 +420,7 @@ fn tessellate_arc(
             .clamp(-1.0, 1.0)
             .acos();
     let count = (sweep.abs() / max_step.max(0.001)).ceil().max(2.0) as usize;
-    Ok((0..=count)
-        .map(|index| {
-            let angle = first + sweep * index as f64 / count as f64;
-            Vec2 {
-                x: center.x + radius * angle.cos(),
-                y: center.y + radius * angle.sin(),
-            }
-        })
-        .collect())
+    Ok(sexpr::sample_arc(center, first, sweep, radius, count))
 }
 
 fn resolve_purpose(
@@ -602,24 +592,18 @@ fn graphic_width(node: &Node) -> Option<&str> {
 }
 
 fn scalar(node: &Node) -> Option<&str> {
-    sexpr::items(node)
-        .and_then(|items| items.get(1))
-        .and_then(sexpr::atom)
+    sexpr::atom_at(node, 1)
 }
 
 fn point(node: &Node) -> Result<Vec2, ArtifactError> {
-    let values = sexpr::items(node).ok_or_else(|| validation("Expected a coordinate pair"))?;
-    let x = values
-        .get(1)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| validation("Coordinate needs x"))
-        .and_then(parse_finite)?;
-    let y = values
-        .get(2)
-        .and_then(sexpr::atom)
-        .ok_or_else(|| validation("Coordinate needs y"))
-        .and_then(parse_finite)?;
-    Ok(Vec2 { x, y: -y })
+    sexpr::items(node).ok_or_else(|| validation("Expected a coordinate pair"))?;
+    let coordinate = |index, missing| {
+        parse_finite(sexpr::atom_at(node, index).ok_or_else(|| validation(missing))?)
+    };
+    Ok(Vec2 {
+        x: coordinate(1, "Coordinate needs x")?,
+        y: -coordinate(2, "Coordinate needs y")?,
+    })
 }
 
 fn required_child<'a>(
@@ -631,13 +615,10 @@ fn required_child<'a>(
 }
 
 fn parse_finite(value: &str) -> Result<f64, ArtifactError> {
-    let parsed = value
-        .parse::<f64>()
-        .map_err(|_| validation(format!("Invalid mechanical dimension: {value}")))?;
-    if !parsed.is_finite() {
-        return Err(validation("Mechanical dimensions must be finite"));
-    }
-    Ok(parsed)
+    sexpr::parse_finite(value).map_err(|failure| match failure {
+        sexpr::NumberError::Invalid => validation(format!("Invalid mechanical dimension: {value}")),
+        sexpr::NumberError::NonFinite => validation("Mechanical dimensions must be finite"),
+    })
 }
 
 fn parse_error(message: impl Into<String>) -> ArtifactError {
