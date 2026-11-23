@@ -549,12 +549,17 @@ pub(super) fn generate(
                 .tracks
                 .iter()
                 .filter_map(|track| {
-                    mirrored_candidate(
-                        region,
-                        track,
-                        reflected,
-                        track_fraction(track, reflected).clamp(0., 1.),
-                    )
+                    // Preserve exact `length * length` denominator for outer track ULP stability.
+                    let delta = Vec2 {
+                        x: track.end.x - track.start.x,
+                        y: track.end.y - track.start.y,
+                    };
+                    let length = distance(track.start, track.end);
+                    let fraction = (((reflected.x - track.start.x) * delta.x
+                        + (reflected.y - track.start.y) * delta.y)
+                        / (length * length))
+                        .clamp(0., 1.);
+                    mirrored_candidate(region, track, reflected, fraction)
                 })
                 .min_by(|a, b| distance(a.at, reflected).total_cmp(&distance(b.at, reflected)))
                 .filter(|c| distance(c.at, reflected) < 0.001);

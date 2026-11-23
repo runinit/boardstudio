@@ -433,22 +433,24 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
     // Upstream throws on ref+aggregate (anchor.js:96-98): a document naming a
     // real single key AND an aggregate arm must be refused at admission.
     let thumb = thumb_matrix(average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]));
-    // A real single key next to the aggregate arm: both arms are populated,
-    // so the union grammar must refuse the document. The refusal lives in
-    // anchor deserialization, so the offending document goes through the
-    // wire open path while the valid baseline uses the typed path.
-    let (mut engine, _, accepted) = Session::opened(typed_doc(
+    let mut document = serde_json::to_value(typed_doc(
         typed_main(vec![]),
         vec![thumb],
         vec!["main", "thumb"],
-    ));
-    let mut both = serde_json::to_value(&accepted).unwrap();
-    let anchor = &mut both["matrices"][1]["anchor"];
+    ))
+    .unwrap();
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "baseline", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let accepted = wire_snapshot_doc(&mut engine);
+    // A real single key next to the aggregate arm: both arms are populated,
+    // so the union grammar must refuse the document at deserialization and
+    // leave the accepted session intact.
+    let anchor = &mut document["matrices"][1]["anchor"];
     anchor["matrixId"] = json!("main");
     anchor["row"] = json!(0);
     anchor["column"] = json!(2);
-    let mut wire = CoreEngine::new();
-    let reply = open(&mut wire, "both-arms", &both);
+    let reply = open(&mut engine, "both-arms", &document);
     assert_eq!(reply["kind"], "error", "{reply}");
     assert!(
         reply["message"]
@@ -457,7 +459,7 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
             .contains("aggregate"),
         "both-arms refusal must name the aggregate arm, got {reply}"
     );
-    assert_eq!(engine.snapshot(), accepted);
+    assert_eq!(wire_snapshot_doc(&mut engine), accepted);
 }
 
 fn intersect_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {

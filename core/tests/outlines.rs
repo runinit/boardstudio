@@ -136,18 +136,18 @@ fn deleted_matrix_cell_stays_disabled_when_resized() {
     doc.outline.clear();
     doc.boards.clear();
     scene(core.open(doc));
-    core.commit(
+    scene(core.commit(
         0,
         fixture::set_matrix(Matrix {
             pitch: Vec2 { x: 19.05, y: 19.05 },
             ..fixture::matrix("keys", 3, 3)
         }),
-    );
-    core.commit(1, remove_parts(&["matrix/keys/r0c0"]));
+    ));
+    scene(core.commit(1, remove_parts(&["matrix/keys/r0c0"])));
     let doc = core.snapshot();
     let mut matrix = doc.matrices[0].clone();
     matrix.columns = 4;
-    core.commit(2, fixture::set_matrix(matrix));
+    scene(core.commit(2, fixture::set_matrix(matrix)));
     let doc = core.snapshot();
     assert!(!doc.parts.iter().any(|p| p.id == "matrix/keys/r0c0"));
 }

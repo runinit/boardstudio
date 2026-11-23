@@ -69,6 +69,7 @@ pub(super) fn mount_collection_mut(
 pub(super) fn validate_gasket_anchor_selection(
     support_id: &str,
     anchors: &[MechanicalGasketAnchor],
+    check_unique_ids: bool,
 ) -> Result<(), String> {
     if support_id.is_empty()
         || anchors.is_empty()
@@ -77,12 +78,14 @@ pub(super) fn validate_gasket_anchor_selection(
     {
         return Err("The selected gasket support is no longer available.".into());
     }
-    let mut ids = std::collections::HashSet::new();
-    if anchors
-        .iter()
-        .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
-    {
-        return Err("The linked gasket support selection is invalid.".into());
+    if check_unique_ids {
+        let mut ids = std::collections::HashSet::new();
+        if anchors
+            .iter()
+            .any(|anchor| anchor.id.is_empty() || !ids.insert(&anchor.id))
+        {
+            return Err("The linked gasket support selection is invalid.".into());
+        }
     }
     Ok(())
 }

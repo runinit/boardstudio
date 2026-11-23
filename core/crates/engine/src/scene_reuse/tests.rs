@@ -412,6 +412,10 @@ fn matched_preview_of_a_mirrored_move_reprojects_the_commit() {
 }
 fn assert_preview_preserves_snapshot(engine: &mut CoreEngine, cold: &mut CoreEngine) {
     assert_eq!(engine.document, cold.document);
+    assert_eq!(
+        serde_json::to_vec(&engine.document).unwrap(),
+        serde_json::to_vec(&cold.document).unwrap(),
+    );
     assert!(engine.undo.is_empty() && engine.redo.is_empty());
     assert!(matches!(
         compare(

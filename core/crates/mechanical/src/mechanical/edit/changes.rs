@@ -889,7 +889,7 @@ pub(super) fn apply_change(
                 return Err("The selected gasket field is unavailable.".into());
             }
             validate_dimension(*field, *value)?;
-            validate_gasket_anchor_selection(support_id, anchors)?;
+            validate_gasket_anchor_selection(support_id, anchors, true)?;
             let is_length = *field == MechanicalDimension::GasketSupportLength;
             upsert_gasket_anchors(
                 configuration,
@@ -909,7 +909,7 @@ pub(super) fn apply_change(
             support_id,
             anchors,
         } => {
-            validate_gasket_anchor_selection(support_id, anchors)?;
+            validate_gasket_anchor_selection(support_id, anchors, false)?;
             validate_gasket_support_anchors(anchors)?;
             upsert_gasket_anchors(configuration, support_id, anchors, |_| {}, changed)?;
         }
@@ -918,7 +918,7 @@ pub(super) fn apply_change(
             pair_id,
             anchors,
         } => {
-            validate_gasket_anchor_selection(support_id, anchors)?;
+            validate_gasket_anchor_selection(support_id, anchors, true)?;
             let pair_is_present = pair_id
                 .as_ref()
                 .is_some_and(|pair| anchors.iter().any(|anchor| anchor.id == *pair));

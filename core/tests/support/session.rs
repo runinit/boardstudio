@@ -5,7 +5,7 @@ use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalEdit, Mec
 use boardstudio_core::{CoreEngine, model::*};
 use serde_json::Value;
 
-#[path = "fixture.rs"]
+#[path = "builders.rs"]
 pub(crate) mod builders;
 
 pub(crate) fn board_target() -> MechanicalTarget {

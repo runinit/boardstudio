@@ -113,11 +113,6 @@ pub(crate) fn model_side<'a>(
     }
 }
 
-/// A `(model ...)` block as the MIT ceoloide generators write it.
-///
-/// Neutral MIT/Apache-2.0 helper so MIT generators never import the
-/// `CC-BY-NC-SA-4.0` `display_shared` module; the emitted text matches the
-/// shared ceoloide model block without cross-licence sharing.
 /// A `(segment ...)` copper run as the switch route helpers write it.
 pub(crate) fn push_route_segment(
     out: &mut String,
@@ -149,6 +144,11 @@ pub(crate) fn push_route_via(
     );
 }
 
+/// A `(model ...)` block as the MIT ceoloide generators write it.
+///
+/// Neutral MIT/Apache-2.0 helper so MIT generators never import the
+/// `CC-BY-NC-SA-4.0` `display_shared` module; the emitted text matches the
+/// shared ceoloide model block without cross-licence sharing.
 pub(crate) fn kicad_model(
     filename: &str,
     offset: [f64; 3],

@@ -8,7 +8,7 @@ use super::display_shared;
 use crate::Result;
 use crate::context::NetRef;
 use crate::context::RenderContext;
-use crate::generators::util::json_string;
+use crate::generators::util::{join_numbers, json_string};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -353,15 +353,22 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e13 = socket_nets[3].index
     );
 
-    let final_add0 = display_shared::ceoloide_model(
-        p.text("display_3dmodel_filename"),
-        offset,
-        [
-            p.component("display_3dmodel_xyz_scale", 0),
-            p.component("display_3dmodel_xyz_scale", 1),
-            p.component("display_3dmodel_xyz_scale", 2),
-        ],
-        rotation,
+    let final_add0 = format!(
+        r####"
+    (model {e0}
+      (offset (xyz {ox} {oy} {oz}))
+      (scale (xyz {scale}))
+      (rotate (xyz {rx} {ry} {rz}))
+    )
+    "####,
+        e0 = json_string(p.text("display_3dmodel_filename")),
+        ox = n(offset[0]),
+        oy = n(offset[1]),
+        oz = n(offset[2]),
+        scale = join_numbers(p.list("display_3dmodel_xyz_scale")),
+        rx = n(rotation[0]),
+        ry = n(rotation[1]),
+        rz = n(rotation[2]),
     );
 
     let mut out = top;
