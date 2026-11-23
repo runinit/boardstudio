@@ -9,11 +9,7 @@ pub(crate) fn apply_edit(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec
             key_id,
             binding,
         } => {
-            let board = doc
-                .boards
-                .iter()
-                .find(|board| board.id == *board_id)
-                .ok_or_else(|| format!("Unknown board {board_id}"))?;
+            let board = crate::apply::require_board(doc, board_id)?;
             let part_id = key_id.strip_suffix("/push").unwrap_or(key_id);
             if !board.part_ids.contains(&part_id.to_string())
                 || !doc.parts.iter().any(|part| part.id == part_id)
@@ -60,9 +56,7 @@ pub(crate) fn apply_edit(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec
             Ok(vec![board_id.clone(), key_id.clone()])
         }
         EditOperation::SetKeycapBoard { board_id, change } => {
-            if !doc.boards.iter().any(|board| board.id == *board_id) {
-                return Err(format!("Unknown board {board_id}"));
-            }
+            crate::apply::require_board(doc, board_id)?;
             match change {
                 KeycapBoardChange::Color { value } | KeycapBoardChange::LegendColor { value }
                     if !color_valid(value) =>
