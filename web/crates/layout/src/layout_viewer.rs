@@ -344,12 +344,21 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         }
     };
 
+    let keycap_status = rsx! {
+        KeycapStatus {
+            blocker: props
+                .keycaps_fit
+                .as_ref()
+                .and_then(|fit| fit.preview_blocker_message()),
+            pending: keycaps_preview_pending(),
+            error: keycaps_preview_error(),
+            on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation() + 1),
+        }
+    };
     let Some(preview) = preview else {
         let preview_error = runtime.layout_preview_error();
         let message = if let Some(error) = preview_error.as_ref() {
             format!("3D preview unavailable: {error}")
-        } else if runtime.layout_preview_pending() {
-            "Preparing canonical board preview…".to_owned()
         } else if request.is_none() {
             "Open a project and select a board to view its assembly.".to_owned()
         } else {
@@ -369,15 +378,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                         }
                     }
                 }
-                KeycapStatus {
-                    blocker: props
-                        .keycaps_fit
-                        .as_ref()
-                        .and_then(|fit| fit.preview_blocker_message()),
-                    pending: keycaps_preview_pending(),
-                    error: keycaps_preview_error(),
-                    on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-                }
+                {keycap_status}
             }
         };
     };
@@ -415,15 +416,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
 
     rsx! {
         div { class: "flex min-h-0 flex-1 flex-col",
-            KeycapStatus {
-                blocker: props
-                    .keycaps_fit
-                    .as_ref()
-                    .and_then(|fit| fit.preview_blocker_message()),
-                pending: keycaps_preview_pending(),
-                error: keycaps_preview_error(),
-                on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-            }
+            {keycap_status}
             div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             Viewport3D {
                 scene: None,
