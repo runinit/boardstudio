@@ -1,4 +1,6 @@
-use super::super::model_transform::ModelVec3Fields;
+use super::super::model_transform::{
+    ModelTransformFieldset, ModelVector, model_vector, new_model, upload_model_asset,
+};
 use super::*;
 use boardstudio_web_ui_shared::inspector_fields::{
     FilePickerButton, InspectorSection, TOUCH_CLS, ToggleField,
@@ -247,57 +249,23 @@ fn AssemblyMemberFields(
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;
             spawn(async move {
-                let result = async {
-                    let imported =
-                        crate::presentation::model_asset_import::read_model_file(file).await?;
-                    if !assembly_owner_current(&runtime, &draft, workspace()) {
-                        return Err(
-                            "The project or Parts scope changed while reading the model."
-                                .to_owned(),
-                        );
-                    }
-                    imported.store(&runtime.store).await?;
-                    if !assembly_owner_current(&runtime, &draft, workspace()) {
-                        return Err(
-                            "The project or Parts scope changed while storing the model."
-                                .to_owned(),
-                        );
-                    }
-                    let current = runtime
-                        .model()
-                        .accepted
-                        .ok_or("The accepted project is unavailable.")?;
-                    Ok((imported, current))
-                }
+                let stale = "The project or Parts scope changed while storing the model.";
+                let result = upload_model_asset(
+                    file,
+                    &runtime,
+                    &assets(),
+                    || assembly_owner_current(&runtime, &draft, workspace()),
+                    stale,
+                )
                 .await;
                 import_pending.set(false);
-                let (imported, current) = match result {
+                let (asset, current) = match result {
                     Ok(value) => value,
                     Err(message) => {
                         import_feedback.set(Some(message));
                         return;
                     }
                 };
-                let asset = current
-                    .document
-                    .assets
-                    .iter()
-                    .chain(assets().iter())
-                    .find(|asset| asset.sha256 == imported.sha256)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        let operation = runtime.operation();
-                        let root = format!("model-asset-{}", operation.0);
-                        let id = unique_asset_id(&root, &current.document.assets, &assets());
-                        Asset {
-                            id,
-                            name: imported.filename.clone(),
-                            media_type: imported.media_type.clone(),
-                            sha256: imported.sha256.clone(),
-                            license: None,
-                            source: Some("local file".into()),
-                        }
-                    });
                 if !current
                     .document
                     .assets
@@ -384,7 +352,13 @@ fn AssemblyMemberFields(
             SelectField::<String> {
                 label: "Component",
                 value: (member.definition_id.as_deref().unwrap_or("")).to_string(),
-                options: component_option_rows(&definition_options, member.definition_id.as_deref()),
+                options: std::iter::once((String::new(), "Visual model only".into()))
+                    .chain(model_option_rows(
+                        &definition_options,
+                        member.definition_id.as_deref(),
+                        "Saved component unavailable",
+                    ))
+                    .collect(),
                 disabled,
                 on_commit: move |selected: String| edit.call(MemberPatch::Definition(selected)),
             }
@@ -479,18 +453,14 @@ fn AssemblyModelFields(
         InspectorSection { title: "Model {index + 1}",
             SelectField::<String> {
                 label: "Asset", value: "{model.asset_id}",
-                options: model_asset_option_rows(&options, &model.asset_id),
+                options: model_option_rows(&options, Some(model.asset_id.as_str()), "Saved model asset unavailable"),
                 disabled,
                 on_commit: move |selected| edit.call(MemberPatch::ModelAsset(index, selected)),
             }
             for (label, field) in [("Offset (mm)", ModelVector::Offset), ("Rotation (°)", ModelVector::Rotation), ("Scale", ModelVector::Scale)] {
-                fieldset {
-                    legend { "{label}" }
-                    ModelVec3Fields { value: model_vector(&model, field),
-                        labels: ["X".into(), "Y".into(), "Z".into()],
-                        disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()),
-                        on_commit: move |(axis, number)| edit.call(MemberPatch::ModelVector(index, field, axis, number)),
-                    }
+                ModelTransformFieldset { title: label.to_owned(), value: model_vector(&model, field),
+                    disabled_reason: disabled.then(|| "Assembly is read-only".to_owned()),
+                    on_commit: move |(axis, number)| edit.call(MemberPatch::ModelVector(index, field, axis, number)),
                 }
             }
             Button { disabled, onclick: move |_| edit.call(MemberPatch::RemoveModel(index)), "Remove model" }

@@ -1,6 +1,11 @@
 //! PCB wiring controls and accepted board-plan edits.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
+
+/// Shared outer section shell for the wiring panels.
+pub(crate) const WIRING_SECTION_CLS: &str = "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground";
+/// Shared bordered card wrapper for the wiring detail groups.
+pub(crate) const WIRING_CARD_CLS: &str = "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs";
 use boardstudio_model::model::{EditOperation, Net, PartDefinition, PartKind, ProjectDoc};
 use boardstudio_web_ui_model::editor::{EditGuard, use_guarded_edit};
 use boardstudio_web_ui_shared::inspector_fields::{
@@ -266,7 +271,7 @@ pub fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
     ));
     let Some(display) = display() else {
         return rsx! {
-            section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground", role: "status",
+            section { class: "{WIRING_SECTION_CLS}", role: "status",
                 h2 { "Electrical wiring" }
                 p { "The selected board wiring is unavailable." }
             }
@@ -531,21 +536,21 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
         }
     };
     rsx! {
-        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground",
+        section { class: "{WIRING_SECTION_CLS}",
             p { class: "!mt-0 !mb-3 !text-[11px]", "{breadcrumb}" }
             h2 { "{title}" }
             part_input_settings::PartInputInspector {
                 source: source.clone(),
                 actions: props.part_input_actions.clone(),
                 board_details_and_connections: rsx! {
-            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: false, title: "Board details",
+            div { class: "{WIRING_CARD_CLS}", InspectorSection { default_open: false, title: "Board details",
                 ul {
                     li { span { "Board thickness" } strong { "{thickness:.2} mm" } }
                     li { span { "Placed parts" } strong { "{placed_parts}" } }
                     li { span { "Net assignments" } strong { "{assigned_pins}" } }
                 }
             } }
-            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs",
+            div { class: "{WIRING_CARD_CLS}",
                 h3 { "Connections" }
                 if connections.is_empty() {
                     p { class: "text-muted-foreground", "This part has no assignable terminals or pads." }
@@ -589,7 +594,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 }
                 Button { button_type: "submit", variant: ButtonVariant::Secondary, class: TOUCH_CLS, disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
-            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: false, title: format!("Electrical nets ({})", nets.len()),
+            div { class: "{WIRING_CARD_CLS}", InspectorSection { default_open: false, title: format!("Electrical nets ({})", nets.len()),
                 ul {
                     for net in nets {
                         li { key: "{net.id}", span { "{net.name}" } small { "{net.pin_count} pins" } }
@@ -632,11 +637,11 @@ fn switch_wiring(
     on_edit_board_wiring: EventHandler<()>,
 ) -> Element {
     rsx! {
-        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground",
+        section { class: "{WIRING_SECTION_CLS}",
             p { class: "!mt-0 !mb-3 !text-[11px]", "{breadcrumb}" }
             h2 { "{title}" }
             p { "Switch wiring is inherited from its key assembly." }
-            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs",
+            div { class: "{WIRING_CARD_CLS}",
                 h3 { "Named terminals" }
                 if terminals.is_empty() {
                     p { class: "text-muted-foreground", "This switch has no named terminals." }
@@ -659,19 +664,8 @@ fn switch_wiring(
 
 fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjection) -> Element {
     let identity = &props.source.identity;
-    let matching_plan = match &props.resolution {
-        PcbWiringResolution::Current {
-            identity: plan_identity,
-            plan,
-        } if plan_identity == identity
-            && plan.revision == identity.revision
-            && plan.board_id.as_deref() == Some(identity.scope.board_id.as_str())
-            && plan.instance_id.is_none() =>
-        {
-            Some(plan.as_ref())
-        }
-        _ => None,
-    };
+    let matching_plan = mode::current_plan_for(&props.resolution, identity);
+    let matching_plan = matching_plan.as_deref();
     let resolution_notice = wiring_resolution_notice(&props.resolution, identity);
     let pending = matches!(resolution_notice, WiringResolutionNotice::Pending);
     let chosen_controller_id = display
@@ -725,7 +719,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_release_reviewed_connections = apply_actions.on_release_reviewed_connections;
     let review_connections_identity = mode_identity.clone();
     rsx! {
-        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground gap-4", aria_label: "Electrical wiring",
+        section { class: "{WIRING_SECTION_CLS} gap-4", aria_label: "Electrical wiring",
             p { class: "!m-0 !text-[11px]", "{display.board_name} / PCB" }
             header { class: "flex items-start justify-between gap-3 [&_h2]:!m-0 [&_p]:!mt-[5px] [&_p]:!mb-0",
                 div {
@@ -843,28 +837,11 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
                 div { class: "m-0 p-0 border-t-0", InspectorSection { default_open: true, title: format!("Assignments ({})", pin_rows.len()),
-                    if plan.mode == ElectricalMode::Matrix && !assignment_groups.rows.is_empty() {
-                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Row pins ({})", assignment_groups.rows.len()),
-                            for row in assignment_groups.rows.iter() {
-                                {pin_assignment_row(row, &pin_actions, plan)}
-                            }
-                        } }
-                    }
-                    if plan.mode == ElectricalMode::Matrix && !assignment_groups.columns.is_empty() {
-                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Column pins ({})", assignment_groups.columns.len()),
-                            for row in assignment_groups.columns.iter() {
-                                {pin_assignment_row(row, &pin_actions, plan)}
-                            }
-                        } }
-                    }
-                    if plan.mode == ElectricalMode::Matrix && !assignment_groups.other.is_empty() {
-                        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("Peripheral pins ({})", assignment_groups.other.len()),
-                            for row in assignment_groups.other.iter() {
-                                {pin_assignment_row(row, &pin_actions, plan)}
-                            }
-                        } }
-                    }
-                    if plan.mode != ElectricalMode::Matrix {
+                    if plan.mode == ElectricalMode::Matrix {
+                        {assignment_group("Row pins", &assignment_groups.rows, plan, &pin_actions)}
+                        {assignment_group("Column pins", &assignment_groups.columns, plan, &pin_actions)}
+                        {assignment_group("Peripheral pins", &assignment_groups.other, plan, &pin_actions)}
+                    } else {
                         for row in assignment_groups.other.iter() {
                             {pin_assignment_row(row, &pin_actions, plan)}
                         }
@@ -1062,21 +1039,30 @@ pub fn use_firmware_position_edits(
     }
 }
 
+/// One bordered assignment group; empty groups render nothing.
+fn assignment_group(
+    title: &str,
+    rows: &[&pins::PcbWiringPinAssignment],
+    plan: &ElectricalPlan,
+    actions: &PcbWiringPinActions,
+) -> Element {
+    if rows.is_empty() {
+        return rsx! {};
+    }
+    rsx! {
+        div { class: "m-0 p-0 border-t border-border", InspectorSection { default_open: false, title: format!("{title} ({})", rows.len()),
+            for row in rows.iter() {
+                {pin_assignment_row(row, actions, plan)}
+            }
+        } }
+    }
+}
+
 fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
     EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
         let scope = &request.identity.ui_scope;
-        let boardstudio_model::model::CoreRequest::ResolveElectrical {
-            request: electrical_request,
-            ..
-        } = boardstudio_web_runtime::electrical_preview_request(
-            "firmware-position",
-            &accepted.document,
-            &scope.board_id,
-        )
-        else {
-            unreachable!()
-        };
-        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
+        let plan =
+            mode::resolve_preview_plan("firmware-position", &accepted.document, &scope.board_id);
         let identity = WiringPlanIdentity {
             token: accepted.token,
             revision: accepted.document.revision,

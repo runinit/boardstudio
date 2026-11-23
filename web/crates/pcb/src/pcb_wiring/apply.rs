@@ -163,20 +163,6 @@ fn current_review_plan(
     resolution: &PcbWiringResolution,
     document: &ProjectDoc,
 ) -> Option<Rc<ElectricalPlan>> {
-    let PcbWiringResolution::Current {
-        identity: current,
-        plan,
-    } = resolution
-    else {
-        return None;
-    };
-    if current != identity
-        || plan.revision != identity.revision
-        || plan.board_id.as_deref() != Some(identity.scope.board_id.as_str())
-        || plan.instance_id.is_some()
-        || plan.mode != board_mode(document, &identity.scope.board_id)
-    {
-        return None;
-    }
-    Some(plan.clone())
+    super::mode::current_plan_for(resolution, identity)
+        .filter(|plan| plan.mode == board_mode(document, &identity.scope.board_id))
 }

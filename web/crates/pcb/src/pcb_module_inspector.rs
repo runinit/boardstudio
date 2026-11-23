@@ -577,62 +577,50 @@ fn PcbMountedModuleInspector(
                     p { "12 contacts · 0.5 mm pitch · Type A cable · 3.3 V logic. Enter actual MCU terminals; shared buses are checked by their wiring." }
                     div {
                         for (signal, label) in vik_signals() {
-                            TextCommitField { key: "{label}", label: label.to_owned(), aria_label: format!("VIK {label} terminal"),
+                            ClearableVikText { key: "{label}", label: label.to_owned(), aria_label: format!("VIK {label} terminal"),
                                 value: connection.assignments.get(&signal).cloned().unwrap_or_default(),
-                                disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+                                editable, has_value: connection.assignments.contains_key(&signal),
+                                clear_label: format!("Clear {label} terminal"),
                                 on_commit: move |terminal| edit_module_draft(draft, draft_dirty, |value| {
                                     if let Some(connection) = &mut value.connection { connection.assignments.insert(signal, terminal); }
                                 }),
-                            }
-                            if connection.assignments.contains_key(&signal) {
-                                Button { disabled: !editable, onclick: move |_| edit_module_draft(draft, draft_dirty, |value| {
+                                on_clear: move |_| edit_module_draft(draft, draft_dirty, |value| {
                                     if let Some(connection) = &mut value.connection { connection.assignments.remove(&signal); }
-                                }), "Clear {label} terminal" }
+                                }),
                             }
                         }
                     }
                     div {
                         for (signal, label) in [(VikSignal::V3v3, "3.3V supply"), (VikSignal::V5, "5V supply"), (VikSignal::Gnd, "Ground") ] {
-                            {
-                                let voltage = connection.rail_voltages.get(&signal).copied();
-                                rsx! {
-                                    NumericField { key: "{label}", label: "{label} · V", aria_label: "VIK {label} voltage",
-                                        value: voltage.unwrap_or_default(), mixed: voltage.is_none(), placeholder: "Unset", step: Some(0.1),
-                                        disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
-                                        on_commit: move |value| edit_module_draft(draft, draft_dirty, |module| {
-                                            if let Some(connection) = &mut module.connection {
-                                                connection.rail_voltages.insert(signal, value);
-                                            }
-                                        }),
+                            ClearableVikNumber { key: "{label}", label: format!("{label} · V"), aria_label: format!("VIK {label} voltage"),
+                                value: connection.rail_voltages.get(&signal).copied(), editable, step: 0.1,
+                                clear_label: format!("Clear {label} voltage"),
+                                on_commit: move |number| edit_module_draft(draft, draft_dirty, |module| {
+                                    if let Some(connection) = &mut module.connection {
+                                        connection.rail_voltages.insert(signal, number);
                                     }
-                                    if voltage.is_some() {
-                                        Button { disabled: !editable, onclick: move |_| edit_module_draft(draft, draft_dirty, |module| {
-                                            if let Some(connection) = &mut module.connection {
-                                                connection.rail_voltages.remove(&signal);
-                                            }
-                                        }), "Clear {label} voltage" }
+                                }),
+                                on_clear: move |_| edit_module_draft(draft, draft_dirty, |module| {
+                                    if let Some(connection) = &mut module.connection {
+                                        connection.rail_voltages.remove(&signal);
                                     }
-                                }
+                                }),
                             }
                         }
                     }
-                    NumericField {
-                        label: "Supply budget · mA", aria_label: "VIK supply current budget",
-                        value: connection.supply_current_ma.unwrap_or_default(), mixed: connection.supply_current_ma.is_none(),
-                        placeholder: "Unset", min: Some(0.0), step: Some(1.0),
-                        disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
-                        on_commit: move |value| edit_module_draft(draft, draft_dirty, |module| {
+                    ClearableVikNumber { label: "Supply budget · mA".to_owned(), aria_label: "VIK supply current budget".to_owned(),
+                        value: connection.supply_current_ma, editable, min: Some(0.0), step: 1.0,
+                        clear_label: "Clear supply budget".to_owned(),
+                        on_commit: move |number| edit_module_draft(draft, draft_dirty, |module| {
                             if let Some(connection) = &mut module.connection {
-                                connection.supply_current_ma = Some(value);
+                                connection.supply_current_ma = Some(number);
                             }
                         }),
-                    }
-                    if connection.supply_current_ma.is_some() {
-                        Button { disabled: !editable, onclick: move |_| edit_module_draft(draft, draft_dirty, |module| {
+                        on_clear: move |_| edit_module_draft(draft, draft_dirty, |module| {
                             if let Some(connection) = &mut module.connection {
                                 connection.supply_current_ma = None;
                             }
-                        }), "Clear supply budget" }
+                        }),
                     }
                 }
             }
@@ -703,6 +691,54 @@ fn PcbMountedModuleInspector(
                 Alert { variant: AlertVariant::Destructive, "{feedback()}" }
 
             }
+        }
+    }
+}
+
+/// Text VIK row with its conditional clear button (signal terminals).
+#[component]
+fn ClearableVikText(
+    label: String,
+    aria_label: String,
+    value: String,
+    editable: bool,
+    has_value: bool,
+    clear_label: String,
+    on_commit: EventHandler<String>,
+    on_clear: EventHandler<()>,
+) -> Element {
+    rsx! {
+        TextCommitField { label, aria_label, value,
+            disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+            on_commit: move |terminal: String| on_commit.call(terminal),
+        }
+        if has_value {
+            Button { disabled: !editable, onclick: move |_| on_clear.call(()), "{clear_label}" }
+        }
+    }
+}
+
+/// Numeric VIK row with its conditional clear button (rail voltages, supply).
+#[component]
+fn ClearableVikNumber(
+    label: String,
+    aria_label: String,
+    value: Option<f64>,
+    editable: bool,
+    #[props(default)] min: Option<f64>,
+    step: f64,
+    clear_label: String,
+    on_commit: EventHandler<f64>,
+    on_clear: EventHandler<()>,
+) -> Element {
+    rsx! {
+        NumericField { label, aria_label, value: value.unwrap_or_default(),
+            mixed: value.is_none(), placeholder: "Unset", min, step: Some(step),
+            disabled_reason: (!editable).then(|| "Module is read-only".to_owned()),
+            on_commit: move |number| on_commit.call(number),
+        }
+        if value.is_some() {
+            Button { disabled: !editable, onclick: move |_| on_clear.call(()), "{clear_label}" }
         }
     }
 }

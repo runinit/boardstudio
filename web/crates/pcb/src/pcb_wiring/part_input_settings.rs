@@ -1,5 +1,5 @@
-use super::PcbWiringSource;
 use super::part_input_projection::{PartInputProjection, binding_schema, project};
+use super::{PcbWiringSource, WIRING_CARD_CLS, WIRING_SECTION_CLS};
 use boardstudio_model::model::PressScanMode;
 use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::inspector_fields::{InspectorSection, SelectField};
@@ -76,9 +76,9 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     };
 
     rsx! {
-        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto overscroll-contain p-4 text-foreground [&_h2]:mt-0 [&_h2]:mb-2 [&_h2]:text-lg [&_h3]:mt-[18px] [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:text-muted-foreground [&_p]:my-2 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground gap-1",
+        section { class: "{WIRING_SECTION_CLS} gap-1",
             if let Some(scan_mode) = scan_mode {
-                div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: true, title: "Press input",
+                div { class: "{WIRING_CARD_CLS}", InspectorSection { default_open: true, title: "Press input",
                     SelectField::<String> {
                         label: "Scan mode",
 
@@ -103,7 +103,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                         rsx! {}
                     } else {
                         rsx! {
-                            div { class: "mt-2.5 pt-0.5 border-t border-border [&_ul]:grid [&_ul]:gap-[7px] [&_ul]:my-2 [&_ul]:p-0 [&_ul]:list-none [&_li]:flex [&_li]:justify-between [&_li]:gap-2 [&_li]:text-xs", InspectorSection { default_open: true, title: "Generator bindings",
+                            div { class: "{WIRING_CARD_CLS}", InspectorSection { default_open: true, title: "Generator bindings",
                                 for (name, kind) in fields {
                                     if kind == "net" {
                                         {
