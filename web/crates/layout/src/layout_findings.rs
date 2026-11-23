@@ -12,7 +12,6 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
@@ -72,10 +71,7 @@ pub fn LayoutFindingsInspector(
             class: "grid min-w-0 gap-2.5 px-4 pt-3 pb-4 text-foreground",
             aria_label: "Layout findings",
             onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                }
+                crate::objects::stop_space_pan(event.clone());
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     event.stop_propagation();

@@ -1,6 +1,6 @@
 use super::inspector_types as inspector;
 use boardstudio_application::ReadModel;
-use boardstudio_core::model::{CompanionPlacementTarget, MirroredItemKind, Part};
+use boardstudio_model::model::{CompanionPlacementTarget, MirroredItemKind, Part};
 use boardstudio_web_ui_model::tree as objects;
 
 pub fn companion_placement_projection(
@@ -108,11 +108,13 @@ pub fn companion_placement_projection(
                 {
                     continue;
                 }
-                if let Some(reason) = boardstudio_core::companion_placement_disabled_reason(
-                    document,
-                    &pair.id,
-                    &link.source_id,
-                ) {
+                if let Some(reason) =
+                    boardstudio_core_mirrored_half::companion_placement_disabled_reason(
+                        document,
+                        &pair.id,
+                        &link.source_id,
+                    )
+                {
                     disabled_reason = Some(reason);
                     continue;
                 }
@@ -120,7 +122,7 @@ pub fn companion_placement_projection(
                     continue;
                 }
                 if !eligible.iter().any(
-                    |existing: &&boardstudio_core::model::MirroredCorrespondence| {
+                    |existing: &&boardstudio_model::model::MirroredCorrespondence| {
                         existing.mirror_id == link.mirror_id
                     },
                 ) {
@@ -196,13 +198,13 @@ pub fn companion_placement_projection(
 }
 
 pub fn companion_links_for_selection<'a>(
-    document: &'a boardstudio_core::model::ProjectDoc,
-    pair: &'a boardstudio_core::model::MechanicalMirrorPair,
+    document: &'a boardstudio_model::model::ProjectDoc,
+    pair: &'a boardstudio_model::model::MechanicalMirrorPair,
     selected_matrix_id: &str,
     row: Option<u32>,
     column: Option<u32>,
 ) -> (
-    Vec<&'a boardstudio_core::model::MirroredCorrespondence>,
+    Vec<&'a boardstudio_model::model::MirroredCorrespondence>,
     Option<&'static str>,
 ) {
     let Some(halves) = pair.halves.as_ref() else {
@@ -244,12 +246,14 @@ pub fn companion_links_for_selection<'a>(
             else {
                 continue;
             };
-            if let Some(reason) = boardstudio_core::companion_placement_disabled_reason(
-                document, &pair.id, &source_id,
-            ) {
+            if let Some(reason) =
+                boardstudio_core_mirrored_half::companion_placement_disabled_reason(
+                    document, &pair.id, &source_id,
+                )
+            {
                 disabled_reason = Some(reason);
             } else if !links.iter().any(
-                |existing: &&boardstudio_core::model::MirroredCorrespondence| {
+                |existing: &&boardstudio_model::model::MirroredCorrespondence| {
                     existing.mirror_id == link.mirror_id
                 },
             ) {
@@ -261,8 +265,8 @@ pub fn companion_links_for_selection<'a>(
 }
 
 pub fn is_matrix_companion(
-    document: &boardstudio_core::model::ProjectDoc,
-    pair: &boardstudio_core::model::MechanicalMirrorPair,
+    document: &boardstudio_model::model::ProjectDoc,
+    pair: &boardstudio_model::model::MechanicalMirrorPair,
     source_id: &str,
 ) -> bool {
     companion_links_for_selection(
@@ -278,7 +282,7 @@ pub fn is_matrix_companion(
 }
 
 pub fn source_matrix_id(
-    pair: &boardstudio_core::model::MechanicalMirrorPair,
+    pair: &boardstudio_model::model::MechanicalMirrorPair,
     source_part_id: &str,
 ) -> Option<String> {
     let halves = pair.halves.as_ref()?;
@@ -293,9 +297,9 @@ pub fn source_matrix_id(
 }
 
 pub fn layout_relationship_summary(
-    document: &boardstudio_core::model::ProjectDoc,
-    board: &boardstudio_core::model::Board,
-    active_layout: Option<&boardstudio_core::model::Layout>,
+    document: &boardstudio_model::model::ProjectDoc,
+    board: &boardstudio_model::model::Board,
+    active_layout: Option<&boardstudio_model::model::Layout>,
     active_part: Option<&Part>,
 ) -> String {
     let paired_layout = active_layout.and_then(|layout| {
@@ -357,8 +361,8 @@ pub fn layout_relationship_summary(
 /// Ticket 13: the Relationships lead for an anchored part: its anchor key and
 /// Follow subset, ahead of the mirror-pairing summary.
 pub fn part_anchor_summary(
-    document: &boardstudio_core::model::ProjectDoc,
-    part: &boardstudio_core::model::Part,
+    document: &boardstudio_model::model::ProjectDoc,
+    part: &boardstudio_model::model::Part,
 ) -> Option<String> {
     let anchor = part.anchor.as_ref()?;
     let matrix = document

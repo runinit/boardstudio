@@ -12,6 +12,8 @@ pub use component_inspector::layout_component_edits;
 pub mod component_offset;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod constraint_edit_tests;
+#[cfg(test)]
+mod engine_test_support;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod inspector_fixture;
 #[cfg(all(test, not(target_arch = "wasm32")))]

@@ -3,7 +3,7 @@ pub mod layout_component_edits;
 use super::companion_placement::{layout_relationship_summary, part_anchor_summary};
 use super::inspector_types as inspector;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, ReadModel, Resolution};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, HalfExceptionState, MirroredExceptionState, MirroredItemKind, PartKind,
     PartOutline,
 };
@@ -168,7 +168,7 @@ pub fn layout_component_inspector_projection(
         // part shows its evaluated pose (what the canvas shows); a detached
         // part keeps its stored half-frame pose.
         position: if part.anchor.is_some() {
-            boardstudio_core::evaluated_part_pose(document, part).at
+            boardstudio_core_kernel::matrix::layout::evaluated_part_pose(document, part).at
         } else {
             part.pose.at
         },
@@ -197,8 +197,8 @@ pub fn layout_component_inspector_projection(
 /// local Offset/Rotation. `None` is a detached part; parts homed on a
 /// layout without an anchor stay detached.
 pub fn part_anchor_projection(
-    document: &boardstudio_core::model::ProjectDoc,
-    part: &boardstudio_core::model::Part,
+    document: &boardstudio_model::model::ProjectDoc,
+    part: &boardstudio_model::model::Part,
 ) -> Option<inspector::PartAnchorProjection> {
     let anchor = part.anchor.as_ref()?;
     let matrix = document
@@ -222,8 +222,8 @@ pub fn part_anchor_projection(
 /// Ticket 13: the anchor-key choices for Pick: every matrix on the part's
 /// layout with its live dimensions.
 pub fn part_anchor_choices(
-    document: &boardstudio_core::model::ProjectDoc,
-    active_layout: Option<&boardstudio_core::model::Layout>,
+    document: &boardstudio_model::model::ProjectDoc,
+    active_layout: Option<&boardstudio_model::model::Layout>,
 ) -> Vec<inspector::AnchorKeyChoice> {
     let Some(layout) = active_layout else {
         return Vec::new();
@@ -250,21 +250,21 @@ pub fn part_anchor_choices(
 /// stored-gap half. `Some(true)` while a live Part correspondence mirrors it;
 /// `Some(false)` while it stays local. Members keep the exception buttons.
 pub fn part_mirror_projection(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     part_id: &str,
-    active_layout: Option<&boardstudio_core::model::Layout>,
+    active_layout: Option<&boardstudio_model::model::Layout>,
     is_matrix_member: bool,
 ) -> Option<bool> {
     if is_matrix_member {
         return None;
     }
     let layout = active_layout?;
-    boardstudio_core::layout_half_offset(document, &layout.id)?;
+    boardstudio_core_kernel::matrix::layout::layout_half_offset(document, &layout.id)?;
     // Ticket 12: Part correspondences live on the layout mirror links, next
     // to the matrices they mirror — not on the hardware halves. The toggle
     // reads mirrored only while both ends of the record still exist.
-    let mirrored =
-        boardstudio_core::part_correspondence(document, part_id).is_some_and(|(_, record)| {
+    let mirrored = boardstudio_core_kernel::matrix::layout::part_correspondence(document, part_id)
+        .is_some_and(|(_, record)| {
             document
                 .parts
                 .iter()
@@ -278,7 +278,7 @@ pub fn part_mirror_projection(
 }
 
 pub fn mirrored_half_projection(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     part_id: &str,
 ) -> Option<inspector::MirroredHalfProjection> {
     let hardware = document.hardware.as_ref()?;
@@ -346,10 +346,10 @@ pub fn mirrored_half_state_resolver(
                     exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
                 })
                 .map(|exception| match exception.state {
-                    boardstudio_core::model::MirroredExceptionState::Local => {
+                    boardstudio_model::model::MirroredExceptionState::Local => {
                         HalfExceptionState::Local
                     }
-                    boardstudio_core::model::MirroredExceptionState::Omitted => {
+                    boardstudio_model::model::MirroredExceptionState::Omitted => {
                         HalfExceptionState::Omitted
                     }
                 })

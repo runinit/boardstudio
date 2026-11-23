@@ -12,11 +12,8 @@ use boardstudio_web_ui_shared::ui::{
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 
+use boardstudio_web_ui_shared::inspector_fields::SelectField;
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
-use boardstudio_web_ui_shared::ui::{
-    field::{Field, FieldLabel},
-    select::{Select, SelectOption},
-};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
@@ -54,6 +51,7 @@ mod matrix_setup_controller;
 mod matrix_setup_fields;
 mod matrix_setup_logic;
 mod matrix_transform;
+mod mirror_links;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree_projection_logic;
@@ -153,7 +151,9 @@ pub fn context_for_cell(
     tree::context_for_cell(model, matrix_id, row, column)
 }
 
-fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
+/// The matrix a tree selection belongs to, when it names one. Matrix, row,
+/// column, key and component selections all carry their matrix identity.
+pub fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
     match context {
         TreeContext::Matrix { matrix_id }
         | TreeContext::Row { matrix_id, .. }
@@ -269,8 +269,7 @@ pub fn Objects(
             == Some("part")
     });
     let source = AcceptedSource(snapshot.clone());
-    let grouping_choice =
-        use_memo(move || Some(if by_part() { "part" } else { "layout" }.to_owned()));
+    let grouping_choice = use_memo(move || if by_part() { "part" } else { "layout" }.to_owned());
     let group_by_part = by_part();
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),
@@ -345,12 +344,7 @@ pub fn Objects(
         ))
     });
     let selected_layout_target = selected_matrix_id.and_then(|matrix_id| {
-        document
-            .layouts
-            .iter()
-            .find(|layout| {
-                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
-            })
+        mirror_links::layout_for_matrix(&document.layouts, &board_id, matrix_id)
             .map(|layout| layout.id.clone())
     });
     let layout_target_for_effect = layout_target;
@@ -386,15 +380,7 @@ pub fn Objects(
     let selection_count = model.selected_part_ids.len();
     rsx! {
                 aside { class: "relative flex min-h-0 min-w-0 flex-1 flex-col bg-card [&>header]:hidden", "aria-label": "Objects",
-                    onkeydown: move |event: KeyboardEvent| {
-                        if event.key() == Key::Character(" ".to_owned()) {
-                            // These dock controls keep native Space activation instead of starting canvas pan.
-                            event.stop_propagation();
-                            if let Some(raw) = event.data().try_as_web_event() {
-                                raw.stop_propagation();
-                            }
-                        }
-                    },
+                    onkeydown: stop_space_pan,
                     header {
                         h2 { "Objects" }
                     }
@@ -423,54 +409,24 @@ pub fn Objects(
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                     }
                     if !add_menu_open() && !existing_half_active {
-                        {
-                            let control_label = "Group".to_owned();
-                            let control_aria_label = "Group objects by".to_owned();
-                            let control_id = format!(
-                                "layout-choice-{}-{}",
-                                dioxus::core::current_scope_id().0,
-                                control_aria_label.replace(' ', "-"),
-                            );
-
-                            let control_choices = [
-                                ("layout".to_owned(), "By layout".to_owned(), false),
-                                ("part".to_owned(), "By part".to_owned(), false),
-                            ];
-            let on_value_change = EventHandler::new(move |choice: Option<String>| {
-            let Some(choice) = choice else {
-                return;
-            };
-            let next = choice == "part";
-            by_part.set(next);
-            if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-                let _ = storage.set_item(
-                    "boardstudio:v2:object-view",
-                    if next { "part" } else { "layout" },
-                );
-            }
-        });
-        rsx! {
-
-                                Field { class: "flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground",
-                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                    Select::<String> {
-                                        id: control_id,
-                                        aria_label: control_aria_label,
-                                        value: Some(grouping_choice.into()),
-                                        disabled: false,
-                                        on_value_change,
-                                        for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                            SelectOption::<String> {
-                                                index,
-                                                value: value.clone(),
-                                                text_value: label.clone(),
-                                                disabled: *disabled,
-                                                "{label}"
-                                            }
-                                        }
-                                    }
+                        SelectField {
+                            label: "Group".to_owned(),
+                            value: grouping_choice(),
+                            options: vec![
+                                ("layout".to_owned(), "By layout".to_owned()),
+                                ("part".to_owned(), "By part".to_owned()),
+                            ],
+                            aria_label: "Group objects by",
+                            on_commit: move |choice: String| {
+                                let next = choice == "part";
+                                by_part.set(next);
+                                if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                                    let _ = storage.set_item(
+                                        "boardstudio:v2:object-view",
+                                        if next { "part" } else { "layout" },
+                                    );
                                 }
-                            }
+                            },
                         }
                         div { class: "grid gap-[7px] border-b border-border px-2.5 py-[9px] empty:hidden",
                             if !pcb_workspace && !instances.is_empty() && case_workspace {
@@ -538,10 +494,6 @@ pub fn Objects(
                                         let disclosure_id = format!("{tree_item_id}-disclosure");
                                         let tooltip_label = disclosure_label.clone();
                                         let is_expanded = item.expanded == Some(true);
-                                        let select_on_click = on_select;
-                                        let navigate_on_click = on_navigate;
-                                        let select_on_key = on_select;
-                                        let navigate_on_key = on_navigate;
                                         let nudge_on_key = on_nudge;
                                         let click_scope = active_scope.clone();
                                         let key_scope = active_scope.clone();
@@ -596,43 +548,13 @@ pub fn Objects(
     id: "{tree_item_id}",
     class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selected px-[5px] text-left text-selected-foreground [&_span]:text-selected-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
     onclick: move |_| {
-                                                    if let Some(context) = select_item.context.clone() {
-                                                        if let Some(scope) = click_scope.clone() {
-                                                            if let TreeContext::Board { board_id } = &context
-                                                                && *board_id != scope.board_id
-                                                            {
-                                                                navigate_on_click.call((scope, board_id.clone(), None));
-                                                                return;
-                                                            }
-                                                            select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
-                                                        }
-                                                        if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
-                                                            toggle_tree(expanded, &select_item.id);
-                                                        }
-                                                    } else if select_item.expandable {
-                                                        toggle_tree(expanded, &select_item.id);
-                                                    }
+                                                    activate_tree_row(&select_item, click_scope.clone(), click_outline_action.clone(), on_select, on_navigate, expanded);
                                                 },
     onkeydown: move |event: KeyboardEvent| {
                                                     let key = event.data().key().to_string();
                                                     if key == "Enter" || key == " " {
                                                         event.prevent_default();
-                                                        if let Some(context) = keyboard_item.context.clone() {
-                                                            if let Some(scope) = key_scope.clone() {
-                                                                if let TreeContext::Board { board_id } = &context
-                                                                    && *board_id != scope.board_id
-                                                                {
-                                                                    navigate_on_key.call((scope, board_id.clone(), None));
-                                                                    return;
-                                                                }
-                                                                select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
-                                                            }
-                                                            if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
-                                                                toggle_tree(expanded, &keyboard_item.id);
-                                                            }
-                                                        } else if keyboard_item.expandable {
-                                                            toggle_tree(expanded, &keyboard_item.id);
-                                                        }
+                                                        activate_tree_row(&keyboard_item, key_scope.clone(), key_outline_action.clone(), on_select, on_navigate, expanded);
                                                     } else if let Some((dx, dy)) = match key.as_str() {
                                                         "ArrowLeft" => Some((-1, 0)),
                                                         "ArrowRight" => Some((1, 0)),
@@ -789,111 +711,64 @@ fn AddObjectEntry(
                                     strong { class: "text-muted-foreground text-sm font-medium", "Add to {board.name}" }
                                 }
                             }
-                            Collapsible {
-                                keep_mounted: true,
-                                open: Some(layouts_open()),
+                            AddMenuSection {
+                                heading: "Layouts".to_owned(),
+                                open: layouts_open(),
                                 on_open_change: move |next| layouts_open.set(next),
-                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Layouts"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                CollapsibleContent {
-                                    hidden: !layouts_open(),
-                                    inert: (!layouts_open()).then_some(""),
 
                                     if existing_half.visible {
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !existing_half_open.0,
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            existing_half_open.1.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Mirror existing half…"
-                                                small { "Create a linked half from an existing layout" }
-
-                                             }
+                                        AddMenuEntry {
+                                            label: "Mirror existing half…",
+                                            hint: "Create a linked half from an existing layout",
+                                            enabled: existing_half_open.0,
+                                            on_press: move |_| {
+                                                menu_open.set(false);
+                                                existing_half_open.1.call(());
+                                            },
                                         }
                                     }
                                     if let Some((can_open, on_open)) = matrix_open {
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !can_open,
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            on_open.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Matrix…"
-                                                small { "Single or mirrored-pair rows, columns & key assemblies" }
-
-                                             }
+                                        AddMenuEntry {
+                                            label: "Matrix…",
+                                            hint: "Single or mirrored-pair rows, columns & key assemblies",
+                                            enabled: can_open,
+                                            on_press: move |_| {
+                                                menu_open.set(false);
+                                                on_open.call(());
+                                            },
                                         }
                                     }
-                                }
                             }
                             if let Some((matrix_label, matrix_id, selection, mount)) = matrix_actions
                             {
                                 {
-                                    let (row_mount, column_mount) = (mount.clone(), mount);
-                                    let (row_id, column_id) = (matrix_id.clone(), matrix_id);
-                                    let add_row_selection = selection.clone();
-                                    let add_column_selection = selection.clone();
-                                    let select_matrix_for_row = on_select;
-                                    let select_matrix_for_column = on_select;
                                     rsx! {
-                                        Collapsible {
-                                            keep_mounted: true,
-                                            open: Some(matrix_actions_open()),
+                                        AddMenuSection {
+                                            heading: matrix_label,
+                                            open: matrix_actions_open(),
                                             on_open_change: move |next| matrix_actions_open.set(next),
-                                            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{matrix_label}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                            CollapsibleContent {
-                                                hidden: !matrix_actions_open(),
-                                                inert: (!matrix_actions_open()).then_some(""),
-
-                                                Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| {
-                                                    menu_open.set(false);
-                                                    if let Some((scope, matrix_id)) = add_row_selection.clone() {
-                                                        select_matrix_for_row.call(TreeSelectRequest {
-                                                            scope,
-                                                            context: TreeContext::Matrix { matrix_id },
-                                                            mode: SelectionMode::Replace,
-                                                            outline_action: None,
-                                                        });
+                                            for (label, rows) in [("Add row", true), ("Add column", false)] {
+                                                {
+                                                    let selection = selection.clone();
+                                                    let mount = mount.clone();
+                                                    let matrix_id = matrix_id.clone();
+                                                    rsx! {
+                                                        AddMenuEntry {
+                                                            label: label,
+                                                            on_press: move |_| {
+                                                                menu_open.set(false);
+                                                                if let Some((scope, matrix_id)) = selection.clone() {
+                                                                    on_select.call(TreeSelectRequest {
+                                                                        scope,
+                                                                        context: TreeContext::Matrix { matrix_id: matrix_id.clone() },
+                                                                        mode: SelectionMode::Replace,
+                                                                        outline_action: None,
+                                                                    });
+                                                                }
+                                                                report_grow(&mount, mount.grow(&matrix_id, rows));
+                                                            },
+                                                        }
                                                     }
-                                                    report_grow(&row_mount, row_mount.grow(&row_id, true));
-                                                },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                        "Add row"
-
-                                                     }
-                                                }
-                                                Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| {
-                                                    menu_open.set(false);
-                                                    if let Some((scope, matrix_id)) = add_column_selection.clone() {
-                                                        select_matrix_for_column.call(TreeSelectRequest {
-                                                            scope,
-                                                            context: TreeContext::Matrix { matrix_id },
-                                                            mode: SelectionMode::Replace,
-                                                            outline_action: None,
-                                                        });
-                                                    }
-                                                    report_grow(&column_mount, column_mount.grow(&column_id, false));
-                                                },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                        "Add column"
-
-                                                     }
                                                 }
                                             }
                                         }
@@ -914,19 +789,13 @@ fn AddObjectEntry(
                                 }
                             }
                             if let Some(scope) = scope.as_ref() {
-                                Collapsible {
-                                    keep_mounted: true,
-                                    open: Some(geometry_open()),
+                                AddMenuSection {
+                                    heading: "Board geometry".to_owned(),
+                                    open: geometry_open(),
                                     on_open_change: move |next| geometry_open.set(next),
-                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Board geometry"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
-                                    CollapsibleContent {
-                                        hidden: !geometry_open(),
-                                        inert: (!geometry_open()).then_some(""),
-
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: {
+                                    AddMenuEntry {
+                                        label: "Board outline…",
+                                        on_press: {
                                             let scope = scope.clone();
                                             move |_| {
                                                 menu_open.set(false);
@@ -940,12 +809,6 @@ fn AddObjectEntry(
                                                 });
                                             }
                                         },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Board outline…"
-
-                                             }
-                                        }
                                     }
                                 }
                             }
@@ -963,6 +826,66 @@ fn AddObjectEntry(
         }
 }
 
+/// One Add-menu collapsible section: identical trigger/content chrome; only the
+/// title, open state and entries vary.
+#[component]
+fn AddMenuSection(
+    heading: String,
+    open: bool,
+    on_open_change: EventHandler<bool>,
+    children: Element,
+) -> Element {
+    rsx! {
+        Collapsible {
+            keep_mounted: true,
+            open: Some(open),
+            on_open_change: move |next| on_open_change.call(next),
+            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{heading}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
+            CollapsibleContent {
+                hidden: !open,
+                inert: (!open).then_some(""),
+                {children}
+            }
+        }
+    }
+}
+
+/// One Add-menu entry: identical Secondary button chrome; only the label, hint,
+/// availability and press action vary.
+#[component]
+fn AddMenuEntry(
+    label: String,
+    #[props(into, optional)] hint: Option<String>,
+    #[props(default = true)] enabled: bool,
+    on_press: EventHandler<()>,
+) -> Element {
+    rsx! {
+        Item { class: "p-0",
+            Button { variant: ButtonVariant::Secondary,
+                button_type: "button",
+                disabled: !enabled,
+                onclick: move |_| on_press.call(()),
+                class: "w-full justify-start whitespace-normal h-auto min-h-control",
+                "{label}"
+                if let Some(hint) = hint {
+                    small { "{hint}" }
+                }
+            }
+        }
+    }
+}
+
+/// Keep Space activation on controls from starting canvas pan: native control
+/// activation must not become the canvas's Space-pan shortcut.
+pub fn stop_space_pan(event: KeyboardEvent) {
+    if event.key().to_string() == " " {
+        event.stop_propagation();
+        if let Some(raw) = event.data().try_as_web_event() {
+            raw.stop_propagation();
+        }
+    }
+}
+
 fn focus_add_object() {
     use wasm_bindgen::JsCast;
     if let Some(element) = web_sys::window()
@@ -978,6 +901,39 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
         state.insert(id.to_owned());
+    }
+}
+
+/// Activate a tree row from click or keyboard: navigate to a foreign board,
+/// otherwise select, then expand a collapsed board row.
+fn activate_tree_row(
+    item: &tree::TreeItem,
+    scope: Option<Scope>,
+    outline_action: Option<super::outline_lifecycle::OutlineAction>,
+    on_select: EventHandler<TreeSelectRequest>,
+    on_navigate: EventHandler<(Scope, String, Option<String>)>,
+    expanded: Signal<BTreeSet<String>>,
+) {
+    if let Some(context) = item.context.clone() {
+        if let Some(scope) = scope {
+            if let TreeContext::Board { board_id } = &context
+                && *board_id != scope.board_id
+            {
+                on_navigate.call((scope, board_id.clone(), None));
+                return;
+            }
+            on_select.call(TreeSelectRequest {
+                scope,
+                context,
+                mode: SelectionMode::Replace,
+                outline_action,
+            });
+        }
+        if item.kind == TreeKind::Board && item.expanded != Some(true) {
+            toggle_tree(expanded, &item.id);
+        }
+    } else if item.expandable {
+        toggle_tree(expanded, &item.id);
     }
 }
 

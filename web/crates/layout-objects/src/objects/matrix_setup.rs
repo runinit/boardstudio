@@ -10,7 +10,6 @@ use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::collections::HashSet;
 use wasm_bindgen::JsCast;
 
@@ -170,12 +169,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
         section {
             class: "absolute inset-x-2 top-[100px] bottom-2 z-6 flex flex-col gap-2.5 overflow-auto rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2",
             aria_label: "New matrix",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                }
-            },
+            onkeydown: super::stop_space_pan,
             header { class: "flex items-baseline justify-between gap-2 [&_h2]:m-0 [&_h2]:text-[16px]!", h2 { "New matrix" } }
             form { onsubmit: on_submit,
                 div {

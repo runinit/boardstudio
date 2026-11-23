@@ -17,11 +17,7 @@ use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
-    select::{Select, SelectOption},
-};
+use boardstudio_web_ui_shared::ui::field::FieldError;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -97,10 +93,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     let scope = projection.scope.clone();
                                     let board_id = projection.board_id.clone();
                                     move |event: KeyboardEvent| {
-                                        if event.key().to_string() == " " {
-                                            event.stop_propagation();
-                                            if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                                        }
+                                        crate::objects::stop_space_pan(event.clone());
                                         if event.data().key().to_string() != "Escape" {
                                             return;
                                         }
@@ -182,7 +175,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 h3 { class: "mt-4 mb-2 text-[13px] font-semibold", "Point {point_index + 1} of {point_count}" }
                                 div { class: "grid gap-2.5",
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:x", action_context.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:x", action_context.envelope.scope, perimeter.target),
                                         label: format!("Point {} X mm", point_index + 1),
                                         value: point.x,
                                         editable: enabled,
@@ -209,7 +202,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 EditPhase::Commit,
                                                                 format!(
                                                                     "outline-point-{}-{point_index}",
-                                                                    action_context.revision,
+                                                                    action_context.envelope.revision,
                                                                 ),
                                                             ),
                                                     );
@@ -217,7 +210,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         },
                                     }
                                     OutlineCoordinate {
-                                        key: format!("{:?}:{:?}:{point_index}:y", action_context.scope, perimeter.target),
+                                        key: format!("{:?}:{:?}:{point_index}:y", action_context.envelope.scope, perimeter.target),
                                         label: format!("Point {} Y mm", point_index + 1),
                                         value: point.y,
                                         editable: enabled,
@@ -244,7 +237,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 EditPhase::Commit,
                                                                 format!(
                                                                     "outline-point-{}-{point_index}",
-                                                                    action_context.revision,
+                                                                    action_context.envelope.revision,
                                                                 ),
                                                             ),
                                                     );
@@ -268,7 +261,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             let b = points[next];
                                             points.insert(point_index + 1, Vec2 { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 });
                                             selected_point.set(point_index + 1);
-                                            on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
+                                            on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
                                         }
                                     },
 
@@ -287,7 +280,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             if point_count <= 3 { return; }
                                             points.remove(point_index);
                                             selected_point.set(point_index.saturating_sub(1));
-                                                on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.revision)));
+                                                on_action.call(action_context.edit_perimeter(target.clone(), points.clone(), EditPhase::Commit, format!("outline-point-{}-{point_index}", action_context.envelope.revision)));
                                         }
                                     },
 

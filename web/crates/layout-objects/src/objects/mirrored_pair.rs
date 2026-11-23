@@ -7,15 +7,11 @@ pub use super::workspace_state::{MirroredPairCreated, MirroredPairOwner};
 use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_model::model::Vec2;
-use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, TextCommitField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::collections::HashSet;
 
 mod canvas_overlay;
@@ -192,38 +188,28 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
         section {
             class: "pointer-events-auto relative box-border flex max-h-full w-[min(380px,100%)] flex-col gap-0 overflow-y-auto rounded-md border border-border-strong bg-card p-6 text-foreground shadow-md max-[760px]:w-[min(380px,calc(100%-8px))] max-[760px]:p-[18px]",
             aria_label: "New mirrored pair",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == " " {
-                    event.stop_propagation();
-                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
-                }
-            },
+            onkeydown: super::stop_space_pan,
             header { class: "flex items-baseline justify-between gap-2 [&_h2]:m-0 [&_h2]:text-xl!", h2 { "Mirrored pair" } }
             p { class: "mt-2.5 mb-5 text-[13px] leading-normal text-muted-foreground",
                 "Linked key assemblies, diode settings and components. Substitute a component on either half when needed."
             }
             form { onsubmit: submit, class: "grid gap-2",
                 div { class: "grid grid-cols-2 gap-x-4 gap-y-3", role: "group", aria_label: "Mirrored pair dimensions",
-                    Field {
-                        FieldLabel { html_for: left_id.clone(), "Left layout" }
-                        InputGroup { class: "max-[760px]:h-control-touch",
-                            InputGroupInput {
-                                class: "max-[760px]:h-control-touch", aria_label: "Left layout name", id: left_id,
-                                required: true, value: "{left_name_value}", disabled: !props.projection.editable,
-                                oninput: move |event: FormEvent| left_name.set(event.value()),
-                                attributes: vec![dioxus::events::onmounted(move |event: MountedEvent| async move { let _ = event.set_focus(true).await; })],
-                            }
-                        }
+                    TextCommitField {
+                        label: "Left layout".to_owned(),
+                        value: left_name_value.clone(),
+                        id: left_id,
+                        aria_label: "Left layout name",
+                        disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                        on_commit: move |next: String| left_name.set(next),
                     }
-                    Field {
-                        FieldLabel { html_for: right_id.clone(), "Right layout" }
-                        InputGroup { class: "max-[760px]:h-control-touch",
-                            InputGroupInput {
-                                class: "max-[760px]:h-control-touch", aria_label: "Right layout name", id: right_id,
-                                required: true, value: "{right_name_value}", disabled: !props.projection.editable,
-                                oninput: move |event: FormEvent| right_name.set(event.value()),
-                            }
-                        }
+                    TextCommitField {
+                        label: "Right layout".to_owned(),
+                        value: right_name_value.clone(),
+                        id: right_id,
+                        aria_label: "Right layout name",
+                        disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                        on_commit: move |next: String| right_name.set(next),
                     }
                 }
                 MatrixDimensionSliders {
@@ -232,13 +218,15 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 }
                 MatrixAssemblyPicker { family, mounting, lighting, editable: props.projection.editable }
                 MatrixPreview { rows: rows_value.clone(), columns: columns_value.clone() }
-                TextField {
-                    id: gap_id, label: "Gap between key edges (mm)".to_owned(), aria_label: "Gap between key edges (mm)",
-                    r#type: InputType::Number, value: gap_value,
-                    disabled: !props.projection.editable,
-                    description: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
-                    error: gap_mm.is_none().then(|| "Enter a finite non-negative gap in millimetres.".to_owned()),
-                    oninput: move |event: FormEvent| gap.set(event.value()),
+                NumericField {
+                    label: "Gap between key edges".to_owned(),
+                    unit: "mm",
+                    value: gap_mm.unwrap_or(0.0),
+                    min: 0.0,
+                    id: gap_id,
+                    aria_label: "Gap between key edges (mm)",
+                    disabled_reason: (!props.projection.editable).then(|| "Placement is unavailable".to_owned()),
+                    on_commit: move |next: f64| gap.set(next.to_string()),
                 }
                 p { class: "mt-2.5 mb-5 border-t border-border pt-3.5 text-[13px] leading-normal text-muted-foreground",
                     "Edit either half to update both. Unlink in the inspector for independent geometry."

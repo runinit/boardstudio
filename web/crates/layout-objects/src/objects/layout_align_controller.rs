@@ -399,16 +399,18 @@ fn project(
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
         .collect();
-    let moving_matrix = context_matrix(&selected.context).or_else(|| {
-        moving_ids.iter().find_map(|id| {
-            snapshot
-                .document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.part_ids.contains(id))
-                .map(|matrix| matrix.id.clone())
-        })
-    });
+    let moving_matrix = super::matrix_id_for_context(&selected.context)
+        .map(str::to_owned)
+        .or_else(|| {
+            moving_ids.iter().find_map(|id| {
+                snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.part_ids.contains(id))
+                    .map(|matrix| matrix.id.clone())
+            })
+        });
     let linked_partner_parts = moving_matrix
         .as_deref()
         .and_then(|matrix_id| linked_partner(&snapshot.document, &scope, matrix_id))
@@ -544,22 +546,6 @@ fn unsupported_source(
     None
 }
 
-fn context_matrix(context: &TreeContext) -> Option<String> {
-    match context {
-        TreeContext::Matrix { matrix_id }
-        | TreeContext::Row { matrix_id, .. }
-        | TreeContext::Column { matrix_id, .. }
-        | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
-        TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
-        TreeContext::Board { .. }
-        | TreeContext::LayoutGroup { .. }
-        | TreeContext::Outline { .. }
-        | TreeContext::OutlineVersion { .. }
-        | TreeContext::Bridge { .. }
-        | TreeContext::MountedModule { .. } => None,
-    }
-}
-
 fn linked_selection(
     context: &TreeContext,
     moving_ids: &[String],
@@ -606,26 +592,13 @@ fn linked_selection(
 }
 
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
-    let layout = document.layouts.iter().find(|layout| {
-        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
-    })?;
-    let linked = if let Some(link) = &layout.mirror_link {
-        document.layouts.iter().find(|candidate| {
-            candidate.board_id == scope.board_id && candidate.id == link.source_id
-        })
-    } else {
-        document.layouts.iter().find(|candidate| {
-            candidate.board_id == scope.board_id
-                && candidate
-                    .mirror_link
-                    .as_ref()
-                    .is_some_and(|link| link.source_id == layout.id)
-        })
-    }?;
+    let layout =
+        super::mirror_links::layout_for_matrix(&document.layouts, &scope.board_id, matrix_id)?;
+    let partner = super::mirror_links::partner_layout(&document.layouts, layout)?;
     layout
         .mirror_link
         .as_ref()
-        .or(linked.mirror_link.as_ref())?
+        .or(partner.mirror_link.as_ref())?
         .partner_matrix(matrix_id)
         .map(str::to_owned)
 }

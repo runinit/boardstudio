@@ -2,7 +2,7 @@
 
 use super::adapter;
 use super::planner::{EditablePerimeter, PerimeterAnchor, connection_point_world};
-use super::planner::{OutlineAction, OutlinePointTarget};
+use super::planner::{OutlineAction, OutlineActionEnvelope, OutlineActionKind, OutlinePointTarget};
 use crate::outline_settings::{
     OutlineEdit, envelope_margin, generated_feature, generated_settings,
 };
@@ -11,8 +11,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
 use boardstudio_model::model::{
-    Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
-    OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
+    BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature,
+    OutlineGap, OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_ui_model::Workspace;
 use dioxus::prelude::*;
@@ -106,36 +106,26 @@ impl OutlineInspectorProjection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OutlineActionContext {
-    scope: Scope,
-    token: boardstudio_application::SnapshotToken,
-    pub(super) revision: u64,
-    generation: u64,
-    board_id: String,
+    pub(super) envelope: OutlineActionEnvelope,
     selection_context: crate::objects::TreeContext,
 }
 
 impl OutlineActionContext {
     pub(super) fn action(&self, edit: OutlineEdit) -> OutlineAction {
-        OutlineAction::Update {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            edit,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::Update { edit },
         }
     }
 
     pub(super) fn activate_action(&self, version_id: Option<String>) -> OutlineAction {
-        OutlineAction::Activate {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            context: self.selection_context.clone(),
-            require_selected_version: false,
-            board_id: self.board_id.clone(),
-            version_id,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::Activate {
+                context: self.selection_context.clone(),
+                require_selected_version: false,
+                version_id,
+            },
         }
     }
 
@@ -146,41 +136,35 @@ impl OutlineActionContext {
         phase: EditPhase,
         transaction_id: String,
     ) -> OutlineAction {
-        OutlineAction::EditPerimeter {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            target,
-            points,
-            phase,
-            transaction_id,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::EditPerimeter {
+                context: self.selection_context.clone(),
+                target,
+                points,
+                phase,
+                transaction_id,
+            },
         }
     }
 
     pub(super) fn add_feature(&self, feature: OutlineFeature) -> OutlineAction {
-        OutlineAction::AddFeature {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            feature,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::AddFeature {
+                context: self.selection_context.clone(),
+                feature,
+            },
         }
     }
 
     pub(super) fn add_connection(&self, points: Vec<Vec2>) -> OutlineAction {
-        OutlineAction::AddConnection {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            points,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::AddConnection {
+                context: self.selection_context.clone(),
+                points,
+            },
         }
     }
 
@@ -190,41 +174,35 @@ impl OutlineActionContext {
         before: OutlineFeature,
         after: OutlineFeature,
     ) -> OutlineAction {
-        OutlineAction::SetFeature {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            version_id,
-            before,
-            after,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::SetFeature {
+                context: self.selection_context.clone(),
+                version_id,
+                before,
+                after,
+            },
         }
     }
 
     pub(super) fn remove_feature(&self, version_id: String, feature_id: String) -> OutlineAction {
-        OutlineAction::RemoveFeature {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            version_id,
-            feature_id,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::RemoveFeature {
+                context: self.selection_context.clone(),
+                version_id,
+                feature_id,
+            },
         }
     }
 
     pub(super) fn focus_gap(&self, gap_id: String) -> OutlineAction {
-        OutlineAction::FocusGap {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            context: self.selection_context.clone(),
-            gap_id,
+        OutlineAction {
+            envelope: self.envelope.clone(),
+            kind: OutlineActionKind::FocusGap {
+                context: self.selection_context.clone(),
+                gap_id,
+            },
         }
     }
 }
@@ -283,6 +261,15 @@ impl OutlineVersionChoice {
 }
 
 /// The board's currently blocked export labels, from the accepted scene's readiness.
+/// The board's outline state, or `None` when the board has no outline state yet.
+fn outline_state<'a>(snapshot: &'a AcceptedSnapshot, board_id: &str) -> Option<&'a BoardOutline> {
+    snapshot
+        .document
+        .board_outlines
+        .iter()
+        .find(|state| state.board_id == board_id)
+}
+
 fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<String> {
     let Some(readiness) = snapshot
         .scene
@@ -355,11 +342,7 @@ pub fn use_outline_lifecycle(
                     }
                     _ => None,
                 })?;
-            snapshot
-                .document
-                .board_outlines
-                .iter()
-                .find(|state| &state.board_id == board_id)
+            outline_state(snapshot, board_id)
         })
         .and_then(|state| state.active_version_id.clone());
     let draft_scope = runtime.scope();
@@ -393,11 +376,7 @@ pub fn use_outline_lifecycle(
                     }
                     _ => None,
                 })?;
-            let outline = snapshot
-                .document
-                .board_outlines
-                .iter()
-                .find(|state| &state.board_id == owner_board)?;
+            let outline = outline_state(snapshot, owner_board)?;
             let active = outline.active_version_id.as_ref()?;
             Some(
                 outline
@@ -513,11 +492,7 @@ fn project_inspector(
         .find(|board| board.id == board_id)?
         .name
         .clone();
-    let outline = snapshot
-        .document
-        .board_outlines
-        .iter()
-        .find(|state| state.board_id == board_id);
+    let outline = outline_state(snapshot, &board_id);
     let active_version_id = outline.and_then(|state| state.active_version_id.clone());
     let version_name = outline
         .and_then(|state| {
@@ -750,11 +725,13 @@ fn project_inspector(
         has_generated: generated.is_some(),
         gaps,
         action_context: Rc::new(OutlineActionContext {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            generation: captured_generation,
-            board_id: board_id.clone(),
+            envelope: OutlineActionEnvelope {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                generation: captured_generation,
+                board_id: board_id.clone(),
+            },
             selection_context: selected.context,
         }),
         enabled: editable,
@@ -778,11 +755,7 @@ pub(super) fn editable_perimeter(
     selected_feature_id: Option<&str>,
 ) -> Option<EditablePerimeter> {
     if let Some(version_id) = active_version_id {
-        let feature = snapshot
-            .document
-            .board_outlines
-            .iter()
-            .find(|state| state.board_id == board_id)?
+        let feature = outline_state(snapshot, board_id)?
             .versions
             .iter()
             .find(|version| version.id == version_id)?
@@ -882,7 +855,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if !selection_is_current {
         return;
     }
-    if let OutlineAction::FocusGap { gap_id, .. } = &action {
+    if let OutlineActionKind::FocusGap { gap_id, .. } = &action.kind {
         let Some(gap) = snapshot
             .scene
             .board_outline_scenes
@@ -961,10 +934,9 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     // exactly as before. The typed edit is captured here with the shape the user reviewed,
     // and the resolver re-evaluates it against whatever is accepted at execution.
     let is_version_name = matches!(
-        &action,
-        OutlineAction::Update {
+        &action.kind,
+        OutlineActionKind::Update {
             edit: OutlineEdit::RenameVersion { .. },
-            ..
         }
     );
     let Some(edit) = adapter::outline_edit(snapshot, &action, seed) else {
@@ -996,7 +968,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         }
         return;
     }
-    if let OutlineAction::Delete { .. } = &action {
+    if let OutlineActionKind::Delete { .. } = &action.kind {
         selected_context.set(Some(crate::objects::ScopedTreeContext {
             scope: action_scope.clone(),
             context: crate::objects::TreeContext::Outline {
@@ -1004,11 +976,11 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             },
         }));
     }
-    if let OutlineAction::EditPerimeter {
+    if let OutlineActionKind::EditPerimeter {
         phase: EditPhase::Preview,
         transaction_id,
         ..
-    } = &action
+    } = &action.kind
     {
         runtime.submit(Event::PreviewEdit {
             operation_id: runtime.operation(),
@@ -1020,8 +992,8 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         });
         return;
     }
-    let transaction_id = match &action {
-        OutlineAction::EditPerimeter { transaction_id, .. } => transaction_id.clone(),
+    let transaction_id = match &action.kind {
+        OutlineActionKind::EditPerimeter { transaction_id, .. } => transaction_id.clone(),
         _ => String::new(),
     };
     let resolver = action_resolver(edit, action.clone(), transaction_id);
@@ -1031,13 +1003,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             .model()
             .accepted
             .as_ref()
-            .and_then(|snapshot| {
-                snapshot
-                    .document
-                    .board_outlines
-                    .iter()
-                    .find(|outline| &outline.board_id == board_id)
-            })
+            .and_then(|snapshot| outline_state(snapshot, board_id))
             .and_then(|outline| {
                 outline
                     .versions
@@ -1070,8 +1036,8 @@ pub(super) fn action_resolver(
     })
 }
 impl OutlineInspectorProjection {
-    pub(super) fn copy_action(&self) -> OutlineAction {
-        OutlineAction::Copy {
+    fn action_envelope(&self) -> OutlineActionEnvelope {
+        OutlineActionEnvelope {
             scope: self.scope.clone(),
             token: self.token,
             revision: self.revision,
@@ -1080,27 +1046,29 @@ impl OutlineInspectorProjection {
         }
     }
 
+    pub(super) fn copy_action(&self) -> OutlineAction {
+        OutlineAction {
+            envelope: self.action_envelope(),
+            kind: OutlineActionKind::Copy,
+        }
+    }
+
     pub(super) fn delete_action(&self) -> Option<OutlineAction> {
         self.active_version_id
             .as_ref()
-            .map(|version_id| OutlineAction::Delete {
-                scope: self.scope.clone(),
-                token: self.token,
-                revision: self.revision,
-                generation: self.generation,
-                board_id: self.board_id.clone(),
-                version_id: version_id.clone(),
+            .map(|version_id| OutlineAction {
+                envelope: self.action_envelope(),
+                kind: OutlineActionKind::Delete {
+                    version_id: version_id.clone(),
+                },
             })
     }
 
     /// Accept the Generated outline as a linked refinement that follows the components.
     pub(super) fn refine_action(&self) -> Option<OutlineAction> {
-        (self.has_generated && self.active_version_id.is_none()).then(|| OutlineAction::Refine {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
+        (self.has_generated && self.active_version_id.is_none()).then(|| OutlineAction {
+            envelope: self.action_envelope(),
+            kind: OutlineActionKind::Refine,
         })
     }
 
@@ -1111,13 +1079,11 @@ impl OutlineInspectorProjection {
                 &choice.id == version_id && choice.ownership == OutlineVersionOwnership::Linked
             })
         });
-        linked.then(|| OutlineAction::Freeze {
-            scope: self.scope.clone(),
-            token: self.token,
-            revision: self.revision,
-            generation: self.generation,
-            board_id: self.board_id.clone(),
-            version_id: self.active_version_id.clone().unwrap_or_default(),
+        linked.then(|| OutlineAction {
+            envelope: self.action_envelope(),
+            kind: OutlineActionKind::Freeze {
+                version_id: self.active_version_id.clone().unwrap_or_default(),
+            },
         })
     }
 }

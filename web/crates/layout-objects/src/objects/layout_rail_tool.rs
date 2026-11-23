@@ -38,18 +38,6 @@ impl From<crate::part_rail::PartRailTool> for LayoutTransformTool {
 }
 
 impl LayoutTransformTool {
-    pub(super) const MENU: [(Self, &'static str); 9] = [
-        (Self::Stagger, "Stagger"),
-        (Self::Spread, "Spread"),
-        (Self::Offset, "Offset"),
-        (Self::Shift, "Shift"),
-        (Self::Bend, "Bend"),
-        (Self::Splay, "Splay"),
-        (Self::Origin, "Origin"),
-        (Self::Move, "Move"),
-        (Self::Rotate, "Rotate"),
-    ];
-
     pub fn label(self) -> &'static str {
         match self {
             Self::Stagger => "Stagger",
@@ -194,6 +182,13 @@ mod tests {
                 row: 1,
                 column: 2,
             },
+            "part" => TreeContext::Component {
+                part_id: Some("mcu".into()),
+                matrix_id: None,
+                row: None,
+                column: None,
+                assembly_id: None,
+            },
             _ => TreeContext::Matrix { matrix_id },
         }
     }
@@ -274,8 +269,18 @@ mod tests {
     }
 
     #[test]
-    fn the_menu_lists_every_drag_tool_by_its_label() {
-        for (tool, label) in Tool::MENU {
+    fn every_drag_tool_has_its_menu_label() {
+        for (tool, label) in [
+            (Tool::Stagger, "Stagger"),
+            (Tool::Spread, "Spread"),
+            (Tool::Offset, "Offset"),
+            (Tool::Shift, "Shift"),
+            (Tool::Bend, "Bend"),
+            (Tool::Splay, "Splay"),
+            (Tool::Origin, "Origin"),
+            (Tool::Move, "Move"),
+            (Tool::Rotate, "Rotate"),
+        ] {
             assert_eq!(tool.label(), label);
         }
         assert_eq!(Tool::Anchor.label(), "Anchor");
@@ -284,10 +289,7 @@ mod tests {
     #[test]
     fn explicit_offset_and_origin_activate_the_named_canvas_handle() {
         use LayoutTransformTool as Tool;
-        let column = TreeContext::Column {
-            matrix_id: "matrix".into(),
-            column: 0,
-        };
+        let column = context_of("column");
         assert_eq!(
             transform_tools(&column, Some(Tool::Offset), true, None),
             vec![Tool::Offset, Tool::Splay]
@@ -303,84 +305,32 @@ mod tests {
         // Ticket 05: a Row keeps its shipped Offset next to Shift and Bend;
         // a Key offers Shift and Bend.
         assert_eq!(
-            transform_tools(
-                &TreeContext::Row {
-                    matrix_id: "matrix".into(),
-                    row: 0
-                },
-                Some(Tool::Stagger),
-                true,
-                None,
-            ),
+            transform_tools(&context_of("row"), Some(Tool::Stagger), true, None,),
             vec![Tool::Offset, Tool::Shift, Tool::Bend]
         );
         assert_eq!(
-            transform_tools(
-                &TreeContext::Row {
-                    matrix_id: "matrix".into(),
-                    row: 0
-                },
-                None,
-                true,
-                None,
-            ),
+            transform_tools(&context_of("row"), None, true, None,),
             vec![Tool::Offset, Tool::Shift, Tool::Bend]
         );
         assert_eq!(
-            transform_tools(
-                &TreeContext::Key {
-                    matrix_id: "matrix".into(),
-                    row: 0,
-                    column: 1,
-                },
-                None,
-                true,
-                None,
-            ),
+            transform_tools(&context_of("key"), None, true, None,),
             vec![Tool::Shift, Tool::Bend]
         );
         assert_eq!(
-            transform_tools(
-                &TreeContext::Matrix {
-                    matrix_id: "matrix".into()
-                },
-                None,
-                true,
-                None,
-            ),
+            transform_tools(&context_of("matrix"), None, true, None,),
             vec![Tool::Move, Tool::Rotate, Tool::Anchor]
         );
         assert_eq!(
-            transform_tools(
-                &TreeContext::Matrix {
-                    matrix_id: "matrix".into()
-                },
-                Some(Tool::Move),
-                true,
-                None,
-            ),
+            transform_tools(&context_of("matrix"), Some(Tool::Move), true, None,),
             vec![Tool::Move, Tool::Rotate, Tool::Anchor]
         );
         assert_eq!(
-            transform_tools(
-                &TreeContext::Matrix {
-                    matrix_id: "matrix".into()
-                },
-                Some(Tool::Move),
-                false,
-                None,
-            ),
+            transform_tools(&context_of("matrix"), Some(Tool::Move), false, None,),
             vec![Tool::Move]
         );
         // Ticket 07: an independent part gets its own rail from the mount
         // site's facts; without facts (a member or companion) nothing draws.
-        let part = TreeContext::Component {
-            part_id: Some("mcu".into()),
-            matrix_id: None,
-            row: None,
-            column: None,
-            assembly_id: None,
-        };
+        let part = context_of("part");
         let anchored = || {
             Some(PartRailFacts {
                 anchored: true,
@@ -459,11 +409,7 @@ mod tests {
             Vec::new()
         );
         // A matrix member keeps its matrix's key tools, never the part rail.
-        let member_key = TreeContext::Key {
-            matrix_id: "matrix".into(),
-            row: 0,
-            column: 1,
-        };
+        let member_key = context_of("key");
         assert_eq!(
             transform_tools(&member_key, None, true, anchored()),
             vec![Tool::Shift, Tool::Bend]
@@ -476,19 +422,9 @@ mod tests {
     #[test]
     fn hidden_handles_keep_only_the_active_tool() {
         use LayoutTransformTool as Tool;
-        let column = TreeContext::Column {
-            matrix_id: "matrix".into(),
-            column: 1,
-        };
-        let row = TreeContext::Row {
-            matrix_id: "matrix".into(),
-            row: 0,
-        };
-        let key = TreeContext::Key {
-            matrix_id: "matrix".into(),
-            row: 0,
-            column: 1,
-        };
+        let column = context_of("column");
+        let row = context_of("row");
+        let key = context_of("key");
         assert_eq!(transform_tools(&column, None, false, None), Vec::new());
         assert_eq!(transform_tools(&row, None, false, None), Vec::new());
         assert_eq!(transform_tools(&key, None, false, None), Vec::new());
@@ -535,13 +471,7 @@ mod tests {
             Vec::new()
         );
         // Ticket 07: a hidden part rail keeps only its active tool.
-        let part = TreeContext::Component {
-            part_id: Some("mcu".into()),
-            matrix_id: None,
-            row: None,
-            column: None,
-            assembly_id: None,
-        };
+        let part = context_of("part");
         let anchored = || {
             Some(PartRailFacts {
                 anchored: true,

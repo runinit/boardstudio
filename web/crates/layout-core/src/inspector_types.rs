@@ -1,6 +1,6 @@
 pub use crate::component_offset::BoardPartChoice;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     CompanionPlacementTarget, Constraint, Follow, HalfExceptionState, MirroredCompanionMode,
     MirroredCompanionTweak, PartOutline, Vec2,
 };

@@ -187,13 +187,8 @@ pub(super) fn start_placement(
         // Ticket 22: the initial placement grid follows the selected matrix
         // pitch (19.05 mm only when the selection names no matrix).
         let pitch = (adapter_for_async.selected_context)()
-            .and_then(|selected| match &selected.context {
-                TreeContext::Matrix { matrix_id }
-                | TreeContext::Row { matrix_id, .. }
-                | TreeContext::Column { matrix_id, .. }
-                | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
-                TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
-                _ => None,
+            .and_then(|selected| {
+                crate::objects::matrix_id_for_context(&selected.context).map(str::to_owned)
             })
             .and_then(|matrix_id| {
                 snapshot
@@ -324,18 +319,6 @@ pub(super) fn start_placement(
                 ));
                 return;
             };
-            if !PlacementAdmission::capture(
-                &runtime,
-                generation_for_preparation(),
-                workspace_for_preparation(),
-                owner.source_workspace,
-                guide_for_preparation(),
-            )
-            .admits(&owner, &runtime, &model)
-            {
-                preparing.set(None);
-                return;
-            }
             active.set(Some(ActivePartPlacement {
                 owner,
                 snap_document: Rc::new(document_with_pending_definition(

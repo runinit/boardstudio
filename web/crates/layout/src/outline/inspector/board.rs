@@ -1,12 +1,41 @@
 //! The board-outline (non-perimeter) section of the outline Inspector.
+use super::super::hook::OutlineActionContext;
+use super::super::planner::OutlineAction;
 use super::vec2_fields::vec2_fields;
 use super::*;
+use std::rc::Rc;
 
 mod connections;
 mod drawing;
 mod features;
 mod settings;
 mod versions;
+
+/// Build an `on_commit` closure that maps the committed value to one outline
+/// settings edit through the shared action context.
+pub(super) fn commit_setting<T>(
+    action_context: Rc<OutlineActionContext>,
+    on_action: EventHandler<OutlineAction>,
+    edit: impl Fn(T) -> OutlineEdit,
+) -> impl Fn(T) {
+    move |value| on_action.call(action_context.action(edit(value)))
+}
+
+/// Build an `on_commit` closure that rewrites one saved feature: the committed
+/// value mutates a copy of `before`, then the before/after pair is submitted.
+pub(super) fn commit_feature_edit(
+    action_context: Rc<OutlineActionContext>,
+    on_action: EventHandler<OutlineAction>,
+    before: OutlineFeature,
+    version_id: Option<String>,
+    mutate: impl Fn(&mut OutlineFeature, f64),
+) -> impl Fn(f64) {
+    move |value| {
+        let mut after = before.clone();
+        mutate(&mut after, value);
+        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+    }
+}
 
 pub(super) struct BoardInspectorView {
     pub(super) projection: OutlineInspectorProjection,
@@ -38,14 +67,7 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
         active_choice.map_or(OutlineVersionOwnership::Generated, |item| item.ownership);
     rsx! {
         section { class: "border-b border-border px-4 py-3.5 [&>p]:my-2 [&>p]:text-muted-foreground", "aria-label": "Board outline",
-        onkeydown: move |event: KeyboardEvent| {
-            if event.key().to_string() == " " {
-                event.stop_propagation();
-                if let Some(raw) = event.data().try_as_web_event() {
-                    raw.stop_propagation();
-                }
-            }
-        },
+        onkeydown: crate::objects::stop_space_pan,
             div { class: "flex items-center justify-between gap-2",
                 h2 { class: "m-0 text-[16px]! font-semibold!", "Board outline" }
                 span { class: "text-muted-foreground text-xs", "{projection.board_name}" }

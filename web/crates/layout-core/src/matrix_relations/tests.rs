@@ -1,9 +1,9 @@
 //! Relations projection tests: scenes come from a real `CoreEngine`, never hand-built.
 
+use super::super::engine_test_support::{edit_json, open_engine};
 use super::*;
-use boardstudio_core::CoreEngine;
+use boardstudio_model::model::SceneDelta;
 use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation};
-use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
 use serde_json::json;
 
 const MATRIX: &str = "main";
@@ -49,32 +49,6 @@ fn matrix(rows: u32, columns: u32, extra: serde_json::Value) -> serde_json::Valu
     matrix
 }
 
-fn scene_of(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-    match reply {
-        CoreReply::Scene {
-            scene, document, ..
-        } => (scene, *document),
-        other => panic!("{other:?}"),
-    }
-}
-
-fn apply(
-    engine: &mut CoreEngine,
-    revision: u64,
-    operation: serde_json::Value,
-) -> (SceneDelta, ProjectDoc) {
-    scene_of(engine.handle(CoreRequest::Edit {
-        id: "edit".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "edit".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: serde_json::from_value(operation).expect("the operation parses"),
-        },
-    }))
-}
-
 fn world_of(delta: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
     let scene = delta
         .matrix_scenes
@@ -90,12 +64,8 @@ fn world_of(delta: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
 }
 
 fn world(matrix_json: serde_json::Value) -> World {
-    let mut engine = CoreEngine::new();
-    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: base(),
-    }));
-    let (delta, document) = apply(
+    let (mut engine, opened, _) = open_engine(base());
+    let (delta, document) = edit_json(
         &mut engine,
         opened.revision,
         json!({ "kind": "set-matrix", "matrix": matrix_json }),
@@ -104,11 +74,7 @@ fn world(matrix_json: serde_json::Value) -> World {
 }
 
 fn reopen(document: ProjectDoc, matrix_id: &str) -> World {
-    let mut engine = CoreEngine::new();
-    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document,
-    }));
+    let (_, scene, document) = open_engine(document);
     world_of(scene, document, matrix_id)
 }
 
@@ -117,7 +83,6 @@ fn relations(world: &World, context: TreeContext) -> Option<MatrixRelations> {
 }
 
 fn anchored_pair() -> (World, World) {
-    let mut engine = CoreEngine::new();
     let main = matrix(2, 2, json!({}));
     let thumb = matrix(
         1,
@@ -130,10 +95,7 @@ fn anchored_pair() -> (World, World) {
     document["matrices"] = json!([main, thumb]);
     document["layouts"] = json!([{ "id": "layout", "name": "Layout",
         "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
-    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(document).unwrap(),
-    }));
+    let (_, scene, document) = open_engine(serde_json::from_value(document).unwrap());
     (
         world_of(scene.clone(), document.clone(), MATRIX),
         world_of(scene, document, "thumb"),
@@ -230,11 +192,7 @@ fn aggregate_pair() -> (World, World) {
     document["parts"] = serde_json::Value::Array(parts);
     document["layouts"] = json!([{ "id": "layout", "name": "Layout",
         "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
-    let mut engine = CoreEngine::new();
-    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(document).unwrap(),
-    }));
+    let (_, scene, document) = open_engine(serde_json::from_value(document).unwrap());
     (
         world_of(scene.clone(), document.clone(), MATRIX),
         world_of(scene, document, "thumb"),
@@ -549,17 +507,13 @@ fn a_matrix_chain_shows_common_values_or_varies() {
 
 #[test]
 fn selected_parts_in_two_matrices_yield_a_single_context_note() {
-    let mut engine = CoreEngine::new();
-    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: base(),
-    }));
-    let (first, _) = apply(
+    let (mut engine, opened, _) = open_engine(base());
+    let (first, _) = edit_json(
         &mut engine,
         opened.revision,
         json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "left"})) }),
     );
-    let (scene, _document) = apply(
+    let (scene, _document) = edit_json(
         &mut engine,
         first.revision,
         json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "right"})) }),
@@ -878,7 +832,6 @@ fn an_unmirrored_matrix_has_no_per_half_split() {
 
 #[test]
 fn an_anchor_key_names_the_parts_anchored_to_it() {
-    let mut engine = CoreEngine::new();
     let mut document = serde_json::to_value(base()).unwrap();
     document["matrices"] = json!([matrix(2, 2, json!({}))]);
     document["boards"] = json!([{ "id": "board", "name": "Board", "outlineIds": [],
@@ -892,10 +845,7 @@ fn an_anchor_key_names_the_parts_anchored_to_it() {
           "follow": ["x", "y", "rotation"],
           "spread": 0.0, "stagger": 0.0, "splay": 0.0,
           "offset": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } }]);
-    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: serde_json::from_value(document).unwrap(),
-    }));
+    let (_, scene, document) = open_engine(serde_json::from_value(document).unwrap());
     let world = world_of(scene, document, MATRIX);
     let anchored = relations(&world, key(0, 1)).expect("the anchor key has a chain");
     let item = anchored

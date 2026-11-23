@@ -18,7 +18,6 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
 use std::{future::Future, pin::Pin};
@@ -62,6 +61,39 @@ pub struct LayoutCanonicalViewerProps {
     pub focused_finding: Option<super::keycaps_finding_marker::FocusedFinding>,
     #[props(default)]
     pub on_mounted_module_pick: Option<EventHandler<String>>,
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct KeycapStatusProps {
+    blocker: Option<String>,
+    pending: bool,
+    error: Option<String>,
+    on_retry: EventHandler,
+}
+
+#[component]
+fn KeycapStatus(props: KeycapStatusProps) -> Element {
+    rsx! {
+        if let Some(blocker) = props.blocker {
+            div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
+        } else if props.pending {
+            div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
+                Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
+            }
+        }
+        if let Some(error) = props.error {
+            Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
+                AlertDescription { "Keycap preview failed: {error}" }
+            }
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                onkeydown: crate::objects::stop_space_pan,
+                onclick: move |_| props.on_retry.call(()),
+                "Retry keycaps"
+            }
+        }
+    }
 }
 
 #[component]
@@ -312,12 +344,21 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         }
     };
 
+    let keycap_status = rsx! {
+        KeycapStatus {
+            blocker: props
+                .keycaps_fit
+                .as_ref()
+                .and_then(|fit| fit.preview_blocker_message()),
+            pending: keycaps_preview_pending(),
+            error: keycaps_preview_error(),
+            on_retry: move |_| keycaps_retry_generation.set(keycaps_retry_generation() + 1),
+        }
+    };
     let Some(preview) = preview else {
         let preview_error = runtime.layout_preview_error();
         let message = if let Some(error) = preview_error.as_ref() {
             format!("3D preview unavailable: {error}")
-        } else if runtime.layout_preview_pending() {
-            "Preparing canonical board preview…".to_owned()
         } else if request.is_none() {
             "Open a project and select a board to view its assembly.".to_owned()
         } else {
@@ -337,38 +378,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                         }
                     }
                 }
-                if let Some(blocker) = props
-                    .keycaps_fit
-                    .as_ref()
-                    .and_then(|fit| fit.preview_blocker_message())
-                {
-                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
-                } else if keycaps_preview_pending() {
-                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
-                        Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
-                    }
-                }
-                if let Some(error) = keycaps_preview_error() {
-                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
-                        AlertDescription { "Keycap preview failed: {error}" }
-                    }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        button_type: "button",
-                        onkeydown: move |event: KeyboardEvent| {
-                            if event.key().to_string() == " " {
-                                event.stop_propagation();
-                                if let Some(raw) = event.data().try_as_web_event() {
-                                    raw.stop_propagation();
-                                }
-                            }
-                        },
-                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-
-                        "Retry keycaps"
-
-                    }
-                }
+                {keycap_status}
             }
         };
     };
@@ -406,38 +416,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
 
     rsx! {
         div { class: "flex min-h-0 flex-1 flex-col",
-            if let Some(blocker) = props
-                .keycaps_fit
-                .as_ref()
-                .and_then(|fit| fit.preview_blocker_message())
-            {
-                div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
-            } else if keycaps_preview_pending() {
-                div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
-                    Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
-                }
-            }
-            if let Some(error) = keycaps_preview_error() {
-                Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
-                    AlertDescription { "Keycap preview failed: {error}" }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        button_type: "button",
-                        onkeydown: move |event: KeyboardEvent| {
-                            if event.key().to_string() == " " {
-                                event.stop_propagation();
-                                if let Some(raw) = event.data().try_as_web_event() {
-                                    raw.stop_propagation();
-                                }
-                            }
-                        },
-                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-
-                        "Retry keycaps"
-
-                    }
-                }
-            }
+            {keycap_status}
             div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             Viewport3D {
                 scene: None,

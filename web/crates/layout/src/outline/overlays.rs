@@ -1,11 +1,6 @@
 //! Canvas overlays for editing and previewing outlines.
-use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
+use boardstudio_web_layout_core::rail_gesture::grid_step;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 
 use super::hook::{OutlineActionContext, OutlineDrawTool, OutlineInspectorProjection};
 use super::planner::{OutlinePointTarget, PerimeterAnchor};
@@ -121,16 +116,13 @@ pub fn OutlinePointCanvasOverlay(
     let canvas_points = perimeter.canvas_points.clone();
     let target = perimeter.target.clone();
     let anchor = perimeter.anchor;
-    let snap_paths = projection.snap_paths.clone();
-    let origins = Rc::new(origins);
-    let grid = outline_grid(snap_settings.snap_fraction, pitch);
-    let geometry_snap = snap_settings.geometry_snap;
     let enabled = projection.enabled;
+    let grid = grid_step(pitch, snap_settings.snap_fraction).unwrap_or_default();
     let snap_inputs = PointSnapInputs {
-        paths: snap_paths.clone(),
-        origins: origins.clone(),
+        paths: projection.snap_paths.clone(),
+        origins: Rc::new(origins),
         grid,
-        geometry_snap,
+        geometry_snap: snap_settings.geometry_snap,
         svg: svg.clone(),
         width,
     };
@@ -387,22 +379,6 @@ pub fn OutlinePointCanvasOverlay(
     }
 }
 
-pub(super) fn outline_grid(fraction: f64, pitch: Vec2) -> Vec2 {
-    let spacing = |axis: f64| {
-        if fraction > 0.0 {
-            axis * fraction
-        } else if fraction < 0.0 {
-            -fraction
-        } else {
-            0.0
-        }
-    };
-    Vec2 {
-        x: spacing(pitch.x),
-        y: spacing(pitch.y),
-    }
-}
-
 #[component]
 pub fn OutlineDraftCanvasOverlay(
     projection: OutlineInspectorProjection,
@@ -427,9 +403,9 @@ pub fn OutlineDraftCanvasOverlay(
     };
     let mut drawing_operation = projection.drawing_operation;
     let points = projection.drawing_points;
-    let grid = outline_grid(snap_settings.snap_fraction, pitch);
     let paths = projection.snap_paths.clone();
     let origins = Rc::new(origins);
+    let grid = grid_step(pitch, snap_settings.snap_fraction).unwrap_or_default();
     let geometry_snap = snap_settings.geometry_snap;
     let draft = points.read().clone();
     let point_string = draft
@@ -575,77 +551,9 @@ fn apply_point_sample(drag: &mut PointDrag, world: Vec2, inputs: &PointSnapInput
     drag.snap = Some(result);
 }
 
-/// Shared numeric inspector row behind [`OutlineDimension`] and [`OutlineCoordinate`].
-///
-/// Both rows keep the existing Field/InputGroup structure, exact ordering (label,
-/// input with mm unit, then the dimension-only range error), Enter-to-blur and
-/// Escape-to-reset focus semantics, and blur-to-commit finite-parse save behavior.
-/// A `None` minimum disables the floor check, the `min` attribute and the range
-/// error, which is the only behavioral difference between the two rows.
-#[component]
-fn OutlineNumericField(
-    label: String,
-    value: f64,
-    minimum: Option<f64>,
-    id_suffix: &'static str,
-    editable: bool,
-    on_commit: EventHandler<f64>,
-) -> Element {
-    let mut field = use_signal(|| (value, value.to_string()));
-    use_effect(use_reactive!(|value| {
-        if field.peek().0 != value {
-            field.set((value, value.to_string()));
-        }
-    }));
-    let draft = if field().0 == value {
-        field().1
-    } else {
-        value.to_string()
-    };
-    let valid = !draft.trim().is_empty()
-        && draft
-            .trim()
-            .parse::<f64>()
-            .is_ok_and(|parsed| parsed.is_finite() && minimum.is_none_or(|floor| parsed >= floor));
-    let error = !valid;
-    let floor = minimum.unwrap_or(0.0);
-    rsx! {
-            { let control_input_id = format!("layout-input-{}{}", dioxus::core::current_scope_id().0, id_suffix); rsx! { Field { class: "grid gap-[5px] text-xs text-muted-foreground", FieldLabel { html_for: control_input_id.clone(),
-                span { "{label}" }
-                 } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-    step: "0.1",
-    min: minimum.map(|floor| floor.to_string()),
-    value: "{draft}",
-    disabled: !editable,
-    aria_label: "{label}",
-    oninput: move |event: FormEvent| field.set((value, event.value())),
-    id: control_input_id.clone(),
-    attributes: vec![dioxus::core::Attribute::new("aria-invalid", error, None, false),dioxus::events::onblur(move |_| {
-                            if field().0 != value {
-                                field.set((value, value.to_string()));
-                            } else if let Ok(next) = field().1.trim().parse::<f64>()
-                                && next.is_finite() && minimum.is_none_or(|floor| next >= floor) && next != value
-                            { on_commit.call(next); }
-                        }),dioxus::events::onkeydown(move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                            "Enter" => {
-                                event.prevent_default();
-                                if let Some(input) = event.data().try_as_web_event()
-                                    .and_then(|event| event.target())
-                                    .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                { let _ = input.blur(); }
-                            }
-                            "Escape" => {
-                                event.prevent_default();
-                                let has_draft = field().1 != value.to_string();
-                                field.set((value, value.to_string()));
-                                if has_draft { event.stop_propagation(); }
-                            }
-                            _ => {}
-                        })], } InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "mm" } } }
-                if error && minimum.is_some() { boardstudio_web_ui_shared::ui::field::FieldError { "Enter a finite value greater than or equal to {floor} mm." } }
-             } } }
-        }
-}
+/// Shared numeric inspector rows, backed by the shared [`NumericField`] molecule
+/// (Enter/blur parse+clamp commit, Escape revert, mm unit, 0.1 step). A dimension
+/// clamps to its floor; a coordinate has no floor.
 
 #[component]
 pub(super) fn OutlineDimension(
@@ -656,12 +564,13 @@ pub(super) fn OutlineDimension(
     on_commit: EventHandler<f64>,
 ) -> Element {
     rsx! {
-        OutlineNumericField {
+        NumericField {
             label: label.to_owned(),
             value,
-            minimum: Some(minimum),
-            id_suffix: "-2",
-            editable,
+            min: minimum,
+            unit: "mm",
+            step: 0.1,
+            disabled_reason: (!editable).then(|| "Editing is unavailable".to_owned()),
             on_commit,
         }
     }
@@ -675,12 +584,12 @@ pub(super) fn OutlineCoordinate(
     on_commit: EventHandler<f64>,
 ) -> Element {
     rsx! {
-        OutlineNumericField {
+        NumericField {
             label,
             value,
-            minimum: None,
-            id_suffix: "-1",
-            editable,
+            unit: "mm",
+            step: 0.1,
+            disabled_reason: (!editable).then(|| "Editing is unavailable".to_owned()),
             on_commit,
         }
     }
