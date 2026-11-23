@@ -10,7 +10,7 @@ use dioxus::prelude::*;
 use policy::decode_settings;
 pub use policy::{PanelMode, PanelSettings, PanelSide};
 use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, Storage};
 
 mod policy;
@@ -491,8 +491,6 @@ fn focus_element(id: &str) {
     }
 }
 
-type ResizeListener = Rc<(web_sys::Window, Closure<dyn FnMut(web_sys::Event)>)>;
-
 fn use_viewport_width() -> Signal<f64> {
     let read_width = || {
         web_sys::window()
@@ -501,22 +499,12 @@ fn use_viewport_width() -> Signal<f64> {
             .unwrap_or(1280.0)
     };
     let mut width = use_signal(read_width);
-    let listener = use_hook(|| {
-        web_sys::window().map(|window| {
-            let callback = Closure::wrap(
-                Box::new(move |_: web_sys::Event| width.set(read_width())) as Box<dyn FnMut(_)>,
-            );
-            let _ = window
-                .add_event_listener_with_callback("resize", callback.as_ref().unchecked_ref());
-            Rc::new((window, callback)) as ResizeListener
-        })
-    });
-    use_drop(move || {
-        if let Some(listener) = listener {
-            let _ = listener
-                .0
-                .remove_event_listener_with_callback("resize", listener.1.as_ref().unchecked_ref());
-        }
+    let _resize_guard = use_hook(|| {
+        Rc::new(web_sys::window().and_then(|window| {
+            crate::DomEventListener::listen(&window, "resize", false, move |_| {
+                width.set(read_width())
+            })
+        }))
     });
     width
 }

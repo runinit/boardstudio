@@ -1,5 +1,6 @@
 //! Search and navigation only; commands remain owned by their mounted controls.
 use boardstudio_web_ui_model::Workspace;
+use boardstudio_web_ui_shared::DomEventListener;
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     combobox::{Combobox, ComboboxEmpty, ComboboxOption},
@@ -9,7 +10,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
-use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) struct PaletteState {
@@ -78,35 +79,25 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
             query.set(String::new());
         }
     });
-    let listener = use_hook(move || {
-        web_sys::window().and_then(|w| w.document()).map(|doc| {
-            let cb = Closure::wrap(Box::new(move |e: web_sys::KeyboardEvent| {
-                if super::workbench_shortcuts::is_palette_shortcut(&e) {
-                    e.prevent_default();
-                    e.stop_immediate_propagation();
-                    state.show();
-                } else if *state.open.peek() && e.key() == "Escape" {
-                    e.prevent_default();
-                    e.stop_immediate_propagation();
-                    state.close(None);
-                }
-            }) as Box<dyn FnMut(_)>);
-            let _ = doc.add_event_listener_with_callback_and_bool(
-                "keydown",
-                cb.as_ref().unchecked_ref(),
-                true,
-            );
-            Rc::new((doc, cb))
-        })
-    });
-    use_drop(move || {
-        if let Some(l) = listener {
-            let _ = l.0.remove_event_listener_with_callback_and_bool(
-                "keydown",
-                l.1.as_ref().unchecked_ref(),
-                true,
-            );
-        }
+    let _palette_guard = use_hook(move || {
+        Rc::new(
+            web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|doc| {
+                    DomEventListener::listen(&doc, "keydown", true, move |e: web_sys::Event| {
+                        let e: web_sys::KeyboardEvent = e.unchecked_into();
+                        if super::workbench_shortcuts::is_palette_shortcut(&e) {
+                            e.prevent_default();
+                            e.stop_immediate_propagation();
+                            state.show();
+                        } else if *state.open.peek() && e.key() == "Escape" {
+                            e.prevent_default();
+                            e.stop_immediate_propagation();
+                            state.close(None);
+                        }
+                    })
+                }),
+        )
     });
 
     let commands: Vec<_> = if open {
