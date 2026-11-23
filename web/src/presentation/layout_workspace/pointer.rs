@@ -15,7 +15,7 @@ pub(in crate::presentation) fn build_canvas_pointer(
     let adapter = use_context::<SelectionAdapter>();
     let interaction = use_context::<workspace_composition::WorkspaceInteraction>();
     let layout_state = use_context::<layout_workspace::LayoutWorkspaceState>();
-    let services = &frame.layout_services;
+    let services = frame.layout_services();
     let runtime = editor.runtime();
     let render_scope = frame.scope.clone();
     let render_generation = frame.owner.generation;

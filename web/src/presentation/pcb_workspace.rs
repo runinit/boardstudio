@@ -238,10 +238,8 @@ pub(super) fn PcbWorkspace() -> Element {
         workspace,
         instance_selection,
     );
-    let selected_tree_context = adapter.selected_context.read().clone().filter(|selected| {
-        &selected.scope == render_scope
-            && selection::context_is_current(&model, &selected.scope, &selected.context)
-    });
+    let selected_tree_context =
+        workspace_composition::current_tree_context(&adapter, &model, render_scope);
     let selected_module = selected_tree_context.as_ref().and_then(|selected| {
         if &selected.scope != render_scope {
             return None;
@@ -496,15 +494,6 @@ pub(super) fn on_pcb_wiring_edit_board_handler(
         {
             return;
         }
-        let mut selected_context = adapter.selected_context;
-        selected_context.set(None);
-        let mut anchor_scope = adapter.anchor_scope;
-        anchor_scope.set(None);
-        runtime.submit(boardstudio_application::Event::SelectParts {
-            operation_id: runtime.operation(),
-            part_ids: Vec::new(),
-            range_part_ids: Vec::new(),
-            mode: SelectionMode::Replace,
-        });
+        workspace_composition::clear_selection(&runtime, &adapter);
     })
 }

@@ -15,7 +15,7 @@ pub(in crate::presentation) fn use_layout_toolbar(
     mounts: &super::LayoutMounts,
     layout_component_inspector_lifetime: Rc<inspector::LayoutComponentInspectorLifetime>,
 ) -> WsInputs {
-    let services = &frame.layout_services;
+    let services = frame.layout_services();
     let snapshot = &frame.snapshot;
     let render_scope = &frame.scope;
     let editor = use_context::<boardstudio_web_ui_model::editor::EditorContext>();

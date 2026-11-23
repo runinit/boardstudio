@@ -67,8 +67,6 @@ pub(super) struct WorkspaceFrame {
     pub handlers: CanvasEventHandlers,
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub surface_size: Signal<(f64, f64)>,
-    pub layout_services: LayoutSessionServices,
-
     pub matrix_setup: objects::MatrixSetupMount,
     pub part_placement: part_placement::PartPlacementMount,
     pub placement_error: Option<String>,
@@ -87,11 +85,81 @@ pub(super) struct WorkspaceFrame {
 pub(super) enum WorkspacePayload {
     Case(case_workspace::CaseFrame),
     Parts(parts_workspace::PartsFrame),
-    Layout,
+    Layout(LayoutSessionServices),
     Pcb,
     Keymap,
     Keycaps,
     Export,
+}
+
+impl WorkspaceFrame {
+    /// Session-owned services the Layout workspace consumes. The payload is
+    /// `Layout` whenever `LayoutWorkspace` renders, so this never observes
+    /// another workspace's frame.
+    pub(super) fn layout_services(&self) -> &LayoutSessionServices {
+        let WorkspacePayload::Layout(services) = &self.payload else {
+            panic!("layout services require the Layout workspace payload");
+        };
+        services
+    }
+}
+
+/// Clear the tree selection and submit the empty part selection. Shared by the
+/// workspace surfaces that reset selection without choosing a new target.
+pub(super) fn clear_selection(runtime: &Rc<Runtime>, adapter: &SelectionAdapter) {
+    let mut selected_context = adapter.selected_context;
+    selected_context.set(None);
+    let mut anchor_scope = adapter.anchor_scope;
+    anchor_scope.set(None);
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: Vec::new(),
+        range_part_ids: Vec::new(),
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+}
+
+/// The live tree selection for a workspace scope, dropping contexts the
+/// accepted revision no longer resolves.
+pub(super) fn current_tree_context(
+    adapter: &SelectionAdapter,
+    model: &ReadModel,
+    scope: &Scope,
+) -> Option<objects::ScopedTreeContext> {
+    adapter.selected_context.read().clone().filter(|selected| {
+        selected.scope == *scope
+            && selection::context_is_current(model, &selected.scope, &selected.context)
+    })
+}
+
+/// Whether a tree context resolves to exactly the selected part: the gate
+/// behind the single-component Position inspector on every 2D surface.
+pub(super) fn selection_is_single_component(
+    model: &ReadModel,
+    context: &objects::TreeContext,
+) -> bool {
+    selection::resolve_context(model, context)
+        .is_some_and(|ids| ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice())
+        && matches!(context, objects::TreeContext::Component { .. })
+}
+
+/// The document parts on the active board for canvas bounds and anchor math.
+pub(super) fn board_visible_parts<'a>(
+    document: &'a boardstudio_core::model::ProjectDoc,
+    active_board_id: &str,
+) -> Vec<&'a boardstudio_core::model::Part> {
+    let board_part_ids: std::collections::HashSet<&str> = document
+        .boards
+        .iter()
+        .find(|board| board.id == active_board_id)
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    document
+        .parts
+        .iter()
+        .filter(|part| board_part_ids.contains(part.id.as_str()))
+        .collect()
 }
 
 #[derive(Clone)]
@@ -303,16 +371,7 @@ pub(super) fn design_key_select_handler(
         }
         if key_id.is_empty() {
             if !require_snapshot_before_clear || model.accepted.is_some() {
-                let mut selected_context = adapter.selected_context;
-                selected_context.set(None);
-                let mut anchor_scope = adapter.anchor_scope;
-                anchor_scope.set(None);
-                runtime.submit(boardstudio_application::Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: Vec::new(),
-                    range_part_ids: Vec::new(),
-                    mode: boardstudio_application::SelectionMode::Replace,
-                });
+                clear_selection(&runtime, &adapter);
             }
             return;
         }
@@ -420,17 +479,17 @@ impl WorkspaceFrame {
             board_id: self.scope.board_id.clone(),
             model,
         });
-        let actions = camera::camera_actions(
+        let actions = camera::camera_actions(camera::CameraActionsInput {
             editor,
             adapter,
-            &self.owner,
-            &self.scope,
-            &self.snapshot,
-            &self.svg,
-            &footer,
-            &bounds,
-            &model.selected_part_ids,
-        );
+            layout_owner: &self.owner,
+            render_scope: &self.scope,
+            snapshot: &self.snapshot,
+            svg: &self.svg,
+            footer: &footer,
+            bounds: &bounds,
+            selection_ids: &model.selected_part_ids,
+        });
         boardstudio_web_ui_shared::ui::command::use_commands(if assembly() {
             Vec::new()
         } else {

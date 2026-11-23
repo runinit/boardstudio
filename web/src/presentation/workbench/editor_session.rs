@@ -69,12 +69,10 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         .into_iter()
         .flat_map(|board| board.part_ids.iter().map(String::as_str))
         .collect();
-    let visible: Vec<_> = views
-        .document
-        .parts
-        .iter()
-        .filter(|part| board_part_ids.contains(part.id.as_str()))
-        .collect();
+    let visible: Vec<_> = workspace_composition::board_visible_parts(
+        &views.document,
+        &state.view.model.active_board_id,
+    );
     let matrices = boardstudio_web_ui_model::tree::visible_matrices(
         &views.document,
         &state.view.model.active_board_id,
@@ -108,15 +106,7 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
         &state.matrix_pair.matrix_placement,
     );
     let session_selected_tree_context =
-        state
-            .adapter
-            .selected_context
-            .read()
-            .clone()
-            .filter(|selected| {
-                selected.scope == render_scope
-                    && selection::context_is_current(model, &selected.scope, &selected.context)
-            });
+        workspace_composition::current_tree_context(&state.adapter, model, &render_scope);
     let show_position_inspector =
         camera::session_show_position_inspector(model, session_selected_tree_context.as_ref());
     let (move_pointer, end_pointer, cancel_pointer) =
@@ -185,7 +175,22 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
                 on_module_attached: wir.on_module_attached,
             })
         }
-        Workspace::Layout => workspace_composition::WorkspacePayload::Layout,
+        Workspace::Layout => workspace_composition::WorkspacePayload::Layout(
+            workspace_composition::LayoutSessionServices {
+                matrix_inspector: state.matrix_inspector.clone(),
+                matrix_transform_inspector: state.matrix_transform_inspector.clone(),
+                matrix_placement: state.matrix_pair.matrix_placement.clone(),
+                mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
+                outline_inspector: state.view.outline_inspector.clone(),
+                layout_findings: state.view.layout_findings,
+                on_return_from_layout_finding: nav.callbacks.on_return_from_layout_finding,
+                on_close_layout_findings: nav.callbacks.on_close_layout_findings,
+                on_layout_finding: nav.callbacks.on_layout_finding,
+                interaction_version: cam.placement.interaction_version,
+                visible_ids: views.visible_ids.clone(),
+                objects_panel_settings: state.objects_panel_settings,
+            },
+        ),
         Workspace::Pcb => workspace_composition::WorkspacePayload::Pcb,
         Workspace::Keymap => workspace_composition::WorkspacePayload::Keymap,
         Workspace::Keycaps => workspace_composition::WorkspacePayload::Keycaps,
@@ -237,20 +242,6 @@ pub(in crate::presentation) fn EditorSession(scope: Scope, snapshot: AcceptedSna
             camera: cam.scene_bounds.clone(),
             status,
             payload,
-            layout_services: workspace_composition::LayoutSessionServices {
-                matrix_inspector: state.matrix_inspector.clone(),
-                matrix_transform_inspector: state.matrix_transform_inspector.clone(),
-                matrix_placement: state.matrix_pair.matrix_placement.clone(),
-                mirrored_pair: state.matrix_pair.mirrored_pair.clone(),
-                outline_inspector: state.view.outline_inspector.clone(),
-                layout_findings: state.view.layout_findings,
-                on_return_from_layout_finding: nav.callbacks.on_return_from_layout_finding,
-                on_close_layout_findings: nav.callbacks.on_close_layout_findings,
-                on_layout_finding: nav.callbacks.on_layout_finding,
-                interaction_version: cam.placement.interaction_version,
-                visible_ids: views.visible_ids.clone(),
-                objects_panel_settings: state.objects_panel_settings,
-            },
         })
     });
     rsx! {

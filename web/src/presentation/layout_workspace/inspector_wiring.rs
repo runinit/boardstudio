@@ -83,7 +83,7 @@ pub(in crate::presentation) fn layout_inspector_input(
     bindings: &super::toolbar_wiring::WsInputs,
     runtime: Rc<Runtime>,
 ) -> layout_workspace::InspectorInput {
-    let services = &frame.layout_services;
+    let services = frame.layout_services();
     let layout_state = frame.status.layout;
     let model = &frame.model;
     let layout_owner = &frame.owner;
@@ -290,12 +290,12 @@ pub(in crate::presentation) fn use_inspector_projections(
     let current_scope = frame.owner.scope.clone();
     let render_generation = frame.owner.generation;
     let board_inspector = mounts.board_inspector.clone();
-    let matrix_inspector = frame.layout_services.matrix_inspector.clone();
+    let matrix_inspector = frame.layout_services().matrix_inspector.clone();
     let key_size = mounts.key_size.clone();
-    let matrix_transform_inspector = frame.layout_services.matrix_transform_inspector.clone();
-    let outline_inspector = frame.layout_services.outline_inspector.clone();
+    let matrix_transform_inspector = frame.layout_services().matrix_transform_inspector.clone();
+    let outline_inspector = frame.layout_services().outline_inspector.clone();
     let runtime = editor.runtime();
-    let matrix_placement = frame.layout_services.matrix_placement.clone();
+    let matrix_placement = frame.layout_services().matrix_placement.clone();
     let component_inspector_key = layout_component_inspector_owner_key(
         model,
         active_workspace,
@@ -370,10 +370,10 @@ pub(in crate::presentation) fn use_inspector_projections(
     let show_position_inspector = board_inspector_projection.is_none()
         && component_inspector.is_none()
         && selected_tree_context.as_ref().is_none_or(|selected| {
-            let resolved = selection::resolve_context(model, &selected.context);
-            resolved.is_some_and(|ids| {
-                ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
-            }) && matches!(&selected.context, objects::TreeContext::Component { .. })
+            super::super::workspace_composition::selection_is_single_component(
+                model,
+                &selected.context,
+            )
         });
     let context_summary = selected_tree_context
         .as_ref()
