@@ -1,4 +1,5 @@
 use lyon_path::{Path, math::point};
+use lyon_tessellation::FillRule as FillRuleLyon;
 use lyon_tessellation::{
     BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex, StrokeOptions,
     StrokeTessellator, StrokeVertex, VertexBuffers,
@@ -196,16 +197,6 @@ impl SurfaceClipper {
         Ok(())
     }
 }
-use lyon_tessellation::FillRule as FillRuleLyon;
-
-#[cfg(test)]
-fn clip_surface_to_board(
-    mesh: &mut MeshData,
-    contours: &[BoardContour<'_>],
-    holes: &[Vec<[f32; 2]>],
-) {
-    SurfaceClipper::new(contours, holes).clip(mesh).unwrap();
-}
 
 // Kept apart from `boardstudio_contracts::path_contains`: this works in f32 render space and
 // the renderer does not depend on contracts.
@@ -252,20 +243,19 @@ fn segments_cross(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2]) -> bool {
     ab_c * ab_d < 0.0 && cd_a * cd_b < 0.0
 }
 
-#[cfg(test)]
-fn segments_intersect(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2]) -> bool {
-    if segments_cross(a, b, c, d) {
-        return true;
-    }
-    let on_segment = |p: [f32; 2], q: [f32; 2], r: [f32; 2]| {
-        let cross = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
-        cross.abs() <= 1e-6
-            && r[0] >= p[0].min(q[0]) - 1e-6
-            && r[0] <= p[0].max(q[0]) + 1e-6
-            && r[1] >= p[1].min(q[1]) - 1e-6
-            && r[1] <= p[1].max(q[1]) + 1e-6
-    };
-    on_segment(a, b, c) || on_segment(a, b, d) || on_segment(c, d, a) || on_segment(c, d, b)
+/// The eight corners of an axis-aligned box centered on the origin.
+pub(crate) fn box_corners(size: [f32; 3]) -> [[f32; 3]; 8] {
+    let half = size.map(|value| value / 2.0);
+    [
+        [-half[0], -half[1], -half[2]],
+        [half[0], -half[1], -half[2]],
+        [half[0], half[1], -half[2]],
+        [-half[0], half[1], -half[2]],
+        [-half[0], -half[1], half[2]],
+        [half[0], -half[1], half[2]],
+        [half[0], half[1], half[2]],
+        [-half[0], half[1], half[2]],
+    ]
 }
 
 pub(crate) fn board_mesh(
@@ -454,6 +444,45 @@ fn winding(points: &[[f32; 2]]) -> f32 {
         })
         .sum::<f32>();
     if area < 0.0 { -1.0 } else { 1.0 }
+}
+
+/// Unique boundary and crease edges, independent of flat tessellation diagonals.
+pub(crate) fn feature_edges(mesh: &MeshData) -> Vec<[[f32; 3]; 2]> {
+    use std::collections::BTreeMap;
+    type Key = [i64; 3];
+    let key = |p: [f32; 3]| p.map(|v| (v as f64 * 10000.0).round() as i64);
+    type EdgeValue = ([f32; 3], [f32; 3], [f32; 3], bool, usize);
+    let mut edges: BTreeMap<(Key, Key), EdgeValue> = BTreeMap::new();
+    for triangle in mesh.indices.as_chunks::<3>().0.iter() {
+        let p = [
+            mesh.positions[triangle[0] as usize],
+            mesh.positions[triangle[1] as usize],
+            mesh.positions[triangle[2] as usize],
+        ];
+        let a = three_d::Vec3::from(p[1]) - three_d::Vec3::from(p[0]);
+        let b = three_d::Vec3::from(p[2]) - three_d::Vec3::from(p[0]);
+        use three_d::InnerSpace;
+        if a.cross(b).magnitude2() < 1e-12 {
+            continue;
+        }
+        let normal: [f32; 3] = a.cross(b).normalize().into();
+        for i in 0..3 {
+            let (mut a, mut b) = (p[i], p[(i + 1) % 3]);
+            if key(a) > key(b) {
+                std::mem::swap(&mut a, &mut b);
+            }
+            let entry = edges
+                .entry((key(a), key(b)))
+                .or_insert((a, b, normal, false, 0));
+            entry.3 |= normal.iter().zip(entry.2).map(|(a, b)| a * b).sum::<f32>() < 0.866;
+            entry.4 += 1;
+        }
+    }
+    edges
+        .into_values()
+        .filter(|(_, _, _, crease, count)| *crease || *count == 1)
+        .map(|(a, b, _, _, _)| [a, b])
+        .collect()
 }
 
 #[cfg(test)]
@@ -693,11 +722,30 @@ mod tests {
             [3.0, 0.0]
         ));
     }
-}
 
-#[cfg(test)]
-mod clipping_regressions {
-    use super::*;
+    fn clip_surface_to_board(
+        mesh: &mut MeshData,
+        contours: &[BoardContour<'_>],
+        holes: &[Vec<[f32; 2]>],
+    ) {
+        SurfaceClipper::new(contours, holes).clip(mesh).unwrap();
+    }
+
+    fn segments_intersect(a: [f32; 2], b: [f32; 2], c: [f32; 2], d: [f32; 2]) -> bool {
+        if segments_cross(a, b, c, d) {
+            return true;
+        }
+        let on_segment = |p: [f32; 2], q: [f32; 2], r: [f32; 2]| {
+            let cross = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+            cross.abs() <= 1e-6
+                && r[0] >= p[0].min(q[0]) - 1e-6
+                && r[0] <= p[0].max(q[0]) + 1e-6
+                && r[1] >= p[1].min(q[1]) - 1e-6
+                && r[1] <= p[1].max(q[1]) + 1e-6
+        };
+        on_segment(a, b, c) || on_segment(a, b, d) || on_segment(c, d, a) || on_segment(c, d, b)
+    }
+
     #[test]
     fn clips_crossing_triangles_instead_of_erasing_visible_copper() {
         let outline = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
@@ -717,50 +765,6 @@ mod clipping_regressions {
                 .all(|p| p[0] >= -0.001 && p[0] <= 10.001)
         );
     }
-}
-
-/// Unique boundary and crease edges, independent of flat tessellation diagonals.
-pub(crate) fn feature_edges(mesh: &MeshData) -> Vec<[[f32; 3]; 2]> {
-    use std::collections::BTreeMap;
-    type Key = [i64; 3];
-    let key = |p: [f32; 3]| p.map(|v| (v as f64 * 10000.0).round() as i64);
-    type EdgeValue = ([f32; 3], [f32; 3], [f32; 3], bool, usize);
-    let mut edges: BTreeMap<(Key, Key), EdgeValue> = BTreeMap::new();
-    for triangle in mesh.indices.as_chunks::<3>().0.iter() {
-        let p = [
-            mesh.positions[triangle[0] as usize],
-            mesh.positions[triangle[1] as usize],
-            mesh.positions[triangle[2] as usize],
-        ];
-        let a = three_d::Vec3::from(p[1]) - three_d::Vec3::from(p[0]);
-        let b = three_d::Vec3::from(p[2]) - three_d::Vec3::from(p[0]);
-        use three_d::InnerSpace;
-        if a.cross(b).magnitude2() < 1e-12 {
-            continue;
-        }
-        let normal: [f32; 3] = a.cross(b).normalize().into();
-        for i in 0..3 {
-            let (mut a, mut b) = (p[i], p[(i + 1) % 3]);
-            if key(a) > key(b) {
-                std::mem::swap(&mut a, &mut b);
-            }
-            let entry = edges
-                .entry((key(a), key(b)))
-                .or_insert((a, b, normal, false, 0));
-            entry.3 |= normal.iter().zip(entry.2).map(|(a, b)| a * b).sum::<f32>() < 0.866;
-            entry.4 += 1;
-        }
-    }
-    edges
-        .into_values()
-        .filter(|(_, _, _, crease, count)| *crease || *count == 1)
-        .map(|(a, b, _, _, _)| [a, b])
-        .collect()
-}
-
-#[cfg(test)]
-mod feature_edge_tests {
-    use super::*;
 
     #[test]
     fn coplanar_triangle_diagonals_are_not_cad_edges() {

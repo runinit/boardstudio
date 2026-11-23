@@ -3,7 +3,6 @@ use super::*;
 impl Renderer {
     pub(super) fn accept_scene(&mut self, items: BuiltScene) -> Result<bool, JsValue> {
         self.focused_ids.clear();
-        self.section_x = items.section_x;
         let mut previous = std::mem::take(&mut self.objects);
         self.objects = items
             .objects
@@ -35,19 +34,14 @@ impl Renderer {
         Ok(true)
     }
     pub(super) fn section_equation(&self) -> (Vec4, Vec3, f32) {
-        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
-        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
-        for object in &self.objects {
-            for point in object.triangles.iter().flatten().chain(&object.line_points) {
-                let p = (object.pose * point.extend(1.)).truncate();
-                low.x = low.x.min(p.x);
-                low.y = low.y.min(p.y);
-                low.z = low.z.min(p.z);
-                high.x = high.x.max(p.x);
-                high.y = high.y.max(p.y);
-                high.z = high.z.max(p.z);
-            }
-        }
+        let (mut low, mut high) = bounds_of(self.objects.iter().flat_map(|object| {
+            object
+                .triangles
+                .iter()
+                .flatten()
+                .chain(&object.line_points)
+                .map(move |point| (object.pose * point.extend(1.)).truncate())
+        }));
         if !low.x.is_finite() {
             low = Vec3::new(-1., -1., -1.);
             high = -low;
@@ -105,15 +99,8 @@ impl Renderer {
                         .flatten()
                 });
             item.object.material.physical.albedo = color
-                .and_then(|value| u32::from_str_radix(value.trim_start_matches('#'), 16).ok())
-                .map(|rgb| {
-                    Srgba::new(
-                        (rgb >> 16) as u8,
-                        (rgb >> 8) as u8,
-                        rgb as u8,
-                        item.base_color.a,
-                    )
-                })
+                .and_then(|value| hex_rgb(value))
+                .map(|rgb| Srgba::new(rgb[0], rgb[1], rgb[2], item.base_color.a))
                 .unwrap_or(item.base_color);
             item.edges.material.physical.render_states.depth_test = if self.state.show_hidden {
                 three_d::DepthTest::Always
@@ -127,11 +114,7 @@ impl Renderer {
             let transform = Mat4::from_translation(Vec3::new(
                 0.,
                 0.,
-                if self.state.view == "exploded" {
-                    item.explode * self.state.explode_amount.unwrap_or(1.)
-                } else {
-                    0.
-                },
+                exploded_view_offset(&self.state.view, item.explode, self.state.explode_amount),
             )) * item.pose;
             item.object.geometry.set_transformation(transform);
             item.edges.geometry.set_transformation(transform);
@@ -204,10 +187,24 @@ impl Renderer {
             self.target + direction * self.distance,
             self.target,
             up,
-            three_d::radians(34.0_f32.to_radians()),
+            three_d::radians(FOV_Y_DEGREES.to_radians()),
             near,
             far,
         );
+    }
+
+    /// Dark line material shared by edge and wire overlays.
+    fn line_material(context: &three_d::core::Context) -> PhysicalMaterial {
+        let mut material = PhysicalMaterial::new_opaque(
+            context,
+            &CpuMaterial {
+                albedo: Srgba::new(30, 42, 48, 255),
+                roughness: 1.0,
+                ..CpuMaterial::default()
+            },
+        );
+        material.render_states.cull = Cull::None;
+        material
     }
 
     pub(super) fn upload(&self, item: SceneObject) -> RenderObject {
@@ -250,15 +247,7 @@ impl Renderer {
             ),
             ..CpuMesh::default()
         };
-        let mut edge_material = PhysicalMaterial::new_opaque(
-            &self.context,
-            &CpuMaterial {
-                albedo: Srgba::new(30, 42, 48, 255),
-                roughness: 1.0,
-                ..CpuMaterial::default()
-            },
-        );
-        edge_material.render_states.cull = Cull::None;
+        let edge_material = Self::line_material(&self.context);
         let edge_mesh = Mesh::new(&self.context, &edge_cpu);
         let line_shader = edge_mesh.vertex_shader_source();
         let edges = Gm::new(
@@ -274,15 +263,7 @@ impl Renderer {
             None
         } else {
             let normals = vec![Vec3::new(0.0, 0.0, 1.0); line_points.len()];
-            let mut line_material = PhysicalMaterial::new_opaque(
-                &self.context,
-                &CpuMaterial {
-                    albedo: Srgba::new(30, 42, 48, 255),
-                    roughness: 1.0,
-                    ..CpuMaterial::default()
-                },
-            );
-            line_material.render_states.cull = Cull::None;
+            let line_material = Self::line_material(&self.context);
             Some(Gm::new(
                 WorldLines {
                     context: self.context.clone(),

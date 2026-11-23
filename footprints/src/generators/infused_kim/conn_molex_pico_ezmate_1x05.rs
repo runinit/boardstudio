@@ -3,9 +3,10 @@
 //! Ported from `conn_molex_pico_ezmate_1x05.js` of infused-kim/kb_ergogen_fp.
 //! SPDX-License-Identifier: CC-BY-NC-SA-4.0 (see the vendored LICENSE)
 //! Author: @infused-kim
+use super::molex;
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model, json_string};
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -158,62 +159,15 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e5 = p.net("pad_1")
     );
 
+    let (cable, socket) = molex::molex_models(p)?;
     let all_3d_models = format!(
         r####"
           {e0}
           {e1}
       "####,
-        e0 = infused_model(
-            p,
-            ModelParams {
-                filename: "cable_3dmodel_filename",
-                scale: "cable_3dmodel_xyz_scale",
-                rotation: "cable_3dmodel_xyz_rotation",
-                offset: "cable_3dmodel_xyz_offset",
-                side: "cable_3dmodel_side"
-            },
-            ModelDefaults {
-                default_side: "F",
-                rotation_f: [0.0, 0.0, 0.0],
-                offset_f: [0.0, 0.0, 0.8],
-                rotation_b: [0.0, 180.0, 0.0],
-                offset_b: [0.0, 0.0, -(1.6 + 0.8)]
-            }
-        )?,
-        e1 = infused_model(
-            p,
-            ModelParams {
-                filename: "socket_3dmodel_filename",
-                scale: "socket_3dmodel_xyz_scale",
-                rotation: "socket_3dmodel_xyz_rotation",
-                offset: "socket_3dmodel_xyz_offset",
-                side: "socket_3dmodel_side"
-            },
-            ModelDefaults {
-                default_side: "F",
-                rotation_f: [-90.0, 0.0, 0.0],
-                offset_f: [0.0, 0.0, 1.4],
-                rotation_b: [-90.0, 180.0, 0.0],
-                offset_b: [0.0, 0.0, -3.0]
-            }
-        )?
+        e0 = cable,
+        e1 = socket
     );
 
-    let bottom = String::from(
-        r####"
-      )
-      "####,
-    );
-
-    let (side, reverse) = (p.side(), p.flag("reverse"));
-    let mut out = top;
-    if side == "F" || reverse {
-        out += &front;
-    }
-    if side == "B" || reverse {
-        out += &back;
-    }
-    out += &all_3d_models;
-    out += &bottom;
-    Ok(out)
+    Ok(molex::assemble_sides(p, top, front, back, all_3d_models))
 }

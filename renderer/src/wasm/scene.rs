@@ -4,7 +4,6 @@ use super::*;
 pub(super) struct BuiltScene {
     pub(super) objects: Vec<SceneObject>,
     pub(super) bounds: Option<(Vec3, f32)>,
-    pub(super) section_x: Option<f32>,
     pub(super) revision: u64,
     pub(super) keep_camera: bool,
 }
@@ -13,7 +12,6 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
     let mut output = BuiltScene {
         objects: Vec::new(),
         bounds: None,
-        section_x: None,
         revision: input.revision,
         keep_camera: input.keep_camera,
     };
@@ -74,18 +72,11 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
         }
     } else if input.kind == "bodyPatch" {
         for body in input.bodies {
-            let color = if body.id.to_ascii_lowercase().contains("foam")
-                || body.id.to_ascii_lowercase().contains("gasket")
-            {
-                [0.20, 0.18, 0.24, 1.0]
-            } else if body.id.to_ascii_lowercase().contains("plate") {
-                [0.34, 0.57, 0.44, 1.0]
-            } else if input.theme == "dark" {
-                [0.62, 0.66, 0.72, 1.0]
-            } else {
-                [0.68, 0.71, 0.75, 1.0]
-            };
-            let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
+            let color = body
+                .color
+                .as_deref()
+                .and_then(hex_color)
+                .unwrap_or(body_base_color(&input.theme, &body.id));
             push_mesh(
                 &mut output,
                 &body.id,
@@ -143,31 +134,6 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
             .sum::<f32>()
             - holes.iter().map(|hole| polygon_area(hole)).sum::<f32>();
         let board_area = board_area.max(1.0);
-        let board_bounds =
-            contours
-                .iter()
-                .flat_map(|(points, _)| points)
-                .fold(None, |bounds, point| {
-                    Some(bounds.map_or(
-                        (point[0], point[0], point[1], point[1]),
-                        |(low_x, high_x, low_y, high_y): (f32, f32, f32, f32)| {
-                            (
-                                low_x.min(point[0]),
-                                high_x.max(point[0]),
-                                low_y.min(point[1]),
-                                high_y.max(point[1]),
-                            )
-                        },
-                    ))
-                });
-        let center_x = board_bounds.map_or(0.0, |(low_x, high_x, low_y, high_y)| {
-            let local_x = (low_x + high_x) / 2.0;
-            let local_y = (low_y + high_y) / 2.0;
-            input.reference.as_ref().map_or(local_x, |reference| {
-                let radians = reference.pose.rotation.to_radians();
-                reference.pose.at.x + local_x * radians.cos() - local_y * radians.sin()
-            })
-        });
         let explode_z = if input.view == "exploded" {
             explode_offset(stack_index(&input.mechanical_stack, "pcb"))
         } else {
@@ -397,20 +363,16 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
             } else {
                 0.0
             };
-            let color = if input.selected_layer == body.id {
+            let fallback = if input.selected_layer == body.id {
                 [0.84, 0.63, 0.23, 1.0]
-            } else if body.id.to_ascii_lowercase().contains("foam")
-                || body.id.to_ascii_lowercase().contains("gasket")
-            {
-                [0.20, 0.18, 0.24, 1.0]
-            } else if body.id.to_ascii_lowercase().contains("plate") {
-                [0.34, 0.57, 0.44, 1.0]
-            } else if input.theme == "dark" {
-                [0.62, 0.66, 0.72, 1.0]
             } else {
-                [0.68, 0.71, 0.75, 1.0]
+                body_base_color(&input.theme, &body.id)
             };
-            let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
+            let color = body
+                .color
+                .as_deref()
+                .and_then(hex_color)
+                .unwrap_or(fallback);
             let body_transform = Mat4::from_translation(Vec3::new(0.0, 0.0, offset));
             push_mesh(
                 &mut output,
@@ -443,7 +405,7 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 })
                 + offset;
             let mut box_geometry = box_data([battery.size.x, battery.size.y, battery.size.z]);
-            translate_data(
+            translate_mesh(
                 &mut box_geometry,
                 Mat4::from_translation(Vec3::new(battery.at.x, battery.at.y, center_z)),
             );
@@ -474,7 +436,6 @@ pub(super) fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 0.0,
             );
         }
-        output.section_x = Some(center_x);
     }
     for object in &mut output.objects {
         if object.id.starts_with("keycap:") || object.id.starts_with("keycap-legend:") {
@@ -681,6 +642,19 @@ pub(super) fn push_transformed_lines(
     Ok(())
 }
 
+/// Default body color shared by the body-patch and case-body render paths.
+fn body_base_color(theme: &str, id: &str) -> [f32; 4] {
+    if id.to_ascii_lowercase().contains("foam") || id.to_ascii_lowercase().contains("gasket") {
+        [0.20, 0.18, 0.24, 1.0]
+    } else if id.to_ascii_lowercase().contains("plate") {
+        [0.34, 0.57, 0.44, 1.0]
+    } else if theme == "dark" {
+        [0.62, 0.66, 0.72, 1.0]
+    } else {
+        [0.68, 0.71, 0.75, 1.0]
+    }
+}
+
 fn translate_mesh(mesh: &mut MeshData, transform: Mat4) {
     for point in &mut mesh.positions {
         let output = transform * Vec4::new(point[0], point[1], point[2], 1.0);
@@ -701,22 +675,8 @@ fn transform_mesh(mesh: &mut MeshData, transform: Mat4) {
     }
 }
 
-fn translate_data(mesh: &mut MeshData, transform: Mat4) {
-    translate_mesh(mesh, transform);
-}
-
 fn box_data(size: [f32; 3]) -> MeshData {
-    let h = size.map(|value| value / 2.0);
-    let vertices = [
-        [-h[0], -h[1], -h[2]],
-        [h[0], -h[1], -h[2]],
-        [h[0], h[1], -h[2]],
-        [-h[0], h[1], -h[2]],
-        [-h[0], -h[1], h[2]],
-        [h[0], -h[1], h[2]],
-        [h[0], h[1], h[2]],
-        [-h[0], h[1], h[2]],
-    ];
+    let vertices = box_corners(size);
     let faces = [
         [0, 1, 2, 3],
         [4, 7, 6, 5],
