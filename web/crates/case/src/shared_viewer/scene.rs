@@ -5,7 +5,7 @@ use crate::viewport_geometry::{
 };
 
 pub(super) fn project_source(
-    source: &ViewerSource,
+    source: &ViewportSource,
     identity: ViewerIdentity,
     theme: &str,
     preview: Option<&NativePreviewSnapshot>,
@@ -16,10 +16,11 @@ pub(super) fn project_source(
     let mut layers = vec![("pcb".to_owned(), "PCB".to_owned())];
     let mut stack = &[][..];
     let mut module_bodies = Vec::new();
+    let mut layout_document = None;
     let mut reference = None;
     let mut selected_layer = "";
     let (thickness, contours, pcb) = match source {
-        ViewerSource::Cad(scene) => {
+        ViewportSource::Cad(scene) => {
             let document = captured_case_document(&scene.snapshot, &scene.scope)
                 .map_err(|error| format!("Case scene projection failed: {error:?}"))?;
             let board = document
@@ -31,7 +32,7 @@ pub(super) fn project_source(
                 stack = &assembly.stack;
             }
             for body in &scene.result.bodies {
-                bodies.push(&body_value(body)?);
+                bodies.push(&body_value(body, None)?);
                 if !layers.iter().any(|(id, _)| id == &body.id) {
                     layers.push((body.id.clone(), body.name.clone()));
                 }
@@ -47,7 +48,7 @@ pub(super) fn project_source(
                 (board.thickness, &scene.contours, None)
             }
         }
-        ViewerSource::Native(preview) => {
+        ViewportSource::Native(preview) => {
             reference = preview.board_reference.as_ref();
             (
                 preview.preview.thickness,
@@ -55,7 +56,7 @@ pub(super) fn project_source(
                 Some(&preview.preview),
             )
         }
-        ViewerSource::Layout(preview) => {
+        ViewportSource::Layout(preview) => {
             reference = preview
                 .board_reference
                 .as_ref()
@@ -68,17 +69,14 @@ pub(super) fn project_source(
                 preview.preview.thickness,
             );
             layers.extend(module_bodies.iter().map(body_layer));
-            for body in layout_module_model_bodies(model_rows, &preview.document) {
-                layers.push(body_layer(&body));
-                bodies.push(&js_sys::JSON::parse(&body.to_string()).map_err(js_error)?);
-            }
+            layout_document = Some(preview.document.as_ref());
             (
                 preview.preview.thickness,
                 &preview.contours,
                 Some(&preview.preview),
             )
         }
-        ViewerSource::Parts(preview) => {
+        ViewportSource::Parts(preview) => {
             let board = preview
                 .sample_document
                 .boards
@@ -88,14 +86,9 @@ pub(super) fn project_source(
             (board.thickness, &preview.contours, Some(&preview.preview))
         }
     };
-    if !matches!(source, ViewerSource::Parts(_)) {
-        append_keycap_bodies(
-            &bodies,
-            &mut layers,
-            keycaps_preview,
-            &identity,
-            identity.revision,
-        )?;
+    let models = model_packets(&bodies, &mut layers, model_rows, layout_document)?;
+    if !matches!(source, ViewportSource::Parts(_)) {
+        append_keycap_bodies(&bodies, &mut layers, keycaps_preview, &identity)?;
     }
     let packet = serde_json::json!({
         "revision": identity.renderer_sequence,
@@ -111,9 +104,10 @@ pub(super) fn project_source(
         "moduleBodies": module_bodies
     });
     let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
-    Reflect::set(&input, &"bodies".into(), &bodies).map_err(js_error)?;
-    let models = loaded_model_inputs(model_rows)?;
-    Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
+    set_js_fields(
+        &input,
+        [("bodies", bodies.into()), ("models", models.into())],
+    )?;
     Ok(RendererSceneProjection {
         identity,
         input,
@@ -127,31 +121,53 @@ fn body_layer(body: &serde_json::Value) -> (String, String) {
     (id.to_owned(), name.to_owned())
 }
 
+fn set_js_fields(
+    object: &JsValue,
+    fields: impl IntoIterator<Item = (&'static str, JsValue)>,
+) -> Result<(), String> {
+    for (key, value) in fields {
+        Reflect::set(object, &key.into(), &value).map_err(js_error)?;
+    }
+    Ok(())
+}
+
+pub(super) fn js_obj(
+    fields: impl IntoIterator<Item = (&'static str, JsValue)>,
+) -> Result<JsValue, String> {
+    let object = Object::new();
+    set_js_fields(&object, fields)?;
+    Ok(object.into())
+}
+
 fn mesh_packet(
     positions: &[f32],
     normals: &[f32],
     colors: Option<&[f32]>,
-) -> Result<Object, String> {
-    let mesh = Object::new();
-    for (field, values) in [
-        ("positions", Some(positions)),
-        ("normals", Some(normals)),
-        ("colors", colors),
-    ] {
-        if let Some(values) = values {
-            Reflect::set(&mesh, &field.into(), &Float32Array::from(values)).map_err(js_error)?;
-        }
-    }
-    Ok(mesh)
+) -> Result<JsValue, String> {
+    js_obj(
+        [
+            ("positions", Some(positions)),
+            ("normals", Some(normals)),
+            ("colors", colors),
+        ]
+        .into_iter()
+        .filter_map(|(key, values)| Some((key, Float32Array::from(values?).into()))),
+    )
 }
 
-fn body_value(body: &boardstudio_web_host::cad_jobs::CadBodyMesh) -> Result<JsValue, String> {
-    let value = Object::new();
-    let mesh = mesh_packet(&body.positions, &body.normals, None)?;
-    Reflect::set(&value, &"id".into(), &body.id.as_str().into()).map_err(js_error)?;
-    Reflect::set(&value, &"name".into(), &body.name.as_str().into()).map_err(js_error)?;
-    Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
-    Ok(value.into())
+fn body_value(
+    body: &boardstudio_web_host::cad_jobs::CadBodyMesh,
+    color: Option<&str>,
+) -> Result<JsValue, String> {
+    js_obj(
+        [
+            ("id", body.id.as_str().into()),
+            ("name", body.name.as_str().into()),
+            ("mesh", mesh_packet(&body.positions, &body.normals, None)?),
+        ]
+        .into_iter()
+        .chain(color.map(|color| ("color", color.into()))),
+    )
 }
 
 fn append_keycap_bodies(
@@ -159,41 +175,47 @@ fn append_keycap_bodies(
     layers: &mut Vec<(String, String)>,
     keycaps_preview: Option<&crate::runtime::KeycapsCadPreview>,
     identity: &ViewerIdentity,
-    revision: u64,
 ) -> Result<(), String> {
     if let Some(keycaps) = keycaps_preview {
         if keycaps.scope != identity.scope
             || keycaps.token != identity.snapshot_token
-            || keycaps.revision != revision
+            || keycaps.revision != identity.revision
         {
             return Err("Keycap preview does not match the current viewer source".into());
         }
         for body in &keycaps.bodies {
             let (color, label) = keycap_style(&body.id, &keycaps.specs)
                 .ok_or("Keycap preview body does not match its accepted specification")?;
-            let value = body_value(body)?;
-            Reflect::set(&value, &"color".into(), &color.into()).map_err(js_error)?;
-            bodies.push(&value);
+            bodies.push(&body_value(body, Some(color))?);
             layers.push((body.id.clone(), label));
         }
     }
     Ok(())
 }
 
-fn layout_module_model_bodies(
+fn model_packets(
+    bodies: &Array,
+    layers: &mut Vec<(String, String)>,
     rows: Option<&ModelDeliveryRows>,
-    document: &boardstudio_model::model::ProjectDoc,
-) -> Vec<serde_json::Value> {
-    rows.into_iter()
-        .flat_map(|rows| rows.delivered.iter())
-        .filter_map(|model| {
-            let matrix = model.matrix?;
-            let (positions, normals) = transformed_module_mesh(
-                model.mesh.positions.as_ref(),
-                model.mesh.normals.as_ref(),
-                &matrix,
-            );
-            let module_id = model.id.strip_prefix("module-model/")?.rsplit_once('/')?.0;
+    layout_document: Option<&boardstudio_model::model::ProjectDoc>,
+) -> Result<Array, String> {
+    let models = Array::new();
+    for model in rows.into_iter().flat_map(|rows| &rows.delivered) {
+        let mesh = &model.mesh;
+        let lines = mesh
+            .vendor_step
+            .as_ref()
+            .map(|step| step.line_render_positions.as_slice())
+            .filter(|lines| !lines.is_empty());
+        let (target, mesh, lines, name) = if let Some(matrix) = model.matrix {
+            let Some((document, (module_id, _))) = layout_document.zip(
+                model
+                    .id
+                    .strip_prefix("module-model/")
+                    .and_then(|id| id.rsplit_once('/')),
+            ) else {
+                continue;
+            };
             let name = document
                 .modules
                 .iter()
@@ -202,53 +224,39 @@ fn layout_module_model_bodies(
                     document
                         .module_definitions
                         .iter()
-                        .find(|definition| definition.id == module.definition_id)
+                        .find(|def| def.id == module.definition_id)
                 })
-                .map(|definition| format!("{} · 3D model", definition.name))
-                .unwrap_or_else(|| "Mounted module · 3D model".to_owned());
-            let lines = model
-                .mesh
-                .vendor_step
-                .as_ref()
-                .filter(|step| !step.line_render_positions.is_empty())
-                .map(|step| transformed_module_points(&step.line_render_positions, &matrix));
-            Some(serde_json::json!({
-                "id": model.id,
-                "name": name,
-                "color": "#8f9b9e",
-                "mesh": {
-                    "positions": positions,
-                    "normals": normals,
-                    "colors": model.mesh.colors.as_ref().map(|colors| colors.as_ref()),
-                },
-                "lines": lines,
-            }))
-        })
-        .collect()
-}
-
-fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Result<Array, String> {
-    let loaded = Array::new();
-    for model in rows
-        .into_iter()
-        .flat_map(|rows| &rows.delivered)
-        .filter(|model| model.matrix.is_none())
-    {
-        let value = Object::new();
-        let mesh = mesh_packet(
-            &model.mesh.positions,
-            &model.mesh.normals,
-            model.mesh.colors.as_deref(),
-        )?;
-        Reflect::set(&value, &"id".into(), &model.id.as_str().into()).map_err(js_error)?;
-        Reflect::set(&value, &"mesh".into(), &mesh).map_err(js_error)?;
-        if let Some(step) = &model.mesh.vendor_step
-            && !step.line_render_positions.is_empty()
-        {
-            let lines = Float32Array::from(step.line_render_positions.as_slice());
-            Reflect::set(&value, &"lines".into(), &lines).map_err(js_error)?;
-        }
-        loaded.push(&value);
+                .map_or("Mounted module", |def| def.name.as_str());
+            let name = format!("{name} · 3D model");
+            layers.push((model.id.clone(), name.clone()));
+            let (positions, normals) =
+                transformed_module_mesh(&mesh.positions, &mesh.normals, &matrix);
+            (
+                bodies,
+                mesh_packet(&positions, &normals, mesh.colors.as_deref())?,
+                lines.map(|lines| {
+                    Float32Array::from(transformed_module_points(lines, &matrix).as_slice())
+                }),
+                Some(name),
+            )
+        } else {
+            (
+                &models,
+                mesh_packet(&mesh.positions, &mesh.normals, mesh.colors.as_deref())?,
+                lines.map(Float32Array::from),
+                None,
+            )
+        };
+        target.push(&js_obj(
+            [("id", model.id.as_str().into()), ("mesh", mesh)]
+                .into_iter()
+                .chain(lines.map(|lines| ("lines", lines.into())))
+                .chain(
+                    name.as_deref()
+                        .into_iter()
+                        .flat_map(|name| [("name", name.into()), ("color", "#8f9b9e".into())]),
+                ),
+        )?);
     }
-    Ok(loaded)
+    Ok(models)
 }
