@@ -1,7 +1,19 @@
 use super::{Grouping, TreeContext, TreeKind, build_tree};
 use boardstudio_application::ReadModel;
-use boardstudio_model::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
-use std::collections::BTreeSet;
+use boardstudio_model::model::{BoardOutlineScene, OutlineBridge, ProjectDoc, SceneDelta};
+use std::{collections::BTreeSet, sync::Arc};
+
+fn expanded_set(ids: &[&str]) -> BTreeSet<String> {
+    ids.iter().map(|id| (*id).to_owned()).collect()
+}
+
+fn document_mut(model: &mut ReadModel) -> &mut ProjectDoc {
+    Arc::make_mut(&mut model.accepted.as_mut().unwrap().document)
+}
+
+fn scene_mut(model: &mut ReadModel) -> &mut SceneDelta {
+    Arc::make_mut(&mut model.accepted.as_mut().unwrap().scene)
+}
 
 fn synthetic_outline_document() -> ProjectDoc {
     serde_json::from_str(include_str!(
@@ -30,11 +42,11 @@ fn bridge_scene(board_id: &str, matrix_id: &str, bridge_id: &str) -> BoardOutlin
 fn stored_row_grouping_and_empty_model_projection_remain_defined() {
     let document = synthetic_outline_document();
     let mut expanded = super::default_disclosures(&document, "main");
-    expanded.extend([
-        "half-group:main:Left half".to_owned(),
-        "half-group:main:Right half".to_owned(),
-        "half:matrix-layout".to_owned(),
-    ]);
+    expanded.extend(expanded_set(&[
+        "half-group:main:Left half",
+        "half-group:main:Right half",
+        "half:matrix-layout",
+    ]));
     let row_grouped = build_tree(
         &document,
         "main",
@@ -201,23 +213,22 @@ fn part_context_preserves_exact_primary_and_assembly_membership() {
 fn bulk_eligibility_preserves_context_rules_without_per_part_lookups() {
     for variant in 0..6 {
         let mut model = part_context_model();
-        let snapshot = model.accepted.as_mut().unwrap();
-        let document = std::sync::Arc::make_mut(&mut snapshot.document);
         match variant {
-            1 => document.matrices[0].board_id = None,
-            2 => document.matrices[0].board_id = Some("other-board".into()),
-            3 => std::sync::Arc::make_mut(&mut snapshot.scene)
-                .matrix_scenes
-                .clear(),
+            1 => document_mut(&mut model).matrices[0].board_id = None,
+            2 => document_mut(&mut model).matrices[0].board_id = Some("other-board".into()),
+            3 => scene_mut(&mut model).matrix_scenes.clear(),
             4 => {
+                let document = document_mut(&mut model);
                 document.boards[0].part_ids.reverse();
                 document.boards[0].part_ids.push("key-10".into());
                 document.parts.retain(|part| part.id != "key-10");
             }
-            5 => document.boards[0].part_ids.push("key-1".into()),
+            5 => document_mut(&mut model).boards[0]
+                .part_ids
+                .push("key-1".into()),
             _ => {}
         }
-        let ids = document.boards[0].part_ids.clone();
+        let ids = document_mut(&mut model).boards[0].part_ids.clone();
         let expected: Vec<_> = ids
             .iter()
             .filter(|id| super::context_for_part(&model, id).is_some())
@@ -240,22 +251,22 @@ fn bulk_eligibility_preserves_context_rules_without_per_part_lookups() {
 #[test]
 fn column_selection_visits_cell_configuration_once() {
     let mut model = part_context_model();
-    let snapshot = model.accepted.as_mut().unwrap();
-    let document = std::sync::Arc::make_mut(&mut snapshot.document);
-    let matrix = &mut document.matrices[0];
+    let matrix = &mut document_mut(&mut model).matrices[0];
+    let template = matrix.cells[0].clone();
     matrix.cells = (0..64)
         .map(|column| {
-            let mut cell = matrix.cells[0].clone();
+            let mut cell = template.clone();
             cell.column = column;
             cell.enabled = true;
             cell
         })
         .collect();
     matrix.columns = 64;
-    let scene = &mut std::sync::Arc::make_mut(&mut snapshot.scene).matrix_scenes[0];
+    let scene = &mut scene_mut(&mut model).matrix_scenes[0];
+    let template = scene.cells[0].clone();
     scene.cells = (0..64)
         .map(|column| {
-            let mut cell = scene.cells[0].clone();
+            let mut cell = template.clone();
             cell.column = column;
             cell.enabled = true;
             cell
@@ -284,19 +295,9 @@ fn matrix_context_validation_skips_member_projection_and_preserves_empty_context
     for variant in 0..6 {
         let mut model = part_context_model();
         match variant {
-            1 => {
-                std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().document).matrices
-                    [0]
-                .board_id = None
-            }
-            2 => {
-                std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().document).matrices
-                    [0]
-                .board_id = Some("other-board".into())
-            }
-            3 => std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().scene)
-                .matrix_scenes
-                .clear(),
+            1 => document_mut(&mut model).matrices[0].board_id = None,
+            2 => document_mut(&mut model).matrices[0].board_id = Some("other-board".into()),
+            3 => scene_mut(&mut model).matrix_scenes.clear(),
             4 => model.active_board_id = "missing-board".into(),
             5 => model.accepted = None,
             _ => {}
@@ -363,13 +364,13 @@ fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
         .unwrap(),
     ];
     for grouping in [Grouping::Row, Grouping::Column] {
-        let expanded = BTreeSet::from([
-            "board:main".to_owned(),
-            "layout:main".to_owned(),
-            "matrix:matrix".to_owned(),
-            "row:matrix:0".to_owned(),
-            "column:matrix:0".to_owned(),
-            "column:matrix:1".to_owned(),
+        let expanded = expanded_set(&[
+            "board:main",
+            "layout:main",
+            "matrix:matrix",
+            "row:matrix:0",
+            "column:matrix:0",
+            "column:matrix:1",
         ]);
         let items = build_tree(&document, "main", grouping, &expanded, &[], &[]);
         assert!(
@@ -432,11 +433,8 @@ fn bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences() {
         .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
         .expect("synthetic fixture has a matrix layout");
     let bridge_id = "bridge-synthetic-matrix";
-    let mut expanded = BTreeSet::from([
-        "board:main".to_owned(),
-        format!("half:{}", layout.id),
-        "outline:main".to_owned(),
-    ]);
+    let mut expanded = expanded_set(&["board:main", "outline:main"]);
+    expanded.insert(format!("half:{}", layout.id));
     let items = build_tree(
         &document,
         "main",
