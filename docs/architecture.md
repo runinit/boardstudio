@@ -64,9 +64,9 @@ accepted snapshot, scope and selection.
 `Runtime` (`web/crates/runtime/src/runtime.rs`) wraps a real `Session` with
 typed entry points the presentation calls directly: `submit(event)`,
 `commit(label, resolver)`, `operation()`, `scope()` and `model()`. Effect
-execution lives in `runtime/effects.rs`; persist completions share one pure
-decision helper with native tests
-(`runtime_report::persist_report`, covered by
+execution lives in `runtime/effects.rs`; persist completions share two pure
+decision helpers with native tests
+(`runtime_report::persist_report` and `persist_dispatch`, covered by
 `runtime/persist_notification_tests.rs`). Status and notifications split two
 ways: `subscribe` observes general refreshes while `subscribe_durability`
 observes save-only movement, so the shell can show `"Saved locally."` without
@@ -86,9 +86,9 @@ state machine (`web/crates/layout-core/src/interaction.rs`). One struct owns
 the mode plus `space_down`/`control_down` modifiers and consumes `CanvasEvent`s
 (`PointerDown`/`PointerMove`/`PointerUp`, `Begin`/`End`, `KeyDown`/`KeyUp`,
 `Blur`, `ScopeChanged`, `WorkspaceChanged`). `CanvasMode` names every gesture
-the canvas supports — panning, marquee, part/matrix/rail drags, splay and
-anchor picking, part/matrix/mirrored-pair placement and outline-handle drags —
-so workspaces share hit-testing, snap and preview behavior instead of
+the canvas supports — panning, marquee, part and rail drags (`DraggingParts`,
+`DraggingMatrixRail`, `DraggingPartRail`), splay and anchor picking,
+part/matrix/mirrored-pair placement and outline-handle drags — so workspaces share hit-testing, snap and preview behavior instead of
 reimplementing gestures.
 
 ## Offline policy

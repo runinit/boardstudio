@@ -88,7 +88,7 @@ pub(super) fn add_for_mount(
     }
     doc.parts.push(part);
     let Some(connection) = instance.connection.as_mut() else {
-        return Ok(());
+        return Err("The module host connection is missing".into());
     };
     connection.host_connector_part_id = part_id;
     Ok(())

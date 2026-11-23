@@ -67,45 +67,85 @@ struct CommitFieldSpec {
     error: Option<String>,
 }
 
-/// Attempt a commit: no-op when pristine (Enter already committed and cleared
-/// dirty, so a trailing blur is ignored); refuse invalid text or commit valid.
+/// Attempt a commit: no-op when pristine or stale epoch (Enter already committed
+/// and cleared dirty, so a trailing blur is ignored); refuse invalid text or commit valid.
 #[derive(Clone, Copy)]
 struct CommitState {
-    dirty: Signal<bool>,
+    dirty_epoch: Signal<Option<u64>>,
     focused: Signal<bool>,
-    failed_at: Signal<Option<String>>,
+    failed_epoch: Signal<Option<u64>>,
 }
 
 fn attempt_commit(
     mut state: CommitState,
-    draft: Signal<String>,
-    accepted: &str,
+    draft: Signal<(u64, String)>,
+    epoch: u64,
     validate: &dyn Fn(&str) -> Option<String>,
     mut commit: impl FnMut(String),
 ) {
-    if !state.dirty.replace(false) {
+    if state.dirty_epoch.replace(None) != Some(epoch) {
         state.focused.set(false);
         return;
     }
     state.focused.set(false);
-    let current_draft = draft.peek().clone();
+    let (draft_epoch, current_draft) = draft.peek().clone();
+    if draft_epoch != epoch {
+        return;
+    }
     if validate(&current_draft).is_some() {
-        state.failed_at.set(Some(accepted.to_owned()));
+        state.failed_epoch.set(Some(epoch));
     } else {
-        state.failed_at.set(None);
+        state.failed_epoch.set(None);
         commit(current_draft);
     }
 }
 
 /// Revert an edit: restore the accepted text and clear dirty/error/focus.
-fn revert_commit(mut state: CommitState, mut draft: Signal<String>, accepted: &str) {
-    draft.set(accepted.to_owned());
-    state.dirty.set(false);
-    state.failed_at.set(None);
+fn revert_commit(
+    mut state: CommitState,
+    mut draft: Signal<(u64, String)>,
+    epoch: u64,
+    accepted: &str,
+) {
+    draft.set((epoch, accepted.to_owned()));
+    state.dirty_epoch.set(None);
+    state.failed_epoch.set(None);
     state.focused.set(false);
 }
 
-/// Shared Enter/blur-commit row: `dirty` makes blur after Enter a no-op, refused
+fn use_commit_field_state(id: &str, accepted: &str) -> (CommitState, Signal<(u64, String)>, u64) {
+    let focused = use_signal(|| false);
+    let draft = use_signal(|| (0u64, accepted.to_owned()));
+    let dirty_epoch = use_signal(|| None::<u64>);
+    let failed_epoch = use_signal(|| None::<u64>);
+    let last_key = use_hook(|| {
+        std::rc::Rc::new(std::cell::RefCell::new((
+            id.to_owned(),
+            accepted.to_owned(),
+            0u64,
+        )))
+    });
+    let epoch = {
+        let mut prev = last_key.borrow_mut();
+        if prev.0 != id || prev.1 != accepted {
+            prev.0 = id.to_owned();
+            prev.1 = accepted.to_owned();
+            prev.2 += 1;
+        }
+        prev.2
+    };
+    (
+        CommitState {
+            dirty_epoch,
+            focused,
+            failed_epoch,
+        },
+        draft,
+        epoch,
+    )
+}
+
+/// Shared Enter/blur-commit row: `dirty_epoch` makes blur after Enter a no-op, refused
 /// input keeps the draft with an inline `FieldError`, and `Escape` reverts.
 fn commit_field_row(
     id: String,
@@ -114,44 +154,39 @@ fn commit_field_row(
     validate: impl Fn(&str) -> Option<String> + Clone + 'static,
     on_commit_text: EventHandler<String>,
 ) -> Element {
-    let mut focused = use_signal(|| false);
-    let mut draft = use_signal(|| spec.accepted.clone());
-    let mut dirty = use_signal(|| false);
-    let mut failed_at = use_signal(|| None::<String>);
+    let (state, mut draft, epoch) = use_commit_field_state(&id, &spec.accepted);
+    let mut focused = state.focused;
+    let mut dirty_epoch = state.dirty_epoch;
+    let mut failed_epoch = state.failed_epoch;
     let accepted = spec.accepted.clone();
     let focus_value = accepted.clone();
     let escape_value = accepted.clone();
-    let accepted_blur = accepted.clone();
-    let accepted_enter = accepted.clone();
     let validate_blur = validate.clone();
-    let state = CommitState {
-        dirty,
-        focused,
-        failed_at,
-    };
     let error_id = format!("{id}-error");
-    let internal = failed_at()
-        .filter(|at| at == &accepted)
-        .and_then(|_| validate(&draft()));
+    let current_draft = (failed_epoch() == Some(epoch) || focused()).then(|| draft());
+    let internal = (failed_epoch() == Some(epoch))
+        .then_some(())
+        .and_then(|()| current_draft.as_ref().filter(|(e, _)| *e == epoch))
+        .and_then(|(_, text)| validate(text));
     let has_internal_error = internal.is_some();
     let commit = on_commit_text;
     let on_input = move |e: FormEvent| {
         focused.set(true);
-        dirty.set(true);
-        draft.set(e.value());
+        dirty_epoch.set(Some(epoch));
+        draft.set((epoch, e.value()));
     };
     let on_focus = move |_| {
-        if failed_at.peek().as_deref() != Some(focus_value.as_str()) {
-            draft.set(focus_value.clone());
-            dirty.set(false);
-            failed_at.set(None);
+        if *failed_epoch.peek() != Some(epoch) {
+            draft.set((epoch, focus_value.clone()));
+            dirty_epoch.set(None);
+            failed_epoch.set(None);
         } else {
-            dirty.set(true);
+            dirty_epoch.set(Some(epoch));
         }
         focused.set(true);
     };
     let on_blur = move |_| {
-        attempt_commit(state, draft, &accepted_blur, &validate_blur, |next| {
+        attempt_commit(state, draft, epoch, &validate_blur, |next| {
             commit.call(next)
         });
     };
@@ -159,20 +194,22 @@ fn commit_field_row(
     let on_key = move |e: KeyboardEvent| match e.key() {
         Key::Enter => {
             e.prevent_default();
-            attempt_commit(state, draft, &accepted_enter, &validate_enter, |next| {
+            attempt_commit(state, draft, epoch, &validate_enter, |next| {
                 commit.call(next)
             });
         }
         Key::Escape => {
             e.prevent_default();
-            revert_commit(state, draft, &escape_value);
+            revert_commit(state, draft, epoch, &escape_value);
         }
         _ => {}
     };
     let message = spec.error.clone().or(internal);
     let failed = message.is_some();
-    let shown = if focused() || has_internal_error {
-        draft()
+    let shown = if has_internal_error || focused() {
+        current_draft
+            .filter(|(e, _)| *e == epoch)
+            .map_or(accepted, |(_, text)| text)
     } else {
         accepted
     };
@@ -670,17 +707,17 @@ mod commit_field_tests {
     }
 
     thread_local! {
-        static STASH: RefCell<Option<(CommitState, Signal<String>)>> =
+        static STASH: RefCell<Option<(CommitState, Signal<(u64, String)>)>> =
             const { RefCell::new(None) };
     }
 
     fn fixture() -> Element {
         let state = CommitState {
-            dirty: use_signal(|| false),
+            dirty_epoch: use_signal(|| None),
             focused: use_signal(|| false),
-            failed_at: use_signal(|| None),
+            failed_epoch: use_signal(|| None),
         };
-        let draft = use_signal(|| "19.0".to_owned());
+        let draft = use_signal(|| (0u64, "19.0".to_owned()));
         STASH.set(Some((state, draft)));
         rsx! {}
     }
@@ -688,7 +725,7 @@ mod commit_field_tests {
     fn harness() -> (
         VirtualDom,
         CommitState,
-        Signal<String>,
+        Signal<(u64, String)>,
         Rc<RefCell<Vec<String>>>,
     ) {
         let mut dom = VirtualDom::new(fixture);
@@ -697,9 +734,13 @@ mod commit_field_tests {
         (dom, state, draft, Rc::new(RefCell::new(Vec::new())))
     }
 
-    fn attempt(state: CommitState, draft: Signal<String>, commits: &Rc<RefCell<Vec<String>>>) {
+    fn attempt(
+        state: CommitState,
+        draft: Signal<(u64, String)>,
+        commits: &Rc<RefCell<Vec<String>>>,
+    ) {
         let pending = commits.clone();
-        attempt_commit(state, draft, "19.0", &validate, |next| {
+        attempt_commit(state, draft, 0, &validate, |next| {
             pending.borrow_mut().push(next)
         });
     }
@@ -707,8 +748,8 @@ mod commit_field_tests {
     #[test]
     fn enter_then_blur_commits_once() {
         let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty.set(true);
-        draft.set("20".into());
+        state.dirty_epoch.set(Some(0));
+        draft.set((0, "20".into()));
         attempt(state, draft, &commits);
         attempt(state, draft, &commits);
         assert_eq!(
@@ -721,36 +762,40 @@ mod commit_field_tests {
     #[test]
     fn escape_reverts_without_commit() {
         let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty.set(true);
-        draft.set("99".into());
-        revert_commit(state, draft, "19.0");
+        state.dirty_epoch.set(Some(0));
+        draft.set((0, "99".into()));
+        revert_commit(state, draft, 0, "19.0");
         attempt(state, draft, &commits);
         assert!(
             commits.borrow().is_empty(),
             "Escape must revert without committing"
         );
-        assert_eq!(draft(), "19.0");
-        assert_eq!(state.failed_at.peek().clone(), None);
+        assert_eq!(draft().1, "19.0");
+        assert_eq!(*state.failed_epoch.peek(), None);
     }
 
     #[test]
     fn invalid_refusal_keeps_draft_and_valid_retry_commits() {
         let (_dom, mut state, mut draft, commits) = harness();
-        state.dirty.set(true);
-        draft.set("abc".into());
+        state.dirty_epoch.set(Some(0));
+        draft.set((0, "abc".into()));
         attempt(state, draft, &commits);
         assert!(commits.borrow().is_empty(), "invalid input must not commit");
-        assert_eq!(draft(), "abc");
-        assert_eq!(state.failed_at.peek().clone(), Some("19.0".to_owned()));
-        state.dirty.set(true);
-        draft.set("20".into());
+        assert_eq!(draft().1, "abc");
+        assert_eq!(*state.failed_epoch.peek(), Some(0));
+        state.dirty_epoch.set(Some(0));
+        draft.set((0, "20".into()));
         attempt(state, draft, &commits);
         assert_eq!(
             commits.borrow().as_slice(),
             ["20"],
             "valid follow-up must commit"
         );
-        assert_eq!(state.failed_at.peek().clone(), None);
+        assert_eq!(*state.failed_epoch.peek(), None);
+    }
+
+    thread_local! {
+        static PROBE_VAL: RefCell<Option<Signal<String>>> = const { RefCell::new(None) };
     }
 
     #[test]
@@ -768,15 +813,17 @@ mod commit_field_tests {
             }
         }
         fn fixture() -> Element {
-            let mut val = use_signal(|| "Initial".to_owned());
-            if val.peek().as_str() == "Initial" {
-                val.set("Updated".to_owned());
-            }
+            let val = use_signal(|| "Initial".to_owned());
+            PROBE_VAL.set(Some(val));
             rsx! { Probe { value: val() } }
         }
         let mut dom = VirtualDom::new(fixture);
+        dom.rebuild_in_place();
+        PROBE_VAL
+            .take()
+            .expect("probe signal stashed")
+            .set("Updated".to_owned());
         let mut mutations = dioxus_core::Mutations::default();
-        dom.rebuild(&mut mutations);
         dom.render_immediate(&mut mutations);
         let rendered = format!("{mutations:?}");
         assert!(
@@ -792,6 +839,59 @@ mod commit_field_tests {
             dom_view.contains("probe-text-error"),
             "error links describedby"
         );
+    }
+
+    #[test]
+    fn refused_draft_clears_after_external_change_and_undo() {
+        thread_local! {
+            static STATE: RefCell<Option<(Signal<String>, Signal<String>, CommitState, Signal<(u64, String)>, u64)>> =
+                const { RefCell::new(None) };
+        }
+        fn probe_fixture() -> Element {
+            let id = use_signal(|| "field-a".to_owned());
+            let accepted = use_signal(|| "19".to_owned());
+            let (state, draft, epoch) = use_commit_field_state(&id(), &accepted());
+            STATE.set(Some((id, accepted, state, draft, epoch)));
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(probe_fixture);
+        dom.rebuild_in_place();
+        let (mut id, mut accepted, mut state, mut draft, epoch0) =
+            STATE.take().expect("probe state");
+        assert_eq!(epoch0, 0);
+        let commits = Rc::new(RefCell::new(Vec::new()));
+        state.dirty_epoch.set(Some(epoch0));
+        draft.set((epoch0, "abc".into()));
+        attempt_commit(state, draft, epoch0, &validate, |next| {
+            commits.borrow_mut().push(next)
+        });
+        assert_eq!(*state.failed_epoch.peek(), Some(epoch0));
+
+        // External change to "20" advances epoch and clears the refusal.
+        accepted.set("20".into());
+        dom.render_immediate(&mut dioxus_core::Mutations::default());
+        let (_, _, _, _, epoch1) = STATE.take().expect("epoch1");
+        assert_ne!(epoch1, epoch0);
+        assert_ne!(*state.failed_epoch.peek(), Some(epoch1));
+
+        // Undo back to "19" advances epoch again; stale "abc" at epoch0 cannot return.
+        accepted.set("19".into());
+        dom.render_immediate(&mut dioxus_core::Mutations::default());
+        let (_, _, _, _, epoch2) = STATE.take().expect("epoch2");
+        assert_ne!(epoch2, epoch0);
+        assert_ne!(*state.failed_epoch.peek(), Some(epoch2));
+
+        // Switching entity ID with identical accepted "" advances epoch too.
+        accepted.set(String::new());
+        dom.render_immediate(&mut dioxus_core::Mutations::default());
+        let (_, _, _, _, epoch3) = STATE.take().expect("epoch3");
+        state.failed_epoch.set(Some(epoch3));
+        draft.set((epoch3, "bad".into()));
+        id.set("field-b".into());
+        dom.render_immediate(&mut dioxus_core::Mutations::default());
+        let (_, _, _, _, epoch4) = STATE.take().expect("epoch4");
+        assert_ne!(epoch4, epoch3);
+        assert_ne!(*state.failed_epoch.peek(), Some(epoch4));
     }
 
     #[test]

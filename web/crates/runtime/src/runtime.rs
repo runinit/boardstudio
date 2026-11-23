@@ -373,6 +373,10 @@ struct TestRuntimeState {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+#[cfg_attr(
+    feature = "test-support",
+    allow(clippy::unwrap_used, clippy::expect_used)
+)]
 impl Runtime {
     pub fn set_case_gesture_preview_executor_test(
         &self,
@@ -1052,5 +1056,9 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 }
 
 #[cfg(any(test, feature = "test-support"))]
+#[cfg_attr(
+    feature = "test-support",
+    allow(clippy::unwrap_used, clippy::expect_used)
+)]
 #[path = "test_hooks.rs"]
 pub mod test_hooks;

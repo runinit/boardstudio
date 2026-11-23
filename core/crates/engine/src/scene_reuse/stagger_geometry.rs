@@ -156,6 +156,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
         ));
         assert!(engine.stagger_preview.is_some());
         assert!(compare(&mut engine, &mut cold, preview(0, column, 8.0)).is_err());
+        assert_eq!(engine.document.revision, 1);
         let _ = compare(&mut engine, &mut cold, ReuseOp::Undo);
         assert!(engine.stagger_preview.is_none());
         assert!(matches!(

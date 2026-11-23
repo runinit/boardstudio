@@ -546,7 +546,7 @@ pub(super) fn generate(
             // require a bounded capture fraction instead (see internal::generate).
             let reflected = reflect_x(result.gasket_supports[source_index].at, link.axis_x);
             let Some(region) = regions.iter().find(|r| r.id == layout.id) else {
-                continue;
+                return Err("Linked gasket positions do not fit the mirrored outline. Unlink the support or restore symmetric clearance.".into());
             };
             let candidate = region
                 .tracks

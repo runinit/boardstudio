@@ -233,12 +233,64 @@ fn same_board_fixture() -> ProjectDoc {
 }
 
 fn check_invariants(doc: &ProjectDoc) {
+    use crate::MirrorOverride;
+
     validate_pairs(doc).unwrap();
-    assert_eq!(project_document(doc), project_document(doc));
+    let resolved = project_document(doc);
+    assert_eq!(resolved, project_document(doc));
+    let projected = resolved.geometry();
+    for pair in &doc.mirrored_pairs {
+        for source in doc
+            .parts
+            .iter()
+            .filter(|part| crate::project::owns_part(doc, &pair.source, &part.id))
+        {
+            let target_id = crate::project::part_id(doc, pair, &source.id);
+            let override_state = pair
+                .overrides
+                .iter()
+                .find(|item| item.source_id == source.id);
+            match override_state.map(|item| &item.state) {
+                None => {
+                    let target = projected
+                        .parts
+                        .iter()
+                        .find(|part| part.id == target_id)
+                        .expect("linked mirror target projected");
+                    assert_eq!(target.pose, crate::reflect::pose(pair.mapping, source.pose));
+                    assert_eq!(target.properties, source.properties);
+                }
+                Some(MirrorOverride::Omitted) => {
+                    assert!(
+                        !projected.parts.iter().any(|part| part.id == target_id),
+                        "omitted target {target_id} must stay absent"
+                    );
+                }
+                Some(MirrorOverride::Local(local)) => {
+                    let target = projected
+                        .parts
+                        .iter()
+                        .find(|part| part.id == target_id)
+                        .expect("local target projected");
+                    assert_eq!(target.pose, local.pose);
+                    assert_eq!(target.properties, local.properties);
+                }
+                Some(MirrorOverride::CompanionPose(pose)) => {
+                    let target = projected
+                        .parts
+                        .iter()
+                        .find(|part| part.id == target_id)
+                        .expect("companion pose target projected");
+                    assert_eq!(target.pose, *pose);
+                    assert_eq!(target.properties, source.properties);
+                }
+            }
+        }
+    }
     let bytes = serde_json::to_vec(doc).unwrap();
     let back: ProjectDoc = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(&back, doc);
-    assert_eq!(project_document(&back), project_document(doc));
+    assert_eq!(project_document(&back), resolved);
 }
 
 /// First linked (non-overridden) mirror target, if any.
@@ -299,6 +351,7 @@ struct Fuzz {
     redo: Vec<ProjectDoc>,
     undone: Vec<Vec<u8>>,
     fresh: u64,
+    counts: [usize; 9],
 }
 
 impl Fuzz {
@@ -313,7 +366,7 @@ impl Fuzz {
         let n = self.fresh;
         self.fresh += 1;
         let id = format!("split{n}");
-        let ok = if self.two_board && self.rng.below(2) == 0 && hardware_ready(&self.doc, n) {
+        if self.two_board && self.rng.below(2) == 0 && hardware_ready(&self.doc, n) {
             create_half(
                 &mut self.doc,
                 &id,
@@ -326,6 +379,7 @@ impl Fuzz {
                 None,
                 fuzz_mapping(),
             )
+            .unwrap();
         } else {
             let (source, destination) = if self.two_board {
                 (
@@ -348,13 +402,24 @@ impl Fuzz {
                     overrides: vec![],
                 },
             )
-        };
-        if ok.is_ok() {
-            assert_eq!(self.doc.mirrored_pairs.len(), 1);
-            self.push_history(snapshot);
+            .unwrap();
         }
+        assert_eq!(self.doc.mirrored_pairs.len(), 1);
+        self.push_history(snapshot);
     }
     fn edit_source(&mut self) {
+        use crate::MirrorOverride;
+
+        let local_before: Vec<(String, Pose2)> = self
+            .doc
+            .mirrored_pairs
+            .iter()
+            .flat_map(|pair| &pair.overrides)
+            .filter_map(|item| match &item.state {
+                MirrorOverride::Local(part) => Some((part.id.clone(), part.pose)),
+                MirrorOverride::Omitted | MirrorOverride::CompanionPose(_) => None,
+            })
+            .collect();
         let (id, at) = self
             .doc
             .parts
@@ -388,15 +453,22 @@ impl Fuzz {
         }
         let (pose, properties) = (part.pose, part.properties.clone());
         self.push_history(snapshot);
-        let projected = project_document(&self.doc)
-            .geometry()
-            .parts
+        let projected_doc = project_document(&self.doc);
+        let projected_parts = &projected_doc.geometry().parts;
+        let projected = projected_parts
             .iter()
             .find(|part| part.id == id)
             .unwrap()
             .clone();
         assert_eq!(projected.pose, pose);
         assert_eq!(projected.properties, properties);
+        for (local_id, prev_pose) in local_before {
+            let after = projected_parts
+                .iter()
+                .find(|part| part.id == local_id)
+                .expect("local target stays projected across source edits");
+            assert_eq!(after.pose, prev_pose);
+        }
     }
     fn refuse_linked_edit(&mut self, pair_id: &str, target: &str, source: &str) {
         let before = self.doc.clone();
@@ -417,34 +489,32 @@ impl Fuzz {
     }
     fn set_state(&mut self, pair_id: &str, target: &str, state: HalfExceptionState) {
         let snapshot = self.doc.clone();
-        if set_exception(&mut self.doc, pair_id, target, state).is_ok() {
-            self.push_history(snapshot);
-            let present = project_document(&self.doc)
-                .geometry()
-                .parts
-                .iter()
-                .any(|part| part.id == target);
-            assert_eq!(present, state != HalfExceptionState::Omitted);
-        }
+        set_exception(&mut self.doc, pair_id, target, state).unwrap();
+        self.push_history(snapshot);
+        let present = project_document(&self.doc)
+            .geometry()
+            .parts
+            .iter()
+            .any(|part| part.id == target);
+        assert_eq!(present, state != HalfExceptionState::Omitted);
     }
     fn rejoin(&mut self, pair_id: &str, target: &str) {
         let snapshot = self.doc.clone();
-        if set_exception(&mut self.doc, pair_id, target, HalfExceptionState::Linked).is_ok() {
-            self.push_history(snapshot);
-            assert!(
-                self.doc
-                    .mirrored_pairs
-                    .iter()
-                    .all(|pair| pair.overrides.is_empty())
-            );
-            assert!(
-                project_document(&self.doc)
-                    .geometry()
-                    .parts
-                    .iter()
-                    .any(|part| part.id == target)
-            );
-        }
+        set_exception(&mut self.doc, pair_id, target, HalfExceptionState::Linked).unwrap();
+        self.push_history(snapshot);
+        assert!(
+            self.doc
+                .mirrored_pairs
+                .iter()
+                .all(|pair| pair.overrides.is_empty())
+        );
+        assert!(
+            project_document(&self.doc)
+                .geometry()
+                .parts
+                .iter()
+                .any(|part| part.id == target)
+        );
     }
     fn unlink(&mut self) {
         let pair_id = self.doc.mirrored_pairs.first().unwrap().id.clone();
@@ -496,7 +566,9 @@ impl Fuzz {
         if !self.redo.is_empty() {
             ops.push(Op::Redo);
         }
-        match ops[self.rng.below(ops.len())] {
+        let op = ops[self.rng.below(ops.len())];
+        self.counts[op as usize] += 1;
+        match op {
             Op::Create => self.create_pair(),
             Op::Edit => self.edit_source(),
             Op::Refuse => {
@@ -525,6 +597,7 @@ impl Fuzz {
 
 #[test]
 fn seeded_operation_sequence_keeps_mirror_invariants() {
+    let mut totals = [0usize; 9];
     for seed in 0..32u64 {
         let mut fuzz = Fuzz {
             rng: Rng(seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1)),
@@ -538,10 +611,18 @@ fn seeded_operation_sequence_keeps_mirror_invariants() {
             redo: Vec::new(),
             undone: Vec::new(),
             fresh: 1,
+            counts: [0; 9],
         };
         check_invariants(&fuzz.doc);
         for _ in 0..40 {
             fuzz.step();
         }
+        for (slot, count) in totals.iter_mut().zip(fuzz.counts) {
+            *slot += count;
+        }
     }
+    assert!(
+        totals.iter().all(|&count| count > 0),
+        "all 9 mirror op families must exercise across 32x40 runs: {totals:?}"
+    );
 }

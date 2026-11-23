@@ -99,9 +99,8 @@ fn move_command(phase: &str) -> Value {
 }
 
 /// Shared, current-format seed accepted by both the native and browser/WASM
-/// boundary tests. `synthetic_half` is also used by Core integration tests, but
-/// the boundary support module must not depend on the test crate's `support`
-/// namespace because it is included from the separate host crate.
+/// boundary tests; the boundary support module must not depend on the test
+/// crate's `support` namespace because it is included from the separate host crate.
 const GENERATED: &str = "board:board:automatic:outline:1";
 const EDITED: &str = "outline-version-12";
 const REFINED: &str = "v-refined";
