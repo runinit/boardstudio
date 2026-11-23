@@ -1,7 +1,7 @@
 //! Session event submission and effect execution.
 use super::*;
 use crate::operation_outcomes::{commit_result, observed_outcome};
-use crate::runtime_report::persist_report;
+use crate::runtime_report::{PersistDispatch, persist_dispatch, persist_report};
 use boardstudio_application::{EditResolver, Landing, SnapshotToken};
 
 impl Runtime {
@@ -93,16 +93,22 @@ impl Runtime {
             if let Some(report) = report {
                 self.record_report(report);
             }
-            if same_lifecycle && !snapshot_changed && self.scope() == previous_scope {
-                if next_durability != durability {
+            match persist_dispatch(
+                same_lifecycle,
+                snapshot_changed,
+                self.scope() == previous_scope,
+                next_durability != durability,
+                has_report,
+            ) {
+                PersistDispatch::DurabilityOnly => {
                     let notify = self.notify_durability.borrow().clone();
                     if let Some(notify) = notify {
                         notify();
                         return effects;
                     }
-                } else if !has_report {
-                    return effects;
                 }
+                PersistDispatch::Quiet => return effects,
+                PersistDispatch::Refresh => {}
             }
         }
         self.refresh_after_session(previous_scope, previous_snapshot);

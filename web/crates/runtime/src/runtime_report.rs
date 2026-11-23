@@ -98,6 +98,34 @@ pub(crate) fn persist_report(
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PersistDispatch {
+    DurabilityOnly,
+    Quiet,
+    Refresh,
+}
+
+/// Shared subscriber dispatch decision after a persist completion.
+pub(crate) fn persist_dispatch(
+    same_lifecycle: bool,
+    snapshot_changed: bool,
+    same_scope: bool,
+    durability_changed: bool,
+    has_report: bool,
+) -> PersistDispatch {
+    if same_lifecycle && !snapshot_changed && same_scope {
+        if durability_changed {
+            PersistDispatch::DurabilityOnly
+        } else if !has_report {
+            PersistDispatch::Quiet
+        } else {
+            PersistDispatch::Refresh
+        }
+    } else {
+        PersistDispatch::Refresh
+    }
+}
+
 #[cfg(test)]
 #[path = "runtime/persist_notification_tests.rs"]
 mod persist_notification_tests;

@@ -7,7 +7,10 @@
 //! on refresh, durability on save-only movement, `"Saved locally."` on commit,
 //! `"disk full"` on failure, one transient notification on commit, none after.
 
-use super::{RuntimeNotification, RuntimeReport, persist_report, publish, take_notifications};
+use super::{
+    PersistDispatch, RuntimeNotification, RuntimeReport, persist_dispatch, persist_report, publish,
+    take_notifications,
+};
 use boardstudio_application::{
     Completion, EditResolver, Effect, Event, OperationId, SaveResult, Session,
 };
@@ -52,18 +55,17 @@ impl Harness {
         if let Some(report) = report {
             publish(&self.status, &self.notifications, report, || {});
         }
-        if next.lifecycle == previous.lifecycle
-            && !changed
-            && self.session.scope() == previous_scope
-        {
-            if next.durability != previous.durability {
-                self.durability += 1;
-                return;
-            } else if !has_report {
-                return;
-            }
+        match persist_dispatch(
+            next.lifecycle == previous.lifecycle,
+            changed,
+            self.session.scope() == previous_scope,
+            next.durability != previous.durability,
+            has_report,
+        ) {
+            PersistDispatch::DurabilityOnly => self.durability += 1,
+            PersistDispatch::Quiet => {}
+            PersistDispatch::Refresh => self.general += 1,
         }
-        self.general += 1;
     }
 }
 
