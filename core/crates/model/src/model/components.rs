@@ -1254,18 +1254,17 @@ impl HardwareConfiguration {
 
     /// The stored per-board electrical configuration, inserting a default entry.
     pub fn board_mut_or_insert(&mut self, board_id: &str) -> &mut ElectricalBoardConfiguration {
-        if let Some(index) = self
+        let index = self
             .boards
             .iter()
             .position(|entry| entry.board_id == board_id)
-        {
-            &mut self.boards[index]
-        } else {
-            self.boards.push(ElectricalBoardConfiguration {
-                board_id: board_id.into(),
-                ..Default::default()
+            .unwrap_or_else(|| {
+                self.boards.push(ElectricalBoardConfiguration {
+                    board_id: board_id.into(),
+                    ..Default::default()
+                });
+                self.boards.len() - 1
             });
-            self.boards.last_mut().expect("just pushed")
-        }
+        &mut self.boards[index]
     }
 }

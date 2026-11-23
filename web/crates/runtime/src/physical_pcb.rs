@@ -89,7 +89,9 @@ pub(crate) fn install_source_pcb(
     {
         return Err("Core returned an incomplete or stale source PCB preparation.".into());
     }
-    let mut pcb = ir.bodies.pop().expect("one source PCB body checked");
+    let Some(mut pcb) = ir.bodies.pop() else {
+        return Err("Core returned an incomplete source PCB preparation.".into());
+    };
     // Compatibility polygons already contain these voids; exact CAD uses body mounts.
     for region in &mut pcb.regions {
         region.mounts.clear();

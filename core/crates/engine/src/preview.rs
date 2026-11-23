@@ -135,7 +135,7 @@ pub(crate) fn preview_electrical_notice_id(kind: &str, identity: &[&str]) -> Str
         id.push('-');
         for byte in component.as_bytes() {
             use std::fmt::Write as _;
-            write!(id, "{byte:02x}").expect("writing to a string cannot fail");
+            let _ = write!(id, "{byte:02x}");
         }
     }
     id

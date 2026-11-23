@@ -249,7 +249,7 @@ impl QuadOffsets {
         let padding = 1.1 * (1_u32 << 30) as f64 / Angle::from_bits(angle.bits() / 2).sin() as f64;
         let style = IntOutlineStyle::new(0)
             .line_join(join)
-            .miter_min_turn(Angle::from_radians(float_style.miter_min_turn).unwrap())
+            .miter_min_turn(Angle::from_radians(float_style.miter_min_turn).unwrap_or(angle))
             .math(float_style.math);
         Self {
             style,

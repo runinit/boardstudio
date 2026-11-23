@@ -606,32 +606,26 @@ fn nrf_pin(gpio: &str) -> String {
         .to_string()
 }
 
-fn gpio_spec(gpio: &str) -> String {
+fn gpio_node(gpio: &str, suffix: &str) -> String {
     let mut parts = gpio.split('.');
     match (parts.next(), parts.next(), parts.next()) {
-        // Direct keys are wired to the scan return/common rail. Keep the
-        // input biased high and report a pressed key as active-low, matching
-        // the matrix pull-up convention and avoiding a floating input.
-        (Some(port), Some(pin), None) if port.starts_with('P') => format!(
-            "&gpio{} {} (GPIO_ACTIVE_LOW | GPIO_PULL_UP)",
-            &port[1..],
-            pin.parse::<u32>().expect("reviewed GPIO pin")
-        ),
-        _ => format!("/* unresolved GPIO {} */", gpio),
+        (Some(port), Some(pin), None) if port.starts_with('P') => match pin.parse::<u32>() {
+            Ok(pin) => format!("&gpio{} {pin} {suffix}", &port[1..]),
+            Err(_) => format!("/* unresolved GPIO {gpio} */"),
+        },
+        _ => format!("/* unresolved GPIO {gpio} */"),
     }
 }
 
+// Direct keys are wired to the scan return/common rail. Keep the
+// input biased high and report a pressed key as active-low, matching
+// the matrix pull-up convention and avoiding a floating input.
+fn gpio_spec(gpio: &str) -> String {
+    gpio_node(gpio, "(GPIO_ACTIVE_LOW | GPIO_PULL_UP)")
+}
+
 fn gpio_spec_flags(gpio: &str, flags: &str) -> String {
-    let mut parts = gpio.split('.');
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(port), Some(pin), None) if port.starts_with('P') => format!(
-            "&gpio{} {} (GPIO_ACTIVE_HIGH | {})",
-            &port[1..],
-            pin.parse::<u32>().expect("reviewed GPIO pin"),
-            flags
-        ),
-        _ => format!("/* unresolved GPIO {} */", gpio),
-    }
+    gpio_node(gpio, &format!("(GPIO_ACTIVE_HIGH | {flags})"))
 }
 
 fn keymap(keys: &[FirmwareKey], request: &FirmwareRequest) -> Result<String, String> {

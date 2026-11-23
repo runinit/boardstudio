@@ -32,8 +32,8 @@ use closures::{
     paired_index, project, target_board_id, validate_mounting_hole,
 };
 use feature_lifecycle::{
-    apply_feature_lifecycle, feature_ids, find_feature_value, instance_configuration_mut,
-    pair_owner_ids,
+    apply_feature_lifecycle, feature_ids, find_feature_value, instance_configuration_mut, pair_at,
+    pair_mut_at, pair_owner_ids,
 };
 pub use feature_lifecycle::{install_feature, remove_feature};
 pub use identity::{IdentityFloor, MechanicalIdentityLedger};

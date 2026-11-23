@@ -22,19 +22,13 @@ fn part_key_id(part: &AnchorPart) -> String {
 fn dependants(doc: &ProjectDoc, target_id: &str) -> Vec<(String, MatrixAnchor)> {
     doc.matrices
         .iter()
-        .filter(|matrix| {
-            matrix.anchor.as_ref().is_some_and(|anchor| {
-                anchor
-                    .targets()
-                    .iter()
-                    .any(|part| part.matrix_id == target_id)
-            })
-        })
-        .map(|matrix| {
-            (
-                matrix.id.clone(),
-                matrix.anchor.clone().expect("filtered anchor"),
-            )
+        .filter_map(|matrix| {
+            let anchor = matrix.anchor.clone()?;
+            anchor
+                .targets()
+                .iter()
+                .any(|part| part.matrix_id == target_id)
+                .then(|| (matrix.id.clone(), anchor))
         })
         .collect()
 }
@@ -269,7 +263,7 @@ pub fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<
         )
     })?;
     let layout_id = owning_layout(doc, &target.id)
-        .expect("validated target layout")
+        .ok_or_else(|| format!("Matrix anchor target {} has no owning layout", target.id))?
         .id
         .clone();
     // Ticket 20: a linked group creates the mirrored counterpart in the same
@@ -382,12 +376,12 @@ pub fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<
         for member in &group_layouts {
             let counterpart_id = ids_by_layout[member].clone();
             let is_source = member == &source_id;
-            doc.layouts
+            let layout = doc
+                .layouts
                 .iter_mut()
                 .find(|layout| &layout.id == member)
-                .expect("linked group layout")
-                .matrix_ids
-                .push(counterpart_id.clone());
+                .ok_or_else(|| format!("Linked mirror group layout {member} is missing"))?;
+            layout.matrix_ids.push(counterpart_id.clone());
             // Record the matrix correspondence on the mirror link.
             if !is_source
                 && let Some(layout) = doc.layouts.iter_mut().find(|layout| &layout.id == member)
@@ -472,12 +466,12 @@ pub fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<
         anchor: Some(anchor.clone()),
         cells: vec![],
     };
-    doc.layouts
+    let layout = doc
+        .layouts
         .iter_mut()
         .find(|layout| layout.id == layout_id)
-        .expect("validated layout")
-        .matrix_ids
-        .push(id.into());
+        .ok_or_else(|| format!("Matrix layout {layout_id} is missing"))?;
+    layout.matrix_ids.push(id.into());
     let mut changed = super::set_matrix(doc, &matrix)?;
     changed.extend(layout::sync(doc, id)?);
     layout::sync_member_pairs(doc, id)?;

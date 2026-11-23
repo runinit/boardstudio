@@ -59,7 +59,9 @@ pub(super) fn export(
             },
             ArtifactFile {
                 filename: "mechanical-plate.kicad_pro".into(),
-                content: serde_json::to_string_pretty(&settings).unwrap(),
+                content: serde_json::to_string_pretty(&settings).map_err(|error| {
+                    ArtifactError::new(ArtifactErrorCode::Internal, error.to_string())
+                })?,
             },
             ArtifactFile {
                 filename: "FABRICATION.md".into(),

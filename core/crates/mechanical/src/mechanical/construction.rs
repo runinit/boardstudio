@@ -223,7 +223,7 @@ pub(super) fn construct_bodies(
             frame.body.gasket = None;
             stack.push(MechanicalStackLayer {
                 id: "middle-frame".into(),
-                z: frame.body.z.unwrap(),
+                z: frame.body.z.unwrap_or(bottom_z + config.bottom_thickness),
                 thickness: frame.body.thickness,
             });
             bodies.push(frame);

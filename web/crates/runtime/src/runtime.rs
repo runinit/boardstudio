@@ -720,8 +720,7 @@ impl Runtime {
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
-        self.next_operation
-            .set(id.checked_add(1).expect("operation identity exhausted"));
+        self.next_operation.set(id.saturating_add(1));
         OperationId(id)
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {

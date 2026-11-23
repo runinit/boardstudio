@@ -59,10 +59,12 @@ fn runs(region: &Region) -> Vec<Run> {
             end: track.end_anchor,
             span: distance(track.start, track.end),
         };
-        if let Some(joined) = runs.last().and_then(|last| merge(last, &run)) {
-            *runs.last_mut().unwrap() = joined;
-        } else {
-            runs.push(run);
+        match runs.last().and_then(|last| merge(last, &run)) {
+            Some(joined) => {
+                runs.pop();
+                runs.push(joined);
+            }
+            None => runs.push(run),
         }
     }
     if runs.len() > 1 {
@@ -73,9 +75,10 @@ fn runs(region: &Region) -> Vec<Run> {
             end: first.end + 1.,
             span: first.span,
         };
-        if let Some(joined) = merge(runs.last().unwrap(), &wrapped) {
+        if let Some(joined) = runs.last().and_then(|last| merge(last, &wrapped)) {
             runs.remove(0);
-            *runs.last_mut().unwrap() = joined;
+            runs.pop();
+            runs.push(joined);
         }
     }
     runs

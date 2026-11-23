@@ -175,7 +175,7 @@ pub(super) fn initialize_target_closures(
 ) -> Result<Vec<Mount>, String> {
     if let Some(pair_index) = paired_index(doc, target) {
         if link_pair_closure_proposals(doc, board_contours, pair_index)? {
-            changed.extend(pair_owner_ids(doc, pair_index));
+            changed.extend(pair_owner_ids(doc, pair_index)?);
         }
         return Ok(Vec::new());
     }

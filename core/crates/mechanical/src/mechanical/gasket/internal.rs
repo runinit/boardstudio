@@ -820,13 +820,35 @@ pub(super) fn generate(
                 };
                 (c, length, error)
             } else {
-                planned.next().map(|(c,length)|(c,length,None)).unwrap_or_else(|| {
-                    let occupied: Vec<_> = chosen.iter().filter(|(name,_,_,_)|name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
-                    let target_side=(0..4).min_by_key(|s|occupied.iter().filter(|other|*other==s).count()).unwrap();
-                    let candidate=region.tracks.iter().filter_map(|track|on_track(&region,(track.start_anchor+track.end_anchor)/2.))
-                        .find(|c|side(c)==target_side).unwrap_or_else(||on_track(&region,0.5).unwrap());
-                    (candidate,if automatic {5.} else {foam.length},Some("No clear support fits this count; reduce the count or adjust the gasket, openings or closures.".into()))
-                })
+                planned
+                    .next()
+                    .map(|(c, length)| (c, length, None))
+                    .or_else(|| {
+                        let occupied: Vec<_> = chosen
+                            .iter()
+                            .filter(|(name, _, _, _)| name.starts_with(&format!("{id}:")))
+                            .map(|(_, c, _, _)| side(c))
+                            .collect();
+                        let target_side = (0..4)
+                            .min_by_key(|s| occupied.iter().filter(|other| *other == s).count())
+                            .unwrap_or(0);
+                        region
+                            .tracks
+                            .iter()
+                            .filter_map(|track| {
+                                on_track(&region, (track.start_anchor + track.end_anchor) / 2.)
+                            })
+                            .find(|c| side(c) == target_side)
+                            .or_else(|| on_track(&region, 0.5))
+                            .map(|candidate| {
+                                (
+                                    candidate,
+                                    if automatic { 5. } else { foam.length },
+                                    Some("No clear support fits this count; reduce the count or adjust the gasket, openings or closures.".into()),
+                                )
+                            })
+                    })
+                    .ok_or_else(|| format!("No gasket support position fits {support_id}"))?
             };
             if !length.is_finite() || !width.is_finite() {
                 fit_error = Some("Gasket dimensions must be finite.".into());
@@ -962,10 +984,16 @@ pub(super) fn generate(
             apply_mirrored_placement(support, &candidate);
             support.placement = master_support.placement.clone();
             link_mirror_pair(&mut result.gasket_supports, master, follower, link.axis_x);
-            *chosen
+            let Some(slot) = chosen
                 .iter_mut()
                 .find(|(id, _, _, _)| *id == follower_support.id)
-                .unwrap() = (
+            else {
+                return Err(format!(
+                    "Linked gasket support {} is missing",
+                    follower_support.id
+                ));
+            };
+            *slot = (
                 follower_support.id.clone(),
                 candidate,
                 master_support.length,
@@ -1169,12 +1197,14 @@ pub(super) fn generate(
                 });
         }
     }
-    let bottom = result
+    let Some(bottom) = result
         .case
         .bodies
         .iter_mut()
         .find(|b| b.body.id == "bottom")
-        .unwrap();
+    else {
+        return Err("Generated case is missing its bottom body".into());
+    };
     bottom.contours = outer.clone();
     bottom.body.kind = CaseKind::Tray;
     bottom.body.z = Some(bottom_z);

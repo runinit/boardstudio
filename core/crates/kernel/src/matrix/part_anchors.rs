@@ -240,7 +240,7 @@ pub fn validate_target(
         .layouts
         .iter()
         .find(|layout| layout.id == layout_id)
-        .expect("part layout");
+        .ok_or_else(|| format!("Part {part_id} anchor layout {layout_id} is missing"))?;
     let same_board = target
         .board_id
         .as_deref()

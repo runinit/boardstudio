@@ -227,9 +227,12 @@ fn case_fingerprint_for_inputs(
     let bytes = serde_json::to_vec(&fingerprint).ok()?;
     let hex = sha256_hex(&bytes);
     // Keep the binary fingerprint used by CadScene and its callers.
-    Some(std::array::from_fn(|index| {
-        u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("canonical SHA-256 hex")
-    }))
+    let mut digest = [0u8; 32];
+    for (index, slot) in digest.iter_mut().enumerate() {
+        let pair = hex.get(index * 2..index * 2 + 2)?;
+        *slot = u8::from_str_radix(pair, 16).ok()?;
+    }
+    Some(digest)
 }
 
 fn retain_fields(value: &mut Value, fields: &[&str]) {

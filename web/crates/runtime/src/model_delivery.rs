@@ -704,7 +704,7 @@ impl ModelDeliveryAdapter {
     fn cached(&self, key: &str) -> Option<Rc<ValidatedMesh>> {
         let mut meshes = self.meshes.borrow_mut();
         let index = meshes.iter().position(|(id, _)| id == key)?;
-        let entry = meshes.remove(index).expect("located cached mesh");
+        let entry = meshes.remove(index)?;
         let mesh = entry.1.clone();
         meshes.push_back(entry);
         Some(mesh)

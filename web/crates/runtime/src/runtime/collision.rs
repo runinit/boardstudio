@@ -256,12 +256,8 @@ impl Runtime {
     pub fn cancel_collision_checks(&self) {
         self.collision_alive.borrow().set(false);
         *self.collision_alive.borrow_mut() = Rc::new(Cell::new(true));
-        self.collision_batch.set(
-            self.collision_batch
-                .get()
-                .checked_add(1)
-                .expect("collision batch exhausted"),
-        );
+        self.collision_batch
+            .set(self.collision_batch.get().saturating_add(1));
         self.collision_generated_attempts.borrow_mut().clear();
         let jobs = self
             .native_model_jobs

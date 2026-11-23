@@ -87,31 +87,25 @@ pub(super) fn add_for_mount(
         }
     }
     doc.parts.push(part);
-    instance
-        .connection
-        .as_mut()
-        .expect("connection was checked")
-        .host_connector_part_id = part_id;
+    let Some(connection) = instance.connection.as_mut() else {
+        return Ok(());
+    };
+    connection.host_connector_part_id = part_id;
     Ok(())
 }
 
 fn validate_source_definition(definition: &PartDefinition) -> Result<(), String> {
-    if !matches!(definition.kind, PartKind::Connector)
-        || !definition
-            .hardware_profile
-            .as_ref()
-            .is_some_and(|profile| profile.vik_role == Some(crate::hardware::VikRole::Host))
-    {
+    let profile = definition.hardware_profile.as_ref().filter(|profile| {
+        matches!(definition.kind, PartKind::Connector)
+            && profile.vik_role == Some(crate::hardware::VikRole::Host)
+    });
+    let Some(profile) = profile else {
         return Err(
             "Automatic VIK placement requires a source-backed host-role connector definition"
                 .into(),
         );
-    }
-    let source = &definition
-        .hardware_profile
-        .as_ref()
-        .expect("validated profile")
-        .source;
+    };
+    let source = &profile.source;
     if source.repository != "https://github.com/sadekbaroudi/vik"
         || source.revision.len() != 40
         || source.sha256.as_deref().is_none_or(|hash| hash.len() != 64)
@@ -284,8 +278,10 @@ fn nearby_pose(
             let place = |point: Vec2| {
                 crate::geometry::part_to_world(point, &pose, instance.host_face.clone())
             };
-            let bounds = Bounds::from_points(connector.courtyard.iter().copied().map(place))
-                .expect("validated connector courtyard");
+            let Some(bounds) = Bounds::from_points(connector.courtyard.iter().copied().map(place))
+            else {
+                continue;
+            };
             let footprint_points: Vec<_> = connector.courtyard.iter().copied().map(place).collect();
             if !bounds.overlaps(module_bounds)
                 && blockers.iter().all(|blocker| !bounds.overlaps(*blocker))

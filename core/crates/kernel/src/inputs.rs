@@ -209,7 +209,11 @@ pub fn set_scan_mode(
                 .retain(|via| !via.net_id.as_ref().is_some_and(|net| empty.contains(net)));
         }
     }
-    let part = doc.parts.iter_mut().find(|p| p.id == id).unwrap();
+    let part = doc
+        .parts
+        .iter_mut()
+        .find(|p| p.id == id)
+        .ok_or_else(|| format!("Part {id} is missing"))?;
     part.properties.get_or_insert_with(Default::default).insert(
         "pressScanMode".into(),
         serde_json::to_value(mode).map_err(|e| e.to_string())?,

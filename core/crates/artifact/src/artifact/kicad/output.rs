@@ -469,7 +469,11 @@ fn finish_standalone(
         } else if is_imported(definition) {
             override_models(
                 source::patch_footprint(
-                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &definition
+                        .kicad_source
+                        .as_ref()
+                        .ok_or_else(|| validation("Footprint is missing its checked KiCad source"))?
+                        .source,
                     &FootprintPatch {
                         footprint_name: Some(output_name.clone()),
                         reference: Some("REF**".into()),
@@ -571,7 +575,11 @@ fn finish_board(
         }
         if is_imported(definition) {
             let imported = source::import_footprint(
-                &definition.kicad_source.as_ref().expect("checked").source,
+                &definition
+                    .kicad_source
+                    .as_ref()
+                    .ok_or_else(|| validation("Footprint is missing its checked KiCad source"))?
+                    .source,
                 &definition.id,
             )?;
             let mut pad_nets = BTreeMap::new();
@@ -587,7 +595,12 @@ fn finish_board(
                                 pad.id
                             ))
                         })?;
-                    let net = net_by_id(&doc.nets, net_id).expect("net was indexed");
+                    let net = net_by_id(&doc.nets, net_id).ok_or_else(|| {
+                        validation(format!(
+                            "Pad {part_id}/{} references an unknown net",
+                            pad.id
+                        ))
+                    })?;
                     pad_nets.insert(pad.id.clone(), (index, net.name.clone()));
                 }
             }
@@ -604,7 +617,11 @@ fn finish_board(
             }
             footprints.push(override_models(
                 source::patch_footprint(
-                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &definition
+                        .kicad_source
+                        .as_ref()
+                        .ok_or_else(|| validation("Footprint is missing its checked KiCad source"))?
+                        .source,
                     &FootprintPatch {
                         footprint_name: Some(safe_name(&definition.name)),
                         reference: Some(part.reference.clone()),
@@ -631,7 +648,8 @@ fn finish_board(
                 .iter()
                 .find(|item| item.id == pad.id)
                 .and_then(|pad| pad.net_id.as_deref());
-            if pin_net.is_some() && authored.is_some_and(|authored| authored != pin_net.unwrap()) {
+            if authored.is_some_and(|authored| pin_net.is_some_and(|net| authored != net.as_str()))
+            {
                 return Err(validation(format!(
                     "Conflicting net for {part_id}/{}",
                     pad.id
@@ -836,7 +854,8 @@ fn finish_board(
     let edges = edge_forms(&plan.contours, &board.id)?;
     let mut all_nets = BTreeMap::<u32, String>::new();
     for id in &board.net_ids {
-        let net = net_by_id(&doc.nets, id).expect("validated");
+        let net = net_by_id(&doc.nets, id)
+            .ok_or_else(|| validation(format!("Board net {id} is missing")))?;
         all_nets.insert(board_net_index[id.as_str()], net.name.clone());
     }
     for net in generated_nets {
