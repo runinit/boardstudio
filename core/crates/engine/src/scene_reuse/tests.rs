@@ -1136,3 +1136,5 @@ fn stagger_diagnostics_match_cold_wire_and_history() {
         }
     }
 }
+
+mod stagger_geometry;

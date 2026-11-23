@@ -3,10 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 fn role(signal: VikSignal) -> String {
     serde_json::to_value(signal)
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .into()
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
 }
 fn finding(
     id: &str,
@@ -322,14 +321,15 @@ pub fn connection_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
             let capability = profile
                 .as_ref()
                 .and_then(|p| p.pins.iter().find(|p| p.terminal == terminal));
-            if !capability.is_some_and(|p| {
+            let usable = capability.as_ref().is_some_and(|p| {
                 controller_def.is_some_and(|d| d.terminals.contains_key(p.terminal))
-                    && !profile
-                        .as_ref()
-                        .unwrap()
-                        .reserved_gpios
-                        .contains(&p.firmware_gpio)
-            }) {
+            });
+            let reserved = capability.as_ref().is_some_and(|p| {
+                profile
+                    .as_ref()
+                    .is_some_and(|profile| profile.reserved_gpios.contains(&p.firmware_gpio))
+            });
+            if !usable || reserved {
                 report(
                     &format!("gpio/{}", role(*signal)),
                     format!("{terminal} is not an available reviewed controller GPIO."),

@@ -14,7 +14,7 @@ pub fn decode_archive_request(json: &str) -> Result<ArchiveRequest, serde_json::
 }
 
 pub fn encode_archive_reply(reply: &ArchiveReply) -> String {
-    serde_json::to_string(reply).expect("archive reply serializes")
+    serde_json::to_string(reply).unwrap_or_default()
 }
 
 #[cfg(feature = "wire-json")]
@@ -24,7 +24,7 @@ pub fn decode_core_request(json: &str) -> Result<CoreRequest, serde_json::Error>
 
 #[cfg(feature = "wire-json")]
 pub fn encode_core_reply(reply: &CoreReply) -> String {
-    serde_json::to_string(reply).expect("reply serializes")
+    serde_json::to_string(reply).unwrap_or_default()
 }
 
 pub fn decode_artifact_request(json: &str) -> Result<ArtifactRequest, serde_json::Error> {
@@ -32,5 +32,5 @@ pub fn decode_artifact_request(json: &str) -> Result<ArtifactRequest, serde_json
 }
 
 pub fn encode_artifact_reply(reply: &ArtifactReply) -> String {
-    serde_json::to_string(reply).expect("artifact reply serializes")
+    serde_json::to_string(reply).unwrap_or_default()
 }

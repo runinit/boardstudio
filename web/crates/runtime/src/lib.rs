@@ -1,3 +1,7 @@
+#![cfg_attr(
+    not(any(test, feature = "test-support")),
+    deny(clippy::unwrap_used, clippy::expect_used)
+)]
 //! The page's non-UI layer: the browser runtime (workers, storage, CAD and renderer
 //! hosts), model delivery and the operation/projection logic the presentation drives.
 //! No Dioxus. Split from the `boardstudio-web` bin so presentation edits do not

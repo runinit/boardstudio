@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 //! Matrix layout kernel, constraint resolution and outline geometry for BoardStudio Core.
 
 pub use boardstudio_model::model;

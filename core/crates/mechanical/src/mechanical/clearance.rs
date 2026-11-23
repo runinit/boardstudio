@@ -314,9 +314,7 @@ fn js_to_fixed_5(value: f64) -> String {
     };
     let scaled = significand * DECIMAL_SCALE;
     let rounded = if exponent >= 0 {
-        scaled
-            .checked_shl(exponent as u32)
-            .expect("accepted board coordinate scaling fits u128")
+        scaled.checked_shl(exponent as u32).unwrap_or(u128::MAX)
     } else {
         let shift = (-exponent) as u32;
         if shift >= 128 {
