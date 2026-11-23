@@ -297,15 +297,23 @@ pub struct PickCommit {
     pub new_anchor_label: String,
 }
 
+/// A display name with identity fallback: the name when non-blank, else the id.
+pub fn display_name(name: Option<&str>, id: &str) -> String {
+    name.filter(|name| !name.trim().is_empty())
+        .unwrap_or(id)
+        .to_owned()
+}
+
 /// The matrix display name: its name, else its id.
 pub fn matrix_display_name(document: &ProjectDoc, matrix_id: &str) -> String {
-    document
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .and_then(|matrix| matrix.name.clone())
-        .filter(|name| !name.trim().is_empty())
-        .unwrap_or_else(|| matrix_id.to_owned())
+    display_name(
+        document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .and_then(|matrix| matrix.name.as_deref()),
+        matrix_id,
+    )
 }
 
 /// One anchor key in words: `Main R1C1` (1-based, like the badge).
@@ -320,18 +328,14 @@ pub fn anchor_key_label(document: &ProjectDoc, matrix_id: &str, row: u32, column
 
 /// The part display name: its reference, else its id.
 fn part_display_name(document: &ProjectDoc, part_id: &str) -> String {
-    document
-        .parts
-        .iter()
-        .find(|part| part.id == part_id)
-        .map(|part| {
-            if part.reference.trim().is_empty() {
-                part.id.clone()
-            } else {
-                part.reference.clone()
-            }
-        })
-        .unwrap_or_else(|| part_id.to_owned())
+    display_name(
+        document
+            .parts
+            .iter()
+            .find(|part| part.id == part_id)
+            .map(|part| part.reference.as_str()),
+        part_id,
+    )
 }
 
 fn full_follow() -> Follow {

@@ -11,7 +11,7 @@ use super::layout_rail_chrome::{feedback_chrome, feedback_line_width, feedback_p
 use crate::anchor_pick::{
     AnchorMajorKind, AnchorPickCandidates, CANDIDATE_HIT_PX, CANDIDATE_RING_HOVER_PX,
     CANDIDATE_RING_PX, MAJOR_RING_PX, PickTarget, anchor_is_target, anchor_key_label,
-    anchor_pick_candidates, matrix_display_name, pick_commit, preview_anchor_poses,
+    anchor_pick_candidates, display_name, matrix_display_name, pick_commit, preview_anchor_poses,
 };
 use crate::presentation::canvas_interaction::CanvasInteractionArbiter;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
@@ -124,18 +124,14 @@ fn pinned_popup(
 fn item_label(document: &ProjectDoc, owner: &AnchorPickOwner) -> String {
     match owner {
         AnchorPickOwner::Matrix { matrix, .. } => matrix_display_name(document, &matrix.id),
-        AnchorPickOwner::Part { part_id } => document
-            .parts
-            .iter()
-            .find(|part| part.id == *part_id)
-            .map(|part| {
-                if part.reference.trim().is_empty() {
-                    part.id.clone()
-                } else {
-                    part.reference.clone()
-                }
-            })
-            .unwrap_or_else(|| part_id.clone()),
+        AnchorPickOwner::Part { part_id } => display_name(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == *part_id)
+                .map(|part| part.reference.as_str()),
+            part_id,
+        ),
     }
 }
 
@@ -502,11 +498,7 @@ fn major_rings(
                     let part = document.parts.iter().find(|part| part.id == *id)?;
                     (
                         evaluated_part_pose(document, part).at,
-                        if part.reference.trim().is_empty() {
-                            part.id.clone()
-                        } else {
-                            part.reference.clone()
-                        },
+                        display_name(Some(part.reference.as_str()), &part.id),
                     )
                 }
                 // An unsplit layout has no half offset: its half frame sits at the board origin.
