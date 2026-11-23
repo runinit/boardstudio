@@ -124,7 +124,6 @@ pub fn use_matrix_placement(
                         && runtime.model().selected_part_ids == follow_up.selected_part_ids
                         && selected_context.peek().as_ref() == follow_up.selected_context.as_ref();
                     match ticket.settlement(owner_is_live) {
-                        Settlement::Pending => return,
                         Settlement::Retired => {
                             waiting.set(None);
                             error.set(None);
@@ -338,8 +337,7 @@ pub fn use_matrix_placement(
                     };
                     matrix.origin = boardstudio_model::model::Vec2::default();
                     let mut scenes = runtime
-                        .project_matrices(accepted.document.revision, vec![matrix.clone()])
-                        .await?;
+                        .project_matrices(accepted.document.revision, vec![matrix.clone()])?;
                     if scenes.len() != 1 {
                         return Err("Core returned an incomplete matrix placement preview.".into());
                     }

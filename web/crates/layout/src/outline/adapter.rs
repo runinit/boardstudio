@@ -616,8 +616,7 @@ pub(super) fn outline_action_matches_saved_owner(
             ..
         }
     );
-    let lifecycle_current = model.lifecycle == Lifecycle::Ready
-        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
+    let lifecycle_current = model.lifecycle == Lifecycle::Ready;
     generation == captured_generation
         && current_scope == Some(scope)
         && model.accepted.as_ref().is_some_and(|snapshot| {

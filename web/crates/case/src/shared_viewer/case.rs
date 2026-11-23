@@ -255,7 +255,7 @@ pub(crate) fn CaseViewport(
         (
             &preview.owner.scope,
             preview.owner.snapshot_token,
-            preview.owner.accepted_revision,
+            preview.accepted_document.revision,
         )
     } else {
         return rsx! {};

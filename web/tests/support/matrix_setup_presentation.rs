@@ -88,19 +88,12 @@ mod tests {
                 });
         }
         fn hold_pending_operation(&self) {
-            self.runtime.hold_next_core();
             self.runtime.hold_next_save();
-        }
-        fn release_core(&self) {
-            self.runtime.release_core();
         }
         fn release_save(&self) {
             self.runtime.release_save();
         }
         fn release_pending_operation(&self) {
-            if self.runtime.core_entered() {
-                self.runtime.release_core();
-            }
             if self.runtime.save_entered() {
                 self.runtime.release_save();
             }
@@ -233,7 +226,6 @@ mod tests {
         probe.hold_pending_operation();
         probe.create();
         crate::poll_detached();
-        probe.release_core();
         flush(&probe, &mut dom);
         let created_part_ids = probe
             .runtime
@@ -246,19 +238,12 @@ mod tests {
             .unwrap()
             .part_ids
             .clone();
-        assert!(
-            !probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, Event::SelectParts { .. })),
-            "terminal completion alone cannot select an unsaved proposal"
-        );
+        assert!(probe.runtime.saved_document("A").is_none());
         probe.release_save();
         crate::poll_detached();
         flush(&probe, &mut dom);
         flush(&probe, &mut dom);
+        assert!(probe.runtime.saved_document("A").is_some());
         let events = probe.runtime.events.borrow();
         let selections: Vec<_> = events
             .iter()

@@ -508,7 +508,6 @@ fn settle_pending(
         && workspace == "Layout"
         && scope_generation == owner.scope_generation;
     match ticket.settlement(owner_is_live) {
-        Settlement::Pending => (),
         Settlement::Retired => {
             waiting.set(None);
             if open.read().as_ref() == Some(&owner) {

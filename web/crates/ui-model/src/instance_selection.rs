@@ -176,8 +176,8 @@ mod tests {
             .as_ref()
             .map(|snapshot| snapshot.scene.clone());
         assert!(!can_reconcile(&previewing));
-        let mut recovering = session.read_model().clone();
-        recovering.lifecycle = Lifecycle::RecoveryRequired;
-        assert!(!can_reconcile(&recovering));
+        let mut closed = session.read_model().clone();
+        closed.lifecycle = Lifecycle::Closed;
+        assert!(!can_reconcile(&closed));
     }
 }

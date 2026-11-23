@@ -29,10 +29,7 @@ pub fn board_reference_owner_is_current(
         return false;
     };
     if !active_board_scope_matches(&model, scope)
-        || !matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        )
+        || model.lifecycle != Lifecycle::Ready
         || !matches!(
             model.durability,
             Durability::Saved { .. } | Durability::Saving { .. }

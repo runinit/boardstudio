@@ -154,9 +154,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         let alive = alive.clone();
         move |(request,)| {
             runtime.reconcile_layout_source_request(
-                request
-                    .as_ref()
-                    .map(|(scope, token, revision)| (scope, *token, *revision)),
+                request.as_ref().map(|(scope, token, _)| (scope, *token)),
             );
             let Some((scope, token, revision)) = request else {
                 return;
@@ -382,7 +380,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
             || focused.scope != current_preview.owner.scope
             || focused.token != preview.owner.snapshot_token
             || focused.token != accepted.token
-            || focused.revision != preview.owner.accepted_revision
+            || focused.revision != preview.document.revision
             || focused.revision != accepted.document.revision
             || !preview.lease.matches(&preview.owner)
             || !current_preview.lease.matches(&current_preview.owner)

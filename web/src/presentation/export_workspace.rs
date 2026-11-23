@@ -29,6 +29,7 @@ pub(super) fn ExportWorkspace(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
     let selection = use_context::<SelectionAdapter>();
     let model = runtime.model();
     let board_name = model

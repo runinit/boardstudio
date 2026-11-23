@@ -2,6 +2,7 @@ use super::*;
 
 pub(crate) struct RuntimeBundle {
     pub(crate) version: Signal<u64>,
+    pub(crate) durability_version: Signal<u64>,
     pub(crate) project_created: Signal<Option<SetupGuideRequest>>,
     pub(crate) pending_new_keyboard: Signal<Option<PendingNewKeyboard>>,
     pub(crate) new_keyboard_error: Signal<String>,
@@ -10,6 +11,8 @@ pub(crate) struct RuntimeBundle {
 
 pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
     let version = use_signal(|| 0u64);
+    let durability_version = use_signal(|| 0u64);
+    use_context_provider(|| boardstudio_web_ui_shared::DurabilityVersion(durability_version));
     let project_created = use_signal(|| None::<SetupGuideRequest>);
     let pending_new_keyboard = use_signal(|| None::<PendingNewKeyboard>);
     let new_keyboard_error = use_signal(String::new);
@@ -35,7 +38,11 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
     });
     let obs_token = use_hook({
         let r = runtime.clone();
-        move || Rc::new(RefCell::new(r.model().accepted.as_ref().map(|s| s.token)))
+        move || {
+            Rc::new(RefCell::new(
+                r.with_model(|m| m.accepted.as_ref().map(|s| s.token)),
+            ))
+        }
     });
     let reconciling = use_hook(|| Rc::new(Cell::new(false)));
     use_hook({
@@ -50,6 +57,16 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
             reconciling.clone(),
         );
         move || {
+            let act_d = act.clone();
+            rt.subscribe_durability(Rc::new(move || {
+                if !act_d.get() {
+                    return;
+                }
+                let mut dv = durability_version;
+                dv += 1;
+                let mut v = version;
+                v += 1;
+            }));
             rt.subscribe(Rc::new(move || {
                 if !act.get() {
                     return;
@@ -63,7 +80,7 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
                 let (mut sc, mut anc, mut generation) =
                     (ad.selected_context, ad.anchor_scope, ad.generation);
                 let next_scope = rt.scope();
-                let next_token = rt.model().accepted.as_ref().map(|s| s.token);
+                let next_token = rt.with_model(|m| m.accepted.as_ref().map(|s| s.token));
                 let prev_token = std::mem::replace(&mut *obs_token.borrow_mut(), next_token);
                 let prev_scope = std::mem::replace(&mut *os.borrow_mut(), next_scope.clone());
                 if prev_scope != next_scope {
@@ -83,51 +100,62 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
                         cleanup();
                     }
                 }
-                let model = rt.model();
-                if ad.selected_context.read().as_ref().is_some_and(|s| {
-                    next_scope.as_ref() != Some(&s.scope)
-                        || !selection::context_is_current(&model, &s.scope, &s.context)
-                }) {
-                    sc.set(None);
-                    anc.set(None);
-                }
-                let m = mem.borrow_mut().project(&model, |m| {
-                    crate::matrix_transform_lifecycle::SelectionMembership {
-                        eligible: selection::eligible_live_ids(m),
-                        live: selection::live_board_ids(m),
-                    }
-                });
-                let key_ctx = (ad.selected_context)()
-                    .filter(|s| matches!(&s.context, objects::TreeContext::Key { .. }));
-                let sel_ids = ret.borrow_mut().reconcile(
-                    key_ctx.as_ref(),
-                    &model.selected_part_ids,
-                    &m.eligible,
-                    &m.live,
-                );
-                if sel_ids != model.selected_part_ids {
-                    anc.set(None);
-                    rt.submit(Event::SelectParts {
-                        operation_id: rt.operation(),
-                        part_ids: sel_ids,
-                        range_part_ids: vec![],
-                        mode: SelectionMode::Replace,
+                let (clear_ctx, submit_sel_ids) = rt.with_model(|model| {
+                    let clear_ctx = ad.selected_context.read().as_ref().is_some_and(|s| {
+                        next_scope.as_ref() != Some(&s.scope)
+                            || !selection::context_is_current(model, &s.scope, &s.context)
                     });
-                }
-                if let Some(scope) = next_scope.as_ref() {
-                    let cur = rt.model();
-                    let m = mem.borrow_mut().project(&cur, |m| {
+                    let m = mem.borrow_mut().project(model, |m| {
                         crate::matrix_transform_lifecycle::SelectionMembership {
                             eligible: selection::eligible_live_ids(m),
                             live: selection::live_board_ids(m),
                         }
                     });
-                    if (ad.anchor_scope)().as_ref() == Some(scope)
-                        && cur
-                            .selection_anchor_id
-                            .as_ref()
-                            .is_none_or(|a| !m.eligible.contains(a))
-                    {
+                    let key_ctx = if clear_ctx {
+                        None
+                    } else {
+                        (ad.selected_context)()
+                            .filter(|s| matches!(&s.context, objects::TreeContext::Key { .. }))
+                    };
+                    let sel_ids = ret.borrow_mut().reconcile(
+                        key_ctx.as_ref(),
+                        &model.selected_part_ids,
+                        &m.eligible,
+                        &m.live,
+                    );
+                    (
+                        clear_ctx,
+                        (sel_ids != model.selected_part_ids).then_some(sel_ids),
+                    )
+                });
+                if clear_ctx {
+                    sc.set(None);
+                    anc.set(None);
+                }
+                if let Some(part_ids) = submit_sel_ids {
+                    anc.set(None);
+                    rt.submit(Event::SelectParts {
+                        operation_id: rt.operation(),
+                        part_ids,
+                        range_part_ids: vec![],
+                        mode: SelectionMode::Replace,
+                    });
+                }
+                if let Some(scope) = next_scope.as_ref() {
+                    let clear_anchor = rt.with_model(|cur| {
+                        let m = mem.borrow_mut().project(cur, |m| {
+                            crate::matrix_transform_lifecycle::SelectionMembership {
+                                eligible: selection::eligible_live_ids(m),
+                                live: selection::live_board_ids(m),
+                            }
+                        });
+                        (ad.anchor_scope)().as_ref() == Some(scope)
+                            && cur
+                                .selection_anchor_id
+                                .as_ref()
+                                .is_none_or(|a| !m.eligible.contains(a))
+                    });
+                    if clear_anchor {
                         anc.set(None);
                     }
                 }
@@ -140,6 +168,7 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
         let rt = runtime.clone();
         move || {
             active.set(false);
+            rt.unsubscribe_durability();
             rt.unsubscribe();
             rt.submit(Event::Close {
                 operation_id: rt.operation(),
@@ -148,6 +177,7 @@ pub(crate) fn use_workbench_runtime(runtime: Rc<Runtime>) -> RuntimeBundle {
     });
     RuntimeBundle {
         version,
+        durability_version,
         project_created,
         pending_new_keyboard,
         new_keyboard_error,
@@ -159,7 +189,6 @@ pub(crate) struct PanelsBundle {
     pub(crate) workspace: Signal<&'static str>,
     pub(crate) project_browser: Signal<bool>,
     pub(crate) return_workspace: Signal<&'static str>,
-    pub(crate) observed_version: u64,
 }
 
 pub(crate) fn use_workbench_panels(
@@ -170,7 +199,7 @@ pub(crate) fn use_workbench_panels(
     new_keyboard_error: Signal<String>,
     adapter: SelectionAdapter,
 ) -> PanelsBundle {
-    let observed_version = version();
+    let _ = version();
     use_context_provider(|| runtime);
     use_context_provider(|| version);
     use_context_provider(|| project_created);
@@ -201,13 +230,13 @@ pub(crate) fn use_workbench_panels(
         workspace,
         project_browser,
         return_workspace,
-        observed_version,
     }
 }
 
 pub(crate) fn use_keyboard_creation(
     runtime: Rc<Runtime>,
-    observed_version: u64,
+    version: Signal<u64>,
+    durability_version: Signal<u64>,
     mut pending_new: Signal<Option<PendingNewKeyboard>>,
     mut project_created: Signal<Option<SetupGuideRequest>>,
     mut new_error: Signal<String>,
@@ -218,28 +247,30 @@ pub(crate) fn use_keyboard_creation(
         live_preview,
         automatic,
     });
-    use_effect(use_reactive!(|observed_version| {
-        let _ = observed_version;
+    use_effect(move || {
+        let _ = version();
         let Some(pending) = pending_new() else {
             return;
         };
+        let _ = durability_version();
         let Some(outcome) = pending.outcome.borrow().clone() else {
             return;
         };
-        let model = runtime.model();
         match outcome {
             TerminalOutcome::Completed => {
-                let settled = crate::setup_guide_state::creation_settlement(
-                    &pending.project_id,
-                    model.accepted.as_ref().map(|s| s.document.id.as_str()),
-                    model.lifecycle == Lifecycle::Ready
-                        && model.accepted.as_ref().is_some_and(|s| {
-                            model.durability
-                                == Durability::Saved {
-                                    revision: s.document.revision,
-                                }
-                        }),
-                );
+                let settled = runtime.with_model(|model| {
+                    crate::setup_guide_state::creation_settlement(
+                        &pending.project_id,
+                        model.accepted.as_ref().map(|s| s.document.id.as_str()),
+                        model.lifecycle == Lifecycle::Ready
+                            && model.accepted.as_ref().is_some_and(|s| {
+                                model.durability
+                                    == Durability::Saved {
+                                        revision: s.document.revision,
+                                    }
+                            }),
+                    )
+                });
                 match settled {
                     crate::setup_guide_state::CreationSettlement::Wait => return,
                     crate::setup_guide_state::CreationSettlement::Retire => {
@@ -262,7 +293,6 @@ pub(crate) fn use_keyboard_creation(
             }
             TerminalOutcome::Rejected(m)
             | TerminalOutcome::PersistenceFailed(m)
-            | TerminalOutcome::BlockedByRecovery(m)
             | TerminalOutcome::ExecutorFailed(m) => {
                 new_error.set(m);
                 pending_new.set(None);
@@ -272,7 +302,7 @@ pub(crate) fn use_keyboard_creation(
                 pending_new.set(None);
             }
         }
-    }));
+    });
 }
 
 pub(crate) fn use_workbench_appearance() -> Signal<bool> {
@@ -340,8 +370,6 @@ pub(crate) fn use_workbench_appearance() -> Signal<bool> {
 
 pub(crate) struct HeaderBundle {
     pub(crate) project_name: String,
-    pub(crate) save_state: &'static str,
-    pub(crate) save_retryable: bool,
     pub(crate) settings_open: Signal<bool>,
     pub(crate) palette: command_palette::PaletteState,
     pub(crate) on_undo: EventHandler<()>,
@@ -355,17 +383,15 @@ pub(crate) fn use_workbench_header(
     return_workspace: Signal<&'static str>,
     project_browser: Signal<bool>,
 ) -> HeaderBundle {
-    let model = runtime.model();
-    let project_name = model
-        .accepted
-        .as_ref()
-        .map_or_else(|| "Open project".into(), |s| s.document.name.clone());
-    let save_state = if model.accepted.is_none() {
-        "ready"
-    } else {
-        durability_state(&model.durability)
-    };
-    let save_retryable = !matches!(&model.durability, Durability::Failed { reason, .. } if reason == boardstudio_web_host::host::CONFLICT);
+    let (project_name, has_accepted) = runtime.with_model(|model| {
+        (
+            model
+                .accepted
+                .as_ref()
+                .map_or_else(|| "Open project".into(), |s| s.document.name.clone()),
+            model.accepted.is_some(),
+        )
+    });
     let settings_open = use_signal(|| false);
     let palette = command_palette::use_palette_state();
     boardstudio_web_ui_shared::ui::command::use_command_registry();
@@ -391,15 +417,13 @@ pub(crate) fn use_workbench_header(
     command_palette::use_navigation_commands(
         workspace,
         project_browser,
-        model.accepted.is_some(),
+        has_accepted,
         on_undo,
         on_redo,
         on_export,
     );
     HeaderBundle {
         project_name,
-        save_state,
-        save_retryable,
         settings_open,
         palette,
         on_undo,

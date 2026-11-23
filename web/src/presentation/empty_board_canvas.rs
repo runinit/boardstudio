@@ -1,16 +1,27 @@
 //! Shared empty-board entry; Session and the existing setup/Parts owners own actions.
+use boardstudio_application::{Durability, Lifecycle};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},
     empty::{Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle},
 };
 use dioxus::prelude::*;
+use std::rc::Rc;
 
 #[component]
 pub(super) fn EmptyBoardCanvas(
-    editable: bool,
+    revision: u64,
     on_matrix: EventHandler<()>,
     on_parts: EventHandler<()>,
 ) -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let _ = try_use_context::<Signal<u64>>().map(|v| v());
+    let _ = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>().map(|d| d.0());
+    let editable = runtime.with_model(|model| {
+        model.lifecycle == Lifecycle::Ready
+            && model.durability == (Durability::Saved { revision })
+            && model.gesture.is_none()
+            && model.display_preview.is_none()
+    });
     rsx! {
         Empty { class: "shell-empty",
             EmptyHeader {

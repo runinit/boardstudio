@@ -87,7 +87,6 @@ pub fn use_board_setup(
                 && current_workspace == owner.workspace
                 && current_generation == owner.generation;
             match ticket.settlement(owner_is_live) {
-                Settlement::Pending => {}
                 Settlement::Landed { .. } => {
                     let exists = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
                         snapshot

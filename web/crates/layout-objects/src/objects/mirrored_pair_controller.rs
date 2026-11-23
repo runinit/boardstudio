@@ -603,13 +603,10 @@ pub fn use_mirrored_pair(
                 } else {
                     pair
                 };
-                let preview_scenes = match runtime
-                    .project_matrices(
-                        accepted.document.revision,
-                        vec![pair.matrix.clone(), pair.right_preview.clone()],
-                    )
-                    .await
-                {
+                let preview_scenes = match runtime.project_matrices(
+                    accepted.document.revision,
+                    vec![pair.matrix.clone(), pair.right_preview.clone()],
+                ) {
                     Ok(scenes) => scenes,
                     Err(message) => {
                         if alive.get()
@@ -987,14 +984,10 @@ fn settle_pending(
     };
     let model = runtime.model();
     let settlement = ticket.settlement(signals.owner_is_live);
-    if matches!(settlement, Settlement::Pending) {
-        return;
-    }
     let owner_is_visible = workspace == "Layout"
         && scope_generation == follow_up.owner.scope_generation
         && signals.open.read().as_ref() == Some(&follow_up.owner);
     match settlement {
-        Settlement::Pending => (),
         Settlement::Landed { revision } => {
             let token = model.accepted.as_ref().map(|snapshot| snapshot.token);
             finish_pending(signals.waiting, signals.status);

@@ -263,13 +263,12 @@ fn current_source(
     context: OwnerContext,
 ) -> Option<(AcceptedSnapshot, String, Option<String>, OwnerIdentity)> {
     let model = runtime.model();
-    if !matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) || !matches!(
-        model.durability,
-        Durability::Saved { .. } | Durability::Saving { .. }
-    ) || model.display_preview.is_some()
+    if model.lifecycle != Lifecycle::Ready
+        || !matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
+        || model.display_preview.is_some()
         || model.gesture.is_some()
     {
         return None;

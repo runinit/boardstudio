@@ -215,7 +215,6 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
 fn KeyboardCard(
     document: KeyboardCardSource,
     current: bool,
-    recovery_required: bool,
     selected: bool,
     on_select: EventHandler<Arc<ProjectDoc>>,
 ) -> Element {
@@ -223,11 +222,7 @@ fn KeyboardCard(
     let mut pending_delete = use_context::<Signal<Option<Arc<ProjectDoc>>>>();
     let name = project_display_name(&doc);
     let p = preview(&doc);
-    let action_name = if recovery_required {
-        format!("Recover from {name} (discard pending changes)")
-    } else {
-        format!("Preview {name}")
-    };
+    let action_name = format!("Preview {name}");
     let detail = match &p {
         None => "Open to check this keyboard".into(),
         Some(p) => format!(
@@ -378,8 +373,6 @@ pub fn Library(
         move || m.set(false)
     });
 
-    let recovery_required =
-        runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
     let current_snapshot = runtime.model().accepted;
     let current = current_snapshot.as_ref().map(|s| s.document.clone());
     let current_id = current.as_ref().map(|d| d.id.clone());
@@ -535,7 +528,7 @@ pub fn Library(
                     div { class: "grid grid-cols-3 gap-3 max-[760px]:grid-cols-2",
                         for (doc, is_cur) in cards {
                             KeyboardCard { key: "{doc.id}", selected: selected_project().as_ref().is_some_and(|s| s.id == doc.id),
-                                document: KeyboardCardSource(doc), current: is_cur, recovery_required,
+                                document: KeyboardCardSource(doc), current: is_cur,
                                 on_select: move |doc: Arc<ProjectDoc>| {
                                     selected_project.set(Some(doc));
                                     focus_element_by_selector("#m1-browser-open-keyboard");
@@ -600,7 +593,7 @@ pub fn Library(
                         Button { id: "m1-browser-open-keyboard", variant: ButtonVariant::Default, onclick: {
                             let (rt, id) = (runtime.clone(), doc.id.clone());
                             move |_| { rt.open_saved(id.clone()); if let Some(mut b) = browser { b.0.set(false); } }
-                        }, if recovery_required { "Recover (discard pending changes)" } else { "Open keyboard" } }
+                        }, "Open keyboard" }
                         if current_id.as_deref() == Some(doc.id.as_str()) {
                             Button { variant: ButtonVariant::Secondary, onclick: { let rt = runtime.clone(); move |_| rt.export_project_copy() }, "Save project copy" }
                         }

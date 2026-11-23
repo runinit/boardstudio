@@ -153,19 +153,10 @@ pub async fn duplicate_variant(
     let variant_id = document.id.clone();
     let open_id = runtime.operation();
     let opened = runtime.observe_operation(open_id);
-    runtime.submit(
-        if runtime.model().lifecycle == Lifecycle::RecoveryRequired {
-            Event::RecoverWithDocument {
-                operation_id: open_id,
-                document,
-            }
-        } else {
-            Event::Open {
-                operation_id: open_id,
-                document,
-            }
-        },
-    );
+    runtime.submit(Event::Open {
+        operation_id: open_id,
+        document,
+    });
     let work = async {
         wait_saved(&runtime, opened, &variant_id).await?;
         let navigate_id = runtime.operation();

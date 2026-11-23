@@ -399,13 +399,12 @@ fn project_for_scope(
     };
     // A key-size change is a field edit: it queues freely while an earlier edit is applying
     // or saving, so only an unrecoverable or unopened session makes the control unavailable.
-    let editable = matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && matches!(
-        model.durability,
-        Durability::Saved { .. } | Durability::Saving { .. }
-    ) && model.display_preview.is_none()
+    let editable = model.lifecycle == Lifecycle::Ready
+        && matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
+        && model.display_preview.is_none()
         && model.gesture.is_none();
     Some((
         KeySizeProjection {

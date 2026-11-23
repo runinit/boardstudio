@@ -273,9 +273,11 @@ mod ui {
                             return Ok(None);
                         }
                         let request = format!("parts-import-footprint-{}", runtime.operation().0);
-                        let compiled = runtime
-                            .import_footprint(request, capture.definition_id.clone(), source)
-                            .await?;
+                        let compiled = runtime.import_footprint(
+                            request,
+                            capture.definition_id.clone(),
+                            source,
+                        )?;
                         if !still_current() {
                             return Ok(None);
                         }

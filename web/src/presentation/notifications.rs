@@ -13,9 +13,11 @@ pub(super) fn NotificationProvider(children: Element) -> Element {
 pub(super) fn RuntimeNotifications() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let version = use_context::<Signal<u64>>();
+    let durability_version = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>();
     let toasts = use_toast();
     use_effect(move || {
         let _ = version();
+        let _ = durability_version.map(|d| d.0());
         for notification in runtime.take_notifications() {
             if notification.is_error {
                 toasts.error(notification.message, ToastOptions::new());
@@ -31,7 +33,9 @@ pub(super) fn RuntimeNotifications() -> Element {
 pub(crate) fn RuntimeReportBanner() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let version = use_context::<Signal<u64>>();
+    let durability_version = try_use_context::<boardstudio_web_ui_shared::DurabilityVersion>();
     let _ = version();
+    let _ = durability_version.map(|d| d.0());
     let alert = runtime.status_is_alert();
     let status = runtime.status();
     rsx! {

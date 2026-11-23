@@ -74,7 +74,6 @@ pub fn use_protected_remap_review(
                 Some(
                     TerminalOutcome::Rejected(message)
                     | TerminalOutcome::ExecutorFailed(message)
-                    | TerminalOutcome::BlockedByRecovery(message)
                     | TerminalOutcome::PersistenceFailed(message),
                 ) => ProtectedRemapFeedback::Failed(message),
                 _ => ProtectedRemapFeedback::Failed(

@@ -8,12 +8,9 @@ pub fn drag_session_is_ready(model: &ReadModel, revision: Option<u64>) -> bool {
         && pointer_edit_is_idle(model)
 }
 
-/// A nudge is queued intent and can compose with an edit already applying or saving.
+/// A nudge is queued intent and can compose with an edit already saving.
 pub fn nudge_session_is_ready(model: &ReadModel) -> bool {
-    matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && pointer_edit_is_idle(model)
+    model.lifecycle == Lifecycle::Ready && pointer_edit_is_idle(model)
 }
 
 fn pointer_edit_is_idle(model: &ReadModel) -> bool {
@@ -34,12 +31,10 @@ mod tests {
         assert!(drag_session_is_ready(&model, Some(7)));
         assert!(!drag_session_is_ready(&model, Some(6)));
         assert!(nudge_session_is_ready(&model));
-        for lifecycle in [Lifecycle::Applying, Lifecycle::Saving] {
-            model.lifecycle = lifecycle;
-            assert!(!drag_session_is_ready(&model, Some(7)));
-            assert!(nudge_session_is_ready(&model));
-        }
-        model.lifecycle = Lifecycle::Ready;
+        model.durability = Durability::Saving { revision: 7 };
+        assert!(!drag_session_is_ready(&model, Some(7)));
+        assert!(nudge_session_is_ready(&model));
+        model.durability = Durability::Saved { revision: 7 };
         model.gesture = Some(boardstudio_application::GestureView {
             pointer_id: 1,
             generation: 1,

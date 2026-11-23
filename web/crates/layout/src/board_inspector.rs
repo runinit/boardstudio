@@ -167,10 +167,8 @@ pub fn use_board_inspector(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            if !matches!(
-                model.lifecycle,
-                Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-            ) || snapshot.session_epoch != owner.scope.session_epoch
+            if model.lifecycle != Lifecycle::Ready
+                || snapshot.session_epoch != owner.scope.session_epoch
                 || snapshot.document.id != owner.scope.document_id
                 || model.active_board_id != owner.board_id
                 || !board_context_is_current(
@@ -299,10 +297,7 @@ fn project_current(
         board_name: board.name.clone(),
         outline_status,
         placed_parts,
-        editable: matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        ),
+        editable: model.lifecycle == Lifecycle::Ready,
     })
 }
 

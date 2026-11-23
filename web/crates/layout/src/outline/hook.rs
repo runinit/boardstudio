@@ -712,10 +712,8 @@ fn project_inspector(
     let editable = matches!(
         model.durability,
         Durability::Saved { .. } | Durability::Saving { .. }
-    ) && matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && model.display_preview.is_none()
+    ) && model.lifecycle == Lifecycle::Ready
+        && model.display_preview.is_none()
         && model.gesture.is_none();
     let visible_feedback = feedback
         .read()

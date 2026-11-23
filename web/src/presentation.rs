@@ -221,6 +221,7 @@ fn WorkbenchApp() -> Element {
     };
     let workbench::RuntimeBundle {
         version,
+        durability_version,
         project_created,
         pending_new_keyboard,
         new_keyboard_error,
@@ -230,7 +231,6 @@ fn WorkbenchApp() -> Element {
         workspace,
         project_browser,
         return_workspace,
-        observed_version,
     } = workbench::use_workbench_panels(
         runtime.clone(),
         version,
@@ -241,7 +241,8 @@ fn WorkbenchApp() -> Element {
     );
     workbench::use_keyboard_creation(
         runtime.clone(),
-        observed_version,
+        version,
+        durability_version,
         pending_new_keyboard,
         project_created,
         new_keyboard_error,
@@ -249,8 +250,6 @@ fn WorkbenchApp() -> Element {
     let preference_warning = workbench::use_workbench_appearance();
     let workbench::HeaderBundle {
         project_name,
-        save_state,
-        save_retryable,
         mut settings_open,
         palette,
         on_undo,
@@ -262,6 +261,7 @@ fn WorkbenchApp() -> Element {
         return_workspace,
         project_browser,
     );
+    let has_project = runtime.with_model(|model| model.accepted.is_some());
     rsx! {
         link { rel: "stylesheet", href: "assets/workbench-base.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
@@ -283,10 +283,8 @@ fn WorkbenchApp() -> Element {
                     on_settings: move |_| settings_open.set(true),
                 } },
                 workspace,
-                show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
-                has_project: runtime.model().accepted.is_some(),
-                save_state,
-                save_retryable,
+                show_workspaces: has_project && !project_browser(),
+                has_project,
                 on_retry_save: {
                     let runtime = runtime.clone();
                     move |_| runtime.submit(boardstudio_application::Event::RetrySave { operation_id: runtime.operation() })
@@ -298,14 +296,14 @@ fn WorkbenchApp() -> Element {
                 on_redo,
                 on_export,
                 panel_controls: rsx! {
-                    if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
+                    if has_project && workspace() != "Export" { panels::CompactPanelControls {} }
                 },
             }
             command_palette::CommandPalette { state: palette }
-            if runtime.model().accepted.is_some() {
+            if has_project {
                 div { class: "flex min-h-0 flex-1 flex-col", hidden: project_browser(), Editor {} }
             }
-            if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
+            if project_browser() || !has_project { LibraryLanding {} }
                 notifications::RuntimeNotifications {}
             if preference_warning() {
                 p { role: "status", "aria-live": "polite", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",

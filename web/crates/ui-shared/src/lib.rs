@@ -18,6 +18,9 @@ pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
+#[derive(Clone, Copy)]
+pub struct DurabilityVersion(pub dioxus::prelude::Signal<u64>);
+
 pub mod board_layer;
 pub mod board_reference_effect;
 #[cfg(target_arch = "wasm32")]

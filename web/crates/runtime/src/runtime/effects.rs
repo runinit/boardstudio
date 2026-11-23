@@ -168,10 +168,9 @@ impl Runtime {
                     let notify = self.notify_durability.borrow().clone();
                     if let Some(notify) = notify {
                         notify();
+                        return effects;
                     }
-                    return effects;
-                }
-                if !has_report {
+                } else if !has_report {
                     return effects;
                 }
             }

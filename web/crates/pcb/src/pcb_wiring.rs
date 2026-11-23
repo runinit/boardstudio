@@ -1455,7 +1455,7 @@ fn current_input(runtime: &Runtime) -> Option<(WiringPlanIdentity, AcceptedSnaps
     let model = runtime.model();
     if matches!(
         model.lifecycle,
-        Lifecycle::Empty | Lifecycle::Opening | Lifecycle::Closing | Lifecycle::Closed
+        Lifecycle::Empty | Lifecycle::Closing | Lifecycle::Closed
     ) {
         return None;
     }

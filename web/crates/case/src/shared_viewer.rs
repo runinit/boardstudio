@@ -581,17 +581,17 @@ impl ViewerSource {
             Self::Native(preview) => (
                 &preview.owner.scope,
                 preview.owner.snapshot_token,
-                preview.owner.accepted_revision,
+                preview.accepted_document.revision,
             ),
             Self::Layout(preview) => (
                 &preview.owner.scope,
                 preview.owner.snapshot_token,
-                preview.owner.accepted_revision,
+                preview.document.revision,
             ),
             Self::Parts(preview) => (
                 &preview.owner.scope,
                 preview.owner.snapshot_token,
-                preview.owner.accepted_revision,
+                preview.sample_document.revision,
             ),
         }
     }

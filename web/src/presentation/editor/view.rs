@@ -280,7 +280,6 @@ pub(super) struct CanvasSectionInput<'a> {
     pub return_workspace: Signal<&'static str>,
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub canvas_input: Option<workspace_composition::WorkspaceCanvasInput>,
-    pub model: &'a ReadModel,
     pub snapshot: &'a AcceptedSnapshot,
     pub on_empty_board_matrix: Callback<(), ()>,
     pub on_browse_parts: EventHandler<()>,
@@ -329,7 +328,6 @@ where
         return_workspace,
         inspector_panel_settings,
         canvas_input,
-        model,
         snapshot,
         on_empty_board_matrix,
         on_browse_parts,
@@ -392,10 +390,7 @@ where
             }
             if show_empty_board {
                 empty_board_canvas::EmptyBoardCanvas {
-                    editable: model.lifecycle == Lifecycle::Ready
-                        && model.durability == (Durability::Saved { revision: snapshot.document.revision })
-                        && model.gesture.is_none()
-                        && model.display_preview.is_none(),
+                    revision: snapshot.document.revision,
                     on_matrix: on_empty_board_matrix,
                     on_parts: on_browse_parts,
                 }
@@ -670,7 +665,6 @@ where
                         return_workspace: input.setup_a.return_workspace,
                         inspector_panel_settings: input.setup_a.inspector_panel_settings,
                         canvas_input,
-                        model,
                         snapshot: input.snapshot,
                         on_empty_board_matrix: input.wir.pcb.on_empty_board_matrix,
                         on_browse_parts: input.wir.pcb.on_browse_parts,

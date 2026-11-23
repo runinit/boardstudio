@@ -346,13 +346,11 @@ pub fn use_mechanical_settings(
         .as_ref()
         .and_then(|source| source.configuration.clone());
 
-    let saved = matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && matches!(
-        model.durability,
-        Durability::Saved { .. } | Durability::Saving { .. }
-    );
+    let saved = model.lifecycle == Lifecycle::Ready
+        && matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        );
     let admitted = in_case && instance_selection.is_current(&model);
     let editable = admitted && saved && model.display_preview.is_none() && model.gesture.is_none();
 
@@ -565,9 +563,7 @@ fn extract_port(runtime: &Rc<Runtime>) -> MechanicalProfileExtractionPort {
                 .map(|source| source.source.clone())
                 .ok_or("The selected part has no KiCad source geometry.")?;
             let request_id = format!("case-profile-extract-{}", runtime.operation().0);
-            runtime
-                .extract_mechanical_profile(request_id, source, mappings, 0.005)
-                .await
+            runtime.extract_mechanical_profile(request_id, source, mappings, 0.005)
         })
     }))
 }

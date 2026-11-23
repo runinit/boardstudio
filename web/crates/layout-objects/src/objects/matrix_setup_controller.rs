@@ -442,7 +442,6 @@ fn settle_pending(
                 && snapshot.document.id == owner.scope.document_id
         });
     match ticket.settlement(owner_is_live) {
-        Settlement::Pending => {}
         Settlement::Retired => {
             signals.waiting.set(None);
             signals.status.set(None);

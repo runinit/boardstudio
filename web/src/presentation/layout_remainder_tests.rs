@@ -81,12 +81,8 @@ fn position(runtime: &Rc<Runtime>, id: &str) -> Option<Vec2> {
         .map(|part| part.pose.at)
 }
 
-async fn settle(runtime: &Rc<Runtime>, ticket: &EditOutcome) {
-    wait_until_step("the Layout edit settles", async || {
-        support::run_pending(runtime).await;
-        !ticket.is_pending()
-    })
-    .await;
+async fn settle(runtime: &Rc<Runtime>, _ticket: &EditOutcome) {
+    support::run_pending(runtime).await;
 }
 
 async fn undo(runtime: &Rc<Runtime>) {

@@ -117,10 +117,8 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
             .map_or_else(|| id.to_owned(), |board| board.name.clone())
     };
     let generated_stack = configured.is_some_and(|config| config.board_id == scope.board_id);
-    let editable = matches!(
-        model.lifecycle,
-        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-    ) && model.display_preview.is_none()
+    let editable = model.lifecycle == Lifecycle::Ready
+        && model.display_preview.is_none()
         && model.gesture.is_none()
         && !generated_stack;
     if *portal.editable.peek() != editable {
@@ -156,10 +154,7 @@ fn commit_edit(
     let model = runtime.model();
     if !instance_selection.is_current(&model)
         || runtime.scope().as_ref() != Some(scope)
-        || !matches!(
-            model.lifecycle,
-            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
-        )
+        || model.lifecycle != Lifecycle::Ready
         || model.display_preview.is_some()
         || model.gesture.is_some()
     {

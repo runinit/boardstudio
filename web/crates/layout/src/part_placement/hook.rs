@@ -16,7 +16,7 @@ use crate::parts::{PartsQuery, PartsSelection};
 use crate::runtime::Runtime;
 use crate::selection::SelectionAdapter;
 use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
-use boardstudio_application::{Durability, Event, Lifecycle, OperationId, SelectionMode};
+use boardstudio_application::{Durability, Event, Lifecycle, SelectionMode};
 use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
@@ -76,10 +76,10 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let PartPlacementHost {
         runtime,
         load_definition,
-        workspace,
+        mut workspace,
         generation,
         version,
-        adapter,
+        mut adapter,
         mut layout_selection_kind,
         guide_preferences,
         parts_query,
@@ -95,7 +95,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| false);
-    let mut key_edit = use_signal(|| None::<OperationId>);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -240,7 +239,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 if active.read().is_some()
                     || preparing.read().is_some()
                     || *committing.read()
-                    || key_edit.read().is_some()
                     || workspace() != source_workspace
                 {
                     return;
@@ -360,27 +358,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
                         );
-                        key_edit.set(Some(outcome.operation()));
                         error.set(None);
-                        loop {
-                            if !alive.get() || *key_edit.peek() != Some(outcome.operation()) {
-                                return;
-                            }
-                            let live = workspace_for_load() == source_workspace
-                                && generation_for_load() == accepted_generation
-                                && current_context().as_ref() == Some(&selected);
-                            match outcome.settlement(live) {
-                                Settlement::Pending => {
-                                    gloo_timers::future::TimeoutFuture::new(16).await
-                                }
-                                settlement => {
-                                    key_edit.set(None);
-                                    if let Settlement::Failed { message } = settlement {
-                                        error.set(Some(message));
-                                    }
-                                    break;
-                                }
-                            }
+                        if let Settlement::Failed { message } = outcome.settlement(true) {
+                            error.set(Some(message));
                         }
                     });
                     return;
@@ -779,7 +759,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         let mut active = active;
         let mut committing = committing;
         let mut error = error;
-        let alive = alive.clone();
         let canvas_interaction = canvas_interaction.clone();
         move |at: Vec2| {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
@@ -830,92 +809,72 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             );
             active.set(None);
             error.set(None);
-            let runtime = runtime.clone();
-            let mut error = error;
-            let mut workspace = workspace;
-            let guide_preferences = guide_preferences;
-            let mut selected_context = adapter.selected_context;
-            let mut anchor_scope = adapter.anchor_scope;
-            let canvas_interaction = canvas_interaction.clone();
-            let alive = alive.clone();
-            spawn_local(async move {
-                let settlement = loop {
-                    if !alive.get() {
-                        return;
-                    }
-                    let model = runtime.model();
-                    let route_live = placement_route_is_current(
-                        &runtime,
-                        &model,
-                        &owner,
-                        generation(),
-                        workspace(),
-                        guide_preferences(),
-                    );
-                    let result = outcome.settlement(route_live);
-                    if result != Settlement::Pending {
-                        break result;
-                    }
-                    gloo_timers::future::TimeoutFuture::new(16).await;
-                };
-                committing.set(false);
-                let model = runtime.model();
-                match settlement {
-                    Settlement::Landed { .. } => {
-                        // Select from the accepted document at the landing; nothing when the
-                        // placed part is no longer there.
-                        let placed = model.accepted.as_ref().is_some_and(|accepted| {
-                            accepted
-                                .document
-                                .parts
-                                .iter()
-                                .any(|part| part.id == owner.part_id)
-                        });
-                        let next_context =
-                            if owner.workflow == PlacementWorkflow::GeneralComponent && placed {
-                                objects::context_for_part(&model, &owner.part_id).map(|context| {
-                                    ScopedTreeContext {
-                                        scope: owner.scope.clone(),
-                                        context,
-                                    }
-                                })
-                            } else {
-                                None
-                            };
-                        selected_context.set(next_context);
-                        anchor_scope.set(None);
-                        workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
-                            "Layout"
-                        } else if owner.workflow.is_controller() {
-                            "PCB"
-                        } else {
-                            "Layout"
-                        });
-                        if owner.workflow == PlacementWorkflow::GeneralComponent {
-                            layout_selection_kind.set(objects::LayoutSelectionKind::Part);
-                        }
-                        runtime.submit(Event::SelectParts {
-                            operation_id: runtime.operation(),
-                            part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent
-                                && placed
-                            {
-                                vec![owner.part_id.clone()]
-                            } else {
-                                Vec::new()
-                            },
-                            range_part_ids: Vec::new(),
-                            mode: SelectionMode::Replace,
-                        });
-                    }
-                    Settlement::Failed { message, .. } => {
-                        workspace.set(owner.source_workspace);
-                        error.set(Some(message));
-                    }
-                    Settlement::Retired => {}
-                    Settlement::Pending => unreachable!(),
-                }
-                canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+            let route_live = runtime.with_model(|model| {
+                placement_route_is_current(
+                    &runtime,
+                    model,
+                    &owner,
+                    generation(),
+                    workspace(),
+                    guide_preferences(),
+                )
             });
+            let settlement = outcome.settlement(route_live);
+            committing.set(false);
+            let model = runtime.model();
+            match settlement {
+                Settlement::Landed { .. } => {
+                    // Select from the accepted document at the landing; nothing when the
+                    // placed part is no longer there.
+                    let placed = model.accepted.as_ref().is_some_and(|accepted| {
+                        accepted
+                            .document
+                            .parts
+                            .iter()
+                            .any(|part| part.id == owner.part_id)
+                    });
+                    let next_context =
+                        if owner.workflow == PlacementWorkflow::GeneralComponent && placed {
+                            objects::context_for_part(&model, &owner.part_id).map(|context| {
+                                ScopedTreeContext {
+                                    scope: owner.scope.clone(),
+                                    context,
+                                }
+                            })
+                        } else {
+                            None
+                        };
+                    adapter.selected_context.set(next_context);
+                    adapter.anchor_scope.set(None);
+                    workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                        "Layout"
+                    } else if owner.workflow.is_controller() {
+                        "PCB"
+                    } else {
+                        "Layout"
+                    });
+                    if owner.workflow == PlacementWorkflow::GeneralComponent {
+                        layout_selection_kind.set(objects::LayoutSelectionKind::Part);
+                    }
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent && placed
+                        {
+                            vec![owner.part_id.clone()]
+                        } else {
+                            Vec::new()
+                        },
+                        range_part_ids: Vec::new(),
+                        mode: SelectionMode::Replace,
+                    });
+                }
+                Settlement::Failed { message, .. } => {
+                    workspace.set(owner.source_workspace);
+                    error.set(Some(message));
+                }
+                Settlement::Retired => {}
+            }
+            canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
         }
     };
     let on_cancel = {
@@ -991,7 +950,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         )
         .admits(&placement.owner, &runtime, &model)
     });
-    let busy = preparing.read().is_some() || *committing.read() || key_edit.read().is_some();
+    let busy = preparing.read().is_some() || *committing.read();
     let owns_canvas = busy || projection.is_some();
     use_effect(use_reactive(
         (&version(), &workspace(), &generation(), &owns_canvas),
