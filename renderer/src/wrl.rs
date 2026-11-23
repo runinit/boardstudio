@@ -13,7 +13,7 @@
 //!   work budget. Limits are set well above representative supported assets: the bundled
 //!   KiCad switch model decodes with a nesting depth of four and about a thousand frames.
 
-use crate::{MAX_MODEL_POSITION_FLOATS, ModelMesh, assets::check_size};
+use crate::{MAX_MODEL_POSITION_FLOATS, ModelMesh, assets::check_size, geometry::box_corners};
 use std::collections::HashMap;
 use three_d::{InnerSpace, Mat4, Rad, SquareMatrix, Vec3, Vec4};
 
@@ -564,17 +564,7 @@ fn append_box(
     color: [f32; 3],
     output: &mut ModelMesh,
 ) -> Result<(), String> {
-    let half = size.map(|value| value / 2.0);
-    let corners = [
-        [-half[0], -half[1], -half[2]],
-        [half[0], -half[1], -half[2]],
-        [half[0], half[1], -half[2]],
-        [-half[0], half[1], -half[2]],
-        [-half[0], -half[1], half[2]],
-        [half[0], -half[1], half[2]],
-        [half[0], half[1], half[2]],
-        [-half[0], half[1], half[2]],
-    ];
+    let corners = box_corners(size);
     for face in [
         [0, 3, 2, 1],
         [4, 5, 6, 7],

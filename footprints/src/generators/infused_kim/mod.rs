@@ -3,6 +3,7 @@
 pub mod conn_molex_pico_ezmate_1x02;
 pub mod conn_molex_pico_ezmate_1x05;
 pub mod icon_bat;
+pub mod molex;
 pub mod mounting_hole;
 pub mod nice_view;
 pub mod pads;
