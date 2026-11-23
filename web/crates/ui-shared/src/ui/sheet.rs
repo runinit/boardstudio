@@ -4,14 +4,10 @@
 //! listener respects a nested control's handled event and is removed on close/unmount.
 
 use dioxus::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use std::cell::RefCell;
 use std::{
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
 };
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::{JsCast, closure::Closure};
 
 use super::button::{Button, ButtonVariant};
 
@@ -53,21 +49,6 @@ struct SheetContext {
     trigger: Signal<Option<Rc<MountedData>>>,
 }
 
-#[cfg(target_arch = "wasm32")]
-struct EscapeListener {
-    window: web_sys::Window,
-    callback: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-}
-
-#[cfg(target_arch = "wasm32")]
-impl Drop for EscapeListener {
-    fn drop(&mut self) {
-        let _ = self
-            .window
-            .remove_event_listener_with_callback("keydown", self.callback.as_ref().unchecked_ref());
-    }
-}
-
 /// Controlled non-modal Sheet. Content can retain its owner when used as a persistent dock.
 #[component]
 pub fn Sheet(
@@ -81,13 +62,11 @@ pub fn Sheet(
     let trigger = use_signal(|| None::<Rc<MountedData>>);
     use_context_provider(|| SheetContext { id, open, trigger });
     #[cfg(target_arch = "wasm32")]
-    let listener = use_hook(|| Rc::new(RefCell::new(None::<EscapeListener>)));
+    let escape_guard = use_signal(|| None::<crate::DomEventListener>);
     let was_open = use_hook(|| Rc::new(std::cell::Cell::new(false)));
     use_effect({
         #[cfg(target_arch = "wasm32")]
-        let listener = listener.clone();
-        #[cfg(target_arch = "wasm32")]
-        let mut open = open;
+        let mut escape_guard = escape_guard;
         move || {
             let is_open = open();
             if was_open.replace(is_open)
@@ -98,29 +77,24 @@ pub fn Sheet(
                     let _ = trigger.set_focus(true).await;
                 });
             }
+            // Bubble after primitives' document listeners have consumed their own Escape.
             #[cfg(target_arch = "wasm32")]
-            listener.borrow_mut().take();
-            #[cfg(target_arch = "wasm32")]
-            if is_open && let Some(window) = web_sys::window() {
-                let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                    if event.key() == "Escape" && !event.default_prevented() {
-                        event.prevent_default();
-                        open.set(false);
-                    }
-                }) as Box<dyn FnMut(_)>);
-                // Bubble after primitives' document listeners have consumed their own Escape.
-                if window
-                    .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref())
-                    .is_ok()
-                {
-                    *listener.borrow_mut() = Some(EscapeListener { window, callback });
-                }
-            }
+            escape_guard.set(is_open.then(web_sys::window).flatten().and_then(|window| {
+                crate::DomEventListener::listen(
+                    &window,
+                    "keydown",
+                    false,
+                    move |event: web_sys::Event| {
+                        let event: web_sys::KeyboardEvent =
+                            wasm_bindgen::JsCast::unchecked_into(event);
+                        if event.key() == "Escape" && !event.default_prevented() {
+                            event.prevent_default();
+                            open.set(false);
+                        }
+                    },
+                )
+            }));
         }
-    });
-    #[cfg(target_arch = "wasm32")]
-    use_drop(move || {
-        listener.borrow_mut().take();
     });
     rsx! { div { "data-slot": "sheet", class: "w-fit", {children} } }
 }

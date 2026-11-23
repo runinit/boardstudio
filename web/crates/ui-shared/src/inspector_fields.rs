@@ -64,45 +64,135 @@ struct CommitFieldSpec {
     min: Option<String>,
     max: Option<String>,
     step: Option<String>,
+    error: Option<String>,
 }
 
+/// Attempt a commit: no-op when pristine (Enter already committed and cleared
+/// dirty, so a trailing blur is ignored); refuse invalid text or commit valid.
+#[derive(Clone, Copy)]
+struct CommitState {
+    dirty: Signal<bool>,
+    focused: Signal<bool>,
+    failed_at: Signal<Option<String>>,
+}
+
+fn attempt_commit(
+    mut state: CommitState,
+    draft: Signal<String>,
+    accepted: &str,
+    validate: &dyn Fn(&str) -> Option<String>,
+    mut commit: impl FnMut(String),
+) {
+    if !state.dirty.replace(false) {
+        state.focused.set(false);
+        return;
+    }
+    state.focused.set(false);
+    if validate(&draft()).is_some() {
+        state.failed_at.set(Some(accepted.to_owned()));
+    } else {
+        state.failed_at.set(None);
+        commit(draft());
+    }
+}
+
+/// Revert an edit: restore the accepted text and clear dirty/error/focus.
+fn revert_commit(mut state: CommitState, mut draft: Signal<String>, accepted: &str) {
+    draft.set(accepted.to_owned());
+    state.dirty.set(false);
+    state.failed_at.set(None);
+    state.focused.set(false);
+}
+
+/// Shared Enter/blur-commit row: `dirty` makes blur after Enter a no-op, refused
+/// input keeps the draft with an inline `FieldError`, and `Escape` reverts.
 fn commit_field_row(
     id: String,
     label: String,
-    s: CommitFieldSpec,
+    spec: CommitFieldSpec,
+    validate: impl Fn(&str) -> Option<String> + Clone + 'static,
     on_commit_text: EventHandler<String>,
 ) -> Element {
     let mut focused = use_signal(|| false);
-    let mut draft = use_signal(|| s.accepted.clone());
-    let shown = if focused() {
+    let mut draft = use_signal(|| spec.accepted.clone());
+    let mut dirty = use_signal(|| false);
+    let mut failed_at = use_signal(|| None::<String>);
+    let accepted = spec.accepted.clone();
+    let focus_value = accepted.clone();
+    let escape_value = accepted.clone();
+    let accepted_blur = accepted.clone();
+    let accepted_enter = accepted.clone();
+    let validate_blur = validate.clone();
+    let state = CommitState {
+        dirty,
+        focused,
+        failed_at,
+    };
+    let error_id = format!("{id}-error");
+    let internal = failed_at()
+        .filter(|at| at == &accepted)
+        .and_then(|_| validate(&draft()));
+    let commit = on_commit_text;
+    let on_input = move |e: FormEvent| {
+        focused.set(true);
+        dirty.set(true);
+        draft.set(e.value());
+    };
+    let on_focus = move |_| {
+        draft.set(focus_value.clone());
+        focused.set(true);
+        dirty.set(false);
+        failed_at.set(None);
+    };
+    let on_blur = move |_| {
+        attempt_commit(state, draft, &accepted_blur, &validate_blur, |next| {
+            commit.call(next)
+        });
+    };
+    let validate_enter = validate;
+    let on_key = move |e: KeyboardEvent| match e.key() {
+        Key::Enter => {
+            e.prevent_default();
+            attempt_commit(state, draft, &accepted_enter, &validate_enter, |next| {
+                commit.call(next)
+            });
+        }
+        Key::Escape => {
+            e.prevent_default();
+            revert_commit(state, draft, &escape_value);
+        }
+        _ => {}
+    };
+    let message = spec.error.clone().or(internal);
+    let failed = message.is_some();
+    let shown = if focused() || failed {
         draft()
     } else {
-        s.accepted.clone()
+        accepted
     };
-    let disabled = s.disabled_reason.is_some();
-    let help = s.disabled_reason.or(s.description);
-    let (on_f, on_e) = (s.accepted.clone(), s.accepted);
+    let disabled = spec.disabled_reason.is_some();
+    let help = spec.disabled_reason.or(spec.description);
     rsx! {
-        Field { disabled, class: "gap-1 min-w-0",
+        Field { invalid: failed, disabled, class: "gap-1 min-w-0",
             FieldLabel { html_for: id.clone(), "{label}" }
             InputGroup {
                 InputGroupInput {
-                    id, r#type: s.r#type, class: TOUCH_CLS, value: "{shown}", disabled, placeholder: s.placeholder,
-                    min: s.min, max: s.max, step: s.step, aria_label: s.aria_label.unwrap_or(label),
-                    oninput: move |e: FormEvent| { focused.set(true); draft.set(e.value()); },
+                    id, r#type: spec.r#type, class: TOUCH_CLS, value: "{shown}", disabled,
+                    placeholder: spec.placeholder, min: spec.min, max: spec.max, step: spec.step,
+                    aria_label: spec.aria_label.unwrap_or(label),
+                    aria_invalid: failed.then_some(true),
+                    aria_describedby: message.as_ref().map(|_| error_id.clone()),
+                    oninput: on_input,
                     attributes: vec![
-                        dioxus::events::onfocus(move |_| { draft.set(on_f.clone()); focused.set(true); }),
-                        dioxus::events::onblur(move |_| { focused.set(false); on_commit_text.call(draft.peek().clone()); }),
-                        dioxus::events::onkeydown(move |e: KeyboardEvent| match e.key() {
-                            Key::Enter => { e.prevent_default(); focused.set(false); on_commit_text.call(draft.peek().clone()); }
-                            Key::Escape => { e.prevent_default(); draft.set(on_e.clone()); focused.set(false); }
-                            _ => {}
-                        }),
+                        dioxus::events::onfocus(on_focus),
+                        dioxus::events::onblur(on_blur),
+                        dioxus::events::onkeydown(on_key),
                     ],
                 }
-                if let Some(u) = s.unit { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "{u}" } } }
+                if let Some(u) = spec.unit { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "{u}" } } }
             }
             if let Some(help) = help { FieldDescription { "{help}" } }
+            if let Some(reason) = message { div { id: error_id, FieldError { "{reason}" } } }
         }
     }
 }
@@ -123,6 +213,7 @@ pub fn NumericField(
     #[props(into, optional)] id: Option<String>,
     #[props(into, optional)] aria_label: Option<String>,
     #[props(into, optional)] description: Option<String>,
+    #[props(into, optional)] error: Option<String>,
     on_commit: EventHandler<f64>,
 ) -> Element {
     let id = id.unwrap_or_else(|| format!("inspector-num-{}", dioxus::core::current_scope_id().0));
@@ -130,6 +221,11 @@ pub fn NumericField(
         String::new()
     } else {
         format_numeric(value, precision)
+    };
+    let validate = move |raw: &str| {
+        parse_clamped_f64(raw, min, max)
+            .is_none()
+            .then(|| "Enter a valid number.".to_owned())
     };
     commit_field_row(
         id,
@@ -141,6 +237,7 @@ pub fn NumericField(
             aria_label,
             disabled_reason,
             description,
+            error,
             unit,
             min: min.map(|v| format_numeric(v, precision)),
             max: max.map(|v| format_numeric(v, precision)),
@@ -148,6 +245,7 @@ pub fn NumericField(
                 .map(|v| format_numeric(v, precision))
                 .or_else(|| Some("any".to_owned())),
         },
+        validate,
         EventHandler::new(move |raw: String| {
             if let Some(next) = parse_clamped_f64(&raw, min, max)
                 && (mixed || (next - value).abs() > f64::EPSILON)
@@ -168,10 +266,14 @@ pub fn TextCommitField(
     #[props(into, optional)] disabled_reason: Option<String>,
     #[props(into, optional)] id: Option<String>,
     #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] error: Option<String>,
     on_commit: EventHandler<String>,
 ) -> Element {
     let id = id.unwrap_or_else(|| format!("inspector-text-{}", dioxus::core::current_scope_id().0));
     let current = value.clone();
+    let validate = move |raw: &str| {
+        (!allow_empty && raw.trim().is_empty()).then(|| "This field is required.".to_owned())
+    };
     commit_field_row(
         id,
         label,
@@ -186,7 +288,9 @@ pub fn TextCommitField(
             min: None,
             max: None,
             step: None,
+            error,
         },
+        validate,
         EventHandler::new(move |raw: String| {
             let next = raw.trim().to_owned();
             if (allow_empty || !next.is_empty()) && next != current {
@@ -511,20 +615,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn numeric_parse_clamp_and_format_behave_cleanly() {
-        assert_eq!(
-            parse_clamped_f64(" 12.5 ", Some(0.0), Some(20.0)),
-            Some(12.5)
-        );
-        assert_eq!(parse_clamped_f64("-4", Some(0.0), Some(10.0)), Some(0.0));
-        assert_eq!(parse_clamped_f64("99", Some(0.0), Some(10.0)), Some(10.0));
-        assert_eq!(parse_clamped_f64("NaN", None, None), None);
-        assert_eq!(format_numeric(19.0, 3), "19");
-        assert_eq!(format_numeric(19.050, 3), "19.05");
-        assert_eq!(format_numeric(-0.0, 2), "0");
-    }
-
-    #[test]
     fn declarative_molecules_render_short_long_select_and_sections_on_host() {
         fn fixture() -> Element {
             let long: Vec<_> = (0..14)
@@ -542,5 +632,157 @@ mod tests {
         }
         let mut dom = VirtualDom::new(fixture);
         dom.rebuild_in_place();
+    }
+}
+
+/// Commit-row behavior: dirty-gated idempotent commits, Escape revert, and
+/// inline `FieldError` refusal. Behavior runs through the real commit
+/// functions; error wiring renders through a real `VirtualDom`.
+#[cfg(test)]
+mod commit_field_tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+
+    fn validate(raw: &str) -> Option<String> {
+        parse_clamped_f64(raw, Some(1.0), Some(50.0))
+            .is_none()
+            .then(|| "Enter a valid number.".to_owned())
+    }
+
+    #[test]
+    fn numeric_parse_clamp_and_format_behave_cleanly() {
+        assert_eq!(
+            parse_clamped_f64(" 12.5 ", Some(0.0), Some(20.0)),
+            Some(12.5)
+        );
+        assert_eq!(parse_clamped_f64("-4", Some(0.0), Some(10.0)), Some(0.0));
+        assert_eq!(parse_clamped_f64("99", Some(0.0), Some(10.0)), Some(10.0));
+        assert_eq!(parse_clamped_f64("NaN", None, None), None);
+        assert_eq!(format_numeric(19.0, 3), "19");
+        assert_eq!(format_numeric(19.050, 3), "19.05");
+        assert_eq!(format_numeric(-0.0, 2), "0");
+    }
+
+    thread_local! {
+        static STASH: RefCell<Option<(CommitState, Signal<String>)>> =
+            const { RefCell::new(None) };
+    }
+
+    fn fixture() -> Element {
+        let state = CommitState {
+            dirty: use_signal(|| false),
+            focused: use_signal(|| false),
+            failed_at: use_signal(|| None),
+        };
+        let draft = use_signal(|| "19.0".to_owned());
+        STASH.set(Some((state, draft)));
+        rsx! {}
+    }
+
+    fn harness() -> (
+        VirtualDom,
+        CommitState,
+        Signal<String>,
+        Rc<RefCell<Vec<String>>>,
+    ) {
+        let mut dom = VirtualDom::new(fixture);
+        dom.rebuild_in_place();
+        let (state, draft) = STASH.take().expect("fixture stashes commit state");
+        (dom, state, draft, Rc::new(RefCell::new(Vec::new())))
+    }
+
+    fn attempt(state: CommitState, draft: Signal<String>, commits: &Rc<RefCell<Vec<String>>>) {
+        let pending = commits.clone();
+        attempt_commit(state, draft, "19.0", &validate, |next| {
+            pending.borrow_mut().push(next)
+        });
+    }
+
+    #[test]
+    fn enter_then_blur_commits_once() {
+        let (_dom, mut state, mut draft, commits) = harness();
+        state.dirty.set(true);
+        draft.set("20".into());
+        attempt(state, draft, &commits);
+        attempt(state, draft, &commits);
+        assert_eq!(
+            commits.borrow().as_slice(),
+            ["20"],
+            "Enter commit must not double-fire on blur"
+        );
+    }
+
+    #[test]
+    fn escape_reverts_without_commit() {
+        let (_dom, mut state, mut draft, commits) = harness();
+        state.dirty.set(true);
+        draft.set("99".into());
+        revert_commit(state, draft, "19.0");
+        attempt(state, draft, &commits);
+        assert!(
+            commits.borrow().is_empty(),
+            "Escape must revert without committing"
+        );
+        assert_eq!(draft(), "19.0");
+        assert_eq!(state.failed_at.peek().clone(), None);
+    }
+
+    #[test]
+    fn invalid_refusal_keeps_draft_and_valid_retry_commits() {
+        let (_dom, mut state, mut draft, commits) = harness();
+        state.dirty.set(true);
+        draft.set("abc".into());
+        attempt(state, draft, &commits);
+        assert!(commits.borrow().is_empty(), "invalid input must not commit");
+        assert_eq!(draft(), "abc");
+        assert_eq!(state.failed_at.peek().clone(), Some("19.0".to_owned()));
+        state.dirty.set(true);
+        draft.set("20".into());
+        attempt(state, draft, &commits);
+        assert_eq!(
+            commits.borrow().as_slice(),
+            ["20"],
+            "valid follow-up must commit"
+        );
+        assert_eq!(state.failed_at.peek().clone(), None);
+    }
+
+    #[test]
+    fn external_error_renders_field_error_wiring() {
+        fn fixture() -> Element {
+            rsx! {
+                TextCommitField {
+                    label: "Name",
+                    id: "probe-text",
+                    value: "",
+                    error: "Required",
+                    on_commit: |_| {},
+                }
+            }
+        }
+        let mut dom = VirtualDom::new(fixture);
+        let rendered = format!("{:?}", dom.rebuild_to_vec());
+        assert!(
+            rendered.contains("aria-invalid"),
+            "error flags aria-invalid"
+        );
+        assert!(
+            rendered.contains("probe-text-error"),
+            "error links describedby"
+        );
+    }
+
+    #[test]
+    fn field_error_marks_data_slot() {
+        let node = FieldError(crate::ui::field::FieldErrorProps {
+            class: None,
+            children: None,
+            errors: Some(vec!["boom".into()]),
+        });
+        let rendered = format!("{node:?}");
+        assert!(
+            rendered.contains("field-error"),
+            "FieldError marks data-slot: {rendered}"
+        );
     }
 }
