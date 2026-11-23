@@ -1,7 +1,6 @@
 use super::*;
 use crate::viewport_camera::{crossed_drag_threshold, wheel_zoom};
 
-#[derive(Clone)]
 pub(super) struct ViewportInteraction {
     pub host: Rc<RefCell<Option<Rc<RendererPageHost>>>>,
     pub canvas: Rc<RefCell<Option<HtmlCanvasElement>>>,
@@ -17,6 +16,18 @@ pub(super) struct ViewportInteraction {
 }
 
 impl ViewportInteraction {
+    pub(super) fn bind_event<T: WebEventExt + 'static>(
+        self: &Rc<Self>,
+        handle: impl Fn(&Self, &T::WebEvent) + 'static,
+    ) -> impl Fn(Event<T>) + 'static {
+        let interaction = self.clone();
+        move |event: Event<T>| {
+            if let Some(event) = event.data().try_as_web_event() {
+                handle(&interaction, &event);
+            }
+        }
+    }
+
     pub(super) fn current(&self) -> bool {
         owner_is_current(&self.owner, &self.identity)
     }
@@ -25,7 +36,7 @@ impl ViewportInteraction {
         (self.source.0)() && self.applied.borrow().as_ref() == Some(&self.identity)
     }
 
-    fn emit(&self, kind: ViewerSignalKind) {
+    pub(super) fn emit(&self, kind: ViewerSignalKind) {
         emit_signal(&self.owner, self.on_signal, &self.identity, kind);
     }
 
@@ -201,11 +212,7 @@ impl ViewportInteraction {
         drop(pointer);
         event.prevent_default();
         release_pointer_capture(&self.canvas, pointer_id);
-        self.emit(ViewerSignalKind::HandleGesture {
-            phase: HandleGesturePhase::Cancel,
-            handle_id: id,
-            point: None,
-        });
+        self.handle_event(HandleGesturePhase::Cancel, id, None);
     }
 
     pub fn wheel(&self, event: &web_sys::WheelEvent) {

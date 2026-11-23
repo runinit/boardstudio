@@ -1,5 +1,6 @@
 use crate::footprint_graphics::{Graphic, Shape};
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_model::matrix::splay::rotate;
 use boardstudio_model::model::{EnvelopeOrigin, Pad, PartDefinition, Side, Vec2};
 use std::{
     cell::{Cell, RefCell},
@@ -160,11 +161,9 @@ pub(crate) fn recipe_view_box(members: &[PreviewGeometry]) -> Option<String> {
             }
         }
         for pad in &member.definition.pads {
-            let angle = pad.rotation.unwrap_or(0.0).to_radians();
-            let (sin, cos) = angle.sin_cos();
             for x in [-pad.size.x / 2.0, pad.size.x / 2.0] {
                 for y in [-pad.size.y / 2.0, pad.size.y / 2.0] {
-                    local.include(pad.at.x + x * cos - y * sin, pad.at.y + x * sin + y * cos);
+                    local.include_transformed(x, y, pad.at, pad.rotation.unwrap_or(0.0));
                 }
             }
         }
@@ -174,14 +173,9 @@ pub(crate) fn recipe_view_box(members: &[PreviewGeometry]) -> Option<String> {
         let Some((min_x, min_y, max_x, max_y)) = local.finish() else {
             continue;
         };
-        let rotation = member.rotation.to_radians();
-        let (sin, cos) = rotation.sin_cos();
         for x in [min_x, max_x] {
             for y in [min_y, max_y] {
-                complete.include(
-                    member.at.x + x * cos - y * sin,
-                    member.at.y + x * sin + y * cos,
-                );
+                complete.include_transformed(x, y, member.at, member.rotation);
             }
         }
     }
@@ -212,6 +206,11 @@ struct Bounds {
 }
 
 impl Bounds {
+    fn include_transformed(&mut self, x: f64, y: f64, at: Vec2, degrees: f64) {
+        let point = rotate(Vec2 { x, y }, degrees, Vec2::default());
+        self.include(at.x + point.x, at.y + point.y);
+    }
+
     fn include(&mut self, x: f64, y: f64) {
         if !x.is_finite() || !y.is_finite() {
             return;
