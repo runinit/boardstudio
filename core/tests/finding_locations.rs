@@ -1,4 +1,4 @@
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, model::*};
 #[test]
 fn fitted_corner_warning_has_local_geometry_through_public_scene() {
     let mut doc: ProjectDoc =
@@ -10,11 +10,8 @@ fn fitted_corner_warning_has_local_geometry_through_public_scene() {
             settings.size = 2.0;
         }
     }
-    let reply = CoreEngine::new().handle(CoreRequest::Open {
-        id: "located".into(),
-        document: doc,
-    });
-    let CoreReply::Scene { scene, .. } = reply else {
+    let reply = CoreEngine::new().open(doc);
+    let Ok(CommittedScene { scene, .. }) = reply else {
         panic!("{reply:?}")
     };
     let warning = scene
@@ -50,10 +47,7 @@ fn keycap_clearance_warning_locates_both_affected_inputs() {
     value["boards"] = serde_json::json!([{"id":"board","name":"Board","partIds":["a","b"],"outlineIds":[],"netIds":[],"thickness":1.6}]);
     value["keycaps"] = serde_json::json!({"matrices":{},"keys":{"a":{"profile":"dsa","mount":"mx"},"b":{"profile":"dsa","mount":"mx"}},"boards":{}});
     let doc = serde_json::from_value(value).unwrap();
-    let CoreReply::Scene { scene, .. } = CoreEngine::new().handle(CoreRequest::Open {
-        id: "caps".into(),
-        document: doc,
-    }) else {
+    let Ok(CommittedScene { scene, .. }) = CoreEngine::new().open(doc) else {
         panic!("open")
     };
     let warning = scene

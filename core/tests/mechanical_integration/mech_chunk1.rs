@@ -348,16 +348,16 @@ fn identity_reservations_survive_a_document_round_trip() {
 #[test]
 fn one_undo_restores_a_paired_disable_completely() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreRequest, EditOperation};
+    use boardstudio_core::model::EditOperation;
 
     use crate::support::fixture::document as document_of;
 
     let document = linked_pair_document();
 
     let mut engine = CoreEngine::new();
-    let accepted = document_of(engine.handle(fixture::open(document)));
+    let accepted = document_of(engine.open(document));
 
-    let disabled = document_of(engine.handle(fixture::commit(
+    let disabled = document_of(engine.commit_edit(fixture::commit(
         "mechanical",
         "mechanical",
         accepted.revision,
@@ -372,7 +372,7 @@ fn one_undo_restores_a_paired_disable_completely() {
     assert!(stored_instance(&disabled, "right").mechanical.is_none());
 
     // One undo restores the pair, both stacks and the geometry projection.
-    let restored = document_of(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let restored = document_of(engine.undo());
     assert_eq!(
         restored.hardware.as_ref().unwrap().pairs.len(),
         1,
@@ -396,7 +396,7 @@ fn one_undo_restores_a_paired_disable_completely() {
     );
 
     // Redo repeats the whole result.
-    let redone = document_of(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let redone = document_of(engine.redo());
     assert!(redone.hardware.as_ref().unwrap().pairs.is_empty());
     assert!(stored_instance(&redone, "right").mechanical.is_none());
 }

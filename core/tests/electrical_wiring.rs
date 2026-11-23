@@ -1,4 +1,5 @@
 use crate::support::fixture;
+use boardstudio_core::CommittedScene;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
 use boardstudio_core::model::*;
@@ -554,32 +555,24 @@ fn missing_controller_is_reported_without_inventing_one() {
 fn apply_request_is_reversible() {
     let mut engine = CoreEngine::new();
     let doc = wired_document();
-    let opened = engine.handle(fixture::open(doc));
+    let opened = engine.open(doc);
     let doc = match opened {
-        CoreReply::Scene { document, .. } => document,
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("{other:?}"),
     };
     let base = doc.revision;
     let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
         instance_id: None,
-        document: *doc,
+        document: doc.clone(),
         mode: ElectricalMode::Matrix,
         locks: BTreeMap::new(),
         controller_profile: Some("ceoloide/mcu_nice_nano".into()),
         board_id: Some("board-a".into()),
         controller_part_id: Some("mcu-left".into()),
     });
-    let applied = engine.handle(CoreRequest::ApplyElectrical {
-        id: "apply".into(),
-        base_revision: base,
-        plan,
-        draft: false,
-    });
-    assert!(matches!(applied, CoreReply::Scene { .. }), "{applied:?}");
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Scene { .. }
-    ));
+    let applied = engine.apply_electrical(base, plan, false);
+    assert!(matches!(applied, Ok(_)), "{applied:?}");
+    assert!(matches!(engine.undo(), Ok(_)));
 }
 
 #[test]
@@ -607,18 +600,15 @@ fn apply_request_reuses_persisted_selected_board_locks() {
             locks: BTreeMap::from([("row/0".into(), "P2".into())]),
             ..Default::default()
         });
-    let opened = engine.handle(CoreRequest::Open {
-        id: "open-locked".into(),
-        document: doc,
-    });
+    let opened = engine.open(doc);
     let doc = match opened {
-        CoreReply::Scene { document, .. } => document,
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("{other:?}"),
     };
     let base_revision = doc.revision;
     let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
         instance_id: None,
-        document: (*doc).clone(),
+        document: doc.clone(),
         mode: ElectricalMode::Matrix,
         // The resolver must load the target board's persisted map even when the request adds
         // none, as in Core's own ApplyElectrical re-resolution.
@@ -631,13 +621,8 @@ fn apply_request_reuses_persisted_selected_board_locks() {
         assignment.row == 0 && assignment.row_pin == "P1" && assignment.locked
     }));
 
-    let applied = engine.handle(CoreRequest::ApplyElectrical {
-        id: "apply-locked".into(),
-        base_revision,
-        plan,
-        draft: false,
-    });
-    let CoreReply::Scene { document, .. } = applied else {
+    let applied = engine.apply_electrical(base_revision, plan, false);
+    let Ok(CommittedScene { document, .. }) = applied else {
         panic!("persisted target-board lock must survive ApplyElectrical: {applied:?}");
     };
     assert_eq!(document.revision, base_revision + 1);

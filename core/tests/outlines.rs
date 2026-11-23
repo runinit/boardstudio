@@ -4,6 +4,7 @@ use crate::support::session::Session;
 use crate::support::session::builders::{
     anchored_polygon, move_key, rect, remove_parts, replace_document,
 };
+use boardstudio_core::CommittedScene;
 use boardstudio_core::model::*;
 use serde_json::json;
 
@@ -31,10 +32,10 @@ fn matrix_document() -> ProjectDoc {
     doc
 }
 
-fn scene(reply: CoreReply) -> SceneDelta {
-    match reply {
-        CoreReply::Scene { scene, .. } | CoreReply::Preview { scene, .. } => scene,
-        other => panic!("{other:?}"),
+fn scene(result: Result<CommittedScene, String>) -> SceneDelta {
+    match result {
+        Ok(committed) => committed.scene,
+        Err(message) => panic!("{message}"),
     }
 }
 #[test]
@@ -462,7 +463,7 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
         "{:?}",
         removed.findings
     );
-    core.commit(1, remove_parts(&["matrix/main/r0c1"]));
+    core.commit(1, remove_parts(&["matrix/main/r0c1"])).unwrap();
     let doc = core.snapshot();
     assert!(
         doc.matrices[0]
@@ -514,18 +515,13 @@ fn editing_current_matrix_preserves_member_ids_coordinates_and_nets() {
     let original = doc.parts.clone();
     let mut core = Session::default();
     scene(core.open(doc));
-    let reply = core.send(fixture::commit(
-        "edit",
-        "current-edit",
-        0,
-        serde_json::from_value(json!({"kind":"set-matrix", "matrix":matrix})).unwrap(),
-    ));
-    let CoreReply::Scene {
-        document: updated, ..
-    } = reply
-    else {
-        panic!("{reply:?}")
-    };
+    let updated = core
+        .commit(
+            0,
+            serde_json::from_value(json!({"kind":"set-matrix", "matrix":matrix})).unwrap(),
+        )
+        .unwrap()
+        .document;
     assert_eq!(
         updated
             .parts
@@ -593,24 +589,15 @@ fn attached_addition_moves_and_detaches_on_anchor_deletion() {
         },
     ));
     assert!(query::contains(&moved.contours, 145.0, 0.0));
-    let removed = core.send(CoreRequest::Edit {
-        id: "remove".into(),
-        command: EditCommand {
-            base_revision: 1,
-            transaction_id: "remove".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["k0".into()],
-            operation: EditOperation::RemoveParts {
-                ids: vec!["k0".into()],
-            },
+    let (scene, document) = fixture::committed_outcome(core.apply(EditCommand {
+        base_revision: 1,
+        transaction_id: "remove".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["k0".into()],
+        operation: EditOperation::RemoveParts {
+            ids: vec!["k0".into()],
         },
-    });
-    let CoreReply::Scene {
-        document, scene, ..
-    } = removed
-    else {
-        panic!("Expected scene")
-    };
+    }));
     assert!(query::contains(&scene.contours, 145.0, 0.0));
     let tab =
         serde_json::to_value(document.outline.iter().find(|f| f.id() == "tab").unwrap()).unwrap();
@@ -669,22 +656,12 @@ fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
     doc.outline=vec![serde_json::from_value(json!({"kind":"rect","id":"edge","operation":"add","anchorPartId":"k0","center":{"x":15,"y":0},"size":{"x":25,"y":8},"radius":2,"rotation":12})).unwrap()];
     let mut core = Session::default();
     let before = scene(core.open(doc));
-    let removed = core.send(fixture::commit(
-        "remove",
-        "delete",
+    let (after, document) = fixture::scene_and_document(core.commit(
         0,
         EditOperation::RemoveParts {
             ids: vec!["k0".into()],
         },
     ));
-    let CoreReply::Scene {
-        document,
-        scene: after,
-        ..
-    } = removed
-    else {
-        panic!("Expected scene")
-    };
     let OutlineFeature::Rect {
         anchor_part_id,
         rotation,
@@ -730,7 +707,7 @@ fn shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position() {
     matrix.rows = 2;
     let mut core = Session::default();
     scene(core.open(doc));
-    let preview = scene(core.preview(0, fixture::set_matrix(matrix.clone())));
+    let preview = fixture::preview_scene(core.preview(0, fixture::set_matrix(matrix.clone())));
     assert!(query::contains(&preview.contours, 63.0, 38.1));
     let committed = scene(core.commit(0, fixture::set_matrix(matrix)));
     assert_eq!(preview.contours, committed.contours);
@@ -754,22 +731,20 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
         *connections=vec![serde_json::from_value(json!({"id":"route","width":4,"points":[{"at":{"x":-5,"y":0},"partId":"k0"},{"at":{"x":0,"y":40}},{"at":{"x":80,"y":40}},{"at":{"x":0,"y":0},"partId":"k1"}]})).unwrap()];
     }
     let mut core = Session::default();
-    core.open(doc);
+    scene(core.open(doc));
     let moved = scene(core.commit(0, move_key("k0", -20.0, 0.0)));
     assert!(query::contains(&moved.contours, -10.0, 22.5));
-    let removed = core.send(fixture::commit(
-        "delete",
-        "delete",
+    let removed = core.commit(
         1,
         EditOperation::RemoveParts {
             ids: vec!["k0".into()],
         },
-    ));
-    let CoreReply::Scene {
-        document,
+    );
+    let Ok(CommittedScene {
         scene: after,
+        document,
         ..
-    } = removed
+    }) = removed
     else {
         panic!("Expected scene")
     };
@@ -804,10 +779,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
         "addition".into(),
         "overlap".into(),
     ];
-    let legacy = scene(Session::default().send(CoreRequest::Open {
-        id: "legacy".into(),
-        document: doc.clone(),
-    }));
+    let legacy = scene(Session::default().open(doc.clone()));
     assert!(
         !query::contains(&legacy.contours, 25.0, 30.0),
         "Legacy script composition retains its explicit union topology"
@@ -838,10 +810,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
             ownership: OutlineOwnership::Fixed,
         }],
     }];
-    let result = scene(Session::default().send(CoreRequest::Open {
-        id: "addition".into(),
-        document: doc,
-    }));
+    let result = scene(Session::default().open(doc));
     assert!(
         query::contains(&result.contours, 25.0, 30.0),
         "Addition must fill a newly enclosed recess, not turn it into a cutout"

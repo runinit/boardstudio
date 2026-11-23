@@ -284,39 +284,33 @@ fn module_import_retains_source_outline_support_and_every_round_drill() {
     let contours =
         serde_json::from_value::<Vec<boardstudio_core::model::Contour>>(board["contours"].clone())
             .unwrap();
-    let prepared =
-        match CoreEngine::new().handle(boardstudio_core::model::CoreRequest::PrepareCase {
-            id: "prepare-vik-splitter".into(),
-            ir: boardstudio_core::model::CaseAssemblyIR {
-                revision: 1,
-                bodies: vec![boardstudio_core::model::CaseIR {
-                    revision: 1,
-                    body: boardstudio_core::model::CaseBody {
-                        features: None,
-                        openings: None,
-                        id: "vik-splitter".into(),
-                        name: "VIK splitter PCB".into(),
-                        board_id: "fixture-board".into(),
-                        kind: boardstudio_core::model::CaseKind::Plate,
-                        thickness: board["thickness"].as_f64().unwrap(),
-                        clearance: 0.0,
-                        material_id: None,
-                        z: Some(0.0),
-                        wall_height: None,
-                        wall_thickness: None,
-                        mounts: Some(mounts.clone()),
-                        pcb_source: Some(profile.clone()),
-                        gasket: None,
-                    },
-                    contours,
-                }],
+    let prepared = match CoreEngine::prepare_case(&boardstudio_core::model::CaseAssemblyIR {
+        revision: 1,
+        bodies: vec![boardstudio_core::model::CaseIR {
+            revision: 1,
+            body: boardstudio_core::model::CaseBody {
+                features: None,
+                openings: None,
+                id: "vik-splitter".into(),
+                name: "VIK splitter PCB".into(),
+                board_id: "fixture-board".into(),
+                kind: boardstudio_core::model::CaseKind::Plate,
+                thickness: board["thickness"].as_f64().unwrap(),
+                clearance: 0.0,
+                material_id: None,
+                z: Some(0.0),
+                wall_height: None,
+                wall_thickness: None,
+                mounts: Some(mounts.clone()),
+                pcb_source: Some(profile.clone()),
+                gasket: None,
             },
-        }) {
-            boardstudio_core::model::CoreReply::CasePrepared { ir, .. } => {
-                ir.bodies.into_iter().next().unwrap()
-            }
-            other => panic!("expected prepared case, got {other:?}"),
-        };
+            contours,
+        }],
+    }) {
+        Ok(ir) => ir.bodies.into_iter().next().unwrap(),
+        other => panic!("expected prepared case, got {other:?}"),
+    };
     assert_eq!(prepared.body.pcb_source, Some(profile));
     assert_eq!(prepared.body.mounts, Some(mounts));
     assert_eq!(prepared.regions.len(), 1);
@@ -388,39 +382,33 @@ fn module_import_preserves_absolute_pad_angle_and_offset_on_both_board_sides() {
     assert!((radians.sin() - 0.39073112848927377).abs() < 5e-12);
 
     let contours = serde_json::from_value(board["contours"].clone()).unwrap();
-    let prepared =
-        match CoreEngine::new().handle(boardstudio_core::model::CoreRequest::PrepareCase {
-            id: "prepare-back-offset-slot".into(),
-            ir: boardstudio_core::model::CaseAssemblyIR {
-                revision: 1,
-                bodies: vec![boardstudio_core::model::CaseIR {
-                    revision: 1,
-                    body: boardstudio_core::model::CaseBody {
-                        features: None,
-                        openings: None,
-                        id: "back-offset-slot".into(),
-                        name: "Back offset slot".into(),
-                        board_id: "fixture-board".into(),
-                        kind: boardstudio_core::model::CaseKind::Plate,
-                        thickness: board["thickness"].as_f64().unwrap(),
-                        clearance: 0.0,
-                        material_id: None,
-                        z: Some(0.0),
-                        wall_height: None,
-                        wall_thickness: None,
-                        mounts: None,
-                        pcb_source: Some(profile.clone()),
-                        gasket: None,
-                    },
-                    contours,
-                }],
+    let prepared = match CoreEngine::prepare_case(&boardstudio_core::model::CaseAssemblyIR {
+        revision: 1,
+        bodies: vec![boardstudio_core::model::CaseIR {
+            revision: 1,
+            body: boardstudio_core::model::CaseBody {
+                features: None,
+                openings: None,
+                id: "back-offset-slot".into(),
+                name: "Back offset slot".into(),
+                board_id: "fixture-board".into(),
+                kind: boardstudio_core::model::CaseKind::Plate,
+                thickness: board["thickness"].as_f64().unwrap(),
+                clearance: 0.0,
+                material_id: None,
+                z: Some(0.0),
+                wall_height: None,
+                wall_thickness: None,
+                mounts: None,
+                pcb_source: Some(profile.clone()),
+                gasket: None,
             },
-        }) {
-            boardstudio_core::model::CoreReply::CasePrepared { ir, .. } => {
-                ir.bodies.into_iter().next().unwrap()
-            }
-            other => panic!("expected prepared case, got {other:?}"),
-        };
+            contours,
+        }],
+    }) {
+        Ok(ir) => ir.bodies.into_iter().next().unwrap(),
+        other => panic!("expected prepared case, got {other:?}"),
+    };
     assert_eq!(prepared.body.pcb_source, Some(profile));
     assert_eq!(
         serde_json::to_value(&prepared).unwrap(),

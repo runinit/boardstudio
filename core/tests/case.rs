@@ -1,8 +1,9 @@
 use crate::support::fixture;
+use boardstudio_core::CommittedScene;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
 
-fn commit_case(base_revision: u64, id: &str) -> CoreRequest {
+fn commit_case(base_revision: u64, id: &str) -> EditCommand {
     // Ticket 37: raw SetOutline is deleted; the history setup below uses the live
     // typed case write instead.
     fixture::commit(
@@ -67,11 +68,9 @@ fn case_ir(assembly_revision: u64, body_revision: u64) -> CaseAssemblyIR {
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        other => panic!("expected scene snapshot, got {other:?}"),
+    match engine.snapshot() {
+        Ok(committed) => committed.document,
+        Err(message) => panic!("expected scene snapshot, got {message}"),
     }
 }
 
@@ -87,35 +86,20 @@ fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
         10.0,
         Operation::Add,
     ));
+    assert!(matches!(engine.open(doc), Ok(_)));
+    assert!(matches!(engine.commit_edit(commit_case(0, "first")), Ok(_)));
     assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: doc
-        }),
-        CoreReply::Scene { .. }
+        engine.commit_edit(commit_case(1, "second")),
+        Ok(_)
     ));
-    assert!(matches!(
-        engine.handle(commit_case(0, "first")),
-        CoreReply::Scene { .. }
-    ));
-    assert!(matches!(
-        engine.handle(commit_case(1, "second")),
-        CoreReply::Scene { .. }
-    ));
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Scene { .. }
-    ));
+    assert!(matches!(engine.undo(), Ok(_)));
 
     let before = snapshot(&mut engine);
     assert_eq!(before.revision, 3);
     let request_revision = 77;
-    let reply = engine.handle(CoreRequest::PrepareCase {
-        id: "prepare".into(),
-        ir: case_ir(request_revision, request_revision),
-    });
+    let reply = CoreEngine::prepare_case(&case_ir(request_revision, request_revision));
     match reply {
-        CoreReply::CasePrepared { ir, .. } => {
+        Ok(ir) => {
             assert_eq!(ir.revision, request_revision);
             assert_eq!(ir.bodies[0].revision, request_revision);
         }
@@ -124,31 +108,21 @@ fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
     assert_eq!(snapshot(&mut engine), before);
 
     let stale_assembly_revision = 88;
-    let reply = engine.handle(CoreRequest::PrepareCase {
-        id: "prepare-stale".into(),
-        ir: case_ir(stale_assembly_revision, request_revision),
-    });
+    let reply = CoreEngine::prepare_case(&case_ir(stale_assembly_revision, request_revision));
     match reply {
-        CoreReply::Error {
-            revision, message, ..
-        } => {
-            assert_eq!(revision, stale_assembly_revision);
-            assert!(message.contains("stale revision"));
+        Err(message) => {
+            assert!(message.contains("stale revision"), "{message}");
         }
         other => panic!("expected stale revision error, got {other:?}"),
     }
     assert_eq!(snapshot(&mut engine), before);
 
-    match engine.handle(CoreRequest::Undo {
-        id: "undo-after-prepare".into(),
-    }) {
-        CoreReply::Scene { scene, .. } => assert_eq!(scene.revision, before.revision + 1),
+    match engine.undo() {
+        Ok(CommittedScene { scene, .. }) => assert_eq!(scene.revision, before.revision + 1),
         other => panic!("preparation changed undo history: {other:?}"),
     }
-    match engine.handle(CoreRequest::Redo {
-        id: "redo-after-prepare".into(),
-    }) {
-        CoreReply::Scene { scene, .. } => assert_eq!(scene.revision, before.revision + 2),
+    match engine.redo() {
+        Ok(CommittedScene { scene, .. }) => assert_eq!(scene.revision, before.revision + 2),
         other => panic!("preparation changed redo history: {other:?}"),
     }
 }
@@ -230,22 +204,19 @@ fn adoption_inventory_preserves_authorable_case_features_through_public_preparat
         include_str!("../../cad/core/tests/fixtures/adoption/overlapping-openings-lineage.json"),
     ] {
         let expected: PreparedCaseIR = serde_json::from_str(source).unwrap();
-        let reply = CoreEngine::new().handle(CoreRequest::PrepareCase {
-            id: "adoption".into(),
-            ir: CaseAssemblyIR {
+        let reply = CoreEngine::prepare_case(&CaseAssemblyIR {
+            revision: expected.revision,
+            bodies: vec![CaseIR {
                 revision: expected.revision,
-                bodies: vec![CaseIR {
-                    revision: expected.revision,
-                    body: expected.body.clone(),
-                    contours: vec![Contour {
-                        points: expected.regions[0].outer.clone(),
-                        hole: false,
-                    }],
+                body: expected.body.clone(),
+                contours: vec![Contour {
+                    points: expected.regions[0].outer.clone(),
+                    hole: false,
                 }],
-            },
+            }],
         });
         match reply {
-            CoreReply::CasePrepared { ir, .. } => assert_eq!(ir.bodies, vec![expected]),
+            Ok(ir) => assert_eq!(ir.bodies, vec![expected]),
             other => panic!("valid authorable adoption fixture refused: {other:?}"),
         }
     }

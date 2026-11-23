@@ -7,11 +7,11 @@
 use crate::support::fixture::{
     self, outline_document as fixture, outline_snapshot as document, scene,
 };
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CoreEngine, EditOutcome, model::*};
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(fixture::commit(
+    scene(engine.commit_edit(fixture::commit(
         "outline-edit",
         "outline-edit",
         revision,
@@ -32,7 +32,7 @@ fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Val
 /// shape an older build wrote, because fixed ownership is the absent default.
 fn two_versions() -> (CoreEngine, serde_json::Value) {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(fixture())));
+    let opened = scene(engine.open(fixture()));
     let first = edit(
         &mut engine,
         opened.revision,
@@ -75,10 +75,7 @@ fn a_legacy_project_reopens_with_its_generated_outline_versions_selection_and_id
     assert!(state.get("retiredVersionIds").is_none());
     let input: ProjectDoc = serde_json::from_value(legacy.clone()).unwrap();
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "legacy".into(),
-        document: input,
-    }));
+    let opened = scene(engine.open(input));
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     let reopened = &after["boardOutlines"][0];
 
@@ -164,10 +161,7 @@ fn linked_and_fixed_versions_keep_their_own_ownership_settings_connections_gaps_
     let input: ProjectDoc = serde_json::from_value(saved.clone()).unwrap();
 
     let mut engine = CoreEngine::new();
-    scene(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: input,
-    }));
+    scene(engine.open(input));
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     let _ = after["boardOutlines"][0]["versions"].as_array();
 
@@ -234,7 +228,7 @@ fn linked_source() -> (ProjectDoc, serde_json::Value) {
 fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_components() {
     let (input, saved) = linked_source();
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(input)));
+    let opened = scene(engine.open(input));
     let copied = edit(
         &mut engine,
         opened.revision,
@@ -355,10 +349,7 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
         });
     input.board_outlines[0].active_version_id = Some("refined".into());
     let mut engine = CoreEngine::new();
-    let refinement = scene(engine.handle(CoreRequest::Open {
-        id: "linked-attachment".into(),
-        document: input,
-    }));
+    let refinement = scene(engine.open(input));
     assert!(
         refinement.board_readiness[0].outline,
         "a linked refinement's component attachment must not block its outline: {:?}",
@@ -380,48 +371,42 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
             operation: Operation::Add,
         });
     fixed.board_outlines[0].active_version_id = Some("edited".into());
-    let blocked = scene(CoreEngine::new().handle(CoreRequest::Open {
-        id: "fixed-attachment".into(),
-        document: fixed,
-    }));
+    let blocked = scene(CoreEngine::new().open(fixed));
     assert!(
         !blocked.board_readiness[0].outline,
         "a fixed copy cannot contain live component attachments"
     );
 }
 
-fn error(reply: CoreReply) -> String {
-    match reply {
-        CoreReply::Error { message, .. } => message,
-        reply => panic!("expected a refused edit, got {reply:?}"),
+fn error(result: Result<EditOutcome, String>) -> String {
+    match result {
+        Err(message) => message,
+        result => panic!("expected a refused edit, got {result:?}"),
     }
 }
 
-fn copy(engine: &mut CoreEngine, revision: u64, version_id: &str) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "copy-outline".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "copy-outline".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: serde_json::from_value(serde_json::json!({
-                // Ticket 37: raw CopyOutline is deleted; Copy is the live typed copy.
-                "kind": "apply-outline-edit", "edit": {
-                    "target": {"kind": "board", "boardId": "main"},
-                    "change": {"copy": {"version_id": version_id, "name": version_id}},
-                    "seed": 9, "reviewed": null
-                }
-            }))
-            .expect("outline command contract"),
-        },
+fn copy(engine: &mut CoreEngine, revision: u64, version_id: &str) -> Result<EditOutcome, String> {
+    engine.apply_edit(EditCommand {
+        base_revision: revision,
+        transaction_id: "copy-outline".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![],
+        operation: serde_json::from_value(serde_json::json!({
+            // Ticket 37: raw CopyOutline is deleted; Copy is the live typed copy.
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": version_id, "name": version_id}},
+                "seed": 9, "reviewed": null
+            }
+        }))
+        .expect("outline command contract"),
     })
 }
 
 #[test]
 fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach_a_later_version() {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(fixture())));
+    let opened = scene(engine.open(fixture()));
     let first = edit(
         &mut engine,
         opened.revision,
@@ -493,8 +478,7 @@ fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach
         "no later version reuses the retired feature identity"
     );
     // A fresh identity is still accepted.
-    let fresh = copy(&mut engine, removed.revision, "replacement");
-    scene(fresh);
+    fixture::committed_outcome(copy(&mut engine, removed.revision, "replacement"));
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     assert_eq!(version(&after, "replacement")["name"], "replacement");
 }
@@ -505,7 +489,7 @@ fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespac
     // setup, not behavior: hand-edit the snapshotted document the same way the
     // fixed-copy suite persists invalid inactive geometry, then reopen.
     let mut engine = CoreEngine::new();
-    scene(engine.handle(fixture::open(fixture())));
+    scene(engine.open(fixture()));
     let mut authored = serde_json::to_value(document(&mut engine)).unwrap();
     let outline = authored["outline"]
         .as_array_mut()
@@ -535,10 +519,7 @@ fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespac
         ]
     }]});
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(CoreRequest::Open {
-        id: "authored-identities".into(),
-        document: serde_json::from_value(authored).unwrap(),
-    }));
+    let opened = scene(engine.open(serde_json::from_value(authored).unwrap()));
     // The reopened document carries the authored connection and protected gap as
     // persisted identities beside version IDs.
     let generated = opened;
@@ -581,7 +562,7 @@ fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespac
         "no refused creation added a version"
     );
     // A distinct identity beside those namespaces is accepted.
-    copy(&mut engine, copied.revision, "distinct-identity");
+    copy(&mut engine, copied.revision, "distinct-identity").unwrap();
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     assert_eq!(
         version(&after, "distinct-identity")["name"],

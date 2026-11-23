@@ -8,7 +8,7 @@ use crate::support::fixture::{self, outline_snapshot as document, scene};
 use boardstudio_core::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget, evaluate,
 };
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, model::*};
 
 const ENVELOPE: &str = "board:board:version:refined:contour:0";
 
@@ -74,18 +74,20 @@ fn fixture_without_generated() -> serde_json::Value {
 
 fn open(b_at: (f64, f64)) -> (CoreEngine, SceneDelta) {
     let mut engine = CoreEngine::new();
-    let opened = scene(engine.handle(fixture::open(
-        serde_json::from_value(fixture(b_at)).unwrap(),
-    )));
+    let opened = scene(engine.open(serde_json::from_value(fixture(b_at)).unwrap()));
     (engine, opened)
 }
 
-fn reply(engine: &mut CoreEngine, revision: u64, edit: serde_json::Value) -> CoreReply {
+fn reply(
+    engine: &mut CoreEngine,
+    revision: u64,
+    edit: serde_json::Value,
+) -> Result<CommittedScene, String> {
     let operation = serde_json::from_value(serde_json::json!({
         "kind": "apply-outline-edit", "edit": edit
     }))
     .expect("the typed outline operation parses");
-    engine.handle(fixture::commit(
+    engine.commit_edit(fixture::commit(
         "outline-edit",
         "outline-edit",
         revision,
@@ -100,7 +102,7 @@ fn edit(engine: &mut CoreEngine, revision: u64, edit: serde_json::Value) -> Scen
 /// A non-outline operation (for example a component move) submitted at the same seam.
 fn raw_edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("the operation parses");
-    scene(engine.handle(fixture::commit("raw-edit", "raw-edit", revision, operation)))
+    scene(engine.commit_edit(fixture::commit("raw-edit", "raw-edit", revision, operation)))
 }
 
 fn board_state(doc: &ProjectDoc) -> Option<&BoardOutline> {
@@ -136,11 +138,11 @@ fn sorted(mut ids: Vec<String>) -> Vec<String> {
 }
 
 fn undo(engine: &mut CoreEngine) -> SceneDelta {
-    scene(engine.handle(CoreRequest::Undo { id: "undo".into() }))
+    scene(engine.undo())
 }
 
 fn redo(engine: &mut CoreEngine) -> SceneDelta {
-    scene(engine.handle(CoreRequest::Redo { id: "redo".into() }))
+    scene(engine.redo())
 }
 
 fn board_bounds(scene: &SceneDelta, board_id: &str) -> (f64, f64, f64, f64) {

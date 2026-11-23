@@ -37,14 +37,14 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
         convert_offset_available(&before.matrices[0], 1),
         Err(reason.to_string())
     );
-    let reply = engine.handle(fixture::commit(
+    let reply = engine.commit_edit(fixture::commit(
         "convert",
         "convert",
         before.revision,
         convert("main", 1),
     ));
     match reply {
-        CoreReply::Error { message, .. } => assert_eq!(message, reason),
+        Err(message) => assert_eq!(message, reason),
         other => panic!("expected an error: {other:?}"),
     }
     assert_eq!(snapshot(&mut engine), before);
@@ -185,7 +185,7 @@ fn named_row_shift_carries_later_keys_without_changing_offsets() {
                 "change": { "kind": "row-shift", "row": 1, "value": { "x": 4.0, "y": -3.0 } } }
         }
     }).to_string());
-    let (changed, after) = scene(serde_json::from_str(&reply).unwrap());
+    let (changed, after) = fixture::wire_scene_and_document(&reply);
     for row in 0..3 {
         for column in 0..2 {
             let id = member("main", row, column);
@@ -252,7 +252,7 @@ fn unchanged_splay_and_base_origin_do_not_write_or_create_history() {
         assert_eq!(after, before);
         assert!(changed.changed_ids.is_empty());
     }
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert!(
         undone.matrices.is_empty(),
         "no-op edits must leave the setup as the only Undo entry"
@@ -416,7 +416,7 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
     ));
     assert!(changed.column_layout[0].spread.is_none());
     assert!(close(changed.origin, Vec2 { x: 9.0, y: 7.0 }));
-    let refused = engine.handle(fixture::commit(
+    let refused = engine.commit_edit(fixture::commit(
         "refuse",
         "refuse",
         after.revision,
@@ -428,9 +428,9 @@ fn hold_origin_solves_the_final_point_with_partial_follow_and_refuses_atomically
             },
         },
     ));
-    assert!(matches!(refused, CoreReply::Error { message, .. } if message.contains("Follow")));
+    assert!(matches!(refused, Err(message) if message.contains("Follow")));
     assert_eq!(snapshot(&mut engine), after);
-    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let (_, undone) = scene(engine.undo());
     assert_eq!(undone.matrices, before.matrices);
     assert_eq!(undone.parts, before.parts);
 }

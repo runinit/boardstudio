@@ -122,14 +122,12 @@ fn fixture_with_choices() -> serde_json::Value {
 }
 
 fn open(engine: &mut CoreEngine, document: serde_json::Value) -> SceneDelta {
-    scene(engine.handle(fixture::open(
-        serde_json::from_value(document).expect("fixture is a valid document"),
-    )))
+    scene(engine.open(serde_json::from_value(document).expect("fixture is a valid document")))
 }
 
 fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
     let operation = serde_json::from_value(operation).expect("outline command contract");
-    scene(engine.handle(fixture::commit("edit", "edit", revision, operation)))
+    scene(engine.commit_edit(fixture::commit("edit", "edit", revision, operation)))
 }
 
 fn saved(engine: &mut CoreEngine) -> serde_json::Value {
@@ -350,7 +348,7 @@ fn removing_a_source_cleans_only_its_dependent_choices_in_one_undo() {
     );
 
     // One Undo restores the removal, the choices and the resolved geometry together.
-    let undone = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let undone = scene(engine.undo());
     let restored = saved(&mut engine);
     let mut expected = before.clone();
     expected["revision"] = restored["revision"].clone();
@@ -360,7 +358,7 @@ fn removing_a_source_cleans_only_its_dependent_choices_in_one_undo() {
     );
     assert_eq!(bounds(&undone, "board"), (-8.0, -8.0, 22.0, 8.0));
 
-    let redone = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let redone = scene(engine.redo());
     assert_eq!(bounds(&redone, "board"), (-8.0, -8.0, 8.0, 8.0));
 }
 

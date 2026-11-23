@@ -23,7 +23,7 @@ fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
         before.revision,
         serde_json::json!({"x":22.0,"y":2.0}),
     ));
-    let (swing_scene, after) = scene(serde_json::from_str(&reply).unwrap());
+    let (swing_scene, after) = fixture::wire_scene_and_document(&reply);
     let mut expected = before.matrices[0].clone();
     expected.column_layout[1].splay_origin = Vec2 { x: 3.0, y: 2.0 };
     assert_eq!(after.matrices[0], expected);
@@ -45,7 +45,7 @@ fn swing_origin_changes_only_the_origin_and_swing_reset_restores_poses() {
         );
     }
     let reply = engine.request(&request(after.revision, serde_json::Value::Null));
-    let (_, reset) = scene(serde_json::from_str(&reply).unwrap());
+    let (_, reset) = fixture::wire_scene_and_document(&reply);
     assert_eq!(reset.matrices, before.matrices);
     assert_eq!(reset.parts, before.parts);
 }
@@ -66,7 +66,7 @@ fn relative_origin_field_holds_keys_by_writing_only_the_nearest_steps() {
         "baseRevision":before.revision,"transactionId":"relative","phase":"commit","targetIds":[],
         "operation":{"kind":"set-matrix-splay","matrixId":"main","column":1,"change":{"kind":"origin-relative","value":{"x":2.0,"y":3.0}}}
     }}).to_string());
-    let (_, after) = scene(serde_json::from_str(&reply).unwrap());
+    let (_, after) = fixture::wire_scene_and_document(&reply);
     assert_same_poses(&before, &after, "relative field holds");
     assert_eq!(
         after.matrices[0].column_layout[1].splay_origin,
@@ -244,7 +244,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
             value: f64::NAN,
         },
     ] {
-        let reply = engine.handle(fixture::commit(
+        let reply = engine.commit_edit(fixture::commit(
             "invalid",
             "invalid",
             before.revision,
@@ -253,7 +253,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
                 change,
             },
         ));
-        assert!(matches!(reply, CoreReply::Error { .. }));
+        assert!(matches!(reply, Err(_)));
         assert_eq!(snapshot(&mut engine), before);
     }
     for change in [
@@ -276,7 +276,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
             }),
         },
     ] {
-        let reply = engine.handle(fixture::commit(
+        let reply = engine.commit_edit(fixture::commit(
             "invalid-origin",
             "invalid-origin",
             before.revision,
@@ -286,7 +286,7 @@ fn named_placement_boundary_refuses_nonfinite_and_out_of_bounds_values_atomicall
                 change,
             },
         ));
-        assert!(matches!(reply, CoreReply::Error { .. }));
+        assert!(matches!(reply, Err(_)));
         assert_eq!(snapshot(&mut engine), before);
     }
 }
@@ -337,7 +337,7 @@ fn exact_column_align_refuses_external_constraint_without_retuning_it() {
     });
     let (mut engine, _, before) = open_engine(document);
     for phase in [EditPhase::Preview, EditPhase::Commit] {
-        let reply = engine.handle(fixture::edit(
+        let reply = engine.apply_edit(fixture::edit(
             "align",
             "align",
             before.revision,
@@ -350,12 +350,10 @@ fn exact_column_align_refuses_external_constraint_without_retuning_it() {
                 },
             },
         ));
-        assert!(matches!(reply,CoreReply::Error {message,..} if message.contains("constraint")));
+        assert!(matches!(reply,Err(message) if message.contains("constraint")));
         assert_eq!(snapshot(&mut engine), before);
     }
-    assert!(
-        matches!(engine.handle(CoreRequest::Undo {id:"refusal-history".into()}),CoreReply::Error {message,..} if message.contains("History is empty"))
-    );
+    assert!(matches!(engine.undo(),Err(message) if message.contains("History is empty")));
 }
 
 #[test]

@@ -1,7 +1,7 @@
-use boardstudio_core_engine::CoreEngine;
 use boardstudio_core_engine::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Position, ProjectDoc, Vec2,
+    EditCommand, EditOperation, EditPhase, Position, ProjectDoc, Vec2,
 };
+use boardstudio_core_engine::{CommittedScene, CoreEngine};
 use serde_json::json;
 
 fn document() -> ProjectDoc {
@@ -26,36 +26,36 @@ fn document() -> ProjectDoc {
     serde_json::from_value(value).unwrap()
 }
 
-fn accepted(reply: CoreReply) -> (ProjectDoc, Vec2) {
-    let CoreReply::Scene {
-        document, scene, ..
-    } = reply
-    else {
-        panic!("Expected accepted scene, got {reply:?}");
+fn accepted(result: Result<CommittedScene, String>) -> (ProjectDoc, Vec2) {
+    let Ok(committed) = result else {
+        panic!("Expected accepted scene");
     };
+    let (scene, document) = (committed.scene, committed.document);
     let target = scene
         .transforms
         .iter()
         .find(|part| part.id == "4/pair/part/switch")
         .unwrap();
     assert_eq!(document.parts.len(), 1);
-    (*document, target.pose.at)
+    (document, target.pose.at)
 }
 
-fn move_part(engine: &mut CoreEngine, revision: u64, part: &str, x: f64) -> CoreReply {
-    engine.handle(CoreRequest::Edit {
-        id: "move".into(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: "move".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![part.into()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: part.into(),
-                    at: Vec2 { x, y: 3.0 },
-                }],
-            },
+fn move_part(
+    engine: &mut CoreEngine,
+    revision: u64,
+    part: &str,
+    x: f64,
+) -> Result<CommittedScene, String> {
+    engine.commit_edit(EditCommand {
+        base_revision: revision,
+        transaction_id: "move".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![part.into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: part.into(),
+                at: Vec2 { x, y: 3.0 },
+            }],
         },
     })
 }
@@ -69,17 +69,11 @@ fn linked_edit_refusal_and_seeded_undo_redo_keep_canonical_geometry_exact() {
 
 fn exercise_history(seed: u32) {
     let mut engine = CoreEngine::new();
-    let (mut canonical, initial) = accepted(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document(),
-    }));
+    let (mut canonical, initial) = accepted(engine.open(document()));
     assert_eq!(initial, Vec2 { x: 8.0, y: 3.0 });
     let refusal = move_part(&mut engine, canonical.revision, "4/pair/part/switch", 3.0);
-    assert!(matches!(refusal, CoreReply::Error { message, .. } if message.contains("is linked")));
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
+    assert!(matches!(refusal, Err(message) if message.contains("is linked")));
+    assert!(matches!(engine.undo(), Err(_)));
 
     let mut seed = 0x84ba_318a_u32 ^ seed;
     let mut previous = initial;
@@ -96,13 +90,12 @@ fn exercise_history(seed: u32) {
             }
         );
 
-        let (mut undone, geometry) =
-            accepted(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+        let (mut undone, geometry) = accepted(engine.undo());
         assert_eq!(geometry, previous);
         undone.revision = before.revision;
         assert_eq!(undone, before);
 
-        let (redone, geometry) = accepted(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+        let (redone, geometry) = accepted(engine.redo());
         let mut expected = edited;
         expected.revision = redone.revision;
         assert_eq!(redone, expected);
@@ -111,10 +104,7 @@ fn exercise_history(seed: u32) {
     }
 
     let saved = serde_json::to_vec(&canonical).unwrap();
-    let (reopened, geometry) = accepted(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: serde_json::from_slice(&saved).unwrap(),
-    }));
+    let (reopened, geometry) = accepted(engine.open(serde_json::from_slice(&saved).unwrap()));
     assert_eq!(serde_json::to_vec(&reopened).unwrap(), saved);
     assert_eq!(geometry, previous);
 }
@@ -124,16 +114,13 @@ fn version_and_linked_target_errors_preserve_the_accepted_snapshot() {
     use boardstudio_core_mirrored_half::{MirrorEditRefused, admit_edit};
 
     let mut engine = CoreEngine::new();
-    let (accepted_doc, accepted_pose) = accepted(engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document(),
-    }));
+    let (accepted_doc, accepted_pose) = accepted(engine.open(document()));
     for version in [0, 7, 9, u32::MAX] {
         let mut rejected = accepted_doc.clone();
         rejected.format_version = version;
         assert!(matches!(
-            engine.handle(CoreRequest::Open { id: "bad-version".into(), document: rejected }),
-            CoreReply::Error { message, .. } if message == "Unsupported formatVersion: expected 8"
+            engine.open(rejected),
+            Err(message) if message == "Unsupported formatVersion: expected 8"
         ));
     }
     let target_id = "4/pair/part/switch".to_owned();
@@ -150,16 +137,8 @@ fn version_and_linked_target_errors_preserve_the_accepted_snapshot() {
             pair_id: "pair".into(),
         })
     );
-    assert_eq!(
-        accepted(engine.handle(CoreRequest::Snapshot {
-            id: "snapshot".into()
-        })),
-        (accepted_doc, accepted_pose)
-    );
-    assert!(matches!(
-        engine.handle(CoreRequest::Undo { id: "undo".into() }),
-        CoreReply::Error { .. }
-    ));
+    assert_eq!(accepted(engine.snapshot()), (accepted_doc, accepted_pose));
+    assert!(matches!(engine.undo(), Err(_)));
 }
 
 #[test]
@@ -283,10 +262,7 @@ fn local_part_rotation_source_deletion_and_removal_round_trip() {
 
     let mut engine = CoreEngine::new();
     let target = "4/pair/part/switch";
-    let mut reply = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document(),
-    });
+    let mut reply = engine.open(document());
     for operation in [
         EditOperation::SetHalfException {
             pair_id: "pair".into(),
@@ -302,52 +278,40 @@ fn local_part_rotation_source_deletion_and_removal_round_trip() {
             ids: vec!["switch".into()],
         },
     ] {
-        let CoreReply::Scene { document, .. } = reply else {
+        let Ok(CommittedScene { document, .. }) = reply else {
             panic!("{reply:?}")
         };
-        reply = engine.handle(CoreRequest::Edit {
-            id: "edit".into(),
-            command: EditCommand {
-                base_revision: document.revision,
-                transaction_id: "edit".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation,
-            },
+        reply = engine.commit_edit(EditCommand {
+            base_revision: document.revision,
+            transaction_id: "edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
         });
     }
-    let CoreReply::Scene {
-        document, scene, ..
-    } = reply
-    else {
+    let Ok(CommittedScene { scene, document }) = reply else {
         panic!("{reply:?}")
     };
     assert!(document.parts.is_empty());
     assert_eq!(scene.transforms.len(), 1);
     assert_eq!(scene.transforms[0].id, target);
     assert_eq!(scene.transforms[0].pose.rotation, 37.0);
-    let result = engine.handle(CoreRequest::Edit {
-        id: "remove-local".into(),
-        command: EditCommand {
-            base_revision: document.revision,
-            transaction_id: "remove-local".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![target.into()],
-            operation: EditOperation::RemoveParts {
-                ids: vec![target.into()],
-            },
+    let result = engine.commit_edit(EditCommand {
+        base_revision: document.revision,
+        transaction_id: "remove-local".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![target.into()],
+        operation: EditOperation::RemoveParts {
+            ids: vec![target.into()],
         },
     });
-    assert!(matches!(result, CoreReply::Scene { scene, .. } if scene.transforms.is_empty()));
+    assert!(matches!(result, Ok(CommittedScene { scene, .. }) if scene.transforms.is_empty()));
 }
 
 #[test]
 fn derived_board_geometry_edits_refuse_without_publishing() {
     let mut engine = CoreEngine::new();
-    let opened = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: document(),
-    });
+    let opened = engine.open(document());
     let (original, _) = accepted(opened);
     let candidate = json!({"kind":"edit","id":"outline","command":{
         "baseRevision":original.revision,"transactionId":"outline","phase":"commit","targetIds":[],
@@ -360,9 +324,7 @@ fn derived_board_geometry_edits_refuse_without_publishing() {
         serde_json::from_str(&engine.request(&candidate.to_string())).unwrap();
     assert_eq!(refusal["kind"], "error");
     assert!(refusal["message"].as_str().unwrap().contains("edit source"));
-    let (snapshot, _) = accepted(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let (snapshot, _) = accepted(engine.snapshot());
     assert_eq!(snapshot, original);
 }
 
@@ -382,10 +344,7 @@ fn mixed_lifecycle_history_and_two_board_unlink_preserve_geometry() {
     };
     for seed in 0..8_u32 {
         let mut engine = CoreEngine::new();
-        let mut current = accepted(engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: document(),
-        }));
+        let mut current = accepted(engine.open(document()));
         let mut random = seed + 1;
         let mut local = false;
         for _ in 0..40 {
@@ -424,41 +383,32 @@ fn mixed_lifecycle_history_and_two_board_unlink_preserve_geometry() {
                     }),
                 },
             };
-            let next = accepted(engine.handle(CoreRequest::Edit {
-                id: "edit".into(),
-                command: EditCommand {
-                    base_revision: current.0.revision,
-                    transaction_id: "edit".into(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation,
-                },
+            let next = accepted(engine.commit_edit(EditCommand {
+                base_revision: current.0.revision,
+                transaction_id: "edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
             }));
-            let mut undo = accepted(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+            let mut undo = accepted(engine.undo());
             undo.0.revision = current.0.revision;
             assert_eq!(undo, current);
-            let redo = accepted(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+            let redo = accepted(engine.redo());
             let mut expected = next;
             expected.0.revision = redo.0.revision;
             assert_eq!(redo, expected);
             current = redo;
         }
-        let unlinked = engine.handle(CoreRequest::Edit {
-            id: "unlink".into(),
-            command: EditCommand {
-                base_revision: current.0.revision,
-                transaction_id: "unlink".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::UnlinkHalves {
-                    pair_id: "pair".into(),
-                },
+        let unlinked = engine.commit_edit(EditCommand {
+            base_revision: current.0.revision,
+            transaction_id: "unlink".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::UnlinkHalves {
+                pair_id: "pair".into(),
             },
         });
-        let CoreReply::Scene {
-            document, scene, ..
-        } = unlinked
-        else {
+        let Ok(CommittedScene { scene, document }) = unlinked else {
             panic!("{unlinked:?}")
         };
         assert!(document.mirrored_pairs.is_empty());

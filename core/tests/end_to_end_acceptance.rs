@@ -5,28 +5,28 @@
 //! real archive pack/unpack), never test doubles.
 use crate::support::fixture::{self, key_part, part_pose, scene_and_document as scene};
 use crate::support::session::{commit_edit, open_engine};
-use boardstudio_core::{CoreEngine, archive, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, EditOutcome, archive, model::*};
 
 fn preview(engine: &mut CoreEngine, doc: &ProjectDoc, operation: EditOperation) -> SceneDelta {
-    match engine.handle(fixture::edit(
+    match engine.apply_edit(fixture::edit(
         "preview",
         "preview",
         doc.revision,
         EditPhase::Preview,
         operation,
     )) {
-        CoreReply::Preview { scene, .. } => scene,
+        Ok(EditOutcome::Preview(scene)) => scene,
         other => panic!("expected preview: {other:?}"),
     }
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
-    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
+    scene(engine.snapshot()).1
 }
 
 fn undone(engine: &mut CoreEngine) -> ProjectDoc {
-    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
-        CoreReply::Scene { document, .. } => *document,
+    match engine.undo() {
+        Ok(CommittedScene { document, .. }) => document,
         other => panic!("expected scene: {other:?}"),
     }
 }

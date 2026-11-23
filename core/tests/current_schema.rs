@@ -1,4 +1,3 @@
-use crate::support::fixture;
 use boardstudio_core::{
     document_format::CURRENT_VERSION,
     model::{MechanicalConfiguration, PartDefinition},
@@ -123,14 +122,14 @@ fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
 #[test]
 fn open_refuses_documents_that_are_not_at_the_current_version() {
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, ProjectDoc};
+    use boardstudio_core::model::ProjectDoc;
 
     let mut engine = CoreEngine::new();
     for version in [CURRENT_VERSION - 1, CURRENT_VERSION + 1] {
         let mut document = ProjectDoc::empty("doc", "Doc");
         document.format_version = version;
-        match engine.handle(fixture::open(document)) {
-            CoreReply::Error { message, .. } => {
+        match engine.open(document) {
+            Err(message) => {
                 assert_eq!(message, "Unsupported formatVersion: expected 8");
             }
             other => panic!("version {version} must be refused: {other:?}"),
@@ -138,11 +137,5 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
     }
     let current = ProjectDoc::empty("doc", "Doc");
     assert_eq!(current.format_version, CURRENT_VERSION);
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: current,
-        }),
-        CoreReply::Scene { .. }
-    ));
+    assert!(matches!(engine.open(current), Ok(_)));
 }

@@ -5,14 +5,7 @@ use boardstudio_core::{CoreEngine, model::*};
 use serde_json::{Value, json};
 
 fn prepare(ir: CaseAssemblyIR) -> Result<PreparedCaseAssemblyIR, String> {
-    match CoreEngine::new().handle(CoreRequest::PrepareCase {
-        id: "features".into(),
-        ir,
-    }) {
-        CoreReply::CasePrepared { ir, .. } => Ok(ir),
-        CoreReply::Error { message, .. } => Err(message),
-        other => panic!("unexpected reply: {other:?}"),
-    }
+    CoreEngine::prepare_case(&ir)
 }
 
 fn assembly(features: Value) -> CaseAssemblyIR {

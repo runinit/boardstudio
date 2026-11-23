@@ -1,5 +1,5 @@
 use crate::support::fixture::{self, document as scene_doc};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_core::{CommittedScene, CoreEngine, model::*};
 use serde_json::json;
 
 fn doc() -> ProjectDoc {
@@ -12,16 +12,7 @@ fn doc() -> ProjectDoc {
     serde_json::from_value(value).unwrap()
 }
 fn resolve(document: ProjectDoc, cases: Option<PreparedCaseAssemblyIR>) -> KeycapResolution {
-    let reply = CoreEngine::new().handle(CoreRequest::ResolveKeycaps {
-        id: "caps".into(),
-        board_id: "board".into(),
-        document,
-        cases,
-    });
-    match reply {
-        CoreReply::KeycapsResolved { result, .. } => result,
-        _ => panic!("wrong reply"),
-    }
+    CoreEngine::resolve_keycaps(&document, "board", cases.as_ref())
 }
 #[test]
 fn resolves_rows_sizes_colors_and_backward_compatible_absence() {
@@ -113,8 +104,8 @@ fn case_walls_are_checked_over_full_travel_and_ignore_stale_cases() {
 fn open_replace_undo_and_roundtrip_preserve_settings() {
     let document = doc();
     let mut core = CoreEngine::new();
-    let opened = core.handle(fixture::open(document.clone()));
-    assert!(matches!(opened, CoreReply::Scene { .. }));
+    let opened = core.open(document.clone());
+    assert!(matches!(opened, Ok(_)));
     let mut changed = document.clone();
     changed
         .keycaps
@@ -124,7 +115,7 @@ fn open_replace_undo_and_roundtrip_preserve_settings() {
         .get_mut("board")
         .unwrap()
         .color = "#aabbcc".into();
-    core.handle(fixture::commit(
+    let _ = core.commit_edit(fixture::commit(
         "edit",
         "color",
         document.revision,
@@ -132,11 +123,13 @@ fn open_replace_undo_and_roundtrip_preserve_settings() {
             document: Box::new(changed),
         },
     ));
-    let undo = core.handle(CoreRequest::Undo { id: "undo".into() });
+    let undo = core.undo();
     match undo {
-        CoreReply::Scene {
+        Ok(CommittedScene {
             document: undone, ..
-        } => assert_eq!(undone.keycaps, document.keycaps),
+        }) => {
+            assert_eq!(undone.keycaps, document.keycaps)
+        }
         _ => panic!("undo failed"),
     }
     let decoded: ProjectDoc =
@@ -219,8 +212,12 @@ fn size_doc() -> ProjectDoc {
     serde_json::from_value(value).unwrap()
 }
 
-fn commit_size(engine: &mut CoreEngine, base: u64, operation: EditOperation) -> CoreReply {
-    engine.handle(fixture::commit(
+fn commit_size(
+    engine: &mut CoreEngine,
+    base: u64,
+    operation: EditOperation,
+) -> Result<CommittedScene, String> {
+    engine.commit_edit(fixture::commit(
         "keycap-size",
         "keycap-size",
         base,
@@ -233,7 +230,7 @@ fn commit_size(engine: &mut CoreEngine, base: u64, operation: EditOperation) -> 
 #[test]
 fn typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step() {
     let mut engine = CoreEngine::new();
-    scene_doc(engine.handle(fixture::open(size_doc())));
+    scene_doc(engine.open(size_doc()));
     let committed = scene_doc(commit_size(
         &mut engine,
         0,
@@ -280,7 +277,7 @@ fn typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step() {
         Some(Vec2 { x: 9.5, y: 0.0 })
     );
     assert_eq!(committed.revision, 1);
-    let undone = scene_doc(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    let undone = scene_doc(engine.undo());
     assert_eq!(undone.revision, 2);
     assert!(
         undone
@@ -301,7 +298,7 @@ fn typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step() {
             .at,
         Vec2 { x: 19.0, y: 0.0 }
     );
-    let mut redone = scene_doc(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    let mut redone = scene_doc(engine.redo());
     assert_eq!(redone.revision, 3);
     redone.revision = committed.revision;
     assert_eq!(redone, committed);
@@ -348,10 +345,10 @@ fn typed_keycap_size_refuses_invalid_writes_atomically() {
         },
     ] {
         let mut engine = CoreEngine::new();
-        let before = scene_doc(engine.handle(fixture::open(size_doc())));
+        let before = scene_doc(engine.open(size_doc()));
         let reply = commit_size(&mut engine, 0, operation);
-        assert!(matches!(reply, CoreReply::Error { .. }), "got {reply:?}");
-        let after = scene_doc(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        assert!(matches!(reply, Err(_)), "got {reply:?}");
+        let after = scene_doc(engine.snapshot());
         assert_eq!(after, before, "a refused keycap size changes nothing");
     }
 }

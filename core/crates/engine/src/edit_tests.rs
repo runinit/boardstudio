@@ -667,35 +667,27 @@ mod mechanical_edit_engine_tests {
         }
     }
 
-    fn command(base: u64, operation: EditOperation) -> CoreRequest {
-        CoreRequest::Edit {
-            id: "mechanical".into(),
-            command: EditCommand {
-                base_revision: base,
-                transaction_id: "mechanical".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation,
-            },
+    fn command(base: u64, operation: EditOperation) -> EditCommand {
+        EditCommand {
+            base_revision: base,
+            transaction_id: "mechanical".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
         }
     }
 
     fn open(engine: &mut CoreEngine, document: ProjectDoc) -> SceneDelta {
-        match engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document,
-        }) {
-            CoreReply::Scene { scene, .. } => scene,
-            reply => panic!("open failed: {reply:?}"),
+        match engine.open(document) {
+            Ok(committed) => committed.scene,
+            Err(message) => panic!("open failed: {message}"),
         }
     }
 
-    fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
-        match reply {
-            CoreReply::Scene {
-                scene, document, ..
-            } => (scene, *document),
-            reply => panic!("expected scene: {reply:?}"),
+    fn scene(result: Result<CommittedScene, String>) -> (SceneDelta, ProjectDoc) {
+        match result {
+            Ok(committed) => (committed.scene, committed.document),
+            Err(message) => panic!("expected scene: {message}"),
         }
     }
 
@@ -831,7 +823,7 @@ mod mechanical_edit_engine_tests {
         let revision = engine.document.revision;
         let undo = engine.undo.len();
         let redo = engine.redo.len();
-        let reply = engine.handle(command(
+        let reply = engine.commit_edit(command(
             revision,
             edit_op(
                 "board",
@@ -842,10 +834,7 @@ mod mechanical_edit_engine_tests {
                 false,
             ),
         ));
-        let CoreReply::Scene {
-            scene, document, ..
-        } = reply
-        else {
+        let Ok(CommittedScene { scene, document }) = reply else {
             panic!("expected scene")
         };
         assert!(scene.changed_ids.is_empty());
@@ -879,7 +868,7 @@ mod mechanical_edit_engine_tests {
         open(&mut engine, document);
 
         let revision = engine.document.revision;
-        let (reply_scene, projected) = scene(engine.handle(command(
+        let (reply_scene, projected) = scene(engine.commit_edit(command(
             revision,
             edit_op("board", MechanicalChange::InitializeClosures, true),
         )));
@@ -906,7 +895,7 @@ mod mechanical_edit_engine_tests {
         }
         assert!(reply_scene.changed_ids.contains(&"board".to_string()));
 
-        let undo_reply = engine.handle(CoreRequest::Undo { id: "undo".into() });
+        let undo_reply = engine.undo();
         let (_, undone) = scene(undo_reply);
         assert!(
             generated_parts(&undone).is_empty(),
@@ -993,7 +982,7 @@ mod mechanical_edit_engine_tests {
         );
         let revision = engine.document.revision;
         let before = engine.document.board_outlines.clone();
-        let (_, document) = scene(engine.handle(command(
+        let (_, document) = scene(engine.commit_edit(command(
             revision,
             edit_op(
                 "main",

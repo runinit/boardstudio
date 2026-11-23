@@ -254,11 +254,8 @@ fn aggregate_two_cycle_refuses_naming_the_matrix() {
         .unwrap()
         .anchor = Some(average_anchor(vec![part("thumb", 0, 0)]));
     let mut engine = CoreEngine::new();
-    match engine.handle(CoreRequest::Open {
-        id: "cycle".into(),
-        document: doc,
-    }) {
-        CoreReply::Error { message, .. } => assert!(
+    match engine.open(doc) {
+        Err(message) => assert!(
             message.contains("Matrix anchor cycle at"),
             "cycle must name the matrix, got {message:?}"
         ),
@@ -487,7 +484,7 @@ fn assert_no_history_entry(engine: &mut Session) {
     assert!(
         matches!(
             engine.undo(),
-            CoreReply::Error { message, .. } if message.contains("History is empty")
+            Err(message) if message.contains("History is empty")
         ),
         "refused edit must leave no history entry"
     );

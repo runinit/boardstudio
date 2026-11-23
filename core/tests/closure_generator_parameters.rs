@@ -21,7 +21,6 @@ use boardstudio_core::model::{
     MechanicalConstructionOwnership, MechanicalFeatureKind, Mount, MountKind, Operation,
     PartDefinition, PhysicalBoardInstance, Pose2, PrepareExportRequest, ProjectDoc, Vec2,
 };
-use boardstudio_core::model::{CoreReply, CoreRequest};
 use boardstudio_core::{CoreEngine, document_format};
 use serde_json::{Value, json};
 
@@ -316,19 +315,10 @@ fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export(
     assert!(error == "Unsupported formatVersion: expected 8", "{error}");
     assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
-    let reply = engine.handle(CoreRequest::Open {
-        id: "old".into(),
-        document: serde_json::from_value(saved).unwrap(),
-    });
-    assert!(matches!(reply, CoreReply::Error { .. }));
+    let reply = engine.open(serde_json::from_value(saved).unwrap());
+    assert!(matches!(reply, Err(_)));
     // The current authored numeric document still opens and exports without conversion.
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "current".into(),
-            document: document.clone()
-        }),
-        CoreReply::Scene { .. }
-    ));
+    assert!(matches!(engine.open(document.clone()), Ok(_)));
     let migrated = document;
     assert_renders_previews_and_exports(&migrated);
 }

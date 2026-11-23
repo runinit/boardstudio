@@ -149,14 +149,11 @@ fn malformed_polygon_fails_without_mutation() {
             "seed": 5
         }),
     );
-    let CoreReply::Error {
-        message, revision, ..
-    } = failed
-    else {
+    let Err(message) = failed else {
         panic!("malformed geometry must fail");
     };
     assert!(message.contains("three finite points"), "{message}");
-    assert_eq!(revision, opened.revision);
+    assert_eq!(document(&mut engine).revision, opened.revision);
     let after = serde_json::to_value(document(&mut engine)).unwrap();
     assert_eq!(before, after, "a malformed edit changes nothing");
 }
@@ -309,7 +306,7 @@ fn new_ids_avoid_collisions_and_removed_ids_never_redirect() {
             "seed": 23
         }),
     );
-    let CoreReply::Error { message, .. } = refused else {
+    let Err(message) = refused else {
         panic!("a retired identity must stay reserved");
     };
     assert!(message.contains("stays reserved"), "{message}");
@@ -321,9 +318,7 @@ fn new_ids_avoid_collisions_and_removed_ids_never_redirect() {
 #[test]
 fn a_relevant_generated_shape_change_retires_a_reviewed_edit() {
     let (mut engine, opened) = open((14.0, 0.0));
-    let scene = scene(engine.handle(CoreRequest::Snapshot {
-        id: "snapshot".into(),
-    }));
+    let scene = scene(engine.snapshot());
     let reviewed = scene
         .board_outline_scenes
         .iter()
