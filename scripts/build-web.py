@@ -291,24 +291,26 @@ def plain_page(route: str, tools: tuple[Path, Path, str], public: Path) -> None:
     stamp.write_bytes(key)
 
 
+def snapshot(paths):
+    result = []
+    for root in paths:
+        if not root.exists():
+            result.append([str(root), None])
+            continue
+        files = sorted(root.rglob("*")) if root.is_dir() else [root]
+        for file in files:
+            if file.is_file():
+                stat = file.stat()
+                # Generated entry files are rewritten even when their bytes are unchanged.
+                identity = hashlib.sha256(file.read_bytes()).hexdigest() if file.name == "entry.js" else stat.st_mtime_ns
+                result.append([str(file), stat.st_size, identity])
+    return result
+
+
 def package_route(output: Path, public: Path, route: str, *, fast=False) -> None:
     site = output / ("site-root" if route == "root" else "site-subpath/boardstudio")
     stamp = output / f".package-{route}.json"
 
-    def snapshot(paths):
-        result = []
-        for root in paths:
-            if not root.exists():
-                result.append([str(root), None])
-                continue
-            files = sorted(root.rglob("*")) if root.is_dir() else [root]
-            for file in files:
-                if file.is_file():
-                    stat = file.stat()
-                    # Generated entry files are rewritten even when their bytes are unchanged.
-                    identity = hashlib.sha256(file.read_bytes()).hexdigest() if file.name == "entry.js" else stat.st_mtime_ns
-                    result.append([str(file), stat.st_size, identity])
-        return result
 
     inputs = [public, WEB / "assets", ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg",
               WEB / "target/providers/cad-worker", WEB / "target/providers/bundled-step",
@@ -422,8 +424,23 @@ def prepare_runtime_providers(fast=False):
         else:
             run(command)
     bake_bundled_step()
+    inputs = [ROOT / "cad/wasm/pkg", ROOT / "renderer/pkg", WEB / "target/providers/cad-worker",
+              WEB / "target/providers/bundled-step", ROOT / "catalogue/modules/imported-modules.json", Path(__file__)]
+    outputs = [WEB / "assets" / name for name in ("cad", "renderer", "cad-worker", "imported-modules.json")]
+    stamp = WEB / "target/providers/.staged-assets.json"
+    current = snapshot(inputs) if fast else None
+    if fast and stamp.is_file():
+        try:
+            if json.loads(stamp.read_text()) == {"inputs": current, "outputs": snapshot(outputs)}:
+                return
+        except (OSError, ValueError):
+            pass
+    stamp.unlink(missing_ok=True)
     _stage_provider_entries(WEB / "assets", ROOT)
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json", WEB / "assets/imported-modules.json")
+    if fast:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(json.dumps({"inputs": current, "outputs": snapshot(outputs)}))
 
 
 def build(output, *, release=True, prepare_providers=True, routes=DEFAULT_ROUTES, fast=False):

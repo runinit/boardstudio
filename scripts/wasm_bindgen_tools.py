@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tomllib
 
 import browser_tools
 
@@ -22,10 +23,13 @@ def test_build_env(environment, root):
     return env
 
 
-def locked_version(root):
-    lock = (Path(root) / "Cargo.lock").read_text()
-    versions = re.findall(r'name = "wasm-bindgen"\nversion = "([^"]+)"', lock)
-    if len(versions) != 1:
+def locked_version(root, *, lock_path=None):
+    with Path(lock_path or Path(root) / "Cargo.lock").open("rb") as lock:
+        packages = tomllib.load(lock).get("package", [])
+    if not isinstance(packages, list) or any(not isinstance(package, dict) for package in packages):
+        raise ValueError("workspace lock must contain Cargo package entries")
+    versions = [package.get("version") for package in packages if package.get("name") == "wasm-bindgen"]
+    if len(versions) != 1 or not isinstance(versions[0], str):
         raise ValueError("Cargo.lock must contain exactly one wasm-bindgen version")
     return versions[0]
 
@@ -41,6 +45,10 @@ def find_bindgen(root, extra=()):
     candidates = []
     if directory := os.environ.get(DIRECTORY_ENV):
         candidates.append(Path(directory) / "wasm-bindgen")
+    else:
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        if patched := local_patched_pair(cache, root, version):
+            candidates.append(patched / "wasm-bindgen")
     if found := shutil.which("wasm-bindgen"):
         candidates.append(Path(found))
     candidates.extend(extra)

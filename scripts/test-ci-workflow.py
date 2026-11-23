@@ -223,6 +223,8 @@ class PatchedPairWorkflowTests(unittest.TestCase):
         (self.root / "scripts").mkdir()
         shutil.copyfile(REPO / "rust-toolchain.toml", self.root / "rust-toolchain.toml")
         shutil.copyfile(REPO / ".cargo/config.toml", self.root / ".cargo/config.toml")
+        for helper in ("wasm_bindgen_tools.py", "browser_tools.py"):
+            shutil.copyfile(REPO / "scripts" / helper, self.root / "scripts" / helper)
         # Run the real builder in the fixture checkout, with locally generated pinned archives.
         builder = runpy.run_path(str(REPO / self.builder_path))
         source = (REPO / self.builder_path).read_text()
